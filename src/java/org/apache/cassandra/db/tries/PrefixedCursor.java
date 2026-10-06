@@ -22,13 +22,11 @@ import org.apache.cassandra.utils.bytecomparable.ByteComparable;
 import org.apache.cassandra.utils.bytecomparable.ByteSource;
 
 /// Prefixed cursor. Prepends the given prefix to all keys of the supplied cursor.
-abstract class PrefixedCursor<T, C extends Cursor<T>> implements Cursor<T>
+abstract class PrefixedCursor<T, C extends Cursor<T>> extends DepthAdjustedCursor<T, C>
 {
-    final C tail;
     ByteSource prefixBytes;
     int nextPrefixByte;
-    int incomingTransition;
-    int depthOfPrefix;
+    long currentPosition;
 
     PrefixedCursor(ByteComparable prefix, C tail)
     {
@@ -42,20 +40,16 @@ abstract class PrefixedCursor<T, C extends Cursor<T>> implements Cursor<T>
 
     PrefixedCursor(int firstPrefixByte, ByteSource prefix, C tail)
     {
-        this.tail = tail;
+        super(tail, 0);
         prefixBytes = prefix;
-        incomingTransition = -1;
         nextPrefixByte = firstPrefixByte;
-        depthOfPrefix = 0;
+        tail.assertFresh();
+        setPositionAndCheckPrefixDone(tail.encodedPosition()); // initial position with the correct direction
     }
 
-    int completeAdvanceInTail(int depthInTail)
+    long completeAdvanceInTail(long position)
     {
-        if (depthInTail < 0)
-            return exhausted();
-
-        incomingTransition = tail.incomingTransition();
-        return depthInTail + depthOfPrefix;
+        return currentPosition = position;
     }
 
     boolean prefixDone()
@@ -64,88 +58,81 @@ abstract class PrefixedCursor<T, C extends Cursor<T>> implements Cursor<T>
     }
 
     @Override
-    public int depth()
+    public long encodedPosition()
     {
-        if (prefixDone())
-            return tail.depth() + depthOfPrefix;
-        else
-            return depthOfPrefix;
+        return currentPosition;
     }
 
     @Override
-    public int incomingTransition()
-    {
-        return incomingTransition;
-    }
-
-    @Override
-    public int advance()
+    public long advance()
     {
         if (prefixDone())
-            return completeAdvanceInTail(tail.advance());
+            return completeAdvanceInTail(super.advance());
 
-        ++depthOfPrefix;
-        incomingTransition = nextPrefixByte;
+        long nextPosition = Cursor.positionForDescentWithByte(currentPosition, nextPrefixByte);
         nextPrefixByte = prefixBytes.next();
-        return depthOfPrefix;
+        return setPositionAndCheckPrefixDone(nextPosition);
     }
 
     @Override
-    public int advanceMultiple(TransitionsReceiver receiver)
+    public long advanceMultiple(TransitionsReceiver receiver)
     {
         if (prefixDone())
-            return completeAdvanceInTail(tail.advanceMultiple(receiver));
+            return completeAdvanceInTail(super.advanceMultiple(receiver));
 
-        incomingTransition = nextPrefixByte;
+        long pos = currentPosition;
+        int incomingTransition = nextPrefixByte;
         nextPrefixByte = prefixBytes.next();
-        ++depthOfPrefix;
 
-        while (!prefixDone())
+        while (nextPrefixByte != ByteSource.END_OF_STREAM)
         {
             receiver.addPathByte(incomingTransition);
-            ++depthOfPrefix;
+            pos += DEPTH_ADJUSTMENT_ONE;
             incomingTransition = nextPrefixByte;
             nextPrefixByte = prefixBytes.next();
         }
-        return depthOfPrefix;
+        // Note: It's tempting to do an advance in the tail too, but its root main contain content or other features
+        // that we can't skip over.
+
+        return setPositionAndCheckPrefixDone(Cursor.positionForDescentWithByte(pos, incomingTransition));
     }
 
     @Override
-    public int skipTo(int skipDepth, int skipTransition)
+    public long skipTo(long encodedSkipPosition)
     {
-        // regardless if we exhausted prefix, if caller asks for depth <= prefix depth, we're done.
-        if (skipDepth <= depthOfPrefix)
-            return exhausted();
         if (prefixDone())
-            return completeAdvanceInTail(tail.skipTo(skipDepth - depthOfPrefix, skipTransition));
-        assert skipDepth == depthOfPrefix + 1 : "Invalid advance request to depth " + skipDepth + " to cursor at depth " + depthOfPrefix;
-        if (tail.direction().gt(skipTransition, nextPrefixByte))
+            return completeAdvanceInTail(super.skipTo(encodedSkipPosition));
+
+        long nextPosition = Cursor.positionForDescentWithByte(currentPosition, nextPrefixByte);
+        if (Cursor.compare(encodedSkipPosition, nextPosition) > 0)
             return exhausted();
-        return advance();
+        assert Cursor.depth(encodedSkipPosition) == Cursor.depth(nextPosition)
+            : "Invalid advance request to " + Cursor.toString(encodedSkipPosition) +
+              " to cursor at " + Cursor.toString(currentPosition);
+        nextPrefixByte = prefixBytes.next();
+        return setPositionAndCheckPrefixDone(nextPosition);
     }
 
-    private int exhausted()
+    private long setPositionAndCheckPrefixDone(long position)
     {
-        incomingTransition = -1;
-        depthOfPrefix = -1;
-        nextPrefixByte = 0; // to make prefixDone() false so incomingTransition/depth/content are -1/-1/null
-        return depthOfPrefix;
+        if (nextPrefixByte == ByteSource.END_OF_STREAM)
+            setAttachmentPoint(position);
+
+        currentPosition = position;
+        return position;
     }
 
-    public Direction direction()
+    private long exhausted()
     {
-        return tail.direction();
-    }
-
-    public ByteComparable.Version byteComparableVersion()
-    {
-        return tail.byteComparableVersion();
+        currentPosition = Cursor.exhaustedPosition(currentPosition);
+        nextPrefixByte = 0; // make sure prefixDone is not engaged (we could return content or tail if it is)
+        return currentPosition;
     }
 
     @Override
     public T content()
     {
-        return prefixDone() ? tail.content() : null;
+        return prefixDone() ? source.content() : null;
     }
 
     ByteSource.Duplicatable duplicateSource()
@@ -171,13 +158,12 @@ abstract class PrefixedCursor<T, C extends Cursor<T>> implements Cursor<T>
         @Override
         public Cursor<T> tailCursor(Direction direction)
         {
+            assert !Cursor.isExhausted(currentPosition) : "tailTrie called on exhausted cursor";
+
             if (prefixDone())
-                return tail.tailCursor(direction);
+                return source.tailCursor(direction);
             else
-            {
-                assert depthOfPrefix >= 0 : "tailTrie called on exhausted cursor";
-                return new Plain<>(nextPrefixByte, duplicateSource(), tail.tailCursor(direction));
-            }
+                return new PrefixedCursor.Plain<>(nextPrefixByte, duplicateSource(), source.tailCursor(direction));
         }
     }
 
@@ -196,21 +182,28 @@ abstract class PrefixedCursor<T, C extends Cursor<T>> implements Cursor<T>
         @Override
         public S state()
         {
-            if (prefixDone() && tail.depth() >= 0)
-                return tail.state();
+            if (prefixDone())
+                return source.state();
+            return null;
+        }
+
+        @Override
+        public S precedingState()
+        {
+            if (prefixDone())
+                return source.precedingState();
             return null;
         }
 
         @Override
         public RangeCursor<S> tailCursor(Direction direction)
         {
+            assert !Cursor.isExhausted(currentPosition) : "tailTrie called on exhausted cursor";
+
             if (prefixDone())
-                return tail.tailCursor(direction);
+                return source.tailCursor(direction);
             else
-            {
-                assert depthOfPrefix >= 0 : "tailTrie called on exhausted cursor";
-                return new Range<>(nextPrefixByte, duplicateSource(), tail.tailCursor(direction));
-            }
+                return new PrefixedCursor.Range<>(nextPrefixByte, duplicateSource(), source.tailCursor(direction));
         }
     }
 
@@ -230,18 +223,19 @@ abstract class PrefixedCursor<T, C extends Cursor<T>> implements Cursor<T>
         @Override
         public RangeCursor<D> deletionBranchCursor(Direction direction)
         {
-            return prefixDone() ? tail.deletionBranchCursor(direction) : null;
+            return prefixDone() ? source.deletionBranchCursor(direction) : null;
         }
 
         @Override
         public DeletionAwareCursor<T, D> tailCursor(Direction direction)
         {
+            assert !Cursor.isExhausted(currentPosition) : "tailTrie called on exhausted cursor";
+
             if (prefixDone())
-                return tail.tailCursor(direction);
+                return source.tailCursor(direction);
             else
             {
-                assert depthOfPrefix >= 0 : "tailTrie called on exhausted cursor";
-                return new DeletionAware<>(nextPrefixByte, duplicateSource(), tail.tailCursor(direction));
+                return new DeletionAware<>(nextPrefixByte, duplicateSource(), source.tailCursor(direction));
             }
         }
     }

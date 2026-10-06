@@ -184,7 +184,7 @@ public abstract class PrefixTailTestBase<T extends InMemoryBaseTrie<Object>, Q e
         for (int i = rand.nextInt(7); i < COUNT_HEAD; i += 1 + rand.nextInt(7))
         {
             Tail t = data.get(prefixes[i]);
-            int keyCount = t.data.keySet().size();
+            int keyCount = t.data.size();
             int firstIndex = rand.nextInt(keyCount - 1);
             int lastIndex = firstIndex + rand.nextInt(keyCount - firstIndex);
             Preencoded first = rand.nextInt(5) > 0 ? Iterables.get(t.data.keySet(), firstIndex) : null;
@@ -216,6 +216,43 @@ public abstract class PrefixTailTestBase<T extends InMemoryBaseTrie<Object>, Q e
                 count.incrementAndGet();
             });
             assertEquals(COUNT_HEAD, count.get());
+        }
+
+        // Test filteredValues and filteredEntrySet
+        for (Direction td : Direction.values())
+        {
+            long count = 0;
+            for (Tail t : trie.filteredValues(td, Tail.class))
+                ++count;
+            assertEquals(COUNT_HEAD, count);
+
+            count = 0;
+            for (var en : trie.filteredEntrySet(td, Tail.class))
+            {
+                assertArrayEquals(en.getValue().prefix, en.getKey().asByteComparableArray(VERSION));
+                ++count;
+            }
+            assertEquals(COUNT_HEAD, count);
+
+            count = 0;
+            for (var it = new TrieEntriesIterator.WithNullFiltering<Object, Tail>(trie, td)
+            {
+                @Override
+                protected Tail mapContent(Object content, byte[] bytes, int byteLength)
+                {
+                    if (!(content instanceof Tail))
+                        return null;
+
+                    Tail tail = (Tail) content;
+                    assertArrayEquals(tail.prefix, Arrays.copyOf(bytes, byteLength));
+                    return tail;
+                }
+            }; it.hasNext(); )
+            {
+                assertNotNull(it.next());
+                ++count;
+            }
+            assertEquals(COUNT_HEAD, count);
         }
     }
 
@@ -413,38 +450,46 @@ public abstract class PrefixTailTestBase<T extends InMemoryBaseTrie<Object>, Q e
             {
                 // At
                 if (tailPath.length != fullPath.length)
-                    output.append("Prefix not empty on tail root" + msg);
+                    output.append("Prefix not empty on tail root").append(msg);
                 Tail t = (Tail) update;
                 if (!Arrays.equals(t.prefix, fullPath))
-                    output.append("Tail root path expected " + Hex.bytesToHex(t.prefix) + msg);
+                    output.append("Tail root path expected ").append(Hex.bytesToHex(t.prefix)).append(msg);
                 currentTail = t;
             }
             else
             {
                 if (currentTail == null)
-                    output.append("Null currentTail" + msg);
+                    output.append("Null currentTail").append(msg);
 
                 if (update instanceof ByteBuffer)
                 {
                     byte[] prefix = Arrays.copyOfRange(fullPath, 0, fullPath.length - tailPath.length);
                     if (!Arrays.equals(currentTail.prefix, prefix))
-                        output.append("Prefix expected " + Hex.bytesToHex(currentTail.prefix) + msg);
+                        output.append("Prefix expected ").append(Hex.bytesToHex(currentTail.prefix)).append(msg);
                 } // on deletions we only get the tail path (see InMemoryDeletionAwareTrie.apply)
 
                 ByteBuffer updateAsBuf = null;
 
                 if (update instanceof TestRangeState)
-                    updateAsBuf = ByteBufferUtil.bytes(((TestRangeState) update).at);
+                {
+                    TestRangeState rs = (TestRangeState) update;
+                    if (rs.leftSide >= 0)
+                        updateAsBuf = ByteBufferUtil.bytes(rs.leftSide);
+                    else if (rs.rightSide >= 0)
+                        updateAsBuf = ByteBufferUtil.bytes(rs.rightSide);
+                    else
+                        output.append("Invalid range state ").append(rs);
+                }
                 else if (update instanceof ByteBuffer)
                     updateAsBuf = (ByteBuffer) update;
                 else
-                    output.append("Not ByteBuffer or TestRangeState " + update + msg);
+                    output.append("Not ByteBuffer or TestRangeState ").append(update).append(msg);
 
                 ByteBuffer expected = currentTail.data.get(ByteComparable.preencoded(VERSION, tailPath));
                 if (expected == null)
-                    output.append("Suffix not found" + msg);
+                    output.append("Suffix not found").append(msg);
                 if (!expected.equals(updateAsBuf))
-                    output.append("Data mismatch " + ByteBufferUtil.bytesToHex(updateAsBuf) + " expected " + ByteBufferUtil.bytesToHex(expected) + msg);
+                    output.append("Data mismatch ").append(ByteBufferUtil.bytesToHex(updateAsBuf)).append(" expected ").append(ByteBufferUtil.bytesToHex(expected)).append(msg);
             }
             return update;
         }

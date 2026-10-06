@@ -56,8 +56,7 @@ public abstract class InMemoryReadTrie<T>
 
      - If the pointer is negative, we have a leaf node. Since a leaf has no children, we need no data outside of its
        content to represent it, and that content is stored in a 'content list', not in the nodes buffer. The content
-       of a particular leaf node is located at the ~pointer position in the content list (~ instead of - so that -1 can
-       correspond to position 0).
+       of a particular leaf node is located at the (pointer & CONTENT_INDEX_MASK) position in the content list.
 
      - If the 'pointer offset' is smaller than 28, we have a chain node with one transition. The transition character is
        the byte at the position pointed in the 'node buffer', and the child is pointed by:
@@ -175,6 +174,12 @@ public abstract class InMemoryReadTrie<T>
     // Offset of the next pointer in a non-shared prefix node
     static final int PREFIX_POINTER_OFFSET = LAST_POINTER_OFFSET - PREFIX_OFFSET;
 
+    static final int CONTENT_FLAGS_SHIFT = 29;
+    static final int CONTENT_INDEX_MASK = (1 << CONTENT_FLAGS_SHIFT) - 1;
+
+    static final int CONTENT_AFTER_BRANCH = 1 << 30;
+
+
     /// Value used as null for node pointers.
     /// No node can use this address (we enforce this by not allowing chain nodes to grow to position 0).
     /// Do not change this as the code relies on there being a `NONE` placed in all bytes of the cell that are not set.
@@ -210,6 +215,7 @@ public abstract class InMemoryReadTrie<T>
 
     static
     {
+        //noinspection ConstantValue
         assert BUF_START_SIZE % CELL_SIZE == 0 : "Initial buffer size must fit a full cell.";
     }
 
@@ -217,9 +223,15 @@ public abstract class InMemoryReadTrie<T>
     final AtomicReferenceArray<T>[] contentArrays;
     final ByteComparable.Version byteComparableVersion;
 
-    InMemoryReadTrie(ByteComparable.Version byteComparableVersion, UnsafeBuffer[] buffers, AtomicReferenceArray<T>[] contentArrays, int root)
+    /// If true, the content always is presented on the descent path of any walk (useful for metadata-carrying tries).
+    /// If false, its position before/after the path will be tracked on insertion and the content will be appropriately
+    /// returned on walks (useful for range and ordered tries).
+    final boolean presentContentOnDescentPath;
+
+    InMemoryReadTrie(ByteComparable.Version byteComparableVersion, boolean presentContentOnDescentPath, UnsafeBuffer[] buffers, AtomicReferenceArray<T>[] contentArrays, int root)
     {
         this.byteComparableVersion = byteComparableVersion;
+        this.presentContentOnDescentPath = presentContentOnDescentPath;
         this.buffers = buffers;
         this.contentArrays = contentArrays;
         this.root = root;
@@ -281,8 +293,8 @@ public abstract class InMemoryReadTrie<T>
     /// @return the current content value.
     T getContent(int id)
     {
-        int leadBit = getBufferIdx(~id, CONTENTS_START_SHIFT, CONTENTS_START_SIZE);
-        int ofs = inBufferOffset(~id, leadBit, CONTENTS_START_SIZE);
+        int leadBit = getBufferIdx(id & CONTENT_INDEX_MASK, CONTENTS_START_SHIFT, CONTENTS_START_SIZE);
+        int ofs = inBufferOffset(id & CONTENT_INDEX_MASK, leadBit, CONTENTS_START_SIZE);
         AtomicReferenceArray<T> array = contentArrays[leadBit];
         return array.get(ofs);
     }
@@ -374,15 +386,20 @@ public abstract class InMemoryReadTrie<T>
             return NONE;
 
         if (offset(node) == PREFIX_OFFSET)
-        {
-            int b = getUnsignedByte(node + PREFIX_FLAGS_OFFSET);
-            if (b < CELL_SIZE)
-                node = node - PREFIX_OFFSET + b;
-            else
-                node = getIntVolatile(node + PREFIX_POINTER_OFFSET);
+            node = getChildOfPrefixNode(node);
 
-            assert node >= 0 && offset(node) != PREFIX_OFFSET;
-        }
+        return node;
+    }
+
+    private int getChildOfPrefixNode(int node)
+    {
+        int b = getUnsignedByte(node + PREFIX_FLAGS_OFFSET);
+        if (b < CELL_SIZE)
+            node = node - PREFIX_OFFSET + b;
+        else
+            node = getIntVolatile(node + PREFIX_POINTER_OFFSET);
+
+        assert node >= 0 && offset(node) != PREFIX_OFFSET;
         return node;
     }
 
@@ -635,29 +652,42 @@ public abstract class InMemoryReadTrie<T>
     /// have a remaining child to advance to. When there's nothing to backtrack to, the trie is exhausted.
     static class InMemoryCursor<T> extends CursorBacktrackingState implements Cursor<T>
     {
+        static final long NOT_FOUND = Cursor.EXHAUSTED_POSITION_FORWARD;
+
         final InMemoryReadTrie<T> trie;
         int currentNode;
         int currentFullNode;
-        private int incomingTransition;
-        private int depth;
+        private long currentPosition;
+        protected int depth;
         protected T content;
         final Direction direction;
+        final boolean presentContentOnDescentPath;
 
-        InMemoryCursor(InMemoryReadTrie<T> trie, Direction direction, int root, int depth, int incomingTransition)
+        InMemoryCursor(InMemoryReadTrie<T> trie, Direction direction, int root)
+        {
+            this(trie, direction, root, trie.presentContentOnDescentPath);
+        }
+
+        /// A version of the constructor which allows the `presentContentOnDescentPath` flag to be overridden.
+        /// This is needed for [DeletionAwareTrie] which uses the same structure for both metadata-carrying data trie
+        /// where content must always be before branch and range tries where the position of content must be preserved.
+        InMemoryCursor(InMemoryReadTrie<T> trie, Direction direction, int root, boolean presentContentOnDescentPath)
         {
             this.trie = trie;
-            this.depth = depth - 1;
             this.direction = direction;
-            descendInto(root, incomingTransition);
+            this.presentContentOnDescentPath = presentContentOnDescentPath;
+            depth = 0;
+            currentPosition = Cursor.rootPosition(direction);
+            setCurrentNodeAndApplyPrefixes(root, 0, 0, true);
         }
 
         @Override
-        public int advance()
+        public long advance()
         {
             return doAdvance();
         }
 
-        int doAdvance()
+        long doAdvance()
         {
             if (isNullOrLeaf(currentNode))
                 return backtrack();
@@ -666,7 +696,7 @@ public abstract class InMemoryReadTrie<T>
         }
 
         @Override
-        public int advanceMultiple(TransitionsReceiver receiver)
+        public long advanceMultiple(TransitionsReceiver receiver)
         {
             int node = currentNode;
             if (!isChainNode(node))
@@ -690,18 +720,28 @@ public abstract class InMemoryReadTrie<T>
         }
 
         @Override
-        public int skipTo(int skipDepth, int skipTransition)
+        public long skipTo(long encodedSkipPosition)
         {
+            int skipDepth = Cursor.depth(encodedSkipPosition);
+            int skipTransition = Cursor.incomingTransition(encodedSkipPosition);
+            boolean onReturnPath = Cursor.isOnReturnPath(encodedSkipPosition);
             if (skipDepth > depth)
             {
                 // Descent requested. Jump to the given child transition or greater, and backtrack if there's no such.
                 assert skipDepth == depth + 1;
-                int advancedDepth = advanceToChildWithTarget(currentNode, skipTransition);
-                if (advancedDepth < 0)
+                long advancedPosition = advanceToChildWithTarget(currentNode, skipTransition);
+                if (advancedPosition == NOT_FOUND)
                     return backtrack();
 
-                assert advancedDepth == skipDepth;
-                return advancedDepth;
+                if (onReturnPath && Cursor.compare(advancedPosition, encodedSkipPosition) < 0)
+                {
+                    // Requested return path but we seeked to the forward. If there's an entry matching the request,
+                    // it will be the immediate backtrack. If not, we still need to backtrack to find the next.
+                    return backtrack();
+                }
+
+                assert Cursor.depth(advancedPosition) == skipDepth;
+                return advancedPosition;
             }
 
             // Backtrack until we reach the requested depth. Note that we may have more than one entry for a given
@@ -715,36 +755,31 @@ public abstract class InMemoryReadTrie<T>
 
                 if (depth == skipDepth - 1)
                 {
-                    int advancedDepth = advanceToNextChildWithTarget(node(backtrackDepth), data(backtrackDepth), skipTransition);
-                    if (advancedDepth >= 0)
-                        return advancedDepth;
+                    long advancedPosition = advanceToNextChildWithTarget(node(backtrackDepth), data(backtrackDepth), skipTransition);
+                    if (advancedPosition != NOT_FOUND)
+                    {
+                        if (!onReturnPath || Cursor.compare(advancedPosition, encodedSkipPosition) >= 0)
+                            return advancedPosition;
+                        // We found an exact match that is not on the return path. A return path backtrack may have just
+                        // been inserted. The next iteration of the loop should find it.
+                    }
+                    // Note that we can't directly do backtrack() because there may be further options to check on the
+                    // same depth.
                 }
             }
             return exhausted();
         }
 
         @Override
-        public int depth()
+        public long encodedPosition()
         {
-            return depth;
+            return currentPosition;
         }
 
         @Override
         public T content()
         {
             return content;
-        }
-
-        @Override
-        public int incomingTransition()
-        {
-            return incomingTransition;
-        }
-
-        @Override
-        public Direction direction()
-        {
-            return direction;
         }
 
         @Override
@@ -756,21 +791,21 @@ public abstract class InMemoryReadTrie<T>
         @Override
         public Cursor<T> tailCursor(Direction dir)
         {
-            assert depth >= 0 : "tailCursor called on exhausted cursor";
-            return new InMemoryCursor<>(trie, dir, currentFullNode, 0, -1);
+            assert !Cursor.isExhausted(currentPosition) : "tailCursor called on exhausted cursor";
+            return new InMemoryCursor<>(trie, dir, currentFullNode, presentContentOnDescentPath);
         }
 
-        int exhausted()
+        long exhausted()
         {
-            depth = -1;
-            incomingTransition = -1;
+            currentPosition = Cursor.exhaustedPosition(direction);
             currentFullNode = NONE;
             currentNode = NONE;
             content = null;
-            return -1;
+            depth = -1;
+            return currentPosition;
         }
 
-        private int backtrack()
+        private long backtrack()
         {
             if (--backtrackDepth < 0)
                 return exhausted();
@@ -779,7 +814,7 @@ public abstract class InMemoryReadTrie<T>
             return advanceToNextChild(node(backtrackDepth), data(backtrackDepth));
         }
 
-        private int advanceToFirstChild(int node)
+        private long advanceToFirstChild(int node)
         {
             assert (!isNullOrLeaf(node));
 
@@ -794,10 +829,10 @@ public abstract class InMemoryReadTrie<T>
             }
         }
 
-        private int advanceToChildWithTarget(int node, int skipTransition)
+        private long advanceToChildWithTarget(int node, int skipTransition)
         {
             if (isNullOrLeaf(node))
-                return -1;
+                return NOT_FOUND;
 
             switch (offset(node))
             {
@@ -810,9 +845,11 @@ public abstract class InMemoryReadTrie<T>
             }
         }
 
-        private int advanceToNextChild(int node, int data)
+        long advanceToNextChild(int node, int data)
         {
-            assert (!isNullOrLeaf(node));
+            assert (!isNull(node));
+            if (isNullOrLeaf(node))
+                return descendInto(node, data);
 
             switch (offset(node))
             {
@@ -825,9 +862,12 @@ public abstract class InMemoryReadTrie<T>
             }
         }
 
-        private int advanceToNextChildWithTarget(int node, int data, int transition)
+        long advanceToNextChildWithTarget(int node, int data, int transition)
         {
-            assert (!isNullOrLeaf(node));
+            assert (!isNull(node));
+            if (isLeaf(node))
+                return direction.le(transition, data) ? descendInto(node, data)
+                                                      : NOT_FOUND;
 
             switch (offset(node))
             {
@@ -850,7 +890,7 @@ public abstract class InMemoryReadTrie<T>
         ///                  sub-level).
         /// @param shift This level's bit shift (6 for start, 3 for mid and 0 for tail).
         /// @return the depth reached after descending.
-        int descendInSplitSublevel(int node, int limit, int collected, int shift)
+        long descendInSplitSublevel(int node, int limit, int collected, int shift)
         {
             while (true)
             {
@@ -887,11 +927,11 @@ public abstract class InMemoryReadTrie<T>
 
         /// As above, but also makes sure that the descent selects a value at least as big as the given
         /// `minTransition`.
-        private int descendInSplitSublevelWithTarget(int node, int limit, int collected, int shift, int minTransition)
+        private long descendInSplitSublevelWithTarget(int node, int limit, int collected, int shift, int minTransition)
         {
             minTransition -= collected;
             if (minTransition >= limit << shift || minTransition < 0)
-                return -1;
+                return NOT_FOUND;
 
             while (true)
             {
@@ -910,7 +950,7 @@ public abstract class InMemoryReadTrie<T>
                     isExact = false;
                 }
                 if (!isExact && (childIndex == limit || childIndex == -1))
-                    return -1;
+                    return NOT_FOUND;
 
                 // look for any more valid transitions and add backtracking if found
                 maybeAddSplitBacktrack(node, childIndex, limit, collected, shift);
@@ -935,11 +975,11 @@ public abstract class InMemoryReadTrie<T>
         }
 
         /// Backtrack to a split sub-level. The level is identified by the lowest non-0 bits in data.
-        int nextValidSplitTransition(int node, int data)
+        long nextValidSplitTransition(int node, int data)
         {
             // Note: This is equivalent to return advanceToSplitTransition(node, data, data) but quicker.
             assert data >= 0 && data <= 0xFF;
-            int childIndex = trie.splitNodeChildIndex(data);
+            int childIndex = splitNodeChildIndex(data);
             if (childIndex != direction.select(0, SPLIT_OTHER_LEVEL_LIMIT - 1))
             {
                 maybeAddSplitBacktrack(node,
@@ -950,7 +990,7 @@ public abstract class InMemoryReadTrie<T>
                 int child = trie.getSplitCellPointer(node, childIndex, SPLIT_OTHER_LEVEL_LIMIT);
                 return descendInto(child, data);
             }
-            int tailIndex = trie.splitNodeTailIndex(data);
+            int tailIndex = splitNodeTailIndex(data);
             if (tailIndex != direction.select(0, SPLIT_OTHER_LEVEL_LIMIT - 1))
             {
                 maybeAddSplitBacktrack(node,
@@ -980,13 +1020,13 @@ public abstract class InMemoryReadTrie<T>
 
         /// Backtrack to a split sub-level and advance to given transition if it fits within the sublevel.
         /// The level is identified by the lowest non-0 bits in data as above.
-        private int advanceToSplitTransition(int node, int data, int skipTransition)
+        private long advanceToSplitTransition(int node, int data, int skipTransition)
         {
             assert data >= 0 && data <= 0xFF;
             if (direction.lt(skipTransition, data))
                 return nextValidSplitTransition(node, data); // already went over the target in lower sublevel, just advance
 
-            int childIndex = trie.splitNodeChildIndex(data);
+            int childIndex = splitNodeChildIndex(data);
             if (childIndex != direction.select(0, SPLIT_OTHER_LEVEL_LIMIT - 1))
             {
                 int sublevelMask = -(1 << (SPLIT_LEVEL_SHIFT * 1));
@@ -994,7 +1034,7 @@ public abstract class InMemoryReadTrie<T>
                 int sublevelLimit = SPLIT_OTHER_LEVEL_LIMIT;
                 return descendInSplitSublevelWithTarget(node, sublevelLimit, data & sublevelMask, sublevelShift, skipTransition);
             }
-            int tailIndex = trie.splitNodeTailIndex(data);
+            int tailIndex = splitNodeTailIndex(data);
             if (tailIndex != direction.select(0, SPLIT_OTHER_LEVEL_LIMIT - 1))
             {
                 int sublevelMask = -(1 << (SPLIT_LEVEL_SHIFT * 2));
@@ -1032,7 +1072,7 @@ public abstract class InMemoryReadTrie<T>
         }
 
 
-        private int nextValidSparseTransition(int node, int data)
+        private long nextValidSparseTransition(int node, int data)
         {
             // Peel off the next index.
             int index = data % SPARSE_CHILD_COUNT;
@@ -1094,7 +1134,7 @@ public abstract class InMemoryReadTrie<T>
             return direction.select(0, 1);
         }
 
-        private int advanceToSparseTransition(int node, int data, int skipTransition)
+        private long advanceToSparseTransition(int node, int data, int skipTransition)
         {
             UnsafeBuffer buffer = trie.getBuffer(node);
             int inBufferNode = trie.inBufferOffset(node);
@@ -1109,7 +1149,7 @@ public abstract class InMemoryReadTrie<T>
             }
             while (direction.lt(transition, skipTransition) && data != exhaustedOrderWord());
             if (direction.lt(transition, skipTransition))
-                return -1;
+                return NOT_FOUND;
 
             // If there are remaining transitions, add backtracking entry.
             if (data != exhaustedOrderWord())
@@ -1120,7 +1160,7 @@ public abstract class InMemoryReadTrie<T>
             return descendInto(child, transition);
         }
 
-        private int getChainTransition(int node)
+        private long getChainTransition(int node)
         {
             // No backtracking needed.
             UnsafeBuffer buffer = trie.getBuffer(node);
@@ -1133,14 +1173,14 @@ public abstract class InMemoryReadTrie<T>
                 return descendInto(buffer.getIntVolatile(inBufferNode + 1), transition);
         }
 
-        private int advanceToChainTransition(int node, int skipTransition)
+        private long advanceToChainTransition(int node, int skipTransition)
         {
             // No backtracking needed.
             UnsafeBuffer buffer = trie.getBuffer(node);
             int inBufferNode = trie.inBufferOffset(node);
             int transition = buffer.getByte(inBufferNode) & 0xFF;
             if (direction.gt(skipTransition, transition))
-                return -1;
+                return NOT_FOUND;
 
             int next = node + 1;
             if (offset(next) <= CHAIN_MAX_OFFSET)
@@ -1149,24 +1189,99 @@ public abstract class InMemoryReadTrie<T>
                 return descendInto(buffer.getIntVolatile(inBufferNode + 1), transition);
         }
 
-        int descendInto(int child, int transition)
+
+        void setCurrentNodeAndApplyPrefixes(int node, int depth, int transition, boolean isInitialState)
         {
-            ++depth;
-            incomingTransition = transition;
-            content = trie.getNodeContent(child);
-            currentFullNode = child;
-            currentNode = trie.followPrefixTransition(child);
-            return depth;
+            currentFullNode = node;
+            if (isLeaf(node))
+            {
+                if (shouldPresentOnTheReturnPath(node))
+                {
+                    if (isInitialState)
+                    {
+                        // We are just starting, we need to present the forward-direction root first.
+                        addBacktrack(node, transition, depth - 1);
+                        content = null;
+                    }
+                    else
+                    {
+                        // There's no reason to delay going to the position of the content.
+                        currentPosition |= ON_RETURN_PATH_BIT;
+                        content = trie.getContent(node);
+                    }
+                }
+                else
+                    content = trie.getContent(node);
+
+                currentNode = NONE;
+            }
+            else if (offset(node) == PREFIX_OFFSET)
+            {
+                content = processPrefix(node, depth, transition);
+                currentNode = trie.getChildOfPrefixNode(node);
+            }
+            else
+            {
+                content = null;
+                currentNode = node;
+            }
         }
 
-        int descendIntoChain(int child, int transition)
+        /// Get the content from a prefix node and/or put a backtracking entry for return path data.
+        /// Overridden by range tries, where both descent and ascent path content can be present.
+        ///
+        /// @return the descent path content, if present
+        T processPrefix(int node, int depth, int transition)
+        {
+            return processPrefixEntry(node, depth, transition, PREFIX_CONTENT_OFFSET);
+        }
+
+        T processPrefixEntry(int node, int depth, int transition, int contentPointerOffset)
+        {
+            int child = trie.getIntVolatile(node + contentPointerOffset);
+            if (isNull(child))
+                return null;
+
+            assert isLeaf(child);
+            if (!shouldPresentOnTheReturnPath(child))
+                return trie.getContent(child);
+
+            // this content needs to be presented on the return path
+            addBacktrack(child, transition, depth - 1);
+            return null;
+        }
+
+        protected boolean shouldPresentOnTheReturnPath(int node)
+        {
+            // Tries where content in prefix nodes is treated as metadata relevant to the branch should present it
+            // before children in both directions.
+            if (presentContentOnDescentPath)
+                return false;
+            // Otherwise obey the before/after position that was given when the data was added (range and ordered tries).
+            else
+                return ((node & CONTENT_AFTER_BRANCH) != 0) == direction.isForward();
+        }
+
+        long descendInto(int child, int transition)
         {
             ++depth;
-            incomingTransition = transition;
-            content = null;
-            currentFullNode = child;
-            currentNode = child;
-            return depth;
+            currentPosition = Cursor.encode(depth, transition, direction);
+            setCurrentNodeAndApplyPrefixes(child, depth, transition, false);
+            return currentPosition;
+        }
+
+        long descendIntoChain(int child, int transition)
+        {
+            return setNodeState(Cursor.encode(++depth, transition, direction), null, child, child);
+        }
+
+        long setNodeState(long nextPosition, T nodeContent, int fullNode, int node)
+        {
+            currentPosition = nextPosition;
+            content = nodeContent;
+            currentFullNode = fullNode;
+            currentNode = node;
+            return nextPosition;
         }
     }
 
@@ -1222,39 +1337,27 @@ public abstract class InMemoryReadTrie<T>
         }
 
         @Override
-        public int advance()
+        public long advance()
         {
             return source.advance();
         }
 
         @Override
-        public int advanceMultiple(TransitionsReceiver receiver)
+        public long advanceMultiple(TransitionsReceiver receiver)
         {
             return source.advanceMultiple(receiver);
         }
 
         @Override
-        public int skipTo(int skipDepth, int skipTransition)
+        public long skipTo(long encodedSkipPosition)
         {
-            return source.skipTo(skipDepth, skipTransition);
+            return source.skipTo(encodedSkipPosition);
         }
 
         @Override
-        public int depth()
+        public long encodedPosition()
         {
-            return source.depth();
-        }
-
-        @Override
-        public int incomingTransition()
-        {
-            return source.incomingTransition();
-        }
-
-        @Override
-        public Direction direction()
-        {
-            return source.direction();
+            return source.encodedPosition();
         }
 
         @Override
@@ -1279,18 +1382,19 @@ public abstract class InMemoryReadTrie<T>
                 switch (offset(node))
                 {
                     case SPARSE_OFFSET:
-                        type = "[SPARSE]";
+                        type = String.format("[SPARSE@%x]", node);
                         break;
                     case SPLIT_OFFSET:
-                        type = "[SPLIT]";
+                        type = String.format("[SPLIT@%x]", node);
                         break;
                     case PREFIX_OFFSET:
                         throw new AssertionError("Unexpected prefix as cursor currentNode.");
                     default:
-                        type = "[CHAIN]";
+                        type = String.format("[CHAIN@%x]", node);
                         break;
                 }
             }
+
             T content = source.content();
             if (content != null)
             {
@@ -1324,11 +1428,19 @@ public abstract class InMemoryReadTrie<T>
                     builder.append("       ");
                 builder.append(Integer.toBinaryString(i | 8).substring(1)) // or and substring implement %03b
                        .append(" -> ");
-                builder.append(child);
+                builder.append(dumpChild(child));
                 if (level < 2)
                     dumpSplitNode(child, level + 1, builder);
             }
         }
+    }
+
+    String dumpChild(int node)
+    {
+        if (isNullOrLeaf(node))
+            return dumpNode(node);
+        else
+            return Integer.toString(node, 16);
     }
 
     /// For use in debugging, dump info about the given node.
@@ -1338,23 +1450,26 @@ public abstract class InMemoryReadTrie<T>
         if (isNull(node))
             return "NONE";
         else if (isLeaf(node))
-            return "~" + (~node);
+            return "~" + (node & CONTENT_INDEX_MASK) +
+                   ((node & CONTENT_AFTER_BRANCH) != 0 ? "↑" : "");
         else
         {
             StringBuilder builder = new StringBuilder();
-            builder.append(node + " ");
+            builder.append(Integer.toString(node, 16)).append(' ');
             switch (offset(node))
             {
                 case SPARSE_OFFSET:
                 {
-                    builder.append("Sparse (Order " + Integer.toString(getUnsignedShortVolatile(node + SPARSE_ORDER_OFFSET), 6) + "):\n");
+                    builder.append("Sparse (Order ")
+                           .append(Integer.toString(getUnsignedShortVolatile(node + SPARSE_ORDER_OFFSET), 6))
+                           .append("):\n");
                     for (int i = 0; i < SPARSE_CHILD_COUNT; ++i)
                     {
                         int child = getIntVolatile(node + SPARSE_CHILDREN_OFFSET + i * 4);
                         if (child != NONE)
                             builder.append(String.format("%02x", getUnsignedByte(node + SPARSE_BYTES_OFFSET + i)))
                                    .append(" -> ")
-                                   .append(child)
+                                   .append(dumpChild(child))
                                    .append('\n');
                     }
                     break;
@@ -1371,12 +1486,12 @@ public abstract class InMemoryReadTrie<T>
                     int flags = getUnsignedByte(node + PREFIX_FLAGS_OFFSET);
                     final int content = getIntVolatile(node + PREFIX_CONTENT_OFFSET);
                     final int alternate = getIntVolatile(node + PREFIX_ALTERNATE_OFFSET);
-                    builder.append(content < 0 ? "~" + (~content) : "" + content);
+                    builder.append(dumpChild(content));
                     if (alternate != NONE)
-                        builder.append(" alt:" + alternate);
+                        builder.append(" alt: ").append(dumpChild(alternate));
                     int child = followPrefixTransition(node);
                     builder.append(" -> ")
-                           .append(dumpNode(child));
+                           .append(dumpChild(child));
                     break;
                 }
                 default:
@@ -1385,7 +1500,7 @@ public abstract class InMemoryReadTrie<T>
                     for (int i = 0; i < chainCellLength(node); ++i)
                         builder.append(String.format("%02x", getUnsignedByte(node + i)));
                     builder.append(" -> ")
-                           .append(getIntVolatile(node + chainCellLength(node)));
+                           .append(dumpChild(getIntVolatile(node + chainCellLength(node))));
                     break;
                 }
             }

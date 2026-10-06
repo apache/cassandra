@@ -39,7 +39,7 @@ public class InMemoryRangeTrieThreadedTest extends ThreadedTestBase<TestRangeSta
     @Override
     TestRangeState value(ByteComparable b)
     {
-        return new TestRangeState(b, 1, 1, 1, false);
+        return new TestRangeState(b, 1, 1);
     }
 
     @Override
@@ -55,10 +55,10 @@ public class InMemoryRangeTrieThreadedTest extends ThreadedTestBase<TestRangeSta
         ByteComparable right = ver -> ByteSource.withTerminator(ByteSource.GT_NEXT_COMPONENT, b.asComparableBytes(ver));
         if (iteration % 2 == 0)
         {
-            trie.putRecursive(left, v, (x, y) -> y.asBoundary(Direction.FORWARD));
-            trie.putRecursive(right, v, (x, y) -> y.asBoundary(Direction.REVERSE));
+            trie.putRecursive(left, v, false, (x, y) -> y.asBoundary(Direction.FORWARD));
+            trie.putRecursive(right, v, true, (x, y) -> y.asBoundary(Direction.REVERSE));
         }
         else
-            trie.apply(RangeTrie.range(left, right, VERSION, v), (x, y) -> y, x -> true);
+            trie.apply(RangeTrie.range(left, true, right, true, TrieUtil.VERSION, v), (x, y) -> y, x -> true);
     }
 }

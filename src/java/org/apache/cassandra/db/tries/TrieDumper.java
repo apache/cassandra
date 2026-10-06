@@ -75,6 +75,13 @@ abstract class TrieDumper<T> implements Cursor.Walker<T, String>
     }
 
     @Override
+    public void onReturnPath()
+    {
+        maybeIndent();
+        b.append('↑');
+    }
+
+    @Override
     public String complete()
     {
         return b.toString();
@@ -125,7 +132,6 @@ abstract class TrieDumper<T> implements Cursor.Walker<T, String>
             b.append("*** Start deletion branch");
             endLineAndSetIndent(currentLength);
             depthAdjustment = currentLength;
-            currentLength = 0;
             return true;
         }
 

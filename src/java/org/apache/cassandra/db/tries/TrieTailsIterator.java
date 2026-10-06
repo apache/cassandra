@@ -37,22 +37,22 @@ public abstract class TrieTailsIterator<T, V, C extends Cursor<T>> extends TrieP
     {
         this.cursor = cursor;
         this.predicate = predicate;
-        assert cursor.depth() == 0;
+        cursor.assertFresh();
     }
 
     public boolean hasNext()
     {
         if (!gotNext)
         {
-            int depth = cursor.depth();
+            int depth = Cursor.depth(cursor.encodedPosition());
             if (depth > 0)
             {
                 // if we are not just starting, we have returned a branch and must skip over it
-                depth = cursor.skipTo(depth, cursor.incomingTransition() + cursor.direction().increase);
-                if (depth < 0)
+                long pos = cursor.skipTo(Cursor.positionForSkippingBranch(cursor.encodedPosition()));
+                if (Cursor.isExhausted(pos))
                     return false;
-                resetPathLength(depth - 1);
-                addPathByte(cursor.incomingTransition());
+                resetPathLength(Cursor.depth(pos) - 1);
+                addPathByte(Cursor.incomingTransition(pos));
             }
 
             next = cursor.content();
@@ -109,7 +109,9 @@ public abstract class TrieTailsIterator<T, V, C extends Cursor<T>> extends TrieP
         @Override
         protected V getContent(T v)
         {
-            return mapContent(v, dir -> cursor.tailCursor(dir), keyBytes, keyPos);
+            // Fix the location of the tail trie source.
+            Cursor<T> tailCursor = cursor.tailCursor(cursor.direction());
+            return mapContent(v, tailCursor::tailCursor, keyBytes, keyPos);
         }
 
         protected abstract V mapContent(T value, Trie<T> tailTrie, byte[] bytes, int byteLength);
@@ -137,7 +139,9 @@ public abstract class TrieTailsIterator<T, V, C extends Cursor<T>> extends TrieP
         @Override
         protected V getContent(S v)
         {
-            return mapContent(v, dir -> cursor.tailCursor(dir), keyBytes, keyPos);
+            // Fix the location of the tail trie source.
+            RangeCursor<S> tailCursor = cursor.tailCursor(cursor.direction());
+            return mapContent(v, tailCursor::tailCursor, keyBytes, keyPos);
         }
 
         protected abstract V mapContent(S value, RangeTrie<S> tailTrie, byte[] bytes, int byteLength);
@@ -165,7 +169,9 @@ public abstract class TrieTailsIterator<T, V, C extends Cursor<T>> extends TrieP
         @Override
         protected V getContent(T v)
         {
-            return mapContent(v, dir -> cursor.tailCursor(dir), keyBytes, keyPos);
+            // Fix the location of the tail trie source.
+            DeletionAwareCursor<T, D> tailCursor = cursor.tailCursor(cursor.direction());
+            return mapContent(v, tailCursor::tailCursor, keyBytes, keyPos);
         }
 
         protected abstract V mapContent(T value, DeletionAwareTrie<T, D> tailTrie, byte[] bytes, int byteLength);

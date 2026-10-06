@@ -46,10 +46,18 @@ public interface RangeState<S extends RangeState<S>>
     boolean isBoundary();
 
     /// Returns the state that applies to the positions preceding this marker in the given iteration order, if any.
+    /// The iteration order given must much the iteration order of the cursor, as some states are generated on the fly.
     ///
     /// This must always be a covering state (i.e. [#isBoundary()] must be `false` and the forward and reverse
     /// preceding states are equal to itself).
     S precedingState(Direction direction);
+
+    /// Returns the state that applies to the positions succeding this marker in the given iteration order, if any.
+    /// The iteration order given must much the iteration order of the cursor, as some states are generated on the fly.
+    ///
+    /// This must always be a covering state (i.e. [#isBoundary()] must be `false` and the forward and reverse
+    /// preceding states are equal to itself).
+    S succedingState(Direction direction);
 
     /// Assuming this is a boundary, returns an intersected version of this state, which may drop parts of a marker that
     /// are not covered by the intersecting range.
@@ -57,10 +65,4 @@ public interface RangeState<S extends RangeState<S>>
 
     /// Assuming this is a covering state, promote it to a boundary active in the specified direction.
     S asBoundary(Direction direction);
-
-    /// Assuming this is a covering state, convert it to a point deletion.
-    default S asPoint()
-    {
-        return null;
-    }
 }

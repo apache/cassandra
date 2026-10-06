@@ -45,21 +45,9 @@ public class ContentProcessingCursor<T, V> implements Cursor<V>
 
 
     @Override
-    public int depth()
+    public long encodedPosition()
     {
-        return source.depth();
-    }
-
-    @Override
-    public int incomingTransition()
-    {
-        return source.incomingTransition();
-    }
-
-    @Override
-    public Direction direction()
-    {
-        return source.direction();
+        return source.encodedPosition();
     }
 
     @Override
@@ -69,21 +57,21 @@ public class ContentProcessingCursor<T, V> implements Cursor<V>
     }
 
     @Override
-    public int advance()
+    public long advance()
     {
         return source.advance();
     }
 
     @Override
-    public int advanceMultiple(TransitionsReceiver receiver)
+    public long advanceMultiple(TransitionsReceiver receiver)
     {
         return source.advanceMultiple(receiver);
     }
 
     @Override
-    public int skipTo(int skipDepth, int skipTransition)
+    public long skipTo(long encodedSkipPosition)
     {
-        return source.skipTo(skipDepth, skipTransition);
+        return source.skipTo(encodedSkipPosition);
     }
 
     @Override

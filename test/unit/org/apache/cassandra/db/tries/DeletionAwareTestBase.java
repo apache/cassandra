@@ -22,9 +22,11 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
 import java.util.stream.Collectors;
+import java.util.stream.IntStream;
 import java.util.stream.Stream;
 
 import org.junit.BeforeClass;
+import org.junit.runners.Parameterized;
 
 import org.apache.cassandra.config.CassandraRelevantProperties;
 import org.apache.cassandra.utils.bytecomparable.ByteComparable;
@@ -42,7 +44,17 @@ public class DeletionAwareTestBase
     static final boolean VERBOSE = false;
 
     static final int bitsNeeded = 6;
-    int bits = bitsNeeded;
+
+    @Parameterized.Parameters(name = "bits per transition {0}")
+    public static List<Object> data()
+    {
+        return IntStream.rangeClosed(1, bitsNeeded)
+                        .boxed()
+                        .collect(Collectors.toList());
+    }
+
+    @Parameterized.Parameter(0)
+    public int bits = bitsNeeded;
 
     @BeforeClass
     public static void enableVerification()
@@ -62,9 +74,9 @@ public class DeletionAwareTestBase
         if (active >= 0) // cmp > 0, must covert active to marker
         {
             if ((rangeIndex & 1) != 0)
-                return new DeletionMarker(nextRange, active, -1, -1);
+                return new DeletionMarker(nextRange, active, -1);
             else
-                return new DeletionMarker(nextRange, -1, active, active);
+                return new DeletionMarker(nextRange, -1, active);
         }
         return null;
     }
@@ -131,17 +143,17 @@ public class DeletionAwareTestBase
 
     DeletionMarker from(int where, int value)
     {
-        return new DeletionMarker(before(where), -1, value, value);
+        return new DeletionMarker(before(where), -1, value);
     }
 
     DeletionMarker to(int where, int value)
     {
-        return new DeletionMarker(before(where), value, -1, -1);
+        return new DeletionMarker(before(where), value, -1);
     }
 
     DeletionMarker change(int where, int from, int to)
     {
-        return new DeletionMarker(before(where), from, to, to);
+        return new DeletionMarker(before(where), from, to);
     }
 
     DeletionMarker[] deletedPoint(int where, int value)
@@ -153,8 +165,8 @@ public class DeletionAwareTestBase
     {
         return new DeletionMarker[]
                {
-               new DeletionMarker(before(where), active, value, value),
-               new DeletionMarker(after(where), value, active, active)
+               new DeletionMarker(before(where), active, value),
+               new DeletionMarker(after(where), value, active)
                };
     }
 

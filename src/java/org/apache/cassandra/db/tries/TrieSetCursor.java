@@ -28,51 +28,41 @@ import org.apache.cassandra.utils.bytecomparable.ByteComparable;
 interface TrieSetCursor extends RangeCursor<TrieSetCursor.RangeState>
 {
     /// This type describes the state at a given cursor position. It describes the coverage of the positions before and
-    /// after the current in forward order, whether the node is boundary (and thus applies to this point and all its
-    /// descendants) and also describes the type of boundary (e.g. start/end).
+    /// after the current in forward iteration order and whether the node is a set boundary that starts or ends an
+    /// included range.
     enum RangeState implements org.apache.cassandra.db.tries.RangeState<RangeState>
     {
         // Note: the states must be ordered so that
-        //   `values()[applicableBefore * APPLICABLE_BEFORE + applicableAfter * APPLICABLE_AFTER + isBoundary * IS_BOUNDARY]`
+        //   `values()[applicableBefore * APPLICABLE_BEFORE + applicableAfter * APPLICABLE_AFTER]`
         // produces a state with the requested flags
 
-        /// The cursor is at a prefix of a contained range, and neither the branches to the left or right are contained.
-        START_END_PREFIX(false, false, false),
-        /// The cursor is positioned at a prefix of an end boundary, inside a covered range on the left.
-        END_PREFIX(true, false, false),
-        /// The cursor is positioned at a prefix of a start boundary. The branches to the right are covered.
-        START_PREFIX(false, true, false),
-        /// The cursor is positioned inside a covered range, on a prefix of an excluded sub-range.
-        END_START_PREFIX(true, true, false),
-        /// The cursor is positioned at a "point" boundary, i.e. only the descendants of the boundary are covered,
-        /// branches to the left or right are not contained.
-        POINT(false, false, true),
-        /// The cursor is positioned at an end boundary. Branches to the left, as well as descendants of this point are
-        /// covered by the set.
-        END(true, false, true),
-        /// The cursor is positioned at a start boundary. Branches to the right, as well as descendants of this point
-        /// are covered by the set.
-        START(false, true, true),
-        /// The cursor is positioned at a non-effective boundary (an end boundary for the previous range, as well as
-        /// a start for the next). Branches before, after and below this point is covered.
-        COVERED(true, true, true);
+        /// The cursor is at a prefix of some start boundary, and the branches before it as well as the current point
+        /// are not included in the set.
+        NOT_CONTAINED(false, false),
+        /// The cursor is positioned at an end boundary. Branches to the left of this are covered by the set.
+        /// The current position and any position to the right in lexicographic order (including descendants of the
+        /// current position) until the next boundary are excluded.
+        END(true, false),
+        /// The cursor is positioned at a start boundary. The current position as well as any position to the right
+        /// in lexicographic order (including descendants of the current position) up to the next boundary are covered
+        /// by the set. Branches to the left of this position are excluded.
+        START(false, true),
+        /// The cursor is positioned inside a covered range.
+        CONTAINED(true, true);
 
         public static final int APPLICABLE_BEFORE = 1 << 0;
         public static final int APPLICABLE_AFTER  = 1 << 1;
-        public static final int IS_BOUNDARY       = 1 << 2;
 
-        /// Whether the set applied to positions before the cursor's in forward order.
+        /// Whether the set contains the positions before the cursor's in forward iteration order.
         final boolean applicableBefore;
-        /// Whether the set applied to positions after the cursor's in forward order.
+        /// Whether the set contains the positions after the cursor's in iteration order, starting with the specific
+        /// node and the children of the current node.
         final boolean applicableAfter;
-        /// Whether this marker specifies a boundary point. Boundary points are reported as content.
-        final boolean isBoundary;
 
-        RangeState(boolean applicableBefore, boolean applicableAfter, boolean isBoundary)
+        RangeState(boolean applicableBefore, boolean applicableAfter)
         {
             this.applicableBefore = applicableBefore;
             this.applicableAfter = applicableAfter;
-            this.isBoundary = isBoundary;
         }
 
         /// Whether the positions preceding the current in iteration order are included in the set.
@@ -81,16 +71,21 @@ interface TrieSetCursor extends RangeCursor<TrieSetCursor.RangeState>
             return direction.select(applicableBefore, applicableAfter);
         }
 
-        /// Whether the current position is a range boundary. This also means that the descendant branch is fully
-        /// included in the set.
+        /// Whether the positions following the current in iteration order are included in the set.
+        public boolean succeedingIncluded(Direction direction)
+        {
+            return direction.select(applicableAfter, applicableBefore);
+        }
+
+        /// Whether the current position is a range boundary.
         public boolean isBoundary()
         {
-            return isBoundary;
+            return applicableBefore != applicableAfter;
         }
 
         public RangeState toContent()
         {
-            return isBoundary ? this : null;
+            return isBoundary() ? this : null;
         }
 
         /// Return an "intersection" state for the combination of two states, i.e. the ranges covered by both states.
@@ -105,34 +100,38 @@ interface TrieSetCursor extends RangeCursor<TrieSetCursor.RangeState>
             return values()[ordinal() | other.ordinal()];
         }
 
-        /// Return the "weakly negated" state, i.e. the state that corresponds to flipped areas of coverage to the left
-        /// and right, and the boundary points. See [TrieSet#weakNegation] for more details.
-        public RangeState weakNegation()
+        /// Return the negated state, i.e. the state that corresponds to flipped areas of coverage to the left
+        /// and right, thus also exchanging start and end boundaries. See [Negated] for more details.
+        public RangeState negation()
         {
             return values()[ordinal() ^ (APPLICABLE_BEFORE | APPLICABLE_AFTER)];
         }
 
-        public static RangeState fromProperties(boolean applicableBefore, boolean applicableAfter, boolean isBoundary)
+        public static RangeState fromProperties(boolean applicableBefore, boolean applicableAfter)
         {
             return values()[(applicableBefore ? APPLICABLE_BEFORE : 0) |
-                            (applicableAfter ? APPLICABLE_AFTER : 0) |
-                            (isBoundary ? IS_BOUNDARY : 0)];
+                            (applicableAfter ? APPLICABLE_AFTER : 0)];
         }
 
-        // RangeState implementations (used for verification)
+        // Implementations of methods from the general RangeState interface (used to treat sets as range tries)
 
         @Override
         public RangeState precedingState(Direction direction)
         {
-            return precedingIncluded(direction) ? END_START_PREFIX : null;
+            return precedingIncluded(direction) ? CONTAINED : null;
+        }
+
+        @Override
+        public RangeState succedingState(Direction direction)
+        {
+            return succeedingIncluded(direction) ? CONTAINED : null;
         }
 
         @Override
         public RangeState restrict(boolean applicableBefore, boolean applicableAfter)
         {
             return fromProperties(this.applicableBefore && applicableBefore,
-                                  this.applicableAfter && applicableAfter,
-                                  this.isBoundary);
+                                  this.applicableAfter && applicableAfter);
         }
 
         @Override
@@ -140,28 +139,26 @@ interface TrieSetCursor extends RangeCursor<TrieSetCursor.RangeState>
         {
             final boolean isForward = direction.isForward();
             return fromProperties(this.applicableBefore && !isForward,
-                                  this.applicableAfter && isForward,
-                                  true);
+                                  this.applicableAfter && isForward);
         }
 
 
         public <S extends org.apache.cassandra.db.tries.RangeState<S>>
-        S applyToCoveringState(S srcState, Direction direction)
+        S applyToCoveringState(S srcState)
         {
             switch (this)
             {
-                case POINT:
-                    return srcState.asPoint();
-                case COVERED:
-                    return srcState;
                 case START:
                     return srcState.asBoundary(Direction.FORWARD);
                 case END:
                     return srcState.asBoundary(Direction.REVERSE);
+                case CONTAINED:
+                    return srcState;
+                case NOT_CONTAINED:
+                    return null;
                 default:
-                    return precedingIncluded(direction) ? srcState : null;
+                    throw new AssertionError();
             }
-
         }
     }
 
@@ -171,19 +168,9 @@ interface TrieSetCursor extends RangeCursor<TrieSetCursor.RangeState>
     /// Returns whether the set includes the positions before the current in iteration order, but after any earlier
     /// position of this cursor, including any position requested by a [#skipTo] call, where this cursor advanced beyond
     /// that position.
-    ///
-    /// Note that this may also be true when the cursor is in an exhausted state, as well as immediately
-    /// after cursor construction, signifying, respectively, right and left unbounded ranges.
     default boolean precedingIncluded()
     {
         return state().precedingIncluded(direction());
-    }
-
-    /// Returns whether the set fully includes all descendants of the current position. This is true for all boundary
-    /// points.
-    default boolean branchIncluded()
-    {
-        return state().isBoundary;
     }
 
     @Override
@@ -195,7 +182,16 @@ interface TrieSetCursor extends RangeCursor<TrieSetCursor.RangeState>
     @Override
     TrieSetCursor tailCursor(Direction direction);
 
-    /// Returns a negated version of this cursor (where every returned state is inverted).
+    @Override
+    default TrieSetCursor precedingStateCursor(Direction direction)
+    {
+        if (precedingIncluded()) // preceding in the direction of this cursor
+            return RangesCursor.full(direction, byteComparableVersion());
+        else
+            return null;
+    }
+
+    /// Returns a negated version of this cursor, covering the complement of the key space.
     default TrieSetCursor negated()
     {
         return new Negated(this);
@@ -203,32 +199,39 @@ interface TrieSetCursor extends RangeCursor<TrieSetCursor.RangeState>
 
     /// Negation of trie set cursors.
     ///
-    /// Achieved by simply inverting the [#state()] values.
+    /// Achieved by simply inverting the [#state()] values, but it must also correct the root state, including by
+    /// adding or dropping a return path to the root state.
     class Negated implements TrieSetCursor
     {
         final TrieSetCursor source;
 
+        enum Overriding
+        {
+            NONE, ROOT, ROOT_RETURN, EXHAUSTED
+        }
+        Overriding overriding;
+
         Negated(TrieSetCursor source)
         {
             this.source = source;
+            overriding = Overriding.ROOT;
         }
 
         @Override
-        public int depth()
+        public long encodedPosition()
         {
-            return source.depth();
-        }
-
-        @Override
-        public int incomingTransition()
-        {
-            return source.incomingTransition();
-        }
-
-        @Override
-        public Direction direction()
-        {
-            return source.direction();
+            long encodedPosition = source.encodedPosition();
+            switch (overriding)
+            {
+                case ROOT_RETURN:
+                    return Cursor.rootReturnPosition(encodedPosition);
+                case EXHAUSTED:
+                    return Cursor.exhaustedPosition(encodedPosition);
+                case ROOT:
+                case NONE:
+                default:
+                    return encodedPosition;
+            }
         }
 
         @Override
@@ -240,19 +243,69 @@ interface TrieSetCursor extends RangeCursor<TrieSetCursor.RangeState>
         @Override
         public RangeState state()
         {
-            return source.state().weakNegation();
+            switch (overriding)
+            {
+                case ROOT:
+                    return source.state().negation().asBoundary(direction());
+                case ROOT_RETURN:
+                    return direction().select(RangeState.END, RangeState.START);
+                case EXHAUSTED:
+                    return RangeState.NOT_CONTAINED;
+                case NONE:
+                default:
+                    return source.state().negation();
+            }
+        }
+
+        long checkOverride(long encodedPosition)
+        {
+            int depth = Cursor.depth(encodedPosition);
+            if (depth > 0)
+            {
+                overriding = Overriding.NONE;
+                return encodedPosition;
+            }
+            else if (depth == 0)
+            {
+                // If we are ascending to the root on the return path, it is done to close an active deletion which
+                // we no longer have. Go directly to exhausted.
+                assert Cursor.isOnReturnPath(encodedPosition);
+                overriding = Overriding.EXHAUSTED;
+                return encodedPosition();
+            }
+            else // depth < 0
+            {
+                // If we went directly to exhausted, we have an active deletion. Insert a root position on the return
+                // path to close it.
+                assert Cursor.isExhausted(encodedPosition);
+                overriding = Overriding.ROOT_RETURN;
+                return encodedPosition();
+            }
         }
 
         @Override
-        public int advance()
+        public long advance()
         {
-            return source.advance();
+            switch (overriding)
+            {
+                case ROOT_RETURN:
+                    overriding = Overriding.EXHAUSTED;
+                    return encodedPosition();
+                default:
+                    return checkOverride(source.advance());
+            }
         }
 
         @Override
-        public int skipTo(int skipDepth, int skipTransition)
+        public long skipTo(long encodedSkipPosition)
         {
-            return source.skipTo(skipDepth, skipTransition);
+            if (Cursor.isExhausted(encodedSkipPosition) || overriding == Overriding.ROOT_RETURN)
+            {
+                overriding = Overriding.EXHAUSTED;
+                return encodedPosition();
+            }
+            else
+                return checkOverride(source.skipTo(encodedSkipPosition));
         }
 
         // Sets don't implement advanceMultiple as they are only meant to limit data tries.
@@ -260,41 +313,9 @@ interface TrieSetCursor extends RangeCursor<TrieSetCursor.RangeState>
         @Override
         public TrieSetCursor tailCursor(Direction direction)
         {
+            assert !Cursor.isOnReturnPath(encodedPosition()) : "tailCursor called on the return path";
+            assert !Cursor.isExhausted(encodedPosition()) : "tailCursor on exhausted cursor";
             return new Negated(source.tailCursor(direction));
-        }
-    }
-
-    static TrieSetCursor empty(Direction direction, ByteComparable.Version version)
-    {
-        return new Empty(TrieSetCursor.RangeState.START_END_PREFIX, version, direction);
-    }
-
-    class Empty extends Cursor.Empty<RangeState> implements TrieSetCursor
-    {
-        final RangeState coveringState;
-
-        public Empty(RangeState coveringState, ByteComparable.Version version, Direction direction)
-        {
-            super(direction, version);
-            this.coveringState = coveringState;
-        }
-
-        @Override
-        public RangeState state()
-        {
-            return coveringState;
-        }
-
-        @Override
-        public RangeState content()
-        {
-            return null;
-        }
-
-        @Override
-        public TrieSetCursor tailCursor(Direction direction)
-        {
-            return new TrieSetCursor.Empty(coveringState, byteComparableVersion(), direction);
         }
     }
 }

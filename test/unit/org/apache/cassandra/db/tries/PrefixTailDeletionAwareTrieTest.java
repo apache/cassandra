@@ -119,7 +119,7 @@ extends PrefixTailTestBase<InMemoryDeletionAwareTrie<Object, TestRangeState>,
     {
         // Note: Because we don't ensure order when calling resolve, just use a hash of the key as payload
         // (so that all sources have the same value).
-        int payload = InMemoryTrieTestBase.asString(b).hashCode();
+        int payload = InMemoryTrieTestBase.asString(b).hashCode() & 0x7fffffff; // must be positive for TestRangeState
         ByteBuffer v = ByteBufferUtil.bytes(payload);
         content.put(b, v);
         if (InMemoryTrieTestBase.VERBOSE)
@@ -127,9 +127,8 @@ extends PrefixTailTestBase<InMemoryDeletionAwareTrie<Object, TestRangeState>,
 
         try
         {
-            DeletionAwareTrie<Object, TestRangeState> toInsert = ((payload & 1) == 1)
-                           ? DeletionAwareTrie.deletion(ByteComparable.EMPTY, b, b, VERSION, new TestRangeState(b, payload, payload, payload, false))
-                           : DeletionAwareTrie.singleton(b, VERSION, v);
+            DeletionAwareTrie<Object, TestRangeState> toInsert;
+            toInsert = (payload & 1) == 1 ? DeletionAwareTrie.deletedRange(ByteComparable.EMPTY, b, true, b, true, TrieUtil.VERSION, new TestRangeState(b, payload, payload)) : DeletionAwareTrie.singleton(b, VERSION, v);
 
             trie.apply(toInsert,
                        THROWING_UPSERT,
@@ -149,7 +148,7 @@ extends PrefixTailTestBase<InMemoryDeletionAwareTrie<Object, TestRangeState>,
         }
 
         if (InMemoryTrieTestBase.VERBOSE)
-            System.out.println(trie.dump(x -> InMemoryTrieTestBase.string(x)));
+            System.out.println(trie.dump(InMemoryTrieTestBase::string));
     }
 
     @Override
@@ -161,7 +160,11 @@ extends PrefixTailTestBase<InMemoryDeletionAwareTrie<Object, TestRangeState>,
                                        return (v instanceof ByteBuffer) ? (ByteBuffer) v : null;
 
                                    assert rs != null;
-                                   return ByteBufferUtil.bytes(rs.at);
+                                   // We only want one side of the branch deletion marker pairs.
+                                   if (rs.rightSide == -1)
+                                       return null;
+
+                                   return ByteBufferUtil.bytes(rs.rightSide);
                                });
     }
 }

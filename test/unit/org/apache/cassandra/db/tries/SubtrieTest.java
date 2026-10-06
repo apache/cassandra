@@ -26,8 +26,11 @@ import java.util.NavigableMap;
 import java.util.Random;
 import java.util.SortedMap;
 import java.util.TreeMap;
+import java.util.function.Function;
+import java.util.stream.Collectors;
 
-import com.googlecode.concurrenttrees.common.Iterables;
+import com.google.common.collect.Iterables;
+import com.google.common.collect.Streams;
 
 import org.junit.Assert;
 import org.junit.BeforeClass;
@@ -38,13 +41,15 @@ import org.apache.cassandra.utils.ByteBufferUtil;
 import org.apache.cassandra.utils.bytecomparable.ByteComparable;
 
 import static java.util.Arrays.asList;
+import static org.apache.cassandra.db.tries.InMemoryTrieTestBase.assertSameContent;
 import static org.apache.cassandra.db.tries.InMemoryTrieTestBase.makeInMemoryTrie;
 import static org.apache.cassandra.db.tries.TrieUtil.FORWARD_COMPARATOR;
 import static org.apache.cassandra.db.tries.TrieUtil.VERSION;
 import static org.apache.cassandra.db.tries.TrieUtil.asString;
-import static org.apache.cassandra.db.tries.TrieUtil.assertSameContent;
 import static org.apache.cassandra.db.tries.TrieUtil.generateKeys;
+import static org.apache.cassandra.db.tries.TrieUtil.singleLevelIntTrie;
 import static org.apache.cassandra.db.tries.TrieUtil.toBound;
+import static org.apache.cassandra.utils.bytecomparable.ByteComparable.EMPTY;
 import static org.apache.cassandra.utils.bytecomparable.ByteComparable.Preencoded;
 import static org.junit.Assert.assertEquals;
 
@@ -63,6 +68,7 @@ public class SubtrieTest
     "test13",
     "test2",
     "test21",
+    "test",
     "te",
     "s",
     "q",
@@ -83,6 +89,8 @@ public class SubtrieTest
     "test124",
     "test12",
     "test21",
+    "test",
+    "te",
     "tease",
     "sort",
     "sorting",
@@ -144,6 +152,50 @@ public class SubtrieTest
     @Test
     public void testSingletonSubtrie()
     {
+        testSingletonSubtrie(key -> Trie.singleton(key, VERSION, true));
+    }
+
+    @Test
+    public void testSingletonSubtrieTailForward()
+    {
+        testSingletonSubtrie(key -> Trie.singleton(key, VERSION, true)
+                                        .cursor(Direction.FORWARD)::tailCursor);
+    }
+
+    @Test
+    public void testSingletonSubtrieTailReverse()
+    {
+        testSingletonSubtrie(key -> Trie.singleton(key, VERSION, true)
+                                        .cursor(Direction.REVERSE)::tailCursor);
+    }
+
+    @Test
+    public void testPrefixToEmptySubtrie()
+    {
+        testSingletonSubtrie(key -> Trie.singleton(EMPTY, VERSION, true).prefixedBy(key));
+    }
+
+    @Test
+    public void testEmptyPrefixSubtrie()
+    {
+        testSingletonSubtrie(key -> Trie.singleton(key, VERSION, true).prefixedBy(EMPTY));
+    }
+
+    @Test
+    public void testSplitPrefixSubtrie()
+    {
+        testSingletonSubtrie(key ->
+                             {
+                                 byte[] bytes = key.asByteComparableArray(VERSION);
+                                 int cut = bytes.length / 2;
+                                 Preencoded k1 = ByteComparable.preencoded(VERSION, bytes, 0, cut);
+                                 Preencoded k2 = ByteComparable.preencoded(VERSION, bytes, cut, bytes.length - cut);
+                                 return Trie.singleton(k2, VERSION, true).prefixedBy(k1);
+                             });
+    }
+
+    public void testSingletonSubtrie(Function<ByteComparable, Trie<Boolean>> make)
+    {
         Arrays.sort(BOUNDARIES, (a, b) -> ByteComparable.compare(a, b, VERSION));
         for (int li = -1; li < BOUNDARIES.length; ++li)
         {
@@ -161,25 +213,45 @@ public class SubtrieTest
                     {
                         int cmp1 = l != null ? ByteComparable.compare(key, l, VERSION) : 1;
                         int cmp2 = r != null ? ByteComparable.compare(r, key, VERSION) : 1;
-                        Trie<Boolean> ix = Trie.singleton(key, VERSION, true).subtrie(toBound(l, !includeLeft), toBound(r, includeRight));
+                        Trie<Boolean> ix = make.apply(key).subtrie(toBound(l, !includeLeft), toBound(r, includeRight));
                         boolean expected = true;
                         if (cmp1 < 0 || cmp1 == 0 && !includeLeft)
                             expected = false;
                         if (cmp2 < 0 || cmp2 == 0 && !includeRight)
                             expected = false;
-                        boolean actual = com.google.common.collect.Iterables.getFirst(ix.values(), false);
-                        if (expected != actual)
+
+                        try
+                        {
+                            assertEquals(expected, Iterables.getFirst(ix.values(), false));
+                        }
+                        catch (Throwable t)
                         {
                             System.err.println("Intersection");
                             System.err.println(ix.dump());
-                            Assert.fail(String.format("Failed on range %s%s,%s%s key %s expected %s got %s\n",
+                            Assert.fail(String.format("Failed on range %s%s,%s%s key %s\n%s\n",
                                                       includeLeft ? "[" : "(",
                                                       l != null ? l.byteComparableAsString(VERSION) : null,
                                                       r != null ? r.byteComparableAsString(VERSION) : null,
                                                       includeRight ? "]" : ")",
                                                       key.byteComparableAsString(VERSION),
-                                                      expected,
-                                                      actual));
+                                                      t));
+                        }
+
+                        try
+                        {
+                            assertEquals(expected, Iterables.getFirst(ix.values(Direction.REVERSE), false));
+                        }
+                        catch (Throwable t)
+                        {
+                            System.err.println("Intersection REV");
+                            System.err.println(ix.cursor(Direction.REVERSE).process(new TrieDumper.Plain<>(Object::toString)));
+                            Assert.fail(String.format("Failed on range %s%s,%s%s REV key %s\n%s\n",
+                                                      includeLeft ? "[" : "(",
+                                                      l != null ? l.byteComparableAsString(VERSION) : null,
+                                                      r != null ? r.byteComparableAsString(VERSION) : null,
+                                                      includeRight ? "]" : ")",
+                                                      key.byteComparableAsString(VERSION),
+                                                      t));
                         }
                     }
                 }
@@ -301,104 +373,7 @@ public class SubtrieTest
      */
     private static <T> List<T> toList(Trie<T> trie, Direction direction)
     {
-        return Iterables.toList(trie.values(direction));
-    }
-
-    /**
-     * Creates a simple trie with a root having the provided number of childs, where each child is a leaf whose content
-     * is simply the value of the transition leading to it.
-     *
-     * In other words, {@code singleLevelIntTrie(4)} creates the following trie:
-     *       Root
-     * t= 0  1  2  3
-     *    |  |  |  |
-     *    0  1  2  3
-     */
-    private static Trie<Integer> singleLevelIntTrie(int childs)
-    {
-        return new Trie<Integer>()
-        {
-            @Override
-            public Cursor<Integer> makeCursor(Direction direction)
-            {
-                return new SingleLevelCursor(direction);
-            }
-
-            class SingleLevelCursor implements Cursor<Integer>
-            {
-                final Direction direction;
-                int current;
-
-                SingleLevelCursor(Direction direction)
-                {
-                    this.direction = direction;
-                    current = direction.select(-1, childs);
-                }
-
-                @Override
-                public int advance()
-                {
-                    current += direction.increase;
-                    return depth();
-                }
-
-                @Override
-                public int skipTo(int depth, int transition)
-                {
-                    if (depth > 1)
-                        return advance();
-                    if (depth < 1)
-                        transition = direction.select(childs, -1);
-
-                    if (direction.isForward())
-                        current = Math.max(0, transition);
-                    else
-                        current = Math.min(childs - 1, transition);
-
-                    return depth();
-                }
-
-                @Override
-                public int depth()
-                {
-                    if (current == direction.select(-1, childs))
-                        return 0;
-                    if (direction.inLoop(current, 0, childs - 1))
-                        return 1;
-                    return -1;
-                }
-
-                @Override
-                public int incomingTransition()
-                {
-                    return current >= childs ? -1 : current;
-                }
-
-                @Override
-                public Integer content()
-                {
-                    return current == direction.select(-1, childs) ? -1 : current;
-                }
-
-                @Override
-                public Direction direction()
-                {
-                    return direction;
-                }
-
-                @Override
-                public ByteComparable.Version byteComparableVersion()
-                {
-                    return VERSION;
-                }
-
-                @Override
-                public Cursor<Integer> tailCursor(Direction d)
-                {
-                    throw new UnsupportedOperationException("tailTrie on test cursor");
-                }
-            }
-        };
+        return Streams.stream(trie.values(direction)).collect(Collectors.toList());
     }
 
     /** Creates a single byte {@link ByteComparable} with the provide value */
@@ -426,7 +401,7 @@ public class SubtrieTest
     @Test
     public void testSimpleIntersection()
     {
-        Trie<Integer> trie = singleLevelIntTrie(10);
+        Trie<Integer> trie = singleLevelIntTrie(10, false);
         assertTrieEquals(asList(-1, 0, 1, 2, 3, 4, 5, 6, 7, 8, 9), trie);
 
         Trie<Integer> intersection = trie.subtrie(of(3), of(7));
@@ -436,7 +411,7 @@ public class SubtrieTest
     @Test
     public void testSimpleLeftIntersection()
     {
-        Trie<Integer> trie = singleLevelIntTrie(10);
+        Trie<Integer> trie = singleLevelIntTrie(10, false);
         assertTrieEquals(asList(-1, 0, 1, 2, 3, 4, 5, 6, 7, 8, 9), trie);
 
         Trie<Integer> intersection = trie.subtrie(of(3), null);
@@ -446,7 +421,7 @@ public class SubtrieTest
     @Test
     public void testSimpleRightIntersection()
     {
-        Trie<Integer> trie = singleLevelIntTrie(10);
+        Trie<Integer> trie = singleLevelIntTrie(10, false);
         assertTrieEquals(asList(-1, 0, 1, 2, 3, 4, 5, 6, 7, 8, 9), trie);
 
         Trie<Integer> intersection = trie.subtrie(null, of(7));
@@ -456,7 +431,7 @@ public class SubtrieTest
     @Test
     public void testSimpleNoIntersection()
     {
-        Trie<Integer> trie = singleLevelIntTrie(10);
+        Trie<Integer> trie = singleLevelIntTrie(10, false);
         assertTrieEquals(asList(-1, 0, 1, 2, 3, 4, 5, 6, 7, 8, 9), trie);
 
         Trie<Integer> intersection = trie.subtrie(null, null);
@@ -466,7 +441,7 @@ public class SubtrieTest
     @Test
     public void testSimpleEmptyIntersectionLeft()
     {
-        Trie<Integer> trie = singleLevelIntTrie(10);
+        Trie<Integer> trie = singleLevelIntTrie(10, false);
         assertTrieEquals(asList(-1, 0, 1, 2, 3, 4, 5, 6, 7, 8, 9), trie);
 
         Trie<Integer> intersection = trie.subtrie(ByteComparable.EMPTY, null);
@@ -479,7 +454,7 @@ public class SubtrieTest
     @Test
     public void testSimpleEmptyIntersectionRight()
     {
-        Trie<Integer> trie = singleLevelIntTrie(10);
+        Trie<Integer> trie = singleLevelIntTrie(10, false);
         assertTrieEquals(asList(-1, 0, 1, 2, 3, 4, 5, 6, 7, 8, 9), trie);
 
         Trie<Integer> intersection = trie.subtrie(null, ByteComparable.EMPTY);
@@ -492,7 +467,7 @@ public class SubtrieTest
     @Test
     public void testSubtrieOnSubtrie()
     {
-        Trie<Integer> trie = singleLevelIntTrie(15);
+        Trie<Integer> trie = singleLevelIntTrie(15, false);
 
         // non-overlapping
         Trie<Integer> intersection = trie.subtrie(of(0), of(4)).subtrie(of(5), of(8));
@@ -517,31 +492,31 @@ public class SubtrieTest
     @Test
     public void testIntersectedIntersection()
     {
-        Trie<Integer> trie = singleLevelIntTrie(15);
+        Trie<Integer> trie = singleLevelIntTrie(15, false);
 
         // non-overlapping
-        Trie<Integer> intersection = trie.intersect(TrieSet.range(VERSION, of(0), of(4)))
-                                         .intersect(TrieSet.range(VERSION, of(5), of(8)));
+        Trie<Integer> intersection = trie.intersect(TrieSet.rangeInclusiveEnd(VERSION, of(0), of(4)))
+                                         .intersect(TrieSet.rangeInclusiveEnd(VERSION, of(5), of(8)));
         assertTrieEquals(asList(-1), intersection);
         // touching
-        intersection = trie.intersect(TrieSet.range(VERSION, of(0), of(3)))
-                           .intersect(TrieSet.range(VERSION, of(3), of(8)));
+        intersection = trie.intersect(TrieSet.rangeInclusiveEnd(VERSION, of(0), of(3)))
+                           .intersect(TrieSet.rangeInclusiveEnd(VERSION, of(3), of(8)));
         assertTrieEquals(asList(-1, 3), intersection);
         // overlapping 1
-        intersection = trie.intersect(TrieSet.range(VERSION, of(0), of(4)))
-                           .intersect(TrieSet.range(VERSION, of(2), of(8)));
+        intersection = trie.intersect(TrieSet.rangeInclusiveEnd(VERSION, of(0), of(4)))
+                           .intersect(TrieSet.rangeInclusiveEnd(VERSION, of(2), of(8)));
         assertTrieEquals(asList(-1, 2, 3, 4), intersection);
         // overlapping 2
-        intersection = trie.intersect(TrieSet.range(VERSION, of(0), of(4)))
-                           .intersect(TrieSet.range(VERSION, of(1), of(8)));
+        intersection = trie.intersect(TrieSet.rangeInclusiveEnd(VERSION, of(0), of(4)))
+                           .intersect(TrieSet.rangeInclusiveEnd(VERSION, of(1), of(8)));
         assertTrieEquals(asList(-1, 1, 2, 3, 4), intersection);
         // covered
-        intersection = trie.intersect(TrieSet.range(VERSION, of(0), of(4)))
-                           .intersect(TrieSet.range(VERSION, of(0), of(8)));
+        intersection = trie.intersect(TrieSet.rangeInclusiveEnd(VERSION, of(0), of(4)))
+                           .intersect(TrieSet.rangeInclusiveEnd(VERSION, of(0), of(8)));
         assertTrieEquals(asList(-1, 0, 1, 2, 3, 4), intersection);
         // covered 2
-        intersection = trie.intersect(TrieSet.range(VERSION, of(4), of(8)))
-                           .intersect(TrieSet.range(VERSION, of(0), of(8)));
+        intersection = trie.intersect(TrieSet.rangeInclusiveEnd(VERSION, of(4), of(8)))
+                           .intersect(TrieSet.rangeInclusiveEnd(VERSION, of(0), of(8)));
         assertTrieEquals(asList(-1, 4, 5, 6, 7, 8), intersection);
     }
 }

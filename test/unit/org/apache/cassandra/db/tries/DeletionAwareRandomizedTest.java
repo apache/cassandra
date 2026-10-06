@@ -26,6 +26,8 @@ import java.util.stream.Collectors;
 
 import org.junit.BeforeClass;
 import org.junit.Test;
+import org.junit.runner.RunWith;
+import org.junit.runners.Parameterized;
 import org.quicktheories.core.Gen;
 
 import org.apache.cassandra.config.CassandraRelevantProperties;
@@ -36,6 +38,7 @@ import static org.apache.cassandra.db.tries.DataPoint.fromList;
 import static org.apache.cassandra.db.tries.DataPoint.toList;
 import static org.apache.cassandra.db.tries.DataPoint.verify;
 import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertNull;
 import static org.quicktheories.QuickTheory.qt;
 import static org.quicktheories.generators.SourceDSL.booleans;
 import static org.quicktheories.generators.SourceDSL.integers;
@@ -47,6 +50,7 @@ import static org.quicktheories.generators.SourceDSL.lists;
 /// comprehensive randomized testing of trie operations, merging, and deletion handling.
 /// It complements the structured tests in [DeletionAwareMergeTest] with property-based
 /// testing to catch edge cases and verify invariants across a wide range of inputs.
+@RunWith(Parameterized.class)
 public class DeletionAwareRandomizedTest extends DeletionAwareTestBase
 {
     @BeforeClass
@@ -67,20 +71,7 @@ public class DeletionAwareRandomizedTest extends DeletionAwareTestBase
                         .zip(integers().between(1, MAX_TIMESTAMP),
                              (pos, ts) -> new LivePoint(at(pos), ts));
     }
-    
-    ///
-    /// Generator for random deletion markers.
-    /// Creates `DeletionMarker` instances with random positions and deletion values.
-    ///
-    private Gen<DeletionMarker> deletionMarkerGen()
-    {
-        return integers().between(0, MAX_VALUE)
-                        .zip(integers().between(1, MAX_TIMESTAMP),
-                             integers().between(-1, MAX_TIMESTAMP),
-                             integers().between(-1, MAX_TIMESTAMP),
-                             (pos, left, at, right) -> new DeletionMarker(before(pos), left, at, right));
-    }
-    
+
     /// Generator for random live point lists.
     /// Creates sorted lists of `LivePoint` instances for trie construction.
     private Gen<List<DataPoint>> dataPointListGen()
@@ -267,11 +258,7 @@ public class DeletionAwareRandomizedTest extends DeletionAwareTestBase
                     
                 DeletionAwareTrie<LivePoint, DeletionMarker> trie1 = fromList(list1, forcedCopy);
                 DeletionAwareTrie<LivePoint, DeletionMarker> trie2 = fromList(list2, forcedCopy);
-                
-                // Test both optimized and safe merge cursors
-                DeletionAwareCursor<LivePoint, DeletionMarker> cursor1 = trie1.cursor(Direction.FORWARD);
-                DeletionAwareCursor<LivePoint, DeletionMarker> cursor2 = trie2.cursor(Direction.FORWARD);
-                
+
                 // Test both optimized and safe merge using the trie API
                 DeletionAwareTrie<LivePoint, DeletionMarker> safeMerge =
                     trie1.mergeWith(trie2, LivePoint::combine, DeletionMarker::combine, DeletionMarker::applyTo, false);
@@ -294,18 +281,13 @@ public class DeletionAwareRandomizedTest extends DeletionAwareTestBase
     @Test
     public void testDeletionApplicationInvariant()
     {
-        qt().forAll(integers().between(0, MAX_VALUE)
-                   .zip(integers().between(1, MAX_TIMESTAMP),
-                        integers().between(1, MAX_TIMESTAMP),
-                        (pos, liveTs, deleteTs) -> asList(pos, liveTs, deleteTs)))
-            .checkAssert(params -> {
-                int pos = (Integer) params.get(0);
-                int liveTs = (Integer) params.get(1);
-                int deleteTs = (Integer) params.get(2);
-
+        qt().forAll(integers().between(0, MAX_VALUE),
+                    integers().between(1, MAX_TIMESTAMP),
+                    integers().between(1, MAX_TIMESTAMP))
+            .checkAssert((pos, liveTs, deleteTs) -> {
                 // Create a live point and a deletion that should affect it
                 LivePoint live = new LivePoint(at(pos), liveTs);
-                DeletionMarker deletion = new DeletionMarker(before(pos), -1, deleteTs, deleteTs);
+                DeletionMarker deletion = new DeletionMarker(before(pos), -1, deleteTs);
 
                 // Apply deletion to live data
                 LivePoint result = deletion.applyTo(live);
@@ -313,8 +295,8 @@ public class DeletionAwareRandomizedTest extends DeletionAwareTestBase
                 if (deleteTs > liveTs)
                 {
                     // Deletion should remove the live data (return null)
-                    assertEquals("Live data should be deleted when deletion timestamp > live timestamp",
-                               null, result);
+                    assertNull("Live data should be deleted when deletion timestamp > live timestamp",
+                               result);
                 }
                 else
                 {

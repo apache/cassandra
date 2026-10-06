@@ -75,10 +75,10 @@ public class InMemoryDeletionAwareTrieThreadedTest extends ThreadedTestBase<Live
             // Add deletion marker using DeletionAwareTrie.deletion
             // Create a deletion marker that deletes data with timestamp less than current
             int deletionTime = v.timestamp + 10; // Delete older data
-            DeletionMarker marker = new DeletionMarker(b, deletionTime, deletionTime, deletionTime);
+            DeletionMarker marker = new DeletionMarker(b, deletionTime, deletionTime);
 
             DeletionAwareTrie<LivePoint, DeletionMarker> deletionTrie =
-                DeletionAwareTrie.deletion(b, b, b, VERSION, marker);
+            DeletionAwareTrie.deletedRange(b, b, true, b, true, TrieUtil.VERSION, marker);
 
             trie.apply(deletionTrie,
                       (existing, incoming) -> existing, // Keep existing live data (no incoming live data in deletion trie)
@@ -95,9 +95,9 @@ public class InMemoryDeletionAwareTrieThreadedTest extends ThreadedTestBase<Live
 
             // Create a deletion marker that deletes data with timestamp less than current
             int deletionTime = v.timestamp + 5; // Delete slightly older data
-            DeletionMarker marker = new DeletionMarker(b, deletionTime, deletionTime, deletionTime);
+            DeletionMarker marker = new DeletionMarker(b, deletionTime, deletionTime);
             DeletionAwareTrie<LivePoint, DeletionMarker> deletionTrie =
-                DeletionAwareTrie.deletion(b, b, b, VERSION, marker);
+            DeletionAwareTrie.deletedRange(b, b, true, b, true, TrieUtil.VERSION, marker);
 
             // Merge singleton and deletion into a combined trie
             DeletionAwareTrie<LivePoint, DeletionMarker> combinedTrie =

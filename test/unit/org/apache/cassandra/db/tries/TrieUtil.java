@@ -21,7 +21,6 @@ package org.apache.cassandra.db.tries;
 import java.nio.ByteBuffer;
 import java.util.ArrayList;
 import java.util.Arrays;
-import java.util.Collection;
 import java.util.Comparator;
 import java.util.Iterator;
 import java.util.LinkedHashMap;
@@ -40,10 +39,10 @@ import java.util.stream.IntStream;
 import com.google.common.annotations.VisibleForTesting;
 import com.google.common.base.Objects;
 import com.google.common.collect.HashMultiset;
-import com.google.common.collect.Iterables;
 import com.google.common.collect.Lists;
 import com.google.common.collect.Multiset;
 import com.google.common.collect.Sets;
+import com.google.common.collect.Streams;
 
 import org.junit.Assert;
 
@@ -52,7 +51,7 @@ import org.apache.cassandra.utils.Pair;
 import org.apache.cassandra.utils.bytecomparable.ByteComparable;
 import org.apache.cassandra.utils.bytecomparable.ByteSource;
 
-import static org.apache.cassandra.db.tries.TestRangeState.remap;
+import static org.apache.cassandra.utils.bytecomparable.ByteComparable.EMPTY;
 import static org.apache.cassandra.utils.bytecomparable.ByteComparable.Preencoded;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.fail;
@@ -66,47 +65,61 @@ public class TrieUtil
     private static final int MIN_LENGTH = 10;
     private static final int MAX_LENGTH = 50;
 
-    static <T> void assertTrieEquals(BaseTrie<T, ?, ?> trie, Map<Preencoded, T> map)
+    static Map<String, String> toStringMap(BaseTrie<?, ?, ?> trie, Direction direction)
     {
-        assertMapEquals(trie.entrySet(Direction.FORWARD),
-                        map.entrySet(),
-                        FORWARD_COMPARATOR);
-        assertMapEquals(trie.entrySet(Direction.REVERSE),
-                        reorderBy(map, REVERSE_COMPARATOR).entrySet(),
-                        REVERSE_COMPARATOR);
+        return Streams.stream(trie.entryIterator(direction))
+                      .collect(Collectors.toMap(x -> asString(x.getKey()),
+                                                x -> x.getValue().toString(),
+                                                (x, y) -> '(' + x + ',' + y + ')',
+                                                LinkedHashMap::new));
     }
 
-    static <T> void assertMapEquals(Iterable<Map.Entry<Preencoded, T>> container1,
-                                    Iterable<Map.Entry<Preencoded, T>> container2,
+    static <T> Map<String, String> toStringMap(Map<Preencoded, T> map, Function<T, ?> mapper)
+    {
+        return map.entrySet()
+                  .stream()
+                  .collect(Collectors.toMap(x -> asString(x.getKey()),
+                                            x -> mapper.apply(x.getValue()).toString(),
+                                            (x, y) -> '(' + x + ',' + y + ')',
+                                            LinkedHashMap::new));
+    }
+
+    static <T> void assertMapEquals(Iterable<Map.Entry<Preencoded, T>> actual,
+                                    Iterable<Map.Entry<Preencoded, T>> expected,
                                     Comparator<Preencoded> comparator)
     {
-        Map<String, String> values1 = collectAsStrings(container1, comparator);
-        Map<String, String> values2 = collectAsStrings(container2, comparator);
-        if (values1.equals(values2))
+        Map<String, String> values1 = collectAsStrings(actual, comparator);
+        Map<String, String> values2 = collectAsStrings(expected, comparator);
+        assertMapEquals(values1, values2);
+    }
+
+    static void assertMapEquals(Map<String, String> actual, Map<String, String> expected)
+    {
+        if (actual.equals(expected))
             return;
 
         // If the maps are not equal, we want to print out the differences in a way that is easy to read.
-        final Set<String> allKeys = Sets.union(values1.keySet(), values2.keySet());
+        final Set<String> allKeys = Sets.union(actual.keySet(), expected.keySet());
         Set<String> keyDifference = allKeys.stream()
-                                           .filter(k -> !Objects.equal(values1.get(k), values2.get(k)))
-                                           .collect(Collectors.toCollection(() -> new TreeSet<>()));
+                                           .filter(k -> !Objects.equal(actual.get(k), expected.get(k)))
+                                           .collect(Collectors.toCollection(TreeSet::new));
         System.err.println("All data");
-        dumpDiff(values1, values2, allKeys);
+        dumpDiff(actual, expected, allKeys);
         System.err.println("\nDifferences");
-        dumpDiff(values1, values2, keyDifference);
+        dumpDiff(actual, expected, keyDifference);
         fail("Maps are not equal at " + keyDifference);
     }
 
-    private static void dumpDiff(Map<String, String> values1, Map<String, String> values2, Set<String> set)
+    private static void dumpDiff(Map<String, String> actual, Map<String, String> expected, Set<String> set)
     {
         for (String key : set)
         {
-            String v1 = values1.get(key);
+            String v1 = actual.get(key);
             if (v1 != null)
-                System.err.println(String.format("Trie    %s:%s", key, v1));
-            String v2 = values2.get(key);
+                System.err.println(String.format("Actual   %s:%s", key, v1));
+            String v2 = expected.get(key);
             if (v2 != null)
-                System.err.println(String.format("TreeSet %s:%s", key, v2));
+                System.err.println(String.format("Expected %s:%s", key, v2));
         }
     }
 
@@ -160,7 +173,7 @@ public class TrieUtil
         return dir -> new CursorFromSpec<>(nodeDef, dir);
     }
 
-    static ByteComparable directComparable(String s)
+    static Preencoded directComparable(String s)
     {
         ByteBuffer b = ByteBufferUtil.bytes(s);
         return ByteComparable.preencoded(VERSION, b);
@@ -174,13 +187,17 @@ public class TrieUtil
 
     static void assertSameContent(Trie<ByteBuffer> trie, SortedMap<Preencoded, ByteBuffer> map)
     {
-        for (Direction dir : Direction.values())
-        {
-            assertMapEquals(trie, map, dir);
-            assertForEachEntryEquals(trie, map, dir);
-            assertValuesEqual(trie, map, dir);
-            assertForEachValueEquals(trie, map, dir);
-        }
+        // Don't use a loop for the direction to see it in the stack path in case of failure.
+        assertMapEquals(trie, map, Direction.FORWARD);
+        assertForEachEntryEquals(trie, map, Direction.FORWARD);
+        assertValuesEqual(trie, map, Direction.FORWARD);
+        assertForEachValueEquals(trie, map, Direction.FORWARD);
+
+        assertMapEquals(trie, map, Direction.REVERSE);
+        assertForEachEntryEquals(trie, map, Direction.REVERSE);
+        assertValuesEqual(trie, map, Direction.REVERSE);
+        assertForEachValueEquals(trie, map, Direction.REVERSE);
+
         assertUnorderedValuesEqual(trie, map);
         checkGet(trie, map);
     }
@@ -207,17 +224,12 @@ public class TrieUtil
 
         for (ByteBuffer b : map.values())
             if (!unordered.remove(b))
-                errors.append("\nMissing value in valuesUnordered: " + ByteBufferUtil.bytesToHex(b));
+                errors.append("\nMissing value in valuesUnordered: ").append(ByteBufferUtil.bytesToHex(b));
 
         for (ByteBuffer b : unordered)
-            errors.append("\nExtra value in valuesUnordered: " + ByteBufferUtil.bytesToHex(b));
+            errors.append("\nExtra value in valuesUnordered: ").append(ByteBufferUtil.bytesToHex(b));
 
         assertEquals("", errors.toString());
-    }
-
-    static Collection<Preencoded> maybeReversed(Direction direction, Collection<Preencoded> data)
-    {
-        return direction.isForward() ? data : reorderBy(data, REVERSE_COMPARATOR);
     }
 
     static <V> Map<Preencoded, V> maybeReversed(Direction direction, Map<Preencoded, V> data)
@@ -225,7 +237,7 @@ public class TrieUtil
         return direction.isForward() ? data : reorderBy(data, REVERSE_COMPARATOR);
     }
 
-    private static <V> Map<Preencoded, V> reorderBy(Map<Preencoded, V> data, Comparator<Preencoded> comparator)
+    static <V> Map<Preencoded, V> reorderBy(Map<Preencoded, V> data, Comparator<Preencoded> comparator)
     {
         Map<Preencoded, V> newMap = new TreeMap<>(comparator);
         newMap.putAll(data);
@@ -260,37 +272,30 @@ public class TrieUtil
         assertMapEquals(trie.entryIterator(direction), maybeReversed(direction, map).entrySet().iterator());
     }
 
-    static <E> Collection<E> reorderBy(Collection<E> original, Comparator<E> comparator)
-    {
-        List<E> list = original.stream().collect(Collectors.toList());
-        list.sort(comparator);
-        return list;
-    }
-
-    static void assertMapEquals(Iterator<Map.Entry<Preencoded, ByteBuffer>> it1,
-                                Iterator<Map.Entry<Preencoded, ByteBuffer>> it2)
+    static void assertMapEquals(Iterator<Map.Entry<Preencoded, ByteBuffer>> actual,
+                                Iterator<Map.Entry<Preencoded, ByteBuffer>> expected)
     {
         List<Preencoded> failedAt = new ArrayList<>();
         StringBuilder b = new StringBuilder();
-        while (it1.hasNext() && it2.hasNext())
+        while (actual.hasNext() && expected.hasNext())
         {
-            Map.Entry<Preencoded, ByteBuffer> en1 = it1.next();
-            Map.Entry<Preencoded, ByteBuffer> en2 = it2.next();
-            b.append(String.format("TreeSet %s:%s\n", asString(en2.getKey()), ByteBufferUtil.bytesToHex(en2.getValue())));
-            b.append(String.format("Trie    %s:%s\n", asString(en1.getKey()), ByteBufferUtil.bytesToHex(en1.getValue())));
+            Map.Entry<Preencoded, ByteBuffer> en1 = actual.next();
+            Map.Entry<Preencoded, ByteBuffer> en2 = expected.next();
+            b.append(String.format("Expected %s:%s\n", asString(en2.getKey()), ByteBufferUtil.bytesToHex(en2.getValue())));
+            b.append(String.format("Actual   %s:%s\n", asString(en1.getKey()), ByteBufferUtil.bytesToHex(en1.getValue())));
             if (ByteComparable.compare(en1.getKey(), en2.getKey(), VERSION) != 0 || ByteBufferUtil.compareUnsigned(en1.getValue(), en2.getValue()) != 0)
                 failedAt.add(en1.getKey());
         }
-        while (it1.hasNext())
+        while (actual.hasNext())
         {
-            Map.Entry<Preencoded, ByteBuffer> en1 = it1.next();
-            b.append(String.format("Trie    %s:%s\n", asString(en1.getKey()), ByteBufferUtil.bytesToHex(en1.getValue())));
+            Map.Entry<Preencoded, ByteBuffer> en1 = actual.next();
+            b.append(String.format("Actual   %s:%s\n", asString(en1.getKey()), ByteBufferUtil.bytesToHex(en1.getValue())));
             failedAt.add(en1.getKey());
         }
-        while (it2.hasNext())
+        while (expected.hasNext())
         {
-            Map.Entry<Preencoded, ByteBuffer> en2 = it2.next();
-            b.append(String.format("TreeSet %s:%s\n", asString(en2.getKey()), ByteBufferUtil.bytesToHex(en2.getValue())));
+            Map.Entry<Preencoded, ByteBuffer> en2 = expected.next();
+            b.append(String.format("Expected %s:%s\n", asString(en2.getKey()), ByteBufferUtil.bytesToHex(en2.getValue())));
             failedAt.add(en2.getKey());
         }
         if (!failedAt.isEmpty())
@@ -367,7 +372,7 @@ public class TrieUtil
 
     public static <S extends RangeState<S>> RangeTrie<S> withRootMetadata(RangeTrie<S> wrapped, S metadata)
     {
-        return wrapped.mergeWith(RangeTrie.singleton(ByteComparable.EMPTY, VERSION, metadata), Trie.throwingResolver());
+        return wrapped.mergeWith(RangeTrie.point(ByteComparable.EMPTY, VERSION, true, metadata), Trie.throwingResolver());
     }
 
     public static <T, D extends RangeState<D>> DeletionAwareTrie<T, D> withRootMetadata(DeletionAwareTrie<T, D> wrapped, T metadata)
@@ -389,16 +394,14 @@ public class TrieUtil
 
     static TrieSet directRanges(String... ranges)
     {
-        if (ranges.length == 0)
-            return TrieSet.empty(VERSION);
+        return TrieSet.ranges(VERSION, true, true, Arrays.stream(ranges)
+                                                         .map(TrieUtil::directComparable)
+                                                         .toArray(ByteComparable[]::new));
+    }
 
-        // to test singleton too, special case two equal boundaries
-        if (ranges.length == 2 && Objects.equal(ranges[0], ranges[1]))
-            return TrieSet.singleton(VERSION, directComparable(ranges[0]));
-
-        return TrieSet.ranges(VERSION, Arrays.stream(ranges)
-                                             .map(r -> directComparable(r))
-                                             .toArray(ByteComparable[]::new));
+    static RangeTrie<TestRangeState> directRangeTrie(int value, String... keys)
+    {
+        return RangeTrie.fromSet(directRanges(keys), new TestRangeState(EMPTY, value, value));
     }
 
     static RangeTrie<TestRangeState> directRangeTrie(String... keys)
@@ -406,48 +409,14 @@ public class TrieUtil
         return directRangeTrie(1, keys);
     }
 
-    static RangeTrie<TestRangeState> directRangeTrie(int value, String... keys)
-    {
-        if (keys.length == 0)
-            return RangeTrie.empty(VERSION);
-        if (keys.length == 2 && Objects.equal(keys[0], keys[1]))
-        {
-            // special case to make a singleton trie
-            ByteComparable bc = directComparable(keys[0]);
-            return RangeTrie.range(bc, bc, VERSION, new TestRangeState(bc, value, value, value, false));
-        }
-
-        try
-        {
-            InMemoryRangeTrie<TestRangeState> trie = InMemoryRangeTrie.shortLived(VERSION);
-            boolean left = true;
-            for (String s : keys)
-            {
-                trie.putRecursive(directComparable(s),
-                                  new TestRangeState(directComparable(s), left ? -1 : value, value, left ? value : -1, true),
-                                  (e, n) -> e != null ? e.restrict(n.leftSide >= 0, n.rightSide >= 0) : n);
-                left = !left;
-            }
-            return trie;
-        }
-        catch (TrieSpaceExhaustedException e)
-        {
-            throw new AssertionError(e); // we are not inserting that much data
-        }
-    }
-
     static void verifyEqualRangeTries(RangeTrie<TestRangeState> trie, RangeTrie<TestRangeState> expected)
     {
-//        System.out.println("Trie:\n" + trie.dump(TestRangeState::toStringNoPosition));
-//        System.out.println("Expected:\n" + expected.cursor(Direction.FORWARD).process(new TrieDumper<>(TestRangeState::toStringNoPosition)));
-        assertMapEquals(Iterables.transform(trie.entrySet(Direction.FORWARD),
-                                            en -> remap(en)),
-                        expected.entrySet(Direction.FORWARD),
-                        FORWARD_COMPARATOR);
-        assertMapEquals(Iterables.transform(trie.entrySet(Direction.REVERSE),
-                                            en -> remap(en)),
-                        expected.entrySet(Direction.REVERSE),
-                        REVERSE_COMPARATOR);
+//        System.out.println("Actual:  \n" + trie.dump(TestRangeState::toStringNoPosition));
+//        System.out.println("Expected:\n" + expected.cursor(Direction.FORWARD).process(new TrieDumper.Plain<>(TestRangeState::toStringNoPosition)));
+        assertMapEquals(TestRangeState.toStringMap(trie, Direction.FORWARD),
+                        TestRangeState.toStringMap(expected, Direction.FORWARD));
+        assertMapEquals(TestRangeState.toStringMap(trie, Direction.REVERSE),
+                        TestRangeState.toStringMap(expected, Direction.REVERSE));
     }
 
     static Preencoded toBound(Preencoded bc)
@@ -504,6 +473,127 @@ public class TrieUtil
         return ByteComparable.preencoded(v.encodingVersion(), data, 0, len);
     }
 
+    /// Creates a simple trie with a root having the provided number of childs, where each child is a leaf whose content
+    /// is simply the value of the transition leading to it.
+    /// In other words, `singleLevelIntTrie(4)` creates the following trie:
+    /// ```
+    ///       Root
+    /// t= 0  1  2  3
+    ///    |  |  |  |
+    ///    0  1  2  3
+    /// ```
+    static Trie<Integer> singleLevelIntTrie(int childs, boolean sliceCompatibleContent)
+    {
+        return new Trie<>()
+        {
+            @Override
+            public Cursor<Integer> makeCursor(Direction direction)
+            {
+                return new SingleLevelCursor(direction);
+            }
+
+            class SingleLevelCursor implements Cursor<Integer>
+            {
+                final Direction direction;
+                int current;
+                final boolean presentContentOnReturnPath;
+
+                SingleLevelCursor(Direction direction)
+                {
+                    this.direction = direction;
+                    current = direction.select(-1, childs);
+                    presentContentOnReturnPath = !direction.isForward() && sliceCompatibleContent;
+                }
+
+                @Override
+                public long advance()
+                {
+                    current += direction.increase;
+                    return encodedPosition();
+                }
+
+                @Override
+                public long skipTo(long encodedSkipPosition)
+                {
+                    int depth = Cursor.depth(encodedSkipPosition);
+                    int transition = Cursor.incomingTransition(encodedSkipPosition);
+
+                    if (Cursor.isOnReturnPath(encodedSkipPosition) && !presentContentOnReturnPath)
+                        transition += direction.increase;
+
+                    if (depth > 1)
+                        return advance();
+                    if (depth < 1)
+                        transition = exhausted();
+
+                    if (direction.isForward())
+                        current = Math.max(0, transition);
+                    else
+                        current = Math.min(childs - 1, transition);
+
+                    return encodedPosition();
+                }
+
+                int exhausted()
+                {
+                    int lastPos = direction.select(childs, -1);
+                    if (presentContentOnReturnPath)
+                        lastPos += direction.increase;
+                    return lastPos;
+                }
+
+                @Override
+                public long encodedPosition()
+                {
+                    if (current == direction.select(-1, childs))
+                        return Cursor.rootPosition(direction);
+                    else if (presentContentOnReturnPath && current == direction.select(childs, -1))
+                        return Cursor.rootPosition(direction) | Cursor.ON_RETURN_PATH_BIT;
+                    else if (direction.inLoop(current, 0, childs - 1))
+                        return Cursor.encode(1, current, direction) |
+                               (presentContentOnReturnPath ? Cursor.ON_RETURN_PATH_BIT : 0);
+                    return Cursor.exhaustedPosition(direction);
+                }
+
+                @Override
+                public Integer content()
+                {
+                    if (presentContentOnReturnPath != Cursor.isOnReturnPath(encodedPosition()))
+                        return null;
+                    return current == childs ? -1 : current;
+                }
+
+                @Override
+                public ByteComparable.Version byteComparableVersion()
+                {
+                    return VERSION;
+                }
+
+                @Override
+                public Cursor<Integer> tailCursor(Direction d)
+                {
+                    if (current == -1)
+                        return makeCursor(d);
+                    else
+                        throw new UnsupportedOperationException("tailTrie on test cursor");
+                }
+            }
+        };
+    }
+
+    static String dump(BaseTrie<?, ?, ?> s, Direction direction)
+    {
+        return s.process(direction, new TrieDumper.Plain<>(Object::toString));
+    }
+
+    static void dumpToOut(BaseTrie<?, ?, ?> s)
+    {
+        System.out.println("Forward:");
+        System.out.println(dump(s, Direction.FORWARD));
+        System.out.println("Reverse:");
+        System.out.println(dump(s, Direction.REVERSE));
+    }
+
     static class SpecStackEntry
     {
         Object[] children;
@@ -523,31 +613,22 @@ public class TrieUtil
     public static class CursorFromSpec<T> implements Cursor<T>
     {
         SpecStackEntry stack;
-        int depth;
-        int leadingTransition;
         Direction direction;
+        long position;
 
         CursorFromSpec(Object[] spec, Direction direction)
         {
             this.direction = direction;
             stack = makeSpecStackEntry(direction, spec, null);
-            depth = 0;
-            leadingTransition = -1;
-        }
-
-        CursorFromSpec(SpecStackEntry stack, int depth, int leadingTransition, Direction direction)
-        {
-            this.direction = direction;
-            this.stack = stack;
-            this.depth = depth;
-            this.leadingTransition = leadingTransition;
+            position = Cursor.rootPosition(direction);
         }
 
         @Override
-        public int advance()
+        public long advance()
         {
             SpecStackEntry current = stack;
             Object child;
+            int depth = Cursor.depth(position);
             do
             {
                 while (current != null
@@ -560,8 +641,7 @@ public class TrieUtil
                 if (current == null)
                 {
                     stack = null;
-                    leadingTransition = -1;
-                    return depth = -1;
+                    return position = Cursor.exhaustedPosition(direction);
                 }
 
                 child = current.children[current.curChild];
@@ -569,12 +649,17 @@ public class TrieUtil
             while (child == null);
             stack = makeSpecStackEntry(direction, child, current);
 
-            return ++depth;
+            return position = encode(++depth);
         }
 
         @Override
-        public int skipTo(int skipDepth, int skipTransition)
+        public long skipTo(long encodedSkipPosition)
         {
+            int skipDepth = Cursor.depth(encodedSkipPosition);
+            int skipTransition = Cursor.incomingTransition(encodedSkipPosition);
+            if (Cursor.isOnReturnPath(encodedSkipPosition))
+                skipTransition += direction.increase;
+            int depth = Cursor.depth(position);
             assert skipDepth <= depth + 1 : "skipTo descends more than one level";
 
             while (stack != null && skipDepth <= depth)
@@ -584,8 +669,7 @@ public class TrieUtil
             }
             if (stack == null)
             {
-                leadingTransition = -1;
-                return depth = -1;
+                return position = Cursor.exhaustedPosition(direction);
             }
 
             int index = skipTransition - 0x30;
@@ -601,28 +685,21 @@ public class TrieUtil
         }
 
         @Override
-        public int depth()
+        public long encodedPosition()
         {
-            return depth;
+            return position;
         }
 
+        @SuppressWarnings("unchecked")
         @Override
         public T content()
         {
             return (T) stack.content;
         }
 
-        @Override
-        public int incomingTransition()
+        private long encode(int depth)
         {
-            SpecStackEntry parent = stack != null ? stack.parent : null;
-            return parent != null ? parent.curChild + 0x30 : leadingTransition;
-        }
-
-        @Override
-        public Direction direction()
-        {
-            return direction;
+            return Cursor.encode(depth, stack.parent.curChild + 0x30, direction);
         }
 
         @Override
@@ -641,9 +718,7 @@ public class TrieUtil
         public String toString()
         {
             StringBuilder stringBuilder = new StringBuilder();
-            stringBuilder.append(incomingTransition())
-                         .append("@")
-                         .append(depth);
+            stringBuilder.append(Cursor.toString(position));
             if (stack.content != null)
                 stringBuilder.append(" content ")
                              .append(stack.content);

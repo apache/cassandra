@@ -33,34 +33,31 @@ import org.apache.cassandra.utils.bytecomparable.ByteSource;
 /// Range tries use [RangeState]s for their content, but they also report a [RangeCursor#state] for any prefix point,
 /// so that skips inside the trie can figure out if the new position is covered by some of the trie's ranges.
 ///
-/// For simplicity and efficiency, range boundaries must be distinct from the keys they cover, and also distinct from
-/// any prefix of a valid data key. Should a specific branch need to be covered, a range of boundaries that fall before
-/// and after that key should be used -- this is easy to do with the prefix-free [ByteComparable] system we have in
-/// place.
-///
 /// See [RangeCursor] and [Trie.md](./Trie.md) for further details on the implementation of range tries.
 public interface RangeTrie<S extends RangeState<S>> extends BaseTrie<S, RangeCursor<S>, RangeTrie<S>>
 {
-    /// Returns a singleton trie mapping the given byte path to a marker.
+    /// Returns a range trie covering a branch.
     ///
-    /// Note: Ranges are meant to use boundaries that are distinct from data and thus a singleton range would list
-    /// only a boundary and always be empty in terms of covered content. However, we do want to be able to place
-    /// metadata in intermediate nodes of the trie and this method makes that possible.
-    static <S extends RangeState<S>> RangeTrie<S> singleton(ByteComparable key, ByteComparable.Version byteComparableVersion, S v)
+    /// This performs the same process as intersecting a covered range by a set, converting the passed marker to the
+    /// proper state depending on the set's coverage and boundaries. To this end, the passed marker must be a covering
+    /// state (i.e. it must not be a boundary, and must have the same forward and reverse `precedingState`).
+    static <S extends RangeState<S>> RangeTrie<S> branch(ByteComparable key, ByteComparable.Version byteComparableVersion, S v)
     {
-        Preconditions.checkArgument(v.isBoundary()); // make sure marker is returned for content()
-        Preconditions.checkArgument(v.precedingState(Direction.FORWARD) == null);
-        Preconditions.checkArgument(v.precedingState(Direction.REVERSE) == null);
-        return dir -> new SingletonCursor.Range<>(dir, key.asComparableBytes(byteComparableVersion), byteComparableVersion, v);
+        return range(key, true, key, true, byteComparableVersion, v);
     }
 
-    /// Returns a range trie covering a single range. This performs the same process as intersecting a covered
-    /// range by a set, converting the passed marker to the proper state depending on the set's coverage and boundaries.
-    /// To this end, the passed marker must be a covering state (i.e. it must not be reportable, and must have the same
-    /// forward and reverse `precedingState`).
-    static <S extends RangeState<S>> RangeTrie<S> range(ByteComparable left, ByteComparable right, ByteComparable.Version byteComparableVersion, S v)
+    /// Returns a range trie covering a single range with the given inclusivity flags for the end points and their
+    /// descendants.
+    ///
+    /// This performs the same process as intersecting a covered range by a set, converting the passed marker to the
+    /// proper state depending on the set's coverage and boundaries. To this end, the passed marker must be a covering
+    /// state (i.e. it must not be a boundary, and must have the same forward and reverse `precedingState`).
+    static <S extends RangeState<S>> RangeTrie<S> range(ByteComparable left, boolean leftInclusive,
+                                                        ByteComparable right, boolean rightInclusive,
+                                                        ByteComparable.Version byteComparableVersion,
+                                                        S v)
     {
-        return fromSet(TrieSet.range(byteComparableVersion, left, right), v);
+        return fromSet(TrieSet.range(byteComparableVersion, left, leftInclusive, right, rightInclusive), v);
     }
 
     /// Returns a range trie covering the given set. This performs the same process as intersecting a covered
@@ -71,8 +68,28 @@ public interface RangeTrie<S extends RangeState<S>> extends BaseTrie<S, RangeCur
     {
         Preconditions.checkArgument(!v.isBoundary());
         Preconditions.checkArgument(v.precedingState(Direction.FORWARD) == v);
-        Preconditions.checkArgument(v.precedingState(Direction.REVERSE) == v);
+        Preconditions.checkArgument(v.succedingState(Direction.FORWARD) == v);
         return dir -> new RangeCursor.FromSet<>(set.cursor(dir), v);
+    }
+
+    /// Returns a singleton trie mapping the given byte path to a marker.
+    ///
+    /// Note: Ranges are meant to use boundaries that are distinct from data and thus a singleton range would list
+    /// only a boundary and always be empty in terms of covered content. This method is useful in cases where we want
+    /// to place other data in range tries (e.g. in tests), or if we want to help a force copy predicate decide when to
+    /// engage (with `beforeBranch = true`).
+    ///
+    /// @param beforeBranch Whether the marker should be listed before the descendant branch or after it.
+    static <S extends RangeState<S>> RangeTrie<S> point(ByteComparable key, ByteComparable.Version byteComparableVersion, boolean beforeBranch, S v)
+    {
+        Preconditions.checkArgument(v.isBoundary()); // make sure marker is returned for content()
+        Preconditions.checkArgument(v.precedingState(Direction.FORWARD) == null);
+        Preconditions.checkArgument(v.succedingState(Direction.FORWARD) == null);
+        return dir -> new SingletonOrderedCursor.Range<>(dir,
+                                                         key.asPeekableBytes(byteComparableVersion),
+                                                         byteComparableVersion,
+                                                         dir.isForward() != beforeBranch,
+                                                         v);
     }
 
     /// Returns the state that applies to the given key. This is either the precise state at the given position, or
@@ -139,11 +156,6 @@ public interface RangeTrie<S extends RangeState<S>> extends BaseTrie<S, RangeCur
     default <T> Trie<T> applyTo(Trie<T> source, BiFunction<S, T, T> mapper)
     {
         return dir -> new RangeApplyCursor<>(mapper, cursor(dir), source.cursor(dir));
-    }
-
-    static <S extends RangeState<S>> RangeTrie<S> empty(ByteComparable.Version version)
-    {
-        return dir -> RangeCursor.empty(dir, version);
     }
 
     @Override

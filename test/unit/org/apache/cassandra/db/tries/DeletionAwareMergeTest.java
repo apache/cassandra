@@ -22,10 +22,14 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Iterator;
 import java.util.List;
+import java.util.stream.Collectors;
+import java.util.stream.IntStream;
 
 import com.google.common.collect.Lists;
 
 import org.junit.Test;
+import org.junit.runner.RunWith;
+import org.junit.runners.Parameterized;
 
 import org.apache.cassandra.utils.bytecomparable.ByteComparable;
 
@@ -35,9 +39,22 @@ import static org.apache.cassandra.db.tries.DataPoint.fromList;
 import static org.apache.cassandra.db.tries.DataPoint.verify;
 import static org.apache.cassandra.db.tries.TrieUtil.VERSION;
 
+@RunWith(Parameterized.class)
 public class DeletionAwareMergeTest extends DeletionAwareTestBase
 {
-    int deletionPoint = 100;
+    @Parameterized.Parameters(name = "bits per transition {0} deletion point {1}")
+    public static List<Object[]> mergeData()
+    {
+        return IntStream.rangeClosed(1, bitsNeeded)
+                        .boxed()
+                        .flatMap(x -> IntStream.of(4, 13, 22, 31, 40)
+                                               .mapToObj(y -> new Object[] { x, y }))
+                        .collect(Collectors.toList());
+    }
+
+
+    @Parameterized.Parameter(1)
+    public int deletionPoint = 100;
 
     private List<DataPoint> deletedRanges(ByteComparable... dataPoints)
     {
@@ -52,9 +69,9 @@ public class DeletionAwareMergeTest extends DeletionAwareTestBase
             if (pos == null)
                 pos = i % 2 == 0 ? before(0) : before((1<<bitsNeeded) - 1);
             if (i % 2 == 0)
-                markers.add(new DeletionMarker(pos, -1, deletionPoint, deletionPoint));
+                markers.add(new DeletionMarker(pos, -1, deletionPoint));
             else
-                markers.add(new DeletionMarker(pos, deletionPoint, -1, -1));
+                markers.add(new DeletionMarker(pos, deletionPoint, -1));
         }
         return verify(markers);
     }
@@ -89,8 +106,6 @@ public class DeletionAwareMergeTest extends DeletionAwareTestBase
     @Test
     public void testSubtrie()
     {
-        for (bits = bitsNeeded; bits > 0; --bits)
-        for (deletionPoint = 4; deletionPoint <= 40; deletionPoint += 9)
         {
             testMerge("no merge");
 
@@ -156,8 +171,6 @@ public class DeletionAwareMergeTest extends DeletionAwareTestBase
     @Test
     public void testRanges()
     {
-        for (bits = bitsNeeded; bits > 0; --bits)
-        for (deletionPoint = 4; deletionPoint <= 40; deletionPoint += 9)
         {
             testMerge("fully covered ranges",
                       deletedRanges(before(20), before(25), before(25), before(33)));
@@ -182,8 +195,6 @@ public class DeletionAwareMergeTest extends DeletionAwareTestBase
     @Test
     public void testRangeOnSubtrie()
     {
-        for (bits = bitsNeeded; bits > 0; --bits)
-        for (deletionPoint = 4; deletionPoint <= 40; deletionPoint += 9)
         {
             // non-overlapping
             testMerge("non-overlapping", deletedRanges(before(20), before(23)), deletedRanges(before(24), before(27)));
@@ -205,8 +216,6 @@ public class DeletionAwareMergeTest extends DeletionAwareTestBase
     @Test
     public void testRangesOnRanges()
     {
-        for (bits = bitsNeeded; bits > 0; --bits)
-        for (deletionPoint = 4; deletionPoint <= 40; deletionPoint += 9)
             testMerges();
     }
 
@@ -484,13 +493,12 @@ public class DeletionAwareMergeTest extends DeletionAwareTestBase
             return marker;
 
         int newLeft = Math.max(deletionTime, marker.leftSide);
-        int newAt = Math.max(deletionTime, marker.at);
         int newRight = Math.max(deletionTime, marker.rightSide);
-        if (newLeft < 0 && newAt < 0 && newRight < 0 || newAt == newLeft && newLeft == newRight)
+        if (newLeft < 0 && newRight < 0 || newLeft == newRight)
             return null;
-        if (newLeft == marker.leftSide && newAt == marker.at && newRight == marker.rightSide)
+        if (newLeft == marker.leftSide && newRight == marker.rightSide)
             return marker;
-        return new DeletionMarker(marker.position, newLeft, newAt, newRight);
+        return new DeletionMarker(marker.position, newLeft, newRight);
     }
 
     LivePoint delete(int deletionTime, LivePoint marker)

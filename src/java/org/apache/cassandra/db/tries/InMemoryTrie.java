@@ -64,46 +64,107 @@ public class InMemoryTrie<T> extends InMemoryBaseTrie<T> implements Trie<T>
     static
     {
         // Measuring the empty size of long-lived tries, because these are the ones for which we want to track size.
-        InMemoryBaseTrie<Object> empty = new InMemoryTrie<>(ByteComparable.Version.OSS50, BufferType.ON_HEAP, ExpectedLifetime.LONG, null);
+        InMemoryBaseTrie<Object> empty = new InMemoryTrie<>(ByteComparable.Version.OSS50, BufferType.ON_HEAP, ExpectedLifetime.LONG, null, true);
         EMPTY_SIZE_ON_HEAP = ObjectSizes.measureDeep(empty);
-        empty = new InMemoryTrie<>(ByteComparable.Version.OSS50, BufferType.OFF_HEAP, ExpectedLifetime.LONG, null);
+        empty = new InMemoryTrie<>(ByteComparable.Version.OSS50, BufferType.OFF_HEAP, ExpectedLifetime.LONG, null, true);
         EMPTY_SIZE_OFF_HEAP = ObjectSizes.measureDeep(empty);
     }
 
-    InMemoryTrie(ByteComparable.Version byteComparableVersion, BufferType bufferType, ExpectedLifetime lifetime, OpOrder opOrder)
+    InMemoryTrie(ByteComparable.Version byteComparableVersion, BufferType bufferType, ExpectedLifetime lifetime, OpOrder opOrder, boolean presentContentOnDescentPath)
     {
-        super(byteComparableVersion, bufferType, lifetime, opOrder);
+        super(byteComparableVersion, presentContentOnDescentPath, bufferType, lifetime, opOrder);
     }
 
+    /// Short-lived tries do not try to recycle and reuse cells and content slots of the trie that are no longer in use
+    /// and are expected to be recycled as a whole after the user is done with them.
     public static <T> InMemoryTrie<T> shortLived(ByteComparable.Version byteComparableVersion)
     {
-        return new InMemoryTrie<>(byteComparableVersion, BufferType.ON_HEAP, ExpectedLifetime.SHORT, null);
+        return shortLived(byteComparableVersion, BufferType.ON_HEAP);
     }
 
+    /// Short-lived tries do not try to recycle and reuse cells and content slots of the trie that are no longer in use
+    /// and are expected to be recycled as a whole after the user is done with them.
     public static <T> InMemoryTrie<T> shortLived(ByteComparable.Version byteComparableVersion, BufferType bufferType)
     {
-        return new InMemoryTrie<>(byteComparableVersion, bufferType, ExpectedLifetime.SHORT, null);
+        return new InMemoryTrie<>(byteComparableVersion, bufferType, ExpectedLifetime.SHORT, null, true);
     }
 
+    /// Long-lived tries are expected to stay around for a long time and will try to minimize the space wasted to data
+    /// or structure that is no longer referenced. To do this they need a signal that lets them know if all readers
+    /// started before a given point in time have completed work, given by the `opOrder` parameter.
     public static <T> InMemoryTrie<T> longLived(ByteComparable.Version byteComparableVersion, OpOrder opOrder)
     {
         return longLived(byteComparableVersion, BufferType.OFF_HEAP, opOrder);
     }
 
+    /// Long-lived tries are expected to stay around for a long time and will try to minimize the space wasted to data
+    /// or structure that is no longer referenced. To do this they need a signal that lets them know if all readers
+    /// started before a given point in time have completed work, given by the `opOrder` parameter.
     public static <T> InMemoryTrie<T> longLived(ByteComparable.Version byteComparableVersion, BufferType bufferType, OpOrder opOrder)
     {
-        return new InMemoryTrie<>(byteComparableVersion, bufferType, ExpectedLifetime.LONG, opOrder);
+        return new InMemoryTrie<>(byteComparableVersion, bufferType, ExpectedLifetime.LONG, opOrder, true);
+    }
+
+    /// Creates a short-lived "ordered" in-memory trie, i.e. where reverse iteration presents content on the ascent
+    /// path so that it can be correctly lexicographically ordered with any keys for which it is a prefix.
+    ///
+    /// Short-lived tries do not try to recycle and reuse cells and content slots of the trie that are no longer in use
+    /// and are expected to be recycled as a whole after the user is done with them.
+    public static <T> InMemoryTrie<T> shortLivedOrdered(ByteComparable.Version byteComparableVersion)
+    {
+        return shortLivedOrdered(byteComparableVersion, BufferType.ON_HEAP);
+    }
+
+    /// Creates a short-lived "ordered" in-memory trie, i.e. where reverse iteration presents content on the ascent
+    /// path so that it can be correctly lexicographically ordered with any keys for which it is a prefix.
+    ///
+    /// Short-lived tries do not try to recycle and reuse cells and content slots of the trie that are no longer in use
+    /// and are expected to be recycled as a whole after the user is done with them.
+    public static <T> InMemoryTrie<T> shortLivedOrdered(ByteComparable.Version byteComparableVersion, BufferType bufferType)
+    {
+        return new InMemoryTrie<>(byteComparableVersion, bufferType, ExpectedLifetime.SHORT, null, false);
+    }
+
+    /// Creates a long-lived "ordered" in-memory trie, i.e. where reverse iteration presents content on the ascent
+    /// path so that it can be correctly lexicographically ordered with any keys for which it is a prefix.
+    ///
+    /// Long-lived tries are expected to stay around for a long time and will try to minimize the space wasted to data
+    /// or structure that is no longer referenced. To do this they need a signal that lets them know if all readers
+    /// started before a given point in time have completed work, given by the `opOrder` parameter.
+    public static <T> InMemoryTrie<T> longLivedOrdered(ByteComparable.Version byteComparableVersion, OpOrder opOrder)
+    {
+        return longLivedOrdered(byteComparableVersion, BufferType.OFF_HEAP, opOrder);
+    }
+
+    /// Creates a long-lived "ordered" in-memory trie, i.e. where reverse iteration presents content on the ascent
+    /// path so that it can be correctly lexicographically ordered with any keys for which it is a prefix.
+    ///
+    /// Long-lived tries are expected to stay around for a long time and will try to minimize the space wasted to data
+    /// or structure that is no longer referenced. To do this they need a signal that lets them know if all readers
+    /// started before a given point in time have completed work, given by the `opOrder` parameter.
+    public static <T> InMemoryTrie<T> longLivedOrdered(ByteComparable.Version byteComparableVersion, BufferType bufferType, OpOrder opOrder)
+    {
+        return new InMemoryTrie<>(byteComparableVersion, bufferType, ExpectedLifetime.LONG, opOrder, false);
     }
 
     public InMemoryCursor<T> makeCursor(Direction direction)
     {
-        return new InMemoryCursor<>(this, direction, root, 0, -1);
+        return new InMemoryCursor<>(this, direction, root);
     }
 
     protected long emptySizeOnHeap()
     {
         return bufferType == BufferType.ON_HEAP ? EMPTY_SIZE_ON_HEAP : EMPTY_SIZE_OFF_HEAP;
     }
+
+    /// Reused storage for the state of application of mutations. This stores the backtracking path, including changes
+    /// already applied (e.g. new version of a node that is not yet linked to the current trie) and some that are yet
+    /// to be applied (e.g. updated content).
+    ///
+    /// Because in-memory tries are single-writer, we can reuse a single state array for all updates. The updates are
+    /// serialized and thus no other thread can corrupt this state (note that this is not the factor enforcing the
+    /// single writer policy, and since we are already bound to it there is cost involved in reusing this state array).
+    final private ApplyState<T> applyState = new ApplyState<>(this);
 
     /// Modify this trie to apply the mutation given in the form of a trie. Any content in the mutation will be resolved
     /// with the given function before being placed in this trie (even if there's no pre-existing content in this trie).
@@ -120,10 +181,10 @@ public class InMemoryTrie<T> extends InMemoryBaseTrie<T> implements Trie<T>
     {
         try
         {
-            Mutation<T, U, Cursor<U>> m = new Mutation<>(transformer,
-                                                         needsForcedCopy,
-                                                         mutation.cursor(Direction.FORWARD),
-                                                         applyState.start());
+            Mutation<T, U, Cursor<U>, ApplyState<T>> m = new Mutation<>(transformer,
+                                                                        needsForcedCopy,
+                                                                        mutation.cursor(Direction.FORWARD),
+                                                                        applyState.start());
             m.apply();
             m.complete();
             completeMutation();
@@ -226,14 +287,14 @@ public class InMemoryTrie<T> extends InMemoryBaseTrie<T> implements Trie<T>
         }
     }
 
-    static class RangeMutation<T, S extends RangeState<S>, C extends RangeCursor<S>> extends Mutation<T, S, C>
+    static class RangeMutation<T, S extends RangeState<S>, C extends RangeCursor<S>> extends Mutation<T, S, C, ApplyState<T>>
     {
         final int initialDepth;
 
         RangeMutation(UpsertTransformerWithKeyProducer<T, S> transformer,
                       Predicate<NodeFeatures<S>> needsForcedCopy,
                       C mutationCursor,
-                      InMemoryBaseTrie<T>.ApplyState state)
+                      ApplyState<T> state)
         {
             this(transformer, needsForcedCopy, mutationCursor, state, Integer.MAX_VALUE);
         }
@@ -241,7 +302,7 @@ public class InMemoryTrie<T> extends InMemoryBaseTrie<T> implements Trie<T>
         RangeMutation(UpsertTransformerWithKeyProducer<T, S> transformer,
                       Predicate<NodeFeatures<S>> needsForcedCopy,
                       C mutationCursor,
-                      InMemoryBaseTrie<T>.ApplyState state,
+                      ApplyState<T> state,
                       int initialForcedCopyDepth)
         {
             super(transformer, needsForcedCopy, mutationCursor, state);
@@ -252,38 +313,25 @@ public class InMemoryTrie<T> extends InMemoryBaseTrie<T> implements Trie<T>
         @Override
         void apply() throws TrieSpaceExhaustedException
         {
-            // A TrieSet may start already in a deleted range. If so, pretend there's a START at the initial position.
-            S content = mutationCursor.precedingState();
-            if (coveringStateApplies(content))
-                content = content.asBoundary(Direction.FORWARD);
-            else
-                content = mutationCursor.content();
-
             int depth = state.currentDepth;
+            long position = mutationCursor.encodedPosition();
+            assert !Cursor.isOnReturnPath(position) : "Cursor cannot start with position on return path.";
             while (true)
             {
                 if (depth < forcedCopyDepth)
                     forcedCopyDepth = needsForcedCopy.test(this) ? depth : Integer.MAX_VALUE;
 
+                S content = mutationCursor.content();
                 if (content != null)
-                {
-                    applyCoveringContent(content);
-                    S mutationCoveringState = content.precedingState(Direction.REVERSE); // Use the right side of the deletion
-                    if (coveringStateApplies(mutationCoveringState))
-                    {
-                        boolean done = !applyDeletionRange(mutationCoveringState);
-                        if (done)
-                            break;
-                    }
-                }
+                    applyDeletionRange(position);
 
-                depth = mutationCursor.advance() + initialDepth;
-                // Descend but do not modify anything yet.
-                if (!state.advanceTo(depth, mutationCursor.incomingTransition(), forcedCopyDepth, initialDepth))
+                position = mutationCursor.advance();
+                depth = Cursor.depth(position) + initialDepth;
+                // Descend but do not modify anything yet. If the position is on the return path, we can still follow
+                // it, `applyDeletionRange` will take care to not apply it to content or descendants.
+                if (!state.advanceTo(depth, Cursor.incomingTransition(position), forcedCopyDepth, initialDepth))
                     break;
-
-                assert state.currentDepth == depth : "Unexpected change to applyState. Concurrent trie modification?";
-                content = mutationCursor.content();
+                assert depth == state.currentDepth : "Unexpected change to applyState. Concurrent trie modification?";
             }
 
             assert state.currentDepth == initialDepth;
@@ -292,68 +340,62 @@ public class InMemoryTrie<T> extends InMemoryBaseTrie<T> implements Trie<T>
         /// Walk all existing content covered under a deletion. Returns true if the caller needs to continue processing
         /// the mutation cursor, and false if the mutation has been exhausted (i.e. the range was open on the right
         /// and we have consumed all existing content).
-        boolean applyDeletionRange(S mutationCoveringState) throws TrieSpaceExhaustedException
+        void applyDeletionRange(long position) throws TrieSpaceExhaustedException
         {
+            S mutationCoveringState = null;
             boolean atMutation = true;
-            int depth = mutationCursor.depth() + initialDepth;
-            int transition = mutationCursor.incomingTransition();
+            int depth = Cursor.depth(position) + initialDepth;
+            int transition = Cursor.incomingTransition(position);
+            boolean onReturnPath = Cursor.isOnReturnPath(position);
             // We are walking both tries in parallel.
             while (true)
             {
                 if (atMutation)
                 {
-                    depth = mutationCursor.advance() + initialDepth;
-                    transition = mutationCursor.incomingTransition();
-                    atMutation = false;
-                }
+                    if (state.currentDepth < forcedCopyDepth)
+                        forcedCopyDepth = needsForcedCopy.test(this) ? state.currentDepth : Integer.MAX_VALUE;
 
-                // Mutation can be open on the right (i.e. not have a closing marker).
-                if (depth > 0)
-                {
-                    if (depth < forcedCopyDepth)
-                        forcedCopyDepth = needsForcedCopy.test(this) ? depth : Integer.MAX_VALUE;
-                    atMutation = !state.advanceToNextExistingOr(depth, transition, forcedCopyDepth);
-                }
-                else if (!state.advanceToNextExisting(forcedCopyDepth))
-                    return false;
+                    S mutationContent = mutationCursor.content();
 
-                T existingContent = state.getContent();
-                S mutationContent = atMutation ? mutationCursor.content() : null;
-                if (mutationContent != null)
-                {
-                    applyCoveringContent(mutationContent);
-                    mutationCoveringState = mutationContent.precedingState(Direction.REVERSE);
-                    if (!coveringStateApplies(mutationCoveringState))
-                        return true; // mutation deletion range was closed, we can continue normal mutation cursor iteration
+                    if (mutationContent != null)
+                    {
+                        if (!onReturnPath)
+                            applyContent(mutationContent);
+                        mutationCoveringState = mutationContent.succedingState(Direction.FORWARD);
+                    }
+                    else if (!onReturnPath)
+                        applyContent(mutationCoveringState);
+
+                    if (mutationCoveringState == null)
+                        return;
+
+                    position = mutationCursor.advance();
+                    depth = Cursor.depth(position) + initialDepth;
+                    transition = Cursor.incomingTransition(position);
+                    onReturnPath = Cursor.isOnReturnPath(position);
                 }
-                else if (existingContent != null)
-                    applyCoveringContent(mutationCoveringState);
+                else
+                    applyContent(mutationCoveringState);
+
+                atMutation = !state.advanceToNextExistingOr(depth, transition, onReturnPath, forcedCopyDepth, initialDepth);
             }
         }
 
-        private static <S extends RangeState<S>> boolean coveringStateApplies(S state)
+        void applyContent(S content) throws TrieSpaceExhaustedException
         {
-            // Sets return non-null state (START_END_PREFIX) for regions that they do not cover. Check that too.
-            return state != null && state != TrieSetCursor.RangeState.START_END_PREFIX;
-        }
-
-        void applyCoveringContent(S content) throws TrieSpaceExhaustedException
-        {
-            if (content != null)
+            T existingContent = state.getDescentPathContent();
+            if (existingContent != null)
             {
-                T existingContent = state.getContent();
-                if (existingContent != null)
-                {
-                    T combinedContent = transformer.apply(existingContent, content, state);
-                    state.setContent(combinedContent, // can be null
-                                     state.currentDepth >= forcedCopyDepth); // this is called at the start of processing
-                }
+                T combinedContent = transformer.apply(existingContent, content, state);
+                if (combinedContent != existingContent)
+                    state.setDescentPathContent(combinedContent, // can be null
+                                                state.currentDepth >= forcedCopyDepth); // this is called at the start of processing
             }
         }
 
         private static <T> T deleteEntry(T entry, TrieSetCursor.RangeState state)
         {
-            return state.applicableBefore ? null : entry;
+            return state.applicableAfter ? null : entry;
         }
     }
 }

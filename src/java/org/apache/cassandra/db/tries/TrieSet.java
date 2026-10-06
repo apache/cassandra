@@ -21,36 +21,78 @@ package org.apache.cassandra.db.tries;
 import org.apache.cassandra.utils.bytecomparable.ByteComparable;
 import org.apache.cassandra.utils.bytecomparable.ByteSource;
 
-/// A trie that defines an infinite set of `ByteComparable`s. The convention of this package is that sets always
-/// include all boundaries, all prefixes that lead to a boundary, and all descendants of all boundaries. This is done
-/// to properly define reverse iteration where prefixes are listed before their descendants, and to allow for the
-/// retrieval of metadata on paths pointing to specific keys.
+/// A trie that defines an infinite set of `ByteComparable`s. Trie sets represent sets of ranges of coverage by listing
+/// the boundaries between them, and providing a way to identify the "covering state" for positions that are being
+/// skipped to.
 ///
-/// Trie sets represent sets of ranges of coverage by listing the boundaries between them, and providing a way to
-/// identify the "covering state" for positions that are being skipped to.
-///
-/// Trie sets can be constructed from ranges using [#singleton], [#range] and [#ranges], and can be manipulated via
-/// the set algebra methods [#union], [#intersection] and [#weakNegation].
+/// Trie sets can be constructed from ranges using [#branch], [#range] and [#ranges], and can be manipulated via
+/// the set algebra methods [#union], [#intersection] and [#negation]. Sets are usually used to select a subset of a
+/// trie using its `intersect` method (see [Trie#intersect], [RangeTrie#intersect], [DeletionAwareTrie#intersect]),
+/// which preserves metadata in prefixes that are not part of the set (e.g. content for "a", "ab", "abc", "abe" when
+/// listing the branch `[abcde;abefg]`). Additionally, plain tries also provide the [Trie#intersectSlicing] method which
+/// only preserves content strictly inside the set (i.e. only "abe" out of the prefix examples above) and can be used to
+/// obtain a lexicographically bounded slice of an ordered trie.
 public interface TrieSet extends CursorWalkable<TrieSetCursor>
 {
-    static TrieSet singleton(ByteComparable.Version version, ByteComparable b)
+    /// The set covering the branch rooted at the given key.
+    static TrieSet branch(ByteComparable.Version version, ByteComparable b)
     {
-        return ranges(version, b, b);
+        return rangeInclusiveEnd(version, b, b);
     }
 
-    static TrieSet range(ByteComparable.Version version, ByteComparable left, ByteComparable right)
+    /// The set between two keys, inclusive of the left key and the branch rooted at the right bound.
+    static TrieSet rangeInclusiveEnd(ByteComparable.Version version, ByteComparable left, ByteComparable right)
     {
-        return ranges(version, left, right);
+        return range(version, left, true, right, true);
     }
 
+    /// The set between two keys, inclusive of the left key and excluding the right bound or any of its descendants.
+    static TrieSet rangeExclusiveEnd(ByteComparable.Version version, ByteComparable left, ByteComparable right)
+    {
+        return range(version, left, true, right, false);
+    }
+
+    /// The set between two keys with the given inclusivity. Note that inclusivity here applies to the branch rooted at
+    /// the respective key. For example, `(abc; cde]` does not contain "cdf", "abc" or "abcd" and includes "abd", "cde",
+    /// and "cdez".
+    static TrieSet range(ByteComparable.Version version, ByteComparable left, boolean leftInclusive, ByteComparable right, boolean rightInclusive)
+    {
+        return ranges(version, leftInclusive, rightInclusive, left, right);
+    }
+
+    /// The set between the given pairs of boundaries. This is the same as the union of the range sets produced by
+    /// each pair in the `boundaries` array, done in a single step. The inclusivity parameters apply to the bound at the
+    /// respective side in every pair, `leftInclusive` to all left bounds (every even position in the array), and
+    /// `rightInclusive` to all right ones (every odd position in the array).
+    ///
+    /// The keys in the array must be given in order, taking into account the inclusivity parameter (where e.g.
+    /// right-inclusive bound "a" is greater than "ab").
+    ///
+    /// Also see [RangesCursor] for further information.
+    static TrieSet ranges(ByteComparable.Version version, boolean leftInclusive, boolean rightInclusive, ByteComparable... boundaries)
+    {
+        return dir -> RangesCursor.create(dir, version, leftInclusive, rightInclusive, boundaries);
+    }
+
+    /// The set between the given pairs of boundaries, start-inclusive and end-exclusive. This is the same as the union
+    /// of the range sets produced by each pair in the `boundaries` array, done in a single step.
+    ///
+    /// The keys in the array must be given in order. If the same key appears twice it has no effect on the result.
+    ///
+    /// Also see [RangesCursor] for further information.
     static TrieSet ranges(ByteComparable.Version version, ByteComparable... boundaries)
     {
-        return dir -> RangesCursor.create(dir, version, boundaries);
+        return ranges(version, true, false, boundaries);
     }
 
     static TrieSet empty(ByteComparable.Version byteComparableVersion)
     {
-        return dir -> TrieSetCursor.empty(dir, byteComparableVersion);
+        return ranges(byteComparableVersion, true, false);
+    }
+
+    static TrieSet full(ByteComparable.Version byteComparableVersion)
+    {
+        return ranges(byteComparableVersion, true, false, null, null);
     }
 
     /// Returns true if the given key is strictly contained in this set, i.e. it falls inside a covered range or branch.
@@ -74,17 +116,17 @@ public interface TrieSet extends CursorWalkable<TrieSetCursor>
         TrieSetCursor cursor = cursor(Direction.FORWARD);
         final ByteSource bytes = key.asComparableBytes(cursor.byteComparableVersion());
         int next = bytes.next();
-        int depth = cursor.depth();
         while (next != ByteSource.END_OF_STREAM)
         {
-            if (cursor.branchIncluded())
-                return ContainsResult.CONTAINED; // The set covers a prefix of the key.
-            if (cursor.skipTo(++depth, next) != depth || cursor.incomingTransition() != next)
+            long skipPosition = Cursor.positionForDescentWithByte(cursor.encodedPosition(), next);
+            if (Cursor.compare(cursor.skipTo(skipPosition), skipPosition) != 0)
                 return cursor.state().precedingIncluded(Direction.FORWARD) ? ContainsResult.CONTAINED
                                                                            : ContainsResult.NOT_CONTAINED;
+
             next = bytes.next();
         }
-        return cursor.branchIncluded() ? ContainsResult.CONTAINED : ContainsResult.PREFIX;
+        return cursor.state().succeedingIncluded(Direction.FORWARD) ? ContainsResult.CONTAINED
+                                                                    : ContainsResult.PREFIX;
     }
 
     default TrieSet union(TrieSet other)
@@ -104,12 +146,9 @@ public interface TrieSet extends CursorWalkable<TrieSetCursor>
         return dir -> new RangeIntersectionCursor.TrieSet(cursor(dir), other.cursor(dir));
     }
 
-    /// Represents the set inverse of the given set plus all prefixes and descendants of all boundaries of the set.
-    /// E.g. the inverse of the set `[a, b]` is the set `union([null, a], [b, null])`, and
-    /// `intersection([a, b], weakNegation([a, b]))` equals `union([a, a], [b, b])`.
-    ///
-    /// True negation is not feasible in this design (exact points are always included together with all their descendants).
-    default TrieSet weakNegation()
+    /// Represents the set inverse of the given set.
+    /// E.g. the inverse of the set `[a, b]` is the set `union([null, a), (b, null])`.
+    default TrieSet negation()
     {
         return dir -> cursor(dir).negated();
     }

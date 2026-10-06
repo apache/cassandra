@@ -30,7 +30,7 @@ import static org.apache.cassandra.db.tries.TrieUtil.VERSION;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertTrue;
 
-interface DataPoint
+public interface DataPoint
 {
     static LivePoint combineLive(LivePoint a, LivePoint b)
     {
@@ -88,7 +88,7 @@ interface DataPoint
             assertTrue("Order violation " + toString(prev) + " vs " + toString(marker.position),
                        prev == null || ByteComparable.compare(prev, marker.position, VERSION) < 0);
             assertEquals("Range close violation", active, marker.leftSide);
-            assertTrue(marker.at != marker.leftSide || marker.at != marker.rightSide);
+            assertTrue(marker.rightSide != marker.leftSide);
             prev = marker.position;
             active = marker.rightSide;
         }
@@ -197,10 +197,10 @@ interface DataPoint
                     assert startMarker != null;
                     int prefixLength = ByteComparable.diffPoint(startMarker.position, marker.position, VERSION) - 1;
                     trie.apply(
-                            DeletionAwareTrie.deletion(ByteComparable.cut(startMarker.position, prefixLength),
-                                    ByteComparable.skipFirst(startMarker.position, prefixLength),
-                                    ByteComparable.skipFirst(marker.position, prefixLength),
-                                    VERSION, marker.leftSideAsCovering),
+                            DeletionAwareTrie.deletedRange(ByteComparable.cut(startMarker.position, prefixLength),
+                                                           ByteComparable.skipFirst(startMarker.position, prefixLength),
+                                                           ByteComparable.skipFirst(marker.position, prefixLength),
+                                                           VERSION, marker.leftSideAsCovering),
                             DataPoint::combineLive,
                             DataPoint::combineDeletion,
                             DataPoint::deleteLive,

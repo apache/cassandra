@@ -29,7 +29,7 @@ class TrieValuesIterator<T> implements Iterator<T>
     protected TrieValuesIterator(Cursor<T> cursor)
     {
         this.cursor = cursor;
-        assert cursor.depth() == 0;
+        cursor.assertFresh();
         next = cursor.content();
         gotNext = next != null;
     }
@@ -67,7 +67,7 @@ class TrieValuesIterator<T> implements Iterator<T>
         {
             this.cursor = cursor;
             this.clazz = clazz;
-            assert cursor.depth() == 0;
+            cursor.assertFresh();
             next = cursor.content();
             gotNext = next != null && clazz.isInstance(next);
         }

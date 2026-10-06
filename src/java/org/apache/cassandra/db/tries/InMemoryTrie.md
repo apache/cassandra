@@ -92,11 +92,11 @@ to the type of node, in this case the bits also define the length of the chain &
 
 The simplest chain node has one transition leading to one child and is laid out like this:
 
-offset|content|example
----|---|---
-00 - 1A|unused|
-1B     |character|41 A
-1C - 1F|child pointer|FFFFFFFF
+| offset  | content       | example  |
+|---------|---------------|----------|
+| 00 - 1A | unused        |          |
+| 1B      | character     | 41 A     |
+| 1C - 1F | child pointer | FFFFFFFF |
 
 where the pointer points to the `1B` line in the cell.
 
@@ -106,11 +106,11 @@ pointer `0x13B` point to a node with one child with transition `0x41` `A` to a l
 Another chain cell, which points to this one, can be added in the same cell by placing a character at offset `1A`. This
 new node is effectively laid out as
 
-offset|content|example
----|---|---
-00 - 19|unused|
-1A     |character|48 H
-1B - 1F|unused|
+| offset  | content   | example |
+|---------|-----------|---------|
+| 00 - 19 | unused    |         |
+| 1A      | character | 48 H    |    
+| 1B - 1F | unused    |         |
 
 where the pointer points to line `1A`. This node has one transition, and the child pointer is implicit as the node's
 pointer plus one.
@@ -121,13 +121,13 @@ Example: The cell `xxxxxxxx xxxxxxxx xxxxxxxx xxxxxxxx xxxxxxxx xxxxxxxx xx43484
 pointer `0x139` point to a node with one child with transition `0x43` `C` to a node with one child with transition
 `0x48` `H` to a node with one child with transition `0x41` `A` to a leaf node with content `contentArray[0]`.
 
-offset|content|example
----|---|---
-00 - 18|unused|
-19     |character|43 C
-1A     |character|48 H
-1B     |character|41 A
-1C - 1F|child pointer|FFFFFFFF
+| offset   | content       | example  |
+|----------|---------------|----------|
+| 00 - 18  | unused        |          |
+| 19       | character     | 43 C     |
+| 1A       | character     | 48 H     |
+| 1B       | character     | 41 A     |
+| 1C - 1F  | child pointer | FFFFFFFF |
 
 
 In this example `0x13A` and `0x13B` are also valid pointers to the respective chains and could be referenced from other
@@ -145,21 +145,21 @@ Note: offset `0x00` also specifies a chain node, but the pointer 0 is a special 
 Sparse nodes are used when a node has at least two children, and all pointers and transition characters can fit in one
 cell, which limits the maximum number of children to 6. Their layout is:
 
-offset|content|
----|---|
-00 - 03|child pointer 0|
-04 - 07|child pointer 1|
-08 - 0B|child pointer 2|
-0C - 0F|child pointer 3|
-10 - 13|child pointer 4|
-14 - 17|child pointer 5|
-18     |character 0|
-19     |character 1|
-1A     |character 2|
-1B     |character 3|
-1C     |character 4|
-1D     |character 5|
-1E - 1F|order word|
+| offset  | content         |
+|---------|-----------------|
+| 00 - 03 | child pointer 0 |
+| 04 - 07 | child pointer 1 |
+| 08 - 0B | child pointer 2 |
+| 0C - 0F | child pointer 3 |
+| 10 - 13 | child pointer 4 |
+| 14 - 17 | child pointer 5 |
+| 18      | character 0     |
+| 19      | character 1     |
+| 1A      | character 2     |
+| 1B      | character 3     |
+| 1C      | character 4     |
+| 1D      | character 5     |
+| 1E - 1F | order word      |
 
 where the pointer points to the line `1E` (i.e. the type identifier for a sparse node is `0x1E`).
 
@@ -180,15 +180,15 @@ To do this, the mutating thread will have to convert the chain node into a spars
 (e.g. `0x240`-`0x25F`) and filling in the sparse node `00000238 0000013A 00000000 00000000 00000000 00000000 41430000
 00000006` with pointer `0x25E`:
 
-offset|content|example
----|---|---
-00 - 03|child pointer 0| 00000238
-04 - 07|child pointer 1| 0000013A
-08 - 17|unused|
-18     |character 0| 41 A
-19     |character 1| 43 C
-1A - 1D|unused|
-1E - 1F|order word, always 10| 0006 = 10 (base 6)
+| offset  | content               | example            |
+|---------|-----------------------|--------------------|
+| 00 - 03 | child pointer 0       | 00000238           |
+| 04 - 07 | child pointer 1       | 0000013A           |
+| 08 - 17 | unused                |                    |
+| 18      | character 0           | 41 A               |
+| 19      | character 1           | 43 C               |
+| 1A - 1D | unused                |                    |
+| 1E - 1F | order word, always 10 | 0006 = 10 (base 6) |
 
 This is the smallest kind of sparse node, with just two children. Two-children sparse nodes always
 put their two children in order (we can do this as this does not happen in response to an addition of a new child to
@@ -201,17 +201,17 @@ least significant digit of the order word, 0. The second child is specified by t
 Suppose we then need to add a new child, using character `0x35` `5` and child `0x33B`. The node will change to `00000238
 0000013A 0000033B 00000000 00000000 00000000 41433500 00000026` and the pointer to it stays the same.
 
-offset|content|example
----|---|---
-00 - 03|child pointer 0| 00000238
-04 - 07|child pointer 1| 0000013A
-08 - 0B|child pointer 2| 0000033B
-0C - 17|unused|
-18     |character 0| 41 A
-19     |character 1| 43 C
-1A     |character 2| 35 5
-1B - 1D|unused|
-1E - 1F|order word| 0026 = 102 (base 6)
+| offset  | content         | example             |
+|---------|-----------------|---------------------|
+| 00 - 03 | child pointer 0 | 00000238            |
+| 04 - 07 | child pointer 1 | 0000013A            |
+| 08 - 0B | child pointer 2 | 0000033B            |
+| 0C - 17 | unused          |                     |
+| 18      | character 0     | 41 A                |
+| 19      | character 1     | 43 C                |
+| 1A      | character 2     | 35 5                |
+| 1B - 1D | unused          |                     |
+| 1E - 1F | order word      | 0026 = 102 (base 6) |
 
 This node has three (the number of digits in the order word) children. The first child is at the position specified by
 the least significant digit of the order word, 2. The second child is specified by the second least significant digit,
@@ -224,21 +224,21 @@ cannot miscount the number of children.
 The addition of children can continue until we have 6, for example `00000238 0000013A 0000033B 0000035C 0000037A
 0000041B 41433542 50338129` (pointer `0x25E`) for
 
-offset|content|example
----|---|---
-00 - 03|child pointer 0| 00000238
-04 - 07|child pointer 1| 0000013A
-08 - 0B|child pointer 2| 0000033B
-0C - 0F|child pointer 3| 0000035C
-10 - 13|child pointer 4| 0000037A
-14 - 17|child pointer 5| 0000041B
-18     |character 0| 41 A
-19     |character 1| 43 C
-1A     |character 2| 35 5
-1B     |character 3| 42 B
-1C     |character 4| 50 P
-1D     |character 5| 33 3
-1E - 1F|order word| 8129 = 413025 (base 6)
+| offset   | content         | example                |
+|----------|-----------------|------------------------|
+| 00 - 03  | child pointer 0 | 00000238               |
+| 04 - 07  | child pointer 1 | 0000013A               |
+| 08 - 0B  | child pointer 2 | 0000033B               |
+| 0C - 0F  | child pointer 3 | 0000035C               |
+| 10 - 13  | child pointer 4 | 0000037A               |
+| 14 - 17  | child pointer 5 | 0000041B               |
+| 18       | character 0     | 41 A                   |
+| 19       | character 1     | 43 C                   |
+| 1A       | character 2     | 35 5                   |
+| 1B       | character 3     | 42 B                   |
+| 1C       | character 4     | 50 P                   |
+| 1D       | character 5     | 33 3                   |
+| 1E - 1F  | order word      | 8129 = 413025 (base 6) |
 
 Beyond 6 children, a node needs to be converted to split.
 
@@ -250,39 +250,39 @@ method we chose is to construct a "mini-trie" with 2-3-3 bit transitions.
 
 A split node is identified by the `0x1C` offset. The starting cell of a split node has this layout:
 
-offset|content|
----|---|
-00 - 0F|unused|
-10 - 13|mid-cell for leading 00|
-14 - 17|mid-cell for leading 01|
-18 - 1B|mid-cell for leading 10|
-1C - 1F|mid-cell for leading 11|
+| offset  | content                 |
+|---------|-------------------------|
+| 00 - 0F | unused                  |
+| 10 - 13 | mid-cell for leading 00 |
+| 14 - 17 | mid-cell for leading 01 |
+| 18 - 1B | mid-cell for leading 10 |
+| 1C - 1F | mid-cell for leading 11 |
 
 (pointers to this node point to the `1C` line) and where each mid-cell contains:
 
-offset|content|
----|---|
-00 - 03|end-cell for middle 000|
-04 - 07|end-cell for middle 001|
-08 - 0B|end-cell for middle 010|
-0C - 0F|end-cell for middle 011|
-10 - 13|end-cell for middle 100|
-14 - 17|end-cell for middle 101|
-18 - 1B|end-cell for middle 110|
-1C - 1F|end-cell for middle 111|
+| offset  | content                 |
+|---------|-------------------------|
+| 00 - 03 | end-cell for middle 000 |
+| 04 - 07 | end-cell for middle 001 |
+| 08 - 0B | end-cell for middle 010 |
+| 0C - 0F | end-cell for middle 011 |
+| 10 - 13 | end-cell for middle 100 |
+| 14 - 17 | end-cell for middle 101 |
+| 18 - 1B | end-cell for middle 110 |
+| 1C - 1F | end-cell for middle 111 |
 
 and end-cell:
 
-offset|content|
----|---|
-00 - 03|pointer to child for ending 000|
-04 - 07|pointer to child for ending 001|
-08 - 0B|pointer to child for ending 010|
-0C - 0F|pointer to child for ending 011|
-10 - 13|pointer to child for ending 100|
-14 - 17|pointer to child for ending 101|
-18 - 1B|pointer to child for ending 110|
-1C - 1F|pointer to child for ending 111|
+| offset  | content                         |
+|---------|---------------------------------|
+| 00 - 03 | pointer to child for ending 000 |
+| 04 - 07 | pointer to child for ending 001 |
+| 08 - 0B | pointer to child for ending 010 |
+| 0C - 0F | pointer to child for ending 011 |
+| 10 - 13 | pointer to child for ending 100 |
+| 14 - 17 | pointer to child for ending 101 |
+| 18 - 1B | pointer to child for ending 110 |
+| 1C - 1F | pointer to child for ending 111 |
 
 In any of the cell or pointer positions we can have `NONE`, meaning that such a child (or cell of children) does not
 exist. At minimum, a split node occupies 3 cells (one leading, one mid and one end), and at maximum &mdash;
@@ -298,78 +298,78 @@ section. This will generate the following structure:
 
 Leading cell (e.g. `0x500`-`0x51F` with pointer `0x51C`)
 
-offset|content|example
----|---|---
-00 - 0F|unused|
-10 - 13|mid-cell for leading 00|0000053C
-14 - 17|mid-cell for leading 01|0000057C
-18 - 1B|mid-cell for leading 10|00000000 NONE
-1C - 1F|mid-cell for leading 11|00000000 NONE
+| offset  | content                 | example       |
+|---------|-------------------------|---------------|
+| 00 - 0F | unused                  |               |
+| 10 - 13 | mid-cell for leading 00 | 0000053C      |
+| 14 - 17 | mid-cell for leading 01 | 0000057C      |
+| 18 - 1B | mid-cell for leading 10 | 00000000 NONE |
+| 1C - 1F | mid-cell for leading 11 | 00000000 NONE |
 
 Mid cell `00` at `0x520`-`0x53F`:
 
-offset|content|example
----|---|---
-00 - 03|end-cell for middle 000|00000000 NONE
-04 - 07|end-cell for middle 001|00000000 NONE
-08 - 0B|end-cell for middle 010|00000000 NONE
-0C - 0F|end-cell for middle 011|00000000 NONE
-10 - 13|end-cell for middle 100|00000000 NONE
-14 - 17|end-cell for middle 101|00000000 NONE
-18 - 1B|end-cell for middle 110|0000055C
-1C - 1F|end-cell for middle 111|00000000 NONE
+| offset  | content                 | example       |
+|---------|-------------------------|---------------|
+| 00 - 03 | end-cell for middle 000 | 00000000 NONE |
+| 04 - 07 | end-cell for middle 001 | 00000000 NONE |
+| 08 - 0B | end-cell for middle 010 | 00000000 NONE |
+| 0C - 0F | end-cell for middle 011 | 00000000 NONE |
+| 10 - 13 | end-cell for middle 100 | 00000000 NONE |
+| 14 - 17 | end-cell for middle 101 | 00000000 NONE |
+| 18 - 1B | end-cell for middle 110 | 0000055C      |
+| 1C - 1F | end-cell for middle 111 | 00000000 NONE |
 
 End cell `00 110` at `0x540`-`0x55F`:
 
-offset|content|example
----|---|---
-00 - 03|pointer to child for ending 000|00000000 NONE
-04 - 07|pointer to child for ending 001|00000000 NONE
-08 - 0B|pointer to child for ending 010|00000000 NONE
-0C - 0F|pointer to child for ending 011|0000041B
-10 - 13|pointer to child for ending 100|00000000 NONE
-14 - 17|pointer to child for ending 101|0000033B
-18 - 1B|pointer to child for ending 110|00000000 NONE
-1C - 1F|pointer to child for ending 111|00000000 NONE
+| offset  | content                         | example       |
+|---------|---------------------------------|---------------|
+| 00 - 03 | pointer to child for ending 000 | 00000000 NONE |
+| 04 - 07 | pointer to child for ending 001 | 00000000 NONE |
+| 08 - 0B | pointer to child for ending 010 | 00000000 NONE |
+| 0C - 0F | pointer to child for ending 011 | 0000041B      |
+| 10 - 13 | pointer to child for ending 100 | 00000000 NONE |
+| 14 - 17 | pointer to child for ending 101 | 0000033B      |
+| 18 - 1B | pointer to child for ending 110 | 00000000 NONE |
+| 1C - 1F | pointer to child for ending 111 | 00000000 NONE |
 
 Mid cell `01` at `0x560`-`0x57F`:
 
-offset|content|example
----|---|---
-00 - 03|end-cell for middle 000|0000059C
-04 - 07|end-cell for middle 001|00000000 NONE
-08 - 0B|end-cell for middle 010|000005BC
-0C - 0F|end-cell for middle 011|00000000 NONE
-10 - 13|end-cell for middle 100|00000000 NONE
-14 - 17|end-cell for middle 101|00000000 NONE
-18 - 1B|end-cell for middle 110|00000000 NONE
-1C - 1F|end-cell for middle 111|00000000 NONE
+| offset  | content                 | example       |
+|---------|-------------------------|---------------|
+| 00 - 03 | end-cell for middle 000 | 0000059C      |
+| 04 - 07 | end-cell for middle 001 | 00000000 NONE |
+| 08 - 0B | end-cell for middle 010 | 000005BC      |
+| 0C - 0F | end-cell for middle 011 | 00000000 NONE |
+| 10 - 13 | end-cell for middle 100 | 00000000 NONE |
+| 14 - 17 | end-cell for middle 101 | 00000000 NONE |
+| 18 - 1B | end-cell for middle 110 | 00000000 NONE |
+| 1C - 1F | end-cell for middle 111 | 00000000 NONE |
 
 End cell `01 000` at `0x580`-`0x59F`:
 
-offset|content|example
----|---|---
-00 - 03|pointer to child for ending 000|00000000 NONE
-04 - 07|pointer to child for ending 001|00000238
-08 - 0B|pointer to child for ending 010|0000035C
-0C - 0F|pointer to child for ending 011|0000013A
-10 - 13|pointer to child for ending 100|00000000 NONE
-14 - 17|pointer to child for ending 101|00000000 NONE
-18 - 1B|pointer to child for ending 110|00000000 NONE
-1C - 1F|pointer to child for ending 111|00000000 NONE
+| offset  | content                         | example       |
+|---------|---------------------------------|---------------|
+| 00 - 03 | pointer to child for ending 000 | 00000000 NONE |
+| 04 - 07 | pointer to child for ending 001 | 00000238      |
+| 08 - 0B | pointer to child for ending 010 | 0000035C      |
+| 0C - 0F | pointer to child for ending 011 | 0000013A      |
+| 10 - 13 | pointer to child for ending 100 | 00000000 NONE |
+| 14 - 17 | pointer to child for ending 101 | 00000000 NONE |
+| 18 - 1B | pointer to child for ending 110 | 00000000 NONE |
+| 1C - 1F | pointer to child for ending 111 | 00000000 NONE |
 
 End cell `01 010` at `0x5A0`-`0x5BF`:
 
-offset|content|example
----|---|---
-00 - 03|pointer to child for ending 000|0000037A
-04 - 07|pointer to child for ending 001|00000455
-08 - 0B|pointer to child for ending 010|00000000 NONE
-0C - 0F|pointer to child for ending 011|00000000 NONE
-10 - 13|pointer to child for ending 100|00000000 NONE
-14 - 17|pointer to child for ending 101|00000000 NONE
-18 - 1B|pointer to child for ending 110|00000000 NONE
-1C - 1F|pointer to child for ending 111|00000000 NONE
+| offset  | content                         | example       |
+|---------|---------------------------------|---------------|
+| 00 - 03 | pointer to child for ending 000 | 0000037A      |
+| 04 - 07 | pointer to child for ending 001 | 00000455      |
+| 08 - 0B | pointer to child for ending 010 | 00000000 NONE |
+| 0C - 0F | pointer to child for ending 011 | 00000000 NONE |
+| 10 - 13 | pointer to child for ending 100 | 00000000 NONE |
+| 14 - 17 | pointer to child for ending 101 | 00000000 NONE |
+| 18 - 1B | pointer to child for ending 110 | 00000000 NONE |
+| 1C - 1F | pointer to child for ending 111 | 00000000 NONE |
 
 To find a child in this structure, we follow the transitions along the bits of the mini-trie. For example, for `0x42`
 `B` = `0b01000010` we start at `0x51C`, take the `01` pointer to `0x57C`, then the `000` pointer to `0x59C` and finally
@@ -395,41 +395,41 @@ of the linked node
 
 Standalone prefixes have this layout:
 
-offset | content                  |example
--------|--------------------------|---
-00 - 03| content pointer          |FFFFFFFE ~1
-04 - 07| alternate branch pointer |00000000 NONE
-08     | standalone flag, 0xFF    |FF
-09 - 1B| unused                   |
-1C - 1F| linked node pointer      |0000025E
+| offset  | content                  | example       |
+|---------|--------------------------|---------------|
+| 00 - 03 | content pointer          | FFFFFFFE ~1   |
+| 04 - 07 | alternate branch pointer | 00000000 NONE |
+| 08      | standalone flag, 0xFF    | FF            |
+| 09 - 1B | unused                   |               |
+| 1C - 1F | linked node pointer      | 0000025E      |
 
 and pointer offset `0x1F`. The sample values above will be the ones used to link a prefix node to our `Sparse`
 example, where a prefix cannot be embedded as all the bytes of the cell are in use.
 
 If we want to attach the same prefix to the `Split` example, we will place this
 
-offset | content                     |example
--------|-----------------------------|---
-00 - 03| content pointer             |FFFFFFFE ~1
-04 - 07| alternate branch pointer    |00000000 NONE
-08     | embedded offset within cell |1C
-09 - 1F| unused                      |
+| offset  | content                     | example       |
+|---------|-----------------------------|---------------|
+| 00 - 03 | content pointer             | FFFFFFFE ~1   |
+| 04 - 07 | alternate branch pointer    | 00000000 NONE |
+| 08      | embedded offset within cell | 1C            |
+| 09 - 1F | unused                      |               |
 
 _inside_ the leading split cell, with pointer `0x1F`. Since this is an embedded node, the augmented one resides within
 the same cell, and thus we need only 5 bits to encode the pointer (the other 27 are the same as the prefix's).
 The combined content of the cell at `0x500-0x51F` will then be `FFFFFFFE 00000000 1C000000 00000000 00000520 00000560
 00000000 00000000`:
 
-offset | content                     |example
--------|-----------------------------|---
-00 - 03| content pointer             |FFFFFFFE ~1
-04 - 07| alternate branch pointer    |00000000 NONE
-08     | embedded offset within cell |1C
-09 - 0F| unused                      |
-10 - 13| mid-cell for leading 00     |00000520
-14 - 17| mid-cell for leading 01     |00000560
-18 - 1B| mid-cell for leading 10     |00000000 NONE
-1C - 1F| mid-cell for leading 11     |00000000 NONE
+| offset  | content                     | example       |
+|---------|-----------------------------|---------------|
+| 00 - 03 | content pointer             | FFFFFFFE ~1   |
+| 04 - 07 | alternate branch pointer    | 00000000 NONE |
+| 08      | embedded offset within cell | 1C            |
+| 09 - 0F | unused                      |               |
+| 10 - 13 | mid-cell for leading 00     | 00000520      |
+| 14 - 17 | mid-cell for leading 01     | 00000560      |
+| 18 - 1B | mid-cell for leading 10     | 00000000 NONE |
+| 1C - 1F | mid-cell for leading 11     | 00000000 NONE |
 
 Both `0x51C` and `0x51F` are valid pointers in this cell. The former refers to the plain split node, the latter to its
 content-augmented version. The only difference between the two is the result of a call to `content()`.
@@ -574,11 +574,11 @@ and we can put in the new value by performing a volatile write.
 
 For example, updating `N -> 0x39C` is accomplished by making the volatile write:
 
-offset|content|before|after
----|---|---|---
-00-1A|irrelevant||
-1B|character|N|N
-1C-1F|pointer|0000031E|_**0000039C**_
+| offset |content|before|after|
+|--------|---|---|---|
+ | 00-1A  |irrelevant|||
+ | 1B     |character|N|N|
+ | 1C-1F  |pointer|0000031E|_**0000039C**_|
 
 (Here and below normal writes are in bold and volatile writes in bold italic.)
 
@@ -597,17 +597,17 @@ where the pointer to the old child is written, and we can update it by doing a v
 
 For example, updating `C -> 0x51E` in a sparse node can be:
 
-offset|content|before|after
----|---|---|---
-00 - 03|child pointer 0| 00000238|00000238
-04 - 07|child pointer 1| 0000013A|_**0000051E**_
-08 - 0B|child pointer 2| 0000033B|0000033B
-0C - 17|unused|
-18     |character 0| 41 A|41 A
-19     |character 1| 43 C|43 C
-1A     |character 2| 35 5|35 5
-1B - 1D|unused|
-1E - 1F|order word| 0026 = 102 (base 6)
+| offset  |content|before|after|
+|---------|---|---|---|
+ | 00 - 03 |child pointer 0| 00000238|00000238|
+ | 04 - 07 |child pointer 1| 0000013A|_**0000051E**_|
+ | 08 - 0B |child pointer 2| 0000033B|0000033B|
+ | 0C - 17 |unused||
+ | 18      |character 0| 41 A|41 A|
+ | 19      |character 1| 43 C|43 C|
+ | 1A      |character 2| 35 5|35 5|
+ | 1B - 1D |unused||
+ | 1E - 1F |order word| 0026 = 102 (base 6)|
 
 
 #### Adding a new child to `Split`
@@ -627,29 +627,29 @@ In any of these cases, readers have to pass through the volatile update to reach
 For example, to add `x -> 0x71A` (`x` is `0x78` or `0b01111000`) to the split node example needs a new end cell for
 `01 111` (for example at `0x720-0x73F`) (these writes can be non-volatile):
 
-offset|content|before|after
----|---|---|---
-00 - 03|pointer to child for ending 000|n/a|**0000071A**
-04 - 07|pointer to child for ending 001|n/a|**00000000** NONE
-08 - 0B|pointer to child for ending 010|n/a|**00000000** NONE
-0C - 0F|pointer to child for ending 011|n/a|**00000000** NONE
-10 - 13|pointer to child for ending 100|n/a|**00000000** NONE
-14 - 17|pointer to child for ending 101|n/a|**00000000** NONE
-18 - 1B|pointer to child for ending 110|n/a|**00000000** NONE
-1C - 1F|pointer to child for ending 111|n/a|**00000000** NONE
+| offset  | content                         | before | after             |
+|---------|---------------------------------|--------|-------------------|
+| 00 - 03 | pointer to child for ending 000 | n/a    | **0000071A**      |
+| 04 - 07 | pointer to child for ending 001 | n/a    | **00000000** NONE |
+| 08 - 0B | pointer to child for ending 010 | n/a    | **00000000** NONE |
+| 0C - 0F | pointer to child for ending 011 | n/a    | **00000000** NONE |
+| 10 - 13 | pointer to child for ending 100 | n/a    | **00000000** NONE |
+| 14 - 17 | pointer to child for ending 101 | n/a    | **00000000** NONE |
+| 18 - 1B | pointer to child for ending 110 | n/a    | **00000000** NONE |
+| 1C - 1F | pointer to child for ending 111 | n/a    | **00000000** NONE |
 
 and this volatile write to the mid cell `0x520`:
 
-offset|content|before|after
----|---|---|---
-00 - 03|end-cell for middle 000|00000000 NONE|00000000 NONE
-04 - 07|end-cell for middle 001|00000000 NONE|00000000 NONE
-08 - 0B|end-cell for middle 010|00000000 NONE|00000000 NONE
-0C - 0F|end-cell for middle 011|00000000 NONE|00000000 NONE
-10 - 13|end-cell for middle 100|00000000 NONE|00000000 NONE
-14 - 17|end-cell for middle 101|00000000 NONE|00000000 NONE
-18 - 1B|end-cell for middle 110|0000055C|0000055C
-1C - 1F|end-cell for middle 111|00000000 NONE|_**0000073C**_
+| offset  | content                 | before        | after          |
+|---------|-------------------------|---------------|----------------|
+| 00 - 03 | end-cell for middle 000 | 00000000 NONE | 00000000 NONE  |
+| 04 - 07 | end-cell for middle 001 | 00000000 NONE | 00000000 NONE  |
+| 08 - 0B | end-cell for middle 010 | 00000000 NONE | 00000000 NONE  |
+| 0C - 0F | end-cell for middle 011 | 00000000 NONE | 00000000 NONE  |
+| 10 - 13 | end-cell for middle 100 | 00000000 NONE | 00000000 NONE  |
+| 14 - 17 | end-cell for middle 101 | 00000000 NONE | 00000000 NONE  |
+| 18 - 1B | end-cell for middle 110 | 0000055C      | 0000055C       |
+| 1C - 1F | end-cell for middle 111 | 00000000 NONE | _**0000073C**_ |
 
 The start cell, and the other mid and end cells remain unchanged.
 
@@ -677,19 +677,19 @@ and stop searching when they find a `NONE` pointer.
 
 For example, adding `x -> 0x71A` to the sparse example above is done by:
 
-offset|content|before|after
----|---|---|---
-00 - 03|child pointer 0| 00000238|00000238
-04 - 07|child pointer 1| 0000051E|0000051E
-08 - 0B|child pointer 2| 0000033B|0000033B
-0C - 0F|child pointer 3|any|_**0000071A**_
-10 - 17|unused|NONE|NONE
-18     |character 0| 41 A|41 A
-19     |character 1| 43 C|43 C
-1A     |character 2| 35 5|35 5
-1B     |character 3| any |**78** x
-1C - 1D|unused|00 00|00 00
-1E - 1F|order word|0026 = 102 (base 6)|_**02AE**_ = 3102 (base 6)
+| offset  | content         | before              | after                      |
+|---------|-----------------|---------------------|----------------------------|
+| 00 - 03 | child pointer 0 | 00000238            | 00000238                   |
+| 04 - 07 | child pointer 1 | 0000051E            | 0000051E                   |
+| 08 - 0B | child pointer 2 | 0000033B            | 0000033B                   |
+| 0C - 0F | child pointer 3 | any                 | _**0000071A**_             |
+| 10 - 17 | unused          | NONE                | NONE                       |
+| 18      | character 0     | 41 A                | 41 A                       |
+| 19      | character 1     | 43 C                | 43 C                       |
+| 1A      | character 2     | 35 5                | 35 5                       |
+| 1B      | character 3     | any                 | **78** x                   |
+| 1C - 1D | unused          | 00 00               | 00 00                      |
+| 1E - 1F | order word      | 0026 = 102 (base 6) | _**02AE**_ = 3102 (base 6) |
 
 where we first write the character, then volatile write the pointer, and finally the order word.
 
@@ -932,8 +932,9 @@ cannot happen during mutation, otherwise waste can slowly accumulate to bring th
 
 ### Range tries
 
-Range tries differ from plain ones in being able to present preceding state for any position in the trie. In-memory
-range tries do not store this additional information, but instead construct it during cursor iteration.
+Range tries differ from plain ones in being able to present preceding state for any position in the trie, and the fact
+that range tries need to be able to present boundaries both on the descent and ascent path for a node. In-memory
+range tries do not store the preceding state information, but instead construct it during cursor iteration.
 
 When a range trie is stored in an in-memory trie, it stores only content values. The range cursors created keep track of
 the currently active covering state (which is equal to the succeeding side of any visited boundary during advance) and
@@ -944,11 +945,18 @@ iteration order) until the closest boundary is found, and using its preceding si
 branches must terminate in a boundary state with content, which is something that in-memory tries do maintain (see
 below).
 
-Because singletons don't really make sense for range tries (a range will have different start and end paths), all
-insertions into a range trie are done using the `apply` method. The application itself is more elaborate than the case
-of simple data tries: when `apply` is called with a range trie argument, the in-memory trie has to walk all existing
-positions that fall under ranges of the trie and apply the active state to them. Additionally, it must track any active
-existing range to combine it with incoming content.
+For every boundary the range trie needs to recognize whether it falls to the left or right of the branch in order to
+know whether to present it on the descent or ascend path of the iteration. This is done by reserving a bit in the
+content encoding that specifies the modifier. If something needs to be presented on the return path, its pointer is put
+in the backtracking state to be returned after the branch is exhausted instead of being reported immediately. Some nodes
+will contain both left- and right-side boundaries, in which case we use a prefix node where both the content and
+alternate fields are set.
+
+Because all trie application may affect covered state, even if they are a singleton, all insertions into a range trie
+are done using the `apply` method. The application itself is more elaborate than the case of simple data tries:
+when `apply` is called with a range trie argument, the in-memory trie has to walk all existing positions that fall under
+ranges of the trie and apply the active state to them. Additionally, it must track any active existing range to combine
+it with incoming content.
 
 Because the incoming content is often expected to be a (newer) deletion, the resolver is expected to often return null
 for combined content. This triggers removal of nodes and paths up the relevant branch (which may also result in changing

@@ -55,11 +55,6 @@ import org.apache.cassandra.utils.bytecomparable.ByteSource;
 /// other sources can define a deletion branch below it); this is the mode of operation intended for use in Cassandra
 /// memtables and sstables, where deletion branches are defined at the root of each partition.
 ///
-/// This class expects deletions to always be specified as ranges, and the deletion boundaries to never coincide with
-/// live keys or their prefixes (this property is provided by the prefix-free [ByteComparable] conversions).
-/// While deletion branches can support point deletions, this support is somewhat restricted for efficiency reasons
-/// (e.g. the coverage of positions under a point deletion is undefined).
-///
 /// It is also expected that a deletion-aware trie does not contain any live data that is deleted by its own deletion
 /// branches. If such data exists, whether it is preserved after transformations is undefined.
 ///
@@ -93,19 +88,44 @@ extends BaseTrie<T, DeletionAwareCursor<T, D>, DeletionAwareTrie<T, D>>
     /// `prefixInDataTrie`+`right`. The deletion is presented as a deletion branch at the specified prefix, allowing
     /// the user to take advantage of predefined deletion-branch positions.
     ///
-    /// Range boundaries should be distinct from live data positions; the inclusivity of the boundary point and any
-    /// position below it is not specified or guaranteed to be preserved under trie transformations.
+    /// This version is inclusive on the left side and exclusive on the right.
     ///
     /// @param prefixInDataTrie The position in the data trie where this deletion branch is rooted
-    /// @param left The left boundary of the deletion range
-    /// @param right The right boundary of the deletion range
+    /// @param left The left boundary of the deletion range, inclusive
+    /// @param right The right boundary of the deletion range, exclusive
     /// @param byteComparableVersion The version to use for byte-comparable serialization
     /// @param deletion A _covering_ range state that defines the deletion information
     /// @return A deletion-aware trie containing the deletion range
     static <T, D extends RangeState<D>>
-    DeletionAwareTrie<T, D> deletion(ByteComparable prefixInDataTrie, ByteComparable left, ByteComparable right, ByteComparable.Version byteComparableVersion, D deletion)
+    DeletionAwareTrie<T, D> deletedRange(ByteComparable prefixInDataTrie, ByteComparable left, ByteComparable right, ByteComparable.Version byteComparableVersion, D deletion)
     {
-        RangeTrie<D> rangeTrie = RangeTrie.range(left, right, byteComparableVersion, deletion);
+        return deletedRange(prefixInDataTrie, left, true, right, false, byteComparableVersion, deletion);
+    }
+
+    /// Creates a deletion-aware trie containing a single deletion range.
+    ///
+    /// This method creates a trie that represents a deletion covering the range from `prefixInDataTrie`+`left` to
+    /// `prefixInDataTrie`+`right`. The deletion is presented as a deletion branch at the specified prefix, allowing
+    /// the user to take advantage of predefined deletion-branch positions.
+    ///
+    /// This version is inclusive on the left side and exclusive on the right.
+    ///
+    /// @param prefixInDataTrie The position in the data trie where this deletion branch is rooted
+    /// @param left The left boundary of the deletion range
+    /// @param leftInclusive Whether the range should include the left bound and its descendants.
+    /// @param right The right boundary of the deletion range, exclusive
+    /// @param rightInclusive Whether the range should include the right bound and its descendants.
+    /// @param byteComparableVersion The version to use for byte-comparable serialization
+    /// @param deletion A _covering_ range state that defines the deletion information
+    /// @return A deletion-aware trie containing the deletion range
+    static <T, D extends RangeState<D>>
+    DeletionAwareTrie<T, D> deletedRange(ByteComparable prefixInDataTrie,
+                                         ByteComparable left, boolean leftInclusive,
+                                         ByteComparable right, boolean rightInclusive,
+                                         ByteComparable.Version byteComparableVersion,
+                                         D deletion)
+    {
+        RangeTrie<D> rangeTrie = RangeTrie.range(left, leftInclusive, right, rightInclusive, byteComparableVersion, deletion);
         return deletionBranch(prefixInDataTrie, byteComparableVersion, rangeTrie);
     }
 
@@ -123,8 +143,17 @@ extends BaseTrie<T, DeletionAwareCursor<T, D>, DeletionAwareTrie<T, D>>
     DeletionAwareTrie<T, D> deletionBranch(ByteComparable prefixInDataTrie, ByteComparable.Version byteComparableVersion, RangeTrie<D> rangeTrie)
     {
         return dir -> new SingletonCursor.DeletionBranch<>(dir,
-                                                           prefixInDataTrie.asComparableBytes(byteComparableVersion), byteComparableVersion,
+                                                           prefixInDataTrie.asComparableBytes(byteComparableVersion),
+                                                           byteComparableVersion,
                                                            rangeTrie);
+    }
+
+    /// Wraps a plain data trie into a deletion-aware one. The resulting trie has no deletion branches and matches
+    /// `plainTrie` in all positions and content.
+    static <T, D extends RangeState<D>>
+    DeletionAwareTrie<T, D> wrap(Trie<T> plainTrie)
+    {
+        return dir -> new DeletionAwareCursor.Wrapping<>(plainTrie.cursor(dir));
     }
 
     /// @inheritDoc
@@ -332,7 +361,7 @@ extends BaseTrie<T, DeletionAwareCursor<T, D>, DeletionAwareTrie<T, D>>
     }
 
     @SuppressWarnings("rawtypes")
-    static final CollectionMergeResolver THROWING_RESOLVER = new CollectionMergeResolver()
+    CollectionMergeResolver THROWING_RESOLVER = new CollectionMergeResolver()
     {
         @Override
         public Object resolve(Collection contents)
@@ -401,19 +430,20 @@ extends BaseTrie<T, DeletionAwareCursor<T, D>, DeletionAwareTrie<T, D>>
     {
         DeletionAwareCursor<T, D> dac = cursor(Direction.FORWARD);
         final ByteSource bytes = key.asComparableBytes(dac.byteComparableVersion());
-        int next;
-        int depth = dac.depth();
+        long currentPosition = dac.encodedPosition();
         RangeCursor<D> rc;
         while (true)
         {
             rc = dac.deletionBranchCursor(Direction.FORWARD);
             if (rc != null)
                 break;
-            next = bytes.next();
+            int next = bytes.next();
             if (next == ByteSource.END_OF_STREAM)
                 return null; // no deletion branch found
-            if (dac.skipTo(++depth, next) != depth || dac.incomingTransition() != next)
+            long nextPosition = Cursor.positionForDescentWithByte(currentPosition, next);
+            if (Cursor.compare(dac.skipTo(nextPosition), nextPosition) != 0)
                 return null;
+            currentPosition = nextPosition;
         }
 
         if (rc.descendAlong(bytes))

@@ -22,7 +22,7 @@ import java.util.Collection;
 
 import org.apache.cassandra.utils.bytecomparable.ByteComparable;
 
-class LivePoint implements DataPoint
+public class LivePoint implements DataPoint
 {
     final ByteComparable position;
     final int timestamp;

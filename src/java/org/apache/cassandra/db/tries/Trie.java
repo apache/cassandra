@@ -26,6 +26,7 @@ import com.google.common.collect.Iterables;
 
 import org.apache.cassandra.config.CassandraRelevantProperties;
 import org.apache.cassandra.utils.bytecomparable.ByteComparable;
+import org.apache.cassandra.utils.bytecomparable.ByteSource;
 
 /// Basic deterministic trie interface.
 ///
@@ -64,7 +65,23 @@ public interface Trie<T> extends BaseTrie<T, Cursor<T>, Trie<T>>
     /// Returns a singleton trie mapping the given byte path to content.
     static <T> Trie<T> singleton(ByteComparable b, ByteComparable.Version byteComparableVersion, T v)
     {
-        return dir -> new SingletonCursor<>(dir, b.asComparableBytes(byteComparableVersion), byteComparableVersion, v);
+        return dir -> new SingletonCursor<>(dir,
+                                            b.asComparableBytes(byteComparableVersion),
+                                            byteComparableVersion,
+                                            v);
+    }
+
+    /// Returns a singleton trie mapping the given byte path to content.
+    /// This singleton is ordered, which means that the content will be presented in lexicographic order in both
+    /// directions, i.e. before any content from descendants in the forward direction, and after any content from
+    /// descendents in the reverse.
+    static <T> Trie<T> singletonOrdered(ByteComparable b, ByteComparable.Version byteComparableVersion, T v)
+    {
+        return dir -> new SingletonOrderedCursor<>(dir,
+                                                   b.asPeekableBytes(byteComparableVersion),
+                                                   byteComparableVersion,
+                                                   !dir.isForward(),
+                                                   v);
     }
 
     @Override
@@ -73,24 +90,50 @@ public interface Trie<T> extends BaseTrie<T, Cursor<T>, Trie<T>>
         return dir -> new IntersectionCursor.Plain<>(cursor(dir), set.cursor(dir));
     }
 
-    /// A version of subtrie that supports control over the inclusivity of bounds.
-    /// Neither of the two bounds can be a prefix of the other.
+
+    /// Returns a view of this trie that is an intersection of its content with the given set. Unlike the normal
+    /// `intersect`, this version will only present content that is within the boundaries of the set, hiding content
+    /// that is present at prefixes.
     ///
-    /// Unlike `subtrie`, prefixes of the boundaries are reported only if they fall in the span (i.e. are prefixes of a
-    /// right bound), and the branches rooted at the relevant boundary are covered if and only if the boundary itself is
-    /// included.
+    /// This method is most useful for ordered tries (i.e. tries where prefix content is presented on the descent path
+    /// in forward iteration, but on the ascent path in reverse so that it follows all descendants), where it can be
+    /// used to list the content that is within the set (see also [#slice] below).
     ///
-    /// For example, `slice(20, false, 40, true)` excludes `2020` (which is a descendant of the excluded `20`) but
-    /// includes `4040` (a descendant of the included `40`).
+    /// The view is live, i.e. any write to the source will be reflected in the intersection.
+    default Trie<T> intersectSlicing(TrieSet set)
+    {
+        return dir -> new IntersectionCursor.PlainSlice<>(cursor(dir), set.cursor(dir));
+    }
+
+    /// A version of subtrie that lists content falling between two bounds in lexicographic order. Unlike `subtrie`,
+    /// prefixes and descendants of the boundaries are reported only if they fall in the span (i.e. are prefixes of the
+    /// right bound or descendants of the left bound).
+    ///
+    /// Note that for this to work correctly in reverse, the trie must be "ordered", i.e. present content on the ascent
+    /// path for the reverse iteration direction (e.g. [InMemoryTrie#shortLivedOrdered]).
+    ///
+    /// For example, `slice(2020, false, 4040, true)` excludes `20`, `2020` and `404040` but includes `202020`, `40` and
+    /// `4040` among others.
     default Trie<T> slice(ByteComparable left, boolean inclusiveLeft, ByteComparable right, boolean inclusiveRight)
     {
         return dir -> {
             Cursor<T> cursor = cursor(dir);
+            /// For lexicographic order the "after" position (used for exclusive start / inclusive end) needs to be
+            /// after the specific node but before its children. We do this by always using inclusive-start-exclusive-end
+            /// trie sets, but we form "after" positions by adding a 00 byte to the key.
             return new IntersectionCursor.PlainSlice<>(cursor,
-                                                       RangesCursor.create(dir, cursor.byteComparableVersion(), left, right),
-                                                       inclusiveLeft,
-                                                       inclusiveRight);
+                                                       RangesCursor.create(dir,
+                                                                           cursor.byteComparableVersion(),
+                                                                           true,
+                                                                           false,
+                                                                           maybeAdd0(left, !inclusiveLeft),
+                                                                           maybeAdd0(right, inclusiveRight)));
         };
+    }
+
+    private static ByteComparable maybeAdd0(ByteComparable byteComparable, boolean shouldAdd)
+    {
+        return byteComparable != null && shouldAdd ? v -> ByteSource.append(byteComparable.asComparableBytes(v), 0) : byteComparable;
     }
 
     /// Returns the values in any order. For some tries this is much faster than the ordered iterable.
@@ -161,7 +204,7 @@ public interface Trie<T> extends BaseTrie<T, Cursor<T>, Trie<T>>
     }
 
     /// Not to be used directly, call [#throwingResolver()] instead.
-    static CollectionMergeResolver<Object> THROWING_RESOLVER = new CollectionMergeResolver<Object>()
+    CollectionMergeResolver<Object> THROWING_RESOLVER = new CollectionMergeResolver<>()
     {
         @Override
         public Object resolve(Collection<Object> contents)
@@ -189,7 +232,7 @@ public interface Trie<T> extends BaseTrie<T, Cursor<T>, Trie<T>>
     /// If there is content for a given key in more than one sources, the merge will throw an assertion error.
     static <T> Trie<T> mergeDistinct(Trie<T> t1, Trie<T> t2)
     {
-        return new Trie<T>()
+        return new Trie<>()
         {
             @Override
             public Cursor<T> makeCursor(Direction direction)
@@ -225,7 +268,7 @@ public interface Trie<T> extends BaseTrie<T, Cursor<T>, Trie<T>>
             return mergeDistinct(t1, t2);
         }
         default:
-            return new Trie<T>()
+            return new Trie<>()
             {
                 @Override
                 public Cursor<T> makeCursor(Direction direction)
@@ -285,7 +328,7 @@ public interface Trie<T> extends BaseTrie<T, Cursor<T>, Trie<T>>
     @Override
     default Cursor<T> cursor(Direction direction)
     {
-        return DEBUG ? new VerificationCursor.Plain<>(makeCursor(direction), 0, 0, -1)
+        return DEBUG ? new VerificationCursor.Plain<>(makeCursor(direction))
                      : makeCursor(direction);
     }
 }

@@ -42,7 +42,7 @@ import org.apache.cassandra.utils.bytecomparable.ByteComparable;
 /// Imagine a cursor starts at the root and attempts to skip to "b". We need to be able to notice that "b" is covered by
 /// the "ab-cd" range with deletion del1. This is achieved by using [#precedingState]. In this case skipping to "b"
 /// (in forward direction) will position the cursor on "c"; because the positions to the left of "c" are covered by
-/// del1, the [#precedingState] the cursor should report must be a covering non-boundary state corresponding to `del1`.
+/// del1, the [#precedingState] the cursor reports must be a covering state corresponding to `del1`.
 ///
 /// If, on the other hand, we perform a skip in the reverse direction that reaches the same state, the cursor should
 /// report `null` as its state (e.g. performing a `skipTo` from the root with character "d" will land in "c" whose state
@@ -70,9 +70,10 @@ interface RangeCursor<S extends RangeState<S>> extends Cursor<S>
     /// closest range marker preceding the current position). This carries information for both [#content] and
     /// [#precedingState] and is used to reduce the amount of work done to obtain both values.
     ///
-    /// Typically, we would have `state() == content() != null ? content() : precedingState()`, but the state could be
-    /// richer for some types of trie; for example, [TrieSetCursor] also includes information about the state following
-    /// in the states returned for prefix positions.
+    /// More precisely, `state` can be defined as
+    ///   `state() :== content() != null ? content() : precedingState()`,
+    /// but it is often easier to implement `state` and let the other two be derived from it by the default
+    /// implementations.
     ///
     /// This can be null when no range is active before the current position.
     S state();
@@ -95,9 +96,11 @@ interface RangeCursor<S extends RangeState<S>> extends Cursor<S>
     /// Returns a full-range cursor returning [#precedingState()].
     default RangeCursor<S> precedingStateCursor(Direction direction)
     {
-        // Note: this uses `precedingState` in the current direction, which must be the same as the preceding state we
-        // would get if we walked to the same state in the opposite direction.
-        return new Empty<>(precedingState(), byteComparableVersion(), direction);
+        S precedingState = precedingState();
+        if (precedingState == null)
+            return null;
+
+        return new FromSet<>(RangesCursor.full(direction, byteComparableVersion()), precedingState);
     }
 
     class Empty<S extends RangeState<S>> extends Cursor.Empty<S> implements RangeCursor<S>
@@ -134,77 +137,6 @@ interface RangeCursor<S extends RangeState<S>> extends Cursor<S>
         return new Empty<S>(null, version, direction);
     }
 
-    class Done<S extends RangeState<S>> implements RangeCursor<S>
-    {
-        final Direction direction;
-        final ByteComparable.Version version;
-
-        public Done(Direction direction, ByteComparable.Version version)
-        {
-            this.direction = direction;
-            this.version = version;
-        }
-
-        @Override
-        public S state()
-        {
-            return null;
-        }
-
-        @Override
-        public int depth()
-        {
-            return -1;
-        }
-
-        @Override
-        public int incomingTransition()
-        {
-            return -1;
-        }
-
-        @Override
-        public S content()
-        {
-            return null;
-        }
-
-        @Override
-        public Direction direction()
-        {
-            return direction;
-        }
-
-        @Override
-        public ByteComparable.Version byteComparableVersion()
-        {
-            return version;
-        }
-
-        @Override
-        public int advance()
-        {
-            return -1;
-        }
-
-        @Override
-        public int skipTo(int skipDepth, int skipTransition)
-        {
-            return -1;
-        }
-
-        @Override
-        public RangeCursor<S> tailCursor(Direction direction)
-        {
-            return this;
-        }
-    }
-
-    static <S extends RangeState<S>> RangeCursor<S> done(Direction direction, ByteComparable.Version version)
-    {
-        return new Done<>(direction, version);
-    }
-
     class FromSet<S extends RangeState<S>> implements RangeCursor<S>
     {
         final TrieSetCursor source;
@@ -219,25 +151,13 @@ interface RangeCursor<S extends RangeState<S>> extends Cursor<S>
         @Override
         public S state()
         {
-            return source.state().applyToCoveringState(marker, direction());
+            return source.state().applyToCoveringState(marker);
         }
 
         @Override
-        public int depth()
+        public long encodedPosition()
         {
-            return source.depth();
-        }
-
-        @Override
-        public int incomingTransition()
-        {
-            return source.incomingTransition();
-        }
-
-        @Override
-        public Direction direction()
-        {
-            return source.direction();
+            return source.encodedPosition();
         }
 
         @Override
@@ -247,15 +167,15 @@ interface RangeCursor<S extends RangeState<S>> extends Cursor<S>
         }
 
         @Override
-        public int advance()
+        public long advance()
         {
             return source.advance();
         }
 
         @Override
-        public int skipTo(int skipDepth, int skipTransition)
+        public long skipTo(long encodedSkipPosition)
         {
-            return source.skipTo(skipDepth, skipTransition);
+            return source.skipTo(encodedSkipPosition);
         }
 
         @Override

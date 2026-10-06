@@ -71,8 +71,9 @@ public abstract class ConsistencyTestBase<C, T extends BaseTrie<C, ?, T>, R exte
      * but readers/walkers may see inconsistent views of the data, in the sense that older mutations may be missed
      * while newer ones are returned.
      */
-    public final static Predicate<InMemoryTrie.NodeFeatures<?>> FORCE_ATOMIC = features -> features.isBranching();
-    public final static <Q> Predicate<InMemoryTrie.NodeFeatures<Q>> forceAtomic()
+    public final static Predicate<InMemoryTrie.NodeFeatures<?>> FORCE_ATOMIC = InMemoryBaseTrie.NodeFeatures::isBranching;
+    @SuppressWarnings("unchecked")
+    public static <Q> Predicate<InMemoryTrie.NodeFeatures<Q>> forceAtomic()
     {
         return (Predicate<InMemoryTrie.NodeFeatures<Q>>) (Predicate<?>) FORCE_ATOMIC;
     }
@@ -81,7 +82,8 @@ public abstract class ConsistencyTestBase<C, T extends BaseTrie<C, ?, T>, R exte
      * Mutations may be partially seen by readers, and older mutations may be missed while newer ones are returned.
      */
     public final static Predicate<InMemoryTrie.NodeFeatures<?>> NO_ATOMICITY = features -> false;
-    public final static <Q> Predicate<InMemoryTrie.NodeFeatures<Q>> noAtomicity()
+    @SuppressWarnings("unchecked")
+    public static <Q> Predicate<InMemoryTrie.NodeFeatures<Q>> noAtomicity()
     {
         return (Predicate<InMemoryTrie.NodeFeatures<Q>>) (Predicate<?>) NO_ATOMICITY;
     }
@@ -263,7 +265,7 @@ public abstract class ConsistencyTestBase<C, T extends BaseTrie<C, ?, T>, R exte
         OpOrder readOrder = new OpOrder();
         R trie = makeTrie(readOrder);
         ConcurrentLinkedQueue<Throwable> errors = new ConcurrentLinkedQueue<>();
-        List<Thread> threads = new ArrayList<Thread>();
+        List<Thread> threads = new ArrayList<>();
         AtomicBoolean writeCompleted = new AtomicBoolean(false);
         AtomicInteger writeProgress = new AtomicInteger(0);
         AtomicLong writeProgressAck = new AtomicLong(0);
@@ -343,7 +345,7 @@ public abstract class ConsistencyTestBase<C, T extends BaseTrie<C, ?, T>, R exte
         {
             public void run()
             {
-                final Trie.CollectionMergeResolver<C> mergeResolver = new Trie.CollectionMergeResolver<C>()
+                final Trie.CollectionMergeResolver<C> mergeResolver = new Trie.CollectionMergeResolver<>()
                 {
                     @Override
                     public C resolve(C c1, C c2)
@@ -496,13 +498,13 @@ public abstract class ConsistencyTestBase<C, T extends BaseTrie<C, ?, T>, R exte
                 {
                     case 0:
                     case 2:
-                        System.out.print(".");
+                        System.out.print('.');
                         break;
                     case 1:
-                        System.out.print("-");
+                        System.out.print('-');
                         break;
                     case 3:
-                        System.out.print("#");
+                        System.out.print('#');
                         break;
                 }
             System.out.println();
@@ -512,12 +514,10 @@ public abstract class ConsistencyTestBase<C, T extends BaseTrie<C, ?, T>, R exte
 
     private static RangeTrie<TestRangeState> makeRangeCovering(ByteComparable cprefix)
     {
-        return RangeTrie.range(swapTerminator(cprefix, ByteSource.LT_NEXT_COMPONENT),
-                               swapTerminator(cprefix, ByteSource.GT_NEXT_COMPONENT),
-                               VERSION,
-                               TestRangeState.COVERED);
+        ByteComparable left = swapTerminator(cprefix, ByteSource.LT_NEXT_COMPONENT);
+        ByteComparable right = swapTerminator(cprefix, ByteSource.GT_NEXT_COMPONENT);
+        return RangeTrie.range(left, true, right, true, VERSION, TestRangeState.COVERED);
     }
-
     public void checkEntries(String location,
                              int min,
                              boolean usePk,
@@ -572,7 +572,7 @@ public abstract class ConsistencyTestBase<C, T extends BaseTrie<C, ?, T>, R exte
         }
     }
 
-    static abstract class TestRangeState implements RangeState<TestRangeState>
+    public static abstract class TestRangeState implements RangeState<TestRangeState>
     {
         static final TestRangeState COVERED = new TestRangeCoveringState();
         static final TestRangeState RANGE_START = new TestRangeBoundary(Direction.FORWARD);
@@ -588,6 +588,12 @@ public abstract class ConsistencyTestBase<C, T extends BaseTrie<C, ?, T>, R exte
             if (be.direction == bi.direction)
                 return be;
             return null;    // switch from covered to covered, we should not store anything
+        }
+
+        @Override
+        public TestRangeState succedingState(Direction direction)
+        {
+            return precedingState(direction.opposite());
         }
     }
 

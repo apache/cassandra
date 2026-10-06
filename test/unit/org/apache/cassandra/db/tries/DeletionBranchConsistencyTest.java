@@ -33,6 +33,7 @@ import static org.apache.cassandra.db.tries.TrieUtil.VERSION;
 /// This test extends [ConsistencyTestBase] to verify that [InMemoryDeletionAwareTrie] maintains
 /// correctness and consistency under concurrent access patterns typical of Cassandra's
 /// memtable operations with deletions.
+@SuppressWarnings("rawtypes")
 public class DeletionBranchConsistencyTest
 extends ConsistencyTestBase<ConsistencyTestBase.TestStateMetadata,
                            DeletionAwareTrie<ConsistencyTestBase.TestStateMetadata, ConsistencyTestBase.TestRangeState>,
@@ -97,7 +98,7 @@ extends ConsistencyTestBase<ConsistencyTestBase.TestStateMetadata,
     @Override
     DeletionAwareTrie<TestStateMetadata, TestRangeState> makeSingleton(ByteComparable b, TestStateMetadata content)
     {
-        return DeletionAwareTrie.deletionBranch(ByteComparable.EMPTY, VERSION, RangeTrie.singleton(b, VERSION, content));
+        return DeletionAwareTrie.deletionBranch(ByteComparable.EMPTY, VERSION, RangeTrie.point(b, VERSION, true, content));
     }
 
     @Override
@@ -108,7 +109,7 @@ extends ConsistencyTestBase<ConsistencyTestBase.TestStateMetadata,
 
     @Override
     DeletionAwareTrie<TestStateMetadata, TestRangeState> merge(Collection<DeletionAwareTrie<TestStateMetadata, TestRangeState>> tries,
-                                                      Trie.CollectionMergeResolver<TestStateMetadata> mergeResolver)
+                                                               Trie.CollectionMergeResolver<TestStateMetadata> mergeResolver)
     {
         return DeletionAwareTrie.merge(tries,
                                       mergeResolver,

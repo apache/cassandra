@@ -20,13 +20,14 @@ package org.apache.cassandra.db.tries;
 
 import java.util.Arrays;
 import java.util.Collection;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.stream.Collectors;
 
+import com.google.common.base.Predicates;
 import com.google.common.base.Throwables;
-import com.google.common.collect.Maps;
 import com.google.common.collect.Streams;
 
 import org.apache.cassandra.utils.bytecomparable.ByteComparable;
@@ -41,30 +42,36 @@ import static org.junit.Assert.assertTrue;
 class TestRangeState implements RangeState<TestRangeState>
 {
     final ByteComparable position;
+    final boolean appliesAfter; // part of the position, needs to be remapped for comparisons
+
     final int leftSide;
     final int rightSide;
-    final int at;
 
-    final boolean isBoundary;
     final TestRangeState leftState;
     final TestRangeState rightState;
 
-    TestRangeState(ByteComparable position, int leftSide, int at, int rightSide, boolean isBoundary)
+    TestRangeState(ByteComparable position, int leftSide, int rightSide)
+    {
+        // By default put left starts (which do not have a left side) before branch and ends (which do not have a right
+        // side) after the branch, and leave switches to the left side.
+        this(position, rightSide < 0, leftSide, rightSide);
+    }
+
+    TestRangeState(ByteComparable position, boolean appliesAfter, int leftSide, int rightSide)
     {
         this.position = position;
+        this.appliesAfter = appliesAfter;
         this.leftSide = leftSide;
-        this.at = at;
         this.rightSide = rightSide;
-        this.isBoundary = isBoundary;
-        if (leftSide == rightSide && !isBoundary)
+        if (leftSide == rightSide)
         {
             this.leftState = this;
             this.rightState = this;
         }
         else
         {
-            this.leftState = leftSide >= 0 ? new TestRangeState(position, leftSide, leftSide, leftSide, false) : null;
-            this.rightState = rightSide >= 0 ? new TestRangeState(position, rightSide, rightSide, rightSide, false) : null;
+            this.leftState = leftSide >= 0 ? new TestRangeState(position, false, leftSide, leftSide) : null;
+            this.rightState = rightSide >= 0 ? new TestRangeState(position, false, rightSide, rightSide) : null;
         }
     }
 
@@ -77,40 +84,32 @@ class TestRangeState implements RangeState<TestRangeState>
     public static TestRangeState combineCollection(Collection<TestRangeState> rangeStates)
     {
         int newLeft = -1;
-        int newAt = -1;
         int newRight = -1;
-        boolean isBoundary = false;
         ByteComparable position = null;
+        boolean appliesAfter = false;
         for (TestRangeState marker : rangeStates)
         {
             newLeft = Math.max(newLeft, marker.leftSide);
-            newAt = Math.max(newAt, marker.at);
             newRight = Math.max(newRight, marker.rightSide);
             position = marker.position;
-            isBoundary |= marker.isBoundary;
+            appliesAfter = marker.appliesAfter;
         }
-        if (newLeft < 0 && newAt < 0 && newRight < 0)
+        if (newLeft < 0 && newRight < 0)
             return null;
-        isBoundary &= newLeft != newRight || newLeft != newAt;
 
-        return new TestRangeState(position, newLeft, newAt, newRight, isBoundary);
-    }
-
-    TestRangeState withPoint(int value)
-    {
-        return new TestRangeState(position, leftSide, value, rightSide, isBoundary);
+        return new TestRangeState(position, appliesAfter, newLeft, newRight);
     }
 
     @Override
     public int hashCode()
     {
-        return Objects.hash(position, leftSide, at, rightSide);
+        return Objects.hash(position, leftSide, rightSide);
     }
 
     @Override
     public String toString()
     {
-        return toString('"' + toString(position) + '"');
+        return toString('"' + toString(position, appliesAfter) + '"');
     }
 
     public String toStringNoPosition()
@@ -120,26 +119,22 @@ class TestRangeState implements RangeState<TestRangeState>
 
     public String toString(String positionString)
     {
-        boolean hasAt = at >= 0 && at != leftSide && at != rightSide;
-        String left = leftSide != at ? "<" : "<=";
-        String right = rightSide != at ? "<" : "<=";
 
-        return (leftSide >= 0 ? leftSide + left : "") +
+        return (leftSide >= 0 ? leftSide + "<" : "") +
                positionString +
-               (hasAt ? "=" + at : "") +
-               (rightSide >= 0 ? right + rightSide : "") +
-               (isBoundary ? "" : " not reportable");
+               (rightSide >= 0 ? "<" + rightSide : "") +
+               (isBoundary() ? "" : " not reportable");
     }
 
     @Override
     public boolean isBoundary()
     {
-        return isBoundary;
+        return leftSide != rightSide;
     }
 
     public TestRangeState toContent()
     {
-        return isBoundary ? this : null;
+        return isBoundary() ? this : null;
     }
 
     @Override
@@ -149,15 +144,21 @@ class TestRangeState implements RangeState<TestRangeState>
     }
 
     @Override
+    public TestRangeState succedingState(Direction direction)
+    {
+        return direction.select(rightState, leftState);
+    }
+
+    @Override
     public TestRangeState restrict(boolean applicableBefore, boolean applicableAfter)
     {
-        assert isBoundary;
+        assert isBoundary();
         if ((applicableBefore || leftSide < 0) && (applicableAfter || rightSide < 0))
             return this;
         int newLeft = applicableBefore ? leftSide : -1;
         int newRight = applicableAfter ? rightSide : -1;
-        if (newLeft >= 0 || newRight >= 0 || at >= 0)
-            return new TestRangeState(position, newLeft, at, newRight, true);
+        if (newLeft >= 0 || newRight >= 0)
+            return new TestRangeState(position, appliesAfter, newLeft, newRight);
         else
             return null;
     }
@@ -165,62 +166,93 @@ class TestRangeState implements RangeState<TestRangeState>
     @Override
     public TestRangeState asBoundary(Direction direction)
     {
-        assert !isBoundary;
+        assert !isBoundary();
         final boolean isForward = direction.isForward();
         int newLeft = !isForward ? leftSide : -1;
         int newRight = isForward ? rightSide : -1;
-        return new TestRangeState(position, newLeft, at, newRight, true);
+        return new TestRangeState(position, appliesAfter, newLeft, newRight);
     }
 
-    @Override
-    public TestRangeState asPoint()
-    {
-        return new TestRangeState(position, -1, at, -1, true);
-    }
-
-    static String toString(ByteComparable position)
+    static String toString(ByteComparable position, boolean appliesAfter)
     {
         if (position == null)
             return "null";
-        return position.byteComparableAsString(TrieUtil.VERSION);
+        return position.byteComparableAsString(TrieUtil.VERSION) + (appliesAfter ? "↑" : "");
     }
 
     static List<TestRangeState> verify(List<TestRangeState> markers)
     {
         int active = -1;
-        ByteComparable prev = null;
+        TestRangeState prev = null;
         for (TestRangeState marker : markers)
         {
-            assertTrue("Order violation " + toString(prev) + " vs " + toString(marker.position),
-                       prev == null || ByteComparable.compare(prev, marker.position, TrieUtil.VERSION) < 0);
-            assertEquals("Range close violation", active, marker.leftSide);
-            assertTrue(marker.at != marker.leftSide || marker.at != marker.rightSide);
-            prev = marker.position;
+            if (prev != null && prev.position != null && marker != null && marker.position != null)
+                assertTrue("Order violation " + toString(prev.position, prev.appliesAfter) + " vs " + toString(marker.position, marker.appliesAfter),
+                           ByteComparable.compare(prev.position, marker.position, TrieUtil.VERSION) < 0 ||
+                           ByteComparable.compare(prev.position, marker.position, TrieUtil.VERSION) == 0 && !prev.appliesAfter && marker.appliesAfter);
+
+            if (marker != null)
+                assertEquals("Range close violation", active, marker.leftSide);
+            else
+                assertEquals("Open range at end", null, active);
+
+            assertTrue(marker.leftSide != marker.rightSide);
+            prev = marker;
             active = marker.rightSide;
         }
         assertEquals("Unclosed range", -1, active);
         return markers;
     }
 
+    static class TestRangeStateIterator extends TrieEntriesIterator<TestRangeState, TestRangeState>
+    {
+        boolean onReturnPath;
+
+        TestRangeStateIterator(RangeTrie<TestRangeState> trie, Direction direction)
+        {
+            super(trie.cursor(direction), Predicates.alwaysTrue());
+        }
+
+        @Override
+        public void onReturnPath()
+        {
+            onReturnPath = true;
+        }
+
+        @Override
+        protected TestRangeState mapContent(TestRangeState content, byte[] bytes, int byteLength)
+        {
+            ByteComparable key = ByteComparable.preencoded(byteComparableVersion(), Arrays.copyOf(bytes, byteLength));
+            boolean appliesAfter = onReturnPath == direction().isForward();
+            onReturnPath = false;
+            return remap(content, key, appliesAfter);
+        }
+    }
 
     /**
      * Extract the values of the provided trie into a list.
      */
     static List<TestRangeState> toList(RangeTrie<TestRangeState> trie, Direction direction)
     {
-        return Streams.stream(trie.entryIterator(direction))
-                      .map(en -> remap(en.getValue(), en.getKey()))
+        return Streams.stream(new TestRangeStateIterator(trie, direction))
                       .collect(Collectors.toList());
     }
 
-    static TestRangeState remap(TestRangeState dm, ByteComparable newKey)
+    /**
+     * Extract the values of the provided trie into a map.
+     */
+    static Map<String, String> toStringMap(RangeTrie<TestRangeState> trie, Direction direction)
     {
-        return new TestRangeState(newKey, dm.leftSide, dm.at, dm.rightSide, dm.isBoundary);
+        return Streams.stream(new TestRangeStateIterator(trie, direction))
+                      .collect(Collectors.toMap(x -> TrieUtil.asString(x.position),
+                                                x -> x.toString(),
+                                                (x, y) -> '(' + x + ',' + ')',
+                                                LinkedHashMap::new));
     }
 
-    static Map.Entry<ByteComparable.Preencoded, TestRangeState> remap(Map.Entry<ByteComparable.Preencoded, TestRangeState> entry)
+    static TestRangeState remap(TestRangeState dm, ByteComparable newKey, boolean appliesAfter)
     {
-        return Maps.immutableEntry(entry.getKey(), remap(entry.getValue(), entry.getKey()));
+        return new TestRangeState(newKey, appliesAfter, dm.leftSide, dm.rightSide);
     }
 
     static InMemoryRangeTrie<TestRangeState> fromList(List<TestRangeState> list)
@@ -230,7 +262,10 @@ class TestRangeState implements RangeState<TestRangeState>
         {
             try
             {
-                trie.putRecursive(i.position, i, (ex, n) -> n);
+                ByteComparable pos = i.position;
+                if (pos == null)
+                    pos = ByteComparable.EMPTY;
+                trie.putRecursive(pos, i, i.appliesAfter, (ex, n) -> n);
             }
             catch (TrieSpaceExhaustedException e)
             {
@@ -246,6 +281,6 @@ class TestRangeState implements RangeState<TestRangeState>
         if (other == null)
             return false;
         TestRangeState otherMarker = (TestRangeState) other;
-        return otherMarker.leftSide == leftSide && otherMarker.at == at && otherMarker.rightSide == rightSide;
+        return otherMarker.leftSide == leftSide && otherMarker.rightSide == rightSide;
     }
 }

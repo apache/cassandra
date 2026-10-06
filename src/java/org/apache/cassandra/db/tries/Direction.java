@@ -47,22 +47,17 @@ public enum Direction
             return a <= b;
         }
 
-        public int min(int a, int b)
-        {
-            return Math.min(a, b);
-        }
-
-        public int max(int a, int b)
-        {
-            return Math.max(a, b);
-        }
-
         public <T> T select(T forward, T reverse)
         {
             return forward;
         }
 
         public int select(int forward, int reverse)
+        {
+            return forward;
+        }
+
+        public long select(long forward, long reverse)
         {
             return forward;
         }
@@ -94,22 +89,17 @@ public enum Direction
             return a >= b;
         }
 
-        public int min(int a, int b)
-        {
-            return Math.max(a, b);
-        }
-
-        public int max(int a, int b)
-        {
-            return Math.min(a, b);
-        }
-
         public <T> T select(T forward, T reverse)
         {
             return reverse;
         }
 
         public int select(int forward, int reverse)
+        {
+            return reverse;
+        }
+
+        public long select(long forward, long reverse)
         {
             return reverse;
         }
@@ -147,10 +137,6 @@ public enum Direction
     {
         return le(b, a);
     }
-    /** Returns the result of the operation corresponding to min(a, b) for the forward direction */
-    public abstract int min(int a, int b);
-    /** Returns the result of the operation corresponding to max(a, b) for the forward direction */
-    public abstract int max(int a, int b);
 
     /**
      * Use the first argument in forward direction and the second in reverse, i.e. isForward() ? forward : reverse.
@@ -161,6 +147,11 @@ public enum Direction
      * Use the first argument in forward direction and the second in reverse, i.e. isForward() ? forward : reverse.
      */
     public abstract int select(int forward, int reverse);
+
+    /**
+     * Use the first argument in forward direction and the second in reverse, i.e. isForward() ? forward : reverse.
+     */
+    public abstract long select(long forward, long reverse);
 
     /**
      * Helper to perform loops over possible values in the given direction. Returns whether the given index is still

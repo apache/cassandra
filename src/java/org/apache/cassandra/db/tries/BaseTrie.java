@@ -247,29 +247,26 @@ public interface BaseTrie<T, C extends Cursor<T>, Q extends BaseTrie<T, C, Q>> e
     }
 
     /// Returns a view of the subtrie containing everything in this trie whose keys fall between the given boundaries,
-    /// inclusive of both bounds and any prefix of the bounds.
+    /// inclusive of both bounds, any prefix of the bounds, as well as any descendant of the bounds (if one bound is a
+    /// prefix of the other, only all descendants of the longer bound).
     ///
     /// The view is live, i.e. any write to the source will be reflected in the subtrie.
     ///
     /// This method will not check its arguments for correctness. The resulting trie may throw an exception if the right
     /// bound is smaller than the left.
     ///
-    /// This package is designed to walk tries efficiently using cursors that necessarily present prefix nodes before
-    /// children. Lexicographically correct slices (where e.g. the left bound and prefixes of the right are included in
-    /// the set but prefixes of the left are not) are not contiguous in this representation in both iteration directions
-    /// (because a prefix of the left bound must necessarily be presented before the left bound itself in reverse order)
-    /// and are thus not supported. However, if the encoded keys are prefix-free, this limitation is immaterial.
-    ///
     /// @param left the left bound for the returned subtrie. If `null`, the resulting subtrie is not left-bounded.
     /// @param right the right bound for the returned subtrie. If `null`, the resulting subtrie is not right-bounded.
     /// @return a view of the subtrie containing all the keys of this trie falling between `left` and `right`,
-    /// including both bounds and any prefix of the bounds.
+    /// including both bounds, their prefixes and branches.
     default Q subtrie(ByteComparable left, ByteComparable right)
     {
-        return intersect(TrieSet.range(cursor(Direction.FORWARD).byteComparableVersion(), left, right));
+        return intersect(TrieSet.rangeInclusiveEnd(cursor(Direction.FORWARD).byteComparableVersion(), left, right));
     }
 
-    /// Returns a view of this trie that is an intersection of its content with the given set.
+    /// Returns a view of this trie that is an intersection of its content with the given set. Note that intersections
+    /// return content for all positions listed by the set, including prefixes that are not actually contained, to be
+    /// able to preserve branch metadata.
     ///
     /// The view is live, i.e. any write to the source will be reflected in the intersection.
     Q intersect(TrieSet set);

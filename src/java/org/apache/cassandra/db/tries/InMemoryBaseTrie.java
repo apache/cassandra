@@ -49,6 +49,7 @@ public abstract class InMemoryBaseTrie<T> extends InMemoryReadTrie<T>
     /// This must be done to avoid tries growing beyond their hard 2GB size limit (due to the 32-bit pointers).
     @VisibleForTesting
     static final int ALLOCATED_SIZE_THRESHOLD;
+
     static
     {
         // Default threshold + 10% == 2 GB. This should give the owner enough time to react to the
@@ -67,7 +68,6 @@ public abstract class InMemoryBaseTrie<T> extends InMemoryReadTrie<T>
     final MemoryAllocationStrategy cellAllocator;
     final MemoryAllocationStrategy objectAllocator;
 
-
     // constants for space calculations
     private static final long REFERENCE_ARRAY_ON_HEAP_SIZE = ObjectSizes.measureDeep(new AtomicReferenceArray<>(0));
 
@@ -76,9 +76,10 @@ public abstract class InMemoryBaseTrie<T> extends InMemoryReadTrie<T>
         SHORT, LONG
     }
 
-    InMemoryBaseTrie(ByteComparable.Version byteComparableVersion, BufferType bufferType, ExpectedLifetime lifetime, OpOrder opOrder)
+    InMemoryBaseTrie(ByteComparable.Version byteComparableVersion, boolean presentContentOnDescentPath, BufferType bufferType, ExpectedLifetime lifetime, OpOrder opOrder)
     {
         super(byteComparableVersion,
+              presentContentOnDescentPath,
               new UnsafeBuffer[31 - BUF_START_SHIFT],  // last one is 1G for a total of ~2G bytes
               new AtomicReferenceArray[29 - CONTENTS_START_SHIFT],  // takes at least 4 bytes to write pointer to one content -> 4 times smaller than buffers
               NONE);
@@ -106,7 +107,7 @@ public abstract class InMemoryBaseTrie<T> extends InMemoryReadTrie<T>
         getBuffer(pos).putInt(inBufferOffset(pos), value);
     }
 
-    private void putIntVolatile(int pos, int value)
+    protected void putIntVolatile(int pos, int value)
     {
         getBuffer(pos).putIntVolatile(inBufferOffset(pos), value);
     }
@@ -160,14 +161,14 @@ public abstract class InMemoryBaseTrie<T> extends InMemoryReadTrie<T>
         return cell;
     }
 
-    private void recycleCell(int cell)
+    protected void recycleCell(int cell)
     {
         cellAllocator.recycle(cell & -CELL_SIZE);
     }
 
     /// Creates a copy of a given cell and marks the original for recycling. Used when a mutation needs to force-copy
     /// paths to ensure earlier states are still available for concurrent readers.
-    private int copyCell(int cell) throws TrieSpaceExhaustedException
+    protected int copyCell(int cell) throws TrieSpaceExhaustedException
     {
         int copy = cellAllocator.allocate();
         getBuffer(copy).putBytes(inBufferOffset(copy), getBuffer(cell), inBufferOffset(cell & -CELL_SIZE), CELL_SIZE);
@@ -193,9 +194,9 @@ public abstract class InMemoryBaseTrie<T> extends InMemoryReadTrie<T>
 
     /// Add a new content value.
     ///
-    /// @return A content id that can be used to reference the content, encoded as `~index` where index is the
-    ///         position of the value in the content array.
-    private int addContent(T value) throws TrieSpaceExhaustedException
+    /// @return A content id that can be used to reference the content, a negative number where
+    ///         `id & CONTENT_INDEX_MASK` encodes the position of the value in the content array.
+    protected int addContent(T value, boolean contentAfterBranch) throws TrieSpaceExhaustedException
     {
         if (value == null)
             return NONE;
@@ -207,24 +208,29 @@ public abstract class InMemoryBaseTrie<T> extends InMemoryReadTrie<T>
         // no need for a volatile set here; at this point the item is not referenced
         // by any node in the trie, and a volatile set will be made to reference it.
         array.setPlain(ofs, value);
-        return ~index;
+        return formContentId(index, contentAfterBranch);
+    }
+
+    private int formContentId(int index, boolean contentAfterBranch)
+    {
+        return index | (1 << 31) | (contentAfterBranch ? CONTENT_AFTER_BRANCH : 0);
     }
 
     /// Change the content associated with a given content id.
     ///
-    /// @param id content id, encoded as `~index` where index is the position in the content array
+    /// @param id encoded content id, where `id & CONTENT_INDEX_MASK` is the position in the content array
     /// @param value new content value to store
-    private void setContent(int id, T value)
+    protected void setContent(int id, T value)
     {
-        int leadBit = getBufferIdx(~id, CONTENTS_START_SHIFT, CONTENTS_START_SIZE);
-        int ofs = inBufferOffset(~id, leadBit, CONTENTS_START_SIZE);
+        int leadBit = getBufferIdx(id & CONTENT_INDEX_MASK, CONTENTS_START_SHIFT, CONTENTS_START_SIZE);
+        int ofs = inBufferOffset(id & CONTENT_INDEX_MASK, leadBit, CONTENTS_START_SIZE);
         AtomicReferenceArray<T> array = contentArrays[leadBit];
         array.set(ofs, value);
     }
 
-    private void releaseContent(int id)
+    protected void releaseContent(int id)
     {
-        objectAllocator.recycle(~id);
+        objectAllocator.recycle(id & CONTENT_INDEX_MASK);
     }
 
     /// Called to clean up all buffers when the trie is known to no longer be needed.
@@ -304,7 +310,7 @@ public abstract class InMemoryBaseTrie<T> extends InMemoryReadTrie<T>
     /// @param trans transition to modify/add
     /// @param newChild new child pointer
     /// @return pointer to the updated node
-    private int attachChildCopying(int node, int originalNode, int trans, int newChild) throws TrieSpaceExhaustedException
+    protected int attachChildCopying(int node, int originalNode, int trans, int newChild) throws TrieSpaceExhaustedException
     {
         assert !isLeaf(node) : "attachChild cannot be used on content nodes.";
 
@@ -333,7 +339,7 @@ public abstract class InMemoryBaseTrie<T> extends InMemoryReadTrie<T>
     /// @param trans transition to modify/add
     /// @param newChild new child pointer
     /// @return pointer to the updated node; same as node if update was in-place
-    private int attachChild(int node, int trans, int newChild) throws TrieSpaceExhaustedException
+    protected int attachChild(int node, int trans, int newChild) throws TrieSpaceExhaustedException
     {
         assert !isLeaf(node) : "attachChild cannot be used on content nodes.";
 
@@ -825,7 +831,7 @@ public abstract class InMemoryBaseTrie<T> extends InMemoryReadTrie<T>
 
     /// Like [#createNewChainNode], but if the new child is already a chain node and has room, expand
     /// it instead of creating a brand new node.
-    private int expandOrCreateChainNode(int transitionByte, int newChild) throws TrieSpaceExhaustedException
+    protected int expandOrCreateChainNode(int transitionByte, int newChild) throws TrieSpaceExhaustedException
     {
         if (isExpandableChain(newChild))
         {
@@ -843,12 +849,12 @@ public abstract class InMemoryBaseTrie<T> extends InMemoryReadTrie<T>
         return allocateCell() + SPLIT_OFFSET;
     }
 
-    private int createContentNode(int contentId, int child, boolean isSafeChain) throws TrieSpaceExhaustedException
+    protected int createContentNode(int contentId, int child, boolean isSafeChain) throws TrieSpaceExhaustedException
     {
         return createPrefixNode(contentId, NONE, child, isSafeChain);
     }
 
-    private int createPrefixNode(int contentId, int alternateBranch, int child, boolean isSafeChain) throws TrieSpaceExhaustedException
+    protected int createPrefixNode(int contentId, int alternateBranch, int child, boolean isSafeChain) throws TrieSpaceExhaustedException
     {
         assert !isLeaf(child) : "Prefix node cannot reference a leaf node.";
         assert !isNull(child) || !isNull(alternateBranch) : "Prefix node can only have a null child if it includes an alternate branch.";
@@ -889,14 +895,13 @@ public abstract class InMemoryBaseTrie<T> extends InMemoryReadTrie<T>
             {
                 // This attaches the child branch and makes it reachable -- the write must be volatile.
                 putIntVolatile(node + PREFIX_POINTER_OFFSET, child);
-                return node;
             }
             else
             {
                 node = copyCell(node);
                 putInt(node + PREFIX_POINTER_OFFSET, child);
-                return node;
             }
+            return node;
         }
         else
         {
@@ -907,7 +912,7 @@ public abstract class InMemoryBaseTrie<T> extends InMemoryReadTrie<T>
         }
     }
 
-    private boolean isEmbeddedPrefixNode(int node)
+    protected boolean isEmbeddedPrefixNode(int node)
     {
         return getUnsignedByte(node + PREFIX_FLAGS_OFFSET) < CELL_SIZE;
     }
@@ -959,22 +964,13 @@ public abstract class InMemoryBaseTrie<T> extends InMemoryReadTrie<T>
         }
     }
 
-    /// Reused storage for the state of application of mutations. This stores the backtracking path, including changes
-    /// already applied (e.g. new version of a node that is not yet linked to the current trie) and some that are yet
-    /// to be applied (e.g. updated content).
-    ///
-    /// Because in-memory tries are single-writer, we can reuse a single state array for all updates. The updates are
-    /// serialized and thus no other thread can corrupt this state (note that this is not the factor enforcing the
-    /// single writer policy, and since we are already bound to it there is cost involved in reusing this state array).
-    final ApplyState applyState = new ApplyState();
-
     /// Represents the state for an [InMemoryTrie#apply] operation. Contains a stack of all nodes we descended through
     /// and used to update the nodes with any new data during ascent.
     ///
     /// To make this as efficient and GC-friendly as possible, we use an integer array (instead of is an object stack)
     /// and we reuse the same object. The latter is safe because memtable tries cannot be mutated in parallel by
     /// multiple writers.
-    class ApplyState implements KeyProducer<T>
+    static class ApplyState<T> implements KeyProducer<T>
     {
         static final int STATE_SIZE = 5;
 
@@ -1006,10 +1002,6 @@ public abstract class InMemoryBaseTrie<T> extends InMemoryReadTrie<T>
         {
             data[currentDepth * STATE_SIZE + 1] = value;
         }
-        int existingPostContentNodeAtDepth(int stackDepth)
-        {
-            return data[stackDepth * STATE_SIZE + 1];
-        }
 
         /// The updated node, i.e. the node to which the relevant modifications are being applied. This will change as
         /// children are processed and attached to the node. After all children have been processed, this will contain
@@ -1024,10 +1016,6 @@ public abstract class InMemoryBaseTrie<T> extends InMemoryReadTrie<T>
         void setUpdatedPostContentNode(int value)
         {
             data[currentDepth * STATE_SIZE + 2] = value;
-        }
-        int updatedPostContentNodeAtDepth(int stackDepth)
-        {
-            return data[stackDepth * STATE_SIZE + 2];
         }
 
         /// The transition we took on the way down.
@@ -1050,32 +1038,35 @@ public abstract class InMemoryBaseTrie<T> extends InMemoryReadTrie<T>
 
         /// The compiled content id. Needed because we can only access a cursor's content on the way down but we can't
         /// attach it until we ascend from the node.
-        int contentId()
+        int descentPathContentId()
         {
             return data[currentDepth * STATE_SIZE + 4];
         }
-        void setContentId(int value)
+        void setDescentPathContentId(int value)
         {
             data[currentDepth * STATE_SIZE + 4] = value;
         }
-        int contentIdAtDepth(int stackDepth)
+        int descentPathContentIdAtDepth(int stackDepth)
         {
             return data[stackDepth * STATE_SIZE + 4];
         }
 
-        int alternateBranchToAttach = NONE;
+        protected final InMemoryBaseTrie<T> trie;
 
-        ApplyState start()
+        ApplyState(InMemoryBaseTrie<T> trie)
         {
-            return start(root);
+            this.trie = trie;
         }
 
-        ApplyState start(int root)
+        ApplyState<T> start()
         {
-            int existingFullNode = root;
-            currentDepth = -1;
+            return start(trie.root);
+        }
 
-            descendInto(existingFullNode);
+        ApplyState<T> start(int root)
+        {
+            currentDepth = -1;
+            descendInto(root);
             return this;
         }
 
@@ -1104,15 +1095,16 @@ public abstract class InMemoryBaseTrie<T> extends InMemoryReadTrie<T>
         /// If there is an existing position before this limit, the state will be positioned on it, and true will be
         /// returned. If not, we will advance and descend into the given limit position, and return false.
         ///
-        /// The `limitDepth` and `limitTransition` parameters specify the limit position. This must be a valid
-        /// non-exhausted position.
-        boolean advanceToNextExistingOr(int limitDepth, int limitTransition, int forcedCopyDepth) throws TrieSpaceExhaustedException
+        /// The `limitDepth`, `limitTransition` and `limitIsOnReturnPath` parameters specify the limit position. This
+        /// must be a valid non-exhausted position.
+        boolean advanceToNextExistingOr(int limitDepth, int limitTransition, boolean limitIsOnReturnPath, int forcedCopyDepth, int ascendLimit)
+        throws TrieSpaceExhaustedException
         {
-            assert limitDepth > 0;
+            assert limitDepth >= ascendLimit;
             while (true)
             {
                 int currentTransition = transition();
-                int nextTransition = getNextTransition(updatedPostContentNode(), currentTransition + 1);
+                int nextTransition = trie.getNextTransition(updatedPostContentNode(), currentTransition + 1);
                 if (currentDepth + 1 == limitDepth && nextTransition >= limitTransition)
                 {
                     descend(limitTransition);
@@ -1124,22 +1116,21 @@ public abstract class InMemoryBaseTrie<T> extends InMemoryReadTrie<T>
                     return true;
                 }
 
+                if (limitIsOnReturnPath && currentDepth == limitDepth &&
+                    (limitDepth == ascendLimit || transitionAtDepth(currentDepth - 1) == limitTransition))
+                    return false;
+
                 attachAndMoveToParentState(forcedCopyDepth);
             }
         }
 
-        /// Advance to the next existing position in the trie.
-        boolean advanceToNextExisting(int forcedCopyDepth) throws TrieSpaceExhaustedException
-        {
-            return advanceToNextExisting(forcedCopyDepth, 0);
-        }
         /// Advance to the next existing position in the trie.
         boolean advanceToNextExisting(int forcedCopyDepth, int ascendLimit) throws TrieSpaceExhaustedException
         {
             while (true)
             {
                 int currentTransition = transition();
-                int nextTransition = getNextTransition(updatedPostContentNode(), currentTransition + 1);
+                int nextTransition = trie.getNextTransition(updatedPostContentNode(), currentTransition + 1);
                 if (nextTransition <= 0xFF)
                 {
                     descend(nextTransition);
@@ -1157,7 +1148,7 @@ public abstract class InMemoryBaseTrie<T> extends InMemoryReadTrie<T>
         void descend(int transition)
         {
             setTransition(transition);
-            int existingFullNode = getChild(updatedPostContentNode(), transition);
+            int existingFullNode = trie.getChild(updatedPostContentNode(), transition);
 
             descendInto(existingFullNode);
         }
@@ -1173,83 +1164,58 @@ public abstract class InMemoryBaseTrie<T> extends InMemoryReadTrie<T>
             int existingPostContentNode;
             if (isLeaf(existingFullNode))
             {
-                existingContentId = existingFullNode;
+                existingContentId = (existingFullNode & CONTENT_AFTER_BRANCH) == 0 ? existingFullNode : NONE;
                 existingPostContentNode = NONE;
             }
             else if (offset(existingFullNode) == PREFIX_OFFSET)
             {
-                existingContentId = getIntVolatile(existingFullNode + PREFIX_CONTENT_OFFSET);
-                existingPostContentNode = followPrefixTransition(existingFullNode);
+                existingContentId = trie.getIntVolatile(existingFullNode + PREFIX_CONTENT_OFFSET);
+                existingPostContentNode = trie.followPrefixTransition(existingFullNode);
             }
             else
                 existingPostContentNode = existingFullNode;
+
             setExistingPostContentNode(existingPostContentNode);
             setUpdatedPostContentNode(existingPostContentNode);
-            setContentId(existingContentId);
+            setDescentPathContentId(existingContentId);
             setTransition(-1);
         }
 
-        T getContent()
+        T getDescentPathContent()
         {
-            int contentId = contentId();
+            int contentId = descentPathContentId();
             if (contentId == NONE)
                 return null;
-            return InMemoryBaseTrie.this.getContent(contentId());
+            return trie.getContent(descentPathContentId());
         }
 
-        void setContent(T content, boolean forcedCopy) throws TrieSpaceExhaustedException
+        void setDescentPathContent(T content, boolean forcedCopy) throws TrieSpaceExhaustedException
         {
-            int contentId = contentId();
-            if (contentId == NONE)
+            setDescentPathContentId(combineContent(descentPathContentId(), content, false, forcedCopy));
+        }
+
+        int combineContent(int existingContentId, T newContent, boolean contentAfterBranch, boolean forcedCopy) throws TrieSpaceExhaustedException
+        {
+            if (existingContentId == NONE)
             {
-                if (content != null)
-                    setContentId(InMemoryBaseTrie.this.addContent(content));
+                assert (newContent != null); // combineContent cannot be called if new is the same as existing
+                return trie.addContent(newContent, contentAfterBranch);
             }
-            else if (content == null)
+            else if (newContent == null)
             {
-                releaseContent(contentId);
-                setContentId(NONE);
-            }
-            else if (content == InMemoryBaseTrie.this.getContent(contentId))
-            {
-                // no changes, nothing to do
+                trie.releaseContent(existingContentId);
+                return NONE;
             }
             else if (forcedCopy)
             {
-                releaseContent(contentId);
-                setContentId(InMemoryBaseTrie.this.addContent(content));
+                trie.releaseContent(existingContentId);
+                return trie.addContent(newContent, contentAfterBranch);
             }
             else
             {
-                InMemoryBaseTrie.this.setContent(contentId, content);
+                trie.setContent(existingContentId, newContent);
+                return existingContentId;
             }
-        }
-
-        T getNearestContent()
-        {
-            // Assume any dead branch is deleted, thus: go upstack until first node for which we have a higher transition
-            // and then repeatedly descend into first child until content.
-            int stackPos = currentDepth;
-            int node = NONE;
-            setTransition(-1);      // In the node we have just descended to, start with its first child
-            for (; stackPos >= 0 && node == NONE; --stackPos)
-            {
-                node = getNextChild(updatedPostContentNodeAtDepth(stackPos), transitionAtDepth(stackPos) + 1);
-            }
-
-            while (node != NONE)
-            {
-                T content = InMemoryBaseTrie.this.getNodeContent(node);
-                if (content != null)
-                    return content;
-                node = getNextChild(node, 0);
-            }
-            return null;
-        }
-
-        public int alternateBranch()
-        {
-            return getAlternateBranch(existingFullNode());
         }
 
         /// Attach a child to the current node.
@@ -1257,32 +1223,25 @@ public abstract class InMemoryBaseTrie<T> extends InMemoryReadTrie<T>
         {
             int updatedPostContentNode = updatedPostContentNode();
             if (isNull(updatedPostContentNode))
-                setUpdatedPostContentNode(expandOrCreateChainNode(transition, child));
+                setUpdatedPostContentNode(trie.expandOrCreateChainNode(transition, child));
             else if (forcedCopy)
-                setUpdatedPostContentNode(attachChildCopying(updatedPostContentNode,
+                setUpdatedPostContentNode(trie.attachChildCopying(updatedPostContentNode,
                                                              existingPostContentNode(),
                                                              transition,
                                                              child));
             else
-                setUpdatedPostContentNode(InMemoryBaseTrie.this.attachChild(updatedPostContentNode,
+                setUpdatedPostContentNode(trie.attachChild(updatedPostContentNode,
                                                                             transition,
                                                                             child));
         }
 
-        /// Apply the collected content to a node. Converts `NONE` to a leaf node, and adds or updates a prefix for all
-        /// others.
-        private int applyContent(boolean forcedCopy) throws TrieSpaceExhaustedException
+        /// Apply the collected content to a node. If there is content to add, converts `NONE` to a leaf node, and adds
+        /// or updates a prefix for all others.
+        protected int applyContent(boolean forcedCopy) throws TrieSpaceExhaustedException
         {
-            if (alternateBranchToAttach != NONE)
-            {
-                int alternateBranch = alternateBranchToAttach;
-                alternateBranchToAttach = NONE;
-                return applyContentWithAlternateBranch(alternateBranch, forcedCopy);
-            }
-
             // Note: the old content id itself is already released by setContent. Here we must release any standalone
             // prefix nodes that may reference it.
-            int contentId = contentId();
+            int contentId = descentPathContentId();
             final int updatedPostContentNode = updatedPostContentNode();
             final int existingPreContentNode = existingFullNode();
             final int existingPostContentNode = existingPostContentNode();
@@ -1292,14 +1251,14 @@ public abstract class InMemoryBaseTrie<T> extends InMemoryReadTrie<T>
             {
                 if (existingPreContentNode != existingPostContentNode
                     && !isNullOrLeaf(existingPreContentNode)
-                    && !isEmbeddedPrefixNode(existingPreContentNode))
-                    recycleCell(existingPreContentNode);
+                    && !trie.isEmbeddedPrefixNode(existingPreContentNode))
+                    trie.recycleCell(existingPreContentNode);
                 return contentId;   // also fine for contentId == NONE
             }
 
             if (isLeaf(existingPreContentNode))
                 return contentId != NONE
-                       ? createContentNode(contentId, updatedPostContentNode, true)
+                       ? trie.createContentNode(contentId, updatedPostContentNode, true)
                        : updatedPostContentNode;
 
             return applyPrefixChange(updatedPostContentNode,
@@ -1310,49 +1269,26 @@ public abstract class InMemoryBaseTrie<T> extends InMemoryReadTrie<T>
                                      forcedCopy);
         }
 
-        /// Apply the collected content to a node. Converts `NONE` to a leaf node, and adds or updates a prefix for all
-        /// others.
-        private int applyContentWithAlternateBranch(int alternateBranch, boolean forcedCopy) throws TrieSpaceExhaustedException
-        {
-            int contentId = contentId();
-            final int updatedPostContentNode = updatedPostContentNode();
-            final int existingPreContentNode = existingFullNode();
-            final int existingPostContentNode = existingPostContentNode();
-
-            // applyPrefixChange does not understand leaf nodes, handle upgrade from one explicitly.
-            if (isLeaf(existingPreContentNode))
-                return contentId != NONE
-                        ? createPrefixNode(contentId, alternateBranch, updatedPostContentNode, true)
-                        : updatedPostContentNode;
-
-            return applyPrefixChange(updatedPostContentNode,
-                    existingPreContentNode,
-                    existingPostContentNode,
-                    contentId,
-                    alternateBranch,
-                    forcedCopy);
-        }
-
-        private int applyPrefixChange(int updatedPostPrefixNode,
-                                      int existingPrePrefixNode,
-                                      int existingPostPrefixNode,
-                                      int contentId,
-                                      int alternateBranch,
-                                      boolean forcedCopy)
+        protected int applyPrefixChange(int updatedPostPrefixNode,
+                                        int existingPrePrefixNode,
+                                        int existingPostPrefixNode,
+                                        int contentId,
+                                        int alternateBranch,
+                                        boolean forcedCopy)
         throws TrieSpaceExhaustedException
         {
             boolean prefixWasPresent = existingPrePrefixNode != existingPostPrefixNode;
-            boolean prefixWasEmbedded = prefixWasPresent && isEmbeddedPrefixNode(existingPrePrefixNode);
+            boolean prefixWasEmbedded = prefixWasPresent && trie.isEmbeddedPrefixNode(existingPrePrefixNode);
             if (contentId == NONE && alternateBranch == NONE)
             {
                 if (prefixWasPresent && !prefixWasEmbedded)
-                    recycleCell(existingPrePrefixNode);
+                    trie.recycleCell(existingPrePrefixNode);
                 return updatedPostPrefixNode;
             }
 
             boolean childChanged = updatedPostPrefixNode != existingPostPrefixNode;
-            boolean dataChanged = !prefixWasPresent || contentId != getIntVolatile(existingPrePrefixNode + PREFIX_CONTENT_OFFSET)
-                    || alternateBranch != getIntVolatile(existingPrePrefixNode + PREFIX_ALTERNATE_OFFSET);
+            boolean dataChanged = !prefixWasPresent || contentId != trie.getIntVolatile(existingPrePrefixNode + PREFIX_CONTENT_OFFSET)
+                    || alternateBranch != trie.getIntVolatile(existingPrePrefixNode + PREFIX_ALTERNATE_OFFSET);
             if (!childChanged && !dataChanged)
                 return existingPrePrefixNode;
 
@@ -1364,28 +1300,28 @@ public abstract class InMemoryBaseTrie<T> extends InMemoryReadTrie<T>
                     // previous value.
                     // We could create a separate metadata node referencing the child, but in that case we'll
                     // use two nodes while one suffices. Instead, copy the child and embed the new metadata.
-                    updatedPostPrefixNode = copyCell(existingPostPrefixNode);
+                    updatedPostPrefixNode = trie.copyCell(existingPostPrefixNode);
                 }
                 else if (prefixWasPresent && !prefixWasEmbedded)
                 {
-                    recycleCell(existingPrePrefixNode);
+                    trie.recycleCell(existingPrePrefixNode);
                     // otherwise cell is already recycled by the recycling of the child
                 }
-                return createPrefixNode(contentId, alternateBranch, updatedPostPrefixNode, isNull(existingPostPrefixNode));
+                return trie.createPrefixNode(contentId, alternateBranch, updatedPostPrefixNode, isNull(existingPostPrefixNode));
             }
 
             // We can't update in-place if there was no preexisting prefix, or if the
             // prefix was embedded and the target node must change.
             if (!prefixWasPresent || prefixWasEmbedded && childChanged)
-                return createPrefixNode(contentId, alternateBranch, updatedPostPrefixNode, isNull(existingPostPrefixNode));
+                return trie.createPrefixNode(contentId, alternateBranch, updatedPostPrefixNode, isNull(existingPostPrefixNode));
 
             // Otherwise modify in place
             if (childChanged) // to use volatile write but also ensure we don't corrupt embedded nodes
-                putIntVolatile(existingPrePrefixNode + PREFIX_POINTER_OFFSET, updatedPostPrefixNode);
+                trie.putIntVolatile(existingPrePrefixNode + PREFIX_POINTER_OFFSET, updatedPostPrefixNode);
             if (dataChanged)
             {
-                putIntVolatile(existingPrePrefixNode + PREFIX_CONTENT_OFFSET, contentId);
-                putIntVolatile(existingPrePrefixNode + PREFIX_ALTERNATE_OFFSET, alternateBranch);
+                trie.putIntVolatile(existingPrePrefixNode + PREFIX_CONTENT_OFFSET, contentId);
+                trie.putIntVolatile(existingPrePrefixNode + PREFIX_ALTERNATE_OFFSET, alternateBranch);
             }
             return existingPrePrefixNode;
         }
@@ -1407,31 +1343,26 @@ public abstract class InMemoryBaseTrie<T> extends InMemoryReadTrie<T>
                 attachChild(transition(), updatedFullNode, currentDepth >= forcedCopyDepth);
         }
 
-        int completeBranch(int forcedCopyDepth) throws TrieSpaceExhaustedException
-        {
-            return applyContent(currentDepth >= forcedCopyDepth);
-        }
-
         /// Ascend and update the root at the end of processing.
         void attachAndUpdateRoot(int forcedCopyDepth) throws TrieSpaceExhaustedException
         {
             attachRoot(applyContent(0 >= forcedCopyDepth), forcedCopyDepth);
         }
 
-        void attachRoot(int updatedFullNode, int ignoredForcedCopyDepth) throws TrieSpaceExhaustedException
+        void attachRoot(int updatedFullNode, int ignoredForcedCopyDepth)
         {
             int existingFullNode = existingFullNode();
             --currentDepth;
-            assert root == existingFullNode : "Unexpected change to root. Concurrent trie modification?";
+            assert trie.root == existingFullNode : "Unexpected change to root. Concurrent trie modification?";
             if (updatedFullNode != existingFullNode)
             {
                 // Only write to root if they are different (value doesn't change, but
                 // we don't want to invalidate the value in other cores' caches unnecessarily).
-                root = updatedFullNode;
+                trie.root = updatedFullNode;
             }
         }
 
-        void prepareToWalkBranchAgain() throws TrieSpaceExhaustedException
+        void prepareToWalkBranchAgain()
         {
             setTransition(-1);
         }
@@ -1459,8 +1390,8 @@ public abstract class InMemoryBaseTrie<T> extends InMemoryReadTrie<T>
             int i;
             for (i = currentDepth - 1; i > 0; --i)
             {
-                int content = contentIdAtDepth(i);
-                if (!isNull(content) && shouldStop.test(InMemoryBaseTrie.this.getContent(content)))
+                int content = descentPathContentIdAtDepth(i);
+                if (!isNull(content) && shouldStop.test(trie.getContent(content)))
                     break;
                 ++arrSize;
             }
@@ -1478,7 +1409,7 @@ public abstract class InMemoryBaseTrie<T> extends InMemoryReadTrie<T>
 
         public ByteComparable.Version byteComparableVersion()
         {
-            return byteComparableVersion;
+            return trie.byteComparableVersion;
         }
 
         public String toString()
@@ -1492,13 +1423,13 @@ public abstract class InMemoryBaseTrie<T> extends InMemoryReadTrie<T>
 
             sb.append(" existingPostContentNode=").append(existingPostContentNode());
             sb.append(" updatedPostContentNode=").append(updatedPostContentNode());
-            sb.append(" contentId=").append(contentId());
+            sb.append(" descentPathContentId=").append(descentPathContentId());
             return sb.toString();
         }
 
         public InMemoryBaseTrie<T> trie()
         {
-            return InMemoryBaseTrie.this;
+            return trie;
         }
     }
 
@@ -1563,15 +1494,15 @@ public abstract class InMemoryBaseTrie<T> extends InMemoryReadTrie<T>
         }
     }
 
-    /// Interface providing features of the mutating node during mutation done using [#apply].
+    /// Interface providing features of the mutating node during mutation done using [InMemoryTrie#apply].
     /// Effectively a subset of the [Cursor] interface which only permits operations that are safe to
     /// perform before iterating the children of the mutation node to apply the branch mutation.
     ///
     /// This is mainly used as an argument to predicates that decide when to copy substructure when modifying tries,
     /// which enables different kinds of atomicity and consistency guarantees.
     ///
-    /// See the InMemoryTrie javadoc or InMemoryTrieThreadedTest for demonstration of the typical usages and what they
-    /// achieve.
+    /// See the [InMemoryTrie] javadoc or [InMemoryTrieThreadedTest] for demonstration of the typical usages and what
+    /// they achieve.
     public interface NodeFeatures<T>
     {
         /// Whether or not the node has more than one descendant. If a checker needs mutations to be atomic, they can
@@ -1584,20 +1515,20 @@ public abstract class InMemoryBaseTrie<T> extends InMemoryReadTrie<T>
         T content();
     }
 
-    static class Mutation<T, U, C extends Cursor<U>> implements NodeFeatures<U>
+    static class Mutation<T, U, C extends Cursor<U>, A extends ApplyState<T>> implements NodeFeatures<U>
     {
         final UpsertTransformerWithKeyProducer<T, U> transformer;
         final Predicate<NodeFeatures<U>> needsForcedCopy;
         final C mutationCursor;
-        final InMemoryBaseTrie<T>.ApplyState state;
+        final A state;
         int forcedCopyDepth;
 
         Mutation(UpsertTransformerWithKeyProducer<T, U> transformer,
                  Predicate<NodeFeatures<U>> needsForcedCopy,
                  C mutationCursor,
-                 InMemoryBaseTrie<T>.ApplyState state)
+                 A state)
         {
-            assert mutationCursor.depth() == 0 : "Unexpected non-fresh cursor.";
+            mutationCursor.assertFresh();
             this.transformer = transformer;
             this.needsForcedCopy = needsForcedCopy;
             this.mutationCursor = mutationCursor;
@@ -1615,8 +1546,10 @@ public abstract class InMemoryBaseTrie<T> extends InMemoryReadTrie<T>
 
                 applyContent();
 
-                depth = mutationCursor.advance();
-                if (!state.advanceTo(depth, mutationCursor.incomingTransition(), forcedCopyDepth))
+                long position = mutationCursor.advance();
+                assert !Cursor.isOnReturnPath(position) : "Return path in forward direction can only be used in range tries.";
+                depth = Cursor.depth(position);
+                if (!state.advanceTo(depth, Cursor.incomingTransition(position), forcedCopyDepth))
                     break;
                 assert state.currentDepth == depth : "Unexpected change to applyState. Concurrent trie modification?";
             }
@@ -1627,11 +1560,11 @@ public abstract class InMemoryBaseTrie<T> extends InMemoryReadTrie<T>
             U content = mutationCursor.content();
             if (content != null)
             {
-                T existingContent = state.getContent();
+                T existingContent = state.getDescentPathContent();
                 T combinedContent = transformer.apply(existingContent, content, state);
-
-                state.setContent(combinedContent, // can be null
-                                 state.currentDepth >= forcedCopyDepth); // this is called at the start of processing
+                if (combinedContent != existingContent)
+                    state.setDescentPathContent(combinedContent, // can be null
+                                                state.currentDepth >= forcedCopyDepth); // this is called at the start of processing
             }
         }
 
@@ -1645,12 +1578,15 @@ public abstract class InMemoryBaseTrie<T> extends InMemoryReadTrie<T>
         @Override
         public boolean isBranching()
         {
+            if (Cursor.isOnReturnPath(mutationCursor.encodedPosition()))
+                return false;
+
             // This is not very efficient, but we only currently use this option in tests.
             // If it's needed for production use, isBranching should be implemented in the cursor interface.
             Cursor<U> dupe = mutationCursor.tailCursor(Direction.FORWARD);
-            int childDepth = dupe.advance();
-            return childDepth > 0 &&
-                   dupe.skipTo(childDepth, dupe.incomingTransition() + 1) == childDepth;
+            long childPosition = dupe.advance();
+            return !Cursor.isExhausted(childPosition) &&
+                   !Cursor.isExhausted(dupe.skipTo(Cursor.positionForSkippingBranch(childPosition)));
         }
 
         @Override
@@ -1663,18 +1599,38 @@ public abstract class InMemoryBaseTrie<T> extends InMemoryReadTrie<T>
     /// Map-like put method, using a fast recursive implementation through the key bytes. May run into stack overflow if
     /// the trie becomes too deep. When the correct position in the trie has been reached, the value will be resolved
     /// with the given function before being placed in the trie (even if there's no pre-existing content in this trie).
-    /// @param key the trie path/key for the given value.
-    /// @param value the value being put in the memtable trie. Note that it can be of type different than the element
+    /// @param key The trie path/key for the given value.
+    /// @param value The value being put in the memtable trie. Note that it can be of type different than the element
     /// type for this memtable trie. It's up to the `transformer` to return the final value that will stay in
     /// the memtable trie.
-    /// @param transformer a function applied to the potentially pre-existing value for the given key, and the new
+    /// @param transformer A function applied to the potentially pre-existing value for the given key, and the new
     /// value (of a potentially different type), returning the final value that will stay in the memtable trie. Applied
     /// even if there's no pre-existing value in the memtable trie.
     public <R> void putRecursive(ByteComparable key, R value, final UpsertTransformer<T, R> transformer) throws TrieSpaceExhaustedException
     {
+        putRecursive(key, value, false, transformer);
+    }
+
+
+    /// Map-like put method, using a fast recursive implementation through the key bytes. May run into stack overflow if
+    /// the trie becomes too deep. When the correct position in the trie has been reached, the value will be resolved
+    /// with the given function before being placed in the trie (even if there's no pre-existing content in this trie).
+    /// @param key The trie path/key for the given value.
+    /// @param value The value being put in the memtable trie. Note that it can be of type different than the element
+    /// type for this memtable trie. It's up to the `transformer` to return the final value that will stay in
+    /// the memtable trie.
+    /// @param contentAfterBranch Whether the content should be placed after descendants in forward iteration order.
+    /// Setting this to true only makes sense with ordered or range tries (i.e. where [#presentContentOnDescentPath] is
+    /// false).
+    /// @param transformer A function applied to the potentially pre-existing value for the given key, and the new
+    /// value (of a potentially different type), returning the final value that will stay in the memtable trie. Applied
+    /// even if there's no pre-existing value in the memtable trie.
+    public <R> void putRecursive(ByteComparable key, R value, boolean contentAfterBranch, final UpsertTransformer<T, R> transformer) throws TrieSpaceExhaustedException
+    {
+        assert !(contentAfterBranch && presentContentOnDescentPath) : "After branch placement only makes sense with range or ordered tries";
         try
         {
-            int newRoot = putRecursive(root, key.asComparableBytes(byteComparableVersion), value, transformer);
+            int newRoot = putRecursive(root, key.asComparableBytes(byteComparableVersion), value, contentAfterBranch, transformer);
             if (newRoot != root)
                 root = newRoot;
             completeMutation();
@@ -1686,15 +1642,15 @@ public abstract class InMemoryBaseTrie<T> extends InMemoryReadTrie<T>
         }
     }
 
-    private <R> int putRecursive(int node, ByteSource key, R value, final UpsertTransformer<T, R> transformer) throws TrieSpaceExhaustedException
+    private <R> int putRecursive(int node, ByteSource key, R value, boolean contentAfterBranch, final UpsertTransformer<T, R> transformer) throws TrieSpaceExhaustedException
     {
         int transition = key.next();
         if (transition == ByteSource.END_OF_STREAM)
-            return applyContent(node, value, transformer);
+            return applyContent(node, value, contentAfterBranch, transformer);
 
         int child = getChild(node, transition);
 
-        int newChild = putRecursive(child, key, value, transformer);
+        int newChild = putRecursive(child, key, value, contentAfterBranch, transformer);
         if (newChild == child)
             return node;
 
@@ -1706,48 +1662,74 @@ public abstract class InMemoryBaseTrie<T> extends InMemoryReadTrie<T>
         return preservePrefix(node, skippedContent, attachedChild, false);
     }
 
-    private <R> int applyContent(int node, R value, UpsertTransformer<T, R> transformer) throws TrieSpaceExhaustedException
+    private <R> int applyContent(int node, R value, boolean contentAfterBranch, UpsertTransformer<T, R> transformer) throws TrieSpaceExhaustedException
     {
         if (isNull(node))
-            return addContent(transformer.apply(null, value));
+            return addContent(transformer.apply(null, value), contentAfterBranch);
 
         if (isLeaf(node))
         {
             int contentId = node;
-            T newContent = transformer.apply(getContent(contentId), value);
-            if (newContent != null)
+
+            if (contentAfterBranch == ((contentId & CONTENT_AFTER_BRANCH) != 0))
             {
-                setContent(contentId, newContent);
-                return node;
+                T existingContent = getContent(contentId);
+                T newContent = transformer.apply(existingContent, value);
+
+                if (newContent == existingContent)
+                    return contentId;
+                if (newContent != null)
+                {
+                    setContent(contentId, newContent);
+                    return contentId;
+                }
+                else
+                {
+                    releaseContent(contentId);
+                    return NONE;
+                }
             }
             else
             {
-                releaseContent(contentId);
-                return NONE;
+                T newContent = transformer.apply(null, value);
+
+                // We already have content, but we also need to add content on the other side of the branch.
+                if (newContent == null)
+                    return contentId; // we are not adding anything, leave existing node.
+
+                // Convert this to prefix node to be able to store both.
+                return createPrefixNode(contentId, addContent(newContent, contentAfterBranch), NONE, false);
             }
         }
 
         if (offset(node) == PREFIX_OFFSET)
         {
-            int contentId = getIntVolatile(node + PREFIX_CONTENT_OFFSET);
-            T newContent = transformer.apply(isNull(contentId) ? null : getContent(contentId), value);
+            int contentOffset = contentAfterBranch ? PREFIX_ALTERNATE_OFFSET : PREFIX_CONTENT_OFFSET;
+            int contentId = getIntVolatile(node + contentOffset);
+
+            assert isNullOrLeaf(contentId) : "Content after branch cannot be used toghether with alternate branch";
+            T existingContent = isNull(contentId) ? null : getContent(contentId);
+            T newContent = transformer.apply(existingContent, value);
+            if (newContent == existingContent)
+                return node;
+
             if (newContent != null)
             {
                 if (!isNull(contentId))
                     setContent(contentId, newContent);
                 else
-                    putIntVolatile(node + PREFIX_CONTENT_OFFSET, addContent(newContent));
+                    putIntVolatile(node + contentOffset, addContent(newContent, contentAfterBranch));
                 return node;
             }
             else
             {
-                if (!isNull(contentId))
-                    releaseContent(contentId);
+                releaseContent(contentId);
+                int otherContentOffset = contentAfterBranch ? PREFIX_CONTENT_OFFSET : PREFIX_ALTERNATE_OFFSET;
 
-                if (!isNull(getIntVolatile(node + PREFIX_ALTERNATE_OFFSET)))
+                if (!isNull(getIntVolatile(node + otherContentOffset)))
                 {
-                    // keep the prefix node for the alternate path
-                    putIntVolatile(node + PREFIX_CONTENT_OFFSET, NONE);
+                    // keep the prefix node for the other content / alternate path
+                    putIntVolatile(node + contentOffset, NONE);
                     return node;
                 }
 
@@ -1770,7 +1752,7 @@ public abstract class InMemoryBaseTrie<T> extends InMemoryReadTrie<T>
         if (newContent == null)
             return node;
         else
-            return createContentNode(addContent(transformer.apply(null, value)), node, false);
+            return createContentNode(addContent(newContent, contentAfterBranch), node, false);
     }
 
     void completeMutation()
@@ -1887,7 +1869,7 @@ public abstract class InMemoryBaseTrie<T> extends InMemoryReadTrie<T>
     public void releaseReferencesUnsafe()
     {
         for (int idx : objectAllocator.indexesInPipeline())
-            setContent(~idx, null);
+            setContent(formContentId(idx, false), null);
     }
 
     /// Returns the number of values in the trie

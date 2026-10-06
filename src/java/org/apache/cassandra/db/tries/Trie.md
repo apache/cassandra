@@ -139,16 +139,16 @@ and provides methods for advancing to the next position.  This is enough informa
 also to easily compare cursors over different tries that are advanced together. Advancing is always done in
 order; if one imagines the set of nodes in the trie with their associated paths, a cursor may only advance from a
 node with a lexicographically smaller path to one with bigger. The `advance` operation moves to the immediate
-next, it is also possible to skip over some items e.g. all children of the current node (`skipChildren`).
+next, it is also possible to skip over some items to a specific position ahead (`skipTo`).
 
 Moving to the immediate next position in the lexicographic order is accomplished by:
 - if the current node has children, moving to its first child;
 - otherwise, ascend the parent chain and return the next child of the closest parent that still has any.
 
 As long as the trie is not exhausted, advancing always takes one step down, from the current node, or from a node
-on the parent chain. By comparing the new depth (which `advance` also returns) with the one before the advance,
-one can tell if the former was the case (if `newDepth == oldDepth + 1`) and how many steps up we had to take
-(`oldDepth + 1 - newDepth`). When following a path down, the cursor will stop on all prefixes.
+on the parent chain. By comparing the new depth with the one before the advance, one can tell if the former was 
+the case (if `newDepth == oldDepth + 1`) or how many steps up we had to take (`oldDepth + 1 - newDepth`)  if it 
+wasn't. When following a path down, the cursor will stop on all prefixes.
 
 In addition to the single-step `advance` method, the cursor also provides an `advanceMultiple` method for descending
 multiple steps down when this is known to be efficient. If it is not feasible to descend (e.g. because there are no
@@ -203,6 +203,85 @@ have changed, and 3 is true because it has a false premise.
 
 The same argument holds when `b` is the smaller cursor to be advanced.
 
+### `encodedPosition` for efficient advance and position comparison
+
+The cursor definitions above were given with separate `depth` and `incomingTransition` methods, but in practice we
+combine the features of the current position into a single long integer that encodes the combination of the two. This
+saves some method calls which often tend to be megamorphic, and also makes some checks more efficient.
+
+The encoded state is prepared in such a way that it is trivially easy to compare the position of two cursors in parallel
+walks: if the encoded state of one cursor is smaller than the encoded state of another, then it is positioned before it.
+Recall that for a cursor to be positioned before another means either that its depth is higher than the other's, or that
+depth match, and the incoming character is smaller. We can ensure that we can trivially compare by composing a long that
+has the inverse of the depth as its most significant bits, and the incoming character in some of its less-significant
+ones.
+
+More precisely, in bits 32 to 63 of the `encodedPosition` long we store `-depth`, and in bits 20 to 27 &ndash;
+`incomingTransition`. Some of the other bits have meanings that are descibed in the paragraphs below, and others 
+are reserved for future use (e.g. we could set a bit to signify that the node at the
+current position may have content to drastically reduce the number of `content` calls a consumer needs to do).
+The `Cursor` class implements methods to compose and decompose encoded states, as well as to perform common checks
+(e.g. whether an advance descended into a child position) and to prepare certain positions for skipping (e.g. over 
+the current branch).
+
+### Reverse iteration
+
+Tries and trie cursors support reverse iteration. Because cursors have to stop on prefixes before visiting longer
+sequences, the cursor walks described above performed in reverse have to differ from the reverse lexicographic order
+because they will visit prefixes first (e.g. a trie representing the list "a", "ab", "c" will be walked as "c", "a",
+"ab" in the reverse direction which is not the same as the reversed list). More precisely, reversed cursor walks as
+described above will present data in lexicographic order of the inverted alphabet.
+
+This difference is immaterial if the data in the trie is guaranteed to be prefix-free (e.g. when it is given by
+Cassandra's byte-comparable type translation) and makes it possible to store metadata that describes features of the
+descendant branch at any point in the trie and have that metadata presented correctly during reverse walks.
+
+To make it easier to manipulate `encodedPosition` for reverse iteration, we use the 31st bit in the encoded state to
+distinguish between forward and reverse iteration, and flip the bits of `incomingTransition` to make it possible to use
+the same encoded state comparison for both iteration directions (because higher `incomingTransition` values should be
+ordered before lower ones in reverse walks).
+
+### Stopping on the ascent path
+
+In some scenarios we may need reversed iteration that correctly presents reverse lexicographic order (e.g. SAI stores
+terms in tries directly and is disadvantaged if the terms are not ordered correctly in reverse). For this reason, as
+well as to support some needs of the set and range functionality that will be described later, the cursor interfaces
+support stopping on a node on the ascent (i.e. return) path to present content. We call tries that present prefix
+content on the return path in reverse "ordered tries". 
+
+For example, the "a", "ab" and "c" example above will be iterated in forward direction as
+```
+a -> value for "a"
+  b -> value for "ab"
+c -> value for "c"
+```
+with normal reverse iteration
+```
+c -> value for "c"
+a -> value for "a"
+  b -> value for "ab"
+```
+
+In an ordered trie, the reverse iteration changes to
+```
+c -> value for "c"
+a  ->
+  b -> value for "ab"
+a↑ -> value for "a"
+```
+
+The ascent path position (marked by the upwards arrow ↑ above) is one that is at the same depth of the matching descent
+position, has the same incoming character and compares greater to it. This has the effect of being immediately after all
+children of the node in cursor iteration order. In practical terms, we implement it by using bit 19 in the
+`encodedPosition`. It is set to 0 for the descent path and 1 for the ascent path; unlike transition bits this is not
+flipped for reverse iteration to ensure that it is visited after the descent path entry.
+
+Return path positions are valid positions for jumps, and will be stopped on if a `skipTo` call finds one to be closest
+to the requested position. They cannot have children.
+
+Their usages will be further detailed in the [sections on sets](#trie-sets); there are also
+[alternative approaches we considered during development](#return-stop-alternatives).
+
 ## Merging two tries
 
 Two tries can be merged using `Trie.mergeWith`, which is implemented using the class `MergeCursor`. The implementation
@@ -229,17 +308,6 @@ descendants) at the expense of possibly adding one additional comparison in the 
 As above, when we know that the head element is not equal to the heap top (i.e. it's necessarily smaller) we can
 use its `advanceMultiple` safely.
 
-## Reverse iteration
-
-Tries and trie cursors support reverse iteration. Reverse trie iteration presents data in lexicographic order 
-using the inverted alphabet. This is not always the same as the reverse order of the data returned in the forward 
-direction; the latter is only guaranteed if the entries in the trie can contain no prefixes (i.e. the representation 
-is prefix-free like the byte-ordered type translations).
-
-This difference is imposed by the cursor interfaces which necessarily have to present parent nodes before their 
-children and do not preserve or present any state on ascent.
-
-
 # Trie sets
 
 The simplest way to implement a set in the trie paradigm is to define
@@ -252,16 +320,24 @@ Instead, our trie sets (defined in `TrieSet/TrieSetCursor`) implement sets of ra
 each range and their prefixes. This makes it possible to identify fully contained regions of the set and proceed inside
 such regions without touching the set cursor.
 
-Trie set cursors specify a "state" at any position they list. This state includes information about the inclusion of trie
-branches before, after and below the listed position. When we are applying a set to a trie (i.e. intersecting the trie
-with it), we would walk the two cursors in parallel. If the set moves ahead, we use the state to determine whether the
-position of the trie cursor is covered by the set. Similarly, when a `skipTo` is performed on the set, the same state
-flags can tell us if the set covers the position we attempted to skip to, when the set cursor does not have an exact
-match and skips over the requested position.
+Trie set cursors specify a `state` at any position they list. This state includes information about the inclusion of
+trie branches before and after the listed position in iteration order. When we are applying a set to a trie (i.e.
+intersecting the trie with it), we would walk the two cursors in parallel. If the set moves ahead, we use the state to
+determine whether the position of the trie cursor is covered by the set. Similarly, when a `skipTo` is performed on the
+set, the same state flags can tell us if the set covers the position we attempted to skip to, when the set cursor does
+not have an exact match and skips over the requested position.
+
+To support all forms of inclusivity and prefixes in the definition of the sets, set states can be presented both on the
+descent and the ascent path of the walk. The preceding side of a descent path state applies to positions before the
+node and its branch, while the succeeding side applies to the current node and positions greater than it in iteration
+order, starting with its first children; similarly the preceding side of an ascent path state applies to preceding
+positions including the last children of the current node as well as any ascent path content for the current node, and
+the succeeding side applies to the positions that follow the node and branch.
+
 
 ## Trie set content
 
-Trie sets list the boundary points for the represented ranges. For example, the range `[abc, ade]` will be represented
+Trie sets list the boundary points for the represented ranges. For example, the range `[abc, ade)` will be represented
 by the trie
 ```
 a ->
@@ -271,126 +347,166 @@ a ->
     e -> END
 ```
 where `START` is a state marking a left boundary, and `END` marks a right boundary. To be able to easily say that e.g.
-`aa` is not covered by the set, but `ac` is, nodes on the prefix path also keep track of a richer state that also
-provide information on the coverage on both sides of the position.
+`aa` is not covered by the set, but `ac` is, especially if we jump to these positions using a `skipTo` call, nodes on
+any prefix path inside a covered range must also present a state that marks the node as contained on both sides. For
+code simplicity sets also produce a state for prefixes that are fully outside the set.
 
-The full state trie for the above example is
+The full state trie for the above example when walked in the forward direction is
 ```
-a -> START_END_PREFIX
-  b -> START_PREFIX
+a -> NOT_CONTAINED
+  b -> NOT_CONTAINED
     c -> START
-  d -> END_PREFIX
+  d -> CONTAINED
     e -> END
 ```
-The "prefix" states are not reported by `content()`, but they are used to determine the inclusion of preceding positions
-in the set. `START_PREFIX` denotes a prefix of a left boundary, and thus positions before it are not covered by the set,
-but positions after it are. Similarly, `END_PREFIX` is a prefix of a right boundary, which has the opposite coverage on
-the two sides. `START_END_PREFIX` is a prefix of both a left and a right boundary (or more generally a boundary of some
-number of pairs of left and right boundaries), and thus neither side of that prefix belongs to the covered set.
+The "contained" states are not reported by `content()`, but they are used to determine the inclusion of preceding
+positions in the set. For example, when a cursor follows a `skipTo` instruction to jump to "aa" and lands on "ab", the
+preceding side of `NOT_CONTAINED` tells it that the position the caller tried to skip to is not inside the set; on the
+other hand, jumping to "ac" would land in "ad", whose `CONTAINED` state's preceding side tells us that the queried
+position is covered by the set.
 
-There are several additional states that the sets can list:
-- `POINT` is a position that is both the start and end boundary of a range. This is a singleton branch covered by the
-  set, e.g. `[abc, abc]` is represented by the trie
+A set state only needs to specify a boolean for its two sides that specify whether the relevant positions are included
+in the set. There are, thus, four possible set states:
+- `NOT_CONTAINED` whose left and right side are both false,
+- `CONTAINED` with true on both sides,
+- `START` has false on the left and true on the right side,
+- `END` is true on the left and false on the right side.
+
+The left and right side of a state are presented, respectively, as preceding and succeeding when the cursor iterates in
+the forward direction. In reverse, the right side is preceding and the left is the succeeding side. Note that when we
+iterate a set in the reverse direction, the representation will differ in the states that it will return for some
+prefixes of the boundaries, and in the presentation of boundaries. The example above is iterated as:
+```
+a -> NOT_CONTAINED
+  d -> NOT_CONTAINED
+    e↑ -> END
+  b -> CONTAINED
+    c↑ -> START
+```
+Note that for the content-bearing nodes (i.e. the boundaries "abc" and "ade"), the `state` is the same, but it is now
+presented on the return path to state that the boundary applies after the specific position in iteration order. For the
+prefixes "ad" and "ab" we must return different states in the two directions to ensure, e.g., that skipping to "ac"
+(which ends up in "ad" in the forward direction and "ab" in the reverse) correctly interprets the position to be covered
+by the set.
+
+The example above is bounded by positions to the left of a given node, which are returned on the descent path in forward
+direction, and on the ascent path in the reverse. In addition to this, our trie sets support positions to the right of a
+node, to be able to specify sets that cover branches of the trie.
+
+For example, the branch set `[abc, abc]` is represented in forward direction by the trie
+```
+a -> NOT_CONTAINED
+  b -> NOT_CONTAINED
+    c  -> START
+    c↑ -> END
+```
+and
+```
+a -> NOT_CONTAINED
+  b -> NOT_CONTAINED
+    c  -> END
+    c↑ -> START
+```
+in the reverse. To give this in a shorter form, ignoring the prefix states which can be inferred, this set is
+represented by the trie
+```
+a ->
+  b ->
+    c< -> START
+    c> -> END
+```
+where the `<` modifier in `c<` stands for the state that is returned on the descent path in forward direction, and on
+the ascent path in the reverse, and vice versa for `>` in `c>`.
+
+A few more complex examples:
+- `[abd, adc] + (ade, afg)`:
   ```
-  a -> START_END_PREFIX
-    b -> START_END_PREFIX
-      c -> POINT
+  a ->
+    b ->
+      d< -> START
+    d ->
+      c> -> END
+      e> -> START
+    f ->
+      g< -> END 
   ```
-- `END_START_PREFIX` is the prefix of both a right and left boundary (or more generally any number of pairs of right
-  and left boundary). This is a position that is covered by the set on both sides but whose branch is not entirely in
-  the set. For example, the ranges `[abc, adc] + [ade, afg]` are represented by the trie
+- `[a, abc] + [ade, a]` (in other words `[a, a] - (abc, ade)`):
   ```
-    a -> START_END_PREFIX
-      b -> START_PREFIX
-        c -> START
-      d -> END_START_PREFIX
-        c -> END
-        e -> START
-      f -> END_PREFIX
-        g -> END
+  a< -> START
+    b ->
+      c> -> END
+    d ->
+      e< -> START
+  a> -> END
   ```
-- `COVERED` is a position which is both an end of one boundary and the start of another. Such boundaries have no effect
-  and the position at which they are reported is fully covered on both sides, as well as on the whole descendant branch.
-  For example, the ranges `[abc, ade] + [ade, afg]` are represented by the trie
-  ```
-    a -> START_END_PREFIX
-      b -> START_PREFIX
-        c -> START
-      d -> END_START_PREFIX
-        e -> COVERED
-      f -> END_PREFIX
-        g -> END
-  ```
-
-## Inclusivity and prefixes
-
-One important feature of the trie sets is that they are always inclusive of all boundaries, all their prefixes and all
-their descendants. Additionally, set boundaries cannot contain prefixes of other boundaries. This is imposed by the
-necessity to perform cursor walks on tries in both forward and reverse direction.
-
-For example, consider the range `[a, aaa]`.  In both directions of a cursor walk `a` precedes `aaa`, which means that
-if we are to accept such a range, it must be presented as `a: START, aaa: END` in a forward walk, and as
-`a: END, aaa: START` in a reverse walk. Allowing different trie content depending on the direction of the walk is not
-an acceptable solution because of the complexity and confusion that can bring.
-
-Additionally, if we are to exclude some prefixes or descendants, so that e.g. `[aa, bb)` includes `aaa` and `b` but not
-`a` or `bbb`, the reverse iteration of this range (which would report `a` before `aa` and `bbb` after `b`) would not be
-a contiguous range, which would also introduce unacceptable complexity.
-
-The above is only a material limitation when the keys allow prefixes. If the keys we work with are prefix-free and can
-present positions before and after any valid key (both provided by our byte-comparable translation), we can still
-correctly define ranges between any two keys, with the posibility of inclusive or exclusive boundaries as needed.
-
-As we also would also like to retrieve metadata on the paths leading to queried keys (e.g. a partition marker and stats
-when we query information for a subset of rows in that partition), the fact that these sets always include prefixes can
-be seen as an advantage.
 
 ## Converting ranges to trie sets
 
 The main usage of a trie set is to return subtries bounded by one or more key ranges. We achieve this as the
 intersection of a trie with a trie set that represents the ranges. The ranges are constructed by taking an array of
-ordered boundaries, walking them in parallel and presenting states as follows:
-- if the keys that we are currently descending on start on an odd position in the array, this is a prefix of a left
-  boundary, so the state we need should cover the positions to the left of it (i.e. be `START_PREFIX`,
-  `START_END_PREFIX`, `START` or `COVERED`).
-- if the keys that we are currently descending on end on an even position in the array, this is a prefix of a right
-  boundary, so the state we need should cover the positions to the right of it (i.e. be `END_PREFIX`,
-  `START_END_PREFIX`, `END` or `COVERED`).
-- if the keys that we are currently descending on are exhausted (i.e. return `END_OF_STREAM`), we need to report a
-  boundary state (i.e. `START`, `END`, `POINT` or `COVERED`) and we need to advance and ascend to the next keys in the
-  array.
+ordered boundaries, walking them in parallel the encoded position of the leftmost active key and presenting states as
+follows:
+- If the leftmost key has an odd index in the array, we are positioned to the right of a start boundary and thus must
+  present a state that is true on the left side. Otherwise, the state must be false on the left.
+- We set the right side to be the same as the left initially, and flip it for every key that ends at the current
+  position. In other words, if one or an odd number of keys end here, we note that this is a boundary and changes the
+  set containment for the positions to the right (note: two copies of the same boundary cancel out).
 
-For the `[abc, adc] + [ade, afg]` example above, the ranges construction will accept the array `[abc, adc, ade, afg]`
+For the `[abc, adc) + [ade, afg)` example above, the ranges construction will accept the array `[abc, adc, ade, afg]`
 and proceed as follows:
-- We start at depth 0, with all four array positions assigned depth 0.
-- On the first `advance` call, we advance all sources at depth 0, and all of them return `a` and depth 1. Since the left
-  index is 0 (left excluded), the right index is 3 (right excluded), and the key is not exhausted, the state returned
-  should be `START_END_PREFIX`.
-- On the next `advance` call, we advance all sources at the current depth 1 (this is again all 4). This time they return
-  different characters, thus we restrict our advancing set to just index 0, with character `b` and depth 2.
-  Since the left index is 0 (left excluded), the right index is 0 (right included), and the key is not exhausted, the
-  state returned should be `START_PREFIX`.
-- On the next `advance` call, we advance all sources at the current depth 2. This is only the source at index 0, which
-  returns `c` and depth 3. Since the left index is 0 (left excluded), the right index is 0 (right included), and the key
-  is exhausted, the state returned is `START`.
-- On the next `advance` call we recognize that the currently followed key is exhausted, so we advance to the next set,
-  which has depth 2 and character `d`. This includes two keys, with indexes 1 and 2. Since the left index is 1 (left
-  included), the right index is 2 (right included), and the key is not exhausted, the state returned should be
-  `END_START_PREFIX`.
-- On the next `advance` call we advance the sources at the current depth 2, which are the sources at indexes 1 and 2.
-  They return different characters, so we restrict our advancing set to just index 1, with character `c` and depth 3.
-  Since the left index is 1 (left included), the right index is 1 (right excluded), and the key is exhausted, the
-  state returned should be `END`.
-- On the next `advance` call we recognize that the currently followed key is exhausted, so we advance to the next set,
-  which has depth 3 and character `e`, and includes only the key at array index 2. Since the index for both sides is 2,
-  left is excluded and right is included, which with the exhausted key gives us the state `START`.
-- On the next `advance` call we recognize that the currently followed key is exhausted, so we advance to the next set,
-  which has depth 2 and character `f`, and includes only the key at array index 3. For index 3 on both sides (left
-  included, right excluded) and a key that is not exhausted, the state returned is `END_PREFIX`.
-- On the next `advance` call we descend along key 3, which is `g` and exhausted, so the state returned is `END`
-  (left included, right excluded, key exhausted).
-- The next `advance` call moves outside the span of the array, and we return a depth of -1, denoting the end of the
-  walk.
+- We start with left index 0 at the root position (depth 0, character `\0`). As the left index is even, the state we
+  must return is false on the left side. We check if any of the keys ends here, and since none does, the right side
+  must be the same as the left, thus the state we return is `NOT_CONTAINED`.  
+  We prepare for the next advance by getting the next byte from all keys.
+- On the first `advance` call, we advance our encoded position to that of the key at the left index 0: (depth 1,
+  character `a`). Since the left index is 0 (left excluded) and the left key does not end here, both sides must be false
+  and thus the returned state is `NOT_CONTAINED`.  
+  We prepare for the next advance by getting the next byte from all keys that match the current position, which matches
+  all four.
+- On the next `advance` call, we advance our encoded position to that of the key at the left index 0: (depth 2,
+  character `b`). The left index is still 0 and no keys end here, thus we return the state `NOT_CONTAINED` again.  
+  We prepare for the next advance by getting the next byte from all keys that match the current position, which is only
+  key 0.
+- On the next `advance` call, we advance our encoded position to that of the key at the left index 0: (depth 3,
+  character `c`). The left index is still 0, but when we prepare for the next advance we see that this key has no more
+  bytes and thus we must advance the left index to 1 and flip the right side of the state, resulting in `START`.
+- On the next `advance` call, we advance our encoded position to that of the key at the left index 1: (depth 2, 
+  character `d`). The left index is 1, thus the left side of the returned state must be true. No key ends here, thus
+  the right side is left the same, resulting in `CONTAINED`.  
+  We prepare for the next advance by getting the next byte from all keys that match the current position, keys 1 and 2.
+- On the next `advance` call, we advance our encoded position to that of the key at the left index 1: (depth 3,
+  character `c`). The left index is still odd, thus the left side is contained.  
+  When we get the next byte of the only key at the matching position, we note that it is exhausted, increase the left
+  index to 2 and flip the right side of the state, resulting in `END`.
+- On the next `advance` call, we advance our encoded position to that of the key at the left index 2: (depth 3,
+  character `e`). The left index is even, thus the left side is excluded.  
+  This key doesn't have any further bytes either, thus we advance the left index to 3 and flip the right side, resulting
+  in `START`.
+- On the next `advance` call, we advance our encoded position to that of the key at the left index 3: (depth 2,
+  character `f`). The left index is odd, thus our state's left side must be true.  
+  We advance the matching keys (only key 3 remains), and since it does not end the state's right side is the same as
+  the left, resuling in `CONTAINED`.
+- On the next `advance` call, we advance our encoded position to that of the key at the left index 3: (depth 3,
+  character `g`). The state's left side must be true for the odd left index.  
+  The key has no further bytes, thus the left index is advanced to 4 and the right side is flipped to return `END`.
+- On the next `advance` call the left index is beyond the end of the key array, thus we advance to the exhausted
+  position (depth -1, character `\0`). Its state does not need to be defined as `state` and `content` cannot be called
+  on exhausted cursors.
+
+If we need to perform a `skipTo` operation, we do so by advancing the left index over the keys whose prepared position
+is before the target. We then apply the same decisions using the new left index to prepare the resulting position and
+state.
+
+To handle inclusive end and exclusive start positions, we need to change the encoded position when a key returns its
+last byte, just before it is exhausted, to be a position on the return path of the iteration. This is sufficient to
+properly define a position on the right of the key. Note that this means that sets such as `[ab, cd, cd, ef]` are
+invalid if all positions are understood to be inclusive, because the first right boundary `cd` inclusive falls after
+the second left boundary `cd` inclusive in iteration order (the latter is on the descent path while the former is on the
+ascent path of the same position). It also means that we can define contained sets such as `[a, ab, ax, a]` where the
+`a` branch is covered except the `(ab, ax)` subset.
+
+Reverse iteration is performed the same way on the reversed key array, expanded to even length by adding an inclusive
+empty key if necessary. 
 
 ## Intersecting a trie with a trie set
 
@@ -404,38 +520,85 @@ set, so we must skip the set to the new position, and then repeat the above step
 If at any point both trie and set are at the same position, we can report that position and advance both trie and set
 on the next `advance` or `skipTo` call. In this case `advanceMultiple` cannot be used and must act as `advance`.
 
+### Presenting content at prefixes, subtrie and slice intersections
+
+The intersection of a trie with a set results in the restriction of the trie data to the coverage of the set. One
+important question for this intersection is what content should be returned by the intersected trie.
+
+As mentioned previously, we very often want to be able to see metadata like level markers on the descent path of the
+iteration regardless of the direction, to be able to recognize features that apply to the branch. For this to work
+correctly, we also want metadata to be presented on prefixes that are not strictly contained in the set. For example,
+if "a" contains metadata related to the full contained branch, we would need that metadata to be presented when we
+intersect the trie containing "a" with e.g. the set `[abc, ade)`. To facilitate this, the normal trie intersection will
+return the content of all nodes visited by the walk, i.e. for all prefixes of content in the queried set. Additionally,
+inclusive ends and exclusive starts apply to the whole branch rooted at the given boundary position (implemented by the
+`>` modifiers for the boundaries as shown above).
+
+On the other hand, to support ordered tries and queries, which should only return content that falls between the given
+lexicographical boundaries, we also provide a "slice" intersection. This type of intersection only returns content that
+is strictly inside the set. For the `[abc, ade)` example, this includes e.g. "abc", "ac", "acc", "ad", "adc" but
+excludes "a" and "ab".
+
+Slice intersections only make sense if the trie they are applied to is ordered (i.e. if the content is returned on the
+ascent path in the reverse direction) and need to also use a different form of preparation of inclusive ends and
+exclusive starts: slices should not contain any children of an inclusive end (because they follow the boundary in
+lexicographic order) and should not skip over the children of an exclusive start. This is achieved by presenting
+exclusive start / inclusive end positions as the path with a zero byte appended at the end, always using
+`<` modifiers.
+
+For example, the trie set representing the slice `[abc, adc] + (ade, afg)` is:
+```
+a ->
+  b ->
+    c< -> START
+  d ->
+    c ->
+      \0< -> END
+    e ->
+      \0< -> START
+  f ->
+    g< -> END  
+```
+Note that when such a set is walked in the reverse direction, all boundaries are presented on the return path of the
+iteration.
+
+
 ## Set algebra
 
 A variation of the above can also be applied to sets, giving us set intersections.
 
-We can also perform "weak" negation of a set by simply inverting the returned states. This has the effect of changing
-the covered branches, but not any boundary or their descendant branches. For example, the weak inverse of the range
-`[abc, ade]` is the set `[null, abc] + [ade, null]`, which is represented as
+We can also perform negation of a set by inverting the returned states, as well as adding or removing boundaries at the
+root on both the descent and ascent path. For example, the inverse of the range `[abc, ade]` is the set 
+`[null, abc) + (ade, null]`, which is represented as
 ```
-END_START_PREFIX
-a -> END_START_PREFIX
-  b -> END_PREFIX
-    c -> END
-  d -> START_PREFIX
-    e -> START
-END_START_PREFIX
+< -> START
+a ->
+  b ->
+    c< -> END
+  d ->
+    e> -> START
+> -> END
 ```
-(The END_START_PREFIX before the trie describes the result of calling `state` on the root node, and the one at the end,
-the result of calling `state()` when the iteration is exhausted; these are `START_END_STATE` for sets that are limited
-on the respective side. Also note that the inversion of an array of boundaries is the array with `null` appended on both
-sides.)
 
-Using De Morgan's law, this weak negation also lets us perform set union.
+Using De Morgan's law, the negation also lets us perform set union.
 
 # Range tries
 
 A range trie is a generalization of the trie set, where the covered ranges can come with further information. This is
-achieved by replacing the `precedingIncluded` method with one that returns a state applicable to the preceding
-positions.
+achieved by turning each side of a state from a boolean signifying containment to an object that carries additional
+information.
+
+Nodes fully contained inside a trie range must return states that have the same left and right side. To simplify coding,
+we name these kinds of states "covering" and use them as the information-bearing object that a state must return.
+
+In other words, states' `precedingState` and `succeedingState` methods return a state. On "boundary" states, where the
+carried data changes (or a new range starts/stops), the two sides are a different covering state or null. Covering
+states, on the other hand, specify fully contained regions and return themselves for both the preceding and succeeding
+side.
 
 In their simplest, a range trie is one that returns `content` for the boundary positions of the ranges, and also
 implements a `precedingState` method that returns the range state that applies to positions before the cursor's. For
-a little better efficiency most of the time we combine these two into a `state` method that returns the content, if
+a little better efficiency most of the time we combine these two into the `state` method that returns the content, if
 the position is a boundary, or the preceding state otherwise. This suffices to implement the required operations,
 including:
 - Intersecting a range trie with a trie set, which generates boundaries that match the closer of the range trie's or
@@ -452,9 +615,9 @@ describe a deletion with timestamp 555 that applies to the range `[abc, adc]` as
 ```
 a ->
   b ->
-    c -> start(555)
+    c< -> start(555)
   d ->
-    c -> end(555)
+    c> -> end(555)
 ```
 
 This dump only lists the content of the range trie. This information is sufficient to track the deletion state if we
@@ -469,17 +632,17 @@ direction:
 ```
 a ->
   b ->
-    c -> start(555)
+    c  -> start(555)
   d -> covering(555)
-    c -> end(555)
+    c↑ -> end(555)
 ```
 and like this in the reverse:
 ```
 a ->
   d ->
-    c -> end(555)
+    c  -> end(555)
   b -> covering(555)
-    c -> start(555)
+    c↑ -> start(555)
 ```
 This ensures that when we skip to any position between the two bounds, the position where the cursor ends up (either
 "ad" or "adc" in forward direction, "ab" or "abc" in the reverse) has 555 as its preceding deletion state. Note that any
@@ -488,7 +651,7 @@ thus will be different in the two directions.
 
 The range state used in this representation will be such that `start(dt)` has a `null` state on the left (i.e. returned
 by `precedingState(FORWARD)`) and has `covering(dt)` on the right (`precedingState(REVERSE)`), `end(dt)` has
-`covering(dt)` on the left and `null` on the right. `covering(dt)` is a non-boundary state that returns itself for the
+`covering(dt)` on the left and `null` on the right. `covering(dt)` is a covering state that returns itself for the
 preceding state in both directions. To support touching ranges, we also need a `switch(ldt, rdt)` state that has
 `covering(ldt)` on the left and `covering(rdt)` on the right.
 
@@ -499,24 +662,24 @@ about the covering states of every position. If positions are completely covered
 cursor's `state/precedingState/content` unmodified. If the position falls on a prefix or a boundary of the set, we throw
 away (using the `restrict` method) parts that do not fall inside the set. The latter may also happen if the position
 is not one present in the range trie, but covered by a range (i.e. where `skipTo` went beyond the set cursor's position
-and the range cursor's `precedingState` returned covering state): in this case we apply `restrict` to the covering
-state, which may promote it to a boundary if the set cursor's position is a boundary.
+and the range cursor's `precedingState` returned covering state): in this case we may apply the covering state's
+`asBoundary` method to promote it to a boundary where the set forms substructure in the covered range.
 
-Imagine that we want to slice the range trie above with the range `[aaa, acc]`, which would be implemented by the trie
-set
+Imagine that we want to intersect the range trie above with the range `[aaa, acc]`, which looks like this as in the
+forward direction:
 ```
-a -> START_END_PREFIX
-  a -> START_PREFIX
-    a -> START
-  c -> END_PREFIX
-    c -> END
+a -> NOT_CONTAINED
+  a -> NOT_CONTAINED
+    a  -> START
+  c -> CONTAINED
+    c↑ -> END
 ```
 
 The intersection cursor will first visit the root and the position "a", where in both cases it will find `null` range
 cursor state, resulting in an `null` state for the intersection. The next position "aa" is present in the set, but not
 in the range, thus the `skipTo` operation on the range advances to "ab", whose `precedingState` is null. This means that
 there is nothing to intersect in the "aa" branch and anything before the range cursor's position, thus we continue by
-skipping the set cursor to "ab". This positions it at "ac", whose state is `END_PREFIX` and thus `precedingIncluded`
+skipping the set cursor to "ab". This positions it at "ac", whose state is `CONTAINED` and thus its preceding side
 is `true`. This means that we must report all branches of the range cursor that we see until we advance to or beyond the
 set's position. The intersection cursor is positioned at the range cursor's "ab" position. It does not have any `state`
 for it, so the intersection cursor reports `null` state as well.
@@ -528,28 +691,25 @@ as `precedingState` (because `start(dt)` has `null` on its left (preceding in fo
 The next advance takes the range cursor to "ad", which is beyond the current set cursor position. We check the range
 cursor's `precedingState` and find that it is `covering(555)`. Since at this point we have a preceding state, we need to
 walk the set branch and use it to augment and report the active covering state. The intersection cursor remains at the
-set cursor's "ac" position, and must report the active `covering(555)` augmented by the set cursor's `END_PREFIX` state.
-This would drop the right side of any state, but as the intersection cursor is iterating in forward direction, it must
-report the _left_ side as the `precedingState`, and thus `covering(555)` is reported as the state and `null` as the
-`content` (because `covering(dt)` is not a boundary state).
+set cursor's "ac" position, and must report the active `covering(555)` augmented by the set cursor's `CONTAINED` state.
+This means that we can report the range state unchanged at this position, and thus `covering(555)` is reported as the
+state and `null` as the `content` (because `covering(dt)` is not a boundary state).
 
 On the next advance, the intersection cursor follows the earlier of the two cursors, which is the set cursor. This
-advances it to "acc", which is a boundary of the set with state `END`. The active covering state is still
+advances it to "acc↑", which is a boundary of the set with state `END`. The active covering state is still
 `covering(555)`; augmenting it with `END` turns it into the boundary `end(555)`, which is reported in `state` as
 well as `content` (because `start(dt)` is a boundary state). `precedingState` reports the left side of this boundary,
 which is still `covering(555)`.
 
-The next advance takes the set to the exhausted position with `START_END_PREFIX` state, which has `false` for
-`precedingIncluded`. Therefore, there is nothing to report before this position, and the range cursor is skipped to it,
-which completes the intersection.
+The next advance takes the set to the exhausted position, which completes the intersection.
 
-The resulting trie looks as expected:
+The resulting forward walk of the trie looks as expected:
 ```
 a ->
   b ->
-    c -> start(555)
+    c  -> start(555)
   c -> covering(555)
-    c -> end(555)
+    c↑ -> end(555)
 ```
 
 ## Union of range tries
@@ -566,18 +726,18 @@ As an example, consider once again the `[abc, adc]` range with deletion 555, mer
 ```
 a ->
   a ->
-    a -> start(666)
+    a  -> start(666)
   c -> covering(666)
-    c -> end(666)
+    c↑ -> end(666)
 ```
 
 The merge cursor will first proceed along "aaa" where the first source (advancing to "ab") does not have any
-`precedingState`, and thus the merge reports "null" for "aa" and the `start(666)` state for "aaa" unchanged. On the next
-advance this source moves beyond the other cursor's "ab" position. The merge thus follows the second source, but the
-first has a `precedingState` of `covering(666)`, which must be reflected in the reported states. The second cursor has
-no `state` for "ab", thus the merge reports `covering(666)` as the state for "ab".
+`precedingState`, and thus the merge reports "null" for "", "a" and "aa", and the `start(666)` state for "aaa"
+unchanged. On the next advance this source moves beyond the other cursor's "ab" position. The merge thus follows the
+second source, but the first has a `precedingState` of `covering(666)`, which must be reflected in the reported states.
+The second cursor has no `state` for "ab", thus the merge reports `covering(666)` as the state for "ab".
 
-The next advance takes the second source to "abc", with `start(555)` state. The merge resolved is called with
+The next advance takes the second source to "abc", with `start(555)` state. The merge resolver is called with
 `start(555)` and `covering(666)` as arguments. Typically, the resolvers we use drop smaller deletion timestamps, so
 this returns `covering(666)` unchanged.
 
@@ -586,15 +746,14 @@ cursor switches to following the first source, positioned at "ac", with `coverin
 it must also reflect the second sources `covering(555)` preceding state. The resolver is called with these two
 arguments and once again returns the bigger deletion timestamp, `covering(666)`.
 
-The next advance takes the first source and the iteration cursor to "acc", where this source has the `end(666)`
+The next advance takes the first source and the iteration cursor to "acc↑", where this source has the `end(666)`
 boundary as state. The merge resolver is called with `end(666)` and `covering(555)`. This time the covering state does
 not override the boundary, thus the resolver must create a state that reflects the end of the current range, as
 well as the fact that we continue with the other covering state. It must thus return the boundary state 
 `switch(666, 555)` which the intersection cursor reports.
 
-The next advance takes the first source to the exhausted position and no `precedingState`. The merge thus reports all
-paths and state from the other cursor unchanged until it is exhausted as well, i.e. `covering(555)` for "ad" and
-`end(555)` for "adc".
+The next advance takes the first source to the exhausted position. The merge thus reports all paths and state from the
+other cursor unchanged until it is exhausted as well, i.e. `covering(555)` for "ad" and `end(555)` for "adc".
 
 The final resulting trie looks like this:
 ```
@@ -608,19 +767,14 @@ a ->
   d -> covering(555)
     c -> end(555)
 ```
-Note that the "abc" path adds no information. We don't, however, know that before descending into that branch, thus we
+Note that the "abc" path adds no information. We don't, however, know this before descending into that branch, thus we
 can't easily remove it. This could be done using a special `cleanup` operation over a trie which must buffer descents
 until effective content is found, which is best done as a separate transformation rather than as part of the merge.
 
 ## Relation to trie sets
 
-`TrieSetCursor` is a subclass of `RangeCursor`, and the trie set is a special case of a range trie. It uses a
-richer state, which contains information for both iteration directions, which also makes it possible to present the same
-state for both forward and reverse iteration directions.
-
-Such richer state is not forbidden, but also not necessary for a general range trie. Because it is something that is
-pretty difficult to obtain (or store and maintain) for an in-memory trie, general range tries, which are meant to be
-stored in in-memory tries, do not provide it.
+`TrieSetCursor` is a subclass of `RangeCursor`, and the trie set is a special case of a range trie that simply adds
+boolean versions of the `precedingState` methods.
 
 # Deletion-Aware Tries
 
@@ -662,7 +816,7 @@ a ->
 Having the point also declare the state before and after makes it easy to obtain the covering deletion e.g. for `aba`,
 `abc` or `ab`. This is a very acceptable amount of overhead that isn't a problem for the approach.
 
-The greatest strength of this approach is that it makes it very easy to perform merges because all of the necessary
+The greatest strength of this approach is that it makes it very easy to perform merges because all the necessary
 information is present at any position that the merging cursor visits.
 
 The reason to avoid this approach is that we often want to find only the live data between a given range of keys, or the
@@ -832,3 +986,42 @@ perform all merges with this flag set to true.
 This means preparing deletions so that they always share the same point of introduction of the deletion branch. For the
 example above it means preparing the deletion in the hoisted form. In Cassandra, for example, this can be guaranteed 
 by wiring the deletion branches to always be on the partition level.
+
+# Appendices
+
+## Return stop alternatives
+
+We considered two alternatives to the ascent/return path stops that we use in our cursors. The two are conceptually
+simpler, but come with higher implementation costs.
+
+The first alternative is to use trailing "type" modifier bits for the positions the cursor stops at:
+- "<" (00) for positions to the left of content and branch (left-inclusive or right-exclusive boundaries)
+- "=" (01) for ordered content of a node
+- "↓" (10) for any children of the branch, and also metadata that should be reported for the branch
+- ">" (11) for positions to the right of content and branch (left-exclusive or right-inclusive boundaries)
+
+This is conceptually simpler because these modifiers do not change when we iterate the trie cursor in reverse, but are
+simply walked in the reverse order (which is achieved by flipping the modifier bits together with the transition bits).
+The difference with the "return path" approach that we chose is that the latter needs these to be bundled in a different
+way depending on whether we are iterating in the forward or reverse iteration:
+- on forward iteration, <, = and ↓ must be bundled on the descent path, and > on the ascent;
+- on reverse iteration, > and ↓ must be bundled on the descent path, and = and < on the ascent.
+
+The main reason we could not use the modifier option is the fact that we need tail tries, and that we usually recognize
+the need to form a tail trie by some content given for the ↓ metadata modifier. As cursors (especially after
+transformations like unions) will have advanced beyond the < boundary and = content modifier, but we need to present
+the boundaries and/or content in the returned tail trie, this would have added enormous complications to the tail trie
+functionality.
+
+The ascent path approach always bundles metadata with the descent path content, meaning that we are correctly positioned
+to take a tail trie when we recognize the need for one.
+
+The other alternative we considered involves presenting virtual content-bearing child nodes for the boundaries and
+ordered content using out-of-range transition values. For example, we could use the transitions `-2` for
+left-inclusive/right-exclusive boundaries, `-1` for ordered content and `256` for left-exlusive/right-inclusive
+boundaries, to lead us to implicit positions that contain the relevant attached value. By expanding the encoded position
+part for the transition by two leading bits we can easily accommodate this without changing any of the transformation
+implementations.
+
+This approach does not have a problem with tail tries, but would be a little less performant because of the additional
+descent that would be required for all boundaries of range/trie sets and content in ordered tries.

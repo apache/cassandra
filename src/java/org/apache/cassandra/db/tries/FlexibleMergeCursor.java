@@ -26,12 +26,10 @@ import org.apache.cassandra.utils.bytecomparable.ByteComparable;
 
 abstract class FlexibleMergeCursor<C extends Cursor<?>, D extends Cursor<?>, T> implements Cursor<T>
 {
-    final Direction direction;
     final C c1;
     @Nullable D c2;
-    int c2depthCorrection;
-    int incomingTransition;
-    int depth;
+    long c2depthCorrection;
+    long currentPosition;
 
     enum State
     {
@@ -44,28 +42,24 @@ abstract class FlexibleMergeCursor<C extends Cursor<?>, D extends Cursor<?>, T> 
 
     FlexibleMergeCursor(C c1)
     {
-        assert c1.depth() == 0;
-        this.direction = c1.direction();
+        c1.assertFresh();
         this.c1 = c1;
         this.c2 = null;
         state = State.C1_ONLY;
-        incomingTransition = c1.incomingTransition();
-        depth = c1.depth();
+        currentPosition = c1.encodedPosition();
         // We can't call postAdvance here because the class may not be completely initialized.
         // The concrete class should do that instead
     }
 
     FlexibleMergeCursor(C c1, D c2)
     {
-        assert c1.depth() == 0;
-        assert c2.depth() == 0;
-        this.direction = c1.direction();
+        c1.assertFresh();
+        c2.assertFresh();
         this.c1 = c1;
         this.c2 = c2;
         this.c2depthCorrection = 0;
         state = c2 != null ? State.AT_BOTH : State.C1_ONLY;
-        incomingTransition = c1.incomingTransition();
-        depth = c1.depth();
+        currentPosition = c1.encodedPosition();
         // We can't call postAdvance here because the class may not be completely initialized.
         // The concrete class should do that instead
     }
@@ -73,25 +67,25 @@ abstract class FlexibleMergeCursor<C extends Cursor<?>, D extends Cursor<?>, T> 
     public void addCursor(D c2)
     {
         assert state == State.C1_ONLY : "Attempting to add further cursors to a cursor that already has two sources";
-        assert c2.depth() == 0 : "Only cursors rooted at the current position can be added";
+        c2.assertFresh();
         this.c2 = c2;
-        this.c2depthCorrection = c1.depth();
+        this.c2depthCorrection = Cursor.depthCorrectionValue(currentPosition);
         this.state = State.AT_BOTH;
     }
 
-    abstract int postAdvance(int depth);
+    abstract long postAdvance(long depth);
 
     @Override
-    public int advance()
+    public long advance()
     {
         switch (state)
         {
             case C1_ONLY:
                 return inC1Only(c1.advance());
             case AT_C1:
-                return checkOrder(c1.advance(), c2.depth());
+                return checkOrder(c1.advance(), c2.encodedPosition());
             case AT_C2:
-                return checkOrder(c1.depth(), c2.advance());
+                return checkOrder(c1.encodedPosition(), c2.advance());
             case AT_BOTH:
                 return checkOrder(c1.advance(), c2.advance());
             default:
@@ -100,42 +94,42 @@ abstract class FlexibleMergeCursor<C extends Cursor<?>, D extends Cursor<?>, T> 
     }
 
     @Override
-    public int skipTo(int skipDepth, int skipTransition)
+    public long skipTo(long encodedSkipPosition)
     {
         if (state == State.C1_ONLY)
-            return inC1Only(c1.skipTo(skipDepth, skipTransition));
+            return inC1Only(c1.skipTo(encodedSkipPosition));
 
+        long c2encodedSkipPosition = encodedSkipPosition - c2depthCorrection;
         // Handle request to exit c2 branch separately for simplicity
-        if (skipDepth <= c2depthCorrection)
+        if (Cursor.isExhausted(c2encodedSkipPosition))
         {
             switch (state)
             {
                 case AT_C1:
                 case AT_BOTH:
-                    return leaveC2(c1.skipTo(skipDepth, skipTransition));
+                    return leaveC2(c1.skipTo(encodedSkipPosition));
                 case AT_C2:
-                    return leaveC2(c1.skipToWhenAhead(skipDepth, skipTransition));
+                    return leaveC2(c1.skipToWhenAhead(encodedSkipPosition));
                 default:
                     throw new AssertionError();
             }
         }
 
-        int c2skipDepth = skipDepth - c2depthCorrection;
         switch (state)
         {
             case AT_C1:
-                return checkOrder(c1.skipTo(skipDepth, skipTransition), c2.skipToWhenAhead(c2skipDepth, skipTransition));
+                return checkOrder(c1.skipTo(encodedSkipPosition), c2.skipToWhenAhead(c2encodedSkipPosition));
             case AT_C2:
-                return checkOrder(c1.skipToWhenAhead(skipDepth, skipTransition), c2.skipTo(c2skipDepth, skipTransition));
+                return checkOrder(c1.skipToWhenAhead(encodedSkipPosition), c2.skipTo(c2encodedSkipPosition));
             case AT_BOTH:
-                return checkOrder(c1.skipTo(skipDepth, skipTransition), c2.skipTo(c2skipDepth, skipTransition));
+                return checkOrder(c1.skipTo(encodedSkipPosition), c2.skipTo(c2encodedSkipPosition));
             default:
                 throw new AssertionError();
         }
     }
 
     @Override
-    public int advanceMultiple(TransitionsReceiver receiver)
+    public long advanceMultiple(TransitionsReceiver receiver)
     {
         switch (state)
         {
@@ -146,9 +140,9 @@ abstract class FlexibleMergeCursor<C extends Cursor<?>, D extends Cursor<?>, T> 
             // cursors.
             // Since it might ascend, we still have to check the order after the call.
             case AT_C1:
-                return checkOrder(c1.advanceMultiple(receiver), c2.depth());
+                return checkOrder(c1.advanceMultiple(receiver), c2.encodedPosition());
             case AT_C2:
-                return checkOrder(c1.depth(), c2.advanceMultiple(receiver));
+                return checkOrder(c1.encodedPosition(), c2.advanceMultiple(receiver));
             // While we are on a shared position, we must descend one byte at a time to maintain the cursor ordering.
             case AT_BOTH:
                 return checkOrder(c1.advance(), c2.advance());
@@ -157,69 +151,44 @@ abstract class FlexibleMergeCursor<C extends Cursor<?>, D extends Cursor<?>, T> 
         }
     }
 
-    private int inC1Only(int c1depth)
+    private long inC1Only(long c1pos)
     {
-        incomingTransition = c1.incomingTransition();
-        depth = c1depth;
-        return postAdvance(c1depth);
+        return postAdvance(currentPosition = c1pos);
     }
 
-    private int checkOrder(int c1depth, int c2depthUncorrected)
+    private long checkOrder(long c1pos, long c2posUncorrected)
     {
-        if (c2depthUncorrected < 0)
-            return leaveC2(c1depth);
+        if (Cursor.isExhausted(c2posUncorrected))
+            return leaveC2(c1pos);
 
-        int c2depth = c2depthUncorrected + c2depthCorrection;
-        if (c1depth > c2depth)
+        long c2pos = c2posUncorrected + c2depthCorrection;
+        long cmp = Cursor.compare(c1pos, c2pos);
+        if (cmp < 0)
         {
             state = State.AT_C1;
-            incomingTransition = c1.incomingTransition();
-            depth = c1depth;
-            return postAdvance(c1depth);
+            return postAdvance(currentPosition = c1pos);
         }
-        if (c1depth < c2depth)
+        if (cmp > 0)
         {
             state = State.AT_C2;
-            incomingTransition = c2.incomingTransition();
-            depth = c2depth;
-            return postAdvance(c2depth);
+            return postAdvance(currentPosition = c2pos);
         }
-        // c1depth == c2depth
-        int c1trans = c1.incomingTransition();
-        int c2trans = c2.incomingTransition();
-        boolean c1ahead = direction.gt(c1trans, c2trans);
-        boolean c2ahead = direction.lt(c1trans, c2trans);
-        state = c2ahead ? State.AT_C1 : c1ahead ? State.AT_C2 : State.AT_BOTH;
-        incomingTransition = c1ahead ? c2trans : c1trans;
-        depth = c1depth;
-        return postAdvance(c1depth);
+        // c1pos == c2pos
+        state = State.AT_BOTH;
+        return postAdvance(currentPosition = c1pos);
     }
 
-    private int leaveC2(int c1depth)
+    private long leaveC2(long c1pos)
     {
         state = State.C1_ONLY;
         c2 = null;
-        incomingTransition = c1.incomingTransition();
-        depth = c1depth;
-        return postAdvance(c1depth);
+        return postAdvance(currentPosition = c1pos);
     }
 
     @Override
-    public int depth()
+    public long encodedPosition()
     {
-        return depth;
-    }
-
-    @Override
-    public int incomingTransition()
-    {
-        return incomingTransition;
-    }
-
-    @Override
-    public Direction direction()
-    {
-        return direction;
+        return currentPosition;
     }
 
     @Override
