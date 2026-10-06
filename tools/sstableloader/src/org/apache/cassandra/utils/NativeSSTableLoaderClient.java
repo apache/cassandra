@@ -98,10 +98,11 @@ public class NativeSSTableLoaderClient extends SSTableLoader.Client
 
             IPartitioner partitioner = FBUtilities.newPartitioner(metadata.getPartitioner());
             TokenFactory tokenFactory = partitioner.getTokenFactory();
+            String quotedKeyspace = Metadata.quote(keyspace);
 
             for (TokenRange tokenRange : tokenRanges)
             {
-                Set<Host> endpoints = metadata.getReplicas(Metadata.quote(keyspace), tokenRange);
+                Set<Host> endpoints = metadata.getReplicas(quotedKeyspace, tokenRange);
                 Range<Token> range = new Range<>(tokenFactory.fromString(tokenRange.getStart().getValue().toString()),
                                                  tokenFactory.fromString(tokenRange.getEnd().getValue().toString()));
                 for (Host endpoint : endpoints)
@@ -114,7 +115,11 @@ public class NativeSSTableLoaderClient extends SSTableLoader.Client
             }
 
             if (getEndpointToRangesMap().isEmpty())
-                throw new IllegalStateException(noReplicasMessage(keyspace, metadata, session));
+            {
+                boolean inDriverMetadata = metadata.getKeyspace(quotedKeyspace) != null;
+                boolean exists = inDriverMetadata || keyspaceExists(keyspace, session);
+                throw new IllegalStateException(noReplicasMessage(keyspace, inDriverMetadata, exists));
+            }
 
             Types types = fetchTypes(keyspace, session);
 
@@ -139,17 +144,22 @@ public class NativeSSTableLoaderClient extends SSTableLoader.Client
         tables.put(cfm.name, cfm);
     }
 
-    private static String noReplicasMessage(String keyspace, Metadata metadata, Session session)
+    private static boolean keyspaceExists(String keyspace, Session session)
     {
-        if (metadata.getKeyspace(Metadata.quote(keyspace)) != null)
+        String query = String.format("SELECT * FROM %s.%s WHERE keyspace_name = ?", SchemaConstants.SCHEMA_KEYSPACE_NAME, SchemaKeyspaceTables.KEYSPACES);
+        return session.execute(query, keyspace).one() != null;
+    }
+
+    private static String noReplicasMessage(String keyspace, boolean inDriverMetadata, boolean exists)
+    {
+        if (inDriverMetadata)
             return "Could not find any replicas for keyspace " + keyspace + ", check its replication settings";
 
-        String query = String.format("SELECT * FROM %s.%s WHERE keyspace_name = ?", SchemaConstants.SCHEMA_KEYSPACE_NAME, SchemaKeyspaceTables.KEYSPACES);
-        if (session.execute(query, keyspace).one() == null)
+        if (!exists)
             return "Keyspace " + keyspace + " does not exist";
 
-        return "Could not find any replicas for keyspace " + keyspace + ": the driver failed to parse the cluster schema " +
-               "(e.g. it does not support vectors inside user-defined types). See the error logged above.";
+        return "Could not find any replicas for keyspace " + keyspace + ": the keyspace exists but is missing from the driver's metadata, " +
+               "likely because the driver failed to parse the cluster schema (e.g. a vector inside a user-defined type). See the error logged above.";
     }
 
     private static Types fetchTypes(String keyspace, Session session)
