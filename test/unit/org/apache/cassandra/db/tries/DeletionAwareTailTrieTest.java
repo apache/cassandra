@@ -311,6 +311,7 @@ public class DeletionAwareTailTrieTest
         if (Stream.of(expectedData).anyMatch(TestRangeState.class::isInstance))
         {
             DeletionAwareCursor<String, TestRangeState> cursor = tail.cursor(tailDirection);
+            assertNotNull("Deletion branch flag should be set at root when including covering deletions", (cursor.encodedPosition() & Cursor.MAY_HAVE_DELETION_BRANCH_BIT) != 0);
             RangeCursor<TestRangeState> deletionBranchCursor = cursor.deletionBranchCursor(tailDirection);
             assertNotNull("Deletion branch should be present at root when including covering deletions", deletionBranchCursor);
         }

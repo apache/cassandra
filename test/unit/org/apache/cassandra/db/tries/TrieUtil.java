@@ -554,14 +554,20 @@ public class TrieUtil
                 @Override
                 public long encodedPosition()
                 {
+                    long pos;
                     if (current == direction.select(-1, childs))
-                        return Cursor.rootPosition(direction);
+                        pos = Cursor.rootPosition(direction);
                     else if (presentContentOnReturnPath && current == direction.select(childs, -1))
-                        return Cursor.rootPosition(direction) | Cursor.ON_RETURN_PATH_BIT;
-                    else if (direction.inLoop(current, 0, childs - 1))
-                        return Cursor.encode(1, current, direction) |
+                        pos = Cursor.rootPosition(direction) | Cursor.ON_RETURN_PATH_BIT;
+                    else if (current >= 0 && current < childs)
+                        pos = Cursor.encode(1, current, direction) |
                                (presentContentOnReturnPath ? Cursor.ON_RETURN_PATH_BIT : 0);
-                    return Cursor.exhaustedPosition(direction);
+                    else
+                        return Cursor.exhaustedPosition(direction);
+
+                    if (presentContentOnReturnPath == Cursor.isOnReturnPath(pos))
+                        pos |= Cursor.MAY_HAVE_CONTENT_BIT;
+                    return pos;
                 }
 
                 @Override
@@ -569,7 +575,11 @@ public class TrieUtil
                 {
                     if (presentContentOnReturnPath != Cursor.isOnReturnPath(encodedPosition()))
                         return null;
-                    return current == childs ? -1 : current;
+                    if (current >= 0 && current < childs)
+                        return current;
+                    if (current == direction.select(-1, childs) || current == direction.select(childs, -1))
+                        return -1;
+                    return null;
                 }
 
                 @Override
@@ -702,7 +712,7 @@ public class TrieUtil
         RangeCursor<D> actualDeletionBranch = actual.deletionBranchCursor(actual.direction());
         while (true)
         {
-            assertEquals("Actual pos " + Cursor.toString(actualPos) + " != " + Cursor.toString(expectedPos), expectedPos, actualPos);
+            assertEquals("Actual pos " + Cursor.toString(actualPos) + " != " + Cursor.toString(expectedPos), 0, Cursor.compare(expectedPos, actualPos));
             assertEquals("Path", Hex.bytesToHex(expectedPath.getTrimmedPathBytes()), Hex.bytesToHex(actualPath.getTrimmedPathBytes()));
             assertEquals("Content", expectedContent, actualContent);
             if (expectedDeletionBranch != null ^ actualDeletionBranch != null)
@@ -712,7 +722,6 @@ public class TrieUtil
                 else if (actualDeletionBranch == null)
                     actualDeletionBranch = RangeCursor.empty(actual.direction(), VERSION);
             }
-            assertEquals("Deletion branch present", expectedDeletionBranch != null, actualDeletionBranch != null);
             if (expectedDeletionBranch != null)
                 assertCursorContentEqual(expectedDeletionBranch, actualDeletionBranch);
 
@@ -817,12 +826,29 @@ public class TrieUtil
         SpecStackEntry stack;
         Direction direction;
         long position;
+        final long flagsMask;
 
         CursorFromSpec(Object[] spec, Direction direction)
         {
+            this(spec, direction, 0L);
+        }
+
+        CursorFromSpec(Object[] spec, Direction direction, long flagsMask)
+        {
             this.direction = direction;
+            this.flagsMask = flagsMask;
             stack = makeSpecStackEntry(direction, spec, null);
-            position = Cursor.rootPosition(direction);
+            position = applyFlags(Cursor.rootPosition(direction));
+        }
+
+        private long applyFlags(long pos)
+        {
+            if (Cursor.isExhausted(pos))
+                return pos;
+            pos |= flagsMask;
+            if (content() != null)
+                pos |= Cursor.MAY_HAVE_CONTENT_BIT;
+            return pos;
         }
 
         @Override
@@ -851,7 +877,8 @@ public class TrieUtil
             while (child == null);
             stack = makeSpecStackEntry(direction, child, current);
 
-            return position = encode(++depth);
+            position = applyFlags(encode(++depth));
+            return position;
         }
 
         @Override

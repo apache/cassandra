@@ -109,21 +109,28 @@ public class RangesTrieSetTest
                         return cursor.nonNullState();
                     }
 
+                    private long applyBit(long pos)
+                    {
+                        if (!Cursor.isExhausted(pos) && content() != null)
+                            pos |= Cursor.MAY_HAVE_CONTENT_BIT;
+                        return pos;
+                    }
+
                     public long encodedPosition()
                     {
-                        return cursor.encodedPosition();
+                        return applyBit(cursor.encodedPosition());
                     }
 
                     @Override
                     public long advance()
                     {
-                        return cursor.advance();
+                        return applyBit(cursor.advance());
                     }
 
                     @Override
                     public long skipTo(long encodedSkipPosition)
                     {
-                        return cursor.skipTo(encodedSkipPosition);
+                        return applyBit(cursor.skipTo(encodedSkipPosition));
                     }
 
                     @Override

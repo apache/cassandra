@@ -166,8 +166,11 @@ class RangesCursor implements TrieSetCursor
         this.sources = sources;
         this.currentIdx = startIdx;
         this.endIdx = endIdxExclusive;
-        this.currentPosition = currentPosition;
         this.currentState = currentState;
+        if (currentState.isBoundary())
+            this.currentPosition = currentPosition | MAY_HAVE_CONTENT_BIT;
+        else
+            this.currentPosition = currentPosition & ~MAY_HAVE_CONTENT_BIT;
         this.endsAfterMask = endsAfterMask;
     }
 
@@ -238,8 +241,11 @@ class RangesCursor implements TrieSetCursor
             containedSelection |= direction.select(RangeState.APPLICABLE_AFTER, RangeState.APPLICABLE_BEFORE);
 
         currentState = RangeState.values()[containedSelection];
-        currentPosition = nextPosition;
-        return nextPosition;
+        if (currentState.isBoundary())
+            currentPosition = nextPosition | MAY_HAVE_CONTENT_BIT;
+        else
+            currentPosition = nextPosition & ~MAY_HAVE_CONTENT_BIT;
+        return currentPosition;
     }
 
     private long maybeOnReturnPath(long nextPosition, int index, Direction direction)

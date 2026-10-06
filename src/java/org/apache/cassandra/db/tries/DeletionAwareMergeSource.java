@@ -131,7 +131,7 @@ class DeletionAwareMergeSource<T, D extends RangeState<D>, E extends RangeState<
         if (Cursor.isExhausted(deletionsPositionUncorrected))
             return leaveDeletionsBranch(dataPosition);
         else
-            return setAtDeletionsAndReturnPosition(deletionsPositionUncorrected == deletionsSkipPosition,
+            return setAtDeletionsAndReturnPosition(Cursor.compare(deletionsPositionUncorrected, deletionsSkipPosition) == 0,
                                                    dataPosition);
     }
 

@@ -24,8 +24,8 @@ import org.apache.cassandra.utils.bytecomparable.ByteSource;
 abstract class DepthAdjustedCursor<T, C extends Cursor<T>> implements Cursor<T>
 {
     final C source;
-    private long depthAdjustment;
-    private long matchingPositionAtRoot;
+    protected long depthAdjustment;
+    protected long matchingPositionAtRoot;
 
     DepthAdjustedCursor(C source, long matchingPositionAtRoot)
     {
@@ -46,7 +46,10 @@ abstract class DepthAdjustedCursor<T, C extends Cursor<T>> implements Cursor<T>
         else if (Cursor.isExhausted(position))
             return position;
         else
-            return matchingPositionAtRoot | (position & Cursor.ON_RETURN_PATH_BIT);
+        {
+            final long bits = Cursor.FLAGS_MASK | Cursor.ON_RETURN_PATH_BIT;
+            return (matchingPositionAtRoot & ~bits) | (position & bits);
+        }
     }
 
     long fromAdjustedDepth(long position)
@@ -57,11 +60,10 @@ abstract class DepthAdjustedCursor<T, C extends Cursor<T>> implements Cursor<T>
             return adjusted;
 
         // The only non-exhausted position that can be requested with this depth is the return path stop for the root.
-        if (position == (matchingPositionAtRoot | Cursor.ON_RETURN_PATH_BIT))
+        if (Cursor.compare(position, matchingPositionAtRoot | Cursor.ON_RETURN_PATH_BIT) == 0)
             return Cursor.rootReturnPosition(adjusted);
         else
             return Cursor.exhaustedPosition(adjusted);
-
     }
 
     @Override

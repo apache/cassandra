@@ -236,27 +236,44 @@ interface TrieSetCursor extends RangeCursor<TrieSetCursor.RangeState>
             NONE, ROOT, ROOT_RETURN, EXHAUSTED
         }
         Overriding overriding;
+        long currentPosition;
 
         Negated(TrieSetCursor source)
         {
             this.source = source;
             overriding = Overriding.ROOT;
+            updateCurrentPosition();
+        }
+
+        @Override
+        public Direction direction()
+        {
+            return source.direction();
         }
 
         @Override
         public long encodedPosition()
         {
-            long encodedPosition = source.encodedPosition();
+            return currentPosition;
+        }
+
+        private long updateCurrentPosition()
+        {
+            long pos = source.encodedPosition();
             switch (overriding)
             {
                 case ROOT_RETURN:
-                    return Cursor.rootReturnPosition(encodedPosition);
+                    return currentPosition = Cursor.rootReturnPosition(pos) | MAY_HAVE_CONTENT_BIT;
                 case EXHAUSTED:
-                    return Cursor.exhaustedPosition(encodedPosition);
+                    return currentPosition = Cursor.exhaustedPosition(pos);
                 case ROOT:
+                    // In ROOT case, set flag if negated state is a boundary
+                    pos ^= MAY_HAVE_CONTENT_BIT;
+                    return currentPosition = pos;
                 case NONE:
                 default:
-                    return encodedPosition;
+                    // In NONE case, negation doesn't change boundary status (boundary stays boundary)
+                    return currentPosition = pos;
             }
         }
 
@@ -272,12 +289,14 @@ interface TrieSetCursor extends RangeCursor<TrieSetCursor.RangeState>
             switch (overriding)
             {
                 case ROOT:
-                    if (!source.nonNullState().succeedingIncluded(direction()))
-                        return direction().select(RangeState.START, RangeState.END);
+                    Direction dir = direction();
+                    if (!source.nonNullState().succeedingIncluded(dir))
+                        return dir.select(RangeState.START, RangeState.END);
                     else
                         return RangeState.NOT_CONTAINED;
                 case ROOT_RETURN:
-                    return direction().select(RangeState.END, RangeState.START);
+                    Direction dirReturn = direction();
+                    return dirReturn.select(RangeState.END, RangeState.START);
                 case EXHAUSTED:
                     return RangeState.NOT_CONTAINED;
                 case NONE:
@@ -292,7 +311,7 @@ interface TrieSetCursor extends RangeCursor<TrieSetCursor.RangeState>
             if (depth > 0)
             {
                 overriding = Overriding.NONE;
-                return encodedPosition;
+                return updateCurrentPosition();
             }
             else if (depth == 0)
             {
@@ -300,7 +319,7 @@ interface TrieSetCursor extends RangeCursor<TrieSetCursor.RangeState>
                 // we no longer have. Go directly to exhausted.
                 assert Cursor.isOnReturnPath(encodedPosition);
                 overriding = Overriding.EXHAUSTED;
-                return encodedPosition();
+                return updateCurrentPosition();
             }
             else // depth < 0
             {
@@ -308,7 +327,7 @@ interface TrieSetCursor extends RangeCursor<TrieSetCursor.RangeState>
                 // path to close it.
                 assert Cursor.isExhausted(encodedPosition);
                 overriding = Overriding.ROOT_RETURN;
-                return encodedPosition();
+                return updateCurrentPosition();
             }
         }
 
@@ -319,8 +338,9 @@ interface TrieSetCursor extends RangeCursor<TrieSetCursor.RangeState>
             {
                 case ROOT_RETURN:
                     overriding = Overriding.EXHAUSTED;
-                    return encodedPosition();
+                    return updateCurrentPosition();
                 default:
+                    // checkOverride already calls updateCurrentPosition()
                     return checkOverride(source.advance());
             }
         }
@@ -331,7 +351,7 @@ interface TrieSetCursor extends RangeCursor<TrieSetCursor.RangeState>
             if (Cursor.isExhausted(encodedSkipPosition) || overriding == Overriding.ROOT_RETURN)
             {
                 overriding = Overriding.EXHAUSTED;
-                return encodedPosition();
+                return updateCurrentPosition();
             }
             else
                 return checkOverride(source.skipTo(encodedSkipPosition));

@@ -127,6 +127,15 @@ extends InMemoryBaseTrie<T> implements DeletionAwareTrie<T, D>
         }
 
         @Override
+        T processPrefix(int node, int depth, int transition)
+        {
+            T content = super.processPrefix(node, depth, transition);
+            if (trie.getIntVolatile(node + PREFIX_ALTERNATE_OFFSET) != NONE)
+                currentPosition |= MAY_HAVE_DELETION_BRANCH_BIT;
+            return content;
+        }
+
+        @Override
         public RangeCursor<D> deletionBranchCursor(Direction direction)
         {
             int alternateBranch = trie.getAlternateBranch(currentFullNode);
@@ -301,6 +310,7 @@ extends InMemoryBaseTrie<T> implements DeletionAwareTrie<T, D>
         Mutator<V, E> apply() throws TrieSpaceExhaustedException
         {
             int depth = state.currentDepth;
+            long position = mutationCursor.encodedPosition();
             while (true)
             {
                 if (depth < forcedCopyDepth)
@@ -308,11 +318,10 @@ extends InMemoryBaseTrie<T> implements DeletionAwareTrie<T, D>
 
                 // Content must be applied before descending into the branch to make sure we call the transformers
                 // in the right order.
-                applyContent(mutationCursor.content());
+                applyContent(Cursor.content(mutationCursor, position));
 
                 int existingAlternateBranch = state.alternateBranch();
-                RangeCursor<E> incomingAlternateBranch = mutationCursor.deletionBranchCursor(Direction.FORWARD);
-                long position;
+                RangeCursor<E> incomingAlternateBranch = DeletionAwareCursor.deletionBranchCursor(mutationCursor, position);
                 if (incomingAlternateBranch != null || existingAlternateBranch != NONE)
                 {
                     int updatedAlternateBranch = applyDeletionBranch(existingAlternateBranch, incomingAlternateBranch);
@@ -395,7 +404,7 @@ extends InMemoryBaseTrie<T> implements DeletionAwareTrie<T, D>
                 if (depth < forcedCopyDepth)
                     forcedCopyDepth = needsForcedCopy.test(this) ? depth : Integer.MAX_VALUE;
 
-                applyContent(mutationCursor.content());
+                applyContent((position & Cursor.MAY_HAVE_CONTENT_BIT) != 0 ? mutationCursor.content() : null);
                 position = mutationCursor.advance();
                 depth = Cursor.depth(position);
             }

@@ -23,6 +23,9 @@ import org.apache.cassandra.utils.bytecomparable.ByteSource;
 
 /// Trie cursor for a singleton trie, mapping a given key to a value. This version places the content before or after
 /// the branch, which is useful for range boundaries and ordered tries (see [Trie#singletonOrdered]).
+///
+/// Note that when presentOnReturnPath is false, this is the same as SingletonCursor except for tailCursor,
+/// which must flip the flag if the direction changes.
 class SingletonOrderedCursor<T> extends SingletonCursor<T>
 {
     final boolean presentOnReturnPath;
@@ -36,7 +39,10 @@ class SingletonOrderedCursor<T> extends SingletonCursor<T>
     {
         super(direction, src, byteComparableVersion, value);
         this.presentOnReturnPath = presentOnReturnPath;
-        adjustNextPosition(src);
+        // adjustPositionAndPrepareNext() is called before we have finished initializing, using false `presentOnReturnPath`.
+        // Redo this check and adjustment.
+        if (presentOnReturnPath)
+            moveNextPositionToReturnPath();
     }
 
     /// Constructor for tail tries.
@@ -63,24 +69,22 @@ class SingletonOrderedCursor<T> extends SingletonCursor<T>
     }
 
     @Override
-    void prepareNextPosition(long currentPosition)
+    void adjustPositionAndPrepareNext()
     {
-        super.prepareNextPosition(currentPosition);
-        adjustNextPosition(((ByteSource.Peekable) src));
+        super.adjustPositionAndPrepareNext();
+        if (presentOnReturnPath)
+            moveNextPositionToReturnPath();
     }
 
-    private void adjustNextPosition(ByteSource.Peekable src)
+    void moveNextPositionToReturnPath()
     {
-        if (presentOnReturnPath)
+        if (Cursor.isExhausted(nextPosition))
         {
-            if (Cursor.isExhausted(nextPosition))
-            {
-                if (Cursor.isRootPosition(currentPosition))
-                    nextPosition = currentPosition | ON_RETURN_PATH_BIT;
-            }
-            else if (src.peek() == ByteSource.END_OF_STREAM)
-                nextPosition |= ON_RETURN_PATH_BIT;
+            if (Cursor.isRootPosition(currentPosition))
+                nextPosition = currentPosition | ON_RETURN_PATH_BIT;
         }
+        else if (((ByteSource.Peekable) src).peek() == ByteSource.END_OF_STREAM)
+            nextPosition |= ON_RETURN_PATH_BIT;
     }
 
     @Override
@@ -92,7 +96,7 @@ class SingletonOrderedCursor<T> extends SingletonCursor<T>
         super.advanceMultiple(receiver);
         if (presentOnReturnPath)
             currentPosition |= ON_RETURN_PATH_BIT;
-        return currentPosition;
+        return encodedPosition();
     }
 
     @Override

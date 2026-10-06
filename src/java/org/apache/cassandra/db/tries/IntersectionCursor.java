@@ -223,6 +223,37 @@ implements Cursor<T>
                     throw new AssertionError();
             }
         }
+
+        @Override
+        public long advance()
+        {
+            return adjustPosition(super.advance());
+        }
+
+        @Override
+        public long advanceMultiple(TransitionsReceiver receiver)
+        {
+            return adjustPosition(super.advanceMultiple(receiver));
+        }
+
+        @Override
+        public long skipTo(long encodedSkipPosition)
+        {
+            return adjustPosition(super.skipTo(encodedSkipPosition));
+        }
+
+        @Override
+        public long encodedPosition()
+        {
+            return adjustPosition(super.encodedPosition());
+        }
+
+        private long adjustPosition(long pos)
+        {
+            if (state == State.MATCHING && !set.nonNullState().applicableAfter)
+                pos &= ~Cursor.MAY_HAVE_CONTENT_BIT;
+            return pos;
+        }
     }
 
     /// Intersection cursor for [Trie].
@@ -297,6 +328,9 @@ implements Cursor<T>
         @Override
         public RangeCursor<D> deletionBranchCursor(Direction direction)
         {
+            if ((source.encodedPosition() & MAY_HAVE_DELETION_BRANCH_BIT) == 0)
+                return null;
+
             RangeCursor<D> deletions = source.deletionBranchCursor(direction);
             if (deletions == null)
                 return null;

@@ -73,29 +73,31 @@ interface VerificationCursor
         {
             this.direction = cursor.direction();
             this.source = cursor;
-            this.returnedPosition = Cursor.rootPosition(direction);
+            this.returnedPosition = source.encodedPosition();
             this.path = new byte[16];
-            long reportedPosition = source.encodedPosition();
-            assert Cursor.direction(reportedPosition) == direction :
+            assert Cursor.direction(returnedPosition) == direction :
                 String.format("Invalid direction bit %d in root position %s (%016x)\n%s",
-                              (reportedPosition >> DIRECTION_BIT) & 1,
-                              Cursor.toString(reportedPosition),
-                              reportedPosition,
-                              this);
-            assert Cursor.compare(reportedPosition, returnedPosition) == 0 :
-                String.format("Invalid initial position %s (must be %s)\n%s",
-                              Cursor.toString(reportedPosition),
+                              (returnedPosition >> DIRECTION_BIT) & 1,
                               Cursor.toString(returnedPosition),
+                              returnedPosition,
+                              this);
+            assert Cursor.compare(returnedPosition, Cursor.rootPosition(direction)) == 0 :
+                String.format("Invalid initial position %s (must be %s)\n%s",
+                              Cursor.toString(returnedPosition),
+                              Cursor.toString(Cursor.rootPosition(direction)),
                               this);
         }
 
         @Override
         public long encodedPosition()
         {
-            assert Cursor.compare(source.encodedPosition(), returnedPosition) == 0 :
-                String.format("Position changed without advance: %s -> %s\n%s",
+            long reportedPosition = source.encodedPosition();
+            assert Cursor.compare(reportedPosition, returnedPosition) == 0 :
+                String.format("Position changed without advance: %s -> %s (reported bits %016x vs expected %016x)\n%s",
                               Cursor.toString(returnedPosition),
-                              Cursor.toString(source.encodedPosition()),
+                              Cursor.toString(reportedPosition),
+                              reportedPosition,
+                              returnedPosition,
                               this);
             return returnedPosition;
         }
@@ -107,7 +109,13 @@ interface VerificationCursor
                 String.format("Cannot query content on exhausted cursor.\n%s",
                               this);
 
-            return source.content();
+            T content = source.content();
+            if (content != null)
+                assert (returnedPosition & MAY_HAVE_CONTENT_BIT) != 0 :
+                    String.format("Non-null content for position without MAY_HAVE_CONTENT_BIT: %s\n%s",
+                                  Cursor.toString(returnedPosition),
+                                  this);
+            return content;
         }
 
         @Override
@@ -573,6 +581,10 @@ interface VerificationCursor
             RangeCursor<D> deletionBranch = source.deletionBranchCursor(direction);
             if (deletionBranch != null)
             {
+                assert (source.encodedPosition() & Cursor.MAY_HAVE_DELETION_BRANCH_BIT) != 0 :
+                    String.format("Deletion branch found but MAY_HAVE_DELETION_BRANCH_BIT was not set on position: %s\n%s",
+                                  Cursor.toString(source.encodedPosition()),
+                                  this);
                 assert deletionBranchDepth == -1 :
                     String.format("Deletion branch at position %s covered by another deletion branch at parent depth %s\n%s",
                                   Cursor.toString(position),

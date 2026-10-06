@@ -105,7 +105,7 @@ class RangeApplyCursor<T, S extends RangeState<S>> implements Cursor<T>
     private long skipRangeToDataPosition(long dataPosition)
     {
         long rangePosition = range.skipTo(dataPosition);
-        return setAtRangeAndReturnPosition(rangePosition == dataPosition,
+        return setAtRangeAndReturnPosition(Cursor.compare(rangePosition, dataPosition) == 0,
                                            dataPosition);
     }
 

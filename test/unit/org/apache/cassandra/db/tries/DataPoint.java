@@ -151,17 +151,17 @@ public interface DataPoint
 
     static InMemoryDeletionAwareTrie<LivePoint, DeletionMarker> fromList(List<DataPoint> list)
     {
-        return fromList(list, false);
+        return fromList(list, false, false);
     }
 
-    static InMemoryDeletionAwareTrie<LivePoint, DeletionMarker> fromList(List<DataPoint> list, boolean forceCopy)
+    static InMemoryDeletionAwareTrie<LivePoint, DeletionMarker> fromList(List<DataPoint> list, boolean forceCopy, boolean deletionsAtRoot)
     {
         InMemoryDeletionAwareTrie<LivePoint, DeletionMarker> trie = InMemoryDeletionAwareTrie.shortLived(VERSION);
         var mutator = trie.mutator(DataPoint::combineLive,
                                    DataPoint::combineDeletion,
                                    DataPoint::deleteLive,
                                    DataPoint::deleteLive,
-                                   false,
+                                   deletionsAtRoot,
                                    v -> forceCopy);
 
         try
@@ -192,7 +192,7 @@ public interface DataPoint
 
                     DeletionMarker startMarker = list.get(activeStartedAt).marker();
                     assert startMarker != null;
-                    int prefixLength = ByteComparable.diffPoint(startMarker.position, marker.position, VERSION) - 1;
+                    int prefixLength = deletionsAtRoot ? 0 : ByteComparable.diffPoint(startMarker.position, marker.position, VERSION) - 1;
                     mutator.apply(
                             DeletionAwareTrie.deletedRange(ByteComparable.cut(startMarker.position, prefixLength),
                                                            ByteComparable.skipFirst(startMarker.position, prefixLength),

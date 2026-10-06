@@ -40,7 +40,7 @@ class SingletonCursor<T> implements Cursor<T>
         this.byteComparableVersion = byteComparableVersion;
         this.value = value;
         this.currentPosition = Cursor.rootPosition(direction);
-        prepareNextPosition(currentPosition);
+        adjustPositionAndPrepareNext();
     }
 
     /// Constructor for tail tries.
@@ -57,7 +57,7 @@ class SingletonCursor<T> implements Cursor<T>
         this.src = src;
         this.byteComparableVersion = byteComparableVersion;
         this.value = value;
-        this.currentPosition = Cursor.rootPosition(direction);
+        this.currentPosition = Cursor.unionFlags(Cursor.rootPosition(direction), currentPosition, Cursor.FLAGS_MASK);
         if (!Cursor.isExhausted(nextPosition))
             this.nextPosition = nextPosition - Cursor.depthCorrectionValue(currentPosition);
         else
@@ -67,14 +67,25 @@ class SingletonCursor<T> implements Cursor<T>
             this.nextPosition ^= Cursor.TRANSITION_MASK;
     }
 
-    void prepareNextPosition(long currentPosition)
+    /// Adjusts the current position flags (e.g. setting MAY_HAVE_CONTENT_BIT when at the end)
+    /// and prepares the next position by reading the next byte from the source.
+    void adjustPositionAndPrepareNext()
     {
         int nextTransition = src.next();
 
         if (nextTransition != ByteSource.END_OF_STREAM)
             nextPosition = Cursor.positionForDescentWithByte(currentPosition, nextTransition);
         else
+        {
             nextPosition = Cursor.exhaustedPosition(currentPosition);
+            currentPosition |= payloadFlag();
+        }
+    }
+
+    /// The flag to set at the end of the path. Normally content, overridden by [DeletionBranch]
+    long payloadFlag()
+    {
+        return MAY_HAVE_CONTENT_BIT;
     }
 
     @Override
@@ -82,7 +93,7 @@ class SingletonCursor<T> implements Cursor<T>
     {
         currentPosition = nextPosition;
         if (!Cursor.isExhausted(nextPosition))
-            prepareNextPosition(currentPosition);
+            adjustPositionAndPrepareNext();
         return currentPosition;
     }
 
@@ -106,6 +117,8 @@ class SingletonCursor<T> implements Cursor<T>
         }
         currentPosition = Cursor.positionForDescentWithByte(pos, current);
         nextPosition = Cursor.exhaustedPosition(currentPosition);
+        // atEnd() is unconditionally true here; set the bit directly.
+        currentPosition |= payloadFlag();
         return currentPosition;
     }
 
@@ -213,6 +226,12 @@ class SingletonCursor<T> implements Cursor<T>
         {
             super(direction, currentPosition, nextPosition, src, byteComparableVersion, null);
             this.deletionBranch = deletionBranch;
+        }
+
+        @Override
+        long payloadFlag()
+        {
+            return MAY_HAVE_DELETION_BRANCH_BIT;
         }
 
         @Override

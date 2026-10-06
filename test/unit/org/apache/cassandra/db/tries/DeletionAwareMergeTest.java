@@ -22,8 +22,6 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Iterator;
 import java.util.List;
-import java.util.stream.Collectors;
-import java.util.stream.IntStream;
 
 import com.google.common.collect.Lists;
 
@@ -35,26 +33,35 @@ import org.apache.cassandra.utils.bytecomparable.ByteComparable;
 
 import static java.util.Arrays.asList;
 import static org.apache.cassandra.db.tries.DataPoint.dumpDeletionAwareTrie;
-import static org.apache.cassandra.db.tries.DataPoint.fromList;
 import static org.apache.cassandra.db.tries.DataPoint.verify;
 import static org.apache.cassandra.db.tries.TrieUtil.VERSION;
 
 @RunWith(Parameterized.class)
 public class DeletionAwareMergeTest extends DeletionAwareTestBase
 {
-    @Parameterized.Parameters(name = "bits per transition {0} deletion point {1}")
+    @Parameterized.Parameters(name = "bits per transition {0} deletion point {1} at root {2}")
     public static List<Object[]> mergeData()
     {
-        return IntStream.rangeClosed(1, bitsNeeded)
-                        .boxed()
-                        .flatMap(x -> IntStream.of(4, 13, 22, 31, 40)
-                                               .mapToObj(y -> new Object[] { x, y }))
-                        .collect(Collectors.toList());
+        List<Object[]> list = new ArrayList<>();
+        int bound = bitsNeeded;
+        for (int i = 1; i <= bound; i++)
+        {
+            Integer x = i;
+            for (int y : new int[]{ 4, 13, 22, 31, 40 })
+            {
+                list.add(new Object[]{ x, y, false });
+                list.add(new Object[]{ x, y, true });
+            }
+        }
+        return list;
     }
 
 
     @Parameterized.Parameter(1)
     public int deletionPoint = 100;
+
+    @Parameterized.Parameter(2)
+    public boolean deletionsAtRoot = false;
 
     private List<DataPoint> deletedRanges(ByteComparable... dataPoints)
     {
@@ -254,6 +261,11 @@ public class DeletionAwareMergeTest extends DeletionAwareTestBase
         testMerges(set1, set2, set3);
     }
 
+    private InMemoryDeletionAwareTrie<LivePoint, DeletionMarker> fromList(List<DataPoint> testRanges)
+    {
+        return DataPoint.fromList(testRanges, false, deletionsAtRoot);
+    }
+
     private void testMerges(List<DataPoint> set1, List<DataPoint> set2, List<DataPoint> set3)
     {
         testMerge("1", set1);
@@ -308,7 +320,7 @@ public class DeletionAwareMergeTest extends DeletionAwareTestBase
                     dumpDeletionAwareTrie(adding);
                 }
                 testMergeWith(message + " " + toRemove,
-                              trie.mergeWith(adding, LivePoint::combine, DeletionMarker::combine, DeletionMarker::applyTo, false),
+                              trie.mergeWith(adding, LivePoint::combine, DeletionMarker::combine, DeletionMarker::applyTo, deletionsAtRoot),
                               mergeLists(merged, ranges),
                               Arrays.stream(sets)
                                 .filter(x -> x != ranges)
@@ -337,7 +349,7 @@ public class DeletionAwareMergeTest extends DeletionAwareTestBase
                                                                                         LivePoint::combineCollection,
                                                                                         DeletionMarker::combineCollection,
                                                                                         DeletionMarker::applyTo,
-                                                                                        false);
+                                                                                        deletionsAtRoot);
             if (VERBOSE)
             {
                 System.out.println("Result:");
@@ -399,7 +411,7 @@ public class DeletionAwareMergeTest extends DeletionAwareTestBase
                                DataPoint::combineDeletion,
                                DataPoint::deleteLive,
                                DataPoint::deleteLive,
-                               false,
+                               deletionsAtRoot,
                                v -> false);
                     testMergeInMemoryTrie(message + " " + toRemove,
                                           dupe,
@@ -487,7 +499,7 @@ public class DeletionAwareMergeTest extends DeletionAwareTestBase
         }
     }
 
-    DeletionMarker delete(int deletionTime, DeletionMarker marker)
+    static DeletionMarker delete(int deletionTime, DeletionMarker marker)
     {
         if (deletionTime < 0 || marker == null)
             return marker;
@@ -501,35 +513,35 @@ public class DeletionAwareMergeTest extends DeletionAwareTestBase
         return new DeletionMarker(marker.position, newLeft, newRight);
     }
 
-    LivePoint delete(int deletionTime, LivePoint marker)
+    static LivePoint delete(int deletionTime, LivePoint marker)
     {
         if (deletionTime < 0 || marker == null)
             return marker;
         return marker.delete(deletionTime);
     }
 
-    DataPoint delete(int deletionTime, DataPoint marker)
+    static DataPoint delete(int deletionTime, DataPoint marker)
     {
         LivePoint live = delete(deletionTime, marker.live());
         DeletionMarker deletion = delete(deletionTime, marker.marker());
         return DataPoint.resolve(live, deletion);
     }
 
-    int leftSide(DataPoint point)
+    static int leftSide(DataPoint point)
     {
         if (point.marker() == null)
             return -1;
         return point.marker().leftSide;
     }
 
-    int rightSide(DataPoint point)
+    static int rightSide(DataPoint point)
     {
         if (point.marker() == null)
             return -1;
         return point.marker().rightSide;
     }
 
-    List<DataPoint> mergeLists(List<DataPoint> left, List<DataPoint> right)
+    static List<DataPoint> mergeLists(List<DataPoint> left, List<DataPoint> right)
     {
         int active = -1;
         Iterator<DataPoint> rightIt = right.iterator();

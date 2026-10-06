@@ -51,7 +51,7 @@ implements RangeCursor<Q>
 
     void setInitialState()
     {
-        matchingPosition(set.encodedPosition());
+        matchingPosition(src.encodedPosition());
     }
 
     @Override
@@ -176,7 +176,7 @@ implements RangeCursor<Q>
         if (cmp < 0)
             return coveredAreaWithSourceAhead(setPosition);
         if (cmp == 0)
-            return matchingPosition(setPosition);
+            return matchingPosition(sourcePosition);
 
         // Advancing cursor moved beyond the ahead cursor. Check if roles have reversed.
         if (precedingIncludedBySet())
@@ -192,7 +192,7 @@ implements RangeCursor<Q>
             // Set is ahead of source, but outside the covered area. Skip source to set's position.
             long sourcePosition = src.skipTo(setPosition);
             if (Cursor.compare(sourcePosition, setPosition) == 0)
-                return matchingPosition(setPosition);
+                return matchingPosition(sourcePosition);
             if (precedingIncludedBySource())
                 return coveredAreaWithSourceAhead(setPosition);
 
@@ -219,7 +219,7 @@ implements RangeCursor<Q>
             // Set is ahead of source, but outside the covered area. Skip source to set's position.
             sourcePosition = src.skipTo(setPosition);
             if (Cursor.compare(setPosition, sourcePosition) == 0)
-                return matchingPosition(setPosition);
+                return matchingPosition(sourcePosition);
             if (precedingIncludedBySource())
                 return coveredAreaWithSourceAhead(setPosition);
         }
@@ -245,9 +245,12 @@ implements RangeCursor<Q>
     private long setState(State state, long position, Q cursorState)
     {
         this.state = state;
-        this.currentPosition = position;
+        if (cursorState != null && cursorState.isBoundary())
+            this.currentPosition = position | MAY_HAVE_CONTENT_BIT;
+        else
+            this.currentPosition = position & ~MAY_HAVE_CONTENT_BIT;
         this.currentState = cursorState;
-        return position;
+        return this.currentPosition;
     }
 
     static class RangeBySet<S extends RangeState<S>> extends RangeIntersectionCursor<S, RangeCursor<S>, TrieSetCursor.RangeState, TrieSetCursor, S>

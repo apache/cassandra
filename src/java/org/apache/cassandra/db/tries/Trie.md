@@ -206,23 +206,30 @@ The same argument holds when `b` is the smaller cursor to be advanced.
 ### `encodedPosition` for efficient advance and position comparison
 
 The cursor definitions above were given with separate `depth` and `incomingTransition` methods, but in practice we
-combine the features of the current position into a single long integer that encodes the combination of the two. This
-saves some method calls which often tend to be megamorphic, and also makes some checks more efficient.
+combine the features of the current position into a single long integer that encodes the combination of the two, plus
+some information about the state an advance ends up in. This saves some method calls which often tend to be megamorphic,
+and also makes some checks more efficient.
 
 The encoded state is prepared in such a way that it is trivially easy to compare the position of two cursors in parallel
-walks: if the encoded state of one cursor is smaller than the encoded state of another, then it is positioned before it.
-Recall that for a cursor to be positioned before another means either that its depth is higher than the other's, or that
-depth match, and the incoming character is smaller. We can ensure that we can trivially compare by composing a long that
-has the inverse of the depth as its most significant bits, and the incoming character in some of its less-significant
-ones.
+walks: if the encoded state of one cursor is smaller than the encoded state of another (ignoring flags), then it is
+positioned before it. Recall that for a cursor to be positioned before another means either that its depth is higher
+than the other's, or that depth match, and the incoming character is smaller. We can ensure that we can trivially
+compare by composing a long that has the inverse of the depth as its most significant bits, and the incoming character
+in some of its less-significant ones.
 
-More precisely, in bits 32 to 63 of the `encodedPosition` long we store `-depth`, and in bits 22 to 30 &ndash;
-`incomingTransition`. Some of the other bits have meanings that are descibed in the paragraphs below, and others 
-are reserved for future use (e.g. we could set a bit to signify that the node at the
-current position may have content to drastically reduce the number of `content` calls a consumer needs to do).
-The `Cursor` class implements methods to compose and decompose encoded states, as well as to perform common checks
-(e.g. whether an advance descended into a child position) and to prepare certain positions for skipping (e.g. over 
-the current branch).
+More precisely, the content of `encodedPosition` is as follows:
+- bits 32 to 63 store `-depth`
+- bit 31 stores the direction of iteration (0 for forwards and 1 for reverse)
+- bits 22 to 30 store 9 bits of `incomingTransition`
+- bit 21 is the `ON_RETURN_PATH` bit
+- bits 16 to 21 are unused parts of the position (must be 0)
+- bits 2-15 are unused and reserved for flags
+- bit 1 is the `MAY_HAVE_DELETION_BRANCH` flag
+- bit 0 is the `MAY_HAVE_CONTENT` flag
+
+The specific meaning of the bits is described in the paragraphs below. The `Cursor` class implements methods to compose
+and decompose encoded states, as well as to perform common checks (e.g. whether an advance descended into a child
+position) and to prepare certain positions for skipping (e.g. over the current branch or descent to a specific child).
 
 ### Reverse iteration
 
@@ -292,6 +299,23 @@ boundary, we use 9 bits for the incoming transition to be able to encode 256 (fo
 targets.
 
 These positions can be obtained by calling `Cursor.positionForSkippingBranch`.
+
+### Feature flags
+
+In a lot of cases it is very easy to know if a state we end up in contains features such as content or deletion
+branch (to be described below). To make it possible to take advantage of this and avoid having to call megamorphic 
+methods like `content()` on every visited node, the encoded position also includes bits flagging whether a feature 
+may be present. The various iteration and processing methods take advantage of this by tracking the encoded position
+returned by `advance()` calls and only calling `content()` if the flag is set (using the helper method
+`Cursor.content(Cursor, position)`).
+
+The flags work like a bloom filter: if the flag is not set, the feature definitely isn't there, and if the flag is set,
+the feature _may_ be present. In particular, if checking e.g. for the presence of content is hard, the cursor may
+unconditionally set the flag to ensure that if the user needs the content they will call `content()` to retrieve it.
+
+We currently have two such feature flags: `MAY_HAVE_CONTENT` and `MAY_HAVE_DELETION_BRANCH`. Note that when comparing
+two encoded positions, these and any other flags need to be ignored, i.e. encoded positions must be compared using the
+`Cursor.compare` method.
 
 ## Merging two tries
 

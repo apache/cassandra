@@ -47,8 +47,8 @@ public abstract class TrieEntriesIterator<T, V> extends TriePathReconstructor im
     {
         this.cursor = cursor;
         this.predicate = predicate;
-        cursor.assertFresh();
-        next = cursor.content();
+        long position = cursor.getPositionAndAssertFresh();
+        next = Cursor.content(cursor, position);
         gotNext = next != null && predicate.test(next);
     }
 

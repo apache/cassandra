@@ -94,6 +94,8 @@ abstract class CollectionMergeCursor<T, C extends Cursor<T>> implements Cursor<T
     /// The collected content.
     T collectedContent;
 
+    long currentPosition;
+
     <I> CollectionMergeCursor(Trie.CollectionMergeResolver<T> resolver, Direction direction, Collection<I> inputs, IntFunction<C[]> cursorArrayConstructor, BiFunction<I, Direction, C> extractor)
     {
         this.resolver = resolver;
@@ -113,7 +115,8 @@ abstract class CollectionMergeCursor<T, C extends Cursor<T>> implements Cursor<T
             ++i;
         }
 
-        // The cursors are all currently positioned on the root and thus in valid heap order.
+        // Initialize currentPosition since encodedPosition() now returns it directly
+        collectAndCachePositionFlags();
     }
 
     /// Interface for internal operations that can be applied to selected top elements of the heap.
@@ -121,7 +124,7 @@ abstract class CollectionMergeCursor<T, C extends Cursor<T>> implements Cursor<T
     {
         void apply(CollectionMergeCursor<T, C> self, C cursor, int index);
 
-        default boolean shouldContinueWithChild(C child, C head)
+        default boolean shouldContinueWithChild(CollectionMergeCursor<T, C> self, C child, C head)
         {
             return equalCursor(child, head);
         }
@@ -198,7 +201,7 @@ abstract class CollectionMergeCursor<T, C extends Cursor<T>> implements Cursor<T
         if (index >= heap.length)
             return;
         C item = heap[index];
-        if (!action.shouldContinueWithChild(item, head))
+        if (!action.shouldContinueWithChild(this, item, head))
             return;
 
         // If the children are at the same position, they also need advancing and their subheap
@@ -210,6 +213,68 @@ abstract class CollectionMergeCursor<T, C extends Cursor<T>> implements Cursor<T
         // subheaps and combine them on processing the parent.
         action.apply(this, item, index);
     }
+
+    long collectFlagsMask()
+    {
+        return Cursor.MAY_HAVE_CONTENT_BIT;
+    }
+
+    /// Called after the current position flags have been collected and cached.
+    /// Override in subclasses to adjust the cached flags.
+    /// The base implementation does nothing.
+    /// Returns the updated currentPosition.
+    long adjustFlags()
+    {
+        return currentPosition;
+    }
+
+    /// Collects and caches the current position by unioning flags from all cursors at the same position.
+    /// This is called after advancing to ensure the position is always up-to-date.
+    private long collectAndCachePositionFlags()
+    {
+        long pos = head.encodedPosition();
+        long mask = collectFlagsMask();
+        if (Cursor.isExhausted(pos) || !branchHasMultipleSources())
+        {
+            currentPosition = pos;
+            return adjustFlags();
+        }
+
+        if ((pos & mask) == mask)
+        {
+            currentPosition = pos;
+            return adjustFlags();
+        }
+
+        currentPosition = pos;
+
+        // Walk the heap to collect flags from all equal cursors, stopping early if all flags are collected
+        applyToSelectedElementsInHeap(FLAG_COLLECTOR, 0);
+
+        // Position bits must match for all selected cursors, so we don't need unionFlags
+        return adjustFlags();
+    }
+
+    /// HeapOp to collect flags from heap cursors, with early termination when all flags are collected
+    private static class FlagCollector<T, C extends Cursor<T>> implements HeapOp<T, C>
+    {
+        @Override
+        public void apply(CollectionMergeCursor<T, C> self, C cursor, int index)
+        {
+            self.currentPosition |= cursor.encodedPosition();
+        }
+
+        @Override
+        public boolean shouldContinueWithChild(CollectionMergeCursor<T, C> self, C child, C head)
+        {
+            long mask = self.collectFlagsMask();
+            // Continue only if equal AND at least one flag in the mask is not yet collected in self.currentPosition.
+            return equalCursor(child, head) && (self.currentPosition & mask) != mask;
+        }
+    }
+
+    @SuppressWarnings("rawtypes")
+    private static final HeapOp FLAG_COLLECTOR = new FlagCollector();
 
     /// Push the given state down in the heap from the given index until it finds its proper place among
     /// the subheap rooted at that position.
@@ -240,14 +305,21 @@ abstract class CollectionMergeCursor<T, C extends Cursor<T>> implements Cursor<T
     private long maybeSwapHead(long headPosition)
     {
         long heap0Position = heap[0].encodedPosition();
-        if (Cursor.compare(headPosition, heap0Position) <= 0)
-            return headPosition;   // head is still smallest
+        long cmp = Cursor.compare(headPosition, heap0Position);
+        if (cmp < 0)
+        {
+            currentPosition = headPosition;
+            return adjustFlags();   // head is still smallest
+        }
 
-        // otherwise we need to swap heap and heap[0]
-        C newHeap0 = head;
-        head = heap[0];
-        heapifyDown(newHeap0, 0);
-        return heap0Position;
+        if (cmp > 0)
+        {
+            // otherwise we need to swap heap and heap[0]
+            C newHeap0 = head;
+            head = heap[0];
+            heapifyDown(newHeap0, 0);
+        }
+        return collectAndCachePositionFlags();
     }
 
     boolean branchHasMultipleSources()
@@ -296,7 +368,7 @@ abstract class CollectionMergeCursor<T, C extends Cursor<T>> implements Cursor<T
         class SkipTo implements AdvancingHeapOp<T, C>
         {
             @Override
-            public boolean shouldContinueWithChild(C child, C head)
+            public boolean shouldContinueWithChild(CollectionMergeCursor<T, C> self, C child, C head)
             {
                 // When the requested position descends, the implicit prefix bytes are those of the head cursor,
                 // and thus we need to check against that if it is a match.
@@ -323,7 +395,7 @@ abstract class CollectionMergeCursor<T, C extends Cursor<T>> implements Cursor<T
     @Override
     public long encodedPosition()
     {
-        return head.encodedPosition();
+        return currentPosition;
     }
 
     @Override
@@ -571,6 +643,38 @@ abstract class CollectionMergeCursor<T, C extends Cursor<T>> implements Cursor<T
                    : processRelevantDeletions(super.advanceMultiple(receiver));
         }
 
+        /// Returns the mask of flag bits to collect from sources. When we are already under a deletion, we
+        /// do not need to collect the deletion branch bit because we are not going to expose it to our callers
+        /// (as we report it as part of the deletion branch we are under).
+        @Override
+        long collectFlagsMask()
+        {
+            if (underDeletionBranch())
+                return Cursor.MAY_HAVE_CONTENT_BIT;
+            return Cursor.MAY_HAVE_CONTENT_BIT | Cursor.MAY_HAVE_DELETION_BRANCH_BIT;
+        }
+
+        /// Adjusts the cached position flags by clearing the MAY_HAVE_DELETION_BRANCH_BIT when we are
+        /// deeper than a known deletion branch depth. [#collectFlagsMask] is not sufficient for this, because it
+        /// is only used to decide when to stop collecting; e.g. if we are in a single-source path, the source's flags
+        /// will be collected unchanged.
+        /// We only need to do this when `deletionsAtFixedPoints` is not in force, because when it is no source can have
+        /// a deletion branch below the common deletion root.
+        @Override
+        long adjustFlags()
+        {
+            if (!deletionsAtFixedPoints && underDeletionBranch())
+                currentPosition &= ~Cursor.MAY_HAVE_DELETION_BRANCH_BIT;
+            return currentPosition;
+        }
+
+        private boolean underDeletionBranch()
+        {
+            // Note: this will be also called before we are fully initialized. The condition below will not fire as
+            // deletionBranchDepth and depth(currentPosition) are both 0.
+            return deletionBranchDepth != -1 && Cursor.depth(currentPosition) > deletionBranchDepth;
+        }
+
         /// Adjusts the deletion state based on the relative positions of deletion and content cursors.
         /// This determines how deletions should be applied to live data at the current position.
         void adjustDeletionState(long deletionPosition, long contentPosition)
@@ -624,9 +728,8 @@ abstract class CollectionMergeCursor<T, C extends Cursor<T>> implements Cursor<T
             }
 
             // If the branch is single-source, its deletions cannot affect the merge as they can't delete its own data.
-            // (Note that covering deletions from other sources can still affect it though.)
             // Otherwise we need to get the deletions from all sources to track and apply them.
-            if (branchHasMultipleSources())
+            if (branchHasMultipleSources() && (contentPosition & Cursor.MAY_HAVE_DELETION_BRANCH_BIT) != 0)
             {
                 RangeCursor<D> deletions = deletionsAtFixedPoints ? makeRelevantDeletionsFixedPoints()
                                                                   : makeRelevantDeletionsNoFixedPoints();
@@ -657,7 +760,6 @@ abstract class CollectionMergeCursor<T, C extends Cursor<T>> implements Cursor<T
             RangeCursor<D> deletionsBranch = cursor.deletionBranchCursor(direction);
             if (deletionsBranch != null)
                 collectedDeletionBranches.add(deletionsBranch);
-            // Otherwise there is no need to track the subtrie. If there are deletions, they must be presented here.
         }
 
         private RangeCursor<D> makeRelevantDeletionsNoFixedPoints()
@@ -683,9 +785,11 @@ abstract class CollectionMergeCursor<T, C extends Cursor<T>> implements Cursor<T
         {
             RangeCursor<D> deletionsBranch = cursor.deletionBranchCursor(direction);
             if (deletionsBranch != null)
+            {
                 collectedDeletionBranches.add(deletionsBranch);
-            else
-                sourcesWithNoDeletionBranch.add(cursor);
+                return;
+            }
+            sourcesWithNoDeletionBranch.add(cursor);
         }
 
         private RangeCursor<D> cursorForCollectedDeletionBranches()
