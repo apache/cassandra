@@ -90,7 +90,7 @@ The regular column syntax applies for collection types `list` and `set`.
 [cols=",,"]
 |============================
 |option_map 2+<|Define options in JSON simple format.
-.4+||`case_sensitive` |Ignore case in matching string values. Default: `true`
+.5+||`case_sensitive` |Ignore case in matching string values. Default: `true`
 |`normalize`|When set to `true`, perform https://unicode.org/faq/normalization.html[Unicode normalization] on indexed strings.
 SAI supports Normalization Form C (NFC) Unicode.
 When set to `true`, SAI normalizes the different versions of a given Unicode character to a single version, retaining all the marks and symbols in the index.
@@ -107,6 +107,12 @@ Default: `false`.
 The similarity function is used to compute the similarity between two vectors.
 Valid options are: `EUCLIDEAN`, `DOT_PRODUCT`, `COSINE`
 Default: `COSINE`
+|`shards` |Number of in-memory index shards per memtable. Set to `'auto'` to use `cassandra.memtable.shard.count` shards.
+
+Not supported on vector column indexes.
+
+Default: `cassandra.memtable.shard.count`
+Maximum: `256`
 |============================
 
 == Usage notes

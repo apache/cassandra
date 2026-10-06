@@ -106,6 +106,7 @@ Upgrading
     - The hostname column in system_views.clients will no longer perform a reverse DNS lookup and will instead
       return the same value as the address column. This avoids the risk of client connections overwhelming
       DNS. (CASSANDRA-21539)
+    - SAI Memtable-attached indexes are now split into `cassandra.memtable.shard.count` shards by default.
 
 Deprecation
 -----------
@@ -185,6 +186,7 @@ New features
       cassandra.data_response_in_memory_max_rows_cl_one andcassandra.data_response_in_memory_max_size_cl_one.
       A limit is disabled by setting it to 0, and setting both limits of a tier to 0 disables the in-memory path for that tier.
       Note that the limits are not enforced in the middle of a range tombstone span, so a response may exceed them in that case.
+    - SAI Memtable-attached indexes now support sharding via WITH OPTIONS. See CQL documentation for details.
 Upgrading
 ---------
     [The following is a placeholder, to be revised asap]
