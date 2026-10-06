@@ -608,7 +608,9 @@ abstract class CollectionMergeCursor<T, C extends Cursor<T>> implements Cursor<T
                             adjustDeletionState(deletionPosition, contentPosition);
                             break;
                         }
-                        // nothing to do for NONE (where relevantDeletions is exhausted, but we still haven't left its branch)
+                        case NONE:
+                            // nothing to do (relevantDeletions is exhausted, but we still haven't left its branch)
+                            break;
                     }
                     return contentPosition;
                 }

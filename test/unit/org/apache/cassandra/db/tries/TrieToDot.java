@@ -24,31 +24,46 @@ import org.agrona.DirectBuffer;
 /**
  * A class for dumping the structure of a trie to a graphviz/dot representation for making trie graphs.
  */
-class TrieToDot<T> extends TriePathReconstructor implements Cursor.Walker<T, String>
+public class TrieToDot<T, D extends RangeState<D>> extends TriePathReconstructor implements DeletionAwareCursor.DeletionAwareWalker<T, D, String>
 {
     private final StringBuilder b;
     private final Function<T, String> contentToString;
+    private final Function<D, String> deletionBoundaryToString;
     private final Function<Integer, String> transitionToString;
     private final boolean useMultiByte;
     private int prevPos;
     private int currNodeTextPos;
+    private int depthAdjustment;
+    private boolean inDeletionBranch;
 
     public TrieToDot(Function<T, String> contentToString,
                      Function<Integer, String> transitionToString,
                      boolean useMultiByte)
     {
+        this(contentToString, null, transitionToString, useMultiByte);
+    }
+
+    public TrieToDot(Function<T, String> contentToString,
+                     Function<D, String> deletionBoundaryToString,
+                     Function<Integer, String> transitionToString,
+                     boolean useMultiByte)
+    {
         this.contentToString = contentToString;
+        this.deletionBoundaryToString = deletionBoundaryToString;
         this.transitionToString = transitionToString;
         this.useMultiByte = useMultiByte;
         this.b = new StringBuilder();
         b.append("digraph G {\n" +
                  "  splines=curved");
         addNodeDefinition(nodeString(0));
+        depthAdjustment = 0;
+        inDeletionBranch = false;
     }
 
     @Override
     public void resetPathLength(int newLength)
     {
+        newLength += depthAdjustment;
         super.resetPathLength(newLength);
         prevPos = newLength;
     }
@@ -88,7 +103,7 @@ class TrieToDot<T> extends TriePathReconstructor implements Cursor.Walker<T, Str
     private String nodeString(int keyPos)
     {
         StringBuilder r = new StringBuilder();
-        r.append("Node_");
+        r.append(inDeletionBranch ? "NodeD_" : "Node_");
         for (int i = 0; i < keyPos; ++i)
             r.append(transitionToString.apply(keyBytes[i] & 0xFF));
         return r.toString();
@@ -119,5 +134,37 @@ class TrieToDot<T> extends TriePathReconstructor implements Cursor.Walker<T, Str
     {
         b.append("\n}\n");
         return b.toString();
+    }
+
+    @Override
+    public boolean enterDeletionsBranch()
+    {
+        newLineAndIndent();
+        String oldNode = nodeString(keyPos);
+        b.append(oldNode);
+        inDeletionBranch = true;
+        String newNode = nodeString(keyPos);
+        b.append(" -> ");
+        addNodeDefinition(newNode);
+
+        newLineAndIndent();
+        b.append("{ rank=same; ").append(oldNode).append("; ").append(newNode).append("; }");
+
+        depthAdjustment = keyPos;
+        return true;
+    }
+
+    @Override
+    public void deletionMarker(D marker)
+    {
+        b.replace(currNodeTextPos, b.length(), String.format("%s [shape=doublecircle label=\"%s\"]", nodeString(keyPos), deletionBoundaryToString.apply(marker)));
+    }
+
+    @Override
+    public void exitDeletionsBranch()
+    {
+        resetPathLength(0);
+        depthAdjustment = 0;
+        inDeletionBranch = false;
     }
 }

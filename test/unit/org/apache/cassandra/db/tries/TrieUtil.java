@@ -47,6 +47,7 @@ import com.google.common.collect.Streams;
 import org.junit.Assert;
 
 import org.apache.cassandra.utils.ByteBufferUtil;
+import org.apache.cassandra.utils.Hex;
 import org.apache.cassandra.utils.Pair;
 import org.apache.cassandra.utils.bytecomparable.ByteComparable;
 import org.apache.cassandra.utils.bytecomparable.ByteSource;
@@ -336,6 +337,11 @@ public class TrieUtil
         return sources;
     }
 
+    static Preencoded generateKeyAllowingPrefixes(Random rand)
+    {
+        return generateKey(rand, MIN_LENGTH, MAX_LENGTH, -1);
+    }
+
     static Preencoded generateKey(Random rand)
     {
         return generateKey(rand, MIN_LENGTH, MAX_LENGTH, ByteSource.TERMINATOR);
@@ -362,7 +368,10 @@ public class TrieUtil
             while (p < m)
                 bytes[p++] = (byte) r2.nextInt(256);
         }
-        return ((ByteComparable)(v -> ByteSource.withTerminator(terminator, ByteSource.of(bytes, v)))).preencode(VERSION);
+        if (terminator != -1)
+            return ((ByteComparable)(v -> ByteSource.withTerminator(terminator, ByteSource.of(bytes, v)))).preencode(VERSION);
+        else
+            return ByteComparable.preencoded(VERSION, bytes);
     }
 
     public static <T> Trie<T> withRootMetadata(Trie<T> wrapped, T metadata)
@@ -594,6 +603,199 @@ public class TrieUtil
         System.out.println(dump(s, Direction.REVERSE));
     }
 
+    /// Assert two tries are equal, performing exactly the same walks in both cursor directions.
+    public static<T, D extends RangeState<D>> void assertTriesEqual(DeletionAwareTrie<T, D> expected, DeletionAwareTrie<T, D> actual)
+    {
+        if (expected == null || actual == null)
+        {
+            assertEquals(expected, actual);
+            return;
+        }
+
+        for (Direction dir : Direction.values())
+            try
+            {
+                assertCursorWalksEqual(expected.cursor(dir), actual.cursor(dir));
+            }
+            catch (Throwable t)
+            {
+                System.err.println("Expected\n" + expected.cursor(dir).process(new TrieDumper.DeletionAware<>(Object::toString, Object::toString)));
+                System.err.println("Actual\n" + actual.cursor(dir).process(new TrieDumper.DeletionAware<>(Object::toString, Object::toString)));
+                throw t;
+            }
+    }
+
+    public static<T, D extends RangeState<D>> void assertCursorWalksEqual(DeletionAwareCursor<T, D> expected, DeletionAwareCursor<T, D> actual)
+    {
+        long expectedPos = expected.encodedPosition();
+        long actualPos = actual.encodedPosition();
+        while (true)
+        {
+            assertEquals("Actual pos " + Cursor.toString(actualPos) + " != " + Cursor.toString(expectedPos), expectedPos, actualPos);
+            if (Cursor.isExhausted(actualPos))
+                return;
+            T expectedContent = expected.content();
+            T actualContent = actual.content();
+            assertEquals("Content", expectedContent, actualContent);
+            RangeCursor<D> expectedDeletionBranch = expected.deletionBranchCursor(Cursor.direction(expectedPos));
+            RangeCursor<D> actualDeletionBranch = actual.deletionBranchCursor(Cursor.direction(actualPos));
+            assertEquals("Deletion branch present", expectedDeletionBranch != null, actualDeletionBranch != null);
+            if (expectedDeletionBranch != null)
+                assertCursorWalksEqual(expectedDeletionBranch, actualDeletionBranch);
+            expectedPos = expected.advance();
+            actualPos = actual.advance();
+        }
+    }
+
+    public static<T> void assertCursorWalksEqual(Cursor<T> expected, Cursor<T> actual)
+    {
+        long expectedPos = expected.encodedPosition();
+        long actualPos = actual.encodedPosition();
+        while (true)
+        {
+            assertEquals("Actual pos " + Cursor.toString(actualPos) + " != " + Cursor.toString(expectedPos), expectedPos, actualPos);
+            if (Cursor.isExhausted(actualPos))
+                return;
+            T expectedContent = expected.content();
+            T actualContent = actual.content();
+            assertEquals("Content", expectedContent, actualContent);
+            expectedPos = expected.advance();
+            actualPos = actual.advance();
+        }
+    }
+
+
+    /// Assert two tries are the same with respect to their content and deletion branches and their paths. Uses
+    /// `advanceToContent` in order to ignore unproductive branches.
+    public static<T, D extends RangeState<D>> void assertTrieContentEqual(DeletionAwareTrie<T, D> expected, DeletionAwareTrie<T, D> actual)
+    {
+        if (expected == null && actual == null)
+            return;
+
+        if (actual == null)
+            actual = DeletionAwareTrie.empty(VERSION);
+        if (expected == null)
+            expected = DeletionAwareTrie.empty(VERSION);
+
+        for (Direction dir : Direction.values())
+            try
+            {
+                assertCursorContentEqual(expected.cursor(dir), actual.cursor(dir));
+            }
+            catch (Throwable t)
+            {
+                System.err.println("Expected\n" + expected.cursor(dir).process(new TrieDumper.DeletionAware<>(Object::toString, Object::toString)));
+                System.err.println("Actual\n" + actual.cursor(dir).process(new TrieDumper.DeletionAware<>(Object::toString, Object::toString)));
+                throw t;
+            }
+    }
+
+    private static <T, D extends RangeState<D>> void assertCursorContentEqual(DeletionAwareCursor<T, D> expected, DeletionAwareCursor<T, D> actual)
+    {
+        TriePathReconstructor expectedPath = new TriePathReconstructor();
+        TriePathReconstructor actualPath = new TriePathReconstructor();
+        long expectedPos = expected.encodedPosition();
+        long actualPos = actual.encodedPosition();
+        T expectedContent = expected.content();
+        T actualContent = actual.content();
+        RangeCursor<D> expectedDeletionBranch = expected.deletionBranchCursor(expected.direction());
+        RangeCursor<D> actualDeletionBranch = actual.deletionBranchCursor(actual.direction());
+        while (true)
+        {
+            assertEquals("Actual pos " + Cursor.toString(actualPos) + " != " + Cursor.toString(expectedPos), expectedPos, actualPos);
+            assertEquals("Path", Hex.bytesToHex(expectedPath.getTrimmedPathBytes()), Hex.bytesToHex(actualPath.getTrimmedPathBytes()));
+            assertEquals("Content", expectedContent, actualContent);
+            if (expectedDeletionBranch != null ^ actualDeletionBranch != null)
+            {
+                if (expectedDeletionBranch == null)
+                    expectedDeletionBranch = RangeCursor.empty(expected.direction(), VERSION);
+                else if (actualDeletionBranch == null)
+                    actualDeletionBranch = RangeCursor.empty(actual.direction(), VERSION);
+            }
+            assertEquals("Deletion branch present", expectedDeletionBranch != null, actualDeletionBranch != null);
+            if (expectedDeletionBranch != null)
+                assertCursorContentEqual(expectedDeletionBranch, actualDeletionBranch);
+
+            if (Cursor.isExhausted(actualPos))
+                return;
+
+            expectedContent = null;
+            expectedDeletionBranch = null;
+            do
+            {
+                expectedPos = advanceMultipleIntoReceiver(expected, expectedPath, expectedPos);
+                if (!Cursor.isExhausted(expectedPos))
+                {
+                    expectedContent = expected.content();
+                    expectedDeletionBranch = expected.deletionBranchCursor(expected.direction());
+                }
+                else
+                    break;
+            }
+            while (expectedContent == null && expectedDeletionBranch == null);
+
+            actualContent = null;
+            actualDeletionBranch = null;
+            do
+            {
+                actualPos = advanceMultipleIntoReceiver(actual, actualPath, actualPos);
+                if (!Cursor.isExhausted(actualPos))
+                {
+                    actualContent = actual.content();
+                    actualDeletionBranch = actual.deletionBranchCursor(actual.direction());
+                }
+                else
+                    break;
+            }
+            while (actualContent == null && actualDeletionBranch == null);
+        }
+
+    }
+
+    private static <T> long advanceMultipleIntoReceiver(Cursor<T> cursor, Cursor.ResettingTransitionsReceiver receiver, long prevPosition)
+    {
+        long currPosition = cursor.advanceMultiple(receiver);
+        if (Cursor.ascended(currPosition, prevPosition))
+        {
+            int depth = Cursor.depth(currPosition);
+            if (depth > 0)
+            {
+                receiver.resetPathLength(depth - 1);
+                receiver.addPathByte(Cursor.incomingTransition(currPosition));
+            }
+            else
+            {
+                receiver.resetPathLength(0);
+            }
+        }
+        else
+            receiver.addPathByte(Cursor.incomingTransition(currPosition));
+
+        if (Cursor.isOnReturnPath(currPosition))
+            receiver.onReturnPath();
+        return currPosition;
+    }
+
+    private static <T> void assertCursorContentEqual(Cursor<T> expected, Cursor<T> actual)
+    {
+        TriePathReconstructor expectedPath = new TriePathReconstructor();
+        TriePathReconstructor actualPath = new TriePathReconstructor();
+        T expectedContent = expected.content();
+        T actualContent = actual.content();
+        while (true)
+        {
+            long expectedPos = expected.encodedPosition();
+            long actualPos = actual.encodedPosition();
+            assertEquals("Actual pos " + Cursor.toString(actualPos) + " != " + Cursor.toString(expectedPos), expectedPos, actualPos);
+            if (Cursor.isExhausted(actualPos))
+                return;
+            assertEquals("Path", Hex.bytesToHex(expectedPath.getTrimmedPathBytes()), Hex.bytesToHex(actualPath.getTrimmedPathBytes()));
+            assertEquals("Content", expectedContent, actualContent);
+            expectedContent = expected.advanceToContent(expectedPath);
+            actualContent = actual.advanceToContent(actualPath);
+        }
+    }
+
     static class SpecStackEntry
     {
         Object[] children;
@@ -729,10 +931,5 @@ public class TrieUtil
                                           .reduce("", (x, y) -> x + y));
             return stringBuilder.toString();
         }
-    }
-
-    public static <T, V> Trie<V> processContent(BaseTrie<T, ?, ?> trie, Function<T, V> processor)
-    {
-        return direction -> new ContentProcessingCursor<>(processor, trie.cursor(direction));
     }
 }

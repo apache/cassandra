@@ -216,7 +216,7 @@ depth match, and the incoming character is smaller. We can ensure that we can tr
 has the inverse of the depth as its most significant bits, and the incoming character in some of its less-significant
 ones.
 
-More precisely, in bits 32 to 63 of the `encodedPosition` long we store `-depth`, and in bits 20 to 27 &ndash;
+More precisely, in bits 32 to 63 of the `encodedPosition` long we store `-depth`, and in bits 22 to 30 &ndash;
 `incomingTransition`. Some of the other bits have meanings that are descibed in the paragraphs below, and others 
 are reserved for future use (e.g. we could set a bit to signify that the node at the
 current position may have content to drastically reduce the number of `content` calls a consumer needs to do).
@@ -272,7 +272,7 @@ a↑ -> value for "a"
 
 The ascent path position (marked by the upwards arrow ↑ above) is one that is at the same depth of the matching descent
 position, has the same incoming character and compares greater to it. This has the effect of being immediately after all
-children of the node in cursor iteration order. In practical terms, we implement it by using bit 19 in the
+children of the node in cursor iteration order. In practical terms, we implement it by using bit 21 in the
 `encodedPosition`. It is set to 0 for the descent path and 1 for the ascent path; unlike transition bits this is not
 flipped for reverse iteration to ensure that it is visited after the descent path entry.
 
@@ -281,6 +281,17 @@ to the requested position. They cannot have children.
 
 Their usages will be further detailed in the [sections on sets](#trie-sets); there are also
 [alternative approaches we considered during development](#return-stop-alternatives).
+
+### Overflow position
+
+We often want to be able to skip over a subtrie to the next sibling of a node, for example when we have identified one
+of the substructure roots that we want to present to a consumer (e.g. a legacy partition). This is trivial to do if the
+node's incoming transition is not 255 (in forward direction) or 0 (in reverse), using `skipTo` and adding 1 to the
+encoded `incomingTransition` bits. To allow this trick to also work when the node's incoming position is at the
+boundary, we use 9 bits for the incoming transition to be able to encode 256 (forward) and -1 (reverse) for `skipTo`
+targets.
+
+These positions can be obtained by calling `Cursor.positionForSkippingBranch`.
 
 ## Merging two tries
 

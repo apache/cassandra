@@ -81,6 +81,13 @@ class TestRangeState implements RangeState<TestRangeState>
     }
 
 
+    static TestRangeState upsert(TestRangeState m1, TestRangeState m2)
+    {
+        if (m1 == null)
+            return m2;
+        return combineCollection(Arrays.asList(m1, m2));
+    }
+
     public static TestRangeState combineCollection(Collection<TestRangeState> rangeStates)
     {
         int newLeft = -1;
@@ -278,9 +285,29 @@ class TestRangeState implements RangeState<TestRangeState>
     @Override
     public boolean equals(Object other)
     {
-        if (other == null)
+        if (other == null || !(other instanceof TestRangeState))
             return false;
         TestRangeState otherMarker = (TestRangeState) other;
         return otherMarker.leftSide == leftSide && otherMarker.rightSide == rightSide;
+    }
+
+    static TestRangeState covering(int value)
+    {
+        return new TestRangeState(ByteComparable.EMPTY, value, value);
+    }
+
+    static TestRangeState open(int value)
+    {
+        return new TestRangeState(ByteComparable.EMPTY, -1, value);
+    }
+
+    static TestRangeState close(int value)
+    {
+        return new TestRangeState(ByteComparable.EMPTY, value, -1);
+    }
+
+    static TestRangeState boundary(int left, int right)
+    {
+        return new TestRangeState(ByteComparable.EMPTY, left, right);
     }
 }

@@ -80,7 +80,7 @@ class RangesCursor implements TrieSetCursor
     /// The current position (reported to the user). This is usually obtained from `nextPositions[currentIdx]` before
     /// the current keys are advanced.
     long currentPosition;
-    /// Current range state, returned by [#state].
+    /// Current range state, returned by [#nonNullState].
     RangeState currentState;
 
     static final int STARTS_AFTER = 1;
@@ -125,7 +125,7 @@ class RangesCursor implements TrieSetCursor
             {
                 // Unspecified bounds are the same as empty string, inclusive.
                 assert destIndex == 0 || destIndex == arrayLength - 1;
-                sources[destIndex] = ByteSource.Peekable.EMPTY;
+                sources[destIndex] = ByteSource.EMPTY;
                 nextPositions[destIndex] = maybeOnReturnPath(sources, ENDS_AFTER, direction, rootPosition, destIndex);
             }
         }
@@ -178,7 +178,7 @@ class RangesCursor implements TrieSetCursor
     }
 
     @Override
-    public RangeState state()
+    public RangeState nonNullState()
     {
         return currentState;
     }

@@ -157,6 +157,13 @@ public interface DataPoint
     static InMemoryDeletionAwareTrie<LivePoint, DeletionMarker> fromList(List<DataPoint> list, boolean forceCopy)
     {
         InMemoryDeletionAwareTrie<LivePoint, DeletionMarker> trie = InMemoryDeletionAwareTrie.shortLived(VERSION);
+        var mutator = trie.mutator(DataPoint::combineLive,
+                                   DataPoint::combineDeletion,
+                                   DataPoint::deleteLive,
+                                   DataPoint::deleteLive,
+                                   false,
+                                   v -> forceCopy);
+
         try
         {
             // If we put a deletion first, the deletion branch will start at the root which works but isn't interesting
@@ -165,17 +172,7 @@ public interface DataPoint
             {
                 LivePoint live = i.live();
                 if (live != null)
-                {
-                    trie.apply(
-                        DeletionAwareTrie.<LivePoint,DeletionMarker>singleton(live.position, VERSION, live),
-                            DataPoint::combineLive,
-                            DataPoint::combineDeletion,
-                            DataPoint::deleteLive,
-                            DataPoint::deleteLive,
-                            false,
-                            v -> forceCopy
-                    );
-                }
+                    mutator.apply(DeletionAwareTrie.singleton(live.position, VERSION, live));
             }
 
             // If we simply put all deletions with putAlternativeRecursive, we won't get correct branches as they
@@ -196,18 +193,11 @@ public interface DataPoint
                     DeletionMarker startMarker = list.get(activeStartedAt).marker();
                     assert startMarker != null;
                     int prefixLength = ByteComparable.diffPoint(startMarker.position, marker.position, VERSION) - 1;
-                    trie.apply(
+                    mutator.apply(
                             DeletionAwareTrie.deletedRange(ByteComparable.cut(startMarker.position, prefixLength),
                                                            ByteComparable.skipFirst(startMarker.position, prefixLength),
                                                            ByteComparable.skipFirst(marker.position, prefixLength),
-                                                           VERSION, marker.leftSideAsCovering),
-                            DataPoint::combineLive,
-                            DataPoint::combineDeletion,
-                            DataPoint::deleteLive,
-                            DataPoint::deleteLive,
-                            false,
-                            v -> forceCopy
-                    );
+                                                           VERSION, marker.leftSideAsCovering));
                 }
 
                 active = marker.rightSide;

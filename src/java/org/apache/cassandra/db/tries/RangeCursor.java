@@ -57,6 +57,8 @@ interface RangeCursor<S extends RangeState<S>> extends Cursor<S>
     ///
     /// The returned value must be a non-boundary state (i.e. `precedingState().isBoundary()` must always be `false`)
     /// and must return itself for its `precedingState` in both directions.
+    ///
+    /// Unlike [#content], this can be called at exhausted positions, which makes operations a little simpler.
     default S precedingState()
     {
         final S state = state();
@@ -76,6 +78,8 @@ interface RangeCursor<S extends RangeState<S>> extends Cursor<S>
     /// implementations.
     ///
     /// This can be null when no range is active before the current position.
+    ///
+    /// Unlike [#content], this can be called at exhausted positions, which makes operations a little simpler.
     S state();
 
     /// Content is only returned for boundary positions.
@@ -151,7 +155,7 @@ interface RangeCursor<S extends RangeState<S>> extends Cursor<S>
         @Override
         public S state()
         {
-            return source.state().applyToCoveringState(marker);
+            return source.nonNullState().applyToCoveringState(marker);
         }
 
         @Override

@@ -255,6 +255,22 @@ public class CursorTest
     }
 
     @Test
+    public void testRootReturnPosition()
+    {
+        qt().withExamples(EXAMPLES)
+            .forAll(DEPTH_GEN, TRANSITION_GEN, DIRECTION_GEN)
+            .checkAssert((depth, transition, direction) -> {
+                long prevPos = Cursor.encode(depth, transition, direction);
+                long pos = Cursor.rootReturnPosition(prevPos);
+                assertEquals(0, Cursor.depth(pos));
+                assertEquals(0, Cursor.incomingTransition(pos));
+                assertEquals(direction, Cursor.direction(pos));
+                assertTrue(Cursor.isOnReturnPath(pos));
+                assertEquals(Cursor.rootPosition(direction) | Cursor.ON_RETURN_PATH_BIT, pos);
+            });
+    }
+
+    @Test
     public void testEncode()
     {
         qt().withExamples(EXAMPLES)
@@ -291,10 +307,9 @@ public class CursorTest
                 long newPos = Cursor.positionForSkippingBranch(pos);
                 assertTrue(Cursor.compare(pos, newPos) < 0);
                 assertEquals(depth.intValue(), Cursor.depth(newPos));
-                if (transition.intValue() != direction.select(0xFF, 0x00))
-                    assertEquals(transition + direction.increase, Cursor.incomingTransition(newPos));
-                else
+                if (transition.intValue() == direction.select(0xFF, 0x00))
                     assertEquals(0x200, VerificationCursor.undecodedTransition(newPos));
+                assertEquals(transition + direction.increase, Cursor.incomingTransition(newPos));
                 assertEquals(direction, Cursor.direction(newPos));
             });
     }

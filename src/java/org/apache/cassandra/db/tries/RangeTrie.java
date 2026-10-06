@@ -21,6 +21,8 @@ import java.util.Collection;
 import java.util.Iterator;
 import java.util.Map;
 import java.util.function.BiFunction;
+import java.util.function.Function;
+import java.util.function.Predicate;
 
 import com.google.common.base.Preconditions;
 
@@ -32,6 +34,9 @@ import org.apache.cassandra.utils.bytecomparable.ByteSource;
 ///
 /// Range tries use [RangeState]s for their content, but they also report a [RangeCursor#state] for any prefix point,
 /// so that skips inside the trie can figure out if the new position is covered by some of the trie's ranges.
+///
+/// Note that some methods of this class accept a value mapper or resolver. It is the user's responsibility to ensure
+/// that the application of these mappers preserves the properties of the range trie.
 ///
 /// See [RangeCursor] and [Trie.md](./Trie.md) for further details on the implementation of range tries.
 public interface RangeTrie<S extends RangeState<S>> extends BaseTrie<S, RangeCursor<S>, RangeTrie<S>>
@@ -107,14 +112,15 @@ public interface RangeTrie<S extends RangeState<S>> extends BaseTrie<S, RangeCur
     @Override
     default RangeTrie<S> intersect(TrieSet set)
     {
-        return dir -> new RangeIntersectionCursor<>(cursor(dir), set.cursor(dir));
+        return dir -> new RangeIntersectionCursor.RangeBySet<>(cursor(dir), set.cursor(dir));
     }
 
     /// Constructs a view of the merge of this trie with the given one. The view is live, i.e. any write to any of the
     /// sources will be reflected in the merged view.
     ///
-    /// If there is content for a given key in both sources, the resolver will be called to obtain the combination.
-    /// (The resolver will not be called if there's content from only one source.)
+    /// The resolver will be used to resolve the state of the resulting cursor positions whenever a non-null state
+    /// applies in both sources; this includes the case where one source is ahead but has a non-null preceding state.
+    /// (The resolver will not be called if when only one source has non-null applicable state.)
     default RangeTrie<S> mergeWith(RangeTrie<S> other, Trie.MergeResolver<S> resolver)
     {
         return dir -> new MergeCursor.Range<>(resolver, cursor(dir), other.cursor(dir));
@@ -124,7 +130,9 @@ public interface RangeTrie<S extends RangeState<S>> extends BaseTrie<S, RangeCur
     /// sources will be reflected in the merged view.
     ///
     /// If there is content for a given key in more than one sources, the resolver will be called to obtain the
-    /// combination. (The resolver will not be called if there's content from only one source.)
+    /// combination. It will also be called if one source has a boundary, while a covering range applies in at least one
+    /// other source. The resolver will not be called if there's content from only one source and no covering range
+    /// applies in any of the others.
     static <S extends RangeState<S>> RangeTrie<S> merge(Collection<? extends RangeTrie<S>> sources, Trie.CollectionMergeResolver<S> resolver)
     {
         switch (sources.size())
@@ -176,11 +184,16 @@ public interface RangeTrie<S extends RangeState<S>> extends BaseTrie<S, RangeCur
             return null;
     }
 
-    /// Returns an entry set containing all tail tree constructed at the points that contain content of
-    /// the given type.
-    default Iterable<Map.Entry<ByteComparable.Preencoded, RangeTrie<S>>> tailTries(Direction direction, Class<? extends S> clazz)
+    @Override
+    default Iterable<Map.Entry<ByteComparable.Preencoded, RangeTrie<S>>> tailTries(Direction direction, Predicate<? super S> predicate)
     {
-        return () -> new TrieTailsIterator.AsEntriesRange<>(cursor(direction), clazz);
+        return () -> new TrieTailsIterator.AsEntriesRange<>(cursor(direction), predicate);
+    }
+
+    /// Returns a view of this trie where all content is processed through the given mapping function.
+    default <E extends RangeState<E>> RangeTrie<E> mapValues(Function<S, E> mapper)
+    {
+        return dir -> new ContentMappingCursor.Range<>(mapper, cursor(dir));
     }
 
     // The methods below form the non-public implementation, whose visibility is restricted to package-level.

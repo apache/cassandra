@@ -25,6 +25,7 @@ import org.junit.Assert;
 import org.junit.Ignore;
 import org.junit.Test;
 
+import org.apache.cassandra.config.CassandraRelevantProperties;
 import org.apache.cassandra.utils.bytecomparable.ByteComparable;
 
 import static org.apache.cassandra.db.tries.TrieUtil.VERSION;
@@ -60,15 +61,18 @@ public class InMemoryTriePutTest extends InMemoryTrieTestBase
         putSimpleResolve(trie, ByteComparable.preencoded(VERSION, buf), "value", (x, y) -> y, false);
     }
 
-    // This tests that trie space allocation works correctly close to the 2G limit. It is normally disabled because
-    // the test machines don't provide enough heap memory (test requires ~8G heap to finish). Run it manually when
-    // InMemoryTrie.allocateBlock is modified.
+    /// This tests that trie space allocation works correctly close to the 2G limit. It is normally disabled because
+    /// the test machines don't provide enough heap memory (test requires ~8G heap to finish). Run it manually and
+    /// separately (so that the size limit can be set before the in-memory trie static initialization) when
+    /// [BufferManagerMultibuf#allocateNewCell] is modified.
     @Ignore
     @Test
     public void testOver1GSize() throws TrieSpaceExhaustedException
     {
+        CassandraRelevantProperties.MEMTABLE_TRIE_SIZE_LIMIT.setInt(1024);
         InMemoryTrie<String> trie = strategy.create();
-        trie.advanceAllocatedPos(0x20000000);
+        BufferManagerMultibuf mgr = ((BufferManagerMultibuf) trie.bufferManager);
+        mgr.advanceAllocatedPos(0x20000000);
         String t1 = "test1";
         String t2 = "testing2";
         String t3 = "onemoretest3";
@@ -77,14 +81,14 @@ public class InMemoryTriePutTest extends InMemoryTrieTestBase
         Assert.assertNull(trie.get(TrieUtil.comparable(t2)));
         Assert.assertFalse(trie.reachedAllocatedSizeThreshold());
 
-        trie.advanceAllocatedPos(InMemoryTrie.ALLOCATED_SIZE_THRESHOLD + 0x1000);
+        mgr.advanceAllocatedPos(BufferManagerMultibuf.ALLOCATED_SIZE_THRESHOLD + 0x1000);
         trie.putRecursive(TrieUtil.comparable(t2), t2, (x, y) -> y);
         Assert.assertEquals(t1, trie.get(TrieUtil.comparable(t1)));
         Assert.assertEquals(t2, trie.get(TrieUtil.comparable(t2)));
         Assert.assertNull(trie.get(TrieUtil.comparable(t3)));
         Assert.assertTrue(trie.reachedAllocatedSizeThreshold());
 
-        trie.advanceAllocatedPos(0x7FFFFEE0);  // close to 2G
+        mgr.advanceAllocatedPos(-1);  // as close to the limit as possible, next allocation should trigger an exception
         Assert.assertEquals(t1, trie.get(TrieUtil.comparable(t1)));
         Assert.assertEquals(t2, trie.get(TrieUtil.comparable(t2)));
         Assert.assertNull(trie.get(TrieUtil.comparable(t3)));
@@ -107,7 +111,7 @@ public class InMemoryTriePutTest extends InMemoryTrieTestBase
 
         try
         {
-            trie.advanceAllocatedPos(Integer.MAX_VALUE);
+            mgr.advanceAllocatedPos(Integer.MAX_VALUE);
             fail("InMemoryTrie.SpaceExhaustedError was expected");
         }
         catch (TrieSpaceExhaustedException e)

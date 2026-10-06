@@ -22,7 +22,6 @@ import java.util.Arrays;
 import java.util.Objects;
 
 import com.google.common.annotations.VisibleForTesting;
-import com.google.common.base.Preconditions;
 
 import org.agrona.DirectBuffer;
 
@@ -164,13 +163,16 @@ interface VerificationCursor
                               Cursor.toString(returnedPosition),
                               Cursor.toString(encodedSkipPosition),
                               this);
-            int skipTransition = undecodedTransition(encodedSkipPosition);
+            int skipTransition = Cursor.incomingTransition(encodedSkipPosition);
             if (skipDepth <= currDepth && skipDepth > 0)
-                assert ((getByte(skipDepth) ^ direction.select(0x00, 0xFF)) << 1) < skipTransition :
-                    String.format("Skip goes backwards to %s where it already visited byte %s\n%s",
+            {
+                int visitedByte = getByte(skipDepth);
+                assert direction.gt(skipTransition, visitedByte) || skipTransition == visitedByte && Cursor.isOnReturnPath(encodedSkipPosition) :
+                    String.format("Skip goes backwards to %s where it already visited byte %2x\n%s",
                                   Cursor.toString(encodedSkipPosition),
-                                  getByte(skipDepth),
+                                  visitedByte,
                                   this);
+            }
 
         }
 
@@ -383,24 +385,28 @@ interface VerificationCursor
         {
             if (Cursor.isExhausted(position))
                 verifyEndState();
-            else
-            {
-                S precedingState = source.precedingState();
-                boolean equal = agree(currentPrecedingState, precedingState);
-                assert equal : String.format("Unexpected change to covering state: %s -> %s\n%s",
-                                             currentPrecedingState, precedingState, this);
-                currentPrecedingState = precedingState;
 
-                S content = source.content();
-                if (content != null)
-                {
-                    assert agree(currentPrecedingState, content.precedingState(direction)) :
-                    String.format("Range end %s does not close covering state %s\n%s",
-                                  content.precedingState(direction), currentPrecedingState, this);
-                    verifyBoundaryStateProperties(content);
-                    nextPrecedingState = content.succedingState(direction);
-                }
+            S precedingState = source.precedingState();
+            boolean equal = agree(currentPrecedingState, precedingState);
+            assert equal : String.format("Unexpected change to covering state: %s -> %s\n%s",
+                                         currentPrecedingState, precedingState, this);
+            currentPrecedingState = precedingState;
+
+            S content = Cursor.isExhausted(position) ? null : source.content();
+            S fullState = source.state();
+            if (content != null)
+            {
+                assert agree(fullState, content) : String.format("State %s not equal to content %s\n%s",
+                                                            fullState, content, this);
+                assert agree(currentPrecedingState, content.precedingState(direction)) :
+                String.format("Range end %s does not close covering state %s\n%s",
+                              content.precedingState(direction), currentPrecedingState, this);
+                verifyBoundaryStateProperties(content);
+                nextPrecedingState = content.succedingState(direction);
             }
+            else
+                assert fullState == precedingState : String.format("State %s not equal to precedingState %s\n%s",
+                                                                   fullState, precedingState, this);
 
             return position;
         }
@@ -470,23 +476,19 @@ interface VerificationCursor
         Range(RangeCursor<S> source)
         {
             super(source);
-            assert currentPrecedingState == null :
-                String.format("Initial preceding state %s should be null for range cursor\n%s",
-                              currentPrecedingState, this);
-        }
-
-        @Override
-        void verifyEndState()
-        {
-            assert currentPrecedingState == null :
-                String.format("End state %s should be null for range cursor\n%s",
-                              currentPrecedingState, this);
         }
 
         @Override
         public Range<S> tailCursor(Direction direction)
         {
             return new Range<>(source.tailCursor(direction));
+        }
+
+        @Override
+        public RangeCursor<S> precedingStateCursor(Direction direction)
+        {
+            RangeCursor<S> cursor = source.precedingStateCursor(direction);
+            return cursor != null ? new Range<>(cursor) : null;
         }
     }
 
@@ -495,19 +497,27 @@ interface VerificationCursor
         TrieSet(TrieSetCursor source)
         {
             super(source);
-            // start and end state can be non-null for sets
         }
 
         @Override
-        public TrieSetCursor.RangeState state()
+        public RangeState nonNullState()
         {
-            return Preconditions.checkNotNull(source.state());
+            RangeState rangeState = source.nonNullState();
+            assert rangeState != null : String.format("Null nonNullState()\n%s", this);
+            return rangeState;
         }
 
         @Override
         public TrieSet tailCursor(Direction direction)
         {
             return new TrieSet(source.tailCursor(direction));
+        }
+
+        @Override
+        public TrieSetCursor precedingStateCursor(Direction direction)
+        {
+            TrieSetCursor cursor = source.precedingStateCursor(direction);
+            return cursor != null ? new TrieSet(cursor) : null;
         }
     }
 
@@ -521,7 +531,7 @@ interface VerificationCursor
         {
             super(source);
             this.deletionBranchDepth = -1;
-            verifyDeletionBranch(0);
+            verifyDeletionBranch(returnedPosition);
         }
 
         @Override
@@ -557,6 +567,8 @@ interface VerificationCursor
             int depth = Cursor.depth(position);
             if (depth <= deletionBranchDepth)
                 deletionBranchDepth = -1;
+            if (Cursor.isExhausted(position))
+                return position;
 
             RangeCursor<D> deletionBranch = source.deletionBranchCursor(direction);
             if (deletionBranch != null)

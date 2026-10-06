@@ -138,7 +138,7 @@ public class ReturnPathSeekTest
             if (inMemorySingleton)
                 trie.putRecursive(e, test, (x, y) -> y);
             else
-                trie.apply(makeSingleton(e, test), (x, y) -> y, Predicates.alwaysFalse());
+                trie.mutator((String x, String y) -> y, Predicates.alwaysFalse()).apply(makeSingleton(e, test));
         }
         return trie;
     }

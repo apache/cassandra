@@ -57,4 +57,40 @@ public abstract class TrieEntriesWalker<T, V> extends TriePathReconstructor impl
             return null;
         }
     }
+
+    /// Deletion-aware entries walker, listing both deletion (calling [#deletionMarker(RangeState, byte\[\], int)])
+    /// and live (calling [#content(Object, byte\[\], int)]) content in the trie.
+    public static abstract class DeletionAware<T, D extends RangeState<D>, V>
+    extends TrieEntriesWalker<T, V>
+    implements DeletionAwareCursor.DeletionAwareWalker<T, D, V>
+    {
+        int depthAdjustment = 0;
+
+        @Override
+        public void deletionMarker(D marker)
+        {
+            deletionMarker(marker, keyBytes, keyPos);
+        }
+
+        protected abstract void deletionMarker(D marker, byte[] bytes, int byteLength);
+
+        @Override
+        public boolean enterDeletionsBranch()
+        {
+            depthAdjustment = keyPos;
+            return true;
+        }
+
+        @Override
+        public void exitDeletionsBranch()
+        {
+            depthAdjustment = 0;
+        }
+
+        @Override
+        public void resetPathLength(int newLength)
+        {
+            super.resetPathLength(newLength + depthAdjustment);
+        }
+    }
 }

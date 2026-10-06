@@ -20,64 +20,101 @@ package org.apache.cassandra.db.tries;
 import java.util.AbstractMap;
 import java.util.Iterator;
 import java.util.Map;
+import java.util.NoSuchElementException;
+import java.util.function.BiFunction;
 import java.util.function.Predicate;
+
+import com.google.common.base.Predicates;
 
 import org.apache.cassandra.utils.bytecomparable.ByteComparable;
 
 /// Iterator of trie entries that constructs tail tries for the content-bearing branches that satisfy the given predicate
-/// and skips over the returned branches.
+/// and skips over the returned branches. When a branch that satisfies the predicate is found, the iterator calls
+/// [#getContent] which in turn refers to a trie-specific flavour of `mapContent`; if the latter returns null, the null
+/// will not be returned by the iterator, but the branch will still be skipped.
 public abstract class TrieTailsIterator<T, V, C extends Cursor<T>> extends TriePathReconstructor implements Iterator<V>
 {
     final C cursor;
-    private final Predicate<T> predicate;
-    private T next;
+    private final Predicate<? super T> predicate;
+    private V next;
     private boolean gotNext;
+    private boolean started;
 
-    TrieTailsIterator(C cursor, Predicate<T> predicate)
+    TrieTailsIterator(C cursor, Predicate<? super T> predicate)
     {
         this.cursor = cursor;
         this.predicate = predicate;
+        this.started = false;
         cursor.assertFresh();
     }
 
     public boolean hasNext()
     {
-        if (!gotNext)
+        while (!gotNext)
         {
-            int depth = Cursor.depth(cursor.encodedPosition());
-            if (depth > 0)
+            if (started)
             {
                 // if we are not just starting, we have returned a branch and must skip over it
                 long pos = cursor.skipTo(Cursor.positionForSkippingBranch(cursor.encodedPosition()));
                 if (Cursor.isExhausted(pos))
-                    return false;
-                resetPathLength(Cursor.depth(pos) - 1);
-                addPathByte(Cursor.incomingTransition(pos));
-            }
-
-            next = cursor.content();
-            if (next != null)
-                gotNext = predicate.test(next);
-
-            while (!gotNext)
-            {
-                next = cursor.advanceToContent(this);
-                if (next != null)
-                    gotNext = predicate.test(next);
+                    return done();
+                int depth = Cursor.depth(pos);
+                if (depth > 0)
+                {
+                    resetPathLength(depth - 1);
+                    addPathByte(Cursor.incomingTransition(pos));
+                }
                 else
-                    gotNext = true;
+                    resetPathLength(0);
             }
+            else
+                started = true;
+
+            boolean gotNextContent = false;
+            T nextContent = cursor.content();
+            if (nextContent != null)
+                gotNextContent = predicate.test(nextContent);
+
+            while (!gotNextContent)
+            {
+                nextContent = cursor.advanceToContent(this);
+                if (nextContent != null)
+                    gotNextContent = predicate.test(nextContent);
+                else
+                    return done();
+            }
+
+            next = getContent(nextContent);
+            gotNext = next != null;
         }
 
         return next != null;
     }
 
+    private boolean done()
+    {
+        gotNext = true;
+        next = null;
+        return false;
+    }
+
     public V next()
     {
+        if (!hasNext())
+            throw new NoSuchElementException();
         gotNext = false;
-        T v = next;
+        V v = next;
         next = null;
-        return getContent(v);
+        return v;
+    }
+
+    void skipPreparedNextIf(Predicate<V> shouldSkipPreparedNext)
+    {
+        if (gotNext && next != null && shouldSkipPreparedNext.test(next))
+        {
+            gotNext = false;
+            next = null;
+        }
     }
 
     protected abstract V getContent(T v);
@@ -89,19 +126,19 @@ public abstract class TrieTailsIterator<T, V, C extends Cursor<T>> extends TrieP
 
     public static abstract class Plain<T, V> extends TrieTailsIterator<T, V, Cursor<T>>
     {
-        Plain(Cursor<T> cursor, Predicate<T> predicate)
+        Plain(Cursor<T> cursor, Predicate<? super T> predicate)
         {
             super(cursor, predicate);
         }
 
         /// Public constructor accepting a Trie and creating a cursor from it
-        public Plain(Trie<T> trie, Predicate<T> predicate)
+        public Plain(Trie<T> trie, Predicate<? super T> predicate)
         {
             this(trie.cursor(Direction.FORWARD), predicate);
         }
 
         /// Public constructor accepting a Trie, Direction, and creating a cursor from it
-        public Plain(Trie<T> trie, Direction direction, Predicate<T> predicate)
+        public Plain(Trie<T> trie, Direction direction, Predicate<? super T> predicate)
         {
             this(trie.cursor(direction), predicate);
         }
@@ -119,7 +156,7 @@ public abstract class TrieTailsIterator<T, V, C extends Cursor<T>> extends TrieP
 
     public static abstract class Range<S extends RangeState<S>, V> extends TrieTailsIterator<S, V, RangeCursor<S>>
     {
-        Range(RangeCursor<S> cursor, Predicate<S> predicate)
+        Range(RangeCursor<S> cursor, Predicate<? super S> predicate)
         {
             super(cursor, predicate);
         }
@@ -147,21 +184,19 @@ public abstract class TrieTailsIterator<T, V, C extends Cursor<T>> extends TrieP
         protected abstract V mapContent(S value, RangeTrie<S> tailTrie, byte[] bytes, int byteLength);
     }
 
-    public static abstract class DeletionAware<T, D extends RangeState<D>, V> extends TrieTailsIterator<T, V, DeletionAwareCursor<T, D>>
+    /// Deletion-aware tails iterator that only walks the live data trie and ignores covering deletion branches.
+    /// To be used in cases where it is known that deletion branches can only start at or below the selected tail
+    /// positions.
+    public static abstract class DeletionAwareWithoutCoveringDeletions<T, D extends RangeState<D>, V>
+    extends TrieTailsIterator<T, V, DeletionAwareCursor<T, D>>
     {
-        DeletionAware(DeletionAwareCursor<T, D> cursor, Predicate<T> predicate)
+        DeletionAwareWithoutCoveringDeletions(DeletionAwareCursor<T, D> cursor, Predicate<? super T> predicate)
         {
             super(cursor, predicate);
         }
 
-        /// Public constructor accepting a DeletionAwareTrie and creating a cursor from it
-        public DeletionAware(DeletionAwareTrie<T, D> trie, Predicate<T> predicate)
-        {
-            this(trie.cursor(Direction.FORWARD), predicate);
-        }
-
         /// Public constructor accepting a DeletionAwareTrie, Direction, and creating a cursor from it
-        public DeletionAware(DeletionAwareTrie<T, D> trie, Direction direction, Predicate<T> predicate)
+        public DeletionAwareWithoutCoveringDeletions(DeletionAwareTrie<T, D> trie, Direction direction, Predicate<? super T> predicate)
         {
             this(trie.cursor(direction), predicate);
         }
@@ -177,14 +212,57 @@ public abstract class TrieTailsIterator<T, V, C extends Cursor<T>> extends TrieP
         protected abstract V mapContent(T value, DeletionAwareTrie<T, D> tailTrie, byte[] bytes, int byteLength);
     }
 
+    /// General deletion-aware tail trie iterator. Deletion branches are followed, covering deletions are applied to the
+    /// reported branches, and deletion branch data may be used to select a tail trie.
+    ///
+    /// Instead of a predicate, this version takes a mapping function that is given both live and deletion data, and
+    /// will select a branch when it returns a non-null value. Said value is then passed to [#mapContent].
+    ///
+    /// When `includeCoveringDeletions` is true, this iterator will include deletions that are introduced above the
+    /// requested points as deletion branches at the roots of the returned tail tries. If it is false, covering
+    /// deletions will be filtered out from the returned tail tries.
+    ///
+    /// Also offers [#stopIssuingDeletions], which allows it to cease reporting data coming from deletion branches.
+    public static abstract class DeletionAware<T, D extends RangeState<D>, V, Q>
+    extends TrieTailsIterator<V, Q, DeletionAwareCursor.SwitchableLiveAndDeletionsMergeCursor<T, D, V>>
+    {
+        final boolean includeCoveringDeletions;
+
+        DeletionAware(DeletionAwareCursor<T, D> cursor, BiFunction<T, D, V> merger, boolean includeCoveringDeletions)
+        {
+            super(new DeletionAwareCursor.SwitchableLiveAndDeletionsMergeCursor<>(merger, cursor), Predicates.alwaysTrue());
+            this.includeCoveringDeletions = includeCoveringDeletions;
+        }
+
+        /// Public constructor accepting a DeletionAwareTrie, Direction, and creating a cursor from it
+        public DeletionAware(DeletionAwareTrie<T, D> trie, Direction direction, BiFunction<T, D, V> merger, boolean includeCoveringDeletions)
+        {
+            this(trie.cursor(direction), merger, includeCoveringDeletions);
+        }
+
+        @Override
+        protected Q getContent(V v)
+        {
+            return mapContent(v, cursor.deletionAwareTail(includeCoveringDeletions), keyBytes, keyPos);
+        }
+
+        public void stopIssuingDeletions(Predicate<Q> shouldSkipPreparedNext)
+        {
+            skipPreparedNextIf(shouldSkipPreparedNext);
+            cursor.stopIssuingDeletions(this);
+        }
+
+        protected abstract Q mapContent(V value, DeletionAwareTrie<T, D> tailTrie, byte[] bytes, int byteLength);
+    }
+
     /// Iterator representing the selected content of the trie a sequence of `(path, tail)` pairs, where
     /// `tail` is the branch of the trie rooted at the selected content node (reachable by following
     /// `path`). The tail trie will have the selected content at its root.
     static class AsEntries<T> extends Plain<T, Map.Entry<ByteComparable.Preencoded, Trie<T>>>
     {
-        public AsEntries(Cursor<T> cursor, Class<? extends T> clazz)
+        public AsEntries(Cursor<T> cursor, Predicate<? super T> predicate)
         {
-            super(cursor, clazz::isInstance);
+            super(cursor, predicate);
         }
 
         @Override
@@ -201,9 +279,9 @@ public abstract class TrieTailsIterator<T, V, C extends Cursor<T>> extends TrieP
     static class AsEntriesRange<S extends RangeState<S>>
     extends Range<S, Map.Entry<ByteComparable.Preencoded, RangeTrie<S>>>
     {
-        public AsEntriesRange(RangeCursor<S> cursor, Class<? extends S> clazz)
+        public AsEntriesRange(RangeCursor<S> cursor, Predicate<? super S> predicate)
         {
-            super(cursor, clazz::isInstance);
+            super(cursor, predicate);
         }
 
         @Override
@@ -214,20 +292,28 @@ public abstract class TrieTailsIterator<T, V, C extends Cursor<T>> extends TrieP
         }
     }
 
-
     /// Iterator representing the selected content of the trie a sequence of `(path, tail)` pairs, where
     /// `tail` is the branch of the trie rooted at the selected content node (reachable by following
     /// `path`). The tail trie will have the selected content at its root.
+    ///
+    /// When `includeCoveringDeletions` is true, this iterator will include deletions that are introduced above the
+    /// requested points as deletion branches at the roots of the returned tail tries. If it is false, covering
+    /// deletions will be filtered out from the returned tail tries.
     static class AsEntriesDeletionAware<T, D extends RangeState<D>>
-    extends DeletionAware<T, D, Map.Entry<ByteComparable.Preencoded, DeletionAwareTrie<T, D>>>
+    extends DeletionAware<T, D, T, Map.Entry<ByteComparable.Preencoded, DeletionAwareTrie<T, D>>>
     {
-        public AsEntriesDeletionAware(DeletionAwareCursor<T, D> cursor, Class<? extends T> clazz)
+        public AsEntriesDeletionAware(DeletionAwareCursor<T, D> cursor,
+                                      Predicate<? super T> predicate,
+                                      boolean includeCoveringDeletions)
         {
-            super(cursor, clazz::isInstance);
+            super(cursor, (t, d) -> predicate.test(t) ? t : null, includeCoveringDeletions);
         }
 
         @Override
-        protected Map.Entry<ByteComparable.Preencoded, DeletionAwareTrie<T, D>> mapContent(T value, DeletionAwareTrie<T, D> tailTrie, byte[] bytes, int byteLength)
+        protected Map.Entry<ByteComparable.Preencoded, DeletionAwareTrie<T, D>> mapContent(T value,
+                                                                                           DeletionAwareTrie<T, D> tailTrie,
+                                                                                           byte[] bytes,
+                                                                                           int byteLength)
         {
             ByteComparable.Preencoded key = toByteComparable(byteComparableVersion(), bytes, byteLength);
             return new AbstractMap.SimpleImmutableEntry<>(key, tailTrie);

@@ -21,7 +21,7 @@ package org.apache.cassandra.db.tries;
 import org.apache.cassandra.utils.bytecomparable.ByteComparable;
 import org.apache.cassandra.utils.bytecomparable.ByteSource;
 
-class DepthAdjustedCursor<T, C extends Cursor<T>> implements Cursor<T>
+abstract class DepthAdjustedCursor<T, C extends Cursor<T>> implements Cursor<T>
 {
     final C source;
     private long depthAdjustment;
@@ -100,30 +100,6 @@ class DepthAdjustedCursor<T, C extends Cursor<T>> implements Cursor<T>
         return toAdjustedDepth(source.skipTo(fromAdjustedDepth(encodedSkipPosition)));
     }
 
-    @Override
-    public boolean descendAlong(ByteSource bytes)
-    {
-        return source.descendAlong(bytes);
-    }
-
-    @Override
-    public Cursor<T> tailCursor(Direction direction)
-    {
-        return source.tailCursor(direction);
-    }
-
-    @Override
-    public <R> R process(Walker<? super T, R> walker)
-    {
-        throw new AssertionError("Depth-adjusted cursors cannot be walked directly.");
-    }
-
-    @Override
-    public <R> R processSkippingBranches(Walker<? super T, R> walker)
-    {
-        throw new AssertionError("Depth-adjusted cursors cannot be walked directly.");
-    }
-
     static <T> Cursor<T> make(Cursor<T> source, long matchingPositionAtRoot)
     {
         return Cursor.depth(matchingPositionAtRoot) == 0 ? source : new Plain<>(source, matchingPositionAtRoot);
@@ -139,6 +115,20 @@ class DepthAdjustedCursor<T, C extends Cursor<T>> implements Cursor<T>
         public Plain(Cursor<T> source, long matchingPositionAtRoot)
         {
             super(source, matchingPositionAtRoot);
+        }
+
+        @Override
+        public boolean descendAlong(ByteSource bytes)
+        {
+            return source.descendAlong(bytes);
+            // Note: do not move this to the base class as this version is not correct for other descendants
+            // (e.g. PrefixedCursor).
+        }
+
+        @Override
+        public Cursor<T> tailCursor(Direction direction)
+        {
+            return source.tailCursor(direction);
         }
     }
 
@@ -159,6 +149,12 @@ class DepthAdjustedCursor<T, C extends Cursor<T>> implements Cursor<T>
         public S precedingState()
         {
             return source.precedingState();
+        }
+
+        @Override
+        public boolean descendAlong(ByteSource bytes)
+        {
+            return source.descendAlong(bytes);
         }
 
         @Override

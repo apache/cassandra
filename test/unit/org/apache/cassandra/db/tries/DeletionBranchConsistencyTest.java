@@ -112,25 +112,28 @@ extends ConsistencyTestBase<ConsistencyTestBase.TestStateMetadata,
                                                                Trie.CollectionMergeResolver<TestStateMetadata> mergeResolver)
     {
         return DeletionAwareTrie.merge(tries,
-                                      mergeResolver,
-                                      Trie.throwingResolver(),
-                                      BIFUNCTION_THROW,
-                                      true); // deletionsAtFixedPoints = true for consistency
+                                       mergeResolver,
+                                       Trie.throwingResolver(),
+                                       BIFUNCTION_THROW,
+                                       true); // deletionsAtFixedPoints = true for consistency
     }
 
     @Override
     void apply(InMemoryDeletionAwareTrie<TestStateMetadata, TestRangeState> trie,
                DeletionAwareTrie<TestStateMetadata, TestRangeState> mutation,
                InMemoryBaseTrie.UpsertTransformer<TestStateMetadata, TestStateMetadata> mergeResolver,
-               Predicate<InMemoryBaseTrie.NodeFeatures<TestStateMetadata>> forcedCopyChecker) throws TrieSpaceExhaustedException
+               Predicate<InMemoryBaseTrie.NodeFeatures<TestStateMetadata>> forcedCopyChecker,
+               Predicate<InMemoryBaseTrie.NodeFeatures<TestRangeState>> forcedCopyCheckerRanges)
+    throws TrieSpaceExhaustedException
     {
-        trie.apply(mutation,
-                   mergeResolver, // Use the provided merge resolver for content
-                   (x, y) -> mergeResolver.apply((TestStateMetadata) x, (TestStateMetadata) y),
-                   UPSERT_THROW,
-                   BIFUNCTION_THROW,
-                  false, // deletionsAtFixedPoints = true for consistency
-                  forcedCopyChecker); // Use the provided forced copy checker
+        trie.mutator(mergeResolver,
+                     (x, y) -> mergeResolver.apply((TestStateMetadata) x, (TestStateMetadata) y), // Use the provided merge resolver for content
+                     UPSERT_THROW,
+                     BIFUNCTION_THROW,
+                     false,
+                     forcedCopyChecker,
+                     forcedCopyCheckerRanges)
+        .apply(mutation); // Use the provided forced copy checker
     }
 
     @Override
@@ -139,21 +142,24 @@ extends ConsistencyTestBase<ConsistencyTestBase.TestStateMetadata,
                 TestRangeState partitionMarker,
                 RangeTrie<TestRangeState> deletionBranch,
                 InMemoryBaseTrie.UpsertTransformer<TestStateMetadata, TestRangeState> mergeResolver,
-                Predicate<InMemoryBaseTrie.NodeFeatures<TestRangeState>> forcedCopyChecker) throws TrieSpaceExhaustedException
+                Predicate<InMemoryBaseTrie.NodeFeatures<TestStateMetadata>> forcedCopyChecker,
+                Predicate<InMemoryBaseTrie.NodeFeatures<TestRangeState>> forcedCopyCheckerRanges)
+    throws TrieSpaceExhaustedException
     {
         DeletionAwareTrie<TestRangeState, TestRangeState> deletion = DeletionAwareTrie.deletionBranch(ByteComparable.EMPTY, VERSION, deletionBranch);
         deletion = TrieUtil.withRootMetadata(deletion, partitionMarker);
         deletion = deletion.prefixedBy(deletionPrefix);
 
-        trie.apply(deletion,
-                  mergeResolver,
-                  (existing, incoming) -> (existing instanceof TestStateMetadata)
-                                          ? mergeResolver.apply((TestStateMetadata) existing, incoming)
-                                          : TestRangeState.combine(existing, incoming),
-                  mergeResolver,
-                  BIFUNCTION_THROW,
-                  false,
-                  forcedCopyChecker);
+        trie.mutator(mergeResolver,
+                     (existing, incoming) -> (existing instanceof TestStateMetadata)
+                                             ? mergeResolver.apply((TestStateMetadata) existing, incoming)
+                                             : TestRangeState.combine(existing, incoming),
+                     mergeResolver,
+                     BIFUNCTION_THROW,
+                     false,
+                     forcedCopyCheckerRanges,
+                     forcedCopyCheckerRanges)
+            .apply(deletion);
     }
 
     @Override
@@ -205,11 +211,17 @@ extends ConsistencyTestBase<ConsistencyTestBase.TestStateMetadata,
                     Predicate<InMemoryBaseTrie.NodeFeatures<TestStateMetadata>> forcedCopyChecker)
     {
         System.out.format("DeletionAware Reuse %s %s on-heap %,d (+%,d) off-heap %,d\n",
-                          trie.cellAllocator.getClass().getSimpleName(),
-                          trie.bufferType,
+                          ((BufferManagerMultibuf) trie.bufferManager).cellAllocator.getClass().getSimpleName(),
+                          trie.bufferManager.bufferType(),
                           trie.usedSizeOnHeap(),
                           trie.unusedReservedOnHeapMemory(),
                           trie.usedSizeOffHeap());
+    }
+
+    @Override
+    void verifyTrie(InMemoryDeletionAwareTrie<TestStateMetadata, TestRangeState> trie)
+    {
+        CellReuseTest.verifyFreeCellsMatchUnreachable(trie);
     }
 
     // TestStateMetadata hierarchy for deletion-aware consistency testing

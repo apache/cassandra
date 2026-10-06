@@ -290,10 +290,15 @@ public abstract class PrefixTailTestBase<T extends InMemoryBaseTrie<Object>, Q e
                                                       b.asByteComparableArray(VERSION)));
     }
 
+    interface UpsertTransformerWithKeys
+    {
+        Object apply(Object existing, Object update, InMemoryBaseTrie.Mutator mutator);
+    }
+
     abstract T[] makeArray(int length);
     abstract T makeInMemoryTrie();
     abstract void applyPrefixed(T destination, ByteComparable prefix, T tail, InMemoryBaseTrie.UpsertTransformer<Object, Object> upsertTransformer) throws TrieSpaceExhaustedException;
-    abstract void apply(T destination, Q tail, InMemoryBaseTrie.UpsertTransformerWithKeyProducer<Object, Object> upsertTransformer) throws TrieSpaceExhaustedException;
+    abstract void apply(T destination, Q tail, UpsertTransformerWithKeys upsertTransformer) throws TrieSpaceExhaustedException;
     abstract Q merge(T[] tries, Trie.CollectionMergeResolver<Object> resolver);
     abstract Q cast(T inMemoryTrie);
     abstract void addToInMemoryTrie(Preencoded[] src, NavigableMap<Preencoded, ByteBuffer> content, T tail);
@@ -423,19 +428,19 @@ public abstract class PrefixTailTestBase<T extends InMemoryBaseTrie<Object>, Q e
         assertEquals("", checker.output.toString());
     }
 
-    static class InclusionChecker implements InMemoryBaseTrie.UpsertTransformerWithKeyProducer<Object, Object>
+    static class InclusionChecker implements UpsertTransformerWithKeys
     {
         Tail currentTail = null;
         StringBuilder output = new StringBuilder();
 
         @Override
-        public Object apply(Object existing, Object update, InMemoryTrie.KeyProducer<Object> keyProducer)
+        public Object apply(Object existing, Object update, InMemoryBaseTrie.Mutator mutator)
         {
             if (existing != null)
                 output.append("Non-null existing\n");
 
-            byte[] tailPath = keyProducer.getBytes(Tail.class::isInstance);
-            byte[] fullPath = keyProducer.getBytes();
+            byte[] tailPath = mutator.getCurrentKeyBytesToNearestAncestorSatisfying(Tail.class::isInstance);
+            byte[] fullPath = mutator.getCurrentKeyBytes();
             String tail = Hex.bytesToHex(tailPath);
             String full = Hex.bytesToHex(fullPath);
             if (!full.endsWith(tail))
@@ -465,8 +470,15 @@ public abstract class PrefixTailTestBase<T extends InMemoryBaseTrie<Object>, Q e
                 {
                     byte[] prefix = Arrays.copyOfRange(fullPath, 0, fullPath.length - tailPath.length);
                     if (!Arrays.equals(currentTail.prefix, prefix))
+                        output.append("Prefix expected " + Hex.bytesToHex(currentTail.prefix) + msg);
+                }
+                else if (update instanceof TestRangeState)
+                {
+                    if (!Arrays.equals(currentTail.prefix, fullPath) || !Arrays.equals(currentTail.prefix, tailPath))
                         output.append("Prefix expected ").append(Hex.bytesToHex(currentTail.prefix)).append(msg);
-                } // on deletions we only get the tail path (see InMemoryDeletionAwareTrie.apply)
+                    // on deletions the tail path is queried separately
+                    tailPath = ((InMemoryDeletionAwareTrie.Mutator) mutator).getDeletionBranchKeyBytes();
+                }
 
                 ByteBuffer updateAsBuf = null;
 
@@ -488,7 +500,7 @@ public abstract class PrefixTailTestBase<T extends InMemoryBaseTrie<Object>, Q e
                 ByteBuffer expected = currentTail.data.get(ByteComparable.preencoded(VERSION, tailPath));
                 if (expected == null)
                     output.append("Suffix not found").append(msg);
-                if (!expected.equals(updateAsBuf))
+                else if (!expected.equals(updateAsBuf))
                     output.append("Data mismatch ").append(ByteBufferUtil.bytesToHex(updateAsBuf)).append(" expected ").append(ByteBufferUtil.bytesToHex(expected)).append(msg);
             }
             return update;

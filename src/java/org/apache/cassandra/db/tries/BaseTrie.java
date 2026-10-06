@@ -21,8 +21,10 @@ package org.apache.cassandra.db.tries;
 import java.util.Iterator;
 import java.util.Map;
 import java.util.function.BiConsumer;
-import java.util.function.Consumer;
 import java.util.function.Function;
+import java.util.function.Predicate;
+
+import com.google.common.base.Predicates;
 
 import org.agrona.DirectBuffer;
 
@@ -41,19 +43,13 @@ import org.apache.cassandra.utils.bytecomparable.ByteComparable;
 /// @param <Q> The concrete subtype of the trie.
 public interface BaseTrie<T, C extends Cursor<T>, Q extends BaseTrie<T, C, Q>> extends CursorWalkable<C>
 {
-    /// Adapter interface providing the methods a [Cursor.Walker] to a [Consumer], so that the latter can be used
+    /// Adapter interface providing most of the methods a [Cursor.Walker], so that the latter can be used
     /// with [#process].
     /// This enables calls like
-    ///     `trie.forEachEntry(x -> System.out.println(x));`
+    ///     `trie.forEachValue(x -> System.out.println(x));`
     /// to be mapped directly to a single call to [#process] without extra allocations.
-    interface ValueConsumer<T2> extends Consumer<T2>, Cursor.Walker<T2, Void>
+    interface ValueConsumer<T2> extends Cursor.Walker<T2, Void>
     {
-        @Override
-        default void content(T2 content)
-        {
-            accept(content);
-        }
-
         @Override
         default Void complete()
         {
@@ -120,18 +116,31 @@ public interface BaseTrie<T, C extends Cursor<T>, Q extends BaseTrie<T, C, Q>> e
 
     /// Call the given consumer on all `(path, content)` pairs with non-null content in the trie in order, skipping all
     /// branches below the top content-bearing node.
-    default void forEachEntrySkippingBranches(Direction direction, BiConsumer<ByteComparable.Preencoded, ? super T> consumer)
+    default void forEachEntrySkippingBranches(Direction direction, Predicate<? super T> acceptancePredicate, BiConsumer<ByteComparable.Preencoded, ? super T> consumer)
     {
         Cursor<T> cursor = cursor(direction);
-        cursor.processSkippingBranches(new TrieEntriesWalker.WithConsumer<>(consumer, cursor.byteComparableVersion()));
+        cursor.processSkippingBranches(acceptancePredicate, new TrieEntriesWalker.WithConsumer<>(consumer, cursor.byteComparableVersion()));
         // Note: we can't do the ValueConsumer trick here, because the implementation requires state and cannot be
         // implemented with default methods alone.
+    }
+
+    /// Call the given consumer on all `(path, content)` pairs with non-null content in the trie in order, skipping all
+    /// branches below the top content-bearing node.
+    default void forEachEntrySkippingBranches(Direction direction, BiConsumer<ByteComparable.Preencoded, ? super T> consumer)
+    {
+        forEachEntrySkippingBranches(direction, Predicates.alwaysTrue(), consumer);
     }
 
     /// Process the trie using the given [Cursor.Walker], skipping all branches below the top content-bearing node.
     default <R> R processSkippingBranches(Direction direction, Cursor.Walker<? super T, R> walker)
     {
-        return cursor(direction).processSkippingBranches(walker);
+        return processSkippingBranches(direction, Predicates.alwaysTrue(), walker);
+    }
+
+    /// Process the trie using the given [Cursor.Walker], skipping all branches below the top content-bearing node.
+    default <R> R processSkippingBranches(Direction direction, Predicate<? super T> acceptancePredicate, Cursor.Walker<? super T, R> walker)
+    {
+        return cursor(direction).processSkippingBranches(acceptancePredicate, walker);
     }
 
     /// Map-like get by key.
@@ -285,5 +294,12 @@ public interface BaseTrie<T, C extends Cursor<T>, Q extends BaseTrie<T, C, Q>> e
 
     /// Returns an entry set containing all tail tree constructed at the points that contain content of
     /// the given type.
-    Iterable<Map.Entry<ByteComparable.Preencoded, Q>> tailTries(Direction direction, Class<? extends T> clazz);
+    default Iterable<Map.Entry<ByteComparable.Preencoded, Q>> tailTries(Direction direction, Class<? extends T> clazz)
+    {
+        return tailTries(direction, clazz::isInstance);
+    }
+
+    /// Returns an entry set containing all tail tree constructed at the points that contain content passing
+    /// the given predicate.
+    Iterable<Map.Entry<ByteComparable.Preencoded, Q>> tailTries(Direction direction, Predicate<? super T> predicate);
 }

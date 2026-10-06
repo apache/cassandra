@@ -26,9 +26,10 @@ import java.util.Random;
 import java.util.function.Function;
 import java.util.function.Predicate;
 
-import com.google.common.collect.Streams;
+import com.google.common.annotations.VisibleForTesting;
 
 import org.agrona.collections.IntArrayList;
+import org.agrona.concurrent.UnsafeBuffer;
 import org.junit.Assert;
 import org.junit.Test;
 
@@ -46,6 +47,7 @@ import static org.apache.cassandra.db.tries.TrieUtil.generateKeys;
 
 public class CellReuseTest
 {
+    private static final boolean VERBOSE = false;
     static Predicate<InMemoryTrie.NodeFeatures<Object>> FORCE_COPY_PARTITION = features -> {
         var c = features.content();
         if (c != null && c instanceof Boolean)
@@ -60,28 +62,54 @@ public class CellReuseTest
     Random rand = new Random(2);
 
     @Test
-    public void testCellReusePartitionCopying() throws Exception
+    public void testCellReuseBytesPartitionCopying() throws Exception
     {
-        testCellReuse(FORCE_COPY_PARTITION);
+        testCellReuseBytes(FORCE_COPY_PARTITION);
     }
 
     @Test
-    public void testCellReuseNoCopying() throws Exception
+    public void testCellReuseBytesNoCopying() throws Exception
     {
-        testCellReuse(NO_ATOMICITY);
+        testCellReuseBytes(NO_ATOMICITY);
     }
 
-    public void testCellReuse(Predicate<InMemoryTrie.NodeFeatures<Object>> forceCopyPredicate) throws Exception
+    public void testCellReuseBytes(Predicate<InMemoryTrie.NodeFeatures<Object>> forceCopyPredicate) throws Exception
+    {
+        ByteComparable[] src = generateKeys(rand, COUNT);
+        InMemoryTrie<Object> trieLong = makeInMemoryTrie(src, opOrder -> InMemoryTrie.longLived(VERSION, BufferType.ON_HEAP, opOrder, new TestContentSerializer()),
+                                                             forceCopyPredicate);
+
+        verifyFreeCellsMatchUnreachable(trieLong);
+    }
+
+    @Test
+    public void testCellReusePojoPartitionCopying() throws Exception
+    {
+        testCellReusePojo(FORCE_COPY_PARTITION);
+    }
+
+    @Test
+    public void testCellReusePojoNoCopying() throws Exception
+    {
+        testCellReusePojo(NO_ATOMICITY);
+    }
+
+    public void testCellReusePojo(Predicate<InMemoryTrie.NodeFeatures<Object>> forceCopyPredicate) throws Exception
     {
         ByteComparable[] src = generateKeys(rand, COUNT);
         InMemoryTrie<Object> trieLong = makeInMemoryTrie(src, opOrder -> InMemoryTrie.longLived(VERSION, BufferType.ON_HEAP, opOrder),
-                                                             forceCopyPredicate);
+                                                         forceCopyPredicate);
 
+        verifyFreeCellsMatchUnreachable(trieLong);
+    }
+
+    public static void verifyFreeCellsMatchUnreachable(InMemoryBaseTrie<?> trieLong)
+    {
         // dump some information first
-        System.out.println(String.format(" LongLived ON_HEAP sizes %10s %10s count %d",
+        System.out.println(String.format(" LongLived %s sizes %10s %10s",
+                                         trieLong.bufferManager.bufferType(),
                                          FBUtilities.prettyPrintMemory(trieLong.usedSizeOnHeap()),
-                                         FBUtilities.prettyPrintMemory(trieLong.usedSizeOffHeap()),
-                                         Streams.stream(trieLong.values()).count()));
+                                         FBUtilities.prettyPrintMemory(trieLong.usedSizeOffHeap())));
 
         Pair<BitSet, BitSet> longReachable = reachableCells(trieLong);
         BitSet reachable = longReachable.left;
@@ -94,23 +122,37 @@ public class CellReuseTest
                                          lrobjs * 4
         ));
 
-        IntArrayList availableList = ((MemoryAllocationStrategy.OpOrderReuseStrategy) trieLong.cellAllocator).indexesInPipeline();
+        BufferManagerMultibuf mgr = ((BufferManagerMultibuf) trieLong.bufferManager);
+        verifyReachability(trieLong, reachable, (mgr.cellAllocator).indexesInPipeline(), mgr.getAllocatedPos(), 5, "cells");
+
+        ContentManager<?> contentManager = trieLong.contentManager;
+        if (contentManager instanceof ContentManagerPojo)
+        {
+            ContentManagerPojo<?> pojo = (ContentManagerPojo<?>) contentManager;
+            verifyReachability(trieLong, longReachable.right, pojo.objectAllocator.indexesInPipeline(), pojo.getAllocatedPos(), 0, "objects");
+            IntArrayList filtered = pojo.collectReleasedUnclearedContentIndexes();
+            Assert.assertTrue(filtered.size() + " indexes released but not cleared " + filtered, filtered.isEmpty());
+        }
+    }
+
+    private static void verifyReachability(InMemoryBaseTrie<?> trieLong, BitSet reachable, IntArrayList availableList, int allocatedMax, int shift, String name)
+    {
         BitSet available = new BitSet(reachable.size());
         for (int v : availableList)
-            available.set(v >> 5);
+            available.set(v >> shift);
 
         // Check no reachable cell is marked for reuse
         BitSet intersection = new BitSet(available.size());
         intersection.or(available);
         intersection.and(reachable);
-        assertCellSetEmpty(intersection, trieLong, " reachable cells marked as available");
+        assertCellSetEmpty(intersection, trieLong, " reachable " + name + " marked as available");
 
         // Check all unreachable cells are marked for reuse
         BitSet unreachable = new BitSet(reachable.size());
         unreachable.or(reachable);
-        unreachable.flip(0, trieLong.getAllocatedPos() >> 5);
+        unreachable.flip(0, allocatedMax >> shift);
         unreachable.andNot(available);
-        assertCellSetEmpty(unreachable, trieLong, " unreachable cells not marked as available");
+        assertCellSetEmpty(unreachable, trieLong, " unreachable " + name + " not marked as available");
     }
 
     static class TestException extends RuntimeException
@@ -156,14 +198,14 @@ public class CellReuseTest
                         check.filteredEntrySet(ByteBuffer.class).iterator());
     }
 
-    private void assertCellSetEmpty(BitSet set, InMemoryTrie<?> trie, String message)
+    public static void assertCellSetEmpty(BitSet set, InMemoryBaseTrie<?> trie, String message)
     {
         if (set.isEmpty())
             return;
 
         for (int i = set.nextSetBit(0); i >= 0; i = set.nextSetBit(i + 1))
         {
-            System.out.println(String.format("Cell at %d: %08x %08x %08x %08x %08x %08x %08x %08x",
+            System.out.println(String.format("Cell at %08x: %08x %08x %08x %08x %08x %08x %08x %08x",
                                              (i << 5),
                                              trie.getIntVolatile((i << 5) + 0),
                                              trie.getIntVolatile((i << 5) + 4),
@@ -179,19 +221,21 @@ public class CellReuseTest
         Assert.fail(set.cardinality() + message);
     }
 
-    private Pair<BitSet, BitSet> reachableCells(InMemoryTrie<?> trie)
+    public static Pair<BitSet, BitSet> reachableCells(InMemoryBaseTrie<?> trie)
     {
-//        System.out.println(trie.dump());
+        if (VERBOSE)
+            System.out.println(trie.dump(Object::toString));
         BitSet set = new BitSet();
         BitSet objs = new BitSet();
-        mark(trie, trie.root, set, objs);
+        markChild(trie, trie.root, set, objs);
         return Pair.create(set, objs);
     }
 
-    private void mark(InMemoryTrie<?> trie, int node, BitSet set, BitSet objs)
+    private static void mark(InMemoryBaseTrie<?> trie, int node, BitSet set, BitSet objs)
     {
         set.set(node >> 5);
-//        System.out.println(trie.dumpNode(node));
+        if (VERBOSE)
+            System.out.println(trie.dumpNode(node));
         switch (trie.offset(node))
         {
             case InMemoryTrie.SPLIT_OFFSET:
@@ -200,14 +244,16 @@ public class CellReuseTest
                     int mid = trie.getSplitCellPointer(node, i, InMemoryTrie.SPLIT_START_LEVEL_LIMIT);
                     if (mid != InMemoryTrie.NONE)
                     {
-//                        System.out.println(trie.dumpNode(mid));
+                        if (VERBOSE)
+                            System.out.println(trie.dumpNode(mid));
                         set.set(mid >> 5);
                         for (int j = 0; j < InMemoryTrie.SPLIT_OTHER_LEVEL_LIMIT; ++j)
                         {
                             int tail = trie.getSplitCellPointer(mid, j, InMemoryTrie.SPLIT_OTHER_LEVEL_LIMIT);
                             if (tail != InMemoryTrie.NONE)
                             {
-//                                System.out.println(trie.dumpNode(tail));
+                                if (VERBOSE)
+                                    System.out.println(trie.dumpNode(tail));
                                 set.set(tail >> 5);
                                 for (int k = 0; k < InMemoryTrie.SPLIT_OTHER_LEVEL_LIMIT; ++k)
                                     markChild(trie, trie.getSplitCellPointer(tail, k, InMemoryTrie.SPLIT_OTHER_LEVEL_LIMIT), set, objs);
@@ -221,12 +267,8 @@ public class CellReuseTest
                     markChild(trie, trie.getIntVolatile(node + InMemoryTrie.SPARSE_CHILDREN_OFFSET + i * 4), set, objs);
                 break;
             case InMemoryTrie.PREFIX_OFFSET:
-                int content = trie.getIntVolatile(node + InMemoryTrie.PREFIX_CONTENT_OFFSET);
-                if (content < 0)
-                    objs.set(~content);
-                else
-                    markChild(trie, content, set, objs);
-
+                markPrefixContent(trie, node + InMemoryTrie.PREFIX_CONTENT_OFFSET, set, objs);
+                markPrefixContent(trie, node + InMemoryTrie.PREFIX_ALTERNATE_OFFSET, set, objs);
                 markChild(trie, trie.followPrefixTransition(node), set, objs);
                 break;
             default:
@@ -236,14 +278,29 @@ public class CellReuseTest
         }
     }
 
-    private void markChild(InMemoryTrie<?> trie, int child, BitSet set, BitSet objs)
+    private static void markPrefixContent(InMemoryBaseTrie<?> trie, int pointerAddress, BitSet set, BitSet objs)
     {
-        if (child == InMemoryTrie.NONE)
-            return;
-        if (child > 0)
+        int content = trie.getIntVolatile(pointerAddress);
+        markChild(trie, content, set, objs);
+    }
+
+    private static void markChild(InMemoryBaseTrie<?> trie, int child, BitSet set, BitSet objs)
+    {
+        if (!InMemoryTrie.isNullOrLeaf(child))
             mark(trie, child, set, objs);
-        else
-            objs.set(~child);
+
+        if (InMemoryTrie.isLeaf(child))
+        {
+            int cell = trie.contentManager.cellOrObjectSlotUsed(child);
+            if (cell < 0)
+                objs.set(~cell);
+            else
+            {
+                set.set(cell >> 5);
+                if (VERBOSE)
+                    System.out.println(trie.dumpNode(child));
+            }
+        }
     }
 
     static InMemoryTrie<Object> makeInMemoryTrie(ByteComparable[] src,
@@ -322,5 +379,143 @@ public class CellReuseTest
     throws TrieSpaceExhaustedException
     {
         trie.apply(mutation, (x, y) -> y, needsForcedCopy);
+    }
+
+    class TestContentSerializer implements ContentSerializer<Object>
+    {
+
+        @Override
+        public int idIfSpecial(Object content, boolean shouldPresentAfterBranch)
+        {
+            return content == Boolean.TRUE ? 0 : -1;
+        }
+
+        @Override
+        public int serialize(Object content, boolean shouldPresentAfterBranch, UnsafeBuffer buffer, int offset) throws TrieSpaceExhaustedException
+        {
+            ByteBuffer buf = (ByteBuffer) content;
+            buffer.putInt(offset, buf.remaining());
+            buffer.putBytes(offset + 4, buf, buf.position(), buf.remaining());
+            return 0;
+        }
+
+        @Override
+        public Object special(int id)
+        {
+            return Boolean.TRUE;
+        }
+
+        @Override
+        public Object deserialize(UnsafeBuffer buffer, int inBufferPos, int offsetBits)
+        {
+            int length = buffer.getInt(inBufferPos);
+            ByteBuffer buf = ByteBuffer.allocate(length);
+            buffer.getBytes(inBufferPos, buf, length);
+            return buf;
+        }
+
+        @Override
+        public void releaseSpecial(int id)
+        {
+            // no release
+        }
+
+        @Override
+        public boolean releaseNeeded(int offset)
+        {
+            return false;
+        }
+
+        @Override
+        public void release(UnsafeBuffer buffer, int inBufferPos, int offsetBits)
+        {
+            throw new AssertionError("Should not be called");
+        }
+
+        @Override
+        public boolean shouldPreserveSpecialWithoutChildren(int id)
+        {
+            return false;
+        }
+
+        @Override
+        public boolean shouldPreserveWithoutChildren(int offset)
+        {
+            return true;
+        }
+
+        @Override
+        public boolean shouldPreserveWithoutChildren(UnsafeBuffer buffer, int inBufferPos, int offsetBits)
+        {
+            throw new AssertionError("Should not be called");
+        }
+
+        @Override
+        public boolean shouldPresentSpecialAfterBranch(int id)
+        {
+            return false;
+        }
+
+        @Override
+        public boolean shouldPresentAfterBranch(int offsetBits)
+        {
+            return false;
+        }
+
+        @VisibleForTesting
+        @Override
+        public void releaseReferencesUnsafe()
+        {
+            // no release
+        }
+
+        @Override
+        public String dumpSpecial(int id)
+        {
+            return "PARTITION";
+        }
+
+        @Override
+        public String dumpContent(UnsafeBuffer buffer, int inBufferPos, int offsetBits)
+        {
+            return ByteBufferUtil.bytesToHex((ByteBuffer) deserialize(buffer, inBufferPos, offsetBits));
+        }
+
+        @Override
+        public int updateInPlace(UnsafeBuffer buffer, int inBufferPos, int offsetBits, Object newContent) throws TrieSpaceExhaustedException
+        {
+            return serialize(newContent, false, buffer, inBufferPos);
+        }
+
+        @Override
+        public void completeMutation()
+        {
+            // no release
+        }
+
+        @Override
+        public void abortMutation()
+        {
+            // no release
+        }
+
+        @Override
+        public long usedSizeOffHeap()
+        {
+            return 0;
+        }
+
+        @Override
+        public long usedSizeOnHeap()
+        {
+            return 0;
+        }
+
+        @VisibleForTesting
+        @Override
+        public long unusedReservedOnHeapMemory()
+        {
+            return 0;
+        }
     }
 }

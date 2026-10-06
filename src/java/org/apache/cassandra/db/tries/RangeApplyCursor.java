@@ -126,9 +126,6 @@ class RangeApplyCursor<T, S extends RangeState<S>> implements Cursor<T>
 
         if (applicableRange == null)
         {
-            if (Cursor.isExhausted(range.encodedPosition()))
-                return content;
-
             applicableRange = range.precedingState();
             if (applicableRange == null)
                 return content;

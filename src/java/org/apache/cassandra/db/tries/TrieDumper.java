@@ -107,7 +107,7 @@ abstract class TrieDumper<T> implements Cursor.Walker<T, String>
     }
 
     static class DeletionAware<T, D extends RangeState<D>> extends Plain<T>
-    implements DeletionAwareTrie.DeletionAwareWalker<T, D, String>
+    implements DeletionAwareCursor.DeletionAwareWalker<T, D, String>
     {
         final Function<D, String> rangeToString;
 
@@ -129,6 +129,7 @@ abstract class TrieDumper<T> implements Cursor.Walker<T, String>
         @Override
         public boolean enterDeletionsBranch()
         {
+            maybeIndent();
             b.append("*** Start deletion branch");
             endLineAndSetIndent(currentLength);
             depthAdjustment = currentLength;

@@ -18,6 +18,9 @@
 
 package org.apache.cassandra.db.tries;
 
+import java.util.function.BiFunction;
+import java.util.function.Predicate;
+
 import org.apache.cassandra.utils.bytecomparable.ByteComparable;
 
 /// The implementation of the intersection of a trie with a set. Intersections normally return all content that is
@@ -26,7 +29,9 @@ import org.apache.cassandra.utils.bytecomparable.ByteComparable;
 ///
 /// For ordered tries where we may want the intersection to return only content that falls strictly within the bounds
 /// of the trie, use [Slice].
-abstract class IntersectionCursor<T, C extends Cursor<T>> implements Cursor<T>
+abstract class IntersectionCursor<T, C extends Cursor<T>,
+                                 S extends RangeState<S>, D extends RangeCursor<S>>
+implements Cursor<T>
 {
     enum State
     {
@@ -37,14 +42,14 @@ abstract class IntersectionCursor<T, C extends Cursor<T>> implements Cursor<T>
     }
 
     final C source;
-    final TrieSetCursor set;
+    final D set;
     State state;
 
-    IntersectionCursor(C source, TrieSetCursor set)
+    IntersectionCursor(C source, D set)
     {
         this.source = source;
         this.set = set;
-        setInitialState();
+        // Concrete class must call setInitialState()
     }
 
     @Override
@@ -72,11 +77,13 @@ abstract class IntersectionCursor<T, C extends Cursor<T>> implements Cursor<T>
         return advanceWhenMatching();
     }
 
+    protected abstract boolean precedingIncludedInSet();
+
     private long advanceWhenMatching()
     {
         // The set is assumed sparser, so we advance that first.
         long setPosition = set.advance();
-        if (set.precedingIncluded())
+        if (precedingIncludedInSet())
             return advanceInCoveredBranch(setPosition, source.advance());
         else
             return advanceSourceToIntersection(setPosition);
@@ -89,7 +96,7 @@ abstract class IntersectionCursor<T, C extends Cursor<T>> implements Cursor<T>
             return advanceInCoveredBranch(set.encodedPosition(), source.skipTo(encodedSkipPosition));
 
         long setPosition = set.skipTo(encodedSkipPosition);
-        if (set.precedingIncluded())
+        if (precedingIncludedInSet())
             return advanceInCoveredBranch(setPosition, source.skipTo(encodedSkipPosition));
         else
             return advanceSourceToIntersection(setPosition);
@@ -114,7 +121,7 @@ abstract class IntersectionCursor<T, C extends Cursor<T>> implements Cursor<T>
 
         // At this point set is ahead. Check content to see if we are in a covered branch.
         // If not, we need to skip the source as well and repeat the process.
-        if (set.precedingIncluded())
+        if (precedingIncludedInSet())
             return coveredAreaWithSetAhead(sourcePosition);
         else
             return advanceSourceToIntersection(setPosition);
@@ -137,7 +144,7 @@ abstract class IntersectionCursor<T, C extends Cursor<T>> implements Cursor<T>
                 return matchingPosition(sourcePosition);
 
             // At this point set is ahead. Check content to see if we are in a covered branch.
-            if (set.precedingIncluded())
+            if (precedingIncludedInSet())
                 return coveredAreaWithSetAhead(sourcePosition);
         }
     }
@@ -177,9 +184,24 @@ abstract class IntersectionCursor<T, C extends Cursor<T>> implements Cursor<T>
         return source.byteComparableVersion();
     }
 
+    abstract static class BySet<T, C extends Cursor<T>> extends IntersectionCursor<T, C, TrieSetCursor.RangeState, TrieSetCursor>
+    {
+        BySet(C source, TrieSetCursor set)
+        {
+            super(source, set);
+            setInitialState();
+        }
+
+        @Override
+        protected boolean precedingIncludedInSet()
+        {
+            return set.precedingIncluded();
+        }
+    }
+
     /// A variation of the intersection cursor that only returns content when it falls strictly inside the boundaries
     /// of the set.
-    abstract static class Slice<T, C extends Cursor<T>> extends IntersectionCursor<T, C>
+    abstract static class Slice<T, C extends Cursor<T>> extends BySet<T, C>
     {
         Slice(C source, TrieSetCursor set)
         {
@@ -196,7 +218,7 @@ abstract class IntersectionCursor<T, C extends Cursor<T>> implements Cursor<T>
                 case MATCHING:
                     // Slice bounds fall on the same positions as ordered content. The right side of the state,
                     // regardless of the direction of iteration, determines coverage for the specific position.
-                    return set.state().applicableAfter ? source.content() : null;
+                    return set.nonNullState().applicableAfter ? source.content() : null;
                 default:
                     throw new AssertionError();
             }
@@ -204,7 +226,7 @@ abstract class IntersectionCursor<T, C extends Cursor<T>> implements Cursor<T>
     }
 
     /// Intersection cursor for [Trie].
-    static class Plain<T> extends IntersectionCursor<T, Cursor<T>>
+    static class Plain<T> extends BySet<T, Cursor<T>>
     {
         public Plain(Cursor<T> source, TrieSetCursor set)
         {
@@ -250,15 +272,12 @@ abstract class IntersectionCursor<T, C extends Cursor<T>> implements Cursor<T>
     }
 
     static class DeletionAware<T, D extends RangeState<D>>
-    extends IntersectionCursor<T, DeletionAwareCursor<T, D>>
+    extends BySet<T, DeletionAwareCursor<T, D>>
     implements DeletionAwareCursor<T, D>
     {
-        RangeCursor<D> applicableDeletionBranch;
-
         public DeletionAware(DeletionAwareCursor<T, D> source, TrieSetCursor set)
         {
             super(source, set);
-            applicableDeletionBranch = null;
         }
 
         @Override
@@ -288,8 +307,111 @@ abstract class IntersectionCursor<T, C extends Cursor<T>> implements Cursor<T>
                     // Since the deletion branch cannot extend outside this branch, it is fully covered by the set.
                     return deletions;
                 case MATCHING:
-                    return new RangeIntersectionCursor<>(deletions,
-                                                         set.tailCursor(direction));
+                    return new RangeIntersectionCursor.RangeBySet<>(deletions,
+                                                                    set.tailCursor(direction));
+                default:
+                    throw new AssertionError();
+            }
+        }
+    }
+
+    static class DeletionAwareByRange<T, D extends RangeState<D>, S extends RangeState<S>>
+    extends IntersectionCursor<T, DeletionAwareCursor<T, D>, S, RangeCursor<S>>
+    implements DeletionAwareCursor<T, D>
+    {
+        final Predicate<? super S> includedInSet;
+        final Predicate<? super D> includedInDeletion;
+        final BiFunction<T, ? super S, T> dataResolver;
+        final BiFunction<D, ? super S, D> deletionResolver;
+
+        public DeletionAwareByRange(DeletionAwareCursor<T, D> source, RangeCursor<S> set,
+                                    Predicate<? super S> includedInSet,
+                                    Predicate<? super D> includedInDeletion,
+                                    BiFunction<T, ? super S, T> dataResolver,
+                                    BiFunction<D, ? super S, D> deletionResolver)
+        {
+            super(source, set);
+            this.includedInSet = includedInSet;
+            this.includedInDeletion = includedInDeletion;
+            this.dataResolver = dataResolver;
+            this.deletionResolver = deletionResolver;
+            setInitialState();
+        }
+
+        @Override
+        protected boolean precedingIncludedInSet()
+        {
+            return includedInSet.test(set.precedingState());
+        }
+
+        @Override
+        public T content()
+        {
+            T content = source.content();
+            if (content == null)
+                return null;
+
+            switch (state)
+            {
+                case MATCHING:
+                    return dataResolver.apply(content, set.state());
+                case SET_AHEAD:
+                    return dataResolver.apply(content, set.precedingState());
+                default:
+                    throw new AssertionError();
+            }
+        }
+
+        @Override
+        public DeletionAwareCursor<T, D> tailCursor(Direction direction)
+        {
+            DeletionAwareCursor<T, D> sourceTail = source.tailCursor(direction);
+            switch (state)
+            {
+                case MATCHING:
+                    return new DeletionAwareByRange<>(sourceTail, set.tailCursor(direction),
+                                                      includedInSet,
+                                                      includedInDeletion,
+                                                      dataResolver,
+                                                      deletionResolver);
+                case SET_AHEAD:
+                    RangeCursor<S> setTail = set.precedingStateCursor(direction);
+                    if (setTail == null)
+                        return sourceTail;
+                    return new DeletionAwareByRange<>(sourceTail, setTail,
+                                                      includedInSet,
+                                                      includedInDeletion,
+                                                      dataResolver,
+                                                      deletionResolver);
+                default:
+                    throw new AssertionError();
+            }
+        }
+
+        @Override
+        public RangeCursor<D> deletionBranchCursor(Direction direction)
+        {
+            RangeCursor<D> deletions = source.deletionBranchCursor(direction);
+            if (deletions == null)
+                return null;
+
+            switch (state)
+            {
+                case MATCHING:
+                    return new RangeIntersectionCursor.WithResolver<>(deletions,
+                                                                      set.tailCursor(direction),
+                                                                      includedInDeletion,
+                                                                      includedInSet,
+                                                                      deletionResolver);
+                case SET_AHEAD:
+                    RangeCursor<S> setTail = set.precedingStateCursor(direction);
+                    if (setTail == null)
+                        return deletions;
+                    return new RangeIntersectionCursor.WithResolver<>(deletions,
+                                                                      setTail,
+                                                                      includedInDeletion,
+                                                                      includedInSet,
+                                                                      deletionResolver);
                 default:
                     throw new AssertionError();
             }

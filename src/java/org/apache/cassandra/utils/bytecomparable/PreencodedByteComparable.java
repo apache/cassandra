@@ -35,6 +35,20 @@ abstract class PreencodedByteComparable implements ByteComparable.Preencoded
         return version;
     }
 
+    @Override
+    public boolean equals(Object other)
+    {
+        if (!(other instanceof ByteComparable))
+            return false;
+        return compareTo((ByteComparable) other) == 0;
+    }
+
+    @Override
+    public String toString()
+    {
+        return byteComparableAsString(encodingVersion());
+    }
+
     static class Array extends PreencodedByteComparable
     {
         private final byte[] bytes;

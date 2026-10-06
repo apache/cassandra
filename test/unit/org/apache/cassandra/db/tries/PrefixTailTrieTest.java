@@ -22,6 +22,8 @@ import java.nio.ByteBuffer;
 import java.util.Arrays;
 import java.util.NavigableMap;
 
+import javax.annotation.Nonnull;
+
 import com.google.common.base.Predicates;
 
 import org.apache.cassandra.utils.bytecomparable.ByteComparable;
@@ -50,9 +52,19 @@ public class PrefixTailTrieTest extends PrefixTailTestBase<InMemoryTrie<Object>,
     }
 
     @Override
-    void apply(InMemoryTrie<Object> destination, Trie<Object> tail, InMemoryBaseTrie.UpsertTransformerWithKeyProducer<Object, Object> upsertTransformer) throws TrieSpaceExhaustedException
+    void apply(InMemoryTrie<Object> destination, Trie<Object> tail, UpsertTransformerWithKeys upsertTransformer) throws TrieSpaceExhaustedException
     {
-        destination.apply(tail, upsertTransformer, Predicates.alwaysFalse());
+        class Updater implements InMemoryTrie.UpsertTransformer<Object, Object>
+        {
+            InMemoryTrie<Object>.Mutator<Object> mutator = destination.mutator(this, Predicates.alwaysFalse());
+
+            @Override
+            public Object apply(Object existing, @Nonnull Object update)
+            {
+                return upsertTransformer.apply(existing, update, mutator);
+            }
+        }
+        new Updater().mutator.apply(tail);
     }
 
     @Override
@@ -82,6 +94,6 @@ public class PrefixTailTrieTest extends PrefixTailTestBase<InMemoryTrie<Object>,
     @Override
     Trie<ByteBuffer> processContent(Trie<Object> trie)
     {
-        return TrieUtil.processContent(trie, x -> x instanceof ByteBuffer ? (ByteBuffer) x : null);
+        return trie.mapValues(x -> x instanceof ByteBuffer ? (ByteBuffer) x : null);
     }
 }

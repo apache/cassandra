@@ -198,4 +198,10 @@ class DeletionAwareMergeSource<T, D extends RangeState<D>, E extends RangeState<
     {
         return deletions != null;
     }
+
+    public static <T, D extends RangeState<D>, E extends RangeState<E>>
+    DeletionAwareMergeSource<T, D, E> empty(Direction direction, ByteComparable.Version version)
+    {
+        return new DeletionAwareMergeSource<T, D, E>(null, new DeletionAwareCursor.Empty<>(direction, version));
+    }
 }

@@ -285,7 +285,7 @@ public abstract class InMemoryTrieTestBase
                             .mapToInt(src1 -> ByteComparable.length(src1, VERSION))
                             .sum();
         long ts = ObjectSizes.measureDeep(content);
-        long onh = ObjectSizes.measureDeep(trie.contentArrays);
+        long onh = ObjectSizes.measureDeep(((ContentManagerPojo<?>) trie.contentManager).contentArrays);
         System.out.format("Trie size on heap %,d off heap %,d measured %,d keys %,d treemap %,d\n",
                           trie.usedSizeOnHeap(), trie.usedSizeOffHeap(), onh, keysize, ts);
         System.out.format("per entry on heap %.2f off heap %.2f measured %.2f keys %.2f treemap %.2f\n",
@@ -357,7 +357,25 @@ public abstract class InMemoryTrieTestBase
                                    });
     }
 
-    private void testEntries(String[] tests)
+    @Test
+    public void testSkipToPositionForSkippingBranchesOnMax()
+    {
+        testEntriesHex(
+            // chain parent ending in 00
+            "aaaaaa00", "aaaaaa0000", "aaaaaa00ab",
+            // chain parent ending in FF
+            "bbbbbbff", "bbbbbbffff", "bbbbbbffab",
+            // sparse parent
+            "cc00", "cc80", "ccff", "cc00ab", "cc80ab", "ccffab",
+            // split parent
+            "dd00", "dd80", "ddf0", "dd00ab", "dd80ab", "ddf0ab",
+            "dd04", "dd84", "ddf4", "dd04ab", "dd84ab", "ddf4ab",
+            "dd08", "dd88", "ddf8", "dd08ab", "dd88ab", "ddf8ab",
+            "dd0f", "dd8f", "ddff", "dd0fab", "dd8fab", "ddffab"
+        );
+    }
+
+    private void testEntries(String... tests)
     {
         for (Function<String, Preencoded> mapping :
                 ImmutableList.<Function<String, Preencoded>>of(TrieUtil::comparable,
@@ -367,7 +385,7 @@ public abstract class InMemoryTrieTestBase
         }
     }
 
-    private void testEntriesHex(String[] tests)
+    private void testEntriesHex(String... tests)
     {
         testEntries(tests, s -> ByteComparable.preencoded(VERSION, ByteBufferUtil.hexToBytes(s)));
         // Run the other translations just in case.
@@ -383,15 +401,63 @@ public abstract class InMemoryTrieTestBase
             Preencoded e = mapping.apply(test);
             System.out.println("Adding " + asString(e) + ": " + test);
             putSimpleResolve(trie, e, test, (x, y) -> y);
-            System.out.println("Trie\n" + trie.dump());
+            if (VERBOSE)
+                System.out.println("Trie\n" + trie.dump());
         }
 
         for (String test : tests)
             assertEquals(test, trie.get(mapping.apply(test)));
 
+        if (strategy == ReuseStrategy.SHORT_LIVED_ORDERED)
+            testSkipOverBranch(tests, mapping, trie);
+
         testDeletions(tests, mapping, trie);
 
         randomizedTestEntries(tests, mapping, trie);
+    }
+
+    private void testSkipOverBranch(String[] testsAsStrings, Function<String, Preencoded> mapping, InMemoryTrie<String> trie)
+    {
+        testsAsStrings = Arrays.copyOf(testsAsStrings, testsAsStrings.length);
+        Arrays.sort(testsAsStrings, (x, y) -> mapping.apply(x).compareTo(mapping.apply(y)));
+        Preencoded[] tests = Arrays.stream(testsAsStrings).map(mapping).toArray(Preencoded[]::new);
+        for (int testIndex = 0; testIndex < tests.length; ++testIndex)
+        {
+            Preencoded key = tests[testIndex];
+            for (Direction d : Direction.values())
+            {
+                Cursor<String> c = trie.cursor(d);
+                assertTrue(c.descendAlong(key.getPreencodedBytes()) || !d.isForward());
+
+                long skipBranch = Cursor.positionForSkippingBranch(c.encodedPosition());
+                long pos = c.skipTo(skipBranch);
+                boolean exhausted = Cursor.isExhausted(pos);
+
+                String next = exhausted ? null : c.content();
+                if (next == null && !exhausted)
+                    next = c.advanceToContent(null);
+                int nextIndex = testIndex + d.increase;
+                while (d.inLoop(nextIndex, 0, tests.length - 1) && isPrefix(key, tests[nextIndex]))
+                    nextIndex += d.increase;
+                String expected = d.inLoop(nextIndex, 0, tests.length - 1) ? testsAsStrings[nextIndex] : null;
+                assertEquals("Value after skipping branch at " + testsAsStrings[testIndex] + " " + d, expected, next);
+            }
+        }
+    }
+
+    static boolean isPrefix(Preencoded prefix, Preencoded value)
+    {
+        ByteSource ps = prefix.getPreencodedBytes();
+        ByteSource vs = value.getPreencodedBytes();
+        while (true)
+        {
+            int nextp = ps.next();
+            int nextv = vs.next();
+            if (nextp == ByteSource.END_OF_STREAM)
+                return true;
+            if (nextp != nextv)
+                return false;
+        }
     }
 
     private void testDeletions(String[] tests, Function<String, Preencoded> mapping, InMemoryTrie<String> trie)
@@ -405,16 +471,17 @@ public abstract class InMemoryTrieTestBase
             Preencoded e = mapping.apply(entry);
             System.out.println("Deleting " + asString(e) + ": " + entry);
             delete(trie, e);
-            System.out.println("Trie\n" + trie.dump());
+            if (VERBOSE)
+                System.out.println("Trie\n" + trie.dump());
 
             for (String test : toDelete)
                 assertEquals(test, trie.get(mapping.apply(test)));
         }
         assertTrue(trie.isEmpty());
-        if (trie.cellAllocator instanceof MemoryAllocationStrategy.OpOrderReuseStrategy)
+        if (((BufferManagerMultibuf) trie.bufferManager).cellAllocator instanceof MemoryAllocationStrategy.OpOrderReuseStrategy)
         {
-            assertEquals(0L, trie.usedBufferSpace());
-            assertEquals(0L, trie.usedObjectSpace());
+            assertEquals(0L, trie.bufferManager.usedBufferSpace());
+            assertEquals(0L, ((ContentManagerPojo<?>) trie.contentManager).usedObjectSpace());
         }
     }
 
@@ -434,7 +501,8 @@ public abstract class InMemoryTrieTestBase
                 Preencoded e = mapping.apply(entry);
                 System.out.println("Adding " + asString(e) + ": " + entry);
                 putSimpleResolve(trie, e, entry, (x, y) -> y);
-                System.out.println("Trie\n" + trie.dump());
+                if (VERBOSE)
+                    System.out.println("Trie\n" + trie.dump());
                 inserted.add(entry);
             }
             else if (!inserted.isEmpty())
@@ -445,7 +513,8 @@ public abstract class InMemoryTrieTestBase
                 Preencoded e = mapping.apply(entry);
                 System.out.println("Deleting " + asString(e) + ": " + entry);
                 delete(trie, e);
-                System.out.println("Trie\n" + trie.dump());
+                if (VERBOSE)
+                    System.out.println("Trie\n" + trie.dump());
                 toInsert.add(entry);
             }
 

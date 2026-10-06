@@ -28,6 +28,8 @@ import java.util.TreeSet;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 
+import com.google.common.base.Predicates;
+
 import org.junit.BeforeClass;
 import org.junit.Test;
 import org.junit.runner.RunWith;
@@ -48,19 +50,26 @@ import static org.junit.Assert.assertEquals;
 public class RangesTrieSetTest
 {
     @Parameterized.Parameter(0)
-    public Boolean endsInclusive;
+    public boolean endsInclusive = false;
 
     @Parameterized.Parameter(1)
-    public Boolean negated;
+    public boolean negated = false;
 
-    @Parameterized.Parameters(name = "endInclusive {0} negated {1}")
+    @Parameterized.Parameter(2)
+    public boolean sendThroughInMemoryTrie = false;
+
+    @Parameterized.Parameters(name = "endInclusive {0} negated {1} through InMemoryTrie {2}")
     public static List<Object[]> data()
     {
         return Arrays.asList(new Object[][] {
-            { true, false },
-            { false, false },
-            { true, true },
-            { false, true }
+            { true, false, false },
+            { false, false, false },
+            { true, true, false },
+            { false, true, false },
+            { true, false, true },
+            { false, false, true },
+            { true, true, true },
+            { false, true, true }
         });
     }
 
@@ -91,13 +100,13 @@ public class RangesTrieSetTest
 
                     public TrieSetCursor.RangeState content()
                     {
-                        return cursor.state();
+                        return cursor.nonNullState();
                     }
 
                     @Override
                     public TrieSetCursor.RangeState state()
                     {
-                        return cursor.state();
+                        return cursor.nonNullState();
                     }
 
                     public long encodedPosition()
@@ -164,9 +173,28 @@ public class RangesTrieSetTest
             return;
         }
 
-        TrieSet set = ranges(endsInclusive, boundaries);
-        check(endsInclusive, false, boundaries, set);
-        verifyTails(endsInclusive, false, boundaries, set);
+        TrieSet set = maybeSendThroughInMemoryTrie(ranges(endsInclusive, boundaries));
+        check(endsInclusive, false, sendThroughInMemoryTrie, boundaries, set);
+        verifyTails(endsInclusive, false, sendThroughInMemoryTrie, boundaries, set);
+    }
+
+    private TrieSet maybeSendThroughInMemoryTrie(TrieSet ranges)
+    {
+        if (!sendThroughInMemoryTrie)
+            return ranges;
+
+        InMemoryRangeTrie<TrieSetCursor.RangeState> inMem = InMemoryRangeTrie.shortLived(VERSION);
+        try
+        {
+            inMem.apply(dir -> ranges.cursor(dir),
+                        (x, y) -> x != null ? x.union(y) : y,
+                        Predicates.alwaysFalse());
+        }
+        catch (TrieSpaceExhaustedException e)
+        {
+            throw new RuntimeException(e);
+        }
+        return dir -> new TrieSetOverRangeCursor(inMem.cursor(dir));
     }
 
     void checkNegated(boolean endsInclusive, String... boundariesAsStrings)
@@ -175,9 +203,6 @@ public class RangesTrieSetTest
         for (int i = 0; i < boundariesAsStrings.length; ++i)
             boundaries[i] = boundariesAsStrings[i] != null ? TrieUtil.directComparable(boundariesAsStrings[i]) : null;
 
-        TrieSet set = ranges(endsInclusive, boundaries);
-
-        TrieSet negatedSet = set.negation();
         Preencoded[] negatedBoundaries = getNegatedBoundaries(boundaries, Preencoded[]::new);
         System.out.println("Negated boundaries: " + Arrays.stream(negatedBoundaries).map(x -> x != null ? x.byteComparableAsString(VERSION) : null).collect(Collectors.toList()));
         if (!boundariesValid(false, endsInclusive, negatedBoundaries))
@@ -186,9 +211,13 @@ public class RangesTrieSetTest
             return;
         }
 
+        // Go through in-memory first, because we want to test the negation's complexity on top of it.
+        TrieSet set = maybeSendThroughInMemoryTrie(ranges(endsInclusive, boundaries));
+        TrieSet negatedSet = set.negation();
+
         System.out.println("Negated set");
-        check(false, endsInclusive, negatedBoundaries, negatedSet);
-        verifyTails(false, endsInclusive, negatedBoundaries, negatedSet);
+        check(false, endsInclusive, sendThroughInMemoryTrie, negatedBoundaries, negatedSet);
+        verifyTails(false, endsInclusive, sendThroughInMemoryTrie, negatedBoundaries, negatedSet);
     }
 
     private boolean boundariesValid(boolean endsInclusive, boolean startsExclusive, ByteComparable[] boundaries)
@@ -245,7 +274,7 @@ public class RangesTrieSetTest
     {
         TrieSetCursor c = set.cursor(direction);
         if (c.descendAlong(prefix.asComparableBytes(c.byteComparableVersion())))
-            return dir -> c.tailCursor(dir);
+            return c::tailCursor;
         else if (c.precedingIncluded())
             return TrieSet.full(c.byteComparableVersion());
         else
@@ -266,7 +295,7 @@ public class RangesTrieSetTest
         return true;
     }
 
-    private static void verifyTails(boolean endsInclusive, boolean startsExclusive, Preencoded[] boundaries, TrieSet set)
+    private static void verifyTails(boolean endsInclusive, boolean startsExclusive, boolean sendThroughInMemoryTrie, Preencoded[] boundaries, TrieSet set)
     {
         Set<Preencoded> prefixes = new TreeSet<>(FORWARD_COMPARATOR);
         for (ByteComparable b : boundaries)
@@ -302,15 +331,15 @@ public class RangesTrieSetTest
                 System.out.println("Tail for " + prefix.byteComparableAsString(VERSION) + " " + dir);
                 System.out.println("  tail bounds " + tails.stream().map(x -> x == null ? "null" : x.byteComparableAsString(VERSION)).collect(Collectors.toList()));
                 TrieSet tail = tailTrie(set, prefix, dir);
-                check(endsInclusive, startsExclusive, tails.toArray(ByteComparable[]::new), tail);
+                check(endsInclusive, startsExclusive, sendThroughInMemoryTrie, tails.toArray(ByteComparable[]::new), tail);
             }
         }
     }
 
-    static void check(boolean endsInclusive, boolean startsExclusive, ByteComparable[] boundaries, TrieSet s)
+    static void check(boolean endsInclusive, boolean startsExclusive, boolean sendThroughInMemoryTrie, ByteComparable[] boundaries, TrieSet s)
     {
         dumpToOut(s);
-        var expectations = getExpectations(endsInclusive, startsExclusive, boundaries);
+        var expectations = getExpectations(endsInclusive, startsExclusive, sendThroughInMemoryTrie, boundaries);
         assertTrieEquals(expectations, s);
     }
 
@@ -450,8 +479,10 @@ public class RangesTrieSetTest
     }
 
 
-    static NavigableMap<Preencoded, PointState> getExpectations(boolean endsInclusive, boolean startsExclusive, ByteComparable... boundaries)
+    static NavigableMap<Preencoded, PointState> getExpectations(boolean endsInclusive, boolean startsExclusive, boolean sendThroughInMemoryTrie, ByteComparable... boundaries)
     {
+        boundaries = maybeDropRepetitions(endsInclusive, startsExclusive, sendThroughInMemoryTrie, boundaries);
+
         // Leading [null, EMPTY ...] sequence is nonsensical if endsInclusive is not true and causes us trouble.
         if (!endsInclusive &&
             boundaries.length >= 2 &&
@@ -494,6 +525,38 @@ public class RangesTrieSetTest
         if (expectations.isEmpty())
             expectations.put(ByteComparable.EMPTY.preencode(VERSION), PointState.empty());
         return expectations;
+    }
+
+    private static ByteComparable[] maybeDropRepetitions(boolean endsInclusive, boolean startsExclusive, boolean sendThroughInMemoryTrie, ByteComparable[] boundaries)
+    {
+        if (sendThroughInMemoryTrie && endsInclusive == startsExclusive)
+        {
+            // We need to remove boundary repetitions (which have no effect) because the in-memory trie will not contain
+            // them at all.
+            List<ByteComparable> reworked = null;
+            int i;
+            for (i = 0; i < boundaries.length - 1; ++i)
+            {
+                if (boundaries[i] != null &&
+                    boundaries[i + 1] != null &&
+                    ByteComparable.compare(boundaries[i], boundaries[i + 1], VERSION) == 0)
+                {
+                    if (reworked == null)
+                        reworked = new ArrayList<>(Arrays.asList(boundaries).subList(0, i));
+                    i += 1;
+                }
+                else
+                if (reworked != null)
+                    reworked.add(boundaries[i]);
+            }
+            if (i < boundaries.length && reworked != null)
+                reworked.add(boundaries[i]);
+            if (reworked != null)
+            {
+                boundaries = reworked.toArray(new ByteComparable[0]);
+            }
+        }
+        return boundaries;
     }
 
     @Test
@@ -661,5 +724,71 @@ public class RangesTrieSetTest
                     assertEquals(applicableBefore, state.applicableBefore);
                     assertEquals(applicableAfter, state.applicableAfter);
                 }
+    }
+
+    private static class TrieSetOverRangeCursor implements TrieSetCursor
+    {
+        final RangeCursor<RangeState> source;
+
+        public TrieSetOverRangeCursor(RangeCursor<RangeState> src)
+        {
+            source = src;
+        }
+
+        @Override
+        public RangeState nonNullState()
+        {
+            RangeState state = source.state();
+            return state != null ? state
+                                 : RangeState.NOT_CONTAINED;
+        }
+
+        @Override
+        public RangeState state()
+        {
+            return source.state();
+        }
+
+        @Override
+        public RangeState precedingState()
+        {
+            return source.precedingState();
+        }
+
+        @Override
+        public RangeState content()
+        {
+            return source.content();
+        }
+
+        @Override
+        public TrieSetCursor tailCursor(Direction direction)
+        {
+            return new TrieSetOverRangeCursor(source.tailCursor(direction));
+        }
+
+        @Override
+        public long encodedPosition()
+        {
+            return source.encodedPosition();
+        }
+
+        @Override
+        public ByteComparable.Version byteComparableVersion()
+        {
+            return source.byteComparableVersion();
+        }
+
+        @Override
+        public long advance()
+        {
+            return source.advance();
+        }
+
+        @Override
+        public long skipTo(long encodedSkipPosition)
+        {
+            return source.skipTo(encodedSkipPosition);
+        }
     }
 }

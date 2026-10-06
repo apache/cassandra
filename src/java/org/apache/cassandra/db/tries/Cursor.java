@@ -19,6 +19,7 @@
 package org.apache.cassandra.db.tries;
 
 import java.util.function.Function;
+import java.util.function.Predicate;
 
 import javax.annotation.Nullable;
 
@@ -126,8 +127,11 @@ import org.apache.cassandra.utils.bytecomparable.ByteSource;
 /// Also see [Trie.md](./Trie.md) for further documentation.
 interface Cursor<T>
 {
+    /// The depth is stored in the high-order 32-bits of the long.
     int DEPTH_SHIFT = 32;
-    int TRANSITION_SHIFT = 20;
+    /// The 9 bits from this position store the incoming transition (0-256), inverted according to direction and
+    /// accommodating an overflow value for skipping over branches.
+    int TRANSITION_SHIFT = 22;
 
     /// 1 for reverse direction, 0 for forward. Used to xor transition bits for incomingTransition.
     /// This takes part in comparisons but this does not matter positions are always compared with same direction.
@@ -136,11 +140,11 @@ interface Cursor<T>
 
     /// An additional transition bit used to revisit positions on the way back after iterating the branch.
     /// Used for sets and ranges to correctly define the range states for branch-inclusive ranges.
-    long ON_RETURN_PATH_BIT = 1L << 19;
+    long ON_RETURN_PATH_BIT = 1L << 21;
 
     /// Mask of the transition bits including the direction. We apply xor with this value to form a position in the
     /// reverse direction.
-    long TRANSITION_MASK = 0x8FFL << TRANSITION_SHIFT;
+    long TRANSITION_MASK = 0x2FFL << TRANSITION_SHIFT;
 
     long ROOT_POSITION_FORWARD = encode(0, 0, Direction.FORWARD);
     long ROOT_POSITION_REVERSE = encode(0, 0, Direction.REVERSE);
@@ -176,16 +180,35 @@ interface Cursor<T>
         return ((long) -depth(encodedPosition)) << DEPTH_SHIFT;
     }
 
+    /// Returns the incoming transition for this encoded position. This is normally between 0 and 255 inclusive.
+    ///
+    /// To make it easier to specify positions for jumping over the current branch in [#skipTo] calls, a value of
+    /// 256 (in forward direction) or -1 (in reverse) can also be returned, specifically when a position was prepared
+    /// by [#positionForSkippingBranch].
     static int incomingTransition(long encodedPosition)
     {
+        // The transition bits are stored in bits 22-30 in the encoding (9 bits to allow for the overflow value 0x100),
+        // and bit 31 is the direction.
+        // In the forward direction we can simply return these 10 bits shifted right.
+        // In the reverse we also need to subtract the value of the 9 transition bits from 0xFF. (Note: flipping the
+        // 8 transition bits is sufficient for the normal values between 0 and 255; the subtraction also works correctly
+        // for the overflow value.)
+
         int transitionInt = (int) encodedPosition;
-        transitionInt ^= transitionInt >> DIRECTION_BIT; // flip the transition bits if the direction bit is 1
-        return (transitionInt >> TRANSITION_SHIFT) & 0xFF;
+        int transitionBits = transitionInt >>> TRANSITION_SHIFT;
+        // The code below is equivalent to
+        //   return (transitionInt < 0) ? 0x2FF - transitionBits : transitionBits;
+        // which in turn is a shorthand for
+        //   return (transitionInt < 0) ? 0xFF - transitionBits & 0x1FF : transitionBits & 0x1FF;
+        // transitionBits ^ mask returns -transitionBits - 1 for negative transitionInt, which we compensate for by
+        // bumping 0x2FF to 0x300.
+        int mask = transitionInt >> DIRECTION_BIT;
+        return (mask & 0x300) + (transitionBits ^ mask);
     }
 
     static Direction direction(long encodedPosition)
     {
-        return Direction.values()[((int) encodedPosition >>> DIRECTION_BIT) & 1];
+        return ((int) encodedPosition) < 0 ? Direction.REVERSE : Direction.FORWARD;
     }
 
     /// Returns true if this position is on the return/ascent path. Positions on the ascent path are used to present
@@ -249,8 +272,10 @@ interface Cursor<T>
         return depthPart | ((transitionXored << TRANSITION_SHIFT) & TRANSITION_MASK);
     }
 
-    /// Returns a position that can be used to skip over the given branch. Note that this can only work when the
-    /// returned encoded position is a valid `skipTo` position for the current state.
+    /// Returns a position that can be used to skip over the given branch, to be given to [#skipTo].
+    /// Note that this can only work when the returned encoded position is a valid `skipTo` position for the current
+    /// state, i.e. where its depth is at the cursor's current depth or below, and the transition is after the last
+    /// visited position at that depth.
     static long positionForSkippingBranch(long encodedBranchPosition)
     {
         return encodedBranchPosition + (1L << TRANSITION_SHIFT);
@@ -371,10 +396,10 @@ interface Cursor<T>
 
     /// Advance to the specified depth and incoming transition or the first valid position that is after the specified
     /// position. The inputs must be something that could be returned by a single call to [#advance] (i.e.
-    /// `depth` must be <= current depth + 1, and `incomingTransition` must be higher than what the
-    /// current state saw at the requested depth).
-    /// This method must also support a transition value of 0x100, which may be used to request ascent from the current
-    /// position.
+    /// the depth must be at most current depth + 1, and the incoming transition must be higher than what the
+    /// current state saw at the requested depth); to facilitate skipping over the current branch, this can also be
+    /// given overflowing positions (i.e. incoming transition of 256 in forward direction, or -1 in reverse, see
+    /// [#positionForSkippingBranch]).
     ///
     /// @return encoded position after the skip; the new position will satisfy
     ///         `compare(returnedSkipPosition, encodedSkipPosition) >= 0`.
@@ -402,14 +427,26 @@ interface Cursor<T>
     /// order.
     default boolean descendAlong(ByteSource bytes)
     {
-        int next = bytes.next();
+        return descendAlong(bytes.next(), bytes);
+    }
+
+
+    /// Descend into the cursor with the given path.
+    ///
+    /// @param next The first byte of the path.
+    /// @param rest The rest of the bytes of the path as a [ByteSource].
+    /// @return True if the descent is positioned at the end of the given path, false if the trie did not have a path
+    /// for it. In the latter case the cursor is positioned at the first node that follows the given key in iteration
+    /// order.
+    default boolean descendAlong(int next, ByteSource rest)
+    {
         long position = encodedPosition();
         while (next != ByteSource.END_OF_STREAM)
         {
             long nextPosition = positionForDescentWithByte(position, next);
             if (compare(skipTo(nextPosition), nextPosition) != 0)
                 return false;
-            next = bytes.next();
+            next = rest.next();
             position = nextPosition;
         }
         return true;
@@ -418,7 +455,7 @@ interface Cursor<T>
     /// Returns a tail cursor, i.e. a cursor whose root is the current position. Walking a tail cursor will list all
     /// descendants of the current position with depth adjusted by the current depth.
     ///
-    /// It is an error to call `tailCursor` on an exhausted cursor.
+    /// It is an error to call `tailCursor` on an exhausted cursor or one positioned on the return path.
     ///
     /// Descendants that override this class should return their specific cursor type.
     Cursor<T> tailCursor(Direction direction);
@@ -485,11 +522,11 @@ interface Cursor<T>
     /// This is similar to [Trie#tailTries], but able to access only the content instead of the full branch.
     ///
     /// This method should only be called on a freshly constructed cursor.
-    default <R> R processSkippingBranches(Cursor.Walker<? super T, R> walker)
+    default <R> R processSkippingBranches(Predicate<? super T> acceptancePredicate, Cursor.Walker<? super T, R> walker)
     {
         assertFresh();
         T content = content();   // handle content on the root node
-        if (content != null)
+        if (content != null && acceptancePredicate.test(content))
         {
             walker.content(content);
             return walker.complete();
@@ -498,15 +535,20 @@ interface Cursor<T>
 
         while (content != null)
         {
-            walker.content(content);
-            // skip over the branch by requesting a position that is beyond
-            long current = skipTo(positionForSkippingBranch(encodedPosition()));
-            if (isExhausted(current))
-                break;
-            walker.resetPathLength(depth(current) - 1);
-            walker.addPathByte(incomingTransition(current));
-            content = content();
-            if (content == null)
+            if (acceptancePredicate.test(content))
+            {
+                walker.content(content);
+                // skip over the branch by requesting a position that is beyond it
+                long current = skipTo(positionForSkippingBranch(encodedPosition()));
+                if (isExhausted(current))
+                    break;
+                walker.resetPathLength(depth(current) - 1);
+                walker.addPathByte(incomingTransition(current));
+                content = content();
+                if (content == null)
+                    content = advanceToContent(walker);
+            }
+            else
                 content = advanceToContent(walker);
         }
         return walker.complete();
@@ -576,9 +618,7 @@ interface Cursor<T>
     /// Dump the current branch. To be used for debugging only.
     private String dumpBranch(Direction direction, Function<T, String> toStringFunction)
     {
-        TrieDumper<T> dumper = new TrieDumper.Plain<>(toStringFunction);
-        tailCursor(direction).process(dumper);
-        return dumper.complete();
+        return tailCursor(direction).process(new TrieDumper.Plain<>(toStringFunction));
     }
 
     default void assertFresh()

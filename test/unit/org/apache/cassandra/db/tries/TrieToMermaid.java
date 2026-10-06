@@ -24,20 +24,32 @@ import org.agrona.DirectBuffer;
 /**
  * A class for dumping the structure of a trie to a graphviz/dot representation for making trie graphs.
  */
-class TrieToMermaid<T> extends TriePathReconstructor implements Cursor.Walker<T, String>
+public class TrieToMermaid<T, D extends RangeState<D>> extends TriePathReconstructor implements DeletionAwareCursor.DeletionAwareWalker<T, D, String>
 {
     private final StringBuilder b;
     private final Function<T, String> contentToString;
+    private final Function<D, String> deletionBoundaryToString;
     private final Function<Integer, String> transitionToString;
     private final boolean useMultiByte;
     private int prevPos;
     private int currNodeTextPos;
+    private int depthAdjustment;
+    private boolean inDeletionBranch;
 
     public TrieToMermaid(Function<T, String> contentToString,
                          Function<Integer, String> transitionToString,
                          boolean useMultiByte)
     {
+        this(contentToString, null, transitionToString, useMultiByte);
+    }
+
+    public TrieToMermaid(Function<T, String> contentToString,
+                         Function<D, String> deletionBoundaryToString,
+                         Function<Integer, String> transitionToString,
+                         boolean useMultiByte)
+    {
         this.contentToString = contentToString;
+        this.deletionBoundaryToString = deletionBoundaryToString;
         this.transitionToString = transitionToString;
         this.useMultiByte = useMultiByte;
         this.b = new StringBuilder();
@@ -46,11 +58,14 @@ class TrieToMermaid<T> extends TriePathReconstructor implements Cursor.Walker<T,
         addNodeDefinition(nodeString(0));
         newLineAndIndent();
         b.append("style " + nodeString(0) + " fill:darkgrey");
+        depthAdjustment = 0;
+        inDeletionBranch = false;
     }
 
     @Override
     public void resetPathLength(int newLength)
     {
+        newLength += depthAdjustment;
         super.resetPathLength(newLength);
         prevPos = newLength;
     }
@@ -87,7 +102,7 @@ class TrieToMermaid<T> extends TriePathReconstructor implements Cursor.Walker<T,
     private String nodeString(int keyPos)
     {
         StringBuilder r = new StringBuilder();
-        r.append("Node_");
+        r.append(inDeletionBranch ? "NodeD_" : "Node_");
         for (int i = 0; i < keyPos; ++i)
             r.append(transitionToString.apply(keyBytes[i] & 0xFF));
         return r.toString();
@@ -110,7 +125,7 @@ class TrieToMermaid<T> extends TriePathReconstructor implements Cursor.Walker<T,
     @Override
     public void content(T content)
     {
-        b.replace(currNodeTextPos, b.length(), String.format("%s(((%s)))", nodeString(keyPos), contentToString.apply(content)));
+        b.replace(currNodeTextPos, b.length(), String.format("%s(((\"%s\")))", nodeString(keyPos), contentToString.apply(content)));
     }
 
     @Override
@@ -118,5 +133,34 @@ class TrieToMermaid<T> extends TriePathReconstructor implements Cursor.Walker<T,
     {
         b.append("\n");
         return b.toString();
+    }
+
+    @Override
+    public boolean enterDeletionsBranch()
+    {
+        newLineAndIndent();
+        b.append(nodeString(keyPos));
+        inDeletionBranch = true;
+        depthAdjustment = keyPos;
+
+        String newNode = nodeString(keyPos);
+        b.append(" ----> ");
+        addNodeDefinition(newNode);
+
+        return true;
+    }
+
+    @Override
+    public void deletionMarker(D marker)
+    {
+        b.replace(currNodeTextPos, b.length(), String.format("%s(((\"%s\")))", nodeString(keyPos), deletionBoundaryToString.apply(marker)));
+    }
+
+    @Override
+    public void exitDeletionsBranch()
+    {
+        resetPathLength(0);
+        depthAdjustment = 0;
+        inDeletionBranch = false;
     }
 }

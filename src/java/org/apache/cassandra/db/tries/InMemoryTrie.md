@@ -35,13 +35,51 @@ The main features of its implementation are:
 ## Memory layout
 
 One of the main design drivers of the memtable trie is the desire to avoid on-heap storage and Java object management.
-The trie thus implements its own memory management for the structure of the trie (content is, at this time, still given
-as Java objects in a content array). The structure resides in one `UnsafeBuffer` (which can be on or off heap as
-desired) and is broken up in 32-byte "cells", which are the unit of allocation, update and reuse.
+The trie thus implements its own memory management for the structure of the trie. The structure resides in one 
+`UnsafeBuffer` (which can be on or off heap as desired) and is broken up in 32-byte "cells", which are the unit of 
+allocation, update and reuse.
 
 Like all tries, `InMemoryTrie` is built from nodes and has a root pointer. The nodes reside in cells, but there is no
 1:1 correspondence between nodes and cells - some node types pack multiple in one cell, while other types require
 multiple cells.
+
+### Content storage
+
+In-memory tries support two approaches for storing content/payload data:
+
+#### `ContentManagerPojo` - Object array storage
+
+This default approach stores content as Java objects in a separate content array. Leaf nodes reference values by 
+storing the array index as a negative pointer value (where masking away the sign and flags gives the index in the
+array). This approach is simple but keeps content on-heap as Java objects, which can lead to garbage collection
+pressure for large tries.
+
+#### `ContentManagerBytes` - Direct buffer storage
+
+The alternative stores content directly in the trie's buffer cells, using the same 32-byte cells that store the 
+trie structure. This eliminates the need for a separate content array and allows content to be stored off-heap 
+alongside the trie structure.
+
+`ContentManagerBytes` relies on a `ContentSerializer` interface to handle encoding and decoding of content. The 
+serializer defines:
+- How to serialize content into a 32-byte cell, returning a `offsetBits`, a 5-bit offset which is combined with
+  the cell base to form the leaf pointer/id.
+- How to deserialize content from a 32-byte cell and the pointer's `offsetBits`
+- Which values should be treated as "special" (encoded without using cells, using `offsetBits == 0x1F`)
+
+The `offsetBits` are to be used to help determine the type of content, and they also may be used to store e.g.
+length and flags that could otherwise take up a byte in the cell. 
+
+**Special values**: Some content types appear frequently and carry no additional data (e.g. markers, empty values). 
+These can be encoded as special values and mapped directly to singleton objects without allocating trie cells. The 
+`ContentSerializer` determines which values qualify as special via the `idIfSpecial()` method.
+
+**Large values**: When content doesn't fit in 32 bytes, the serializer can use its own external storage mechanism 
+(e.g. slab buffers) and store only a handle/pointer in the trie cell. The serializer is responsible for managing 
+this external storage and releasing it when content is removed.
+
+This approach can be used to drastically reduce or completely eliminate the per-item on-heap presence of a trie,
+improving overall garbage collection efficiency.
 
 ### Pointers and node types
 
@@ -574,11 +612,11 @@ and we can put in the new value by performing a volatile write.
 
 For example, updating `N -> 0x39C` is accomplished by making the volatile write:
 
-| offset |content|before|after|
-|--------|---|---|---|
- | 00-1A  |irrelevant|||
- | 1B     |character|N|N|
- | 1C-1F  |pointer|0000031E|_**0000039C**_|
+| offset | content     | before   | after          |
+|--------|-------------|----------|----------------|
+| 00-1A  | irrelevant  |          |                |
+| 1B     | character   | N        | N              |
+| 1C-1F  | pointer     | 0000031E | _**0000039C**_ |
 
 (Here and below normal writes are in bold and volatile writes in bold italic.)
 
@@ -597,17 +635,17 @@ where the pointer to the old child is written, and we can update it by doing a v
 
 For example, updating `C -> 0x51E` in a sparse node can be:
 
-| offset  |content|before|after|
-|---------|---|---|---|
- | 00 - 03 |child pointer 0| 00000238|00000238|
- | 04 - 07 |child pointer 1| 0000013A|_**0000051E**_|
- | 08 - 0B |child pointer 2| 0000033B|0000033B|
- | 0C - 17 |unused||
- | 18      |character 0| 41 A|41 A|
- | 19      |character 1| 43 C|43 C|
- | 1A      |character 2| 35 5|35 5|
- | 1B - 1D |unused||
- | 1E - 1F |order word| 0026 = 102 (base 6)|
+| offset  | content         | before              | after          |
+|---------|-----------------|---------------------|----------------|
+| 00 - 03 | child pointer 0 | 00000238            | 00000238       |
+| 04 - 07 | child pointer 1 | 0000013A            | _**0000051E**_ |
+| 08 - 0B | child pointer 2 | 0000033B            | 0000033B       |
+| 0C - 17 | unused          |                     |                |
+| 18      | character 0     | 41 A                | 41 A           |
+| 19      | character 1     | 43 C                | 43 C           |
+| 1A      | character 2     | 35 5                | 35 5           |
+| 1B - 1D | unused          |                     |                |
+| 1E - 1F | order word      | 0026 = 102 (base 6) |                |
 
 
 #### Adding a new child to `Split`
@@ -839,6 +877,33 @@ the only child of node `0x01B`, resulting in an empty node i.e. `NONE`. This pro
 and a chain node is created for the remaining `v` transition -- this child node is placed within the child chain cell,
 which has room for further transitions. The pointer to this chain node is passed back up the recursive application
 chain, and the parent node is updated to point to it.
+
+#### Deleting a child pointer
+
+While deletion is conceptually the same as setting the existing pointer to `NONE`, we need to do some further work to
+ensure that full branch deletions propagate upwards to the branch's attachment point.
+
+For `Chain` nodes this happens automatically as attaching a prefix to `NONE` simply results in `NONE`. In `Split` nodes
+we check the sub-node we modify to see if it becomes empty, and propagate the `NONE` upwards (e.g. tail cell becoming
+empty means we need to modify the mid cell to use `NONE` for the tail pointer, which in turn may make the mid cell
+empty, leading to futher propagation). Because a `Split` node's total child count is not easy to determine, `Split`
+nodes do not downgrade back to `Sparse` or `Chain` when the number of children becomes small enough, but they are fully
+dropped and replaced with `NONE` when the number becomes 0.
+
+We perform removal in `Sparse` nodes by copying the remaining children to a new `Sparse` or `Chain` node. This is done
+because deleting a child in a `Sparse` node cannot be done safely in-place while concurrent reads can access the node.
+If the child being removed is not the last, removal requires the remaining children to be shifted to the beginning of
+the array, which cannot be done atomically. If the removed child is the last, no shifting is necessary, and we could in
+theory remove the child performing the steps of adding it in reverse. However, readers may have taken a copy of the
+order word while that child was present, and cannot easily correct their behaviour in response to the node's changed
+state.
+
+For example, consider a sparse node that has children for "a", "c" and "e", where we remove the last added character
+"e". Since readers take a copy of the order word when iterating the node, they will try that third child and must be
+prepared to find a `NONE` pointer. This is not a big problem as they can filter this empty transition out; however,
+we may have later added a new child to this node while the reader is holding that order word, and if this new child has
+"b" as its transition character, the reader's position will jump backwards, which is a serious violation of its contract
+and very difficult to prevent.
 
 ### Memory management and cell reuse
 

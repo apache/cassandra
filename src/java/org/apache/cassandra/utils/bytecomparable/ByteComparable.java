@@ -89,7 +89,7 @@ public interface ByteComparable
         return v -> ByteSource.of(value);
     }
 
-    interface Preencoded extends ByteComparable
+    interface Preencoded extends ByteComparable, Comparable<ByteComparable>
     {
         Version encodingVersion();
 
@@ -109,6 +109,11 @@ public interface ByteComparable
         default byte[] asByteComparableArray(Version version)
         {
             return asComparableBytes(version).remainingBytesToArray();
+        }
+
+        default int compareTo(ByteComparable other)
+        {
+            return compare(this, other, encodingVersion());
         }
     }
 

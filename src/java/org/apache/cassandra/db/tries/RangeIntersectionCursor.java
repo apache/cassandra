@@ -18,9 +18,15 @@
 
 package org.apache.cassandra.db.tries;
 
+import java.util.function.BiFunction;
+import java.util.function.Predicate;
+
 import org.apache.cassandra.utils.bytecomparable.ByteComparable;
 
-class RangeIntersectionCursor<S extends RangeState<S>> implements RangeCursor<S>
+abstract class RangeIntersectionCursor<S extends RangeState<S>, C extends RangeCursor<S>,
+                                       R extends RangeState<R>, D extends RangeCursor<R>,
+                                       Q extends RangeState<Q>>
+implements RangeCursor<Q>
 {
     enum State
     {
@@ -29,17 +35,22 @@ class RangeIntersectionCursor<S extends RangeState<S>> implements RangeCursor<S>
         SOURCE_AHEAD
     }
 
-    final RangeCursor<S> src;
-    final TrieSetCursor set;
+    final C src;
+    final D set;
     long currentPosition;
-    S currentState;
+    Q currentState;
     State state;
 
-    public RangeIntersectionCursor(RangeCursor<S> src, TrieSetCursor set)
+    public RangeIntersectionCursor(C src, D set)
     {
         this.set = set;
         this.src = src;
         assert Cursor.compare(src.encodedPosition(), set.encodedPosition()) == 0;
+        // concrete class must call setInitialState()
+    }
+
+    void setInitialState()
+    {
         matchingPosition(set.encodedPosition());
     }
 
@@ -56,12 +67,6 @@ class RangeIntersectionCursor<S extends RangeState<S>> implements RangeCursor<S>
     }
 
     @Override
-    public S state()
-    {
-        return currentState;
-    }
-
-    @Override
     public long advance()
     {
         switch(state)
@@ -69,7 +74,7 @@ class RangeIntersectionCursor<S extends RangeState<S>> implements RangeCursor<S>
             case MATCHING:
             {
                 long lposition = set.advance();
-                if (set.precedingIncluded())
+                if (precedingIncludedBySet())
                     return advanceWithSetAhead(src.advance());
                 else
                     return advanceSourceToIntersection(lposition);
@@ -82,6 +87,9 @@ class RangeIntersectionCursor<S extends RangeState<S>> implements RangeCursor<S>
                 throw new AssertionError();
         }
     }
+
+    protected abstract boolean precedingIncludedBySet();
+    protected abstract boolean precedingIncludedBySource();
 
     @Override
     public long skipTo(long skipPosition)
@@ -116,7 +124,7 @@ class RangeIntersectionCursor<S extends RangeState<S>> implements RangeCursor<S>
     private long skipBoth(long skipPosition)
     {
         long lposition = set.skipTo(skipPosition);
-        if (set.precedingIncluded())
+        if (precedingIncludedBySet())
             return advanceWithSetAhead(src.skipTo(skipPosition));
         else
             return advanceSourceToIntersection(lposition);
@@ -131,7 +139,7 @@ class RangeIntersectionCursor<S extends RangeState<S>> implements RangeCursor<S>
             {
                 // Cannot do multi-advance when cursors are at the same position. Applying advance().
                 long lposition = set.advance();
-                if (set.precedingIncluded())
+                if (precedingIncludedBySet())
                     return advanceWithSetAhead(src.advance());
                 else
                     return advanceSourceToIntersection(lposition);
@@ -155,7 +163,7 @@ class RangeIntersectionCursor<S extends RangeState<S>> implements RangeCursor<S>
             return matchingPosition(sourcePosition);
 
         // Advancing cursor moved beyond the ahead cursor. Check if roles have reversed.
-        if (src.precedingState() != null)
+        if (precedingIncludedBySource())
             return coveredAreaWithSourceAhead(setPosition);
         else
             return advanceSetToIntersection(sourcePosition);
@@ -171,7 +179,7 @@ class RangeIntersectionCursor<S extends RangeState<S>> implements RangeCursor<S>
             return matchingPosition(setPosition);
 
         // Advancing cursor moved beyond the ahead cursor. Check if roles have reversed.
-        if (set.precedingIncluded())
+        if (precedingIncludedBySet())
             return coveredAreaWithSetAhead(sourcePosition);
         else
             return advanceSourceToIntersection(setPosition);
@@ -185,14 +193,14 @@ class RangeIntersectionCursor<S extends RangeState<S>> implements RangeCursor<S>
             long sourcePosition = src.skipTo(setPosition);
             if (Cursor.compare(sourcePosition, setPosition) == 0)
                 return matchingPosition(setPosition);
-            if (src.precedingState() != null)
+            if (precedingIncludedBySource())
                 return coveredAreaWithSourceAhead(setPosition);
 
             // Source is ahead of set, but outside the covered area. Skip set to source's position.
             setPosition = set.skipTo(sourcePosition);
             if (Cursor.compare(setPosition, sourcePosition) == 0)
                 return matchingPosition(sourcePosition);
-            if (set.precedingIncluded())
+            if (precedingIncludedBySet())
                 return coveredAreaWithSetAhead(sourcePosition);
         }
     }
@@ -205,21 +213,21 @@ class RangeIntersectionCursor<S extends RangeState<S>> implements RangeCursor<S>
             long setPosition = set.skipTo(sourcePosition);
             if (Cursor.compare(setPosition, sourcePosition) == 0)
                 return matchingPosition(sourcePosition);
-            if (set.precedingIncluded())
+            if (precedingIncludedBySet())
                 return coveredAreaWithSetAhead(sourcePosition);
 
             // Set is ahead of source, but outside the covered area. Skip source to set's position.
             sourcePosition = src.skipTo(setPosition);
             if (Cursor.compare(setPosition, sourcePosition) == 0)
                 return matchingPosition(setPosition);
-            if (src.precedingState() != null)
+            if (precedingIncludedBySource())
                 return coveredAreaWithSourceAhead(setPosition);
         }
     }
 
     private long coveredAreaWithSetAhead(long position)
     {
-        return setState(State.SET_AHEAD, position, src.state());
+        return setState(State.SET_AHEAD, position, restrict(src.state(), set.precedingState()));
     }
 
     private long coveredAreaWithSourceAhead(long position)
@@ -232,17 +240,9 @@ class RangeIntersectionCursor<S extends RangeState<S>> implements RangeCursor<S>
         return setState(State.MATCHING, position, restrict(src.state(), set.state()));
     }
 
-    private S restrict(S srcState, TrieSetCursor.RangeState setState)
-    {
-        if (srcState == null)
-            return null;
-        if (srcState.isBoundary())
-            return srcState.restrict(setState.applicableBefore, setState.applicableAfter);
+    protected abstract Q restrict(S srcState, R setState);
 
-        return setState.applyToCoveringState(srcState);
-    }
-
-    private long setState(State state, long position, S cursorState)
+    private long setState(State state, long position, Q cursorState)
     {
         this.state = state;
         this.currentPosition = position;
@@ -250,48 +250,166 @@ class RangeIntersectionCursor<S extends RangeState<S>> implements RangeCursor<S>
         return position;
     }
 
-    @Override
-    public RangeCursor<S> tailCursor(Direction direction)
+    static class RangeBySet<S extends RangeState<S>> extends RangeIntersectionCursor<S, RangeCursor<S>, TrieSetCursor.RangeState, TrieSetCursor, S>
     {
-        switch (state)
+        public RangeBySet(RangeCursor<S> src, TrieSetCursor set)
         {
-            case MATCHING:
-                return new RangeIntersectionCursor<>(src.tailCursor(direction), set.tailCursor(direction));
-            case SET_AHEAD:
-                return src.tailCursor(direction);
-            case SOURCE_AHEAD:
-                return new RangeIntersectionCursor<>(src.precedingStateCursor(direction), set.tailCursor(direction));
-            default:
-                throw new AssertionError();
+            super(src, set);
+            setInitialState();
+        }
+
+        @Override
+        public S state()
+        {
+            return currentState;
+        }
+
+        @Override
+        protected boolean precedingIncludedBySet()
+        {
+            return set.precedingIncluded();
+        }
+
+        @Override
+        protected boolean precedingIncludedBySource()
+        {
+            return src.precedingState() != null;
+        }
+
+        protected S restrict(S srcState, TrieSetCursor.RangeState setState)
+        {
+            if (srcState == null || setState == null)
+                return null;
+            if (srcState.isBoundary())
+                return srcState.restrict(setState.applicableBefore, setState.applicableAfter);
+
+            return setState.applyToCoveringState(srcState);
+        }
+
+        @Override
+        public RangeCursor<S> tailCursor(Direction direction)
+        {
+            switch (state)
+            {
+                case MATCHING:
+                    return new RangeBySet<>(src.tailCursor(direction), set.tailCursor(direction));
+                case SET_AHEAD:
+                    return src.tailCursor(direction);
+                case SOURCE_AHEAD:
+                    return new RangeBySet<>(src.precedingStateCursor(direction), set.tailCursor(direction));
+                default:
+                    throw new AssertionError();
+            }
         }
     }
 
-    static class TrieSet extends RangeIntersectionCursor<TrieSetCursor.RangeState> implements TrieSetCursor
+    static class TrieSet
+    extends RangeIntersectionCursor<TrieSetCursor.RangeState, TrieSetCursor, TrieSetCursor.RangeState, TrieSetCursor, TrieSetCursor.RangeState>
+    implements TrieSetCursor
     {
         public TrieSet(TrieSetCursor src, TrieSetCursor set)
         {
             super(src, set);
+            setInitialState();
         }
 
         @Override
-        public RangeState state()
+        protected boolean precedingIncludedBySet()
         {
-            RangeState s = super.state();
-            return s != null ? s : RangeState.NOT_CONTAINED;
+            return set.precedingIncluded();
+        }
+
+        @Override
+        protected boolean precedingIncludedBySource()
+        {
+            return src.precedingIncluded();
+        }
+
+        protected TrieSetCursor.RangeState restrict(TrieSetCursor.RangeState srcState, TrieSetCursor.RangeState setState)
+        {
+            if (srcState == null || setState == null)
+                return RangeState.NOT_CONTAINED;
+
+            return srcState.intersect(setState);
+        }
+
+        @Override
+        public RangeState nonNullState()
+        {
+            return currentState;
         }
 
         @Override
         public TrieSetCursor tailCursor(Direction direction)
         {
-            TrieSetCursor source = (TrieSetCursor) src;
             switch (state)
             {
                 case MATCHING:
-                    return new TrieSet(source.tailCursor(direction), set.tailCursor(direction));
+                    return new TrieSet(src.tailCursor(direction), set.tailCursor(direction));
                 case SET_AHEAD:
-                    return source.tailCursor(direction);
+                    return src.tailCursor(direction);
                 case SOURCE_AHEAD:
                     return set.tailCursor(direction);
+                default:
+                    throw new AssertionError();
+            }
+        }
+    }
+
+    static class WithResolver<S extends RangeState<S>, R extends RangeState<R>, Q extends RangeState<Q>>
+    extends RangeIntersectionCursor<S, RangeCursor<S>, R, RangeCursor<R>, Q>
+    {
+        final Predicate<? super S> includedBySource;
+        final Predicate<? super R> includedBySet;
+        final BiFunction<? super S, ? super R, ? extends Q> resolver;
+
+        public WithResolver(RangeCursor<S> src, RangeCursor<R> set,
+                            Predicate<? super S> includedBySource,
+                            Predicate<? super R> includedBySet,
+                            BiFunction<? super S, ? super R, ? extends Q> resolver)
+        {
+            super(src, set);
+            this.includedBySet = includedBySet;
+            this.includedBySource = includedBySource;
+            this.resolver = resolver;
+            setInitialState();
+        }
+
+        @Override
+        public Q state()
+        {
+            return currentState;
+        }
+
+        @Override
+        protected boolean precedingIncludedBySet()
+        {
+            return includedBySet.test(set.precedingState());
+        }
+
+        @Override
+        protected boolean precedingIncludedBySource()
+        {
+            return includedBySource.test(src.precedingState());
+        }
+
+        @Override
+        protected Q restrict(S srcState, R setState)
+        {
+            return resolver.apply(srcState, setState);
+        }
+
+        @Override
+        public RangeCursor<Q> tailCursor(Direction direction)
+        {
+            switch (state)
+            {
+                case MATCHING:
+                    return new WithResolver<>(src.tailCursor(direction), set.tailCursor(direction), includedBySource, includedBySet, resolver);
+                case SET_AHEAD:
+                    return new WithResolver<>(src.tailCursor(direction), set.precedingStateCursor(direction), includedBySource, includedBySet, resolver);
+                case SOURCE_AHEAD:
+                    return new WithResolver<>(src.precedingStateCursor(direction), set.tailCursor(direction), includedBySource, includedBySet, resolver);
                 default:
                     throw new AssertionError();
             }

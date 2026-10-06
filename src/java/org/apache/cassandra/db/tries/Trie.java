@@ -20,6 +20,9 @@ package org.apache.cassandra.db.tries;
 import java.util.Collection;
 import java.util.Iterator;
 import java.util.Map;
+import java.util.function.BiFunction;
+import java.util.function.Function;
+import java.util.function.Predicate;
 
 import com.google.common.collect.ImmutableList;
 import com.google.common.collect.Iterables;
@@ -158,6 +161,19 @@ public interface Trie<T> extends BaseTrie<T, Cursor<T>, Trie<T>>
     default Trie<T> mergeWith(Trie<T> other, MergeResolver<T> resolver)
     {
         return dir -> new MergeCursor.Plain<>(resolver, this.cursor(dir), other.cursor(dir));
+    }
+
+    /// Constructs a view of the merge of this trie with the given one, applying a transformation over all values.
+    /// The view is live, i.e. any write to any of the sources will be reflected in the merged view.
+    ///
+    /// The resolver will be called for all content in any of the two source to transform it to the output type,
+    /// and one of its arguments will be null if the other source has no matching content.
+    default <Q, R>
+    Trie<R> mappingMergeWith(Trie<Q> other, BiFunction<T, Q, R> resolver)
+    {
+        return dir -> new MergeCursor.PlainMapping<>(resolver,
+                                                     cursor(dir),
+                                                     other.cursor(dir));
     }
 
     /// Resolver of content of merged nodes.
@@ -301,11 +317,16 @@ public interface Trie<T> extends BaseTrie<T, Cursor<T>, Trie<T>>
             return null;
     }
 
-    /// Returns an entry set containing all tail tree constructed at the points that contain content of
-    /// the given type.
-    default Iterable<Map.Entry<ByteComparable.Preencoded, Trie<T>>> tailTries(Direction direction, Class<? extends T> clazz)
+    @Override
+    default Iterable<Map.Entry<ByteComparable.Preencoded, Trie<T>>> tailTries(Direction direction, Predicate<? super T> predicate)
     {
-        return () -> new TrieTailsIterator.AsEntries<>(cursor(direction), clazz);
+        return () -> new TrieTailsIterator.AsEntries<>(cursor(direction), predicate);
+    }
+
+    /// Returns a view of this trie where all content is processed through the given mapping function.
+    default <V> Trie<V> mapValues(Function<T, V> mapper)
+    {
+        return dir -> new ContentMappingCursor.Plain<>(mapper, cursor(dir));
     }
 
     static <T> Trie<T> empty(ByteComparable.Version byteComparableVersion)

@@ -120,13 +120,13 @@ public interface TrieSet extends CursorWalkable<TrieSetCursor>
         {
             long skipPosition = Cursor.positionForDescentWithByte(cursor.encodedPosition(), next);
             if (Cursor.compare(cursor.skipTo(skipPosition), skipPosition) != 0)
-                return cursor.state().precedingIncluded(Direction.FORWARD) ? ContainsResult.CONTAINED
-                                                                           : ContainsResult.NOT_CONTAINED;
+                return cursor.nonNullState().precedingIncluded(Direction.FORWARD) ? ContainsResult.CONTAINED
+                                                                                  : ContainsResult.NOT_CONTAINED;
 
             next = bytes.next();
         }
-        return cursor.state().succeedingIncluded(Direction.FORWARD) ? ContainsResult.CONTAINED
-                                                                    : ContainsResult.PREFIX;
+        return cursor.nonNullState().succeedingIncluded(Direction.FORWARD) ? ContainsResult.CONTAINED
+                                                                           : ContainsResult.PREFIX;
     }
 
     default TrieSet union(TrieSet other)

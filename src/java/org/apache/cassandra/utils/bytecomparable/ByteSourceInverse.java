@@ -248,6 +248,14 @@ public final class ByteSourceInverse
     }
 
     /**
+     * Decode a variable-length unsigned integer.
+     */
+    public static long getVariableLengthUnsignedInteger(ByteSource byteSource)
+    {
+        return getVariableLengthUnsignedIntegerXoring(byteSource, 0);
+    }
+
+    /**
      * Decode a variable-length unsigned integer, passing all bytes read through XOR with the given xorWith parameter.
      *
      * Used in BigInteger encoding to read number length, where negative numbers have their length negated

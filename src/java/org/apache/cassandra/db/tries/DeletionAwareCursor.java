@@ -21,6 +21,7 @@ package org.apache.cassandra.db.tries;
 import java.util.function.BiFunction;
 
 import org.apache.cassandra.utils.bytecomparable.ByteComparable;
+import org.apache.cassandra.utils.bytecomparable.ByteSource;
 
 /// Cursor interface for deletion-aware tries that provides access to both live data and deletion branches.
 ///
@@ -77,24 +78,24 @@ public interface DeletionAwareCursor<T, D extends RangeState<D>> extends Cursor<
     DeletionAwareCursor<T, D> tailCursor(Direction direction);
 
 
-    /// Process the trie using the given [DeletionAwareTrie.DeletionAwareWalker], providing access to both live and
+    /// Process the trie using the given [DeletionAwareWalker], providing access to both live and
     /// deletion branches.
-    default <R> R process(DeletionAwareTrie.DeletionAwareWalker<? super T, ? super D, R> walker)
+    default <R> R process(DeletionAwareWalker<? super T, ? super D, R> walker)
     {
         assertFresh();
         long currentPosition = encodedPosition();
 
         while (true)
         {
+            T content = content();   // handle content on the root node
+            if (content != null)
+                walker.content(content);
             RangeCursor<D> deletionBranch = deletionBranchCursor(direction());
             if (deletionBranch != null && walker.enterDeletionsBranch())
             {
                 processDeletionBranch(walker, deletionBranch);
                 walker.exitDeletionsBranch();
             }
-            T content = content();   // handle content on the root node
-            if (content != null)
-                walker.content(content);
 
             long prevPosition = currentPosition;
             currentPosition = advanceMultiple(walker);
@@ -109,7 +110,7 @@ public interface DeletionAwareCursor<T, D extends RangeState<D>> extends Cursor<
     }
 
     /// Process a deletion branch using the given walker.
-    private static <D> void processDeletionBranch(DeletionAwareTrie.DeletionAwareWalker<?, ? super D, ?> walker, Cursor<D> cursor)
+    private static <D> void processDeletionBranch(DeletionAwareWalker<?, ? super D, ?> walker, Cursor<D> cursor)
     {
         cursor.assertFresh();
         D content = cursor.content();   // handle content on the root node
@@ -120,6 +121,32 @@ public interface DeletionAwareCursor<T, D extends RangeState<D>> extends Cursor<
         {
             walker.deletionMarker(content);
             content = cursor.advanceToContent(walker);
+        }
+    }
+
+    /// Walker interface extended to also process deletion branches.
+    interface DeletionAwareWalker<T, D, R> extends Walker<T, R>
+    {
+        /// Called when a deletion branch is found. Return false to skip over it, or true to use to descend inside
+        /// it. If this returns true, this walker will go through the deletion branch, call [#deletionMarker] for
+        /// all content of the deletion branch and exit the branch by calling [#exitDeletionsBranch] when it is
+        /// exhausted, after which it will start the walk over the data branch of this node.
+        ///
+        /// Note that the depth given by [#resetPathLength] in the deletion branch will be relative to the root of the
+        /// deletion branch. See [TrieEntriesWalker.DeletionAware] for an example of handling this.
+        default boolean enterDeletionsBranch()
+        {
+            // do nothing by default
+            return true;
+        }
+
+        /// Called for every deletion marker found in the deletion branch.
+        void deletionMarker(D marker);
+
+        /// Called when the deletion branch is exited.
+        default void exitDeletionsBranch()
+        {
+            // do nothing by default
         }
     }
 
@@ -168,6 +195,100 @@ public interface DeletionAwareCursor<T, D extends RangeState<D>> extends Cursor<
                     throw new AssertionError();
             }
         }
+
+        /// Returns an unmerged tail cursor that includes the data and deletion branches applicable to the current
+        /// point. Used by [TrieTailsIterator.DeletionAware].
+        ///
+        /// @param includeCoveringDeletion If false, any covering deletion will not be included in the tail deletion
+        ///        branch, including the internal ranges where the covering deletion applies.
+        public DeletionAwareTrie<T, D> deletionAwareTail(boolean includeCoveringDeletion)
+        {
+            if (Cursor.isOnReturnPath(encodedPosition()))
+                return null;
+
+            switch (state)
+            {
+                case C1_ONLY:
+                    return combineTails(c1, null);
+                case AT_C2:
+                    return combineTails(null, includeCoveringDeletion ? c2 : dropCoveringDeletions(c2));
+                case AT_C1:
+                    return combineTails(c1, includeCoveringDeletion ? c2.precedingStateCursor(direction()) : null);
+                case AT_BOTH:
+                    return combineTails(c1, includeCoveringDeletion ? c2 : dropCoveringDeletions(c2));
+                default:
+                    throw new AssertionError();
+            }
+        }
+    }
+
+    /// Returns a wrapped version of the given cursor that drops any deletion that applies to the current point as
+    /// a covering deletion. Used to prepare a cursor for taking its tail when `ignoreCoveringDeletion` is false.
+    static <D extends RangeState<D>> RangeCursor<D> dropCoveringDeletions(RangeCursor<D> cursor)
+    {
+        D state = cursor.state();
+        if (state == null)
+            return cursor;
+        // If a covering state applies, it must be the left side of the state.
+        D preceeding = state.precedingState(cursor.direction());
+        if (preceeding == null)
+            return cursor;
+        return new ContentMappingCursor.Range<>(s -> dropDeletion(s, preceeding), cursor);
+    }
+
+    private static <D extends RangeState<D>> D dropDeletion(D state, D toDrop)
+    {
+        if (state.isBoundary())
+        {
+            boolean dropLeft = toDrop.equals(state.precedingState(Direction.FORWARD));
+            boolean dropRight = toDrop.equals(state.succedingState(Direction.FORWARD));
+            if (!dropLeft && !dropRight)
+                return state;
+            return state.restrict(!dropLeft, !dropRight);
+        }
+        else
+            return state.equals(toDrop) ? null : state;
+    }
+
+    /// Returns a tail trie formed by combining the tail tries of the positions of the given live and deletion cursors,
+    /// correcting for any of the arguments being null.
+    static <T, D extends RangeState<D>>
+    DeletionAwareTrie<T, D> combineTails(DeletionAwareCursor<T, D> c, RangeCursor<D> deletionBranch)
+    {
+        if (c == null && deletionBranch == null)
+            return null;
+
+        // Create a trie cursor now to make sure changes to c or deletionBranch do not affect it.
+        DeletionAwareCursor<T, D> cursor = combineTailCursors(c, deletionBranch);
+
+        return dir -> cursor.tailCursor(dir);
+    }
+
+    private static <T, D extends RangeState<D>>
+    DeletionAwareCursor<T, D> combineTailCursors(DeletionAwareCursor<T, D> c, RangeCursor<D> deletionBranch)
+    {
+        if (c != null)
+        {
+            Direction direction = c.direction();
+            if (deletionBranch != null)
+                return new PrefixedCursor.DeletionAwareSeparately<>(ByteComparable.EMPTY,
+                                                                    c.tailCursor(direction),
+                                                                    deletionBranch.tailCursor(direction));
+            else
+                return c.tailCursor(direction);
+        }
+        else if (deletionBranch != null)
+        {
+            // fix the position of the deletion branch
+            Direction direction = deletionBranch.direction();
+            deletionBranch = deletionBranch.tailCursor(direction);
+            return new SingletonCursor.DeletionBranch<>(direction,
+                                                        ByteSource.EMPTY,
+                                                        deletionBranch.byteComparableVersion(),
+                                                        deletionBranch::tailCursor);
+        }
+        else
+            return null;
     }
 
     /// A variant of [LiveAndDeletionsMergeCursor] that can be asked to stop issuing deletion markers.
@@ -227,9 +348,10 @@ public interface DeletionAwareCursor<T, D extends RangeState<D>> extends Cursor<
             {
                 case C1_ONLY:
                     return new SwitchableLiveAndDeletionsMergeCursor<>(resolver, c1.tailCursor(direction), stopIssuingDeletions);
-                    // we can't reach any of the other states if stopIssuingDeletions is true
                 case AT_C2:
+                    // If stopIssuingDeletions was just set, c2 is empty thus we return an empty cursor as expected.
                     return new SwitchableLiveAndDeletionsMergeCursor<>(resolver, new DeletionAwareCursor.Empty<>(direction, byteComparableVersion()), c2.tailCursor(direction));
+                    // we can't reach any of the other states if stopIssuingDeletions is true
                 case AT_C1:
                     return new SwitchableLiveAndDeletionsMergeCursor<>(resolver, c1.tailCursor(direction), c2.precedingStateCursor(direction));
                 case AT_BOTH:

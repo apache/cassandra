@@ -63,12 +63,12 @@ public class InMemoryDeletionAwareTrieThreadedTest extends ThreadedTestBase<Live
             // Add live data point using apply with singleton trie
             DeletionAwareTrie<LivePoint, DeletionMarker> singletonTrie = DeletionAwareTrie.singleton(b, VERSION, v);
             trie.apply(singletonTrie,
-                      DataPoint::combineLive, // Combine live data using DataPoint utility
-                      DataPoint::combineDeletion, // Combine deletion markers using DataPoint utility
-                      DataPoint::deleteLive, // Apply deletions to existing data using DataPoint utility
-                      DataPoint::deleteLive, // Apply deletions to incoming data using DataPoint utility
-                      true, // deletionsAtFixedPoints = true (singleton deletions satisfy invariant)
-                      x -> false); // needsForcedCopy = never force copy for this test
+                       DataPoint::combineLive, // Combine live data using DataPoint utility
+                       DataPoint::combineDeletion, // Combine deletion markers using DataPoint utility
+                       DataPoint::deleteLive, // Apply deletions to existing data using DataPoint utility
+                       DataPoint::deleteLive, // Apply deletions to incoming data using DataPoint utility
+                       true, // deletionsAtFixedPoints = true (singleton deletions satisfy invariant)
+                       x -> false); // needsForcedCopy = never force copy for this test
         }
         else if (iteration % 3 == 1)
         {
@@ -108,12 +108,12 @@ public class InMemoryDeletionAwareTrieThreadedTest extends ThreadedTestBase<Live
                                        true); // deletionsAtFixedPoints = true
 
             trie.apply(combinedTrie,
-                      DataPoint::combineLive, // Combine live data using DataPoint utility
-                      DataPoint::combineDeletion, // Combine deletion markers using DataPoint utility
-                      DataPoint::deleteLive, // Apply deletions to existing data using DataPoint utility
-                      DataPoint::deleteLive, // Apply deletions to incoming data using DataPoint utility
-                      true, // deletionsAtFixedPoints = true (singleton deletions satisfy invariant)
-                      x -> false); // needsForcedCopy = never force copy for this test
+                       DataPoint::combineLive, // Combine live data using DataPoint utility
+                       DataPoint::combineDeletion, // Combine deletion markers using DataPoint utility
+                       DataPoint::deleteLive, // Apply deletions to existing data using DataPoint utility
+                       DataPoint::deleteLive, // Apply deletions to incoming data using DataPoint utility
+                       true, // deletionsAtFixedPoints = true (singleton deletions satisfy invariant)
+                       x -> false); // needsForcedCopy = never force copy for this test
         }
     }
 }
