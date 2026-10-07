@@ -299,7 +299,7 @@ public class CQL3CasRequest implements CASRequest
 
     public PartitionUpdate makeUpdates(FilteredPartition current, ClientState clientState, Ballot ballot) throws InvalidRequestException
     {
-        PartitionUpdate.Builder updateBuilder = new PartitionUpdate.Builder(metadata, key, updatedColumns(), conditions.size());
+        PartitionUpdate.Builder updateBuilder = PartitionUpdate.builder(metadata, key, updatedColumns(), conditions.size());
         long timeUuidNanos = 0;
         for (RowUpdate upd : updates)
             timeUuidNanos = upd.applyUpdates(current, updateBuilder, clientState, ballot.msb(), timeUuidNanos);

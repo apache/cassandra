@@ -166,7 +166,7 @@ public abstract  class AbstractReadRepairTest
         Assert.assertEquals(expected.key(), actual.key());
         PartitionUpdate expectedUpdate = Iterables.getOnlyElement(expected.getPartitionUpdates());
         PartitionUpdate actualUpdate = Iterables.getOnlyElement(actual.getPartitionUpdates());
-        assertRowsEqual(Iterables.getOnlyElement(expectedUpdate), Iterables.getOnlyElement(actualUpdate));
+        assertRowsEqual(Iterables.getOnlyElement(expectedUpdate.rows()), Iterables.getOnlyElement(actualUpdate.rows()));
     }
 
     static DecoratedKey dk(int v)

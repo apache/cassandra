@@ -176,7 +176,7 @@ public class ReadMessageTest
         int found = 0;
         for (FilteredPartition partition : Util.getAll(Util.cmd(cfs).build()))
         {
-            for (Row r : partition)
+            for (Row r : partition.rows())
             {
                 if (r.getCell(col).value().equals(ByteBufferUtil.bytes("abcd")))
                     ++found;

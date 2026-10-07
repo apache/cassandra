@@ -321,7 +321,7 @@ public class PartitionImplementationTest
 
         // iterator
         assertIteratorsEqual(sortedContent.stream().filter(x -> x instanceof Row).iterator(),
-                             partition.iterator());
+                             partition.rowIterator());
 
         // unfiltered iterator
         assertIteratorsEqual(sortedContent.iterator(),

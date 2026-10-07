@@ -1730,7 +1730,7 @@ public final class SystemKeyspace
     {
         long timestamp = FBUtilities.timestampMicros();
         long nowInSec = FBUtilities.nowInSeconds();
-        PartitionUpdate.Builder update = new PartitionUpdate.Builder(LegacySizeEstimates, UTF8Type.instance.decompose(keyspace), LegacySizeEstimates.regularAndStaticColumns(), estimates.size());
+        PartitionUpdate.Builder update = PartitionUpdate.builder(LegacySizeEstimates, UTF8Type.instance.decompose(keyspace), LegacySizeEstimates.regularAndStaticColumns(), estimates.size());
         // delete all previous values with a single range tombstone.
         update.add(new RangeTombstone(Slice.make(LegacySizeEstimates.comparator, table), DeletionTime.build(timestamp - 1, nowInSec)));
 
@@ -1755,7 +1755,7 @@ public final class SystemKeyspace
     {
         long timestamp = FBUtilities.timestampMicros();
         long nowInSec = FBUtilities.nowInSeconds();
-        PartitionUpdate.Builder update = new PartitionUpdate.Builder(TableEstimates, UTF8Type.instance.decompose(keyspace), TableEstimates.regularAndStaticColumns(), estimates.size());
+        PartitionUpdate.Builder update = PartitionUpdate.builder(TableEstimates, UTF8Type.instance.decompose(keyspace), TableEstimates.regularAndStaticColumns(), estimates.size());
 
         // delete all previous values with a single range tombstone.
         update.add(new RangeTombstone(Slice.make(TableEstimates.comparator, table, type), DeletionTime.build(timestamp - 1, nowInSec)));

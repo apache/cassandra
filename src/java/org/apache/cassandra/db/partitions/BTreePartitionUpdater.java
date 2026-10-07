@@ -62,7 +62,7 @@ public class BTreePartitionUpdater implements UpdateFunction<Row, Row>, ColumnDa
         this.keySize = 0;
     }
 
-    public BTreePartitionData mergePartitions(BTreePartitionData current, final PartitionUpdate update)
+    public BTreePartitionData mergePartitions(BTreePartitionData current, final BTreePartitionUpdate update)
     {
         if (current == null)
         {
@@ -84,7 +84,7 @@ public class BTreePartitionUpdater implements UpdateFunction<Row, Row>, ColumnDa
         }
     }
 
-    protected BTreePartitionData makeMergedPartition(BTreePartitionData current, PartitionUpdate update)
+    protected BTreePartitionData makeMergedPartition(BTreePartitionData current, BTreePartitionUpdate update)
     {
         if (cloner.isContextAwareCloningSupported()) // to avoid an estimation cost if context aware cloning is not supported
         {
@@ -92,7 +92,7 @@ public class BTreePartitionUpdater implements UpdateFunction<Row, Row>, ColumnDa
             // a typical case when all values in the update are used in the result of the merge
             // clustering key cloning is needed when we have an insert but not needed when we have an update,
             // so we may allocate a bit more than needed sometimes
-            for (Row row : update)
+            for (Row row : update.rows())
             {
                 estimitedCloneSize += (int) row.accumulate((cd, v) -> v + cd.estimateCloneSize(cloner), 0);
                 estimitedCloneSize += cloner.estimateCloneSize(row.clustering());

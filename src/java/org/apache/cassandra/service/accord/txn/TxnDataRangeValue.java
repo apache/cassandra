@@ -156,7 +156,7 @@ public class TxnDataRangeValue extends ArrayList<FilteredPartition> implements T
             Row staticRow = partition.staticRow();
             if (staticRow != null)
                 size += staticRow.unsharedHeapSize();
-            for (Row row : partition)
+            for (Row row : partition.rows())
                 size += row.unsharedHeapSize();
         }
 

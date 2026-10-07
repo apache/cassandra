@@ -224,14 +224,14 @@ public class AtomicBTreePartitionMemtableAccountingTest
         {
             // Test regular row updates
             Pair<Row, Row> regularRows = makeInitialAndUpdate(r1md, c2md);
-            PartitionUpdate initial = PartitionUpdate.singleRowUpdate(metadata, partitionKey, regularRows.left, null);
-            PartitionUpdate update = PartitionUpdate.singleRowUpdate(metadata, partitionKey, regularRows.right, null);
+            PartitionUpdate initial = BTreePartitionUpdate.singleRowUpdate(metadata, partitionKey, regularRows.left, null);
+            PartitionUpdate update = BTreePartitionUpdate.singleRowUpdate(metadata, partitionKey, regularRows.right, null);
             validateUpdates(metadata, partitionKey, Arrays.asList(initial, update));
 
             // Test static row updates
             Pair<Row, Row> staticRows = makeInitialAndUpdate(s3md, c4md);
-            PartitionUpdate staticInitial = PartitionUpdate.singleRowUpdate(metadata, partitionKey, null, staticRows.left);
-            PartitionUpdate staticUpdate = PartitionUpdate.singleRowUpdate(metadata, partitionKey, null, staticRows.right);
+            PartitionUpdate staticInitial = BTreePartitionUpdate.singleRowUpdate(metadata, partitionKey, null, staticRows.left);
+            PartitionUpdate staticUpdate = BTreePartitionUpdate.singleRowUpdate(metadata, partitionKey, null, staticRows.right);
             validateUpdates(metadata, partitionKey, Arrays.asList(staticInitial, staticUpdate));
         }
 
@@ -307,7 +307,7 @@ public class AtomicBTreePartitionMemtableAccountingTest
                 long updateUnreleasable = 0;
                 if (!BTree.isEmpty(partition.unsafeGetHolder().tree))
                 {
-                    for (Row updRow : BTree.<Row>iterable(update.holder().tree))
+                    for (Row updRow : BTree.<Row>iterable(((BTreePartitionUpdate) update).holder().tree))
                     {
                         Row exsRow = BTree.find(partition.unsafeGetHolder().tree, partition.metadata().comparator, updRow);
                         updateUnreleasable += getUnreleasableSize(updRow, exsRow, exsDeletion, updDeletion);

@@ -49,6 +49,7 @@ import org.apache.cassandra.db.filter.ClusteringIndexFilter;
 import org.apache.cassandra.db.filter.ColumnFilter;
 import org.apache.cassandra.db.partitions.AbstractUnfilteredPartitionIterator;
 import org.apache.cassandra.db.partitions.BTreePartitionData;
+import org.apache.cassandra.db.partitions.BTreePartitionUpdate;
 import org.apache.cassandra.db.partitions.BTreePartitionUpdater;
 import org.apache.cassandra.db.partitions.ImmutableBTreePartition;
 import org.apache.cassandra.db.partitions.Partition;
@@ -566,6 +567,7 @@ public class TrieMemtable extends AbstractShardedMemtable
 
         public long put(DecoratedKey key, PartitionUpdate update, UpdateTransaction indexer, OpOrder.Group opGroup) throws TrieSpaceExhaustedException
         {
+            BTreePartitionUpdate btreeUpdate = BTreePartitionUpdate.asBTreeUpdate(update);
             BTreePartitionUpdater updater = new BTreePartitionUpdater(allocator, allocator.cloner(opGroup), opGroup, indexer);
             boolean locked = writeLock.tryLock();
             if (locked)
@@ -587,7 +589,7 @@ public class TrieMemtable extends AbstractShardedMemtable
                     long offHeap = data.usedSizeOffHeap();
                     // Use the fast recursive put if we know the key is small enough to not cause a stack overflow.
                     data.putSingleton(key,
-                                      update,
+                                      btreeUpdate,
                                       updater::mergePartitions,
                                       key.getKeyLength() < MAX_RECURSIVE_KEY_LENGTH);
                     allocator.offHeap().adjust(data.usedSizeOffHeap() - offHeap);
@@ -764,9 +766,9 @@ public class TrieMemtable extends AbstractShardedMemtable
         }
 
         @Override
-        public Iterator<Row> iterator()
+        public Iterator<Row> rowIterator()
         {
-            return ensureOnHeap.applyToPartition(super.iterator());
+            return ensureOnHeap.applyToPartition(super.rowIterator());
         }
     }
 

@@ -131,13 +131,13 @@ public abstract class AbstractMutationVerbHandler<T extends IMutation> implement
                 // coordinator is ahead - check each partition update if the schema is ahead of the schema we have for the table
                 for (PartitionUpdate pu : message.payload.getPartitionUpdates())
                 {
-                    Epoch remoteSchemaEpoch = pu.serializedAtEpoch;
+                    Epoch remoteSchemaEpoch = pu.serializedAtEpoch();
                     if (remoteSchemaEpoch != null && remoteSchemaEpoch.isAfter(metadata.epoch))
                     {
                         // the partition update was serialized after the epoch we currently know, catch up and
                         // make sure we've seen the epoch it has seen, otherwise fail request.
                         metadata = ClusterMetadataService.instance().fetchLogFromPeerOrCMS(metadata, respondTo, message.epoch());
-                        if (pu.serializedAtEpoch.isAfter(metadata.epoch))
+                        if (pu.serializedAtEpoch().isAfter(metadata.epoch))
                             throw new IllegalStateException(String.format("Coordinator %s is still ahead after fetching log, our epoch = %s, their epoch = %s",
                                                                           respondTo,
                                                                           metadata.epoch, message.epoch()));
@@ -153,7 +153,7 @@ public abstract class AbstractMutationVerbHandler<T extends IMutation> implement
                     ColumnFamilyStore cfs = ks.getColumnFamilyStore(pu.metadata().id);
                     if (cfs != null)
                     {
-                        Epoch remoteSchemaEpoch = pu.serializedAtEpoch;
+                        Epoch remoteSchemaEpoch = pu.serializedAtEpoch();
                         if (remoteSchemaEpoch != null && remoteSchemaEpoch.isBefore(cfs.metadata().epoch))
                         {
                             TCMMetrics.instance.coordinatorBehindSchema.mark();

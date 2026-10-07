@@ -678,7 +678,7 @@ public class ColumnFamilyStoreTest
         {
             for (FilteredPartition partition : Util.getAll(Util.cmd(cfs).filterOn(col.name.toString(), Operator.EQ, val).build()))
             {
-                for (Row r : partition)
+                for (Row r : partition.rows())
                 {
                     if (r.getCell(col).buffer().equals(val))
                         ++found;

@@ -578,7 +578,7 @@ public class ViewUpdateGenerator
         // We can't really know which columns of the view will be updated nor how many row will be updated for this key
         // so we rely on hopefully sane defaults.
         PartitionUpdate.Builder update = updates.computeIfAbsent(partitionKey,
-                                                                 k -> new PartitionUpdate.Builder(viewMetadata,
+                                                                 k -> PartitionUpdate.builder(viewMetadata,
                                                                                                   partitionKey,
                                                                                                   viewMetadata.regularAndStaticColumns(),
                                                                                                   4));

@@ -30,6 +30,7 @@ import org.apache.cassandra.db.PartitionPosition;
 import org.apache.cassandra.db.RegularAndStaticColumns;
 import org.apache.cassandra.db.commitlog.CommitLogPosition;
 import org.apache.cassandra.db.lifecycle.LifecycleTransaction;
+import org.apache.cassandra.db.partitions.BTreePartitionUpdate;
 import org.apache.cassandra.db.partitions.Partition;
 import org.apache.cassandra.db.partitions.PartitionUpdate;
 import org.apache.cassandra.db.rows.EncodingStats;
@@ -149,6 +150,15 @@ public interface Memtable extends Comparable<Memtable>, UnfilteredSource, CellSo
         default boolean streamFromMemtable()
         {
             return false;
+        }
+
+        /**
+         * The factory of partition updates for tables using this memtable. Override this method to provide a custom
+         * partition update implementation, e.g. one that can be merged more efficiently into the memtable.
+         */
+        default PartitionUpdate.Factory partitionUpdateFactory()
+        {
+            return BTreePartitionUpdate.FACTORY;
         }
     }
 
