@@ -18,7 +18,10 @@
 
 package org.apache.cassandra.io.sstable.format;
 
+import java.io.FileNotFoundException;
+import java.io.IOError;
 import java.io.IOException;
+import java.nio.file.NoSuchFileException;
 import java.util.Set;
 
 import com.google.common.collect.ImmutableSet;
@@ -28,6 +31,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import org.apache.cassandra.cache.ChunkCache;
+import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.io.sstable.Component;
 import org.apache.cassandra.io.sstable.CorruptSSTableException;
 import org.apache.cassandra.io.sstable.Descriptor;
@@ -61,13 +65,47 @@ public abstract class SSTableReaderLoadingBuilder<R extends SSTableReader, B ext
     public SSTableReaderLoadingBuilder(SSTable.Builder<?, ?> builder)
     {
         this.descriptor = builder.descriptor;
-        this.components = builder.getComponents() != null ? ImmutableSet.copyOf(builder.getComponents()) : TOCComponent.loadOrCreate(this.descriptor);
+        Set<Component> resolved = builder.getComponents() != null ? ImmutableSet.copyOf(builder.getComponents())
+                                                                  : TOCComponent.loadOrCreate(this.descriptor);
+        this.components = withProvidedComponents(this.descriptor, resolved);
         this.tableMetadataRef = builder.getTableMetadataRef() != null ? builder.getTableMetadataRef() : resolveTableMetadataRef();
         this.ioOptions = builder.getIOOptions() != null ? builder.getIOOptions() : IOOptions.fromDatabaseDescriptor();
         this.chunkCache = builder.getChunkCache() != null ? builder.getChunkCache() : ChunkCache.instance;
 
         checkNotNull(this.components);
         checkNotNull(this.tableMetadataRef);
+    }
+
+    /**
+     * Restores components that a storage provider holds outside the local filesystem.
+     * <p>
+     * Both {@link TOCComponent#loadTOC(Descriptor, boolean)} and {@link Descriptor#discoverComponents()} decide
+     * what an sstable consists of by stat-ing the local directory, so an sstable whose Data component lives in
+     * remote storage reaches this builder looking incomplete. With a provider configured the TOC is the
+     * authoritative list - it records what was written, not what happens to be on this disk - and the provider
+     * answers for the bytes when the component is opened.
+     */
+    private static Set<Component> withProvidedComponents(Descriptor descriptor, Set<Component> components)
+    {
+        if (DatabaseDescriptor.getStorageProviderConfig() == null || components.contains(Components.DATA))
+            return components;
+
+        try
+        {
+            return ImmutableSet.<Component>builder()
+                               .addAll(components)
+                               .addAll(TOCComponent.loadTOC(descriptor, false))
+                               .build();
+        }
+        catch (FileNotFoundException | NoSuchFileException e)
+        {
+            // No TOC either, so there is nothing to recover the component list from.
+            return components;
+        }
+        catch (IOException e)
+        {
+            throw new IOError(e);
+        }
     }
 
     public R build(SSTable.Owner owner, boolean validate, boolean online)
