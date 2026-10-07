@@ -349,6 +349,10 @@ public class AccordConfig
     public DurationSpec.IntMillisecondsBound unique_timestamp_reservation_range = new DurationSpec.IntMillisecondsBound(100);
 
     public boolean ephemeral_reads = true;
+
+    // for compatibility during live upgrade of 6.0-alpha2; can be turned off in release
+    public boolean alpha_compatibility_serialize_write_keys = true;
+
     public boolean state_cache_listener_jfr_enabled = false;
 
     public float hard_reject_ratio = 0.5f;

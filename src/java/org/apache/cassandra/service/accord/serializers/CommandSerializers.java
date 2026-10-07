@@ -32,6 +32,7 @@ import accord.coordinate.Infer;
 import accord.local.Node;
 import accord.local.StoreParticipants;
 import accord.primitives.Ballot;
+import accord.primitives.Keys;
 import accord.primitives.Known;
 import accord.primitives.Known.KnownDeps;
 import accord.primitives.PartialTxn;
@@ -1115,13 +1116,43 @@ public class CommandSerializers
         }
     }
 
-    public static final UnversionedSerializer<SaveStatus> saveStatus = EncodeAsVInt32.of(SaveStatus.class);
+    public static final UnversionedSerializer<SaveStatus> saveStatus = EncodeAsVInt32.withNulls(s -> s.id, SaveStatus::forId);
     public static final UnversionedSerializer<Status> status = EncodeAsVInt32.of(Status.class);
     public static final UnversionedSerializer<Durability> durability = EncodeAsVInt32.withoutNulls(Durability::encoded, Durability::forEncoded);
     public static final UnversionedSerializer<Durability.HasOutcome> outcomeDurability = EncodeAsVInt32.of(Durability.HasOutcome.class);
+    public static final IVersionedSerializer<Writes> writes = new WritesSerializer();
 
-    public static final IVersionedSerializer<Writes> writes = new IVersionedSerializer<>()
+    public static class WritesSerializer implements IVersionedSerializer<Writes>
     {
+        /** See AccordConfig.alpha_compatibility_serialize_write_keys */
+        private static volatile boolean SERIALIZE_KEYS = true;
+
+        public static void setSerializeKeys(boolean newSerializeAllKeys)
+        {
+            SERIALIZE_KEYS = newSerializeAllKeys;
+        }
+
+        @VisibleForTesting
+        public static boolean serializeKeys()
+        {
+            return SERIALIZE_KEYS;
+        }
+
+        private static Seekables<?, ?> serializeKeys(Writes writes)
+        {
+            if (SERIALIZE_KEYS)
+                return writes.keys;
+
+            if (writes.write == null)
+                return Keys.EMPTY;
+
+            // expect writes.write to be instanceof TxnWrite EXCEPT with AccordJournalBurnTest
+            if (writes.write.getClass() != TxnWrite.class)
+                return writes.keys;
+
+            return ((TxnWrite) writes.write).keys();
+        }
+
         @Override
         public void serialize(Writes writes, DataOutputPlus out, Version version) throws IOException
         {
@@ -1129,9 +1160,10 @@ public class CommandSerializers
             ExecuteAtSerializer.serialize(writes.txnId, writes.executeAt, out);
             boolean hasWrite = writes.write != null;
             out.writeBoolean(hasWrite);
-            KeySerializers.seekables.serialize(writes.keys, out);
+            Seekables<?, ?> keys = serializeKeys(writes);
+            KeySerializers.seekables.serialize(keys, out);
             if (hasWrite)
-                CommandSerializers.write.serialize(writes.write, writes.keys, out, version);
+                CommandSerializers.write.serialize(writes.write, keys, out, version);
         }
 
         @Override
@@ -1167,18 +1199,18 @@ public class CommandSerializers
             long size = txnId.serializedSize(writes.txnId);
             size += ExecuteAtSerializer.serializedSize(writes.txnId, writes.executeAt);
             boolean hasWrites = writes.write != null;
-            size += KeySerializers.seekables.serializedSize(writes.keys);
+            Seekables<?, ?> keys = serializeKeys(writes);
+            size += KeySerializers.seekables.serializedSize(keys);
             size += TypeSizes.sizeof(hasWrites);
             if (hasWrites)
-                size += CommandSerializers.write.serializedSize(writes.write, writes.keys, version);
+                size += CommandSerializers.write.serializedSize(writes.write, keys, version);
             return size;
         }
     };
 
     public static final VersionedSerializer<Writes, Version> nullableWrites = NullableSerializer.wrap(writes);
-    public static final UnversionedSerializer<KnownDeps> knownDeps = EncodeAsVInt32.of(KnownDeps.class);
+    public static final UnversionedSerializer<KnownDeps> knownDeps = EncodeAsVInt32.withNulls(deps -> deps.id, KnownDeps::forId);
     public static final UnversionedSerializer<Infer.InvalidIf> invalidIf = EncodeAsVInt32.of(Infer.InvalidIf.class);
-
-    public static final UnversionedSerializer<Known> known = EncodeAsVInt32.withNulls(known -> known.encoded, Known::new);
+    public static final UnversionedSerializer<Known> known = EncodeAsVInt32.withNulls(known -> known.serializeCompat(), Known::deserializeCompat);
 
 }

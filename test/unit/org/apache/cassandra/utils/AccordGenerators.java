@@ -289,11 +289,21 @@ public class AccordGenerators
             builder.durability(NotDurable);
             if (saveStatus.compareTo(SaveStatus.PreAccepted) >= 0)
                 builder.executeAt(executeAt);
-            builder.promised(promised);
-            if (saveStatus.status.compareTo(Status.PreAccepted) > 0)
-                builder.acceptedOrCommitted(accepted);
-            else
+            if (saveStatus.isPrivilegedCoordinatorZeroBallot())
+            {
+                // a privileged coordinator's original (non-recovery) states are only valid with a zero ballot;
+                // promising any non-zero ballot moves the command to the corresponding *PrivCoordRecovery state
+                builder.promised(Ballot.ZERO);
                 builder.acceptedOrCommitted(Ballot.ZERO);
+            }
+            else
+            {
+                builder.promised(promised);
+                if (saveStatus.status.compareTo(Status.PreAccepted) > 0)
+                    builder.acceptedOrCommitted(accepted);
+                else
+                    builder.acceptedOrCommitted(Ballot.ZERO);
+            }
             if (saveStatus.compareTo(SaveStatus.Stable) >= 0 && !saveStatus.hasBeen(Status.Truncated))
                 builder.waitingOn(waitingOn);
             if (saveStatus.hasBeen(Status.PreApplied) && saveStatus.compareTo(SaveStatus.TruncatedApplyWithOutcome) <= 0)

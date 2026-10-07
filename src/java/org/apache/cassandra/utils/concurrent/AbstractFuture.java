@@ -71,6 +71,7 @@ public abstract class AbstractFuture<V> implements Future<V>
 {
     protected static final FailureHolder UNSET = new FailureHolder(null);
     protected static final FailureHolder UNCANCELLABLE = new FailureHolder(null);
+    // TODO (required): this is a potential leak vector with addSuppressed to the global shared CancellationException
     protected static final FailureHolder CANCELLED = new FailureHolder(ThrowableUtil.unknownStackTrace(new CancellationException(), AbstractFuture.class, "cancel(...)"));
 
     static class FailureHolder

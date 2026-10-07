@@ -93,6 +93,8 @@ public class AccordResult<V> extends AsyncFuture<V> implements BiConsumer<V, Thr
         }
 
         Throwable fail = fail();
+        if (fail instanceof InvalidRequestException)
+            throw (InvalidRequestException) fail;
         if (fail != null)
             throw (RequestExecutionException) fail;
         return success();
@@ -185,12 +187,17 @@ public class AccordResult<V> extends AsyncFuture<V> implements BiConsumer<V, Thr
             Tracing.trace("Accord returned topology mismatch: " + fail.getMessage());
             logger.debug("Accord returned topology mismatch", fail);
             bookkeeping.markTopologyMismatch();
-            // Throw IRE in case the caller fails to check if the table still exists
+            // Fail with IRE in case the caller fails to check if the table still exists
             if (!txnDroppedTables.isEmpty())
             {
                 Tracing.trace("Accord txn uses dropped tables {}", txnDroppedTables);
                 logger.debug("Accord txn uses dropped tables {}", txnDroppedTables);
-                throw new InvalidRequestException("Accord transaction uses dropped tables");
+                // do not throw, as we are typically invoked as a callback and must complete
+                if (!super.tryFailure(new InvalidRequestException("Accord transaction uses dropped tables", fail)))
+                    return false;
+
+                bookkeeping.markElapsedNanos(nanoTime() - startedAtNanos);
+                return true;
             }
             trySuccess((V) RetryWithNewProtocolResult.instance);
             return false;

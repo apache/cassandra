@@ -109,6 +109,7 @@ import static org.apache.cassandra.service.accord.api.AccordWaitStrategies.retry
 import static org.apache.cassandra.service.accord.api.AccordWaitStrategies.slowRead;
 import static org.apache.cassandra.service.accord.api.AccordWaitStrategies.slowTxnPreaccept;
 import static org.apache.cassandra.service.accord.txn.TxnResult.Kind.txn_data;
+import static org.apache.cassandra.utils.Clock.Global.nanoTime;
 
 // TODO (expected): merge with AccordService
 public class AccordAgent implements Agent, OwnershipEventListener
@@ -502,7 +503,7 @@ public class AccordAgent implements Agent, OwnershipEventListener
             switch ((MessageType.StandardMessage)type)
             {
                 case PRE_ACCEPT_REQ:
-                    return unit.convert(slowTxnPreaccept.computeWaitUntil(1), unit);
+                    return unit.convert(slowTxnPreaccept.computeWaitUntil(1), NANOSECONDS);
                 case READ_EPHEMERAL_REQ:
                 case READ_REQ:
                 case STABLE_THEN_READ_REQ:
@@ -516,7 +517,7 @@ public class AccordAgent implements Agent, OwnershipEventListener
     public long selfExpiresAt(TxnId txnId, MessageType type, TimeUnit unit)
     {
         if (txnId == null || txnId.equals(TxnId.NONE))
-            return DatabaseDescriptor.getRpcTimeout(unit);
+            return unit.convert(nanoTime(), NANOSECONDS) + DatabaseDescriptor.getRpcTimeout(unit);
         return unit.convert((txnId.isSyncPoint() ? expireSyncPoint : expireTxn).computeWaitUntil(1), NANOSECONDS);
     }
 

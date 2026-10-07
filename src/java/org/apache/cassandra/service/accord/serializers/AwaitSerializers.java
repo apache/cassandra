@@ -124,7 +124,7 @@ public class AwaitSerializers
         {
             CommandSerializers.txnId.serialize(ok.txnId, out);
             KeySerializers.route.serialize(ok.scope, out);
-            out.writeByte(ok.newStatus.ordinal());
+            out.writeByte(ok.newStatus.id);
             out.writeUnsignedVInt32(ok.callbackId);
         }
 
@@ -133,7 +133,7 @@ public class AwaitSerializers
         {
             TxnId txnId = CommandSerializers.txnId.deserialize(in);
             Route<?> scope = KeySerializers.route.deserialize(in);
-            SaveStatus newStatus = SaveStatus.forOrdinal(in.readByte());
+            SaveStatus newStatus = SaveStatus.forId(in.readByte());
             int callbackId = in.readUnsignedVInt32();
             return new AsyncAwaitComplete(txnId, scope, newStatus, callbackId);
         }
