@@ -116,8 +116,14 @@ port = 9042
 ;[ssl]
 ; certfile = ~/keys/cassandra.cert
 
-;; Optional - true by default.
+;; Optional - true by default. Ignored when ssl_mode is set.
 ;validate = true
+
+;; Optional - one of require (no certificate validation), verify-ca (validate
+;; against certfile) or verify-identity (verify-ca plus host name check).
+;; disable is an error while SSL is on. When unset, derived from validate.
+;; Can also be set with the SSL_MODE environment variable or --ssl-mode.
+;ssl_mode = verify-ca
 
 ;; To be provided when require_client_auth=true
 ;userkey = ~/key.pem
