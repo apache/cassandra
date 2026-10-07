@@ -1,4 +1,5 @@
 7.0
+ * cqlsh: send TLS SNI and add ssl_mode option (CASSANDRA-XXXXX)
  * Extract reusable HttpService from cloud metadata connector (CASSANDRA-21195)
  * Redact hash and _hash suffixed parameters in system_views.settings (CASSANDRA-21686)
  * Allow CQLSSTableWriter to specify SSTable id generator to use (CASSANDRA-21012)
