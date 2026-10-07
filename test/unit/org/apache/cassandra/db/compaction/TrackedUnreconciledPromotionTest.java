@@ -122,6 +122,7 @@ public class TrackedUnreconciledPromotionTest
             TableMetadata.builder(ks, "tbl")
                          .addPartitionKeyColumn("k", Int32Type.instance)
                          .addRegularColumn("v", Int32Type.instance)
+                         .compaction(CompactionParams.stcs(Collections.emptyMap()))
                          .build();
 
         SchemaLoader.createKeyspace(ks, KeyspaceParams.simple(1, ReplicationType.tracked), tableMetadata);
