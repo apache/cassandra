@@ -56,7 +56,6 @@ import org.apache.cassandra.config.AccordConfig.JournalConfig;
 import org.apache.cassandra.config.AccordConfig.JournalConfig.ReplayMode;
 import org.apache.cassandra.db.ColumnFamilyStore;
 import org.apache.cassandra.db.Keyspace;
-import org.apache.cassandra.db.marshal.LongType;
 import org.apache.cassandra.io.util.DataInputBuffer;
 import org.apache.cassandra.io.util.DataInputPlus;
 import org.apache.cassandra.io.util.File;
@@ -196,7 +195,7 @@ public class AccordJournal implements accord.api.Journal, RangeSearcher.Supplier
         return table.getTracker().getView().liveSSTables()
                     .stream()
                     .filter(sst -> sst.getSSTableMetadata().totalRows > 0)
-                    .map(sst -> LongType.instance.compose(sst.getSSTableMetadata().coveredClustering.end().bufferAt(0)))
+                    .map(TableKeyIterator::maxSegment)
                     .max(Long::compare).orElse(0L);
     }
 

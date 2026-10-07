@@ -35,7 +35,6 @@ import accord.primitives.TxnId;
 import accord.utils.Gen;
 import accord.utils.Gens;
 import accord.utils.LargeBitSet;
-import accord.utils.Utils;
 
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.dht.Murmur3Partitioner;
@@ -44,6 +43,7 @@ import org.apache.cassandra.io.util.DataOutputBuffer;
 import org.apache.cassandra.utils.AccordGenerators;
 import org.apache.cassandra.utils.CassandraGenerators;
 
+import static accord.local.Command.WaitingOn.ensureImmutable;
 import static accord.utils.Property.qt;
 
 public class WaitingOnSerializerTest
@@ -114,7 +114,7 @@ public class WaitingOnSerializerTest
                 }
             }
 
-            return new Command.WaitingOn(deps.keyDeps.keys(), deps.rangeDeps, Utils.ensureImmutable(waitingOn), Utils.ensureImmutable(appliedOrInvalidated));
+            return new Command.WaitingOn(deps.keyDeps.keys(), deps.rangeDeps, ensureImmutable(waitingOn), ensureImmutable(appliedOrInvalidated));
         };
     }
 }

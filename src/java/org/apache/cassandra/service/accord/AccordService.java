@@ -95,6 +95,7 @@ import accord.utils.UnhandledEnum;
 import accord.utils.async.AsyncChain;
 import accord.utils.async.AsyncResult;
 import accord.utils.async.AsyncResults;
+import accord.utils.async.Cancellable;
 
 import org.apache.cassandra.concurrent.ScheduledExecutors;
 import org.apache.cassandra.concurrent.Shutdownable;
@@ -140,6 +141,7 @@ import org.apache.cassandra.service.accord.execution.TaskRunner;
 import org.apache.cassandra.service.accord.interop.AccordInteropAdapter.AccordInteropFactory;
 import org.apache.cassandra.service.accord.journal.AccordJournal;
 import org.apache.cassandra.service.accord.journal.ReplayMarkers;
+import org.apache.cassandra.service.accord.serializers.CommandSerializers;
 import org.apache.cassandra.service.accord.serializers.TableMetadatas;
 import org.apache.cassandra.service.accord.serializers.TableMetadatasAndKeys;
 import org.apache.cassandra.service.accord.topology.AccordEndpointInfos;
@@ -305,6 +307,7 @@ public class AccordService implements IAccordService, Shutdownable
     private static final Future<Void> EPOCH_READY = ImmediateFuture.success(null);
     static
     {
+        ProtocolModifiers.Configure.setRateLimitedLogStatementFactory(new AccordRateLimitedLogFactory());
         ProtocolModifiers.Configure.setDataStoreRequiresUniqueHlcs(true);
         ProtocolModifiers.Configure.setDataStoreDetectsFutureReads(true);
         ProtocolModifiers.Configure.setFastReadExecution(MAY_BYPASS_SAFESTORE);
@@ -545,6 +548,8 @@ public class AccordService implements IAccordService, Shutdownable
             ProtocolModifiers.Configure.setInformOfSingleKeyDurabilityIfDepsSizeAtLeast(0);
         if (config.replica_execution != null)
             ProtocolModifiers.Configure.setReplicaExecution(config.replica_execution);
+        ProtocolModifiers.Configure.setPermitReplicaExecution(TxnUpdate::permitsReplicaExecution);
+        CommandSerializers.WritesSerializer.setSerializeKeys(config.alpha_compatibility_serialize_write_keys);
         if (config.replica_execution_distributed_persist_chance != null)
             ProtocolModifiers.Configure.setReplicaExecuteDistributedPersistChance(config.replica_execution_distributed_persist_chance);
         if (config.fast_read_execution != null)
@@ -1104,18 +1109,37 @@ public class AccordService implements IAccordService, Shutdownable
 
     static class AsyncFutureCallback<V> extends AsyncFuture<V> implements BiConsumer<V, Throwable>
     {
+        private Cancellable cancel;
         @Override
         public void accept(V v, Throwable fail)
         {
             if (fail == null) trySuccess(v);
             else tryFailure(fail);
+            cancel = null;
+        }
+
+        @Override
+        public boolean cancel(boolean b)
+        {
+            if (!super.cancel(b))
+                return false;
+
+            Cancellable cancel = this.cancel;
+            if (cancel != null)
+            {
+                this.cancel = null;
+                cancel.cancel();
+            }
+            return true;
         }
     }
 
     public static <V> Future<V> toFuture(AsyncChain<V> chain)
     {
         AsyncFutureCallback<V> future = new AsyncFutureCallback<>();
-        chain.begin(future);
+        Cancellable cancel = chain.begin(future);
+        if (cancel != null)
+            future.cancel = cancel; // racey, but not enough of a problem to leak the reference to justify adding an extra read of isDone()
         return future;
     }
 

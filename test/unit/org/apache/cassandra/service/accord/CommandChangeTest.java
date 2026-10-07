@@ -45,6 +45,7 @@ import org.apache.cassandra.schema.TableMetadata;
 import org.apache.cassandra.service.StorageService;
 import org.apache.cassandra.service.accord.journal.CommandChangeWriter;
 import org.apache.cassandra.service.accord.journal.CommandChanges;
+import org.apache.cassandra.service.accord.serializers.CommandSerializers;
 import org.apache.cassandra.service.accord.serializers.Version;
 import org.apache.cassandra.service.consensus.TransactionalMode;
 import org.apache.cassandra.utils.AccordGenerators;
@@ -105,6 +106,9 @@ public class CommandChangeTest
             qt().forAll(gen)
                 .check(cmdBuilder -> {
                     for (Version version : Version.V1.greaterThanOrEqual())
+                    // accord.alpha_compatibility_serialize_write_keys must not affect our ability to replay the journal in either direction
+                    for (boolean writeFlag : new boolean[] { true, false })
+                    for (boolean readFlag : new boolean[] { true, false })
                     {
                         SoftAssertions checks = new SoftAssertions();
                         for (SaveStatus saveStatus : SaveStatus.values())
@@ -118,9 +122,19 @@ public class CommandChangeTest
                             if (writer == null)
                                 continue;
 
-                            writer.write(out, version);
+                            boolean prevFlag = CommandSerializers.WritesSerializer.serializeKeys();
                             CommandChanges builder = new CommandChanges(orig.txnId(), Load.ALL);
-                            builder.deserializeNext(new DataInputBuffer(out.unsafeGetBufferAndFlip(), false), version);
+                            try
+                            {
+                                CommandSerializers.WritesSerializer.setSerializeKeys(writeFlag);
+                                writer.write(out, version);
+                                CommandSerializers.WritesSerializer.setSerializeKeys(readFlag);
+                                builder.deserializeNext(new DataInputBuffer(out.unsafeGetBufferAndFlip(), false), version);
+                            }
+                            finally
+                            {
+                                CommandSerializers.WritesSerializer.setSerializeKeys(prevFlag);
+                            }
                             // We are not persisting the result, so force it for strict equality
                             builder.forceResult(orig.result());
 

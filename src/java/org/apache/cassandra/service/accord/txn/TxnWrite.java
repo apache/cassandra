@@ -500,7 +500,7 @@ public class TxnWrite extends AbstractKeySorted<TxnWrite.Update> implements Writ
 
         PartitionUpdate update;
         {
-            boolean preserveTimestamps = txnUpdate.preserveTimestamps().preserve;
+            boolean preserveTimestamps = txnUpdate.preserveTimestamps();
             PartitionUpdate tmp = updates.size() == 1 ? updates.get(0) : PartitionUpdate.merge(updates);
             if (!preserveTimestamps)
                 tmp = new PartitionUpdate.Builder(tmp, 0).updateAllTimestamp(timestamp).build();

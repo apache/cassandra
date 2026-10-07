@@ -127,7 +127,7 @@ public class AccordJournalReplayTest extends TestBaseImpl
                     waitingOnBits.set(0);
                     waitingOn = new Command.WaitingOn(RoutingKeys.EMPTY, deps.rangeDeps, new ImmutableBitSet(waitingOnBits), null);
                 }
-                Writes writes = new Writes(txnId, txnId, Keys.of(key), null);
+                Writes writes = new Writes(txnId, txnId, Keys.EMPTY, null);
                 Command command = Command.Executed.executed(txnId, SaveStatus.PreApplied, Status.Durability.NotDurable, StoreParticipants.execute(commandStore.unsafeGetRangesForEpoch(), route, txnId, txnId.epoch()), Ballot.ZERO, txnId, txn.intersecting(route, true), deps.intersecting(route), Ballot.ZERO, waitingOn, writes, TxnDataResult.PERSISTABLE);
                 commandStore.journal.saveCommand(commandStore.id(), new Journal.CommandUpdate(null, command), () -> {});
 

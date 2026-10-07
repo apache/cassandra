@@ -168,7 +168,7 @@ public class CommandChanges extends CommandChange.Builder implements Merger
                     break;
                 case SAVE_STATUS:
                     Invariants.require(saveStatus != null, "%s", this);
-                    out.writeByte(saveStatus.ordinal());
+                    out.writeByte(saveStatus.id);
                     break;
                 case DURABILITY:
                     Invariants.require(durability != null, "%s", this);
@@ -263,7 +263,7 @@ public class CommandChanges extends CommandChange.Builder implements Merger
                 minUniqueHlc = in.readUnsignedVInt();
                 break;
             case SAVE_STATUS:
-                saveStatus = SaveStatus.values()[in.readByte()];
+                saveStatus = SaveStatus.forId(in.readByte());
                 break;
             case DURABILITY:
                 durability = Status.Durability.forEncoded(in.readUnsignedByte());

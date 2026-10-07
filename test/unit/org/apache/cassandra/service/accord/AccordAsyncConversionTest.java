@@ -35,6 +35,9 @@ import org.apache.cassandra.utils.concurrent.AsyncFuture;
 import org.apache.cassandra.utils.concurrent.Future;
 import org.apache.cassandra.utils.concurrent.ImmediateFuture;
 
+/**
+ * @author LLM
+ */
 public class AccordAsyncConversionTest
 {
     private static final String SUCCESS = "test-success";
@@ -199,6 +202,46 @@ public class AccordAsyncConversionTest
         
         Assert.assertTrue("should be cancellable", cancelResult);
         Assert.assertTrue("should be cancelled", future.isCancelled());
+        Assert.assertTrue("underlying chain should be cancelled", cancelled.get());
+    }
+
+    @Test
+    public void testAsyncChainCancellationPropagates()
+    {
+        AtomicBoolean underlyingCancelled = new AtomicBoolean();
+        AsyncChain<String> chain = new AsyncChains.Head<String>()
+        {
+            @Override
+            protected accord.utils.async.Cancellable start(BiConsumer<? super String, Throwable> callback)
+            {
+                return () -> underlyingCancelled.set(true);
+            }
+        };
+
+        Future<String> future = AccordService.toFuture(chain);
+        Assert.assertTrue(future.cancel(true));
+        Assert.assertTrue("underlying chain was not cancelled", underlyingCancelled.get());
+    }
+
+    @Test
+    public void testAsyncChainCompletionDoesNotCancel()
+    {
+        AtomicBoolean underlyingCancelled = new AtomicBoolean();
+        AtomicReference<BiConsumer<? super String, Throwable>> complete = new AtomicReference<>();
+        AsyncChain<String> chain = new AsyncChains.Head<String>()
+        {
+            @Override
+            protected accord.utils.async.Cancellable start(BiConsumer<? super String, Throwable> callback)
+            {
+                complete.set(callback);
+                return () -> underlyingCancelled.set(true);
+            }
+        };
+
+        Future<String> future = AccordService.toFuture(chain);
+        complete.get().accept(SUCCESS, null);
+        Assert.assertFalse(future.cancel(true));
+        Assert.assertFalse(underlyingCancelled.get());
     }
 
     @Test
