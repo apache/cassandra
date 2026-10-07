@@ -109,12 +109,6 @@ public abstract class AbstractCell<V> extends Cell<V>
         return this;
     }
 
-
-    public Cell<?> purgeDataOlderThan(long timestamp)
-    {
-        return this.timestamp() < timestamp ? null : this;
-    }
-
     @Override
     public Cell<?> clone(ByteBufferCloner cloner)
     {
@@ -209,7 +203,18 @@ public abstract class AbstractCell<V> extends Cell<V>
                && left.ttl() == right.ttl()
                && left.localDeletionTime() == right.localDeletionTime()
                && ValueAccessor.equals(left.value(), left.accessor(), right.value(), right.accessor())
-               && Objects.equals(left.path(), right.path());
+               && pathsEqual(left.column, left.path(), right.path());
+    }
+
+    private static boolean pathsEqual(ColumnMetadata column, CellPath path1, CellPath path2)
+    {
+        if (path1 == path2)
+            return true;
+        if (path1 == null || path2 == null)
+            return false; // already true if both null
+
+        assert column.isComplex();
+        return column.cellPathComparator().compare(path1, path2) == 0;
     }
 
     @Override
@@ -242,7 +247,7 @@ public abstract class AbstractCell<V> extends Cell<V>
             CollectionType<?> ct = (CollectionType<?>) type;
             return String.format("[%s[%s]=%s %s]",
                                  column().name,
-                                 ct.nameComparator().getString(path().get(0)),
+                                 path() == null ? "?" : ct.nameComparator().getString(path().get(0)),
                                  isTombstone() ? "<tombstone>" : ct.valueComparator().getString(value(), accessor()),
                                  livenessInfoString());
         }

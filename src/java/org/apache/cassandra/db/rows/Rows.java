@@ -237,14 +237,9 @@ public abstract class Rows
             iter.next();
     }
 
-    public static Row merge(Row existing, Row update)
-    {
-        return merge(existing, update, ColumnData.noOp);
-    }
-
     /**
-     * Merges two rows. In addition to reconciling the cells in each row, the liveness info, and deletion times for
-     * the row and complex columns are also merged.
+     * Merges two rows into a new one. In addition to reconciling the cells in each row, the liveness info, and deletion
+     * times for the row and complex columns are also merged.
      * <p>
      * Note that this method assumes that the provided rows can meaningfully be reconciled together. That is,
      * that the rows share the same clustering value, and belong to the same partition.
@@ -254,11 +249,75 @@ public abstract class Rows
      *
      * @return the row resulting from the merge.
      */
-    public static Row merge(Row existing, Row update, ColumnData.PostReconciliationFunction onReconcile)
+    public static Row merge(Row existing, Row update)
     {
-        assert existing instanceof BTreeRow;
-        assert update instanceof BTreeRow;
-        return BTreeRow.merge((BTreeRow) existing, (BTreeRow) update, onReconcile);
+        if (existing.getClass() == update.getClass())
+            return existing.mergeWith(update);
+        else
+            return mergeRowsGeneric(existing, update);
+    }
+
+    private static Row mergeRowsGeneric(Row existing, Row update)
+    {
+        Row.Builder builder = BTreeRow.sortedBuilder();
+        Clustering<?> clustering = existing.clustering();
+        builder.newRow(clustering);
+
+        LivenessInfo existingInfo = existing.primaryKeyLivenessInfo();
+        LivenessInfo updateInfo = update.primaryKeyLivenessInfo();
+        LivenessInfo mergedInfo = existingInfo.supersedes(updateInfo) ? existingInfo : updateInfo;
+
+        Row.Deletion rowDeletion = existing.deletion().supersedes(update.deletion()) ? existing.deletion() : update.deletion();
+
+        if (rowDeletion.deletes(mergedInfo))
+            mergedInfo = LivenessInfo.EMPTY;
+        else if (rowDeletion.isShadowedBy(mergedInfo))
+            rowDeletion = Row.Deletion.LIVE;
+
+        builder.addPrimaryKeyLivenessInfo(mergedInfo);
+        builder.addRowDeletion(rowDeletion);
+
+        DeletionTime deletion = rowDeletion.time();
+
+        Iterator<ColumnData> a = existing.iterator();
+        Iterator<ColumnData> b = update.iterator();
+        ColumnData nexta = a.hasNext() ? a.next() : null, nextb = b.hasNext() ? b.next() : null;
+        while (nexta != null || nextb != null)
+        {
+            int comparison = nexta == null ? 1 : nextb == null ? -1 : nexta.column.compareTo(nextb.column);
+            ColumnData cura = comparison <= 0 ? nexta : null;
+            ColumnData curb = comparison >= 0 ? nextb : null;
+            ColumnMetadata column = getColumnMetadata(cura, curb);
+            if (column.isSimple())
+            {
+                Cell<?> merged = Cells.reconcile((Cell<?>) cura, (Cell<?>) curb);
+                if (!deletion.deletes(merged))
+                    builder.addCell(merged);
+            }
+            else
+            {
+                ComplexColumnData existingData = (ComplexColumnData) cura;
+                ComplexColumnData updateData = (ComplexColumnData) curb;
+
+                DeletionTime existingDt = existingData == null ? DeletionTime.LIVE : existingData.complexDeletion();
+                DeletionTime updateDt = updateData == null ? DeletionTime.LIVE : updateData.complexDeletion();
+                DeletionTime maxDt = existingDt.supersedes(updateDt) ? existingDt : updateDt;
+                if (maxDt.supersedes(deletion))
+                    builder.addComplexDeletion(column, maxDt);
+                else
+                    maxDt = deletion;
+
+                Iterator<Cell<?>> existingCells = existingData == null ? null : existingData.iterator();
+                Iterator<Cell<?>> updateCells = updateData == null ? null : updateData.iterator();
+                Cells.reconcileComplex(column, existingCells, updateCells, maxDt, builder);
+            }
+
+            if (cura != null)
+                nexta = a.hasNext() ? a.next() : null;
+            if (curb != null)
+                nextb = b.hasNext() ? b.next() : null;
+        }
+        return builder.build();
     }
 
     /**
@@ -332,5 +391,23 @@ public abstract class Rows
         }
         Row row = builder.build();
         return row != null && !row.isEmpty() ? row : null;
+    }
+
+    /**
+     * Returns the {@code ColumnMetadata} to use for merging the columns.
+     * If the 2 column metadata are different the latest one will be returned.
+     */
+    private static ColumnMetadata getColumnMetadata(ColumnData cura, ColumnData curb)
+    {
+        if (cura == null)
+            return curb.column;
+
+        if (curb == null)
+            return cura.column;
+
+        if (ColumnMetadataVersionComparator.INSTANCE.compare(cura.column, curb.column) >= 0)
+            return cura.column;
+
+        return curb.column;
     }
 }

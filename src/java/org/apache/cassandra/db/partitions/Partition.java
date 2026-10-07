@@ -90,10 +90,12 @@ public interface Partition
     Row lastRow();
 
     /**
-     * Returns the row corresponding to the provided clustering, or null if there is not such row.
+     * Returns the row corresponding to the provided clustering, or null if there is no such row.
      *
      * @param clustering clustering key to search
-     * @return row corresponding to the clustering, it's either null or non-empty row.
+     * @return Row corresponding to the clustering, it's either null or non-empty row. Note that the returned row can
+     * be fully deleted (i.e. contain only a row deletion timestamp). The method will return a deleted row also in
+     * the case where no row exists for the given clustering, but it is covered under a range deletion.
      */
     public @Nullable Row getRow(Clustering<?> clustering);
 

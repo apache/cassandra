@@ -21,14 +21,10 @@ import java.util.Comparator;
 
 import org.apache.cassandra.cache.IMeasurableMemory;
 import org.apache.cassandra.db.DeletionPurger;
-import org.apache.cassandra.db.DeletionTime;
 import org.apache.cassandra.db.Digest;
 import org.apache.cassandra.db.partitions.PartitionUpdate;
 import org.apache.cassandra.schema.ColumnMetadata;
 import org.apache.cassandra.serializers.MarshalException;
-import org.apache.cassandra.utils.btree.BTree;
-import org.apache.cassandra.utils.btree.UpdateFunction;
-import org.apache.cassandra.utils.caching.TinyThreadLocalPool;
 import org.apache.cassandra.utils.memory.Cloner;
 
 /**
@@ -41,24 +37,6 @@ public abstract class ColumnData implements IMeasurableMemory
 {
     public static final Comparator<ColumnData> comparator = (cd1, cd2) -> cd1.column().compareTo(cd2.column());
 
-
-    /**
-     * Construct an UpdateFunction for reconciling normal ColumnData
-     * (i.e. not suitable for ComplexColumnDeletion sentinels, but suitable ComplexColumnData or Cell)
-     *
-     * @param updateF a consumer receiving all pairs of reconciled cells
-     * @param activeDeletion the row or partition deletion time to use for purging
-     */
-    public static Reconciler reconciler(PostReconciliationFunction updateF, DeletionTime activeDeletion)
-    {
-        TinyThreadLocalPool.TinyPool<Reconciler> pool = Reconciler.POOL.get();
-        Reconciler reconciler = pool.poll();
-        if (reconciler == null)
-            reconciler = new Reconciler();
-        reconciler.init(updateF, activeDeletion);
-        reconciler.pool = pool;
-        return reconciler;
-    }
 
     public static PostReconciliationFunction noOp = new PostReconciliationFunction()
     {
@@ -94,164 +72,6 @@ public abstract class ColumnData implements IMeasurableMemory
         void delete(ColumnData existing);
 
         void onAllocatedOnHeap(long delta);
-    }
-
-    public static class Reconciler implements UpdateFunction<ColumnData, ColumnData>, AutoCloseable
-    {
-        private static final TinyThreadLocalPool<Reconciler> POOL = new TinyThreadLocalPool<>();
-        private PostReconciliationFunction postReconcile;
-        private DeletionTime activeDeletion;
-        private TinyThreadLocalPool.TinyPool<Reconciler> pool;
-
-        private void init(PostReconciliationFunction postReconcile, DeletionTime activeDeletion)
-        {
-            this.postReconcile = postReconcile;
-            this.activeDeletion = activeDeletion;
-        }
-
-        public ColumnData merge(ColumnData existing, ColumnData update)
-        {
-            if (!(existing instanceof ComplexColumnData))
-            {
-                Cell<?> existingCell = (Cell<?>) existing, updateCell = (Cell<?>) update;
-                Cell<?> result = Cells.reconcile(existingCell, updateCell);
-
-                return postReconcile.merge(existingCell, result);
-            }
-            else
-            {
-                ComplexColumnData existingComplex = (ComplexColumnData) existing;
-                ComplexColumnData updateComplex = (ComplexColumnData) update;
-
-                DeletionTime existingDeletion = existingComplex.complexDeletion();
-                DeletionTime updateDeletion = updateComplex.complexDeletion();
-                DeletionTime maxComplexDeletion = existingDeletion.supersedes(updateDeletion) ? existingDeletion : updateDeletion;
-
-                Object[] existingTree = existingComplex.tree();
-                Object[] updateTree = updateComplex.tree();
-
-                Object[] cells;
-
-                try (Reconciler reconciler = reconciler(postReconcile, maxComplexDeletion))
-                {
-                    if (!maxComplexDeletion.isLive())
-                    {
-                        if (maxComplexDeletion == existingDeletion)
-                        {
-                            updateTree = BTree.<ColumnData, ColumnData>transformAndFilter(updateTree, reconciler::removeShadowed);
-                        }
-                        else
-                        {
-                            Object[] retained = BTree.transformAndFilter(existingTree, reconciler::retain);
-                            if (existingTree != retained)
-                            {
-                                onAllocatedOnHeap(BTree.sizeOnHeapOf(retained) - BTree.sizeOnHeapOf(existingTree));
-                                existingTree = retained;
-                            }
-                        }
-                    }
-                    cells = BTree.update(existingTree, updateTree, existingComplex.column.cellComparator(), (UpdateFunction) reconciler);
-                }
-                onAllocatedOnHeap(maxComplexDeletion.unsharedHeapSize() - existingDeletion.unsharedHeapSize());
-                return new ComplexColumnData(existingComplex.column, cells, maxComplexDeletion);
-            }
-        }
-
-        @Override
-        public void onAllocatedOnHeap(long heapSize)
-        {
-            postReconcile.onAllocatedOnHeap(heapSize);
-        }
-
-        @Override
-        public ColumnData insert(ColumnData insert)
-        {
-            return postReconcile.insert(insert);
-        }
-
-        /**
-         * Checks if the specified value  should be deleted or not.
-         *
-         * @param existing the existing value to check
-         * @return {@code null} if the value should be removed from the BTree or the existing value if it should not.
-         */
-        public ColumnData retain(ColumnData existing)
-        {
-            return removeShadowed(existing, postReconcile);
-        }
-
-        /**
-         * Like {@link #retain} but does NOT notify the {@link PostReconciliationFunction} of removed
-         * data. Use this e.g. when filtering shadowed cells out of the UPDATE (incoming) side of a merge:
-         * that data was never allocated to / owned by the memtable, so recording its removal would
-         * make the memtable allocator under-count what it owns and eventually report a negative
-         * release at flush (CASSANDRA-21469). Recording removals (via {@link #retain}) is only correct
-         * for the EXISTING side, whose data the memtable already owns.
-         */
-        public ColumnData removeShadowed(ColumnData existing)
-        {
-            return removeShadowed(existing, ColumnData.noOp);
-        }
-
-        /**
-         * Checks if the specified value  should be deleted or not.
-         *
-         * @param existing the existing value to check
-         * @return {@code null} if the value should be removed from the BTree or the existing value if it should not.
-         */
-        private ColumnData removeShadowed(ColumnData existing, PostReconciliationFunction recordDeletion)
-        {
-            if (!(existing instanceof ComplexColumnData))
-            {
-                if (activeDeletion.deletes((Cell<?>) existing))
-                {
-                    recordDeletion.delete(existing);
-                    return null;
-                }
-            }
-            else
-            {
-                ComplexColumnData existingComplex = (ComplexColumnData) existing;
-                if (activeDeletion.supersedes(existingComplex.complexDeletion()))
-                {
-                    Object[] existingTree = existingComplex.tree();
-                    Object[] cells = BTree.transformAndFilter(existingTree, (ColumnData cd) -> removeShadowed(cd, recordDeletion));
-                    ComplexColumnData result = BTree.isEmpty(cells) ? null
-                                                                    : new ComplexColumnData(existingComplex.column, cells, DeletionTime.LIVE);
-                    // The shadowed inner cells are released through recordDeletion.delete above, but that does not cover
-                    // the complex column's own structure: its cell tree (which can span multiple BTree nodes), its
-                    // complex deletion, and, when the column is dropped entirely, its wrapper. All were counted as
-                    // owned when the column was first written (ComplexColumnData.unsharedHeapSizeExcludingData), so release that
-                    // delta here. The rewritten column carries DeletionTime.LIVE, so the dropped complex
-                    // deletion's heap is released too, matching the swap Reconciler.merge accounts on its path.
-                    // On the update side (recordDeletion == noOp) this is a no-op, so skip it entirely.
-                    if (recordDeletion != ColumnData.noOp)
-                    {
-                        long structureBefore = ComplexColumnData.EMPTY_SIZE
-                                               + existingComplex.complexDeletion().unsharedHeapSize()
-                                               + BTree.sizeOnHeapOf(existingTree);
-                        long structureAfter = result == null ? 0 : ComplexColumnData.EMPTY_SIZE
-                                                                   + DeletionTime.LIVE.unsharedHeapSize()
-                                                                   + BTree.sizeOnHeapOf(cells);
-                        recordDeletion.onAllocatedOnHeap(structureAfter - structureBefore);
-                    }
-                    return result;
-                }
-            }
-
-            return existing;
-        }
-
-        public void close()
-        {
-            activeDeletion = null;
-            postReconcile = null;
-
-            TinyThreadLocalPool.TinyPool<Reconciler> tmp = pool;
-            pool = null;
-            tmp.offer(this);
-
-        }
     }
 
     protected final ColumnMetadata column;

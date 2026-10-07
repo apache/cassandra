@@ -335,7 +335,7 @@ public abstract class AbstractBTreePartition implements Partition
         {
             Unfiltered unfiltered = iterator.next();
             if (unfiltered.kind() == Unfiltered.Kind.ROW)
-                builder.add((Row)unfiltered);
+                builder.add(BTreeRow.asBTreeRow((Row)unfiltered));
             else
                 deletionBuilder.add((RangeTombstoneMarker)unfiltered);
         }

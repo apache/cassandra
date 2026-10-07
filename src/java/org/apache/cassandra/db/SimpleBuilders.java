@@ -34,7 +34,6 @@ import org.apache.cassandra.db.marshal.ListType;
 import org.apache.cassandra.db.marshal.MapType;
 import org.apache.cassandra.db.marshal.SetType;
 import org.apache.cassandra.db.partitions.PartitionUpdate;
-import org.apache.cassandra.db.rows.BTreeRow;
 import org.apache.cassandra.db.rows.BufferCell;
 import org.apache.cassandra.db.rows.Cell;
 import org.apache.cassandra.db.rows.CellPath;
@@ -342,9 +341,9 @@ public abstract class SimpleBuilders
         public RowBuilder(TableMetadata metadata, Object... clusteringColumns)
         {
             this.metadata = metadata;
-            this.builder = BTreeRow.unsortedBuilder();
-
-            this.builder.newRow(makeClustering(metadata, clusteringColumns));
+            Clustering<?> clustering = makeClustering(metadata, clusteringColumns);
+            this.builder = PartitionUpdate.rowBuilder(metadata,  clustering == Clustering.STATIC_CLUSTERING, false);
+            this.builder.newRow(clustering);
         }
 
         Set<ColumnMetadata> columns()

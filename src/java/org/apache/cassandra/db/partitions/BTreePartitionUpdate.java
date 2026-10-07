@@ -38,6 +38,7 @@ import org.apache.cassandra.db.RangeTombstone;
 import org.apache.cassandra.db.RegularAndStaticColumns;
 import org.apache.cassandra.db.Slices;
 import org.apache.cassandra.db.filter.ColumnFilter;
+import org.apache.cassandra.db.rows.BTreeRow;
 import org.apache.cassandra.db.rows.Cell;
 import org.apache.cassandra.db.rows.ColumnData;
 import org.apache.cassandra.db.rows.EncodingStats;
@@ -433,13 +434,21 @@ public class BTreePartitionUpdate extends AbstractBTreePartition implements Part
         return marks;
     }
 
-    private static void addMarksForRow(Row row, List<CounterMark> marks)
+    private void addMarksForRow(Row row, List<CounterMark> marks)
     {
         for (Cell<?> cell : row.cells())
         {
             if (cell.isCounterCell())
-                marks.add(new CounterMark(row, cell.column(), cell.path()));
+                marks.add(new CounterMark(this, row, cell.column(), cell.path()));
         }
+    }
+
+    @Override
+    public void setCounterMarkValue(CounterMark mark, ByteBuffer value)
+    {
+        // Please read the warning in BTreeRow.setValue before using this method.
+        BTreeRow row = (BTreeRow) mark.row();
+        row.setValue(mark.column(), mark.path(), value);
     }
 
     @Override
@@ -576,17 +585,20 @@ public class BTreePartitionUpdate extends AbstractBTreePartition implements Part
             if (row.isEmpty())
                 return;
 
-            if (row.isStatic())
+            // Rows of other implementations (e.g. read from a memtable) are converted, as this update stores and
+            // merges b-tree rows, and counter marks rely on them.
+            BTreeRow btreeRow = BTreeRow.asBTreeRow(row);
+            if (btreeRow.isStatic())
             {
                 staticRow = staticRow.isEmpty()
-                            ? row
-                            : Rows.merge(staticRow, row);
+                            ? btreeRow
+                            : Rows.merge(staticRow, btreeRow);
             }
             else
             {
                 if (firstRow == null)
                 {
-                    firstRow = row;
+                    firstRow = btreeRow;
                 }
                 else
                 {
@@ -595,7 +607,7 @@ public class BTreePartitionUpdate extends AbstractBTreePartition implements Part
                         rowBuilder = rowBuilder(initialRowCapacity);
                         rowBuilder.add(firstRow);
                     }
-                    rowBuilder.add(row);
+                    rowBuilder.add(btreeRow);
                 }
             }
         }
@@ -713,6 +725,12 @@ public class BTreePartitionUpdate extends AbstractBTreePartition implements Part
 
     public static class BTreeFactory implements PartitionUpdate.Factory
     {
+        @Override
+        public Row.Builder rowBuilder(Columns columns, boolean dataIsSorted)
+        {
+            return dataIsSorted ? BTreeRow.sortedBuilder() : BTreeRow.unsortedBuilder();
+        }
+
         @Override
         public PartitionUpdate.Builder builder(TableMetadata metadata, DecoratedKey partitionKey, RegularAndStaticColumns columns, int initialRowCapacity)
         {

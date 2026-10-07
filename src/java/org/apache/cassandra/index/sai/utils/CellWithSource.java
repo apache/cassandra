@@ -178,6 +178,12 @@ public class CellWithSource<T> extends Cell<T>
     }
 
     @Override
+    public int dataSizeWithoutPath()
+    {
+        return cell.dataSizeWithoutPath();
+    }
+
+    @Override
     public long unsharedHeapSizeExcludingData()
     {
         return cell.unsharedHeapSizeExcludingData();
@@ -208,7 +214,7 @@ public class CellWithSource<T> extends Cell<T>
     }
 
     @Override
-    public ColumnData updateAllTimestamp(long newTimestamp)
+    public Cell<?> updateAllTimestamp(long newTimestamp)
     {
         return wrapIfNew(cell.updateAllTimestamp(newTimestamp));
     }
@@ -232,10 +238,9 @@ public class CellWithSource<T> extends Cell<T>
     }
 
     @Override
-    protected int localDeletionTimeAsUnsignedInt()
+    public int localDeletionTimeAsUnsignedInt()
     {
-        // Cannot call cell's localDeletionTimeAsUnsignedInt() because it's protected.
-        throw new UnsupportedOperationException();
+        return cell.localDeletionTimeAsUnsignedInt();
     }
 
     @Override
@@ -249,7 +254,7 @@ public class CellWithSource<T> extends Cell<T>
         if (maybeNewColumnData instanceof Cell)
             return wrapIfNew((Cell<?>) maybeNewColumnData);
         if (maybeNewColumnData instanceof ComplexColumnData)
-            return ((ComplexColumnData) maybeNewColumnData).transform(this::wrapIfNew);
+            return new ComplexColumnWithSource((ComplexColumnData) maybeNewColumnData, source);
 
         // It's not clear when we would hit this code path, but it seems we should not
         // hit this from SAI.

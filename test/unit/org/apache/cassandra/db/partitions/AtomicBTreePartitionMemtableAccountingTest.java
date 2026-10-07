@@ -373,7 +373,7 @@ public class AtomicBTreePartitionMemtableAccountingTest
             updDeletion = updRow.deletion().time();
 
         long size = 0;
-        for (ColumnData exsCd : exsRow.columnData())
+        for (ColumnData exsCd : exsRow)
         {
             ColumnData updCd = updRow.getColumnData(exsCd.column());
             if (exsCd instanceof Cell)

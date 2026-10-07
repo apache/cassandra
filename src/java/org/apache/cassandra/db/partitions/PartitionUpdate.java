@@ -26,6 +26,7 @@ import com.google.common.collect.Iterables;
 import com.google.common.collect.Lists;
 
 import org.apache.cassandra.db.Clustering;
+import org.apache.cassandra.db.Columns;
 import org.apache.cassandra.db.CounterMutation;
 import org.apache.cassandra.db.DecoratedKey;
 import org.apache.cassandra.db.DeletionInfo;
@@ -36,7 +37,6 @@ import org.apache.cassandra.db.RegularAndStaticColumns;
 import org.apache.cassandra.db.SerializationHeader;
 import org.apache.cassandra.db.SimpleBuilders;
 import org.apache.cassandra.db.filter.ColumnFilter;
-import org.apache.cassandra.db.rows.BTreeRow;
 import org.apache.cassandra.db.rows.CellPath;
 import org.apache.cassandra.db.rows.ColumnData;
 import org.apache.cassandra.db.rows.DeserializationHelper;
@@ -182,6 +182,14 @@ public interface PartitionUpdate extends Partition
     static Builder builder(TableMetadata metadata, ByteBuffer partitionKey, RegularAndStaticColumns columns, int initialRowCapacity)
     {
         return builder(metadata, metadata.partitioner.decorateKey(partitionKey), columns, initialRowCapacity);
+    }
+
+    /**
+     * Returns a row builder suitable for creating rows to be included in updates of the given table.
+     */
+    static Row.Builder rowBuilder(TableMetadata metadata, boolean isStatic, boolean dataIsSorted)
+    {
+        return metadata.partitionUpdateFactory().rowBuilder(isStatic ? metadata.staticColumns() : metadata.regularColumns(), dataIsSorted);
     }
 
     /**
@@ -685,12 +693,14 @@ public interface PartitionUpdate extends Partition
      */
     class CounterMark
     {
+        private final PartitionUpdate update;
         private final Row row;
         private final ColumnMetadata column;
         private final CellPath path;
 
-        protected CounterMark(Row row, ColumnMetadata column, CellPath path)
+        protected CounterMark(PartitionUpdate update, Row row, ColumnMetadata column, CellPath path)
         {
+            this.update = update;
             this.row = row;
             this.column = column;
             this.path = path;
@@ -699,6 +709,11 @@ public interface PartitionUpdate extends Partition
         public Clustering<?> clustering()
         {
             return row.clustering();
+        }
+
+        Row row()
+        {
+            return row;
         }
 
         public ColumnMetadata column()
@@ -722,10 +737,16 @@ public interface PartitionUpdate extends Partition
         {
             // This is a bit of a giant hack as this is the only place where we mutate a Row object. This makes it more efficient
             // for counters however and this won't be needed post-#6506 so that's probably fine.
-            assert row instanceof BTreeRow;
-            ((BTreeRow)row).setValue(column, path, value);
+            update.setCounterMarkValue(this, value);
         }
     }
+
+    /**
+     * This method should be used only by CounterMark to efficiently update counter values.
+     * <p>
+     * This method violates the immutability expectations of PartitionUpdate. Use with extreme care.
+     */
+    void setCounterMarkValue(CounterMark mark, ByteBuffer value);
 
     /**
      * Builder for partition updates.
@@ -767,6 +788,14 @@ public interface PartitionUpdate extends Partition
     interface Factory
     {
         Builder builder(TableMetadata metadata, DecoratedKey partitionKey, RegularAndStaticColumns columns, int initialRowCapacity);
+
+        /**
+         * Returns a row builder suitable for creating rows to be included in updates created by this factory.
+         *
+         * @param columns the columns the built rows may contain.
+         * @param dataIsSorted whether the cells will be added to the builder in sorted order.
+         */
+        Row.Builder rowBuilder(Columns columns, boolean dataIsSorted);
 
         PartitionUpdate emptyUpdate(TableMetadata metadata, DecoratedKey partitionKey);
 

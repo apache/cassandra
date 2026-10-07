@@ -40,8 +40,6 @@ import org.apache.cassandra.db.Clustering;
 import org.apache.cassandra.db.DeletionPurger;
 import org.apache.cassandra.db.DeletionTime;
 import org.apache.cassandra.db.LivenessInfo;
-import org.apache.cassandra.db.marshal.BytesType;
-import org.apache.cassandra.db.marshal.Int32Type;
 import org.apache.cassandra.db.marshal.IntegerType;
 import org.apache.cassandra.db.marshal.MapType;
 import org.apache.cassandra.db.partitions.PartitionStatisticsCollector;
@@ -358,7 +356,7 @@ public class RowsTest
     {
         boolean hasComplex = false;
         for (Row row : rows)
-            hasComplex |= row.hasComplex();
+            hasComplex |= row.columns().stream().anyMatch(ColumnMetadata::isComplex);
         Row.Merger merger = new Row.Merger(rows.length, hasComplex);
         for (int i = 0; i < rows.length; i++)
             merger.add(i, rows[i]);
@@ -730,96 +728,5 @@ public class RowsTest
             builder.addCell(cell);
 
         return builder.build();
-    }
-
-    @Test
-    public void testLegacyCellIterator()
-    {
-        // Creates a table with
-        //   - 3 Simple columns: a, c and e
-        //   - 2 Complex columns: b and d
-        TableMetadata metadata =
-            TableMetadata.builder("dummy_ks", "dummy_tbl")
-                         .addPartitionKeyColumn("k", BytesType.instance)
-                         .addRegularColumn("a", BytesType.instance)
-                         .addRegularColumn("b", MapType.getInstance(Int32Type.instance, BytesType.instance, true))
-                         .addRegularColumn("c", BytesType.instance)
-                         .addRegularColumn("d", MapType.getInstance(Int32Type.instance, BytesType.instance, true))
-                         .addRegularColumn("e", BytesType.instance)
-                         .build();
-
-        ColumnMetadata a = metadata.getColumn(new ColumnIdentifier("a", false));
-        ColumnMetadata b = metadata.getColumn(new ColumnIdentifier("b", false));
-        ColumnMetadata c = metadata.getColumn(new ColumnIdentifier("c", false));
-        ColumnMetadata d = metadata.getColumn(new ColumnIdentifier("d", false));
-        ColumnMetadata e = metadata.getColumn(new ColumnIdentifier("e", false));
-
-        Row row;
-
-        // Row with only simple columns
-
-        row = makeDummyRow(liveCell(a),
-                           liveCell(c),
-                           liveCell(e));
-
-
-        assertCellOrder(row.cellsInLegacyOrder(metadata, false),
-                        liveCell(a),
-                        liveCell(c),
-                        liveCell(e));
-
-        assertCellOrder(row.cellsInLegacyOrder(metadata, true),
-                        liveCell(e),
-                        liveCell(c),
-                        liveCell(a));
-
-        // Row with only complex columns
-
-        row = makeDummyRow(liveCell(b, 1),
-                           liveCell(b, 2),
-                           liveCell(d, 3),
-                           liveCell(d, 4));
-
-
-        assertCellOrder(row.cellsInLegacyOrder(metadata, false),
-                        liveCell(b, 1),
-                        liveCell(b, 2),
-                        liveCell(d, 3),
-                        liveCell(d, 4));
-
-        assertCellOrder(row.cellsInLegacyOrder(metadata, true),
-                        liveCell(d, 4),
-                        liveCell(d, 3),
-                        liveCell(b, 2),
-                        liveCell(b, 1));
-
-        // Row with mixed simple and complex columns
-
-        row = makeDummyRow(liveCell(a),
-                           liveCell(c),
-                           liveCell(e),
-                           liveCell(b, 1),
-                           liveCell(b, 2),
-                           liveCell(d, 3),
-                           liveCell(d, 4));
-
-
-        assertCellOrder(row.cellsInLegacyOrder(metadata, false),
-                        liveCell(a),
-                        liveCell(b, 1),
-                        liveCell(b, 2),
-                        liveCell(c),
-                        liveCell(d, 3),
-                        liveCell(d, 4),
-                        liveCell(e));
-
-        assertCellOrder(row.cellsInLegacyOrder(metadata, true),
-                        liveCell(e),
-                        liveCell(d, 4),
-                        liveCell(d, 3),
-                        liveCell(c),
-                        liveCell(b, 2),
-                        liveCell(b, 1),
-                        liveCell(a));
     }
 }

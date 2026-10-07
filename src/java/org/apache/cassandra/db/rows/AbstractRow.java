@@ -105,7 +105,7 @@ public abstract class AbstractRow implements Row
 
     public String toString()
     {
-        return columnData().toString();
+        return Iterables.toString(this);
     }
 
     public String toString(TableMetadata metadata)

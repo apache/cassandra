@@ -20,20 +20,19 @@ package org.apache.cassandra.db.rows;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
-import java.util.Comparator;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Objects;
 import java.util.function.BiConsumer;
 import java.util.function.Consumer;
-
-import com.google.common.base.Function;
+import java.util.function.UnaryOperator;
 
 import org.apache.cassandra.cache.IMeasurableMemory;
 import org.apache.cassandra.db.Clustering;
 import org.apache.cassandra.db.DeletionPurger;
 import org.apache.cassandra.db.DeletionTime;
 import org.apache.cassandra.db.Digest;
+import org.apache.cassandra.db.IDataSize;
 import org.apache.cassandra.db.LivenessInfo;
 import org.apache.cassandra.db.filter.ColumnFilter;
 import org.apache.cassandra.schema.ColumnMetadata;
@@ -45,7 +44,6 @@ import org.apache.cassandra.utils.ComplexCellMergeIterator;
 import org.apache.cassandra.utils.LongAccumulator;
 import org.apache.cassandra.utils.ObjectSizes;
 import org.apache.cassandra.utils.RowMergeIterator;
-import org.apache.cassandra.utils.SearchIterator;
 import org.apache.cassandra.utils.btree.BTree;
 import org.apache.cassandra.utils.btree.UpdateFunction;
 import org.apache.cassandra.utils.memory.Cloner;
@@ -64,7 +62,7 @@ import org.apache.cassandra.utils.memory.Cloner;
  * it's own data. For instance, a {@code Row} cannot contains a cell that is deleted by its own
  * row deletion.
  */
-public interface Row extends Unfiltered, Iterable<ColumnData>, IMeasurableMemory
+public interface Row extends Unfiltered, Iterable<ColumnData>, IMeasurableMemory, IDataSize
 {
     /**
      * The clustering values for this row.
@@ -181,36 +179,9 @@ public interface Row extends Unfiltered, Iterable<ColumnData>, IMeasurableMemory
     public Iterable<Cell<?>> cells();
 
     /**
-     * A collection of the ColumnData representation of this row, for columns with some data (possibly not live) present
-     * <p>
-     * The data is returned in column order.
-     *
-     * @return a Collection of the non-empty ColumnData for this row.
-     */
-    public Collection<ColumnData> columnData();
-
-    /**
-     * An iterable over the cells of this row that return cells in "legacy order".
-     * <p>
-     * In 3.0+, columns are sorted so that all simple columns are before all complex columns. Previously
-     * however, the cells where just sorted by the column name. This iterator return cells in that
-     * legacy order. It's only ever meaningful for backward/thrift compatibility code.
-     *
-     * @param metadata the table this is a row of.
-     * @param reversed if cells should returned in reverse order.
-     * @return an iterable over the cells of this row in "legacy order".
-     */
-    public Iterable<Cell<?>> cellsInLegacyOrder(TableMetadata metadata, boolean reversed);
-
-    /**
      * Whether the row stores any (non-live) complex deletion for any complex column.
      */
     public boolean hasComplexDeletion();
-
-    /**
-     * Whether the row stores any (non-RT) data for any complex column.
-     */
-    boolean hasComplex();
 
     /**
      * Whether the row has any deletion info (row deletion, cell tombstone, expired cell or complex deletion).
@@ -229,13 +200,6 @@ public interface Row extends Unfiltered, Iterable<ColumnData>, IMeasurableMemory
     public long minLocalDeletionTime();
 
     /**
-     * An iterator to efficiently search data for a given column.
-     *
-     * @return a search iterator for the cells of this row.
-     */
-    public SearchIterator<ColumnMetadata, ColumnData> searchIterator();
-
-    /**
      * Returns a copy of this row that:
      *   1) only includes the data for the column included by {@code filter}.
      *   2) doesn't include any data that belongs to a dropped column (recorded in {@code metadata}).
@@ -251,24 +215,26 @@ public interface Row extends Unfiltered, Iterable<ColumnData>, IMeasurableMemory
      */
     public Row filter(ColumnFilter filter, DeletionTime activeDeletion, boolean setActiveDeletionToRow, TableMetadata metadata);
 
-    /**
-     * Requires that {@code function} returns either {@code null} or {@code ColumnData} for the same column.
-     *
-     * Returns a copy of this row that:
-     *   1) {@code function} has been applied to the members of
-     *   2) doesn't include any {@code null} results of {@code function}
-     *   3) has precisely the provided {@code LivenessInfo} and {@code Deletion}
-     */
-    public Row transformAndFilter(LivenessInfo info, Deletion deletion, Function<ColumnData, ColumnData> function);
+    /// Interface used for cell transformations. Because we don't know the type of cell data that the row uses (it can
+    /// be a full [Cell] including path and column, or just [CellData]), the given function must convert the type the
+    /// row uses to the same type.
+    ///
+    /// This interface unfortunately cannot be given as a lambda, but we can use method references e.g.
+    /// `CellData::markCounterLocalToBeCleared`.
+    public interface CellTransformer
+    {
+        <C extends CellData<?, C>> C apply(C cellOrCellData);
+    }
 
     /**
-     * Requires that {@code function} returns either {@code null} or {@code ColumnData} for the same column.
+     * Requires that {@code function} returns either {@code null} or {@code Cell} for the same cell.
      *
      * Returns a copy of this row that:
-     *   1) {@code function} has been applied to the members of
-     *   2) doesn't include any {@code null} results of {@code function}
+     *   1) {@code cellFunction} has been applied to the members of
+     *   2) doesn't include any {@code null} results of {@code cellFunction}
+     *   3) has its {@code LivenessInfo} mapped through the given {@code infoFunction}
      */
-    public Row transformAndFilter(Function<ColumnData, ColumnData> function);
+    public Row transformAndFilter(UnaryOperator<LivenessInfo> infoFunction, CellTransformer cellFunction);
 
     public Row clone(Cloner cloner);
 
@@ -365,11 +331,15 @@ public interface Row extends Unfiltered, Iterable<ColumnData>, IMeasurableMemory
 
     public long accumulate(LongAccumulator<ColumnData> accumulator, long initialValue);
 
-    public long accumulate(LongAccumulator<ColumnData> accumulator, Comparator<ColumnData> comparator, ColumnData from, long initialValue);
-
     public <A> long accumulate(BiLongAccumulator<A, ColumnData> accumulator, A arg, long initialValue);
 
-    public <A> long accumulate(BiLongAccumulator<A, ColumnData> accumulator, A arg, Comparator<ColumnData> comparator, ColumnData from, long initialValue);
+    /**
+     * Merge this row with the given update and return the result.
+     *
+     * @param update Row to merge in. Must be the same type (b-tree vs trie) as this.
+     * @return The merged row.
+     */
+    public Row mergeWith(Row update);
 
     /**
      * A row deletion/tombstone.
@@ -863,14 +833,14 @@ public interface Row extends Unfiltered, Iterable<ColumnData>, IMeasurableMemory
 
             private DeletionTime activeDeletion;
 
-            private final ComplexColumnData.Builder complexBuilder;
+            private final BTreeComplexColumn.Builder complexBuilder;
             private final List<Iterator<Cell<?>>> complexCells;
             private final CellReducer cellReducer;
 
             public ColumnDataReducer(int size, boolean hasComplex)
             {
                 this.versions = new ColumnData[size];
-                this.complexBuilder = hasComplex ? ComplexColumnData.builder() : null;
+                this.complexBuilder = hasComplex ? BTreeComplexColumn.builder() : null;
                 this.complexCells = hasComplex ? new ArrayList<>(size) : null;
                 this.cellReducer = new CellReducer();
             }
