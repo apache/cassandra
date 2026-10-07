@@ -278,6 +278,8 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean, Memtable.Owner
     public final Keyspace keyspace;
     public final String name;
     public final TableMetadataRef metadata;
+    /** Metadata being applied by a schema change that may not be published yet, see {@link #createMemtable}. */
+    private volatile TableMetadata pendingMetadata;
     private final String mbeanName;
     /** @deprecated See CASSANDRA-9448 */
     @Deprecated(since = "3.0")
@@ -402,6 +404,7 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean, Memtable.Owner
         indexManager.reload(tableMetadata);
 
         memtableFactory = tableMetadata.params.memtable.factory();
+        pendingMetadata = tableMetadata;
         if (DatabaseDescriptor.isDaemonInitialized())
             switchMemtableOrNotify(FlushReason.SCHEMA_CHANGE, tableMetadata, Memtable::metadataUpdated);
     }
@@ -1465,7 +1468,27 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean, Memtable.Owner
 
     public Memtable createMemtable(AtomicReference<CommitLogPosition> commitLogUpperBound)
     {
-        return memtableFactory.create(commitLogUpperBound, metadata, this);
+        return memtableFactory.create(commitLogUpperBound, metadataForNewMemtable(), this);
+    }
+
+    /**
+     * Returns the metadata reference to use for new memtables. During a schema change (see {@link #reload}) memtables
+     * are switched before the updated schema is published; memtables created during that time must still see the new
+     * metadata, as they will receive writes that use it.
+     */
+    private TableMetadataRef metadataForNewMemtable()
+    {
+        TableMetadata pending = pendingMetadata;
+        if (pending == null)
+            return metadata;
+
+        if (!pending.epoch.isAfter(metadata.get().epoch))
+        {
+            // The update has been published, no need to wrap any more.
+            pendingMetadata = null;
+            return metadata;
+        }
+        return TableMetadataRef.withPendingUpdate(metadata, pending);
     }
 
     // atomically set the upper bound for the commit log
@@ -1623,6 +1646,12 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean, Memtable.Owner
             // We also end up here if the table's partitioner is not the database's, which can happen in tests.
             return fullWeightedRange(RING_VERSION_IRRELEVANT, getPartitioner());
         }
+    }
+
+    @Override
+    public OpOrder readOrdering()
+    {
+        return readOrdering;
     }
 
     @Override
@@ -2486,43 +2515,47 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean, Memtable.Owner
         if (current.isClean())
             return null;
 
-        List<Memtable.FlushablePartitionSet<?>> dataSets = new ArrayList<>(ranges.size());
-        IntervalSet.Builder<CommitLogPosition> commitLogIntervals = new IntervalSet.Builder();
-        long keys = 0;
-        for (Range<PartitionPosition> range : ranges)
+        // Protect the data we are reading from the memtable, which may still be receiving writes.
+        try (OpOrder.Group protectData = readOrdering.start())
         {
-            Memtable.FlushablePartitionSet<?> dataSet = current.getFlushSet(range.left, range.right);
-            dataSets.add(dataSet);
-            commitLogIntervals.add(dataSet.commitLogLowerBound(), dataSet.commitLogUpperBound());
-            keys += dataSet.partitionCount();
-        }
-        if (keys == 0)
-            return null;
+            List<Memtable.FlushablePartitionSet<?>> dataSets = new ArrayList<>(ranges.size());
+            IntervalSet.Builder<CommitLogPosition> commitLogIntervals = new IntervalSet.Builder();
+            long keys = 0;
+            for (Range<PartitionPosition> range : ranges)
+            {
+                Memtable.FlushablePartitionSet<?> dataSet = current.getFlushSet(range.left, range.right);
+                dataSets.add(dataSet);
+                commitLogIntervals.add(dataSet.commitLogLowerBound(), dataSet.commitLogUpperBound());
+                keys += dataSet.partitionCount();
+            }
+            if (keys == 0)
+                return null;
 
-        // TODO: Can we write directly to stream, skipping disk?
-        Memtable.FlushablePartitionSet<?> firstDataSet = dataSets.get(0);
-        SSTableMultiWriter writer = createSSTableMultiWriter(newSSTableDescriptor(directories.getDirectoryForNewSSTables()),
-                                                             keys,
-                                                             0,
-                                                             repairSessionID,
-                                                             false,
-                                                             commitLogIntervals.build(),
-                                                             new SerializationHeader(true,
-                                                                                     firstDataSet.metadata(),
-                                                                                     firstDataSet.columns(),
-                                                                                     firstDataSet.encodingStats()),
-                                                             DO_NOT_TRACK);
-        try
-        {
-            for (Memtable.FlushablePartitionSet<?> dataSet : dataSets)
-                new Flushing.FlushRunnable(dataSet, writer, metric, false).call();  // executes on this thread
+            // TODO: Can we write directly to stream, skipping disk?
+            Memtable.FlushablePartitionSet<?> firstDataSet = dataSets.get(0);
+            SSTableMultiWriter writer = createSSTableMultiWriter(newSSTableDescriptor(directories.getDirectoryForNewSSTables()),
+                                                                 keys,
+                                                                 0,
+                                                                 repairSessionID,
+                                                                 false,
+                                                                 commitLogIntervals.build(),
+                                                                 new SerializationHeader(true,
+                                                                                         firstDataSet.metadata(),
+                                                                                         firstDataSet.columns(),
+                                                                                         firstDataSet.encodingStats()),
+                                                                 DO_NOT_TRACK);
+            try
+            {
+                for (Memtable.FlushablePartitionSet<?> dataSet : dataSets)
+                    new Flushing.FlushRunnable(dataSet, writer, metric, false).call();  // executes on this thread
 
-            return writer;
-        }
-        catch (Error | RuntimeException t)
-        {
-            writer.abort(t);
-            throw t;
+                return writer;
+            }
+            catch (Error | RuntimeException t)
+            {
+                writer.abort(t);
+                throw t;
+            }
         }
     }
 

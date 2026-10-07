@@ -134,6 +134,12 @@ public class RowWithSource implements Row
     }
 
     @Override
+    public boolean isEmptyAfterDeletion()
+    {
+        return row.isEmptyAfterDeletion();
+    }
+
+    @Override
     public String toString(TableMetadata metadata)
     {
         return row.toString(metadata);

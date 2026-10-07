@@ -33,6 +33,8 @@ import com.google.common.collect.Sets;
 
 import org.junit.Assert;
 import org.junit.Test;
+import org.junit.runner.RunWith;
+import org.junit.runners.Parameterized;
 
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.cql3.ColumnIdentifier;
@@ -50,11 +52,26 @@ import org.apache.cassandra.utils.FBUtilities;
 
 import static org.apache.cassandra.db.CellTest.assertCellsEqual;
 
+@RunWith(Parameterized.class)
 public class RowsTest
 {
     private static final String KEYSPACE = "rows_test";
     private static final String KCVM_TABLE = "kcvm";
     private static final TableMetadata kcvm;
+
+    enum RowImplementation
+    {
+        BTREE, TRIE_BACKED
+    }
+
+    @Parameterized.Parameter(0)
+    public static RowImplementation implementation;
+
+    @Parameterized.Parameters(name = "{0}")
+    public static RowImplementation[] implementations()
+    {
+        return RowImplementation.values();
+    }
     private static final ColumnMetadata v;
     private static final ColumnMetadata m;
     private static final Clustering<?> c1;
@@ -190,7 +207,8 @@ public class RowsTest
         List<DeletionTime> deletions = new LinkedList<>();
         public void update(DeletionTime deletion)
         {
-            deletions.add(deletion);
+            if (!deletion.isLive())
+                deletions.add(deletion);
         }
 
         long columnCount = -1;
@@ -220,7 +238,16 @@ public class RowsTest
 
     private static Row.Builder createBuilder(Clustering<?> c)
     {
-        Row.Builder builder = BTreeRow.unsortedBuilder();
+        Row.Builder builder;
+        switch (implementation)
+        {
+            case TRIE_BACKED:
+                builder = TrieBackedRow.builder(kcvm.regularAndStaticColumns().columns(c == Clustering.STATIC_CLUSTERING));
+                break;
+            case BTREE:
+            default:
+                builder = BTreeRow.unsortedBuilder();
+        }
         builder.newRow(c);
         return builder;
     }
@@ -261,7 +288,8 @@ public class RowsTest
             {
                 Row purged = row.purge(DeletionPurger.PURGE_ALL, readNow, false);
                 Assert.assertNotNull(purged);
-                Assert.assertEquals(purged.dataSize(), row.liveDataSize(readNow));
+                // Compare with the b-tree form: dataSize() of trie-backed rows only counts what is stored in the trie.
+                Assert.assertEquals(BTreeRow.asBTreeRow(purged).dataSize(), row.liveDataSize(readNow));
                 Assert.assertEquals(purged.liveDataSize(readNow), row.liveDataSize(readNow));
             }
         }
@@ -293,7 +321,7 @@ public class RowsTest
             if (!deleted)
             {
                 for (long readNow : new long[]{ now, now + 10 })
-                    Assert.assertEquals(row.purge(DeletionPurger.PURGE_ALL, readNow, false).dataSize(), row.liveDataSize(readNow));
+                    Assert.assertEquals(BTreeRow.asBTreeRow(row.purge(DeletionPurger.PURGE_ALL, readNow, false)).dataSize(), row.liveDataSize(readNow));
             }
 
             Assert.assertEquals(deleted ? 0 : deletion.dataSize() + live.dataSize() + expiring.dataSize(), data.liveDataSize(now));
@@ -302,12 +330,36 @@ public class RowsTest
     }
 
     @Test
+    public void liveDataSizeMatchesBTreeRow()
+    {
+        // Replicas and pagers must agree on the size of a row, whichever row implementation each of them uses.
+        long now = 1000;
+        long timestamp = secondToTs(now);
+        for (LivenessInfo liveness : new LivenessInfo[]{ LivenessInfo.EMPTY, LivenessInfo.expiring(timestamp, 10, now) })
+            for (DeletionTime complexDeletion : new DeletionTime[]{ DeletionTime.LIVE, DeletionTime.build(timestamp - 1, now) })
+                for (boolean deleteRow : new boolean[]{ false, true })
+                {
+                    Row.Builder builder = createBuilder(c1);
+                    builder.addPrimaryKeyLivenessInfo(liveness);
+                    if (deleteRow)
+                        builder.addRowDeletion(Row.Deletion.regular(DeletionTime.build(timestamp - 2, now)));
+                    builder.addComplexDeletion(m, complexDeletion);
+                    builder.addCell(BufferCell.live(m, timestamp, BB1, CellPath.create(BB1)));
+                    builder.addCell(BufferCell.expiring(m, timestamp, 10, now, BB2, CellPath.create(BB2)));
+                    builder.addCell(BufferCell.expiring(v, timestamp, 10, now, BB4));
+                    Row row = builder.build();
+
+                    for (long readNow : new long[]{ now, now + 10 })
+                        Assert.assertEquals(BTreeRow.asBTreeRow(row).liveDataSize(readNow), row.liveDataSize(readNow));
+                }
+    }
+
+    @Test
     public void collectStats()
     {
         long now = FBUtilities.nowInSeconds();
         long ts = secondToTs(now);
-        Row.Builder builder = BTreeRow.unsortedBuilder();
-        builder.newRow(c1);
+        Row.Builder builder = createBuilder(c1);
         LivenessInfo liveness = LivenessInfo.create(ts);
         builder.addPrimaryKeyLivenessInfo(liveness);
         DeletionTime complexDeletion = DeletionTime.build(ts-1, now);
@@ -316,8 +368,8 @@ public class RowsTest
                                                       BufferCell.live(m, ts, BB1, CellPath.create(BB1)),
                                                       BufferCell.live(m, ts, BB2, CellPath.create(BB2)));
         expectedCells.forEach(builder::addCell);
-        // We need to use ts-1 so the deletion doesn't shadow what we've created
-        Row.Deletion rowDeletion = new Row.Deletion(DeletionTime.build(ts-1, now), false);
+        // We need to use ts-2 so the deletion doesn't shadow what we've created or the complex deletion
+        Row.Deletion rowDeletion = new Row.Deletion(DeletionTime.build(ts-2, now), false);
         builder.addRowDeletion(rowDeletion);
 
         StatsCollector collector = new StatsCollector();
@@ -395,8 +447,7 @@ public class RowsTest
     {
         long now1 = FBUtilities.nowInSeconds();
         long ts1 = secondToTs(now1);
-        Row.Builder r1Builder = BTreeRow.unsortedBuilder();
-        r1Builder.newRow(c1);
+        Row.Builder r1Builder = createBuilder(c1);
         LivenessInfo r1Liveness = LivenessInfo.create(ts1);
         r1Builder.addPrimaryKeyLivenessInfo(r1Liveness);
         DeletionTime r1ComplexDeletion = DeletionTime.build(ts1-1, now1);
@@ -411,8 +462,7 @@ public class RowsTest
 
         long now2 = now1 + 1;
         long ts2 = secondToTs(now2);
-        Row.Builder r2Builder = BTreeRow.unsortedBuilder();
-        r2Builder.newRow(c1);
+        Row.Builder r2Builder = createBuilder(c1);
         LivenessInfo r2Liveness = LivenessInfo.create(ts2);
         r2Builder.addPrimaryKeyLivenessInfo(r2Liveness);
         Cell<?> r2v = BufferCell.live(v, ts2, BB2);
@@ -471,16 +521,14 @@ public class RowsTest
     {
         long now1 = FBUtilities.nowInSeconds();
         long ts1 = secondToTs(now1);
-        Row.Builder r1Builder = BTreeRow.unsortedBuilder();
-        r1Builder.newRow(c1);
+        Row.Builder r1Builder = createBuilder(c1);
         LivenessInfo r1Liveness = LivenessInfo.create(ts1);
         r1Builder.addPrimaryKeyLivenessInfo(r1Liveness);
 
         // mergedData == null
         long now2 = now1 + 1L;
         long ts2 = secondToTs(now2);
-        Row.Builder r2Builder = BTreeRow.unsortedBuilder();
-        r2Builder.newRow(c1);
+        Row.Builder r2Builder = createBuilder(c1);
         LivenessInfo r2Liveness = LivenessInfo.create(ts2);
         r2Builder.addPrimaryKeyLivenessInfo(r2Liveness);
         DeletionTime r2ComplexDeletion = DeletionTime.build(ts2-1, now2);
@@ -525,16 +573,14 @@ public class RowsTest
     {
         long now1 = FBUtilities.nowInSeconds();
         long ts1 = secondToTs(now1);
-        Row.Builder r1Builder = BTreeRow.unsortedBuilder();
-        r1Builder.newRow(c1);
+        Row.Builder r1Builder = createBuilder(c1);
         LivenessInfo r1Liveness = LivenessInfo.create(ts1);
         r1Builder.addPrimaryKeyLivenessInfo(r1Liveness);
 
         // mergedData == null
         long now2 = now1 + 1L;
         long ts2 = secondToTs(now2);
-        Row.Builder r2Builder = BTreeRow.unsortedBuilder();
-        r2Builder.newRow(c1);
+        Row.Builder r2Builder = createBuilder(c1);
         LivenessInfo r2Liveness = LivenessInfo.create(ts2);
         r2Builder.addPrimaryKeyLivenessInfo(r2Liveness);
         DeletionTime r2ComplexDeletion = DeletionTime.build(ts2-1, now2);
@@ -637,7 +683,7 @@ public class RowsTest
 
         Assert.assertEquals(expectedDeletion, merged.deletion());
         Assert.assertEquals(LivenessInfo.EMPTY, merged.primaryKeyLivenessInfo());
-        Assert.assertEquals(0, merged.columns().size());
+        Assert.assertEquals(0, merged.columnCount());
     }
 
 
@@ -659,13 +705,11 @@ public class RowsTest
         long ts1 = secondToTs(now1);
         long ldt = now1 + 1000;
 
-        Row.Builder r1Builder = BTreeRow.unsortedBuilder();
-        r1Builder.newRow(c1);
+        Row.Builder r1Builder = createBuilder(c1);
         LivenessInfo originalLiveness = LivenessInfo.withExpirationTime(ts1, 100, ldt);
         r1Builder.addPrimaryKeyLivenessInfo(originalLiveness);
 
-        Row.Builder r2Builder = BTreeRow.unsortedBuilder();
-        r2Builder.newRow(c1);
+        Row.Builder r2Builder = createBuilder(c1);
         LivenessInfo loweredTTL = LivenessInfo.withExpirationTime(ts1, 50, ldt);
         r2Builder.addPrimaryKeyLivenessInfo(loweredTTL);
 
@@ -722,8 +766,7 @@ public class RowsTest
     // Make a dummy row (empty clustering) with the provided cells, that are assumed to be in order
     private static Row makeDummyRow(Cell<?> ... cells)
     {
-        Row.Builder builder = BTreeRow.sortedBuilder();
-        builder.newRow(Clustering.EMPTY);
+        Row.Builder builder = createBuilder(Clustering.EMPTY);
         for (Cell<?> cell : cells)
             builder.addCell(cell);
 

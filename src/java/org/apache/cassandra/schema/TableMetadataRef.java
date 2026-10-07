@@ -88,6 +88,33 @@ public class TableMetadataRef
         };
     }
 
+    // takes a metadata instance that is being applied to provide a ref which returns it until the schema change that
+    // contains it is published. This is used when creating memtables during a schema change event, as these are
+    // created before the updated schema is published.
+    public static TableMetadataRef withPendingUpdate(TableMetadataRef wrapped, TableMetadata pending)
+    {
+        return new TableMetadataRef(Schema.instance, pending.keyspace, pending.name, pending.id)
+        {
+            @Override
+            public TableMetadata get()
+            {
+                return newerOf(wrapped.get());
+            }
+
+            @Override
+            public TableMetadata getOrDefault(TableMetadata dflt)
+            {
+                TableMetadata current = wrapped.getOrDefault(null);
+                return current != null ? newerOf(current) : dflt;
+            }
+
+            private TableMetadata newerOf(TableMetadata current)
+            {
+                return pending.epoch.isAfter(current.epoch) ? pending : current;
+            }
+        };
+    }
+
     /**
      * Create a new ref to the passed {@link TableMetadata} for use by offline tools only.
      *

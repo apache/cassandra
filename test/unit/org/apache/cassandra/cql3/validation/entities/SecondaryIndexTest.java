@@ -990,20 +990,27 @@ public class SecondaryIndexTest extends CQLTester
 
         // delete the same row again
         execute("DELETE FROM %s USING TIMESTAMP 3 WHERE a = ? AND b = ?", 0, 0);
-        assertEquals(2, index1.rowsUpdated.size());
-        update = index1.rowsUpdated.get(1);
-        existingRow = update.left;
-        newRow = update.right;
 
-        // check the new row from the update call
-        assertFalse(existingRow.deletion().isLive());
-        assertEquals(2L, existingRow.deletion().time().markedForDeleteAt());
-        assertFalse(existingRow.cells().iterator().hasNext());
+        // TrieMemtable no longer has a row to issue an update for and the deletion is treated as a range deletion.
+        // Legacy memtable implementations would still keep a mapping for the deleted row and issue an update.
+        if (index1.rowsUpdated.size() > 1)
+        {
+            assertEquals(2, index1.rowsUpdated.size());
+            update = index1.rowsUpdated.get(1);
+            existingRow = update.left;
+            newRow = update.right;
 
-        // check the new row from the update call
-        assertFalse(newRow.deletion().isLive());
-        assertEquals(3L, newRow.deletion().time().markedForDeleteAt());
-        assertFalse(newRow.cells().iterator().hasNext());
+
+            // check the new row from the update call
+            assertFalse(existingRow.deletion().isLive());
+            assertEquals(2L, existingRow.deletion().time().markedForDeleteAt());
+            assertFalse(existingRow.cells().iterator().hasNext());
+
+            // check the new row from the update call
+            assertFalse(newRow.deletion().isLive());
+            assertEquals(3L, newRow.deletion().time().markedForDeleteAt());
+            assertFalse(newRow.cells().iterator().hasNext());
+        }
     }
 
     @Test

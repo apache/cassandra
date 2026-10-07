@@ -27,6 +27,8 @@ import java.util.function.BiConsumer;
 import java.util.function.Consumer;
 import java.util.function.UnaryOperator;
 
+import javax.annotation.Nullable;
+
 import org.apache.cassandra.cache.IMeasurableMemory;
 import org.apache.cassandra.db.Clustering;
 import org.apache.cassandra.db.DeletionPurger;
@@ -125,6 +127,14 @@ public interface Row extends Unfiltered, Iterable<ColumnData>, IMeasurableMemory
     public boolean isEmpty();
 
     /**
+     * Whether the row has no live data. This means no PK liveness info, no cells
+     * and no complex deletion info.
+     *
+     * @return {@code true} if the row has no data, {@code false} otherwise.
+     */
+    public boolean isEmptyAfterDeletion();
+
+    /**
      * Whether the row has some live information (i.e. it's not just deletion informations).
      *
      * @param nowInSec the current time to decide what is deleted and what isn't
@@ -201,19 +211,19 @@ public interface Row extends Unfiltered, Iterable<ColumnData>, IMeasurableMemory
 
     /**
      * Returns a copy of this row that:
-     *   1) only includes the data for the column included by {@code filter}.
+     *   1) only includes the data for the column included by {@code filter}, if one is given.
      *   2) doesn't include any data that belongs to a dropped column (recorded in {@code metadata}).
      */
-    public Row filter(ColumnFilter filter, TableMetadata metadata);
+    public Row filter(@Nullable ColumnFilter filter, TableMetadata metadata);
 
     /**
      * Returns a copy of this row that:
-     *   1) only includes the data for the column included by {@code filter}.
+     *   1) only includes the data for the column included by {@code filter}, if one is given.
      *   2) doesn't include any data that belongs to a dropped column (recorded in {@code metadata}).
      *   3) doesn't include any data that is shadowed/deleted by {@code activeDeletion}.
      *   4) uses {@code activeDeletion} as row deletion iff {@code setActiveDeletionToRow} and {@code activeDeletion} supersedes the row deletion.
      */
-    public Row filter(ColumnFilter filter, DeletionTime activeDeletion, boolean setActiveDeletionToRow, TableMetadata metadata);
+    public Row filter(@Nullable ColumnFilter filter, DeletionTime activeDeletion, boolean setActiveDeletionToRow, TableMetadata metadata);
 
     /// Interface used for cell transformations. Because we don't know the type of cell data that the row uses (it can
     /// be a full [Cell] including path and column, or just [CellData]), the given function must convert the type the
@@ -573,6 +583,22 @@ public interface Row extends Unfiltered, Iterable<ColumnData>, IMeasurableMemory
          * @param complexDeletion the complex deletion time to add.
          */
         public void addComplexDeletion(ColumnMetadata column, DeletionTime complexDeletion);
+
+        /**
+         * Convenience method to add a column (complex or simple) in one step.
+         */
+        default void addColumn(ColumnData cd)
+        {
+            if (cd.column.isSimple())
+                addCell((Cell<?>) cd);
+            else
+            {
+                ComplexColumnData ccd = (ComplexColumnData) cd;
+                addComplexDeletion(ccd.column, ccd.complexDeletion());
+                for (Cell<?> c : ccd)
+                    addCell(c);
+            }
+        }
 
         /**
          * Builds and return built row.

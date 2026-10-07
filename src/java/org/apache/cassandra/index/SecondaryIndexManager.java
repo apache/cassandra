@@ -1625,8 +1625,11 @@ public class SecondaryIndexManager implements IndexRegistry, INotificationConsum
                 {
                     Row oldRow = toRemove.build();
                     Row newRow = toInsert.build();
-                    for (Index.Indexer indexer : indexers)
-                        indexer.updateRow(oldRow, newRow);
+                    // Rows deleted by range or partition tombstones result in no data; legacy memtables do not issue
+                    // updates for these.
+                    if (newRow != null && !newRow.isEmpty())
+                        for (Index.Indexer indexer : indexers)
+                            indexer.updateRow(oldRow, newRow);
                 }
                 else
                 {

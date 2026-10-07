@@ -71,7 +71,7 @@ public abstract class DeletionTime implements Comparable<DeletionTime>, IMeasura
                 : new ImmutableDeletionTime(markedForDeleteAt, localDeletionTimeUnsignedInteger);
     }
 
-    private DeletionTime(long markedForDeleteAt, long localDeletionTime)
+    protected DeletionTime(long markedForDeleteAt, long localDeletionTime)
     {
         this(markedForDeleteAt, CellData.deletionTimeLongToUnsignedInteger(localDeletionTime));
     }

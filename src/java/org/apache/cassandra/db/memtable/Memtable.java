@@ -189,6 +189,12 @@ public interface Memtable extends Comparable<Memtable>, UnfilteredSource, CellSo
          * {@link #localRangesUpdated()} call.
          */
         ShardBoundaries localRangeSplits(int shardCount);
+
+        /**
+         * Get the op-order primitive that protects data for the duration of reads. Memtables that recycle memory
+         * may only reuse it once all reads started before its release have completed.
+         */
+        OpOrder readOrdering();
     }
 
     // Main write and read operations

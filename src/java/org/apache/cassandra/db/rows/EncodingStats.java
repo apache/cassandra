@@ -106,17 +106,9 @@ public class EncodingStats implements IMeasurableMemory
      */
     public EncodingStats mergeWith(EncodingStats that)
     {
-        long minTimestamp = this.minTimestamp == TIMESTAMP_EPOCH
-                            ? that.minTimestamp
-                            : (that.minTimestamp == TIMESTAMP_EPOCH ? this.minTimestamp : Math.min(this.minTimestamp, that.minTimestamp));
-
-        long minDelTime = this.minLocalDeletionTime == DELETION_TIME_EPOCH
-                         ? that.minLocalDeletionTime
-                         : (that.minLocalDeletionTime == DELETION_TIME_EPOCH ? this.minLocalDeletionTime : Math.min(this.minLocalDeletionTime, that.minLocalDeletionTime));
-
-        int minTTL = this.minTTL == TTL_EPOCH
-                     ? that.minTTL
-                     : (that.minTTL == TTL_EPOCH ? this.minTTL : Math.min(this.minTTL, that.minTTL));
+        long minTimestamp = mergeMinTimestamp(this.minTimestamp, that);
+        long minDelTime = mergeMinLocalDeletionTime(this.minLocalDeletionTime, that);
+        int minTTL = mergeMinTTL(this.minTTL, that);
 
         // EncodingStats is immutable, so if the result feilds are the same as in the current object we can avoid new object creation
         // usually we merge an older object with a newer one and timestamp usually grows, so chances to reuse the object are high
@@ -126,6 +118,33 @@ public class EncodingStats implements IMeasurableMemory
             return this;
         }
         return new EncodingStats(minTimestamp, minDelTime, minTTL);
+    }
+
+    public static long mergeMinTimestamp(long minTimestamp, EncodingStats stats)
+    {
+        return minTimestamp == TIMESTAMP_EPOCH
+               ? stats.minTimestamp
+               : (stats.minTimestamp == TIMESTAMP_EPOCH
+                  ? minTimestamp
+                  : Math.min(minTimestamp, stats.minTimestamp));
+    }
+
+    public static long mergeMinLocalDeletionTime(long minLocalDeletionTime, EncodingStats stats)
+    {
+        return minLocalDeletionTime == DELETION_TIME_EPOCH
+               ? stats.minLocalDeletionTime
+               : (stats.minLocalDeletionTime == DELETION_TIME_EPOCH
+                  ? minLocalDeletionTime
+                  : Math.min(minLocalDeletionTime, stats.minLocalDeletionTime));
+    }
+
+    public static int mergeMinTTL(int minTTL, EncodingStats stats)
+    {
+        return minTTL == TTL_EPOCH
+               ? stats.minTTL
+               : (stats.minTTL == TTL_EPOCH
+                  ? minTTL
+                  : Math.min(minTTL, stats.minTTL));
     }
 
     /**
@@ -279,6 +298,13 @@ public class EncodingStats implements IMeasurableMemory
                 Rows.collectStats(staticRow, collector);
             while (rows.hasNext())
                 Rows.collectStats(rows.next(), collector);
+            return collector.get();
+        }
+
+        public static EncodingStats forRow(Row row)
+        {
+            Collector collector = new Collector();
+            Rows.collectStats(row, collector);
             return collector.get();
         }
     }

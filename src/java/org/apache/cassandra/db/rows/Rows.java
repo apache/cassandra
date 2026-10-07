@@ -119,6 +119,26 @@ public abstract class Rows
         return StatsAccumulation.unpackCellCount(result);
     }
 
+    public static long collectMaxTimestamp(Row row)
+    {
+        long maxTimestamp = row.primaryKeyLivenessInfo().timestamp();
+        for (ColumnData cd : row)
+        {
+            if (cd.column().isSimple())
+            {
+                maxTimestamp = Math.max(maxTimestamp, ((Cell<?>)cd).timestamp());
+            }
+            else
+            {
+                ComplexColumnData complexData = (ComplexColumnData)cd;
+                maxTimestamp = Math.max(maxTimestamp, complexData.complexDeletion().markedForDeleteAt());
+                for (Cell<?> cell : complexData)
+                    maxTimestamp = Math.max(maxTimestamp, cell.timestamp());
+            }
+        }
+        return maxTimestamp;
+    }
+
     /**
      * Given the result ({@code merged}) of merging multiple {@code inputs}, signals the difference between
      * each input and {@code merged} to {@code diffListener}.
