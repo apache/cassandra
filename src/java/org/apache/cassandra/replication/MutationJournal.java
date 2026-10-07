@@ -53,6 +53,7 @@ import org.apache.cassandra.db.Mutation;
 import org.apache.cassandra.db.TypeSizes;
 import org.apache.cassandra.db.commitlog.CommitLogPosition;
 import org.apache.cassandra.db.partitions.PartitionUpdate;
+import org.apache.cassandra.exceptions.UnknownTableException;
 import org.apache.cassandra.io.util.DataInputPlus;
 import org.apache.cassandra.io.util.DataOutputPlus;
 import org.apache.cassandra.io.util.File;
@@ -427,6 +428,25 @@ public class MutationJournal
     {
         replay(new DeserializedRecordConsumer<>(MutationSerializer.INSTANCE)
         {
+            @Override
+            public void accept(long segment, int position, ShortMutationId key, ByteBuffer buffer, int userVersion)
+            {
+                try
+                {
+                    super.accept(segment, position, key, buffer, userVersion);
+                }
+                catch (RuntimeException e)
+                {
+                    if (e.getCause() instanceof UnknownTableException)
+                    {
+                        UnknownTableException ute = (UnknownTableException) e.getCause();
+                        logger.warn("Skipping replaying mutation {} from unknown (probably removed) table with id {}", key, ute.id);
+                        return;
+                    }
+                    throw e;
+                }
+            }
+
             @Override
             protected void accept(long segmentId, int position, ShortMutationId key, Mutation value)
             {
@@ -942,6 +962,15 @@ public class MutationJournal
     /*
      * Test helpers
      */
+
+    @VisibleForTesting
+    public void truncateForTesting()
+    {
+        journal.truncateForTesting();
+        segmentStateTrackers.clear();
+        pendingClearReplay.clear();
+        lastSegmentTracker = null;
+    }
 
     @VisibleForTesting
     public void closeCurrentSegmentForTestingIfNonEmpty()
