@@ -39,6 +39,7 @@ import accord.utils.Gen;
 import accord.utils.Gens;
 
 import org.apache.cassandra.config.DatabaseDescriptor;
+import org.apache.cassandra.db.Keyspace;
 import org.apache.cassandra.db.Mutation;
 import org.apache.cassandra.db.commitlog.CommitLog;
 import org.apache.cassandra.db.marshal.Int32Type;
@@ -273,6 +274,10 @@ public class CoordinatorLogOffsetsTest
         ClusterMetadataTestHelper.commit(new AlterSchema(SchemaTransformations.addTable(tableMetadata, false)));
 
         CommitLog.instance.start();
+
+        Keyspace.setInitialized();
+        ClusterMetadata.current().schema.initializeKeyspaceInstances(DistributedSchema.empty(), false);
+
         MutationTrackingService.start(unused -> metadata);
 
         // Eventually, will also run perturbations before checking isReconciled (like log truncation, durability, etc.)
