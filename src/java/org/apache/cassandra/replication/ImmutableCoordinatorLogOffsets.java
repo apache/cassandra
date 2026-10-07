@@ -302,6 +302,12 @@ public class ImmutableCoordinatorLogOffsets implements CoordinatorLogOffsets<Off
         }
 
         @Override
+        public Offsets.Immutable getOffsets(long logId)
+        {
+            return ids.get(logId);
+        }
+
+        @Override
         public int size()
         {
             return ids.size();

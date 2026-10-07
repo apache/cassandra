@@ -38,6 +38,10 @@ public interface CoordinatorLogOffsets<O extends Offsets>
     interface Mutations<O> extends Iterable<Long>
     {
         O offsets(long logId);
+        default O getOffsets(long logId)
+        {
+            return offsets(logId);
+        }
         int size();
         default boolean isEmpty()
         {

@@ -84,7 +84,7 @@ class MutationJournalSegmentCompactor implements SegmentCompactor<ShortMutationI
         for (StaticSegment<ShortMutationId, Mutation> segment : candidates)
         {
             if (!segment.metadata().needsReplay()
-                && !journal.segmentReferenceTracker().isReferenced(segment.id())
+                && !journal.segmentReferenceTracker().isReferenced(segment)
                 && ((MutationJournal.StaticOffsetRanges) segment.keyStats()).isFullyCovered(durablyReconciled))
                 selected.add(segment);
         }

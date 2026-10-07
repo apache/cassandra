@@ -209,6 +209,28 @@ public abstract class Offsets implements Iterable<ShortMutationId>
         return maxOffset <= bounds[end];
     }
 
+    /**
+     * @return whether any offset in the inclusive range [minOffset, maxOffset] is present in these Offsets
+     */
+    public boolean overlaps(int minOffset, int maxOffset)
+    {
+        if (size == 0 || minOffset > maxOffset)
+            return false;
+
+        if (maxOffset < bounds[0] || minOffset > bounds[size - 1])
+            return false;
+
+        int pos = Arrays.binarySearch(bounds, 0, size, minOffset);
+        if (pos >= 0)
+            return true;
+
+        int insertionPoint = -pos - 1;
+        if (insertionPoint % 2 != 0)
+            return true;
+
+        return bounds[insertionPoint] <= maxOffset;
+    }
+
     public void digest(Digest digest)
     {
         digest.updateWithLong(logId.asLong());
