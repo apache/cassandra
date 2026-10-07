@@ -147,6 +147,39 @@ public class MutationJournalTest
     }
 
     @Test
+    public void testActiveOffsetRangesOverlaps()
+    {
+        ActiveOffsetRanges ranges = new ActiveOffsetRanges();
+        ranges.update(id(100L, 10));
+        ranges.update(id(100L, 50));
+        ranges.update(id(200L, 30));
+        ranges.update(id(200L, 60));
+
+        assertFalse(ranges.overlaps(null));
+        assertFalse(ranges.overlaps(ImmutableCoordinatorLogOffsets.NONE));
+
+        ImmutableCoordinatorLogOffsets noMatchLog = new ImmutableCoordinatorLogOffsets.Builder()
+                                                    .add(300L, 10, 50)
+                                                    .build();
+        assertFalse(ranges.overlaps(noMatchLog));
+
+        ImmutableCoordinatorLogOffsets noMatchOffset = new ImmutableCoordinatorLogOffsets.Builder()
+                                                       .add(100L, 60, 80)
+                                                       .build();
+        assertFalse(ranges.overlaps(noMatchOffset));
+
+        ImmutableCoordinatorLogOffsets match100 = new ImmutableCoordinatorLogOffsets.Builder()
+                                                  .add(100L, 5, 15)
+                                                  .build();
+        assertTrue(ranges.overlaps(match100));
+
+        ImmutableCoordinatorLogOffsets match200 = new ImmutableCoordinatorLogOffsets.Builder()
+                                                  .add(200L, 40, 45)
+                                                  .build();
+        assertTrue(ranges.overlaps(match200));
+    }
+
+    @Test
     public void testStaticOffsetRanges()
     {
         Descriptor descriptor = Descriptor.create(directory, 0, 1);

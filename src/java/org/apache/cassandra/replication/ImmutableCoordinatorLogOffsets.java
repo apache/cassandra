@@ -29,6 +29,7 @@ import java.util.function.Predicate;
 
 import javax.annotation.concurrent.NotThreadSafe;
 
+import com.google.common.annotations.VisibleForTesting;
 import com.google.common.collect.ImmutableSet;
 import com.google.common.collect.Iterators;
 
@@ -157,6 +158,14 @@ public class ImmutableCoordinatorLogOffsets implements CoordinatorLogOffsets<Off
                 return this;
             ids.computeIfAbsent(mutationId.logId(), logId -> new Offsets.Immutable.Builder(new CoordinatorLogId(logId)))
                .add(mutationId.offset());
+            return this;
+        }
+
+        @VisibleForTesting
+        public Builder add(long logId, int start, int end)
+        {
+            ids.computeIfAbsent(logId, k -> new Offsets.Immutable.Builder(new CoordinatorLogId(k)))
+               .add(start, end);
             return this;
         }
 
@@ -290,6 +299,12 @@ public class ImmutableCoordinatorLogOffsets implements CoordinatorLogOffsets<Off
             if (offsets == null)
                 return new Offsets.Immutable(new CoordinatorLogId(logId));
             return offsets;
+        }
+
+        @Override
+        public Offsets.Immutable getOffsets(long logId)
+        {
+            return ids.get(logId);
         }
 
         @Override

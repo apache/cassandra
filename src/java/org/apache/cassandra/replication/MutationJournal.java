@@ -77,6 +77,7 @@ import org.apache.cassandra.journal.ValueSerializer;
 import org.apache.cassandra.net.MessagingService;
 import org.apache.cassandra.schema.Schema;
 import org.apache.cassandra.schema.TableId;
+import org.apache.cassandra.service.StorageService;
 import org.apache.cassandra.tcm.ClusterMetadata;
 import org.apache.cassandra.utils.Crc;
 import org.apache.cassandra.utils.concurrent.OpOrder;
@@ -204,7 +205,9 @@ public class MutationJournal
                               }
                           };
         this.journal = journal;
-        segmentReferenceTracker = new SegmentReferenceTracker(() -> journal.compactor().triggerNow());
+        segmentReferenceTracker = new SegmentReferenceTracker(() -> journal.compactor().triggerNow(),
+                                                              StorageService.instance::getLocalHostUUID,
+                                                              journal::getAllSegments);
     }
 
     /**
@@ -744,6 +747,25 @@ public class MutationJournal
 
         abstract Map<Long, Long> asMap();
 
+        @FunctionalInterface
+        interface RangePredicate
+        {
+            boolean test(long logId, int minOffset, int maxOffset);
+        }
+
+        abstract boolean anyMatch(RangePredicate predicate);
+
+        public boolean overlaps(CoordinatorLogOffsets<?> offsets)
+        {
+            if (offsets == null || offsets.isEmpty())
+                return false;
+
+            return anyMatch((logId, minOffset, maxOffset) -> {
+                Offsets sstOffsets = offsets.mutations().getOffsets(logId);
+                return sstOffsets != null && !sstOffsets.isEmpty() && sstOffsets.overlaps(minOffset, maxOffset);
+            });
+        }
+
         @Override
         public String toString()
         {
@@ -782,6 +804,22 @@ public class MutationJournal
         protected Map<Long, Long> asMap()
         {
             return ranges;
+        }
+
+        @Override
+        boolean anyMatch(RangePredicate predicate)
+        {
+            for (Map.Entry<Long, Long> entry : ranges.entrySet())
+            {
+                Long val = entry.getValue();
+                if (val != null)
+                {
+                    long range = val.longValue();
+                    if (predicate.test(entry.getKey().longValue(), minOffset(range), maxOffset(range)))
+                        return true;
+                }
+            }
+            return false;
         }
 
         @Override
@@ -874,6 +912,37 @@ public class MutationJournal
         {
             long range = ranges.get(id.logId());
             return range != NO_VALUE && mayContain(range, id);
+        }
+
+        @Override
+        boolean anyMatch(RangePredicate predicate)
+        {
+            for (Long2LongHashMap.EntryIterator iter = ranges.entrySet().iterator(); iter.hasNext();)
+            {
+                iter.next();
+                long logId = iter.getLongKey();
+                long range = iter.getLongValue();
+                if (predicate.test(logId, minOffset(range), maxOffset(range)))
+                    return true;
+            }
+            return false;
+        }
+
+        @VisibleForTesting
+        static StaticOffsetRanges of(long logId, int minOffset, int maxOffset)
+        {
+            Long2LongHashMap map = new Long2LongHashMap(1, 0.65f, NO_VALUE, false);
+            map.put(logId, range(minOffset, maxOffset));
+            return new StaticOffsetRanges(map);
+        }
+
+        @VisibleForTesting
+        static StaticOffsetRanges of(Map<Long, Long> rangesMap)
+        {
+            Long2LongHashMap map = new Long2LongHashMap(rangesMap.size(), 0.65f, NO_VALUE, false);
+            for (Map.Entry<Long, Long> entry : rangesMap.entrySet())
+                map.put(entry.getKey().longValue(), entry.getValue().longValue());
+            return new StaticOffsetRanges(map);
         }
 
         static StaticOffsetRanges read(DataInputPlus in) throws IOException

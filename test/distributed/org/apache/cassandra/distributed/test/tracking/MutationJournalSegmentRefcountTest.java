@@ -84,6 +84,21 @@ public class MutationJournalSegmentRefcountTest extends TestBaseImpl
                              before, after);
             }));
 
+            int preBounceCount = cluster.get(1).callOnInstance(() -> MutationJournal.instance().countStaticSegmentsForTesting());
+            assertTrue(preBounceCount > 0);
+
+            // Restart a replica to confirm segment references survive restart and keep static segments pinned.
+            cluster.get(1).shutdown().get();
+            cluster.get(1).startup();
+            cluster.get(1).runOnInstance(() -> {
+                int postBounceCount = MutationJournal.instance().countStaticSegmentsForTesting();
+                assertEquals(preBounceCount, postBounceCount);
+
+                MutationTrackingService.instance().persistLogStateForTesting();
+                int postDropCount = MutationJournal.instance().countStaticSegmentsForTesting();
+                assertEquals(preBounceCount, postDropCount);
+            });
+
             // Restore broadcast, exchange witnesses, and persist so isDurablyReconciled is now true everywhere.
             cluster.filters().reset();
             cluster.forEach(i -> i.runOnInstance(() -> MutationTrackingService.instance().broadcastOffsetsForTesting()));

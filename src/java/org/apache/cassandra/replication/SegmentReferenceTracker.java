@@ -20,22 +20,25 @@ package org.apache.cassandra.replication;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
+import java.util.HashMap;
 import java.util.HashSet;
-import java.util.Iterator;
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
 import java.util.UUID;
 import java.util.concurrent.locks.ReentrantLock;
-import java.util.function.LongConsumer;
 import java.util.function.Supplier;
 
 import com.google.common.annotations.VisibleForTesting;
 
 import org.agrona.collections.Long2ObjectHashMap;
+import org.agrona.collections.LongHashSet;
+import org.agrona.collections.LongHashSet.LongIterator;
 
-import org.apache.cassandra.db.commitlog.CommitLogPosition;
-import org.apache.cassandra.db.commitlog.IntervalSet;
+import org.apache.cassandra.db.Mutation;
 import org.apache.cassandra.io.sstable.format.SSTableReader;
+import org.apache.cassandra.journal.KeyStats;
+import org.apache.cassandra.journal.Segment;
 import org.apache.cassandra.notifications.INotification;
 import org.apache.cassandra.notifications.INotificationConsumer;
 import org.apache.cassandra.notifications.InitialSSTableAddedNotification;
@@ -43,59 +46,47 @@ import org.apache.cassandra.notifications.SSTableAddedNotification;
 import org.apache.cassandra.notifications.SSTableListChangedNotification;
 import org.apache.cassandra.notifications.SSTableRepairStatusChanged;
 import org.apache.cassandra.schema.ReplicationType;
-import org.apache.cassandra.service.StorageService;
 
 /**
- * Tracks, for each mutation journal segment, the set of local unrepaired sstables of tracked tables that
- * reference it.
+ * Tracks, for each mutation journal segment, whether any unreconciled sstables could reference mutation ids it contains
  *
- * <p>A sstable references a segment iff the sstable's {@code StatsMetadata.commitLogIntervals} —
- * which for tracked tables stores mutation journal positions, not commit log positions — covers
- * any position within that segment. The granularity is coarse: the referenced range is the union
- * of the memtable lower/upper bounds for the sstable's lineage. This matches existing commit log
- * retention semantics; it can include a segment with no actual data from this sstable, which only
- * defers (never incorrectly enables) segment dropping.
+ * <p>An sstable references a segment if its {@code StatsMetadata.coordinatorLogOffsets} overlap with the segment's
+ * recorded offset ranges for any coordinator log.
  *
- * <p>Used by {@link MutationJournal} to decide when a static segment may be dropped: a segment may be
- * dropped only once it has no unrepaired references and {@code !needsReplay}. This guarantees the
- * journal can rebuild any unrepaired sstable from the journal if minority writes need to be filtered
- * out (CASSANDRA-21407).
+ * <p>Used by {@link MutationJournal} to decide when a static segment can be dropped: a segment can be
+ * dropped only when it has no unrepaired references and {@code !needsReplay}. This guarantees the journal can rebuild
+ * any unrepaired sstable from the journal if minority writes need to be filtered out (CASSANDRA-21407).
  *
  * <p>A per-segment <em>set</em> of referrers (rather than a bare refcount) is kept so that individual
  * referrers can be located and dropped from a segment's set — needed to reason about keyspaces migrating
  * to and from tracked replication (CASSANDRA-21406) and to surface which sstables hold a segment.
+ *
  */
 public class SegmentReferenceTracker implements INotificationConsumer
 {
-    // Guards both referrersBySegment and trackedSstables to keep transitions atomic across notifications.
     private final ReentrantLock lock = new ReentrantLock();
 
-    // segment id -> set of local unrepaired sstables referencing it
+    // Index mapping each segment id to the set of unrepaired SSTables that overlap it.
+    // Used by the compactor to quickly determine if a segment can be dropped.
     private final Long2ObjectHashMap<Set<SSTableReader>> referrersBySegment = new Long2ObjectHashMap<>();
 
-    // Sstables we currently hold refs for.
-    // Required so SSTableRepairStatusChanged can transition an sstable in/out without the notification
-    // having to carry the previous repair state.
-    private final Set<SSTableReader> trackedSSTables = new HashSet<>();
+    // Reverse index mapping each tracked SSTable to the journal segment ids it references.
+    // Used to remove references across all impacted segments when an SSTable is deleted or repaired.
+    private final Map<SSTableReader, LongHashSet> segmentsBySSTable = new HashMap<>();
 
-    // Invoked whenever a notification drives at least one segment's reference count to zero,
-    // so the journal can attempt to drop the now-unreferenced segment(s).
     private final Runnable onSegmentsUnreferenced;
 
-    // Resolves the local host id. May return null very early in startup, in which case no sstable is
-    // treated as locally originated.
     private final Supplier<UUID> localHostIdSupplier;
 
-    public SegmentReferenceTracker(Runnable onSegmentsUnreferenced)
-    {
-        this(onSegmentsUnreferenced, StorageService.instance::getLocalHostUUID);
-    }
+    private final Supplier<Iterable<Segment<ShortMutationId, Mutation>>> allSegmentsSupplier;
 
-    @VisibleForTesting
-    SegmentReferenceTracker(Runnable onSegmentsUnreferenced, Supplier<UUID> localHostIdSupplier)
+    public SegmentReferenceTracker(Runnable onSegmentsUnreferenced,
+                                   Supplier<UUID> localHostIdSupplier,
+                                   Supplier<Iterable<Segment<ShortMutationId, Mutation>>> allSegmentsSupplier)
     {
         this.onSegmentsUnreferenced = onSegmentsUnreferenced;
         this.localHostIdSupplier = localHostIdSupplier;
+        this.allSegmentsSupplier = allSegmentsSupplier;
     }
 
     @Override
@@ -112,6 +103,15 @@ public class SegmentReferenceTracker implements INotificationConsumer
     }
 
     /**
+     * @param segment the journal segment
+     * @return whether any unrepaired local sstable references the given segment
+     */
+    public boolean isReferenced(Segment<ShortMutationId, Mutation> segment)
+    {
+        return segment != null && isReferenced(segment.id());
+    }
+
+    /**
      * @param segmentId the identifier for the segment
      * @return whether any unrepaired local sstable references the given segment id
      */
@@ -120,7 +120,15 @@ public class SegmentReferenceTracker implements INotificationConsumer
         lock.lock();
         try
         {
-            return referrersBySegment.containsKey(segmentId);
+            Set<SSTableReader> referrers = referrersBySegment.get(segmentId);
+            if (referrers == null)
+                return false;
+            if (referrers.isEmpty())
+            {
+                referrersBySegment.remove(segmentId);
+                return false;
+            }
+            return true;
         }
         finally
         {
@@ -148,8 +156,6 @@ public class SegmentReferenceTracker implements INotificationConsumer
         lock.lock();
         try
         {
-            // Process additions before removals so refcounts are never observed briefly empty
-            // between a compaction's input drop and output add when both span the same segment.
             for (SSTableReader sstable : notification.added)
                 acquireIfTracked(sstable);
             for (SSTableReader sstable : notification.removed)
@@ -186,8 +192,7 @@ public class SegmentReferenceTracker implements INotificationConsumer
     }
 
     /**
-     * Release every reference currently held for the given sstables, dropping each from every segment's referrer
-     * set.
+     * Release every reference currently held for the given sstables.
      */
     public void evict(Iterable<SSTableReader> sstables)
     {
@@ -214,9 +219,12 @@ public class SegmentReferenceTracker implements INotificationConsumer
         lock.lock();
         try
         {
-            if (trackedSSTables.isEmpty())
+            if (segmentsBySSTable.isEmpty())
                 return Set.of();
-            return Set.copyOf(trackedSSTables);
+            segmentsBySSTable.entrySet().removeIf(entry -> entry.getValue() == null || entry.getValue().isEmpty());
+            if (segmentsBySSTable.isEmpty())
+                return Set.of();
+            return Set.copyOf(segmentsBySSTable.keySet());
         }
         finally
         {
@@ -224,10 +232,6 @@ public class SegmentReferenceTracker implements INotificationConsumer
         }
     }
 
-    /**
-     * @return true when all these conditions are true, the sstable is locally originated, unrepaired, carries
-     * tracked mutations, and it belongs to a tracked table
-     */
     boolean shouldTrack(SSTableReader sstable)
     {
         return isLocallyOriginated(sstable)
@@ -251,58 +255,77 @@ public class SegmentReferenceTracker implements INotificationConsumer
 
     private void acquireIfTracked(SSTableReader sstable)
     {
-        if (shouldTrack(sstable) && trackedSSTables.add(sstable))
-            forEachSegment(sstable, segmentId ->
-                                    referrersBySegment.computeIfAbsent(segmentId, k -> new HashSet<>()).add(sstable));
+        if (!shouldTrack(sstable) || segmentsBySSTable.containsKey(sstable))
+            return;
+
+        LongHashSet segmentIds = new LongHashSet();
+        if (allSegmentsSupplier != null)
+        {
+            Iterable<Segment<ShortMutationId, Mutation>> allSegments = allSegmentsSupplier.get();
+            if (allSegments != null)
+            {
+                for (Segment<ShortMutationId, Mutation> segment : allSegments)
+                {
+                    KeyStats<ShortMutationId> keyStats = segment.keyStats();
+                    if (keyStats instanceof MutationJournal.OffsetRanges)
+                    {
+                        MutationJournal.OffsetRanges segRanges = (MutationJournal.OffsetRanges) keyStats;
+                        if (segRanges.overlaps(sstable.getCoordinatorLogOffsets()))
+                        {
+                            segmentIds.add(segment.id());
+                            referrersBySegment.computeIfAbsent(segment.id(), k -> new HashSet<>()).add(sstable);
+                        }
+                    }
+                }
+            }
+        }
+        if (!segmentIds.isEmpty())
+            segmentsBySSTable.put(sstable, segmentIds);
     }
 
-    /**
-     * @return true if releasing this sstable emptied at least one segment's referrer set
-     */
     private boolean releaseIfTracked(SSTableReader sstable)
     {
-        if (!trackedSSTables.remove(sstable))
+        LongHashSet segmentIds = segmentsBySSTable.remove(sstable);
+        if (segmentIds == null || segmentIds.isEmpty())
             return false;
-        boolean[] anyEmptied = { false };
-        forEachSegment(sstable, segmentId -> {
+
+        boolean anyEmptied = false;
+        LongIterator idIterator = segmentIds.iterator();
+        while (idIterator.hasNext())
+        {
+            long segmentId = idIterator.nextValue();
             Set<SSTableReader> referrers = referrersBySegment.get(segmentId);
             if (referrers != null && referrers.remove(sstable) && referrers.isEmpty())
             {
                 referrersBySegment.remove(segmentId);
-                anyEmptied[0] = true;
+                anyEmptied = true;
             }
-        });
-        return anyEmptied[0];
-    }
-
-    private static void forEachSegment(SSTableReader sstable, LongConsumer consumer)
-    {
-        IntervalSet<CommitLogPosition> intervals = sstable.getSSTableMetadata().commitLogIntervals;
-        if (intervals.isEmpty())
-            return;
-
-        // IntervalSet guarantees starts and ends are returned in matching order.
-        Iterator<CommitLogPosition> startIt = intervals.starts().iterator();
-        Iterator<CommitLogPosition> endIt = intervals.ends().iterator();
-        while (startIt.hasNext())
-        {
-            CommitLogPosition start = startIt.next();
-            CommitLogPosition end = endIt.next();
-            for (long s = start.segmentId; s <= end.segmentId; s++)
-                consumer.accept(s);
         }
+        return anyEmptied;
     }
 
     /**
      * Number of unrepaired local sstables currently holding the given segment (for diagnostics / the vtable).
      */
-    int referenceCount(long segmentId)
+    public int referenceCount(Segment<ShortMutationId, Mutation> segment)
+    {
+        return segment != null ? referenceCount(segment.id()) : 0;
+    }
+
+    public int referenceCount(long segmentId)
     {
         lock.lock();
         try
         {
             Set<SSTableReader> referrers = referrersBySegment.get(segmentId);
-            return referrers == null ? 0 : referrers.size();
+            if (referrers == null)
+                return 0;
+            if (referrers.isEmpty())
+            {
+                referrersBySegment.remove(segmentId);
+                return 0;
+            }
+            return referrers.size();
         }
         finally
         {
@@ -313,6 +336,11 @@ public class SegmentReferenceTracker implements INotificationConsumer
     /**
      * Sorted base filenames of the sstables currently holding the given segment (for diagnostics / the vtable).
      */
+    public List<String> referrerDescriptors(Segment<ShortMutationId, Mutation> segment)
+    {
+        return segment != null ? referrerDescriptors(segment.id()) : Collections.emptyList();
+    }
+
     public List<String> referrerDescriptors(long segmentId)
     {
         lock.lock();
@@ -320,10 +348,14 @@ public class SegmentReferenceTracker implements INotificationConsumer
         {
             Set<SSTableReader> referrers = referrersBySegment.get(segmentId);
             if (referrers == null || referrers.isEmpty())
+            {
+                if (referrers != null)
+                    referrersBySegment.remove(segmentId);
                 return Collections.emptyList();
+            }
             List<String> names = new ArrayList<>(referrers.size());
             for (SSTableReader sstable : referrers)
-                names.add(sstable.descriptor.baseFile().name());
+                names.add(sstable.descriptor != null ? sstable.descriptor.baseFile().name() : sstable.getFilename());
             Collections.sort(names);
             return names;
         }
@@ -331,6 +363,12 @@ public class SegmentReferenceTracker implements INotificationConsumer
         {
             lock.unlock();
         }
+    }
+
+    @VisibleForTesting
+    long referenceCountForTesting(Segment<ShortMutationId, Mutation> segment)
+    {
+        return referenceCount(segment);
     }
 
     @VisibleForTesting
@@ -345,7 +383,8 @@ public class SegmentReferenceTracker implements INotificationConsumer
         lock.lock();
         try
         {
-            return trackedSSTables.size();
+            segmentsBySSTable.entrySet().removeIf(entry -> entry.getValue() == null || entry.getValue().isEmpty());
+            return segmentsBySSTable.size();
         }
         finally
         {
@@ -360,6 +399,7 @@ public class SegmentReferenceTracker implements INotificationConsumer
         try
         {
             referrersBySegment.computeIfAbsent(segmentId, k -> new HashSet<>()).add(referrer);
+            segmentsBySSTable.computeIfAbsent(referrer, k -> new LongHashSet()).add(segmentId);
         }
         finally
         {
@@ -370,16 +410,30 @@ public class SegmentReferenceTracker implements INotificationConsumer
     @VisibleForTesting
     void removeReferenceForTesting(long segmentId, SSTableReader referrer)
     {
+        boolean removed = false;
         lock.lock();
         try
         {
             Set<SSTableReader> referrers = referrersBySegment.get(segmentId);
-            if (referrers != null && referrers.remove(referrer) && referrers.isEmpty())
-                referrersBySegment.remove(segmentId);
+            if (referrers != null && referrers.remove(referrer))
+            {
+                if (referrers.isEmpty())
+                    referrersBySegment.remove(segmentId);
+                removed = true;
+            }
+            LongHashSet segmentIds = segmentsBySSTable.get(referrer);
+            if (segmentIds != null)
+            {
+                segmentIds.remove(segmentId);
+                if (segmentIds.isEmpty())
+                    segmentsBySSTable.remove(referrer);
+            }
         }
         finally
         {
             lock.unlock();
         }
+        if (removed)
+            onSegmentsUnreferenced.run();
     }
 }
