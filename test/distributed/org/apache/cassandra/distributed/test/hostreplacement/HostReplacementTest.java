@@ -274,7 +274,7 @@ public class HostReplacementTest extends TestBaseImpl
             ColumnFamilyStore cfs = Keyspace.open(KEYSPACE).getColumnFamilyStore(table);
             SSTableReader sstable = cfs.getLiveSSTables().stream()
                                        .max(SSTableReader.maxTimestampAscending)
-                                       .orElseThrow();
+                                       .get();
             return sstable.descriptor.fileFor(Component.DATA).absolutePath();
         });
 
