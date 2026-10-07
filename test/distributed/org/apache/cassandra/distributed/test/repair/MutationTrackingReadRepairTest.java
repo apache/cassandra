@@ -104,7 +104,7 @@ public class MutationTrackingReadRepairTest extends TestBaseImpl
                                                .set("repair.retries.max_attempts", 10)
                                                .set("repair.retries.base_sleep_time", "100ms")
                                                .set("repair.retries.max_sleep_time", "500ms")
-                                               .with(Feature.GOSSIP))
+                                               .with(Feature.GOSSIP, Feature.NETWORK))
                          .start();
     }
 
