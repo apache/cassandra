@@ -239,7 +239,7 @@ public class CommandChanges extends CommandChange.Builder implements Merger
         {
             // Since we are iterating in reverse order, we skip the fields that were
             // set by entries written later (i.e. already read ones) or if the mask did not include the field.
-            if ((isChanged(field, flags) || ((mask & (1 << field.ordinal())) != 0)) && field != CLEANUP)
+            if (isChanged(field, flags | mask) && field != CLEANUP)
                 skip(txnId, field, in, userVersion);
             else
                 deserialize(field, in, userVersion);

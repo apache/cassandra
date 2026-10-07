@@ -141,7 +141,7 @@ public class CommandChangeTest
                             // Ensure that fields that are masked out are equal to their default values
                             for (Field field : ALL)
                             {
-                                if (field == Field.CLEANUP || (mask & (1 << field.ordinal())) == 0)
+                                if (field == Field.CLEANUP || !CommandChange.isChanged(field, mask))
                                     continue;
                                 Object unset = field == Field.PROMISED || field == Field.ACCEPTED ? Ballot.ZERO
                                              : field == Field.MIN_UNIQUE_HLC ? 0L : null;
