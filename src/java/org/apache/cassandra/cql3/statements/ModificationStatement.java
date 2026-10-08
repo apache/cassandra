@@ -99,7 +99,6 @@ import org.apache.cassandra.db.partitions.Partition;
 import org.apache.cassandra.db.partitions.PartitionIterator;
 import org.apache.cassandra.db.partitions.PartitionIterators;
 import org.apache.cassandra.db.partitions.PartitionUpdate;
-import org.apache.cassandra.db.rows.Row;
 import org.apache.cassandra.db.rows.RowIterator;
 import org.apache.cassandra.db.view.View;
 import org.apache.cassandra.dht.Token;
@@ -1080,8 +1079,7 @@ public abstract class ModificationStatement implements CQLStatement.SingleKeyspa
         {
             TxnWrite.Fragment writeFragment = writeFragments.get(i);
             DecoratedKey key = writeFragment.key.partitionKey();
-            for (Row row : writeFragment.baseUpdate)
-                map.merge(new RowKey(key, row.clustering()), param, merge);
+            writeFragment.forEachRowClustering(clustering -> map.merge(new RowKey(key, clustering), param, merge));
         }
     }
 

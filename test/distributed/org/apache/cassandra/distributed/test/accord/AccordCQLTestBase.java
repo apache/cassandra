@@ -324,6 +324,55 @@ public abstract class AccordCQLTestBase extends AccordTestBase
     }
 
     @Test
+    public void testRejectTransactionWithListUpdatesToSamePrimaryKeySameColumns() throws Exception
+    {
+        test("CREATE TABLE " + qualifiedAccordTableName + " (k int, c int, l list<int>, primary key (k, c)) WITH " + transactionalMode.asCqlParam(), cluster -> {
+            try
+            {
+                String txn = "BEGIN TRANSACTION\n" +
+                             "  UPDATE " + qualifiedAccordTableName + " SET l = [1] + l WHERE k = 1 AND c = 1;\n" +
+                             "  UPDATE " + qualifiedAccordTableName + " SET l = l + [2] WHERE k = 1 AND c = 1;\n" +
+                             "COMMIT TRANSACTION";
+
+                cluster.coordinator(1).executeWithResult(txn, ConsistencyLevel.SERIAL);
+                fail("Expected exception");
+            }
+            catch (Throwable t)
+            {
+                assertEquals(InvalidRequestException.class.getName(), t.getClass().getName());
+                assertEquals(TransactionStatement.DUPLICATE_KEYS_IN_SAME_TRANSACTION_MESSAGE, t.getMessage());
+            }
+        });
+    }
+
+    @Test
+    public void testAcceptTransactionWithListUpdatesToSamePrimaryKeyDisjointColumns() throws Exception
+    {
+        test("CREATE TABLE " + qualifiedAccordTableName + " (k int, c int, v int, l list<int>, m list<int>, primary key (k, c)) WITH " + transactionalMode.asCqlParam(), cluster -> {
+            String txn = "BEGIN TRANSACTION\n" +
+                         "  UPDATE " + qualifiedAccordTableName + " SET v = 1, l = [1] + l WHERE k = 1 AND c = 1;\n" +
+                         "  UPDATE " + qualifiedAccordTableName + " SET m = [2] + m WHERE k = 1 AND c = 1;\n" +
+                         "  UPDATE " + qualifiedAccordTableName + " SET l = l + [3] WHERE k = 1 AND c = 2;\n" +
+                         "COMMIT TRANSACTION";
+
+            cluster.coordinator(1).executeWithResult(txn, ConsistencyLevel.SERIAL);
+            assertRows(cluster.coordinator(1).execute("SELECT c, v, l, m FROM " + qualifiedAccordTableName + " WHERE k = 1", ConsistencyLevel.SERIAL),
+                       row(1, 1, List.of(1), List.of(2)),
+                       row(2, null, List.of(3), null));
+        });
+    }
+
+    @Test
+    public void testAcceptTransactionWithListInsert() throws Exception
+    {
+        test("CREATE TABLE " + qualifiedAccordTableName + " (k int, c int, l list<int>, primary key (k, c)) WITH " + transactionalMode.asCqlParam(), cluster -> {
+            cluster.coordinator(1).executeWithResult(wrapInTxn("INSERT INTO " + qualifiedAccordTableName + " (k, c, l) VALUES (0, 0, [1])"), ConsistencyLevel.SERIAL);
+            assertRows(cluster.coordinator(1).execute("SELECT l FROM " + qualifiedAccordTableName + " WHERE k = 0 AND c = 0", ConsistencyLevel.SERIAL),
+                       row(List.of(1)));
+        });
+    }
+
+    @Test
     public void testRejectColumnComparisonWithNull() throws Exception
     {
         test("CREATE TABLE " + qualifiedAccordTableName + " (k int PRIMARY KEY, v int) WITH " + transactionalMode.asCqlParam(), cluster -> {
