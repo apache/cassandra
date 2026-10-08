@@ -434,6 +434,19 @@ public final class SchemaKeyspace
     private static final AtomicBoolean flushScheduled = new AtomicBoolean(false);
 
     /**
+     * The currently scheduled flush future, if any. Set when a flush is successfully scheduled, cleared when
+     * the task runs or is cancelled. Used at shutdown to cancel any pending flush before executors stop.
+     */
+    private static volatile ScheduledFuture<?> pendingFlushFuture = null;
+
+    /**
+     * Tracks whether coalescing has been shut down. Once set, scheduleFlush() will flush synchronously rather
+     * than scheduling, preventing flushes from firing after the flush executors have stopped. Reset on restart
+     * (e.g., in-jvm dtest instance bounce) to re-enable coalescing.
+     */
+    private static final AtomicBoolean coalescingShutdown = new AtomicBoolean(false);
+
+    /**
      * Injectable scheduling strategy for testing flush scheduling failure paths. Narrow interface covering only
      * the single method scheduleFlush() uses. Package-private visibility and volatile so SchemaFlushCoalesceTest
      * can substitute a stub and ensure visibility across threads.
@@ -460,6 +473,14 @@ public final class SchemaKeyspace
     @VisibleForTesting
     static void scheduleFlush()
     {
+        // If coalescing has been shut down, flush synchronously instead of scheduling. This prevents
+        // flushes from being scheduled against stopped executors during shutdown.
+        if (coalescingShutdown.get())
+        {
+            flushBlocking();
+            return;
+        }
+
         int coalesceMs = DatabaseDescriptor.getSchemaFlushCoalescingWindow().toMilliseconds();
         if (coalesceMs == 0)
         {
@@ -477,9 +498,11 @@ public final class SchemaKeyspace
                     // Reset before flushing, not after, so that schema changes which arrive while this flush is
                     // running schedule the next flush rather than being folded (silently) into this one.
                     flushScheduled.set(false);
+                    pendingFlushFuture = null;
                     try
                     {
-                        if (!DatabaseDescriptor.isUnsafeSystem())
+                        // Check shutdown state again in case shutdown happened while the task was queued
+                        if (!coalescingShutdown.get() && !DatabaseDescriptor.isUnsafeSystem())
                             flushBlocking();
                     }
                     catch (Throwable t)
@@ -488,6 +511,8 @@ public final class SchemaKeyspace
                     }
                 }, coalesceMs, TimeUnit.MILLISECONDS);
                 scheduled = !future.isCancelled();
+                if (scheduled)
+                    pendingFlushFuture = future;
             }
             catch (RejectedExecutionException e)
             {
@@ -499,6 +524,7 @@ public final class SchemaKeyspace
                 if (!scheduled)
                 {
                     flushScheduled.set(false);
+                    pendingFlushFuture = null;
                     TCMMetrics.instance.schemaFlushScheduleFailures.inc();
                     if (schedulingFailure != null)
                         logger.warn("Failed to schedule system_schema flush; coalescing is disabled until next successful schedule", schedulingFailure);
@@ -517,6 +543,49 @@ public final class SchemaKeyspace
     static boolean isFlushScheduled()
     {
         return flushScheduled.get();
+    }
+
+    /**
+     * Shuts down coalesced flush: cancels any pending flush, executes a final synchronous flush, and
+     * disables further scheduling. Must be called before flush executors stop (Instance.shutdown,
+     * StorageService.drain). Idempotent.
+     * <p>
+     * Invariant: any schema change applied before the shutdown flag is set will be flushed here; any
+     * change after will be flushed synchronously by scheduleFlush. Always flushes regardless of whether
+     * a pending task is seen, because the task may clear its future reference before checking the flag.
+     */
+    public static void shutdownCoalescedFlush()
+    {
+        coalescingShutdown.set(true);
+
+        ScheduledFuture<?> future = pendingFlushFuture;
+        if (future != null)
+            future.cancel(false);
+
+        flushScheduled.set(false);
+        pendingFlushFuture = null;
+
+        try
+        {
+            flushBlocking();
+        }
+        catch (Throwable t)
+        {
+            logger.warn("Failed to flush system_schema tables during shutdown", t);
+        }
+    }
+
+    /**
+     * Re-enables coalesced flush scheduling. Called only by in-jvm dtest Instance.startup after shutdown,
+     * since static state survives across instance restarts within the same classloader. Not called in
+     * production (Cassandra processes do not restart in the same JVM).
+     */
+    @VisibleForTesting
+    public static void restartCoalescedFlush()
+    {
+        coalescingShutdown.set(false);
+        flushScheduled.set(false);
+        pendingFlushFuture = null;
     }
 
     /**
