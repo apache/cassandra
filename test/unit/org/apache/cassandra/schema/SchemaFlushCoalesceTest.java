@@ -52,6 +52,8 @@ public class SchemaFlushCoalesceTest extends CQLTester
     {
         // restore the documented default
         DatabaseDescriptor.setSchemaFlushCoalescingWindow(new DurationSpec.IntMillisecondsBound("1000ms"));
+        // re-enable coalescing for subsequent tests (simulates instance restart in dtests)
+        SchemaKeyspace.restartCoalescedFlush();
     }
 
     /**
@@ -263,6 +265,165 @@ public class SchemaFlushCoalesceTest extends CQLTester
                          greaterThan(switchesBefore),
                          () -> tablesCfs.metric.memtableSwitchCount.getCount(),
                          5, TimeUnit.SECONDS);
+    }
+
+    /**
+     * Tests that shutdownCoalescedFlush() correctly cancels a pending flush and executes it synchronously.
+     * This simulates the shutdown path where we need to ensure all schema changes are flushed before
+     * the flush executors stop.
+     */
+    @Test
+    public void testShutdownWithPendingFlush() throws Throwable
+    {
+        DatabaseDescriptor.setSchemaFlushCoalescingWindow(new DurationSpec.IntMillisecondsBound("1000ms"));
+
+        createTable("CREATE TABLE %s (k int PRIMARY KEY, v int)");
+
+        ColumnFamilyStore tablesCfs = schemaCfs(SchemaKeyspaceTables.TABLES);
+        long switchesBefore = tablesCfs.metric.memtableSwitchCount.getCount();
+
+        // Schedule a flush with a long window so it definitely won't fire before we call shutdown
+        SchemaKeyspace.scheduleFlush();
+        assertTrue("Flush should be scheduled", SchemaKeyspace.isFlushScheduled());
+
+        // Call shutdown - should cancel the scheduled task and flush synchronously
+        SchemaKeyspace.shutdownCoalescedFlush();
+
+        // Flag must be reset
+        assertFalse("Flag must be reset after shutdown", SchemaKeyspace.isFlushScheduled());
+
+        // Flush must have been executed synchronously (memtable switch proves flushBlocking() ran)
+        assertEquals("Flush must have been executed synchronously",
+                     switchesBefore + 1, tablesCfs.metric.memtableSwitchCount.getCount());
+    }
+
+    /**
+     * Tests that shutdownCoalescedFlush() is idempotent and safe when called with no pending flush.
+     */
+    @Test
+    public void testShutdownWithNoPendingFlush() throws Throwable
+    {
+        DatabaseDescriptor.setSchemaFlushCoalescingWindow(new DurationSpec.IntMillisecondsBound("50ms"));
+
+        createTable("CREATE TABLE %s (k int PRIMARY KEY, v int)");
+
+        ColumnFamilyStore tablesCfs = schemaCfs(SchemaKeyspaceTables.TABLES);
+
+        // Let any scheduled flush complete first
+        long switchesBefore = tablesCfs.metric.memtableSwitchCount.getCount();
+        SchemaKeyspace.scheduleFlush();
+        Util.spinAssert("flush completes",
+                         greaterThan(switchesBefore),
+                         () -> tablesCfs.metric.memtableSwitchCount.getCount(),
+                         5, TimeUnit.SECONDS);
+
+        assertFalse("No flush should be scheduled", SchemaKeyspace.isFlushScheduled());
+
+        // Call shutdown with no pending flush - should be a no-op
+        long switchesBeforeShutdown = tablesCfs.metric.memtableSwitchCount.getCount();
+        SchemaKeyspace.shutdownCoalescedFlush();
+
+        // Should not have flushed again (memtables are already empty)
+        assertEquals("Should not flush when memtables are already empty",
+                     switchesBeforeShutdown, tablesCfs.metric.memtableSwitchCount.getCount());
+
+        // Multiple calls should be safe (idempotent)
+        SchemaKeyspace.shutdownCoalescedFlush();
+        assertFalse("Flag should still be clear", SchemaKeyspace.isFlushScheduled());
+    }
+
+    /**
+     * Tests that after shutdownCoalescedFlush(), any subsequent scheduleFlush() calls flush synchronously
+     * instead of scheduling, preventing flushes from firing against stopped executors.
+     */
+    @Test
+    public void testScheduleAfterShutdownFlushesImmediately() throws Throwable
+    {
+        DatabaseDescriptor.setSchemaFlushCoalescingWindow(new DurationSpec.IntMillisecondsBound("1000ms"));
+
+        createTable("CREATE TABLE %s (k int PRIMARY KEY, v int)");
+
+        ColumnFamilyStore tablesCfs = schemaCfs(SchemaKeyspaceTables.TABLES);
+
+        // Call shutdown
+        SchemaKeyspace.shutdownCoalescedFlush();
+
+        // Now make a schema change and call scheduleFlush - it should flush synchronously, not schedule
+        createTable("CREATE TABLE %s (k int PRIMARY KEY, v int)");
+        long switchesBefore = tablesCfs.metric.memtableSwitchCount.getCount();
+
+        SchemaKeyspace.scheduleFlush();
+
+        // Should have flushed synchronously (no polling needed)
+        assertEquals("scheduleFlush after shutdown should flush synchronously",
+                     switchesBefore + 1, tablesCfs.metric.memtableSwitchCount.getCount());
+
+        // Flag should not be set (synchronous flush, not scheduled)
+        assertFalse("Flag should not be set for synchronous flush", SchemaKeyspace.isFlushScheduled());
+    }
+
+    /**
+     * Tests the race condition where the scheduled flush task clears pendingFlushFuture before
+     * shutdownCoalescedFlush reads it. Without the fix (always flushing in shutdown), this race
+     * results in no flush happening at all: the task sees the shutdown flag and skips, shutdown
+     * sees no future and skips. With the fix, shutdown always flushes after setting the flag,
+     * so the race is benign.
+     */
+    @Test
+    public void testShutdownRaceWithTaskClearingFuture() throws Throwable
+    {
+        DatabaseDescriptor.setSchemaFlushCoalescingWindow(new DurationSpec.IntMillisecondsBound("1000ms"));
+
+        createTable("CREATE TABLE %s (k int PRIMARY KEY, v int)");
+
+        ColumnFamilyStore tablesCfs = schemaCfs(SchemaKeyspaceTables.TABLES);
+        SchemaKeyspace.FlushScheduler realScheduler = SchemaKeyspace.flushScheduler;
+
+        try
+        {
+            // Use a stub scheduler that schedules the task but doesn't execute it immediately
+            ScheduledFuture<?>[] capturedFuture = new ScheduledFuture<?>[1];
+            SchemaKeyspace.flushScheduler = (task, delay, unit) -> {
+                // Schedule the real task but capture it
+                ScheduledFuture<?> future = ScheduledExecutors.nonPeriodicTasks.schedule(task, delay, unit);
+                capturedFuture[0] = future;
+                return future;
+            };
+
+            long switchesBefore = tablesCfs.metric.memtableSwitchCount.getCount();
+
+            // Schedule a flush - task is now pending on the real executor
+            SchemaKeyspace.scheduleFlush();
+            assertTrue("Flush should be scheduled", SchemaKeyspace.isFlushScheduled());
+
+            // Cancel the task before it runs, then simulate the race by manually clearing the state
+            // as the task would have done
+            if (capturedFuture[0] != null)
+                capturedFuture[0].cancel(false);
+
+            // Simulate the task's prologue: clear flags and future reference
+            // (this is what the real task does before checking coalescingShutdown)
+            java.lang.reflect.Field flushScheduledField = SchemaKeyspace.class.getDeclaredField("flushScheduled");
+            flushScheduledField.setAccessible(true);
+            ((java.util.concurrent.atomic.AtomicBoolean) flushScheduledField.get(null)).set(false);
+
+            java.lang.reflect.Field pendingFlushFutureField = SchemaKeyspace.class.getDeclaredField("pendingFlushFuture");
+            pendingFlushFutureField.setAccessible(true);
+            pendingFlushFutureField.set(null, null);
+
+            // Now call shutdown - it will see pendingFlushFuture == null (the race condition)
+            // but MUST still flush because memtables are dirty
+            SchemaKeyspace.shutdownCoalescedFlush();
+
+            // The flush MUST have happened despite the race
+            assertEquals("Shutdown must flush even when future was cleared by task",
+                         switchesBefore + 1, tablesCfs.metric.memtableSwitchCount.getCount());
+        }
+        finally
+        {
+            // Restore real scheduler
+            SchemaKeyspace.flushScheduler = realScheduler;
+        }
     }
 
     private static ColumnFamilyStore schemaCfs(String tableName)

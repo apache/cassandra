@@ -171,6 +171,7 @@ import org.apache.cassandra.schema.Keyspaces;
 import org.apache.cassandra.schema.ReplicationParams;
 import org.apache.cassandra.schema.Schema;
 import org.apache.cassandra.schema.SchemaConstants;
+import org.apache.cassandra.schema.SchemaKeyspace;
 import org.apache.cassandra.schema.SystemDistributedKeyspace;
 import org.apache.cassandra.schema.TableId;
 import org.apache.cassandra.schema.TableMetadata;
@@ -3990,14 +3991,15 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
 
             // Interrupt ongoing compactions and shutdown CM to prevent further compactions.
             CompactionManager.instance.forceShutdown();
+
+            // Flush any pending coalesced schema changes before shutting down flush executors
+            SchemaKeyspace.shutdownCoalescedFlush();
+
             // Flush the system tables after all other tables are flushed, just in case flushing modifies any system state
             // like CASSANDRA-5151. Don't bother with progress tracking since system data is tiny.
             // Flush system tables after stopping compactions since they modify
             // system tables (for example compactions can obsolete sstables and the tidiers in SSTableReader update
             // system tables, see SSTableReader.GlobalTidy)
-            // Keyspace.system() includes system_schema (SchemaConstants.LOCAL_SYSTEM_KEYSPACE_NAMES), so this
-            // also covers the coalesced/async system_schema flush (SchemaKeyspace.scheduleFlush()): any DDL
-            // applied before drain is guaranteed a synchronous flush here regardless of the coalesce window.
             flushes.clear();
             for (Keyspace keyspace : Keyspace.system())
             {

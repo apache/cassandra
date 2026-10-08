@@ -133,6 +133,7 @@ import org.apache.cassandra.net.Verb;
 import org.apache.cassandra.repair.autorepair.AutoRepair;
 import org.apache.cassandra.schema.Schema;
 import org.apache.cassandra.schema.SchemaConstants;
+import org.apache.cassandra.schema.SchemaKeyspace;
 import org.apache.cassandra.service.ActiveRepairService;
 import org.apache.cassandra.service.CassandraDaemon;
 import org.apache.cassandra.service.ClientState;
@@ -788,6 +789,11 @@ public class Instance extends IsolatedExecutor implements IInvokableInstance
         DatabaseDescriptor.daemonInitialization();
         if (config.has(JMX))
             startJmx();
+
+        // Re-enable coalescing after restart (static state survives). Must be after daemonInitialization
+        // (partitioner set) but before schema ops. Safe on first startup (flags already clear).
+        SchemaKeyspace.restartCoalescedFlush();
+
         LoggingSupportFactory.getLoggingSupport().onStartup();
         logSystemInfo(inInstancelogger);
         Config.log(DatabaseDescriptor.getRawConfig());
@@ -1026,6 +1032,9 @@ public class Instance extends IsolatedExecutor implements IInvokableInstance
 
             // AutoRepair must stop before ActiveRepairService and commit log, else its repairs may block on writing to system tables
             error = parallelRun(error, executor, () -> AutoRepair.instance.shutdownBlocking(1L, MINUTES));
+
+            // Cancel any pending coalesced schema flush and execute it synchronously before the flush executors stop
+            error = parallelRun(error, executor, SchemaKeyspace::shutdownCoalescedFlush);
 
             error = parallelRun(error, executor,
                                 shutdownBatchlogAndHints,
