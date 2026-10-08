@@ -39,6 +39,7 @@ import accord.primitives.Participants;
 import accord.primitives.Ranges;
 import accord.primitives.RoutableKey;
 import accord.primitives.Timestamp;
+import accord.utils.ArrayBuffers.IntBuffers;
 import accord.utils.Invariants;
 import accord.utils.SimpleBitSet;
 import accord.utils.SimpleBitSets;
@@ -90,6 +91,7 @@ import static org.apache.cassandra.utils.NullableSerializer.serializedNullableSi
 
 public final class TxnUpdate extends AccordUpdate
 {
+    // a condition and the write fragment ids that apply if the condition applies
     static class ConditionalBlock
     {
         private static final long EMPTY_SIZE = ObjectSizes.measure(new ConditionalBlock(0, null, null));
@@ -209,7 +211,7 @@ public final class TxnUpdate extends AccordUpdate
             public void skip(TableMetadatasAndKeys p, DataInputPlus in) throws IOException
             {
                 in.readUnsignedVInt32();
-                p.skipKeys(in);
+                p.skipKey(in);
                 skipWithVIntLength(in);
             }
 
@@ -223,7 +225,7 @@ public final class TxnUpdate extends AccordUpdate
             }
         };
 
-        final int id;
+        int id; // updated after sorting
         final PartitionKey key;
         final ByteBuffer bytes;
 
@@ -234,6 +236,7 @@ public final class TxnUpdate extends AccordUpdate
             this.bytes = bytes;
         }
 
+        @Override
         public boolean equals(Object that)
         {
             return that instanceof BlockFragment && equals((BlockFragment) that);
@@ -242,6 +245,12 @@ public final class TxnUpdate extends AccordUpdate
         public boolean equals(BlockFragment that)
         {
             return this.id == that.id && this.key.equals(that.key) && this.bytes.equals(that.bytes);
+        }
+
+        @Override
+        public int hashCode()
+        {
+            return Objects.hash(id, Objects.hashCode(key), bytes);
         }
 
         public long estimatedSizeOnHeap()
@@ -253,7 +262,8 @@ public final class TxnUpdate extends AccordUpdate
         }
     }
 
-    static class Block
+    // each block is an isolated IF/ELSE/END IF
+    public static class Block
     {
         private static final long EMPTY_SIZE = ObjectSizes.measure(new Block(null, null));
         public static final ParameterisedUnversionedSerializer<Block, TableMetadatasAndKeys> serializer = new ParameterisedUnversionedSerializer<>()
@@ -293,6 +303,36 @@ public final class TxnUpdate extends AccordUpdate
         final BlockFragment[] fragments;
         final ConditionalBlock[] conditionalBlocks;
 
+        /*
+         * Invariants:
+         * (1) fragments is sorted by key
+         * (2) conditionalBlocks retains declaration order, for evaluation order semantics (required if conditions not disjoint)
+         * (3) Within each ConditionalBlock, fragmentIds is sorted (by id, not key)
+         *
+         * IF c0 THEN
+         *   UPDATE K4;    -> id 3
+         *   UPDATE K2;    -> id 1
+         * ELSE IF c1 THEN
+         *   UPDATE K3;    -> id 2
+         * ELSE
+         *   UPDATE K1;    -> id 0
+         * END IF
+         *
+         *                                          fragments (sorted by key)
+         *                                          +-------+-------+-------+-------+
+         *                                       id |   0   |   1   |   2   |   3   |
+         *                                      key |  K1   |  K2   |  K3   |  K4   |
+         *                                          +-------+-------+-------+-------+
+         *                                              |       |       |       |
+         *   conditionalBlocks                          |       |       |       |
+         *   +----------------------------------+       |       |       |       |
+         *   | IF c0       fragmentIds = [1, 3] |-------+-------X-------+-------X
+         *   +----------------------------------+       |               |
+         *   | ELSE IF c1  fragmentIds = [2]    |-------+---------------X
+         *   +----------------------------------+       |
+         *   | ELSE        fragmentIds = [0]    |-------X
+         *   +----------------------------------+
+         */
         Block(BlockFragment[] fragments, ConditionalBlock[] conditionalBlocks)
         {
             this.fragments = fragments;
@@ -335,68 +375,68 @@ public final class TxnUpdate extends AccordUpdate
             sb.append("]}");
         }
 
+        // slice a Block to the fragments with intersecting keys, and any conditions that would apply those fragments
         public Block select(Keys keys)
         {
-            int[] outFragmentIds = cachedInts().getInts(fragments.length);
-            BlockFragment[] outFragments;
-            int count = 0;
+            IntBuffers cachedInts = cachedInts();
+            int[] bufFragmentIds = cachedInts.getInts(fragments.length);
+            try
             {
+                BlockFragment[] outFragments;
+                int count = 0;
                 {
-                    int i = 0, j = 0;
-                    while (i < keys.size() && j < fragments.length)
                     {
-                        Key key = keys.get(i++);
-                        j = SortedArrays.exponentialSearch(fragments, j, fragments.length, key, (k, b) -> k.compareTo(b.key), CEIL);
-                        if (j < 0) j = -1 - j;
-                        else
+                        int i = 0, j = 0;
+                        while (i < keys.size() && j < fragments.length)
                         {
-                            do outFragmentIds[count++] = j;
-                            while (++j < fragments.length && fragments[j].key.equals(key));
+                            Key key = keys.get(i++);
+                            j = SortedArrays.exponentialSearch(fragments, j, fragments.length, key, (k, b) -> k.compareTo(b.key), CEIL);
+                            if (j < 0) j = -1 - j;
+                            else
+                            {
+                                do bufFragmentIds[count++] = j;
+                                while (++j < fragments.length && fragments[j].key.equals(key));
+                            }
                         }
+                    }
+
+                    if (count == fragments.length)
+                        return this;
+
+                    if (count == 0)
+                        return new Block(NO_BLOCK_FRAGMENTS, NO_CONDITIONAL_BLOCKS);
+
+                    outFragments = new BlockFragment[count];
+                    for (int i = 0 ; i < count ; ++i)
+                    {
+                        outFragments[i] = fragments[bufFragmentIds[i]];
+                        bufFragmentIds[i] = outFragments[i].id;
                     }
                 }
 
-                if (count == fragments.length)
-                    return this;
-
-                if (count == 0)
-                    return new Block(NO_BLOCK_FRAGMENTS, NO_CONDITIONAL_BLOCKS);
-
-                outFragments = new BlockFragment[count];
-                for (int i = 0 ; i < count ; ++i)
+                ConditionalBlock[] outConditions;
                 {
-                    outFragments[i] = fragments[outFragmentIds[i]];
-                    outFragmentIds[i] = outFragments[i].id;
-                }
-            }
-
-            ConditionalBlock[] outConditions;
-            {
-                List<ConditionalBlock> collect = null;
-                for (int i = 0 ; i < conditionalBlocks.length ; ++i)
-                {
-                    ConditionalBlock cb = conditionalBlocks[i];
-                    int[] cbOutFragmentIds = SortedArrays.linearIntersection(cb.fragmentIds, 0, cb.fragmentIds.length, outFragmentIds, 0, count, cachedInts());
-                    //noinspection ArrayEquality
-                    if (cbOutFragmentIds != cb.fragmentIds) // when arrays are equal the cb.fragmentIds gets returned unchanged, so can do a pointer check to detect a change
+                    // we know we select a subset of fragments, so no point lazily copying as we expect to modify at least one conditional block
+                    List<ConditionalBlock> collect = new ArrayList<>(conditionalBlocks.length);
+                    for (int i = 0 ; i < conditionalBlocks.length ; ++i)
                     {
-                        if (collect == null)
-                        {
-                            collect = new ArrayList<>(conditionalBlocks.length - 1);
-                            for (int j = 0 ; j < i ; ++j) //TODO (review): why do we include the previous blocks that "should" have empty fragments, but we provide them without empty fragments?
-                                collect.add(conditionalBlocks[j]);
-                        }
-                        if (cbOutFragmentIds.length > 0)
-                            collect.add(new ConditionalBlock(cb.id, cb.condition, cbOutFragmentIds));
-                    }
-                }
-                if (collect == null) outConditions = conditionalBlocks;
-                else if (collect.isEmpty()) outConditions = NO_CONDITIONAL_BLOCKS;
-                else outConditions = collect.toArray(ConditionalBlock[]::new);
-            }
+                        ConditionalBlock cb = conditionalBlocks[i];
+                        int[] cbOutFragmentIds = SortedArrays.linearIntersection(cb.fragmentIds, 0, cb.fragmentIds.length, bufFragmentIds, 0, count, cachedInts);
 
-            cachedInts().forceDiscard(outFragmentIds);
-            return new Block(outFragments, outConditions);
+                        // We always include inputs that are no-ops else nobody adopts them, breaking reconstruction on recovery. See AccordEmptyBranchRecoveryTest.java
+                        if (cbOutFragmentIds.length > 0 || cb.fragmentIds.length == 0)
+                            collect.add(cbOutFragmentIds == cb.fragmentIds ? cb : new ConditionalBlock(cb.id, cb.condition, cbOutFragmentIds));
+                    }
+                    if (collect.isEmpty()) outConditions = NO_CONDITIONAL_BLOCKS;
+                    else outConditions = collect.toArray(ConditionalBlock[]::new);
+                }
+
+                return new Block(outFragments, outConditions);
+            }
+            finally
+            {
+                cachedInts.forceDiscard(bufFragmentIds);
+            }
         }
 
         public Block merge(Block that)
@@ -464,6 +504,116 @@ public final class TxnUpdate extends AccordUpdate
                     outConditions = Arrays.copyOf(outConditions, count);
             }
             return new Block(outFragments, outConditions);
+        }
+    }
+
+    /**
+     * Builds the Blocks for (at most) one IF/ELSE IF/ELSE/END IF followed by (at most) one unconditional block.
+     * Conditional blocks are added in declaration order, and the unconditional block (if any) last.
+     *
+     * ConditionalBlock ids are global across the Blocks and assigned in declaration order.
+     * BlockFragment ids are local to a Block and are assigned in key order, so that the fragments of a Block
+     * are sorted by both key and id; Block.select relies on the former, and Block.merge/deserialize on the latter.
+     */
+    public static class BlocksBuilder
+    {
+        private final ConditionalBlock[] conditionalBlocks;
+        private int conditionalBlockCount;
+        private final BlockFragment[] blockFragments;
+        private int blockFragmentCount;
+        private Block unconditionalBlock;
+
+        public BlocksBuilder(int conditionalCapacity, int fragmentCapacity)
+        {
+            this.conditionalBlocks = conditionalCapacity == 0 ? NO_CONDITIONAL_BLOCKS : new ConditionalBlock[conditionalCapacity];
+            this.blockFragments = fragmentCapacity == 0 ? NO_BLOCK_FRAGMENTS : new BlockFragment[fragmentCapacity];
+        }
+
+        public void addConditional(TxnCondition condition, List<TxnWrite.Fragment> writes, TableMetadatas tables)
+        {
+            Invariants.require(unconditionalBlock == null);
+            int[] fragmentIds = new int[writes.size()];
+            for (int i = 0, mi = writes.size() ; i < mi ; ++i)
+            {
+                Fragment fragment = writes.get(i);
+                fragmentIds[i] = blockFragmentCount;
+                // id is set initially to its current position, and later updated once we sort by key;
+                blockFragments[blockFragmentCount] = new BlockFragment(blockFragmentCount, fragment.key, Fragment.FragmentSerializer.serialize(fragment, tables, Version.LATEST));
+                blockFragmentCount++;
+            }
+
+            SerializedTxnCondition serializedCondition = new SerializedTxnCondition(condition, tables);
+            conditionalBlocks[conditionalBlockCount] = new ConditionalBlock(conditionalBlockCount, serializedCondition, fragmentIds);
+            conditionalBlockCount++;
+        }
+
+        // must be called last
+        public void addUnconditional(List<TxnWrite.Fragment> writes, TableMetadatas tables)
+        {
+            Invariants.require(unconditionalBlock == null && conditionalBlockCount == conditionalBlocks.length);
+            writes.sort(Fragment::compareKeys);
+
+            BlockFragment[] blockFragments = new BlockFragment[writes.size()];
+            int[] fragmentIds = new int[writes.size()];
+            for (int i = 0 ; i < writes.size() ; ++i)
+            {
+                Fragment fragment = writes.get(i);
+                blockFragments[i] = new BlockFragment(i, fragment.key, Fragment.FragmentSerializer.serialize(fragment, tables, Version.LATEST));
+                fragmentIds[i] = i;
+            }
+
+            SerializedTxnCondition serializedCondition = new SerializedTxnCondition(TxnCondition.none(), tables);
+            ConditionalBlock[] conditionalBlock = new ConditionalBlock[] { new ConditionalBlock(conditionalBlockCount, serializedCondition, fragmentIds) };
+            unconditionalBlock = new Block(blockFragments, conditionalBlock);
+        }
+
+        private Block buildConditional()
+        {
+            if (conditionalBlockCount == 0)
+                return null;
+
+            Invariants.require(conditionalBlockCount == conditionalBlocks.length);
+            Invariants.require(blockFragmentCount == blockFragments.length);
+
+            Arrays.sort(blockFragments, (a, b) -> a.key.compareTo(b.key));
+            IntBuffers cachedInts = cachedInts();
+            int[] remap = cachedInts.getInts(blockFragmentCount);
+            try
+            {
+                for (int i = 0 ; i < blockFragmentCount ; ++i)
+                {
+                    remap[blockFragments[i].id] = i;
+                    blockFragments[i].id = i;
+                }
+
+                for (int i = 0 ; i < conditionalBlockCount ; ++i)
+                {
+                    int[] fragmentIds = conditionalBlocks[i].fragmentIds;
+                    for (int j = 0 ; j < fragmentIds.length ; ++j)
+                        fragmentIds[j] = remap[fragmentIds[j]];
+                    Arrays.sort(fragmentIds);
+                }
+            }
+            finally
+            {
+                cachedInts.forceDiscard(remap);
+            }
+
+            return new Block(blockFragments, conditionalBlocks);
+        }
+
+        public List<Block> build()
+        {
+            Block conditionalBlock = buildConditional();
+            Invariants.require(conditionalBlock != null || unconditionalBlock != null);
+            if (conditionalBlock != null && unconditionalBlock != null)
+                return List.of(conditionalBlock, unconditionalBlock);
+            return Collections.singletonList(conditionalBlock != null ? conditionalBlock : unconditionalBlock);
+        }
+
+        public boolean isEmpty()
+        {
+            return unconditionalBlock == null && blockFragmentCount == 0;
         }
     }
 
@@ -574,6 +724,12 @@ public final class TxnUpdate extends AccordUpdate
         this.blocks = Collections.singletonList(new Block(blockFragments, new ConditionalBlock[] { new ConditionalBlock(0, serializedCondition, fragmentIds) }));
         this.cassandraCommitCL = cassandraCommitCL;
         this.preserveTimestamps = preserveTimestamps;
+    }
+
+    public static TxnUpdate create(TableMetadatas tables, Keys keys, List<Block> blocks, @Nullable ConsistencyLevel cassandraCommitCL, PreserveTimestamp preserveTimestamps)
+    {
+        requireArgument(cassandraCommitCL == null || IAccordService.SUPPORTED_COMMIT_CONSISTENCY_LEVELS.contains(cassandraCommitCL));
+        return new TxnUpdate(tables, keys, blocks, cassandraCommitCL, preserveTimestamps);
     }
 
     private TxnUpdate(TableMetadatas tables, Keys keys, List<Block> blocks, ConsistencyLevel cassandraCommitCL, PreserveTimestamp preserveTimestamps)
@@ -720,11 +876,10 @@ public final class TxnUpdate extends AccordUpdate
         List<TxnWrite.Update> allUpdates = pair.left;
         SimpleBitSet conditionalBlockBitSet = pair.right;
         if (keys.isEmpty())
-            return new TxnWrite(TableMetadatas.none(), Collections.emptyList(), SimpleBitSets.allSet(numConditionalBlocks()));
+            return new TxnWrite(TableMetadatas.none(), Collections.emptyList(), SimpleBitSets.allUnset(numConditionalBlocks()));
 
         return new TxnWrite(tables, allUpdates, conditionalBlockBitSet);
     }
-
     
     private boolean checkCondition(Data data, SerializedTxnCondition condition)
     {
@@ -737,19 +892,31 @@ public final class TxnUpdate extends AccordUpdate
     public List<TxnWrite.Update> completeUpdatesForKey(SimpleBitSet conditionalBlockBitSet, RoutableKey key)
     {
         List<TxnWrite.Update> updates = new ArrayList<>();
-        
+
+        // each block is a separate IF/ELSE/END
         for (Block block : blocks)
         {
-            for (ConditionalBlock conditionalBlock : block.conditionalBlocks)
+            if (block.conditionalBlocks.length == 0)
+                continue;
+
+            int firstId = block.conditionalBlocks[0].id;
+            int matchingId = conditionalBlockBitSet.nextSetBit(firstId);
+            if (matchingId >= 0)
             {
-                if (!conditionalBlockBitSet.get(conditionalBlock.id)) continue;
-                List<Fragment> fragments = deserialize(tables, block, conditionalBlock.fragmentIds);
-                for (Fragment fragment : fragments)
-                    if (fragment.isComplete() && fragment.key.equals(key))
-                        updates.add(fragment.toUpdate(tables));
+                for (ConditionalBlock conditionalBlock : block.conditionalBlocks)
+                {
+                    if (conditionalBlock.id < matchingId)
+                        continue;
+                    if (conditionalBlock.id > matchingId)
+                        break;
+
+                    List<Fragment> fragments = deserialize(tables, block, conditionalBlock.fragmentIds);
+                    for (Fragment fragment : fragments)
+                        if (fragment.isComplete() && fragment.key.equals(key))
+                            updates.add(fragment.toUpdate(tables));
+                }
             }
         }
-
         return updates;
     }
 
@@ -783,6 +950,7 @@ public final class TxnUpdate extends AccordUpdate
         public void skip(TableMetadatasAndKeys tablesAndKeys, DataInputPlus in, Version version) throws IOException
         {
             in.readByte(); // flags
+            tablesAndKeys.skipKeys(in);
             deserializeNullable(in, consistencyLevelSerializer); // consistency level
             skipArray(tablesAndKeys, in, Block.serializer);
         }
@@ -853,23 +1021,23 @@ public final class TxnUpdate extends AccordUpdate
         int numConditionalBlocks = numConditionalBlocks();
         SimpleBitSet conditionalBlocksMatched = SimpleBitSet.allocate(numConditionalBlocks);
         List<Fragment> fragments = null;
-        // Each block is executed indepdendently so a match in one block has no effect on another block,
-        // this is done this way to support conditional with unconditional writes, and multiple IF/END IF blocks
+        // Each block is an isolated IF/ELSE/END, however confusingly their conditionalBlock ids are global (so that we can encode/save their result)
         for (Block block : blocks)
         {
-            // This loop needs to support the expected semantics of IF/ELSE IF/ELSE blocks;
-            // first condition that is true is the only one that applies.
+            // first condition that is true for each block is the only one that applies (IF/ELSE/END semantics)
             for (ConditionalBlock conditionalBlock : block.conditionalBlocks)
             {
                 if (checkCondition(data, conditionalBlock.condition))
                 {
                     conditionalBlocksMatched.set(conditionalBlock.id);
-                    if (fragments == null) fragments = new ArrayList<>();
-                    fragments.addAll(deserialize(tables, block, conditionalBlock.fragmentIds));
+                    List<Fragment> addFragments = deserialize(tables, block, conditionalBlock.fragmentIds);
+                    if (fragments == null) fragments = addFragments;
+                    else fragments.addAll(addFragments);
                     break;
                 }
             }
         }
+
         if (fragments == null) return null;
 
         List<TxnWrite.Update> allUpdates = new ArrayList<>(fragments.size());

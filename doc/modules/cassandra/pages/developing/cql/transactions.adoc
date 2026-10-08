@@ -318,12 +318,25 @@ END IF
 IF account_info IS NOT NULL AND account_info.balance > 0 THEN
   -- statements
 END IF
+
+-- IF, ELSE IF, ELSE conditions
+IF account_info IS NOT NULL AND account_info.balance > 0 THEN
+  -- statements
+ELSE IF account_info.balance < 10 THEN
+  -- statements
+ELSE IF account_info.balance < 0 THEN
+  -- statements
+ELSE
+  -- statements
+END IF
+-- (unconditional) statements
 ----
 
 **Important Notes:**
 
 * Null handling is strict (any null comparison returns false)
-* All modification statements must be inside the IF block when using conditions
+* Every `IF`, `ELSE IF`, and `ELSE` branch must contain at least one modification
+statement; an empty branch body is rejected as a syntax error.
 
 == Restrictions
 
@@ -354,7 +367,12 @@ BEGIN TRANSACTION
   [SELECT selectStatement | SELECT rowDataReferences]
   [IF conditionalExpression THEN]
     [modificationStatements]
+  [ELSE IF conditionalExpression THEN]
+    [modificationStatements]
+  [ELSE]
+    [modificationStatements]
   [END IF]
+  [modificationStatements]
 COMMIT TRANSACTION
 ----
 
