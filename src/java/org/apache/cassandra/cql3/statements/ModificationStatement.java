@@ -118,8 +118,8 @@ import org.apache.cassandra.schema.SchemaConstants;
 import org.apache.cassandra.schema.TableId;
 import org.apache.cassandra.schema.TableMetadata;
 import org.apache.cassandra.schema.ViewMetadata;
+import org.apache.cassandra.service.AccordTimestamps;
 import org.apache.cassandra.service.ClientState;
-import org.apache.cassandra.service.PreserveTimestamp;
 import org.apache.cassandra.service.QueryState;
 import org.apache.cassandra.service.StorageProxy;
 import org.apache.cassandra.service.accord.api.PartitionKey;
@@ -177,10 +177,6 @@ public abstract class ModificationStatement implements CQLStatement.SingleKeyspa
     private final RegularAndStaticColumns conditionColumns;
 
     private final RegularAndStaticColumns requiresRead;
-    /**
-     * Used by {@link #forTxn()} to only compute a migrated copy of this statement for transactions
-     */
-    private ModificationStatement txnStmt;
 
     private final List<Function> functions;
 
@@ -228,7 +224,7 @@ public abstract class ModificationStatement implements CQLStatement.SingleKeyspa
                 requiresReadBuilder.add(operation.column);
             }
         }
-        for (ReferenceOperation operation : operations.allSubstitutions())
+        for (ReferenceOperation operation : operations.allRefOps())
         {
             ColumnMetadata receiver = operation.getReceiver();
             updatedColumnsBuilder.add(receiver);
@@ -558,7 +554,12 @@ public abstract class ModificationStatement implements CQLStatement.SingleKeyspa
 
     public boolean anyReferenceOperationMatches(Predicate<ReferenceOperation> test)
     {
-        return operations.anySubstitutionMatches(test);
+        return operations.anyRefOpMatches(test);
+    }
+
+    public boolean hasReferenceOperations()
+    {
+        return operations.hasRefOps();
     }
 
     public Iterable<ColumnMetadata> getColumnsWithConditions()
@@ -739,7 +740,7 @@ public abstract class ModificationStatement implements CQLStatement.SingleKeyspa
             );
         if (!mutations.isEmpty())
         {
-            StorageProxy.mutateWithTriggers(mutations, cl, false, requestTime, attrs.isTimestampSet() ? PreserveTimestamp.yes : PreserveTimestamp.no);
+            StorageProxy.mutateWithTriggers(mutations, cl, false, requestTime, attrs.isTimestampSet() ? AccordTimestamps.DECLARED : AccordTimestamps.OVERWRITE);
 
             if (!SchemaConstants.isSystemKeyspace(metadata.keyspace))
                 ClientRequestSizeMetrics.recordRowAndColumnCountMetrics(mutations);
@@ -959,12 +960,25 @@ public abstract class ModificationStatement implements CQLStatement.SingleKeyspa
                                                   long nowInSeconds,
                                                   Dispatcher.RequestTime requestTime)
     {
+        return getMutations(state, options, local, timestamp, nowInSeconds, requestTime, false);
+    }
+
+    // tombstonesPrecedeWrites is used to initialise Accord timestamps to 0 for tombstones and 1 for payloads,
+    // so that we may avoid allocations by deserializing to the correct offset
+    private List<? extends IMutation> getMutations(ClientState state,
+                                                   QueryOptions options,
+                                                   boolean local,
+                                                   long timestamp,
+                                                   long nowInSeconds,
+                                                   Dispatcher.RequestTime requestTime,
+                                                   boolean tombstonesPrecedeWrites)
+    {
         List<ByteBuffer> keys = buildPartitionKeyNames(options, state);
 
         if (keys.size() == 1)
         {
             SingleTableSinglePartitionUpdatesCollector collector = new SingleTableSinglePartitionUpdatesCollector(metadata, updatedColumns);
-            addUpdates(collector, keys, state, options, local, timestamp, nowInSeconds, requestTime);
+            addUpdates(collector, keys, state, options, local, timestamp, nowInSeconds, requestTime, tombstonesPrecedeWrites);
             // local means this is test or internal things that are bypassing distributed system modification/checks
             return collector.toMutations(state, local ? PotentialTxnConflicts.ALLOW : PotentialTxnConflicts.DISALLOW);
         }
@@ -972,7 +986,7 @@ public abstract class ModificationStatement implements CQLStatement.SingleKeyspa
         {
             HashMultiset<ByteBuffer> perPartitionKeyCounts = HashMultiset.create(keys);
             SingleTableUpdatesCollector collector = new SingleTableUpdatesCollector(metadata, updatedColumns, perPartitionKeyCounts);
-            addUpdates(collector, keys, state, options, local, timestamp, nowInSeconds, requestTime);
+            addUpdates(collector, keys, state, options, local, timestamp, nowInSeconds, requestTime, tombstonesPrecedeWrites);
             // local means this is test or internal things that are bypassing distributed system modification/checks
             return collector.toMutations(state, local ? PotentialTxnConflicts.ALLOW : PotentialTxnConflicts.DISALLOW);
         }
@@ -980,7 +994,9 @@ public abstract class ModificationStatement implements CQLStatement.SingleKeyspa
 
     public List<PartitionUpdate> getTxnUpdate(ClientState state, QueryOptions options)
     {
-        List<? extends IMutation> mutations = getMutations(state, options, false, 0, 0, new Dispatcher.RequestTime(0, 0));
+        // timestamp and nowInSeconds are defined at transaction execution time to ensure deterministic execution,
+        // so we build with normalised times (see TxnWrite.Fragment#normaliseBaseUpdateTimes) that are offset at execution
+        List<? extends IMutation> mutations = getMutations(state, options, false, TxnWrite.ENCODED_TIMESTAMP, TxnWrite.ENCODED_NOW_IN_SEC, new Dispatcher.RequestTime(0, 0), true);
         if (mutations.isEmpty())
             return Collections.emptyList();
         List<PartitionUpdate> updates = new ArrayList<>(mutations.size());
@@ -1002,8 +1018,8 @@ public abstract class ModificationStatement implements CQLStatement.SingleKeyspa
 
     public TxnReferenceOperations getTxnReferenceOps(QueryOptions options, ClientState state)
     {
-        List<TxnReferenceOperation> regularOps = getTxnReferenceOps(operations.regularSubstitutions(), options);
-        List<TxnReferenceOperation> staticOps = getTxnReferenceOps(operations.staticSubstitutions(), options);
+        List<TxnReferenceOperation> regularOps = getTxnReferenceOps(operations.regularRefOps(), options);
+        List<TxnReferenceOperation> staticOps = getTxnReferenceOps(operations.staticRefOps(), options);
         List<Clustering<?>> clusterings = txnClusterings(options, state);
         return new TxnReferenceOperations(metadata, clusterings, regularOps, staticOps);
     }
@@ -1016,28 +1032,24 @@ public abstract class ModificationStatement implements CQLStatement.SingleKeyspa
         return Collections.emptyList();
     }
 
-    public ModificationStatement forTxn()
+    /**
+     * Returns a copy that can be submitted to a transaction for execution.
+     * It is expected to be called only once
+     */
+    public ModificationStatement asTxnCompatible()
     {
-        if (requiresRead.isEmpty()) return this;
-        ModificationStatement migrated = txnStmt;
-        if (migrated == null)
-        {
-            synchronized (requiresRead)
-            {
-                migrated = txnStmt;
-                if (migrated == null)
-                    txnStmt = migrated = withOperations(operations.forTxn(metadata));
-            }
-        }
-        return migrated;
+        Operations newOperations = operations.asTxnCompatible(metadata);
+        if (newOperations == operations)
+            return this;
+        return withOperations(newOperations);
     }
 
     protected abstract ModificationStatement withOperations(Operations operations);
 
     @VisibleForTesting
-    public List<ReferenceOperation> getSubstitutions()
+    public Collection<ReferenceOperation> getRefOps()
     {
-        return operations.allSubstitutions();
+        return operations.allRefOps();
     }
 
     public List<TxnWrite.Fragment> getTxnWriteFragment(int index, ClientState state, QueryOptions options, PartitionKey partitionKey)
@@ -1058,14 +1070,16 @@ public abstract class ModificationStatement implements CQLStatement.SingleKeyspa
         List<PartitionUpdate> baseUpdates = getTxnUpdate(state, options);
         TxnReferenceOperations referenceOps = getTxnReferenceOps(options, state);
         long timestamp = attrs.isTimestampSet() ? attrs.getTimestamp(TxnWrite.NO_TIMESTAMP, options) : TxnWrite.NO_TIMESTAMP;
+        // late bind operations need the ttl to be available at execution
+        int ttl = attrs.isTimeToLiveSet() && !referenceOps.isEmpty() ? getTimeToLive(options) : TxnWrite.USE_DEFAULT_TTL;
         if (baseUpdates.size() == 1)
         {
             PartitionUpdate baseUpdate = baseUpdates.get(0);
-            return Collections.singletonList(new TxnWrite.Fragment(keyCollector.apply(baseUpdate), index, baseUpdate, referenceOps, timestamp));
+            return Collections.singletonList(new TxnWrite.Fragment(keyCollector.apply(baseUpdate), index, baseUpdate, referenceOps, timestamp, ttl));
         }
         List<TxnWrite.Fragment> fragments = new ArrayList<>(baseUpdates.size());
         for (PartitionUpdate baseUpdate : baseUpdates)
-            fragments.add(new TxnWrite.Fragment(keyCollector.apply(baseUpdate), index, baseUpdate, referenceOps, timestamp));
+            fragments.add(new TxnWrite.Fragment(keyCollector.apply(baseUpdate), index, baseUpdate, referenceOps, timestamp, ttl));
         return fragments;
     }
 
@@ -1139,6 +1153,19 @@ public abstract class ModificationStatement implements CQLStatement.SingleKeyspa
                           long nowInSeconds,
                           Dispatcher.RequestTime requestTime)
     {
+        addUpdates(collector, keys, state, options, local, timestamp, nowInSeconds, requestTime, false);
+    }
+
+    private void addUpdates(UpdatesCollector collector,
+                            List<ByteBuffer> keys,
+                            ClientState state,
+                            QueryOptions options,
+                            boolean local,
+                            long timestamp,
+                            long nowInSeconds,
+                            Dispatcher.RequestTime requestTime,
+                            boolean tombstonesPrecedeWrites)
+    {
         if (hasSlices())
         {
             Slices slices = createSlices(options);
@@ -1156,7 +1183,8 @@ public abstract class ModificationStatement implements CQLStatement.SingleKeyspa
                                                            local,
                                                            timestamp,
                                                            nowInSeconds,
-                                                           requestTime
+                                                           requestTime,
+                                                           tombstonesPrecedeWrites
             );
             for (ByteBuffer key : keys)
             {
@@ -1180,7 +1208,7 @@ public abstract class ModificationStatement implements CQLStatement.SingleKeyspa
             if (restrictions.hasClusteringColumnsRestrictions() && clusterings.isEmpty())
                 return;
 
-            RowUpdateBuilder params = makeUpdateBuilder(keys, clusterings, state, options, local, timestamp, nowInSeconds, requestTime);
+            RowUpdateBuilder params = makeUpdateBuilder(keys, clusterings, state, options, local, timestamp, nowInSeconds, requestTime, tombstonesPrecedeWrites);
 
             for (ByteBuffer key : keys)
             {
@@ -1238,7 +1266,8 @@ public abstract class ModificationStatement implements CQLStatement.SingleKeyspa
                                                boolean local,
                                                long timestamp,
                                                long nowInSeconds,
-                                               Dispatcher.RequestTime requestTime)
+                                               Dispatcher.RequestTime requestTime,
+                                               boolean tombstonesPrecedeWrites)
     {
         if (clusterings.contains(Clustering.STATIC_CLUSTERING))
             return makeUpdateParameters(keys,
@@ -1250,7 +1279,8 @@ public abstract class ModificationStatement implements CQLStatement.SingleKeyspa
                                         local,
                                         timestamp,
                                         nowInSeconds,
-                                        requestTime
+                                        requestTime,
+                                        tombstonesPrecedeWrites
             );
 
         return makeUpdateParameters(keys,
@@ -1262,7 +1292,8 @@ public abstract class ModificationStatement implements CQLStatement.SingleKeyspa
                                     local,
                                     timestamp,
                                     nowInSeconds,
-                                    requestTime
+                                    requestTime,
+                                    tombstonesPrecedeWrites
         );
     }
 
@@ -1276,7 +1307,8 @@ public abstract class ModificationStatement implements CQLStatement.SingleKeyspa
                                                   boolean local,
                                                   long timestamp,
                                                   long nowInSeconds,
-                                                  Dispatcher.RequestTime requestTime)
+                                                  Dispatcher.RequestTime requestTime,
+                                                  boolean tombstonesPrecedeWrites)
     {
         // Some lists operation requires reading
         Map<DecoratedKey, Partition> lists =
@@ -1295,7 +1327,8 @@ public abstract class ModificationStatement implements CQLStatement.SingleKeyspa
                                            getTimestamp(timestamp, options),
                                            nowInSeconds,
                                            getTimeToLive(options),
-                                           lists);
+                                           lists,
+                                           tombstonesPrecedeWrites);
     }
 
     public static abstract class Parsed extends QualifiedStatement

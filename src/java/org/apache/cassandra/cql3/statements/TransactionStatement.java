@@ -75,8 +75,8 @@ import org.apache.cassandra.exceptions.InvalidRequestException;
 import org.apache.cassandra.schema.ColumnMetadata;
 import org.apache.cassandra.schema.TableId;
 import org.apache.cassandra.schema.TableParams;
+import org.apache.cassandra.service.AccordTimestamps;
 import org.apache.cassandra.service.ClientState;
-import org.apache.cassandra.service.PreserveTimestamp;
 import org.apache.cassandra.service.QueryState;
 import org.apache.cassandra.service.accord.AccordService;
 import org.apache.cassandra.service.accord.api.PartitionKey;
@@ -614,7 +614,7 @@ public class TransactionStatement implements CQLStatement.CompositeCQLStatement,
             Keys keys = keyCollector.build();
 
             boolean returnsNoResult = returningSelect == null && returningReferences == null;
-            AccordUpdate update = TxnUpdate.create(tables, writeKeys, builder.build(), commitCL, PreserveTimestamp.no, returnsNoResult);
+            AccordUpdate update = TxnUpdate.create(tables, writeKeys, builder.build(), commitCL, AccordTimestamps.NORMALISED, returnsNoResult);
             TxnRead read = createTxnRead(tables, reads, null, Domain.Key);
             return new Txn.InMemory(keys, read, returnsNoResult ? TxnQuery.NONE : TxnQuery.ALL, update, new TableMetadatasAndKeys(tables, keys));
         }

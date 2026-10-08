@@ -77,14 +77,17 @@ public class AccordUpdateParameters
         return data;
     }
 
-    public RowUpdateBuilder updateBuilder(TableMetadata metadata, DecoratedKey dk, int rowIndex, long overrideTimestamp)
+    /**
+     * @param overrideTimestamp a custom timestamp, or {@link TxnWrite#NO_TIMESTAMP} to use the transaction's timestamp
+     * @param ttl the ttl to use unconditionally (up to caller to get default if necessary)
+     */
+    public RowUpdateBuilder updateBuilder(TableMetadata metadata, DecoratedKey dk, int rowIndex, long overrideTimestamp, int ttl)
     {
         // This is currently only used by Guardrails, but this logically have issues with Accord as drifts in config
         // values could cause unexpected issues in Accord. (ex. some nodes reject writes while others accept)
         // For the time being, guardrails are disabled for Accord queries.
         ClientState disabledGuardrails = null;
 
-        int ttl = metadata.params.defaultTimeToLive;
         return new AccordUpdateBuilder(metadata,
                                        disabledGuardrails,
                                        options,

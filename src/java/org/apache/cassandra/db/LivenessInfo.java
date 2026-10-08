@@ -236,6 +236,21 @@ public interface LivenessInfo extends IMeasurableMemory
         return LivenessInfo.create(newTimestamp, ttl(), newLocalDeletionTime, applyOverflowPolicy);
     }
 
+    /**
+     * Return a copy with all time data updated to the provided newTimestamp and nowInSec.
+     * Any local expiration time is re-derived from ttl() and nowInSec, overwriting any existing data
+     */
+    default LivenessInfo withUpdatedTimesForAccord(long newTimestamp, long nowInSec)
+    {
+        if (isEmpty())
+            return this;
+        if (!isExpiring())
+            return create(newTimestamp);
+        if (ttl() == EXPIRED_LIVENESS_TTL)
+            return withExpirationTime(newTimestamp, EXPIRED_LIVENESS_TTL, nowInSec);
+        return expiring(newTimestamp, ttl(), nowInSec);
+    }
+
     @Override
     default long unsharedHeapSize()
     {

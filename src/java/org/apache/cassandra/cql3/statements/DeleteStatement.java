@@ -79,6 +79,11 @@ public class DeleteStatement extends ModificationStatement
 
         if (regularDeletions.isEmpty() && staticDeletions.isEmpty())
         {
+            // A row or partition deletion requires no read-before-write, so their presence indicates
+            // this may be e.g. a list deletion by index, and certainly not a row/partition deletion
+            if (hasReferenceOperations())
+                return;
+
             // We're not deleting any specific columns so it's either a full partition deletion ....
             if (clustering.size() == 0)
             {
@@ -165,7 +170,7 @@ public class DeleteStatement extends ModificationStatement
                                                         Conditions conditions,
                                                         Attributes attrs)
         {
-            Operations operations = new Operations(type, isForTxn);
+            Operations operations = new Operations(type);
 
             for (Operation.RawDeletion deletion : deletions)
             {
@@ -177,7 +182,7 @@ public class DeleteStatement extends ModificationStatement
 
                 Operation op = deletion.prepare(metadata.keyspace, def, metadata);
                 op.collectMarkerSpecification(bindVariables, attrs);
-                operations.add(op, metadata);
+                operations.add(op, metadata, isForTxn);
             }
 
             StatementRestrictions restrictions = newRestrictions(state, metadata, bindVariables, operations, whereClause, conditions, attrs);

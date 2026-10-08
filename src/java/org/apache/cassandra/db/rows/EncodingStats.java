@@ -54,7 +54,7 @@ public class EncodingStats implements IMeasurableMemory
     // Default values for the timestamp, deletion time and ttl. We use this both for NO_STATS, but also to serialize
     // an EncodingStats. Basically, we encode the diff of each value of to these epoch, which give values with better vint encoding.
     public static final long TIMESTAMP_EPOCH;
-    private static final int DELETION_TIME_EPOCH;
+    public static final int DELETION_TIME_EPOCH;
     private static final int TTL_EPOCH = 0;
 
     static

@@ -64,6 +64,7 @@ import org.apache.cassandra.exceptions.InvalidRequestException;
 import org.apache.cassandra.index.IndexRegistry;
 import org.apache.cassandra.schema.TableMetadata;
 import org.apache.cassandra.schema.TableParams;
+import org.apache.cassandra.service.AccordTimestamps;
 import org.apache.cassandra.service.CASRequest;
 import org.apache.cassandra.service.ClientState;
 import org.apache.cassandra.service.accord.api.PartitionKey;
@@ -538,7 +539,7 @@ public class CQL3CasRequest implements CASRequest
         TableParams tableParams = tableMetadata.params;
         commitConsistencyLevel = tableParams.transactionalMode.commitCLForMode(tableParams.transactionalMigrationFrom, commitConsistencyLevel, cm, tableMetadata.id, key.getToken());
         // CAS requires using the new txn timestamp to correctly linearize some kinds of updates
-        return new TxnUpdate(tables, createWriteFragments(clientState), createCondition(), commitConsistencyLevel);
+        return new TxnUpdate(tables, createWriteFragments(clientState), createCondition(), commitConsistencyLevel, AccordTimestamps.NORMALISED);
     }
 
     private TxnCondition createCondition()
@@ -562,10 +563,8 @@ public class CQL3CasRequest implements CASRequest
         int idx = 0;
         for (RowUpdate update : updates)
         {
-            // Some operations may need to migrate to run in the transaction, so need to call forTxn to make sure this
-            // happens.
-            // see CASSANDRA-18337
-            ModificationStatement modification = update.stmt.forTxn();
+            // Some operations may need to be modified to run safely in a transaction, see CASSANDRA-18337
+            ModificationStatement modification = update.stmt.asTxnCompatible();
             QueryOptions options = update.options;
             fragments.addAll(modification.getTxnWriteFragment(idx++, state, options, partitionKey));
         }

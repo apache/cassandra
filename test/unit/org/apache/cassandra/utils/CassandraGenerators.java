@@ -187,7 +187,7 @@ public final class CassandraGenerators
 
     private static final Gen<SinglePartitionReadCommand> SINGLE_PARTITION_READ_COMMAND_GEN = gen(rnd -> {
         TableMetadata metadata = TABLE_METADATA_GEN.generate(rnd);
-        long nowInSec = rnd.next(Constraint.between(1, Cell.getVersionedMaxDeletiontionTime()));
+        long nowInSec = rnd.next(Constraint.between(1, Cell.getVersionedMaxDeletionTime()));
         ByteBuffer key = partitionKeyDataGen(metadata).generate(rnd);
         //TODO support all fields of SinglePartitionReadCommand
         return SinglePartitionReadCommand.create(metadata, nowInSec, key, Slices.ALL);

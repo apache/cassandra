@@ -50,7 +50,7 @@ import org.apache.cassandra.schema.SchemaConstants;
 import org.apache.cassandra.schema.TableId;
 import org.apache.cassandra.schema.TableMetadata;
 import org.apache.cassandra.schema.TableParams;
-import org.apache.cassandra.service.PreserveTimestamp;
+import org.apache.cassandra.service.AccordTimestamps;
 import org.apache.cassandra.service.accord.AccordService;
 import org.apache.cassandra.service.accord.IAccordService;
 import org.apache.cassandra.service.accord.IAccordService.IAccordResult;
@@ -71,6 +71,7 @@ import org.apache.cassandra.tcm.Epoch;
 import org.apache.cassandra.tracing.Tracing;
 import org.apache.cassandra.transport.Dispatcher;
 
+import static accord.utils.Invariants.requireArgument;
 import static com.google.common.base.Preconditions.checkState;
 import static java.util.function.Predicate.not;
 import static org.apache.cassandra.service.consensus.migration.ConsensusRequestRouter.getTableMetadata;
@@ -261,19 +262,45 @@ public class ConsensusMigrationMutationHelper
         return new SplitMutation(accordMutation, normalMutation);
     }
 
-    public IAccordResult<TxnResult> mutateWithAccordAsync(ClusterMetadata cm, Mutation mutation, @Nullable ConsistencyLevel consistencyLevel, Dispatcher.RequestTime requestTime, PreserveTimestamp preserveTimestamps)
+    public IAccordResult<TxnResult> mutateWithAccordAsync(ClusterMetadata cm, Mutation mutation, @Nullable ConsistencyLevel consistencyLevel, Dispatcher.RequestTime requestTime, AccordTimestamps accordTimestamps)
     {
-        return mutateWithAccordAsync(cm, ImmutableList.of(mutation), consistencyLevel, requestTime, preserveTimestamps);
+        return mutateWithAccordAsync(cm, ImmutableList.of(mutation), consistencyLevel, requestTime, accordTimestamps);
     }
 
     public static IAccordResult<TxnResult> mutateWithAccordAsync(ClusterMetadata cm,
                                                                  Collection<? extends IMutation> mutations,
                                                                  @Nullable ConsistencyLevel consistencyLevel,
                                                                  Dispatcher.RequestTime requestTime,
-                                                                 PreserveTimestamp preserveTimestamps)
+                                                                 AccordTimestamps accordTimestamps)
     {
         if (consistencyLevel != null && !IAccordService.SUPPORTED_COMMIT_CONSISTENCY_LEVELS.contains(consistencyLevel))
             throw UnsupportedTransactionConsistencyLevel.commit(consistencyLevel);
+
+        long minEpoch = Epoch.EMPTY.getEpoch();
+        for (IMutation mutation : mutations)
+        {
+            for (PartitionUpdate update : mutation.getPartitionUpdates())
+                minEpoch = Math.max(minEpoch, update.metadata().epoch.getEpoch());
+        }
+
+        // Potentially ignore commit consistency level if the TransactionalMode specifies full
+        ConsistencyLevel clForCommit = consistencyLevelForCommit(cm, mutations, consistencyLevel);
+        Txn.InMemory txn = toAccordTxn(cm, mutations, clForCommit, accordTimestamps);
+        return AccordService.instance().coordinateAsync(minEpoch, txn, clForCommit, requestTime);
+    }
+
+    /**
+     * @param accordTimestamps {@link AccordTimestamps#OVERWRITE} to have the mutations' times replaced by the transaction's
+     *                         execution time (in which case they are normalised here, once, so that each replica may bind
+     *                         them to the execution time as they are deserialized), or {@link AccordTimestamps#DECLARED}
+     *                         or {@link AccordTimestamps#MIXED} to preserve them. Mutations are never already normalised,
+     *                         so {@link AccordTimestamps#NORMALISED} is invalid.
+     */
+    @VisibleForTesting
+    static Txn.InMemory toAccordTxn(ClusterMetadata cm, Collection<? extends IMutation> mutations, @Nullable ConsistencyLevel clForCommit, AccordTimestamps accordTimestamps)
+    {
+        requireArgument(accordTimestamps != AccordTimestamps.NORMALISED, "Mutations are never normalised; use %s to overwrite their times", AccordTimestamps.OVERWRITE);
+        boolean normalise = accordTimestamps == AccordTimestamps.OVERWRITE;
 
         TableMetadatas tables;
         {
@@ -290,23 +317,20 @@ public class ConsensusMigrationMutationHelper
 
         int fragmentIndex = 0;
         List<TxnWrite.Fragment> fragments = new ArrayList<>(mutations.size());
-        long minEpoch = Epoch.EMPTY.getEpoch();
         for (IMutation mutation : mutations)
         {
             for (PartitionUpdate update : mutation.getPartitionUpdates())
             {
                 PartitionKey pk = keyCollector.collect(update.metadata(), update.partitionKey());
-                minEpoch = Math.max(minEpoch, update.metadata().epoch.getEpoch());
-                fragments.add(new TxnWrite.Fragment(pk, fragmentIndex++, update, TxnReferenceOperations.empty(), TxnWrite.NO_TIMESTAMP));
+                // normalise once here rather than rebasing on each replica (see TxnWrite.TimeOffsetHeaderDeserializer)
+                PartitionUpdate baseUpdate = normalise ? TxnWrite.Fragment.normaliseBaseUpdateTimes(update) : update;
+                fragments.add(new TxnWrite.Fragment(pk, fragmentIndex++, baseUpdate, TxnReferenceOperations.empty(), TxnWrite.NO_TIMESTAMP));
             }
         }
-        // Potentially ignore commit consistency level if the TransactionalMode specifies full
-        ConsistencyLevel clForCommit = consistencyLevelForCommit(cm, mutations, consistencyLevel);
         TableMetadatasAndKeys tablesAndKeys = new TableMetadatasAndKeys(tables, keyCollector.build());
         // plain mutations write only their payload and perform no read, so may be executed directly by any replica
-        TxnUpdate update = new TxnUpdate(tables, fragments, TxnCondition.none(), clForCommit, preserveTimestamps, true);
-        Txn.InMemory txn = new Txn.InMemory(tablesAndKeys.keys, TxnRead.empty(Domain.Key), TxnQuery.NONE, update, tablesAndKeys);
-        return AccordService.instance().coordinateAsync(minEpoch, txn, clForCommit, requestTime);
+        TxnUpdate update = new TxnUpdate(tables, fragments, TxnCondition.none(), clForCommit, normalise ? AccordTimestamps.NORMALISED : accordTimestamps, true);
+        return new Txn.InMemory(tablesAndKeys.keys, TxnRead.empty(Domain.Key), TxnQuery.NONE, update, tablesAndKeys);
     }
 
     public static void validateSafeToExecuteNonTransactionally(IMutation mutation) throws RetryOnDifferentSystemException

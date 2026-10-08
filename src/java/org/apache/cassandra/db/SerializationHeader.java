@@ -452,12 +452,15 @@ public class SerializationHeader
         long serializedSize(SerializationHeader header, boolean hasStatic, P param);
     }
 
-    public static class StableHeaderSerializer implements ParameterizedSerializer<Object>
+    public static abstract class AbstractStableHeaderSerializer implements ParameterizedSerializer<Object>
     {
-        public static StableHeaderSerializer STABLE = new StableHeaderSerializer();
+        protected SerializationHeader construct(TableMetadata metadata, RegularAndStaticColumns columns, EncodingStats stats)
+        {
+            return new SerializationHeader(false, metadata, columns, stats);
+        }
 
         @Override
-        public SerializationHeader deserialize(DataInputPlus in, TableMetadata metadata, boolean hasStatic, Object param) throws IOException
+        public final SerializationHeader deserialize(DataInputPlus in, TableMetadata metadata, boolean hasStatic, Object param) throws IOException
         {
             int count = in.readUnsignedVInt32();
             boolean isStatic = true;
@@ -486,11 +489,11 @@ public class SerializationHeader
             }
             RegularAndStaticColumns columns = new RegularAndStaticColumns(staticColumns, regularColumns);
             EncodingStats stats = EncodingStats.serializer.deserialize(in);
-            return new SerializationHeader(false, metadata, columns, stats);
+            return construct(metadata, columns, stats);
         }
 
         @Override
-        public void serialize(DataOutputPlus out, SerializationHeader header, boolean hasStatic, Object param) throws IOException
+        public final void serialize(DataOutputPlus out, SerializationHeader header, boolean hasStatic, Object param) throws IOException
         {
             out.writeUnsignedVInt32(header.columns.size());
             for (ColumnMetadata c : header.columns.statics)
@@ -501,7 +504,7 @@ public class SerializationHeader
         }
 
         @Override
-        public long serializedSize(SerializationHeader header, boolean hasStatic, Object param)
+        public final long serializedSize(SerializationHeader header, boolean hasStatic, Object param)
         {
             long size = TypeSizes.sizeofUnsignedVInt(header.columns.size());
             for (ColumnMetadata c : header.columns.statics)
@@ -511,6 +514,11 @@ public class SerializationHeader
             size += EncodingStats.serializer.serializedSize(header.stats);
             return size;
         }
+    }
+
+    public static class StableHeaderSerializer extends AbstractStableHeaderSerializer
+    {
+        public static StableHeaderSerializer STABLE = new StableHeaderSerializer();
     }
 
     public static class MessagingHeaderSerializer implements ParameterizedSerializer<ColumnFilter>

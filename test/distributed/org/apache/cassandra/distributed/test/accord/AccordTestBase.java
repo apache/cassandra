@@ -600,7 +600,7 @@ public abstract class AccordTestBase extends TestBaseImpl
     {
         // ReferenceValue.Constant is used during migration, which means a case like "a += 1"
         // ReferenceValue.Substitution uses a LET reference, so rerunning would always just see the new state
-        long numConstants = update.getSubstitutions().stream()
+        long numConstants = update.getRefOps().stream()
                                   .filter(f -> f.getValue() instanceof ReferenceValue.Constant)
                                   .filter(f -> !f.getKind().name().contains("Setter"))
                                   .count();

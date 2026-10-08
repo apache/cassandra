@@ -42,6 +42,7 @@ import static org.apache.cassandra.cql3.statements.RequestValidations.checkTrue;
 import static org.apache.cassandra.db.marshal.CollectionType.Kind.MAP;
 import static org.apache.cassandra.schema.TableMetadata.UNDEFINED_COLUMN_NAME_MESSAGE;
 
+// a late binding operation, that requires either a read or the decided timestamp of a transaction
 public class ReferenceOperation
 {
     private final ColumnMetadata receiver;
