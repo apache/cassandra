@@ -207,6 +207,7 @@ public class AutoRepair
             {
                 boolean forceRepairTurn = turn == MY_TURN_FORCE_REPAIR;
                 boolean repairSucceeded = false;
+                Throwable repairException = null;
                 try
                 {
                     repairState.recordTurn(turn);
@@ -278,13 +279,36 @@ public class AutoRepair
                     // updateFinishAutoRepairHistory), so the record is no longer ongoing.
                     repairSucceeded = true;
                 }
+                catch (Exception t)
+                {
+                    // Remember the original failure so the finally block can avoid masking it.
+                    repairException = t;
+                    throw t;
+                }
                 finally
                 {
                     // finalizeForceRepairFailure ends the ongoing state (rewinds repair_start_ts to the
                     // existing repair_finish_ts) without recording the failed attempt as a successful repair.
                     if (forceRepairTurn && !repairSucceeded)
                     {
-                        AutoRepairUtils.finalizeForceRepairFailure(repairType, myId);
+                        try
+                        {
+                            AutoRepairUtils.finalizeForceRepairFailure(repairType, myId);
+                        }
+                        catch (Throwable finalizeError)
+                        {
+                            // Never let a failure here mask the original repair failure. If there was an
+                            // original exception, attach this one as suppressed so both are preserved (the
+                            // outer catch logs the original with the suppressed appended). Otherwise log it.
+                            if (repairException != null)
+                            {
+                                repairException.addSuppressed(finalizeError);
+                            }
+                            else
+                            {
+                                logger.error("Failed to finalize a failed force repair for {}:", myId, finalizeError);
+                            }
+                        }
                     }
                 }
             }
@@ -438,12 +462,13 @@ public class AutoRepair
     @VisibleForTesting
     boolean shouldSkipRepairDueToInterval(AutoRepairConfig.RepairType repairType, AutoRepairState repairState, AutoRepairConfig config, UUID myId)
     {
-        if (AutoRepairUtils.isForceRepairSetForNode(repairType, myId))
+        AutoRepairUtils.ForceRepairStatus forceStatus = AutoRepairUtils.getForceRepairStatus(repairType, myId);
+        if (forceStatus.forceRepairRequested)
         {
             logger.info("Force repair is set for this node, bypassing min_repair_interval check");
             return false;
         }
-        if (AutoRepairUtils.hasOngoingForceRepair(repairType, myId))
+        if (forceStatus.ongoingForceRepair)
         {
             logger.info("An in-progress force repair needs to resume for this node, bypassing min_repair_interval check");
             return false;
