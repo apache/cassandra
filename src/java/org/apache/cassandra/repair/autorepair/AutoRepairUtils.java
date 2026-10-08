@@ -194,12 +194,11 @@ public class AutoRepairUtils
     "SELECT %s FROM %s.%s WHERE %s = ? AND %s = ?", COL_REPAIR_START_TS, SchemaConstants.DISTRIBUTED_KEYSPACE_NAME,
     SystemDistributedKeyspace.AUTO_REPAIR_HISTORY, COL_REPAIR_TYPE, COL_HOST_ID);
 
-    final static String SELECT_FORCE_REPAIR_FOR_NODE = String.format(
-    "SELECT %s FROM %s.%s WHERE %s = ? AND %s = ?", COL_FORCE_REPAIR, SchemaConstants.DISTRIBUTED_KEYSPACE_NAME,
-    SystemDistributedKeyspace.AUTO_REPAIR_HISTORY, COL_REPAIR_TYPE, COL_HOST_ID);
-
-    final static String SELECT_ONGOING_FORCE_REPAIR_FOR_NODE = String.format(
-    "SELECT %s, %s, %s FROM %s.%s WHERE %s = ? AND %s = ?", COL_REPAIR_START_TS, COL_REPAIR_FINISH_TS, COL_REPAIR_TURN,
+    // Single read backing all force-repair detection: both whether a force repair is REQUESTED
+    // (force_repair flag) and whether one is IN PROGRESS (ongoing record + persisted forced turn).
+    final static String SELECT_FORCE_REPAIR_STATUS_FOR_NODE = String.format(
+    "SELECT %s, %s, %s, %s FROM %s.%s WHERE %s = ? AND %s = ?",
+    COL_FORCE_REPAIR, COL_REPAIR_START_TS, COL_REPAIR_FINISH_TS, COL_REPAIR_TURN,
     SchemaConstants.DISTRIBUTED_KEYSPACE_NAME, SystemDistributedKeyspace.AUTO_REPAIR_HISTORY, COL_REPAIR_TYPE, COL_HOST_ID);
 
     static ModificationStatement delStatementRepairHistory;
@@ -208,8 +207,7 @@ public class AutoRepairUtils
     static SelectStatement selectStatementRepairPriority;
     static SelectStatement selectLastRepairTimeForNode;
     static SelectStatement selectLastRepairStartTimeForNode;
-    static SelectStatement selectForceRepairForNode;
-    static SelectStatement selectOngoingForceRepairForNode;
+    static SelectStatement selectForceRepairStatusForNode;
     static ModificationStatement addPriorityHost;
     static ModificationStatement insertNewRepairHistoryStatement;
     static ModificationStatement recordStartRepairHistoryStatement;
@@ -239,10 +237,8 @@ public class AutoRepairUtils
                                                                                                                       .forInternalCalls());
         selectLastRepairStartTimeForNode = (SelectStatement) QueryProcessor.getStatement(SELECT_LAST_REPAIR_START_TIME_FOR_NODE, ClientState
                                                                                                                                  .forInternalCalls());
-        selectForceRepairForNode = (SelectStatement) QueryProcessor.getStatement(SELECT_FORCE_REPAIR_FOR_NODE, ClientState
-                                                                                                               .forInternalCalls());
-        selectOngoingForceRepairForNode = (SelectStatement) QueryProcessor.getStatement(SELECT_ONGOING_FORCE_REPAIR_FOR_NODE, ClientState
-                                                                                                                              .forInternalCalls());
+        selectForceRepairStatusForNode = (SelectStatement) QueryProcessor.getStatement(SELECT_FORCE_REPAIR_STATUS_FOR_NODE, ClientState
+                                                                                                                            .forInternalCalls());
         delStatementPriorityStatus = (ModificationStatement) QueryProcessor.getStatement(DEL_REPAIR_PRIORITY, ClientState
                                                                                                               .forInternalCalls());
         addPriorityHost = (ModificationStatement) QueryProcessor.getStatement(ADD_PRIORITY_HOST, ClientState
@@ -544,6 +540,48 @@ public class AutoRepairUtils
     }
 
     /**
+     * Immutable result of a single read of a node's force-repair state. Distinguishes a force repair that
+     * has merely been REQUESTED (the {@code force_repair} flag) from one that is IN PROGRESS (an ongoing
+     * record whose persisted {@code repair_turn} is {@link RepairTurn#MY_TURN_FORCE_REPAIR}).
+     */
+    public static class ForceRepairStatus
+    {
+        public final boolean forceRepairRequested;
+        public final boolean ongoingForceRepair;
+
+        public ForceRepairStatus(boolean forceRepairRequested, boolean ongoingForceRepair)
+        {
+            this.forceRepairRequested = forceRepairRequested;
+            this.ongoingForceRepair = ongoingForceRepair;
+        }
+    }
+
+    public static ForceRepairStatus getForceRepairStatus(RepairType repairType, UUID hostId)
+    {
+        ResultMessage.Rows rows = selectForceRepairStatusForNode.execute(QueryState.forInternalCalls(),
+                                                                         QueryOptions.forInternalCalls(internalQueryCL,
+                                                                                                       Lists.newArrayList(
+                                                                                                       ByteBufferUtil.bytes(repairType.toString()),
+                                                                                                       ByteBufferUtil.bytes(hostId))),
+                                                                         Dispatcher.RequestTime.forImmediateExecution());
+        UntypedResultSet result = UntypedResultSet.create(rows.result);
+        if (result.isEmpty())
+            return new ForceRepairStatus(false, false);
+
+        UntypedResultSet.Row one = result.one();
+        boolean forceRepairRequested = one.has(COL_FORCE_REPAIR) && one.getBoolean(COL_FORCE_REPAIR);
+
+        long startTs = one.has(COL_REPAIR_START_TS) ? one.getLong(COL_REPAIR_START_TS) : 0;
+        long finishTs = one.has(COL_REPAIR_FINISH_TS) ? one.getLong(COL_REPAIR_FINISH_TS) : 0;
+        boolean ongoing = startTs > finishTs;
+        boolean forcedTurn = one.has(COL_REPAIR_TURN)
+                             && MY_TURN_FORCE_REPAIR.name().equals(one.getString(COL_REPAIR_TURN));
+        boolean ongoingForceRepair = ongoing && forcedTurn;
+
+        return new ForceRepairStatus(forceRepairRequested, ongoingForceRepair);
+    }
+
+    /**
      * Check whether a force repair has been requested for the given node, i.e. whether the
      * {@code force_repair} flag is set.
      *
@@ -553,25 +591,11 @@ public class AutoRepairUtils
      */
     public static boolean isForceRepairSetForNode(RepairType repairType, UUID hostId)
     {
-        ResultMessage.Rows rows = selectForceRepairForNode.execute(QueryState.forInternalCalls(),
-                                                                   QueryOptions.forInternalCalls(internalQueryCL,
-                                                                                                 Lists.newArrayList(
-                                                                                                 ByteBufferUtil.bytes(repairType.toString()),
-                                                                                                 ByteBufferUtil.bytes(hostId))),
-                                                                   Dispatcher.RequestTime.forImmediateExecution());
-        UntypedResultSet result = UntypedResultSet.create(rows.result);
-        if (result.isEmpty())
-            return false;
-
-        UntypedResultSet.Row one = result.one();
-        return one.has(COL_FORCE_REPAIR) && one.getBoolean(COL_FORCE_REPAIR);
+        return getForceRepairStatus(repairType, hostId).forceRepairRequested;
     }
 
     /**
-     * Check whether the given node has a force repair currently in progess, determined from the history
-     * row rather than the {@code force_repair} flag: the record is ongoing
-     * ({@code repair_start_ts > repair_finish_ts}) and its persisted {@code repair_turn} is
-     * {@link RepairTurn#MY_TURN_FORCE_REPAIR}.
+     * Check whether the given node has a force repair currently in progress
      *
      * @param repairType the repair type to check
      * @param hostId the host id to check
@@ -579,23 +603,7 @@ public class AutoRepairUtils
      */
     public static boolean hasOngoingForceRepair(RepairType repairType, UUID hostId)
     {
-        ResultMessage.Rows rows = selectOngoingForceRepairForNode.execute(QueryState.forInternalCalls(),
-                                                                          QueryOptions.forInternalCalls(internalQueryCL,
-                                                                                                        Lists.newArrayList(
-                                                                                                        ByteBufferUtil.bytes(repairType.toString()),
-                                                                                                        ByteBufferUtil.bytes(hostId))),
-                                                                          Dispatcher.RequestTime.forImmediateExecution());
-        UntypedResultSet result = UntypedResultSet.create(rows.result);
-        if (result.isEmpty())
-            return false;
-
-        UntypedResultSet.Row one = result.one();
-        long startTs = one.has(COL_REPAIR_START_TS) ? one.getLong(COL_REPAIR_START_TS) : 0;
-        long finishTs = one.has(COL_REPAIR_FINISH_TS) ? one.getLong(COL_REPAIR_FINISH_TS) : 0;
-        boolean ongoing = startTs > finishTs;
-        boolean forcedTurn = one.has(COL_REPAIR_TURN)
-                             && MY_TURN_FORCE_REPAIR.name().equals(one.getString(COL_REPAIR_TURN));
-        return ongoing && forcedTurn;
+        return getForceRepairStatus(repairType, hostId).ongoingForceRepair;
     }
 
     public static long getLastRepairFinishTimeForNode(RepairType repairType, UUID hostId)

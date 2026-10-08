@@ -445,6 +445,45 @@ public class AutoRepairUtilsTest extends CQLTester
     }
 
     @Test
+    public void testGetForceRepairStatus()
+    {
+        QueryProcessor.executeInternal(String.format(
+        "TRUNCATE %s.%s", SchemaConstants.DISTRIBUTED_KEYSPACE_NAME, SystemDistributedKeyspace.AUTO_REPAIR_HISTORY));
+
+        // No row -> both false.
+        AutoRepairUtils.ForceRepairStatus s = AutoRepairUtils.getForceRepairStatus(repairType, hostId);
+        assertFalse(s.forceRepairRequested);
+        assertFalse(s.ongoingForceRepair);
+
+        // Requested only: force_repair=true, not ongoing (start <= finish).
+        QueryProcessor.executeInternal(String.format(
+        "INSERT INTO %s.%s (repair_type, host_id, repair_start_ts, repair_finish_ts, force_repair) VALUES ('%s', %s, 1000, 2000, true)",
+        SchemaConstants.DISTRIBUTED_KEYSPACE_NAME, SystemDistributedKeyspace.AUTO_REPAIR_HISTORY,
+        repairType.toString(), hostId));
+        s = AutoRepairUtils.getForceRepairStatus(repairType, hostId);
+        assertTrue(s.forceRepairRequested);
+        assertFalse(s.ongoingForceRepair);
+
+        // In-progress only: force_repair=false, ongoing (start > finish), forced turn.
+        QueryProcessor.executeInternal(String.format(
+        "INSERT INTO %s.%s (repair_type, host_id, repair_start_ts, repair_finish_ts, force_repair, repair_turn) VALUES ('%s', %s, 2000, 1000, false, '%s')",
+        SchemaConstants.DISTRIBUTED_KEYSPACE_NAME, SystemDistributedKeyspace.AUTO_REPAIR_HISTORY,
+        repairType.toString(), hostId, AutoRepairUtils.RepairTurn.MY_TURN_FORCE_REPAIR.name()));
+        s = AutoRepairUtils.getForceRepairStatus(repairType, hostId);
+        assertFalse(s.forceRepairRequested);
+        assertTrue(s.ongoingForceRepair);
+
+        // Both: force_repair=true, ongoing, forced turn (e.g. a new request landed during an ongoing force).
+        QueryProcessor.executeInternal(String.format(
+        "INSERT INTO %s.%s (repair_type, host_id, repair_start_ts, repair_finish_ts, force_repair, repair_turn) VALUES ('%s', %s, 2000, 1000, true, '%s')",
+        SchemaConstants.DISTRIBUTED_KEYSPACE_NAME, SystemDistributedKeyspace.AUTO_REPAIR_HISTORY,
+        repairType.toString(), hostId, AutoRepairUtils.RepairTurn.MY_TURN_FORCE_REPAIR.name()));
+        s = AutoRepairUtils.getForceRepairStatus(repairType, hostId);
+        assertTrue(s.forceRepairRequested);
+        assertTrue(s.ongoingForceRepair);
+    }
+
+    @Test
     public void testUpdateFinishAutoRepairHistory()
     {
         QueryProcessor.executeInternal(String.format(
