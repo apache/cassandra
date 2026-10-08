@@ -1033,7 +1033,7 @@ public class MutationJournal
      */
 
     @VisibleForTesting
-    public void truncateForTesting()
+    void truncateForTesting()
     {
         journal.truncateForTesting();
         segmentStateTrackers.clear();

@@ -162,7 +162,7 @@ public class ImmutableCoordinatorLogOffsets implements CoordinatorLogOffsets<Off
         }
 
         @VisibleForTesting
-        public Builder add(long logId, int start, int end)
+        Builder add(long logId, int start, int end)
         {
             ids.computeIfAbsent(logId, k -> new Offsets.Immutable.Builder(new CoordinatorLogId(k)))
                .add(start, end);
