@@ -35,9 +35,12 @@ import accord.primitives.Ranges;
 import accord.primitives.Routable.Domain;
 import accord.primitives.Seekable;
 import accord.primitives.Seekables;
+import accord.utils.SortedArrays;
 
 import org.apache.cassandra.service.accord.TokenRange;
 import org.apache.cassandra.service.accord.api.PartitionKey;
+
+import static accord.utils.SortedArrays.Search.CEIL;
 
 /**
  * Immutable collection of items, sorted first by their partition key
@@ -225,28 +228,17 @@ public abstract class AbstractKeySorted<T> implements Iterable<T>
 
     private int firstPossibleRangeIdx(TokenRange range)
     {
-        int idx = Arrays.binarySearch(items, range, (l, r) -> {
-            Range itemRange = (Range)getKey((T) l);
-            if (itemRange.compareIntersecting((TokenRange)r) == 0)
-                return 1;
-            if (((TokenRange) r).end().compareTo(itemRange.end()) > 0)
-                return 1;
-            else
-                return -1;
-        });
-
-        return -1 - idx;
+        int idx = SortedArrays.binarySearch(items, 0, items.length, range,
+                                            (find, item) -> find.compareIntersecting((Range) getKey(item)),
+                                            CEIL);
+        return idx >= 0 ? idx : -1 - idx;
     }
 
     private int firstPossibleKeyIdx(PartitionKey key)
     {
-        int idx = Arrays.binarySearch(items, key, (l, r) -> {
-            PartitionKey lk = (PartitionKey) getKey((T) l);
-            PartitionKey rk = (PartitionKey) r;
-            int cmp = lk.compareTo(rk);
-            return cmp != 0 ? cmp : 1;
-        });
-
-        return -1 - idx;
+        int idx = SortedArrays.binarySearch(items, 0, items.length, key,
+                                            (find, item) -> find.compareTo((PartitionKey) getKey(item)),
+                                            CEIL);
+        return idx >= 0 ? idx : -1 - idx;
     }
 }

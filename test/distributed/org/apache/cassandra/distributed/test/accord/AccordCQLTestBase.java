@@ -67,6 +67,7 @@ import org.apache.cassandra.cql3.ast.Symbol;
 import org.apache.cassandra.cql3.ast.Txn;
 import org.apache.cassandra.cql3.functions.types.utils.Bytes;
 import org.apache.cassandra.cql3.statements.TransactionStatement;
+import org.apache.cassandra.cql3.transactions.ConditionStatement;
 import org.apache.cassandra.db.SystemKeyspace;
 import org.apache.cassandra.db.marshal.BytesType;
 import org.apache.cassandra.db.marshal.Int32Type;
@@ -319,6 +320,103 @@ public abstract class AccordCQLTestBase extends AccordTestBase
                          "COMMIT TRANSACTION";
 
             cluster.coordinator(1).executeWithResult(txn, ConsistencyLevel.SERIAL);
+        });
+    }
+
+    @Test
+    public void testRejectTransactionWithListUpdatesToSamePrimaryKeySameColumns() throws Exception
+    {
+        test("CREATE TABLE " + qualifiedAccordTableName + " (k int, c int, l list<int>, primary key (k, c)) WITH " + transactionalMode.asCqlParam(), cluster -> {
+            try
+            {
+                String txn = "BEGIN TRANSACTION\n" +
+                             "  UPDATE " + qualifiedAccordTableName + " SET l = [1] + l WHERE k = 1 AND c = 1;\n" +
+                             "  UPDATE " + qualifiedAccordTableName + " SET l = l + [2] WHERE k = 1 AND c = 1;\n" +
+                             "COMMIT TRANSACTION";
+
+                cluster.coordinator(1).executeWithResult(txn, ConsistencyLevel.SERIAL);
+                fail("Expected exception");
+            }
+            catch (Throwable t)
+            {
+                assertEquals(InvalidRequestException.class.getName(), t.getClass().getName());
+                assertEquals(TransactionStatement.DUPLICATE_KEYS_IN_SAME_TRANSACTION_MESSAGE, t.getMessage());
+            }
+        });
+    }
+
+    @Test
+    public void testAcceptTransactionWithListUpdatesToSamePrimaryKeyDisjointColumns() throws Exception
+    {
+        test("CREATE TABLE " + qualifiedAccordTableName + " (k int, c int, v int, l list<int>, m list<int>, primary key (k, c)) WITH " + transactionalMode.asCqlParam(), cluster -> {
+            String txn = "BEGIN TRANSACTION\n" +
+                         "  UPDATE " + qualifiedAccordTableName + " SET v = 1, l = [1] + l WHERE k = 1 AND c = 1;\n" +
+                         "  UPDATE " + qualifiedAccordTableName + " SET m = [2] + m WHERE k = 1 AND c = 1;\n" +
+                         "  UPDATE " + qualifiedAccordTableName + " SET l = l + [3] WHERE k = 1 AND c = 2;\n" +
+                         "COMMIT TRANSACTION";
+
+            cluster.coordinator(1).executeWithResult(txn, ConsistencyLevel.SERIAL);
+            assertRows(cluster.coordinator(1).execute("SELECT c, v, l, m FROM " + qualifiedAccordTableName + " WHERE k = 1", ConsistencyLevel.SERIAL),
+                       row(1, 1, List.of(1), List.of(2)),
+                       row(2, null, List.of(3), null));
+        });
+    }
+
+    @Test
+    public void testAcceptTransactionWithListInsert() throws Exception
+    {
+        test("CREATE TABLE " + qualifiedAccordTableName + " (k int, c int, l list<int>, primary key (k, c)) WITH " + transactionalMode.asCqlParam(), cluster -> {
+            cluster.coordinator(1).executeWithResult(wrapInTxn("INSERT INTO " + qualifiedAccordTableName + " (k, c, l) VALUES (0, 0, [1])"), ConsistencyLevel.SERIAL);
+            assertRows(cluster.coordinator(1).execute("SELECT l FROM " + qualifiedAccordTableName + " WHERE k = 0 AND c = 0", ConsistencyLevel.SERIAL),
+                       row(List.of(1)));
+        });
+    }
+
+    @Test
+    public void testRejectColumnComparisonWithNull() throws Exception
+    {
+        test("CREATE TABLE " + qualifiedAccordTableName + " (k int PRIMARY KEY, v int) WITH " + transactionalMode.asCqlParam(), cluster -> {
+            try
+            {
+                String txn = "BEGIN TRANSACTION\n" +
+                             "  LET row1 = (SELECT * FROM " + qualifiedAccordTableName + " WHERE k = 1);\n" +
+                             "  IF row1.v = null THEN\n" +
+                             "    UPDATE " + qualifiedAccordTableName + " SET v = 1 WHERE k = 1;\n" +
+                             "  END IF\n" +
+                             "COMMIT TRANSACTION";
+
+                cluster.coordinator(1).execute(txn, QUORUM);
+                fail("Expected exception");
+            }
+            catch (Throwable t)
+            {
+                assertEquals(InvalidRequestException.class.getName(), t.getClass().getName());
+                assertEquals(ConditionStatement.NULL_COMPARISON_MESSAGE, t.getMessage());
+            }
+        });
+    }
+
+    @Test
+    public void testRejectColumnComparisonWithNullBindMarker() throws Exception
+    {
+        test("CREATE TABLE " + qualifiedAccordTableName + " (k int PRIMARY KEY, v int) WITH " + transactionalMode.asCqlParam(), cluster -> {
+            try
+            {
+                String txn = "BEGIN TRANSACTION\n" +
+                             "  LET row1 = (SELECT * FROM " + qualifiedAccordTableName + " WHERE k = 1);\n" +
+                             "  IF row1.v = ? THEN\n" +
+                             "    UPDATE " + qualifiedAccordTableName + " SET v = 1 WHERE k = 1;\n" +
+                             "  END IF\n" +
+                             "COMMIT TRANSACTION";
+
+                cluster.coordinator(1).execute(txn, QUORUM, (Object) null);
+                fail("Expected exception");
+            }
+            catch (Throwable t)
+            {
+                assertEquals(InvalidRequestException.class.getName(), t.getClass().getName());
+                assertEquals(ConditionStatement.NULL_COMPARISON_MESSAGE, t.getMessage());
+            }
         });
     }
 
@@ -3686,6 +3784,113 @@ public abstract class AccordCQLTestBase extends AccordTestBase
             Assertions.assertThatThrownBy(() -> cluster.coordinator(1).execute(wrapInTxn(cql), QUORUM))
                       .is(expectedType)
                       .hasMessage("Attempted to set an element on a list which is null");
+        });
+    }
+
+    @Test
+    public void testIn() throws Throwable
+    {
+        test(cluster -> {
+            cluster.coordinator(1).execute("INSERT INTO " + qualifiedAccordTableName + " (k, c, v) VALUES (?, ?, ?)", ConsistencyLevel.ALL, 0, 0, 10);
+            cluster.coordinator(1).execute("INSERT INTO " + qualifiedAccordTableName + " (k, c, v) VALUES (?, ?, ?)", ConsistencyLevel.ALL, 1, 1, 11);
+            cluster.coordinator(1).execute("INSERT INTO " + qualifiedAccordTableName + " (k, c, v) VALUES (?, ?, ?)", ConsistencyLevel.ALL, 2, 0, 20);
+
+            assertRows(cluster.coordinator(1).execute("SELECT k, c, v FROM " + qualifiedAccordTableName + " WHERE k IN (0, 1, 2) AND c = 0", ConsistencyLevel.ALL),
+                       row(0, 0, 10),
+                       row(2, 0, 20));
+        });
+    }
+
+    @Test
+    public void testInWithNonExistentPartitions() throws Throwable
+    {
+        test(cluster -> {
+            cluster.coordinator(1).execute("INSERT INTO " + qualifiedAccordTableName + " (k, c, v) VALUES (?, ?, ?)", ConsistencyLevel.ALL, 1, 0, 10);
+            cluster.coordinator(1).execute("INSERT INTO " + qualifiedAccordTableName + " (k, c, v) VALUES (?, ?, ?)", ConsistencyLevel.ALL, 1, 1, 11);
+            cluster.coordinator(1).execute("INSERT INTO " + qualifiedAccordTableName + " (k, c, v) VALUES (?, ?, ?)", ConsistencyLevel.ALL, 3, 0, 30);
+
+            assertRows(cluster.coordinator(1).execute("SELECT k, c, v FROM " + qualifiedAccordTableName + " WHERE k IN (0, 1, 2, 3, 4)", ConsistencyLevel.ALL),
+                       row(1, 0, 10),
+                       row(1, 1, 11),
+                       row(3, 0, 30));
+
+            // Only one partition has data
+            assertRows(cluster.coordinator(1).execute("SELECT k, c, v FROM " + qualifiedAccordTableName + " WHERE k IN (0, 2, 3)", ConsistencyLevel.ALL),
+                       row(3, 0, 30));
+
+            // No partition has data
+            assertRows(cluster.coordinator(1).execute("SELECT k, c, v FROM " + qualifiedAccordTableName + " WHERE k IN (0, 2, 4)", ConsistencyLevel.ALL));
+        });
+    }
+
+    @Test
+    public void testInWithLimitLowerThanMatchingRows() throws Throwable
+    {
+        test(cluster -> {
+            cluster.coordinator(1).execute("INSERT INTO " + qualifiedAccordTableName + " (k, c, v) VALUES (?, ?, ?)", ConsistencyLevel.ALL, 0, 0, 10);
+            cluster.coordinator(1).execute("INSERT INTO " + qualifiedAccordTableName + " (k, c, v) VALUES (?, ?, ?)", ConsistencyLevel.ALL, 1, 1, 11);
+            cluster.coordinator(1).execute("INSERT INTO " + qualifiedAccordTableName + " (k, c, v) VALUES (?, ?, ?)", ConsistencyLevel.ALL, 2, 0, 20);
+            cluster.coordinator(1).execute("INSERT INTO " + qualifiedAccordTableName + " (k, c, v) VALUES (?, ?, ?)", ConsistencyLevel.ALL, 3, 1, 31);
+            cluster.coordinator(1).execute("INSERT INTO " + qualifiedAccordTableName + " (k, c, v) VALUES (?, ?, ?)", ConsistencyLevel.ALL, 4, 0, 40);
+
+            assertRows(cluster.coordinator(1).execute("SELECT k, c, v FROM " + qualifiedAccordTableName + " WHERE k IN (0, 1, 2, 3, 4) AND c = 0 LIMIT 2", ConsistencyLevel.ALL),
+                       row(0, 0, 10),
+                       row(2, 0, 20));
+
+            assertRows(cluster.coordinator(1).execute("SELECT k, c, v FROM " + qualifiedAccordTableName + " WHERE k IN (1, 2, 3, 4) AND c = 0 LIMIT 1", ConsistencyLevel.ALL),
+                       row(2, 0, 20));
+        });
+    }
+
+    @Test
+    public void testInWithPerPartitionLimit() throws Throwable
+    {
+        test(cluster -> {
+            cluster.coordinator(1).execute("INSERT INTO " + qualifiedAccordTableName + " (k, c, v) VALUES (?, ?, ?)", ConsistencyLevel.ALL, 0, 0, 10);
+            cluster.coordinator(1).execute("INSERT INTO " + qualifiedAccordTableName + " (k, c, v) VALUES (?, ?, ?)", ConsistencyLevel.ALL, 0, 1, 11);
+            cluster.coordinator(1).execute("INSERT INTO " + qualifiedAccordTableName + " (k, c, v) VALUES (?, ?, ?)", ConsistencyLevel.ALL, 2, 0, 20);
+            cluster.coordinator(1).execute("INSERT INTO " + qualifiedAccordTableName + " (k, c, v) VALUES (?, ?, ?)", ConsistencyLevel.ALL, 2, 1, 21);
+
+            assertRows(cluster.coordinator(1).execute("SELECT k, c, v FROM " + qualifiedAccordTableName + " WHERE k IN (0, 1, 2) PER PARTITION LIMIT 1", ConsistencyLevel.ALL),
+                       row(0, 0, 10),
+                       row(2, 0, 20));
+        });
+    }
+
+    @Test
+    public void testInWithReversedOrder() throws Throwable
+    {
+        test(cluster -> {
+            cluster.coordinator(1).execute("INSERT INTO " + qualifiedAccordTableName + " (k, c, v) VALUES (?, ?, ?)", ConsistencyLevel.ALL, 0, 0, 10);
+            cluster.coordinator(1).execute("INSERT INTO " + qualifiedAccordTableName + " (k, c, v) VALUES (?, ?, ?)", ConsistencyLevel.ALL, 0, 1, 11);
+            cluster.coordinator(1).execute("INSERT INTO " + qualifiedAccordTableName + " (k, c, v) VALUES (?, ?, ?)", ConsistencyLevel.ALL, 1, 10, 110);
+            cluster.coordinator(1).execute("INSERT INTO " + qualifiedAccordTableName + " (k, c, v) VALUES (?, ?, ?)", ConsistencyLevel.ALL, 2, 2, 22);
+            cluster.coordinator(1).execute("INSERT INTO " + qualifiedAccordTableName + " (k, c, v) VALUES (?, ?, ?)", ConsistencyLevel.ALL, 2, 3, 23);
+
+            assertRows(cluster.coordinator(1).execute("SELECT k, c, v FROM " + qualifiedAccordTableName + " WHERE k IN (0, 1, 2) AND c < 5 ORDER BY c DESC", ConsistencyLevel.ALL),
+                       row(2, 3, 23),
+                       row(2, 2, 22),
+                       row(0, 1, 11),
+                       row(0, 0, 10));
+        });
+    }
+
+    @Test
+    public void testCasWithStaticAndRegularRowConditions() throws Exception
+    {
+        test("CREATE TABLE " + qualifiedAccordTableName + " (k int, c int, s int static, v int, primary key (k, c)) WITH " + transactionalMode.asCqlParam(), cluster ->
+        {
+            cluster.coordinator(1).execute("INSERT INTO " + qualifiedAccordTableName + " (k, c, s, v) VALUES (1, 1, 1, 1);", ConsistencyLevel.ALL);
+
+            cluster.coordinator(1).execute("UPDATE " + qualifiedAccordTableName + " SET v = 9 WHERE k = 1 AND c = 1 IF s = 1 AND v = 8;",
+                                           ConsistencyLevel.SERIAL, ConsistencyLevel.ALL);
+
+            String read = "BEGIN TRANSACTION\n" +
+                          " SELECT * FROM " + qualifiedAccordTableName + " WHERE k = 1 AND c = 1;\n" +
+                          "COMMIT TRANSACTION";
+
+            SimpleQueryResult result = cluster.coordinator(1).executeWithResult(read, ConsistencyLevel.SERIAL);
+            assertThat(result).hasSize(1).contains(1, 1, 1, 1);
         });
     }
 }

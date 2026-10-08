@@ -27,6 +27,7 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Objects;
 import java.util.Set;
+import java.util.function.Consumer;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -288,6 +289,25 @@ public class TxnWrite extends AbstractKeySorted<TxnWrite.Update> implements Writ
         public boolean isComplete()
         {
             return referenceOps.isEmpty();
+        }
+
+        public void forEachRowClustering(Consumer<Clustering<?>> consumer)
+        {
+            Set<Clustering<?>> seenClusterings = new HashSet<>(baseUpdate.rowCount());
+            for (Row row : baseUpdate)
+            {
+                consumer.accept(row.clustering());
+                seenClusterings.add(row.clustering());
+            }
+
+            for (Clustering<?> clustering : referenceOps.clusterings)
+            {
+                // Clustering may have already been seen when we have iterated through
+                // baseUpdate so we should skip it
+                // i.e. INSERT INTO t (k, c, l) VALUES (0, 0, [1])
+                if (!seenClusterings.contains(clustering))
+                    consumer.accept(clustering);
+            }
         }
 
         public Update toUpdate(TableMetadatas tables)
