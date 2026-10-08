@@ -27,6 +27,7 @@ import accord.api.AsyncExecutor;
 import accord.api.ExclusiveAsyncExecutor;
 import accord.api.ProgressLog;
 import accord.api.Result;
+import accord.api.Scheduler;
 import accord.coordinate.Coordinations;
 import accord.impl.DefaultLocalListeners;
 import accord.impl.DefaultLocalListeners.NotifySink;
@@ -54,7 +55,7 @@ import org.apache.cassandra.schema.TableId;
 import org.apache.cassandra.service.accord.execution.AccordExecutor;
 
 /**
- * This class was authored by Claude
+ * This class was authored by LLM
  *
  * A command store with an in-memory journal and no persistence, so that these tests need no schema, cluster metadata or
  * commit log. Deliberately not {@code AccordAgent}: reporting an exception there initialises
@@ -136,6 +137,7 @@ public class AccordFailedKeyTestHarness
             @Override public long elapsed(TimeUnit units) { return elapsed.applyAsLong(units); }
             @Override public TopologyManager topology() { throw new UnsupportedOperationException(); }
             @Override public Coordinations coordinations() { return new Coordinations(); }
+            @Override public Scheduler scheduler() { return null; }
             @Override public long currentStamp() { return stamp; }
             @Override public void updateStamp() { ++stamp; }
             @Override public boolean isReplaying() { return false; }

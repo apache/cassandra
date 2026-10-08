@@ -22,6 +22,7 @@ import java.math.BigDecimal;
 import java.math.BigInteger;
 import java.net.InetAddress;
 import java.nio.ByteBuffer;
+import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.Comparator;
@@ -393,7 +394,8 @@ public class ColumnSpec<T>
         @Override
         public Comparator<String> comparator()
         {
-            return (o1, o2) -> ByteArrayUtil.compareUnsigned(o1.getBytes(), o2.getBytes());
+            // must match UTF8Type (and be independent of the platform default charset)
+            return (o1, o2) -> ByteArrayUtil.compareUnsigned(o1.getBytes(StandardCharsets.UTF_8), o2.getBytes(StandardCharsets.UTF_8));
         }
     };
 

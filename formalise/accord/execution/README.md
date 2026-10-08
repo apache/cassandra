@@ -1,4 +1,4 @@
-<!-- This entire directory has been authored by Claude -->
+<!-- This entire directory has been authored by LLM -->
 
 # Accord execution queues: formal model
 

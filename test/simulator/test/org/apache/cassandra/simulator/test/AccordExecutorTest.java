@@ -83,7 +83,7 @@ public class AccordExecutorTest extends SimulationTestBase
                      16);
     }
 
-    // THE SUBMISSION/CONSEQUENCE BOOKKEEPING BELOW WAS AUTHORED BY CLAUDE
+    // THE SUBMISSION/CONSEQUENCE BOOKKEEPING BELOW WAS AUTHORED BY LLM
     static class Submitted
     {
         final AtomicInteger nextId = new AtomicInteger();

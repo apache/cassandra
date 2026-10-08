@@ -41,7 +41,7 @@ import static org.apache.cassandra.service.accord.execution.AccordExecutor.Mode.
 import static org.assertj.core.api.Assertions.assertThat;
 
 /**
- * This test has been authored entirely by Claude.
+ * This test has been authored entirely by LLM.
  *
  * Whatever a task does, {@link AccordExecutorSignalLoop} must not be wedged by it: its loop threads must release the
  * executor lock, stay alive, and go on running work. All three failure modes covered here present identically, as an
@@ -396,7 +396,7 @@ public class AccordExecutorLoopFailureTest
         }
 
         @Override
-        void reportFailureMayThrow(Throwable fail)
+        void reportFailureMayThrow(Throwable fail, boolean isExclusive)
         {
             failure = fail;
             notified.decrement();

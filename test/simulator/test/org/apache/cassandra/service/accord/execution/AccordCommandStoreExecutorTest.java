@@ -46,6 +46,7 @@ import accord.api.ExclusiveAsyncExecutor;
 import accord.api.ProgressLog;
 import accord.api.Result;
 import accord.api.RoutingKey;
+import accord.api.Scheduler;
 import accord.coordinate.Coordinations;
 import accord.impl.DefaultLocalListeners;
 import accord.impl.DefaultLocalListeners.NotifySink;
@@ -127,7 +128,7 @@ import static org.apache.cassandra.service.accord.execution.SaferState.global;
  * model is run over the three configurations the two off-switches permit, with the affected expectations derived
  * from {@link AccordExecutor#CACHE_QUEUES_ENABLED}/{@code NONSYNC_ENABLED} rather than from the parameter.
  *
- * <p>This test has been authored entirely by Claude.
+ * <p>This test has been authored entirely by LLM.
  */
 public class AccordCommandStoreExecutorTest extends SimulationTestBase
 {
@@ -478,6 +479,12 @@ public class AccordCommandStoreExecutorTest extends SimulationTestBase
         /** for batched tasks: the keys declared, the keys processed so far, and the number of runs */
         AtomicIntegerArray declaredKeys = new AtomicIntegerArray(MAX_TASKS);
         AtomicIntegerArray processedKeys = new AtomicIntegerArray(MAX_TASKS);
+        /**
+         * keys a nested child inherited from a parent that had already processed them: {@code SafeTask.preSetup}
+         * counts these in both {@code task.keys} and {@code NonSyncState.processed}, so they are complete before the
+         * child starts, never enter one of its batches, and are never referenced by it. See {@link #verifyBatch}.
+         */
+        AtomicIntegerArray inheritedKeys = new AtomicIntegerArray(MAX_TASKS);
         AtomicIntegerArray runs = new AtomicIntegerArray(MAX_TASKS);
         AtomicIntegerArray loadKeysOf = new AtomicIntegerArray(MAX_TASKS);
         /** the ExecutionSequence each task's context declared, so its body can verify what was assigned */
@@ -631,6 +638,7 @@ public class AccordCommandStoreExecutorTest extends SimulationTestBase
             hasReturned = new AtomicIntegerArray(MAX_TASKS);
             declaredKeys = new AtomicIntegerArray(MAX_TASKS);
             processedKeys = new AtomicIntegerArray(MAX_TASKS);
+            inheritedKeys = new AtomicIntegerArray(MAX_TASKS);
             runs = new AtomicIntegerArray(MAX_TASKS);
             loadKeysOf = new AtomicIntegerArray(MAX_TASKS);
             sequenceOf = new AtomicIntegerArray(MAX_TASKS);
@@ -961,6 +969,7 @@ public class AccordCommandStoreExecutorTest extends SimulationTestBase
             hasReturned = new AtomicIntegerArray(MAX_TASKS);
             declaredKeys = new AtomicIntegerArray(MAX_TASKS);
             processedKeys = new AtomicIntegerArray(MAX_TASKS);
+            inheritedKeys = new AtomicIntegerArray(MAX_TASKS);
             runs = new AtomicIntegerArray(MAX_TASKS);
             loadKeysOf = new AtomicIntegerArray(MAX_TASKS);
             sequenceOf = new AtomicIntegerArray(MAX_TASKS);
@@ -1169,8 +1178,14 @@ public class AccordCommandStoreExecutorTest extends SimulationTestBase
 
         /**
          * A task that does not load its keys up front is instead run over batches of them: verify that this run's batch
-         * is a non-empty subset of the keys we declared, that we have not already processed any of them, and that we no
-         * longer reference any key we have processed, i.e. that each run holds exactly the keys it still needs.
+         * is a subset of the keys we declared, that we have not already processed any of them, and that we no longer
+         * reference any key we have processed, i.e. that each run holds exactly the keys it still needs.
+         *
+         * <p>The batch may legitimately be <em>empty</em>, but only for a task that has nothing left to process: a
+         * nested child whose declared keys were all already processed by its parent has them counted in both
+         * {@code task.keys} and {@code NonSyncState.processed} by {@code SafeTask.preSetup}, so it is complete on
+         * arrival and is dispatched once with no keys at all. Such a run must still hold no reference it has no claim
+         * to, and must be the task's only run; an empty batch while keys remain to be processed is a bug.
          */
         private int[] verifyBatch(Store store, int taskId, SafeTask<?> task, int[] declared, int run, boolean isRange)
         {
@@ -1179,13 +1194,30 @@ public class AccordCommandStoreExecutorTest extends SimulationTestBase
             int[] active = ordinalsOf(taskId, task.nonSync().active);
             int activeMask = mask(active), declaredMask = mask(declared);
 
-            Invariants.require(active.length > 0, "task %d ran with an empty batch", taskId);
             Invariants.require(active.length <= MAX_BATCH, "task %d ran with %d keys, more than the batch size", taskId, active.length);
             Invariants.require((activeMask & ~declaredMask) == 0, "task %d ran with keys %s it did not declare", taskId, Arrays.toString(active));
 
             int processed = processedKeys.get(taskId);
             Invariants.require((activeMask & processed) == 0, "task %d ran with keys %s it had already processed", taskId, Arrays.toString(active));
             processedKeys.set(taskId, processed | activeMask);
+
+            // keys inherited from a parent that had already processed them are complete but never referenced by us and
+            // never in one of our batches, so they are exactly the declared keys we neither run with, still hold, nor
+            // have processed ourselves. Treat them as processed for everything below.
+            int held = 0;
+            for (int k = 0 ; k < KEYS ; ++k)
+            {
+                if (task.refs.get(keys[k]) != null)
+                    held |= 1 << k;
+            }
+            int inherited = inheritedKeys.accumulateAndGet(taskId, declaredMask & ~activeMask & ~held & ~processed, (a, b) -> a | b);
+            int done = processed | inherited;
+
+            // the executor's own accounting is authoritative on whether anything is left: processed already includes
+            // this batch, and failed counts the keys it could not load, which never enter one
+            Invariants.require(active.length > 0 || task.nonSync().processed + task.nonSync().failed >= task.keys,
+                               "task %d ran with an empty batch having processed %d and failed %d of %d keys",
+                               taskId, task.nonSync().processed, task.nonSync().failed, task.keys);
 
             // each run holds exactly the keys it still needs: a key it has processed is released, one it has not is
             // kept. For a range task the set to check is what it has actually held, as a declared key the scan never
@@ -1195,7 +1227,7 @@ public class AccordCommandStoreExecutorTest extends SimulationTestBase
             {
                 if (0 == (check & (1 << k)))
                     continue;
-                boolean isProcessed = 0 != (processed & (1 << k));
+                boolean isProcessed = 0 != (done & (1 << k));
                 boolean hasRef = task.refs.get(keys[k]) != null;
                 Invariants.require(isProcessed != hasRef, isProcessed ? "task %d still references key %d, which it processed"
                                                                       : "task %d does not reference key %d, which it has not processed", taskId, k);
@@ -1209,10 +1241,12 @@ public class AccordCommandStoreExecutorTest extends SimulationTestBase
                 if (task.isIncrementalFinishing())
                 {
                     // an incremental task finishes only once it has processed every key it holds; for a range task that
-                    // is task.keys, which the adoption path grows, rather than the mask it declared
+                    // is task.keys, which the adoption path grows, rather than the mask it declared. Keys inherited as
+                    // already processed from a parent count towards that total without ever entering a batch.
                     int expected = isRange ? task.keys : Integer.bitCount(declaredMask);
-                    Invariants.require(Integer.bitCount(processed | activeMask) == expected,
-                                       "task %d finished having processed %d of %d keys", taskId, Integer.bitCount(processed | activeMask), expected);
+                    int accounted = Integer.bitCount(done | activeMask);
+                    Invariants.require(accounted == expected,
+                                       "task %d finished having processed %d of %d keys", taskId, accounted, expected);
                 }
             }
             else
@@ -1472,14 +1506,16 @@ public class AccordCommandStoreExecutorTest extends SimulationTestBase
                 if (loadKeys == LoadKeys.INCR)
                 {
                     // a range task processes what it discovered and adopted, which is a subset of the range it declared; a
-                    // key task processes exactly what it declared
+                    // key task processes exactly what it declared - either itself, or, for a key its parent had already
+                    // processed and which it therefore inherited as complete, on its parent's behalf (see verifyBatch)
+                    int processedOrInherited = processedKeys.get(taskId) | inheritedKeys.get(taskId);
                     if (isRange)
-                        Invariants.require((processedKeys.get(taskId) & ~declaredKeys.get(taskId)) == 0,
+                        Invariants.require((processedOrInherited & ~declaredKeys.get(taskId)) == 0,
                                            "incremental range task %d processed keys outside its range", taskId);
                     else
-                        Invariants.require(processedKeys.get(taskId) == declaredKeys.get(taskId),
-                                           "incremental task %d processed keys %s of %s", taskId,
-                                           Integer.toBinaryString(processedKeys.get(taskId)), Integer.toBinaryString(declaredKeys.get(taskId)));
+                        Invariants.require(processedOrInherited == declaredKeys.get(taskId),
+                                           "incremental task %d processed keys %s (inherited %s) of %s", taskId,
+                                           Integer.toBinaryString(processedKeys.get(taskId)), Integer.toBinaryString(inheritedKeys.get(taskId)), Integer.toBinaryString(declaredKeys.get(taskId)));
                 }
                 else if (loadKeys == LoadKeys.ASYNC)
                 {
@@ -1846,6 +1882,7 @@ public class AccordCommandStoreExecutorTest extends SimulationTestBase
             @Override public long elapsed(TimeUnit units) { return elapsed.applyAsLong(units); }
             @Override public TopologyManager topology() { throw new UnsupportedOperationException(); }
             @Override public Coordinations coordinations() { return new Coordinations(); }
+            @Override public Scheduler scheduler() { return null; }
             @Override public long currentStamp() { return stamp; }
             @Override public void updateStamp() { ++stamp; }
             @Override public boolean isReplaying() { return false; }

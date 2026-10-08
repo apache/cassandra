@@ -38,9 +38,11 @@ import org.apache.cassandra.tcm.sequences.LockedRanges;
 import org.apache.cassandra.tcm.serialization.AsymmetricMetadataSerializer;
 import org.apache.cassandra.tcm.serialization.VerboseMetadataSerializer;
 import org.apache.cassandra.tcm.serialization.Version;
+import org.apache.cassandra.tcm.transformations.AccordChangeDownStatus;
+import org.apache.cassandra.tcm.transformations.AccordChangeNodeInfo;
 import org.apache.cassandra.tcm.transformations.AccordMarkHardRemoved;
-import org.apache.cassandra.tcm.transformations.AccordMarkRejoining;
 import org.apache.cassandra.tcm.transformations.AccordMarkStale;
+import org.apache.cassandra.tcm.transformations.AccordUnmarkStale;
 import org.apache.cassandra.tcm.transformations.AlterSchema;
 import org.apache.cassandra.tcm.transformations.AlterTopology;
 import org.apache.cassandra.tcm.transformations.Assassinate;
@@ -55,7 +57,6 @@ import org.apache.cassandra.tcm.transformations.PrepareJoin;
 import org.apache.cassandra.tcm.transformations.PrepareLeave;
 import org.apache.cassandra.tcm.transformations.PrepareMove;
 import org.apache.cassandra.tcm.transformations.PrepareReplace;
-import org.apache.cassandra.tcm.transformations.ReconfigureAccordFastPath;
 import org.apache.cassandra.tcm.transformations.Register;
 import org.apache.cassandra.tcm.transformations.Startup;
 import org.apache.cassandra.tcm.transformations.TriggerSnapshot;
@@ -264,15 +265,16 @@ public interface Transformation
         CANCEL_CMS_RECONFIGURATION(34, V0, () -> CancelCMSReconfiguration.serializer),
         ALTER_TOPOLOGY(35, V0, () -> AlterTopology.serializer),
 
-        UPDATE_AVAILABILITY(36, Version.MIN_ACCORD_VERSION, () -> ReconfigureAccordFastPath.serializer),
+        UPDATE_AVAILABILITY(36, Version.MIN_ACCORD_VERSION, () -> AccordChangeDownStatus.serializer),
 
         BEGIN_CONSENSUS_MIGRATION_FOR_TABLE_AND_RANGE(37, Version.MIN_ACCORD_VERSION, () -> BeginConsensusMigrationForTableAndRange.serializer),
         MAYBE_FINISH_CONSENSUS_MIGRATION_FOR_TABLE_AND_RANGE(38, Version.MIN_ACCORD_VERSION, () -> MaybeFinishConsensusMigrationForTableAndRange.serializer),
         ACCORD_MARK_STALE(39, Version.MIN_ACCORD_VERSION, () -> AccordMarkStale.serializer),
-        ACCORD_MARK_REJOINING(40, Version.MIN_ACCORD_VERSION, () -> AccordMarkRejoining.serializer),
+        ACCORD_UNMARK_STALE(40, Version.MIN_ACCORD_VERSION, () -> AccordUnmarkStale.serializer),
         PREPARE_DROP_ACCORD_TABLE(41, Version.MIN_ACCORD_VERSION, () -> PrepareDropAccordTable.serializer),
         FINISH_DROP_ACCORD_TABLE(42, Version.MIN_ACCORD_VERSION, () -> FinishDropAccordTable.serializer),
         ACCORD_MARK_HARD_REMOVED(43, Version.MIN_ACCORD_VERSION, () -> AccordMarkHardRemoved.serializer),
+        UPDATE_ACCORD_NODE_INFO(44, Version.MIN_ACCORD_VERSION, () -> AccordChangeNodeInfo.serializer),
         ;
 
         /**

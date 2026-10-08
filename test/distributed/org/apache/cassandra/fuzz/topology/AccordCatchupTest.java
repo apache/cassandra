@@ -46,7 +46,7 @@ import org.apache.cassandra.service.consensus.TransactionalMode;
 import static org.apache.cassandra.distributed.shared.ClusterUtils.waitForCMSToQuiesce;
 import static org.apache.cassandra.harry.checker.TestHelper.withRandom;
 
-public class AccordHardCatchupTest extends FuzzTestBase
+public class AccordCatchupTest extends FuzzTestBase
 {
     private static final int WRITES = 10;
     private static final int POPULATION = 1000;
@@ -117,7 +117,7 @@ public class AccordHardCatchupTest extends FuzzTestBase
                 writeAndValidate.run();
 
                 history.customThrowing(() -> {
-                    cluster.get(2).config().set("accord.catchup_on_start", "HARD");
+                    cluster.get(2).config().set("accord.catchup_on_start", "true");
                     cluster.get(2).startup();
                     cluster.get(2).logs().watchFor(".*Catchup.*");
                     cluster.get(1).logs().watchFor("/127.0.0.2:.* is now UP");

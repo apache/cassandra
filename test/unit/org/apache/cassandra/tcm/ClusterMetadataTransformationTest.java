@@ -37,6 +37,8 @@ import org.apache.cassandra.io.util.DataOutputBuffer;
 import org.apache.cassandra.locator.InetAddressAndPort;
 import org.apache.cassandra.schema.DistributedSchema;
 import org.apache.cassandra.schema.ReplicationParams;
+import org.apache.cassandra.service.accord.topology.AccordNodeInfos;
+import org.apache.cassandra.service.accord.topology.AccordTopology;
 import org.apache.cassandra.tcm.ClusterMetadata.Transformer.Transformed;
 import org.apache.cassandra.tcm.extensions.EpochValue;
 import org.apache.cassandra.tcm.extensions.ExtensionKey;
@@ -56,8 +58,7 @@ import org.apache.cassandra.tcm.ownership.OwnershipUtils;
 import org.apache.cassandra.tcm.sequences.InProgressSequences;
 import org.apache.cassandra.tcm.sequences.LockedRanges;
 
-import static org.apache.cassandra.tcm.MetadataKeys.ACCORD_FAST_PATH;
-import static org.apache.cassandra.tcm.MetadataKeys.ACCORD_STALE_REPLICAS;
+import static org.apache.cassandra.tcm.MetadataKeys.ACCORD_NODE_INFOS;
 import static org.apache.cassandra.tcm.MetadataKeys.CMS_MEMBERSHIP;
 import static org.apache.cassandra.tcm.MetadataKeys.CONSENSUS_MIGRATION_STATE;
 import static org.apache.cassandra.tcm.MetadataKeys.DATA_PLACEMENTS;
@@ -97,8 +98,10 @@ public class ClusterMetadataTransformationTest
         transformed = metadata.transformer()
                               .register(addresses, new Location("dc1", "rack1"), NodeVersion.CURRENT)
                               .build();
-        assertModifications(transformed, NODE_DIRECTORY);
+        // registering a member also gives it an accord node info entry, so that no reader has to interpret an absent one
+        assertModifications(transformed, NODE_DIRECTORY, ACCORD_NODE_INFOS);
         NodeId n1 = transformed.metadata.directory.peerId(addresses.broadcastAddress);
+        assertEquals(AccordNodeInfos.StampedNodeInfo.DEFAULT, transformed.metadata.accordNodeInfos.get(n1));
 
         NodeAddresses updated = getNonConflictingAddresses(random, transformed.metadata.directory);
         transformed = transformed.metadata.transformer().withNewAddresses(n1, updated).build();
@@ -125,7 +128,10 @@ public class ClusterMetadataTransformationTest
                                           .build();
         NodeId n2 = transformed.metadata.directory.peerId(replaceAddresses.broadcastAddress);
         transformed = transformed.metadata.transformer().replaced(n1, n2).build();
-        assertModifications(transformed, NODE_DIRECTORY, TOKEN_MAP);
+        // the replaced node keeps its entry, recording that it is removed (a cluster below AccordNodeInfos.MIN_VERSION
+        // instead leaves it alone, and the startup sweep back-fills it later)
+        assertModifications(transformed, NODE_DIRECTORY, TOKEN_MAP, ACCORD_NODE_INFOS);
+        assertEquals(AccordNodeInfos.Status.REMOVED, transformed.metadata.accordNodeInfos.status(AccordTopology.tcmIdToAccord(n1)));
         transformed = transformed.metadata.transformer().proposeRemoveNode(n2).build();
         assertModifications(transformed, TOKEN_MAP);
 
@@ -157,7 +163,7 @@ public class ClusterMetadataTransformationTest
                               .register(a1, new Location("dc1", "rack1"), NodeVersion.CURRENT)
                               .register(a2, new Location("dc1", "rack1"), NodeVersion.CURRENT)
                               .build();
-        assertModifications(transformed, NODE_DIRECTORY);
+        assertModifications(transformed, NODE_DIRECTORY, ACCORD_NODE_INFOS);
         NodeId n1 = transformed.metadata.directory.peerId(a1.broadcastAddress);
         NodeId n2 = transformed.metadata.directory.peerId(a2.broadcastAddress);
 
@@ -356,12 +362,10 @@ public class ClusterMetadataTransformationTest
             return metadata.lockedRanges;
         else if (key == IN_PROGRESS_SEQUENCES)
             return metadata.inProgressSequences;
-        else if (key == ACCORD_FAST_PATH)
-            return metadata.accordFastPath;
+        else if (key == ACCORD_NODE_INFOS)
+            return metadata.accordNodeInfos;
         else if (key == CONSENSUS_MIGRATION_STATE)
             return metadata.consensusMigrationState;
-        else if (key == ACCORD_STALE_REPLICAS)
-            return metadata.accordStaleReplicas;
         else if (key == CMS_MEMBERSHIP)
             return metadata.cmsMembership;
 
