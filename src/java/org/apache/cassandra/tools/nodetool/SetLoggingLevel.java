@@ -32,7 +32,14 @@ import picocli.CommandLine.Parameters;
 import static org.apache.cassandra.tools.nodetool.CommandUtils.concatArgs;
 import static org.apache.commons.lang3.StringUtils.EMPTY;
 
-@Command(name = "setlogginglevel", description = "Set the log level threshold for a given component or class. Will reset to the initial configuration if called with no parameters.")
+@Command(name = "setlogginglevel", description = "Set the log level threshold for a given component or class. Will reset to the initial configuration if called with no parameters.",
+         footerHeading = "%n",
+         footer = { "EXAMPLES",
+                    "        Set compaction logging to DEBUG:",
+                    "            nodetool setlogginglevel compaction DEBUG",
+                    "",
+                    "        Set the level of one class:",
+                    "            nodetool setlogginglevel org.apache.cassandra.gms.Gossiper TRACE" })
 public class SetLoggingLevel extends AbstractCommand
 {
     @CassandraUsage(usage = "<component|class> <level>", description = "The component or class to change the level for and the log level threshold to set. Will reset to initial level if omitted. "

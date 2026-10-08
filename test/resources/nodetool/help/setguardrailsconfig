@@ -37,3 +37,7 @@ OPTIONS
             items are separated by comma. Setting for thresholds accepting
             strings and value guardrails are reset by specifying 'null' or '[]'
             value. For thresholds accepting integers, the reset value is -1.
+
+EXAMPLES
+        Set the keyspaces threshold, fail value first, then warn value:
+            nodetool setguardrailsconfig keyspaces_threshold 200 150

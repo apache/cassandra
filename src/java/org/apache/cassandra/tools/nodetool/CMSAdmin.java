@@ -105,7 +105,11 @@ public class CMSAdmin extends AbstractCommand
         }
     }
 
-    @Command(name = "reconfigure", description = "Reconfigure replication factor of CMS")
+    @Command(name = "reconfigure", description = "Reconfigure replication factor of CMS",
+             footerHeading = "%n",
+             footer = { "EXAMPLES",
+                        "        Use 3 CMS members in dc1 and 3 in dc2:",
+                        "            nodetool cms reconfigure dc1:3 dc2:3" })
     public static class ReconfigureCMS extends AbstractCommand
     {
         @Option(paramLabel = "status",
@@ -226,7 +230,11 @@ public class CMSAdmin extends AbstractCommand
         }
     }
 
-    @Command(name = "unregister", description = "Unregister nodes in LEFT state")
+    @Command(name = "unregister", description = "Unregister nodes in LEFT state",
+             footerHeading = "%n",
+             footer = { "EXAMPLES",
+                        "        Unregister two nodes in LEFT state:",
+                        "            nodetool cms unregister 4 5" })
     public static class Unregister extends AbstractCommand
     {
         @Parameters(paramLabel = "nodeId", description = "One or more nodeIds to unregister, they all need to be in LEFT state", arity = "1..*")
@@ -312,7 +320,11 @@ public class CMSAdmin extends AbstractCommand
         }
     }
 
-    @Command(name = "dump", description = "Dumps cluster metadata into a file")
+    @Command(name = "dump", description = "Dumps cluster metadata into a file",
+             footerHeading = "%n",
+             footer = { "EXAMPLES",
+                        "        Dump cluster metadata at an epoch (give all three options or none):",
+                        "            nodetool cms dump -e <epoch> -te <transform_epoch> -sv <version>" })
     public static class DumpClusterMetadata extends AbstractCommand
     {
         @ArgGroup(exclusive = false, multiplicity = "0..1")

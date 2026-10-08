@@ -53,3 +53,7 @@ OPTIONS
         <src-dc-name>
             Name of DC from which to select sources for streaming. By default,
             pick any DC (except local DC when --exclude-local-dc is set)
+
+EXAMPLES
+        Rebuild one token range of ks1 owned by this node, streaming from dc1:
+            nodetool rebuild -ks ks1 -ts "(<start_token>,<end_token>]" dc1

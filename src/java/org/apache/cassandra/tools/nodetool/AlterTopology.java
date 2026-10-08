@@ -21,6 +21,7 @@ import java.util.ArrayList;
 import java.util.List;
 
 import org.apache.cassandra.tools.NodeProbe;
+import org.apache.cassandra.tools.nodetool.layout.CassandraUsage;
 
 import picocli.CommandLine.Command;
 import picocli.CommandLine.Parameters;
@@ -30,6 +31,8 @@ import static com.google.common.base.Preconditions.checkArgument;
 @Command(name = "altertopology", description = "Modify the datacenter and/or rack of one or more nodes")
 public class AlterTopology extends AbstractCommand
 {
+    @CassandraUsage(usage = "<node=dc:rack> [<node=dc:rack>...]",
+                    description = "One or more node identifiers, which may be either a node id, host id or broadcast address, each with a target dc:rack")
     @Parameters(description = { "One or more node identifiers, which may be either a node id, host id or broadcast address, each with a target dc:rack",
                                 "<node=dc:rack> [<node=dc:rack>...]" })
     private List<String> args = new ArrayList<>();

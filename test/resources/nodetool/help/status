@@ -7,7 +7,7 @@ SYNOPSIS
                 [(-pwf <passwordFilePath> | --password-file <passwordFilePath>)]
                 [(-u <username> | --username <username>)] status
                 [(-o <sort_order> | --order <sort_order>)] [(-pp | --print-port)]
-                [(-r | --resolve-ip)] [(-s <sort> | --sort <sort>)] [--] <keyspace>
+                [(-r | --resolve-ip)] [(-s <sort> | --sort <sort>)] [--] [<keyspace>]
 
 OPTIONS
         -h <host>, --host <host>
