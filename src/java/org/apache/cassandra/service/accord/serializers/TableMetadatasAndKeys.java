@@ -75,7 +75,7 @@ public class TableMetadatasAndKeys extends IVersionedWithKeysSerializer.Abstract
             if (count == 1)
             {
                 PartitionKey one = (PartitionKey) buffer;
-                if (one.prefix() == table && one.partitionKey().equals(key))
+                if (one.prefix() == tableId && one.partitionKey().equals(key))
                     return one;
             }
             return collect(new PartitionKey(tableId, key));
@@ -178,6 +178,11 @@ public class TableMetadatasAndKeys extends IVersionedWithKeysSerializer.Abstract
     {
         int offset = in.readUnsignedVInt32();
         return (PartitionKey) keys.get(offset);
+    }
+
+    public void skipKey(DataInputPlus in) throws IOException
+    {
+        in.readUnsignedVInt32();
     }
 
     public long serializedKeysSize(Keys keys)
