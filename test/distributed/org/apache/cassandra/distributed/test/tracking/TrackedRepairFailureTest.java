@@ -340,7 +340,7 @@ public class TrackedRepairFailureTest extends TrackedRepairTransferTestBase
             IInvokableInstance coordinator = cluster.get(1);
             IInvokableInstance receiver = cluster.get(2);
 
-            coordinator.nodetoolResult("repair", "--full", keyspace).asserts().success();
+            coordinator.nodetoolResult("repair", keyspace).asserts().success();
 
             coordinator.executeInternal("INSERT INTO " + tableWithKeyspace(keyspace) + " (pk, v) VALUES (?, 1)", KEY_100);
             coordinator.flush(keyspace);
