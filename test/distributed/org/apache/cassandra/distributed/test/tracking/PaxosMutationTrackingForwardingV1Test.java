@@ -215,32 +215,29 @@ public class PaxosMutationTrackingForwardingV1Test extends TestBaseImpl
         cluster.coordinator(1).execute("INSERT INTO " + ks + ".tbl (k, v) VALUES (" + KEY + ", 1)",
                                        ConsistencyLevel.ALL);
 
-        // Strategy: Hold PAXOS_COMMIT_REQ at nodes 2 and 3 (the non-forwarding replicas).
-        // While held, ALTER the keyspace to untracked. When released, nodes 2,3 see the
-        // commit request from the stale forward handler (node 1) and reject with
-        // COORDINATOR_BEHIND. This bubbles back to node 4's retry loop.
-        AssertingLatch commitArrived = new AssertingLatch("PAXOS_COMMIT_REQ at nodes 2,3");
+        AtomicInteger forwardTarget = new AtomicInteger(-1);
+        AssertingLatch commitArrived = new AssertingLatch("PAXOS_COMMIT_REQ from forward target");
         AssertingLatch alterDone = new AssertingLatch("V1 commit forwarding retry - alter to untracked");
-
-        // Count ALL inbound PAXOS_COMMIT_REQ at nodes 2,3 regardless of source. After the retry,
-        // node 4 (now on untracked) calls commitPaxosUntracked directly and sends to replicas
-        // {1,2,3}, yielding 2 more messages at {2,3}. Total = initial 2 + retry 2 = 4.
-        // If the retry didn't happen (regression), total would be 2 and the CAS would fail.
         AtomicInteger commitsAtReplicas = new AtomicInteger();
-
-        // Hold PAXOS_COMMIT_REQ at nodes 2 and 3 until ALTER completes.
-        // Also check retry messages (from node 4) for mutation ID absence. One filter handles
-        // both roles because the from-node distinguishes initial (node 1) from retry (node 4)
-        // and two overlapping MessageSpy instances on the same verb+destination would not
-        // compose cleanly — the cluster filter system applies ALL matching filters.
         AtomicInteger retryCommitsWithId = new AtomicInteger();
+
+        // Learn which replica the proximity measures chose for the forward — any of {1,2,3} is possible.
+        cluster.filters()
+               .verbs(Verb.PAXOS_COMMIT_FORWARD_REQ.id)
+               .messagesMatching((from, to, msg) -> {
+                   forwardTarget.set(to);
+                   return false;
+               }).drop();
+
+        // Hold PAXOS_COMMIT_REQ from the forward target until ALTER completes. Count ALL inbound
+        // PAXOS_COMMIT_REQ at replicas to verify the retry fires, and check retry messages (from
+        // node 4) for mutation ID absence. Conditional behaviour inside one filter — stays manual.
         cluster.filters()
                .verbs(Verb.PAXOS_COMMIT_REQ.id)
-               .to(2, 3)
+               .to(1, 2, 3)
                .messagesMatching((from, to, msg) -> {
                    commitsAtReplicas.incrementAndGet();
-                   // Only hold commits from node 1 (the forward handler acting as coordinator)
-                   if (from == 1)
+                   if (from == forwardTarget.get())
                    {
                        commitArrived.countDown();
                        alterDone.await();
@@ -269,8 +266,8 @@ public class PaxosMutationTrackingForwardingV1Test extends TestBaseImpl
         }
         finally
         {
-            // Release the held commits — nodes 2,3 now see migration mismatch -> COORDINATOR_BEHIND
-            alterDone.countDown();
+            alterDone.release();
+            commitArrived.release();
         }
 
         // With the fix: node 4's retry loop catches CoordinatorBehindException, retries
@@ -291,12 +288,11 @@ public class PaxosMutationTrackingForwardingV1Test extends TestBaseImpl
         // (node 1 gets it via the tracked local write in the initial forward, nodes 2,3 via retry).
         assertReplicasHaveValue(cluster, ks, KEY, 100, 1, 2, 3);
 
-        // Authenticate that the retry actually happened by counting inbound PAXOS_COMMIT_REQ at
-        // the two non-forwarding replicas. Initial attempt (from node 1, held then released) = 2,
-        // retry (from node 4 directly on untracked path) = 2. Total = 4. A result of 2 would mean
-        // the CAS succeeded without retry (bug).
-        assertEquals("Expected initial (2) + retry (2) = 4 PAXOS_COMMIT_REQ at nodes 2,3",
-                     4, commitsAtReplicas.get());
+        // Retry verification: forward target sends to 2 other replicas (initial attempt), node 4
+        // retries directly on the untracked path sending to all 3 replicas. Total = 5.
+        assertTrue("Forward target should have been identified", forwardTarget.get() > 0);
+        assertEquals("Expected initial (2) + retry (3) = 5 PAXOS_COMMIT_REQ at replicas",
+                     5, commitsAtReplicas.get());
 
         // Retry messages from node 4 (untracked path) must not carry mutation IDs
         assertEquals("Retry PAXOS_COMMIT_REQ from node 4 should NOT carry mutation IDs (untracked path)",
