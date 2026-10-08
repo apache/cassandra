@@ -106,7 +106,7 @@ public class AsyncProfileCommandGroup extends AbstractCommand
     @Command(name = "start", description = "Run Async-Profiler on a Cassandra process")
     public static class AsyncProfileStartCommand extends AbstractCommand
     {
-        @Option(names = { "-e", "--event" },
+        @Option(names = { "-e", "--event" }, split = ",",
         description = "Event(s) to profile, one of or combination of 'cpu', 'alloc', " +
                       "'lock', 'wall', 'nativemem', 'cache_misses', delimited by comma, defaults to 'cpu'")
         public List<AsyncProfilerEvent> event = List.of(AsyncProfilerEvent.cpu);

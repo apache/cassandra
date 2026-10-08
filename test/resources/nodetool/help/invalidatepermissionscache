@@ -10,7 +10,7 @@ SYNOPSIS
                 [--all-tables] [--function <function>]
                 [--functions-in-keyspace <functions-in-keyspace>]
                 [--keyspace <keyspace>] [--mbean <mbean>] [--role <role>]
-                [--table <table>] [--] <role_name>
+                [--table <table>] [--] [<role_name>]
 
 OPTIONS
         --all-functions
@@ -72,3 +72,7 @@ OPTIONS
         <role_name>
             A role for which permissions to specified resources need to be
             invalidated
+
+EXAMPLES
+        Invalidate permissions of role1 on keyspace ks1:
+            nodetool invalidatepermissionscache --keyspace ks1 role1

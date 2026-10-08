@@ -33,7 +33,14 @@ import static org.apache.cassandra.tools.nodetool.CommandUtils.parseOptionalKeys
 import static org.apache.cassandra.tools.nodetool.CommandUtils.parseOptionalTables;
 
 
-@Command(name = "garbagecollect", description = "Remove deleted data from one or more tables")
+@Command(name = "garbagecollect", description = "Remove deleted data from one or more tables",
+         footerHeading = "%n",
+         footer = { "EXAMPLES",
+                    "        Remove deleted cells, not only deleted rows, from ks1.table1:",
+                    "            nodetool garbagecollect -g CELL ks1 table1",
+                    "",
+                    "        Garbage collect two SSTables (paths separated by spaces or commas):",
+                    "            nodetool garbagecollect --user-defined <file1> <file2>" })
 public class GarbageCollect extends AbstractCommand
 {
     @CassandraUsage(usage = "[<keyspace> <tables>...] or <SSTable file>...",

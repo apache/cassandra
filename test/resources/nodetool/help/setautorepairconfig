@@ -6,8 +6,8 @@ SYNOPSIS
                 [(-pw <password> | --password <password>)]
                 [(-pwf <passwordFilePath> | --password-file <passwordFilePath>)]
                 [(-u <username> | --username <username>)] setautorepairconfig
-                [(-t <repairType> | --repair-type <repairType>)] [--]
-                <autorepairParamType> <autorepairParamValue>
+                [(-t <repairType> | --repair-type <repairType>)] [--] <autorepairparam>
+                <value>
 
 OPTIONS
         -h <host>, --host <host>
@@ -33,8 +33,20 @@ OPTIONS
             list of argument, (useful when arguments might be mistaken for
             command-line options
 
-        <autorepairParamType>
-            Autorepair param type.
+        <autorepairparam> <value>
+            autorepair param and value. Possible autorepair parameters are as
+            following: start_scheduler, number_of_repair_threads,
+            min_repair_interval, sstable_upper_threshold, enabled,
+            table_max_repair_time, priority_hosts, forcerepair_hosts,
+            ignore_dcs, history_clear_delete_hosts_buffer_interval,
+            repair_primary_token_range_only, parallel_repair_count,
+            parallel_repair_percentage, allow_parallel_replica_repair,
+            allow_parallel_replica_repair_across_schedules,
+            materialized_view_repair_enabled, repair_max_retries,
+            repair_retry_backoff, repair_session_timeout,
+            min_repair_task_duration, repair_by_keyspace,
+            mixed_major_version_repair_enabled, token_range_splitter.<property>
 
-        <autorepairParamValue>
-            Autorepair param value
+EXAMPLES
+        Run full auto repair on each table at most once a day:
+            nodetool setautorepairconfig -t full min_repair_interval 24h

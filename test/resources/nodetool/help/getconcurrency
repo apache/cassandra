@@ -6,7 +6,7 @@ SYNOPSIS
                 [(-pw <password> | --password <password>)]
                 [(-pwf <passwordFilePath> | --password-file <passwordFilePath>)]
                 [(-u <username> | --username <username>)] getconcurrency [--]
-                <stage-names>
+                [<stage-names>...]
 
 OPTIONS
         -h <host>, --host <host>

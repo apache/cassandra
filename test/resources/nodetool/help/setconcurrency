@@ -33,3 +33,10 @@ OPTIONS
         <stage-name> <maximum-concurrency> | <stage-name> <core-pool>
             <maximum-concurrency>
             Set concurrency for processing stage
+
+EXAMPLES
+        Allow up to 64 threads in the mutation stage:
+            nodetool setconcurrency MutationStage 64
+
+        Set core 4 and max 12 threads (thread pool stages only):
+            nodetool setconcurrency InternalResponseStage 4 12

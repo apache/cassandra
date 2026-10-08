@@ -29,7 +29,14 @@ import picocli.CommandLine.Parameters;
 import static com.google.common.base.Preconditions.checkArgument;
 
 // TODO CASSANDRA-20791 Types of input aguments shouldn't depend on the number of arguments. Commands should be split into separate commands.
-@Command(name = "setconcurrency", description = "Set maximum concurrency for processing stage")
+@Command(name = "setconcurrency", description = "Set maximum concurrency for processing stage",
+         footerHeading = "%n",
+         footer = { "EXAMPLES",
+                    "        Allow up to 64 threads in the mutation stage:",
+                    "            nodetool setconcurrency MutationStage 64",
+                    "",
+                    "        Set core 4 and max 12 threads (thread pool stages only):",
+                    "            nodetool setconcurrency InternalResponseStage 4 12" })
 public class SetConcurrency extends AbstractCommand
 {
     @CassandraUsage(usage = "<stage-name> <maximum-concurrency> | <stage-name> <core-pool> <maximum-concurrency>",

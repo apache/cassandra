@@ -29,7 +29,7 @@ public class GetAuthCacheConfig extends AbstractCommand
 {
     @Option(paramLabel = "cache-name",
             names = { "--cache-name" },
-            description = "Name of Auth cache (required)",
+            description = "Name of Auth cache (required), one of: " + NodeProbe.AUTH_CACHE_NAMES,
             required = true)
     private String cacheName;
 

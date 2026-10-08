@@ -1,13 +1,13 @@
 NAME
         nodetool truncatehints - Truncate all hints on the local node, or
-        truncate hints for the endpoint(s) specified.
+        truncate hints for the endpoint specified.
 
 SYNOPSIS
         nodetool [(-h <host> | --host <host>)] [(-p <port> | --port <port>)]
                 [(-pw <password> | --password <password>)]
                 [(-pwf <passwordFilePath> | --password-file <passwordFilePath>)]
-                [(-u <username> | --username <username>)] truncatehints [--] [endpoint
-                ... ]
+                [(-u <username> | --username <username>)] truncatehints [--]
+                [<endpoint>]
 
 OPTIONS
         -h <host>, --host <host>
@@ -30,6 +30,6 @@ OPTIONS
             list of argument, (useful when arguments might be mistaken for
             command-line options
 
-        [endpoint ... ]
+        [<endpoint>]
             Endpoint address to delete hints for, either ip address
             ("127.0.0.1") or hostname

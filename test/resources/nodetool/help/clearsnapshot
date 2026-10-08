@@ -47,3 +47,7 @@ OPTIONS
 
         [<keyspaces>...]
             Remove snapshots from the given keyspaces
+
+EXAMPLES
+        Clear all snapshots of ks1 older than 7 days:
+            nodetool clearsnapshot --all --older-than 7d ks1

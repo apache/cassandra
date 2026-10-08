@@ -50,3 +50,7 @@ OPTIONS
 
         [<replication factor>] or <datacenter>:<replication_factor> ...
             Replication factor of new CMS
+
+EXAMPLES
+        Use 3 CMS members in dc1 and 3 in dc2:
+            nodetool cms reconfigure dc1:3 dc2:3

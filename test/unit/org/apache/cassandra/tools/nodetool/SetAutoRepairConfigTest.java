@@ -41,6 +41,8 @@ import org.apache.cassandra.locator.InetAddressAndPort;
 import org.apache.cassandra.repair.autorepair.AutoRepairConfig;
 import org.apache.cassandra.tools.NodeProbe;
 
+import picocli.CommandLine;
+
 import static org.junit.Assert.fail;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
@@ -110,6 +112,22 @@ public class SetAutoRepairConfigTest
             cmd.execute(probe);
 
             verify(probe, times(1)).startAutoRepairScheduler();
+        }
+
+        @Test
+        public void testDocumentedParamTypesAreAccepted()
+        {
+            String description = new CommandLine(new SetAutoRepairConfig()).getCommandSpec().positionalParameters().get(0).description()[1];
+            for (String paramType : description.substring(description.indexOf(':') + 1).split("[\\[\\]|,\\s]+"))
+            {
+                if (paramType.isEmpty())
+                    continue;
+
+                cmd.repairTypeStr = AutoRepairConfig.RepairType.FULL.name();
+                cmd.args = ImmutableList.of(paramType.replace("<property>", "max_bytes_per_schedule"), "1");
+
+                cmd.execute(probe);
+            }
         }
 
         @Test

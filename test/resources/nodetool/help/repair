@@ -132,3 +132,10 @@ OPTIONS
 
         [<keyspace> <tables>...]
             The keyspace followed by one or many tables
+
+EXAMPLES
+        Repair one token range of ks1:
+            nodetool repair -st <start_token> -et <end_token> ks1
+
+        Repair ks1 with two hosts only (one must be this node):
+            nodetool repair -hosts 127.0.0.1,127.0.0.2 ks1

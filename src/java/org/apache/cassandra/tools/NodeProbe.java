@@ -160,6 +160,11 @@ public class NodeProbe implements AutoCloseable
     private static final String fmtUrl = "service:jmx:rmi:///jndi/rmi://%s:%d/jmxrmi";
     private static final String ssObjName = "org.apache.cassandra.db:type=StorageService";
     public static final int defaultPort = 7199;
+    public static final String AUTH_CACHE_NAMES = PasswordAuthenticator.CredentialsCacheMBean.CACHE_NAME + ", " +
+                                                  AuthorizationProxy.JmxPermissionsCacheMBean.CACHE_NAME + ", " +
+                                                  NetworkPermissionsCacheMBean.CACHE_NAME + ", " +
+                                                  PermissionsCacheMBean.CACHE_NAME + ", " +
+                                                  RolesCacheMBean.CACHE_NAME;
 
     static long JMX_NOTIFICATION_POLL_INTERVAL_SECONDS = NODETOOL_JMX_NOTIFICATION_POLL_INTERVAL_SECONDS.getLong();
 

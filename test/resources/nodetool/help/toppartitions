@@ -54,3 +54,7 @@ OPTIONS
         <keyspace> <cfname> <duration>
             The keyspace, column family name, and duration in milliseconds
             (Default: 10000)
+
+EXAMPLES
+        Sample ks1.table1 for 10 seconds (duration in milliseconds):
+            nodetool toppartitions ks1 table1 10000

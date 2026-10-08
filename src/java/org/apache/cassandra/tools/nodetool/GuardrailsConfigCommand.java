@@ -166,7 +166,11 @@ public abstract class GuardrailsConfigCommand extends AbstractCommand
         }
     }
 
-    @Command(name = "setguardrailsconfig", description = "Modify runtime configuration of guardrails.")
+    @Command(name = "setguardrailsconfig", description = "Modify runtime configuration of guardrails.",
+             footerHeading = "%n",
+             footer = { "EXAMPLES",
+                        "        Set the keyspaces threshold, fail value first, then warn value:",
+                        "            nodetool setguardrailsconfig keyspaces_threshold 200 150" })
     public static class SetGuardrailsConfig extends GuardrailsConfigCommand
     {
         private static final Pattern SETTER_PATTERN = Pattern.compile("^set");

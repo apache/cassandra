@@ -7,7 +7,7 @@ SYNOPSIS
                 [(-pw <password> | --password <password>)]
                 [(-pwf <passwordFilePath> | --password-file <passwordFilePath>)]
                 [(-u <username> | --username <username>)] accord mark_rejoining [--]
-                <nodeIds>
+                <nodeIds>...
 
 OPTIONS
         -h <host>, --host <host>

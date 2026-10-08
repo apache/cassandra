@@ -9,8 +9,8 @@ SYNOPSIS
                 [(-u <username> | --username <username>)]
                 consensus_admin begin-migration
                 [(-et <end_token> | --end-token <end_token>)]
-                [(-st <start_token> | --start-token <start_token>)] [--] <keyspace>
-                <tables>
+                [(-st <start_token> | --start-token <start_token>)] [--] [<keyspace>]
+                [<tables>...]
 
 OPTIONS
         -et <end_token>, --end-token <end_token>
