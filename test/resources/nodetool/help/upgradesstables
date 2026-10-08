@@ -47,3 +47,7 @@ OPTIONS
 
         [<keyspace> <tables>...]
             The keyspace followed by one or many tables
+
+EXAMPLES
+        Rewrite SSTables of ks1.table1 older than a time (epoch milliseconds):
+            nodetool upgradesstables -a -t 1735689600000 ks1 table1

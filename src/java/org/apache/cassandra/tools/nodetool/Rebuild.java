@@ -18,16 +18,24 @@
 package org.apache.cassandra.tools.nodetool;
 
 import org.apache.cassandra.tools.NodeProbe;
+import org.apache.cassandra.tools.nodetool.layout.CassandraUsage;
 
 import picocli.CommandLine.Command;
 import picocli.CommandLine.Option;
 import picocli.CommandLine.Parameters;
 
-@Command(name = "rebuild", description = "Rebuild data by streaming from other nodes (similarly to bootstrap)")
+@Command(name = "rebuild", description = "Rebuild data by streaming from other nodes (similarly to bootstrap)",
+         footerHeading = "%n",
+         footer = { "EXAMPLES",
+                    "        Rebuild one token range of ks1 owned by this node, streaming from dc1:",
+                    "            nodetool rebuild -ks ks1 -ts \"(<start_token>,<end_token>]\" dc1" })
 public class Rebuild extends AbstractCommand
 {
+    private static final String SRC_DC_NAME = "Name of DC from which to select sources for streaming. By default, pick any DC (except local DC when --exclude-local-dc is set)";
+
+    @CassandraUsage(usage = "<src-dc-name>", description = SRC_DC_NAME)
     @Parameters(paramLabel = "src-dc-name",
-                description = "Name of DC from which to select sources for streaming. By default, pick any DC (except local DC when --exclude-local-dc is set)",
+                description = SRC_DC_NAME,
                 index = "0",
                 arity = "0..1")
     private String sourceDataCenterName = null;

@@ -20,6 +20,7 @@ package org.apache.cassandra.tools.nodetool;
 import java.io.IOException;
 
 import org.apache.cassandra.tools.NodeProbe;
+import org.apache.cassandra.tools.nodetool.layout.CassandraUsage;
 
 import picocli.CommandLine.Command;
 import picocli.CommandLine.Option;
@@ -30,6 +31,7 @@ import static org.apache.commons.lang3.StringUtils.EMPTY;
 @Command(name = "move", description = "Move node on the token ring to a new token")
 public class Move extends AbstractCommand
 {
+    @CassandraUsage(usage = "<newToken>", description = "The new token.")
     @Parameters(paramLabel = "newToken", description = "The new token.", arity = "0..1", index = "0")
     private String newToken = EMPTY;
 

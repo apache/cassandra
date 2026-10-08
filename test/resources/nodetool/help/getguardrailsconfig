@@ -8,7 +8,7 @@ SYNOPSIS
                 [(-pwf <passwordFilePath> | --password-file <passwordFilePath>)]
                 [(-u <username> | --username <username>)] getguardrailsconfig
                 [(-c <guardrailCategory> | --category <guardrailCategory>)] [--expand]
-                [--] <guardrailName>
+                [--] [<guardrailName>]
 
 OPTIONS
         --category <guardrailCategory>, -c <guardrailCategory>

@@ -8,7 +8,7 @@ SYNOPSIS
                 [(-pwf <passwordFilePath> | --password-file <passwordFilePath>)]
                 [(-u <username> | --username <username>)] sstablerepairedset
                 [--is-repaired] [--is-unrepaired] [--really-set] [--] <keyspace>
-                <tables>
+                [<tables>...]
 
 OPTIONS
         -h <host>, --host <host>
@@ -48,3 +48,7 @@ OPTIONS
         <tables>
             Tables to set the repaired state of SSTables. If not provided, all
             tables in the keyspace are used.
+
+EXAMPLES
+        Mark SSTables of ks1.table1 as repaired (drop --really-set to dry run):
+            nodetool sstablerepairedset --really-set --is-repaired ks1 table1

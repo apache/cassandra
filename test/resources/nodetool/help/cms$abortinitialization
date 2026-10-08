@@ -6,7 +6,7 @@ SYNOPSIS
                 [(-pw <password> | --password <password>)]
                 [(-pwf <passwordFilePath> | --password-file <passwordFilePath>)]
                 [(-u <username> | --username <username>)] cms abortinitialization
-                [--initiator <initiator>]
+                --initiator <initiator>
 
 OPTIONS
         -h <host>, --host <host>

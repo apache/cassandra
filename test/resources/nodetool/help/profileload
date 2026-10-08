@@ -55,3 +55,7 @@ OPTIONS
         <keyspace> <cfname> <duration>
             The keyspace, column family name, and duration in milliseconds
             (Default: 10000)
+
+EXAMPLES
+        Sample reads and writes of all tables for 10 seconds:
+            nodetool profileload -a READS,WRITES 10000

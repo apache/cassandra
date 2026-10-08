@@ -6,14 +6,16 @@ SYNOPSIS
                 [(-pw <password> | --password <password>)]
                 [(-pwf <passwordFilePath> | --password-file <passwordFilePath>)]
                 [(-u <username> | --username <username>)] setauthcacheconfig
-                [--cache-name <cache-name>] [--disable-active-update]
+                --cache-name <cache-name> [--disable-active-update]
                 [--enable-active-update] [--max-entries <max-entries>]
                 [--update-interval <update-interval>]
                 [--validity-period <validity-period>]
 
 OPTIONS
         --cache-name <cache-name>
-            Name of Auth cache (required)
+            Name of Auth cache (required), one of: CredentialsCache,
+            JmxPermissionsCache, NetworkPermissionsCache, PermissionsCache,
+            RolesCache
 
         --disable-active-update
             Disable active update
