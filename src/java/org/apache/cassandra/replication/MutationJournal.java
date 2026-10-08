@@ -747,23 +747,21 @@ public class MutationJournal
 
         abstract Map<Long, Long> asMap();
 
-        @FunctionalInterface
-        interface RangePredicate
-        {
-            boolean test(long logId, int minOffset, int maxOffset);
-        }
-
-        abstract boolean anyMatch(RangePredicate predicate);
+        abstract boolean overlapsLog(long logId, Offsets offsets);
 
         public boolean overlaps(CoordinatorLogOffsets<?> offsets)
         {
             if (offsets == null || offsets.isEmpty())
                 return false;
 
-            return anyMatch((logId, minOffset, maxOffset) -> {
-                Offsets sstOffsets = offsets.mutations().getOffsets(logId);
-                return sstOffsets != null && !sstOffsets.isEmpty() && sstOffsets.overlaps(minOffset, maxOffset);
-            });
+            CoordinatorLogOffsets.Mutations<? extends Offsets> mutations = offsets.mutations();
+            for (long logId : mutations)
+            {
+                Offsets sstOffsets = mutations.getOffsets(logId);
+                if (sstOffsets != null && !sstOffsets.isEmpty() && overlapsLog(logId, sstOffsets))
+                    return true;
+            }
+            return false;
         }
 
         @Override
@@ -807,19 +805,14 @@ public class MutationJournal
         }
 
         @Override
-        boolean anyMatch(RangePredicate predicate)
+        boolean overlapsLog(long logId, Offsets offsets)
         {
-            for (Map.Entry<Long, Long> entry : ranges.entrySet())
-            {
-                Long val = entry.getValue();
-                if (val != null)
-                {
-                    long range = val.longValue();
-                    if (predicate.test(entry.getKey().longValue(), minOffset(range), maxOffset(range)))
-                        return true;
-                }
-            }
-            return false;
+            Long val = ranges.get(logId);
+            if (val == null)
+                return false;
+
+            long range = val;
+            return offsets.overlaps(minOffset(range), maxOffset(range));
         }
 
         @Override
@@ -915,17 +908,12 @@ public class MutationJournal
         }
 
         @Override
-        boolean anyMatch(RangePredicate predicate)
+        boolean overlapsLog(long logId, Offsets offsets)
         {
-            for (Long2LongHashMap.EntryIterator iter = ranges.entrySet().iterator(); iter.hasNext();)
-            {
-                iter.next();
-                long logId = iter.getLongKey();
-                long range = iter.getLongValue();
-                if (predicate.test(logId, minOffset(range), maxOffset(range)))
-                    return true;
-            }
-            return false;
+            long range = ranges.get(logId);
+            if (range == NO_VALUE)
+                return false;
+            return offsets.overlaps(minOffset(range), maxOffset(range));
         }
 
         @VisibleForTesting
