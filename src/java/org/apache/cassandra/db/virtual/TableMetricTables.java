@@ -29,6 +29,7 @@ import com.codahale.metrics.Metered;
 import com.codahale.metrics.Metric;
 import com.codahale.metrics.Sampling;
 import com.codahale.metrics.Snapshot;
+import com.google.common.annotations.VisibleForTesting;
 import com.google.common.collect.ImmutableList;
 
 import org.apache.commons.math3.util.Precision;
@@ -86,6 +87,15 @@ public class TableMetricTables
             new StorageTableMetric(name, "max_partition_size", (TableMetrics t) -> t.maxPartitionSize),
             new StorageTableMetric(name, "max_sstable_size", (TableMetrics t) -> t.maxSSTableSize),
             new TableMetricTable(name, "max_sstable_duration", t -> t.maxSSTableDuration, "max_sstable_duration", LongType.instance, ""));
+    }
+
+    /**
+     * Creates a latency table over the given metric, so tests can control the values it reports
+     */
+    @VisibleForTesting
+    static <M extends Metric & Sampling> VirtualTable latencyTable(String keyspace, String table, Function<TableMetrics, M> func)
+    {
+        return new LatencyTableMetric(keyspace, table, func);
     }
 
     /**

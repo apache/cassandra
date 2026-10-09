@@ -20,6 +20,11 @@ package org.apache.cassandra.db.virtual;
 
 import java.util.List;
 
+import com.codahale.metrics.Snapshot;
+import com.codahale.metrics.Timer;
+import com.codahale.metrics.UniformSnapshot;
+import com.google.common.collect.ImmutableList;
+
 import org.junit.BeforeClass;
 import org.junit.Test;
 
@@ -30,11 +35,16 @@ import org.apache.cassandra.metrics.TableMetrics;
 import static java.util.concurrent.TimeUnit.MICROSECONDS;
 import static java.util.concurrent.TimeUnit.MILLISECONDS;
 import static java.util.concurrent.TimeUnit.NANOSECONDS;
+import static org.apache.cassandra.metrics.CassandraMetricsRegistry.DEFAULT_TIMER_UNIT;
 import static org.apache.cassandra.schema.SchemaConstants.VIRTUAL_VIEWS;
+import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertTrue;
 
 public class TableMetricTablesTest extends CQLTester
 {
+    private static final String KS_NAME = "vts";
+    private static final String LATENCY_TABLE = "test_latency";
+
     private static final List<String> LATENCY_TABLES = List.of("local_read_latency",
                                                                "local_scan_latency",
                                                                "local_write_latency",
@@ -60,6 +70,40 @@ public class TableMetricTablesTest extends CQLTester
     public void testSubMillisecondLatencyIsNotRoundedToZero()
     {
         assertLatencyTablesReport(250);
+    }
+
+    @Test
+    public void testColumnsWithoutMsSuffixAreNotConverted()
+    {
+        // A real timer reports a five minute rate of 0 until its meter ticks, so use one that reports fixed values
+        Timer timer = new Timer()
+        {
+            @Override
+            public long getCount()
+            {
+                return 3;
+            }
+
+            @Override
+            public double getFiveMinuteRate()
+            {
+                return 1234.5;
+            }
+
+            @Override
+            public Snapshot getSnapshot()
+            {
+                return new UniformSnapshot(new long[]{ DEFAULT_TIMER_UNIT.convert(5, MILLISECONDS) });
+            }
+        };
+
+        createTable("CREATE TABLE %s (pk int PRIMARY KEY, v int)");
+        UntypedResultSet.Row row = queryLatencyTable(TableMetricTables.latencyTable(KS_NAME, LATENCY_TABLE, t -> timer));
+
+        for (String column : LATENCY_COLUMNS)
+            assertEquals(column, 5.0, row.getDouble(column), 0.0);
+        assertEquals("count", 3, row.getLong("count"));
+        assertEquals("per_second", 1234.5, row.getDouble("per_second"), 0.0);
     }
 
     private void assertLatencyTablesReport(long latencyMicros)
@@ -89,5 +133,13 @@ public class TableMetricTablesTest extends CQLTester
                            actualMs >= expectedMs && actualMs <= expectedMs * 1.2);
             }
         }
+    }
+
+    private UntypedResultSet.Row queryLatencyTable(VirtualTable table)
+    {
+        VirtualKeyspaceRegistry.instance.register(new VirtualKeyspace(KS_NAME, ImmutableList.of(table)));
+        // Every table gets a row, all reporting the given metric
+        return execute("SELECT * FROM " + KS_NAME + '.' + LATENCY_TABLE + " WHERE keyspace_name = ? AND table_name = ?",
+                       keyspace(), currentTable()).one();
     }
 }
