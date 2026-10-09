@@ -59,7 +59,7 @@ jobs:
               dash -n .build/build-jars.sh
               dash -n .build/check-code.sh
               dash -n .build/sh/_run-ant.sh
-          - name: Log summarizer unit tests
+          - name: Build tooling unit tests
             run: python3 -m unittest discover -s .build/sh/test -v
           - name: run-ci unit tests
             # the module name holds hyphens, so `unittest discover` skips it. name it instead
