@@ -761,6 +761,20 @@ public class AutoRepairUtilsTest extends CQLTester
     }
 
     @Test
+    public void testGetLastRepairTimeForNodeWhenFinishTsUnset()
+    {
+        UUID myID = UUID.randomUUID();
+
+        // Row present, but only repair_start_ts/force_repair set - repair_finish_ts is null.
+        QueryProcessor.executeInternal(String.format(
+        "INSERT INTO %s.%s (repair_type, host_id, repair_start_ts, force_repair) VALUES ('%s', %s, 1000, true)",
+        SchemaConstants.DISTRIBUTED_KEYSPACE_NAME, SystemDistributedKeyspace.AUTO_REPAIR_HISTORY,
+        repairType.toString(), myID));
+
+        assertEquals(0, AutoRepairUtils.getLastRepairTimeForNode(repairType, myID));
+    }
+
+    @Test
     public void testSkipSystemTraces()
     {
         assertFalse(AutoRepairUtils.shouldConsiderKeyspace(Keyspace.open(SchemaConstants.TRACE_KEYSPACE_NAME)));

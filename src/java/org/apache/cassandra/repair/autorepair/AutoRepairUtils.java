@@ -536,7 +536,8 @@ public class AutoRepairUtils
         {
             return 0;
         }
-        return repairTime.one().getLong(COL_REPAIR_FINISH_TS);
+        UntypedResultSet.Row one = repairTime.one();
+        return one.has(COL_REPAIR_FINISH_TS) ? one.getLong(COL_REPAIR_FINISH_TS) : 0;
     }
 
     @VisibleForTesting
