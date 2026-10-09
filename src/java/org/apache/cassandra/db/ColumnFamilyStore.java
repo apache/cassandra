@@ -968,8 +968,12 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
             }
             catch (RejectedExecutionException e)
             {
-                // the executor has been shut down; run in place rather than leave waiters on the task hanging
-                task.run();
+                // the executor has been shut down: run anyway rather than leave waiters on the task hanging, but not on a
+                // thread holding the tracker lock, which post-flush work otherwise never runs under
+                if (Thread.holdsLock(data))
+                    NamedThreadFactory.createThread(task, "MemtablePostFlush-shutdown", true).start();
+                else
+                    task.run();
             }
         }, MoreExecutors.directExecutor());
     }

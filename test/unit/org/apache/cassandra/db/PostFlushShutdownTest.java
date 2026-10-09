@@ -20,6 +20,7 @@ package org.apache.cassandra.db;
 
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicInteger;
 
 import com.google.common.util.concurrent.ListenableFuture;
 import com.google.common.util.concurrent.Uninterruptibles;
@@ -28,28 +29,49 @@ import org.junit.Test;
 import org.junit.runner.RunWith;
 
 import org.jboss.byteman.contrib.bmunit.BMRule;
+import org.jboss.byteman.contrib.bmunit.BMRules;
 import org.jboss.byteman.contrib.bmunit.BMUnitRunner;
 
 import org.apache.cassandra.cql3.CQLTester;
 import org.apache.cassandra.cql3.QueryProcessor;
+import org.apache.cassandra.db.lifecycle.Tracker;
+import org.apache.cassandra.schema.TableId;
 
+import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertTrue;
 
 /**
- * Shutting down the post-flush executor neither waits on a flush in progress nor strands flush futures (CASSANDRA-19597).
+ * Shutting down the post-flush executor neither waits on a flush in progress nor strands flush futures, and post-flush
+ * work it rejects still never runs under the tracker lock (CASSANDRA-19597).
  * Its own class: the executor is static and cannot be restarted.
  */
 @RunWith(BMUnitRunner.class)
-@BMRule(name = "stall flush",
-        targetClass = "org.apache.cassandra.db.ColumnFamilyStore$Flush",
-        targetMethod = "flushMemtable",
-        targetLocation = "AT ENTRY",
-        action = "org.apache.cassandra.db.PostFlushShutdownTest.maybeStall($1)")
+@BMRules(rules = { @BMRule(name = "stall flush",
+                           targetClass = "org.apache.cassandra.db.ColumnFamilyStore$Flush",
+                           targetMethod = "flushMemtable",
+                           targetLocation = "AT ENTRY",
+                           action = "org.apache.cassandra.db.PostFlushShutdownTest.maybeStall($1)"),
+                   @BMRule(name = "schedule post-flush only once the flush is done",
+                           targetClass = "org.apache.cassandra.db.ColumnFamilyStore",
+                           targetMethod = "schedulePostFlush",
+                           targetLocation = "AT ENTRY",
+                           action = "org.apache.cassandra.db.PostFlushShutdownTest.maybeHold($0, $2)"),
+                   @BMRule(name = "observe commit log discard",
+                           targetClass = "org.apache.cassandra.db.commitlog.CommitLog",
+                           targetMethod = "discardCompletedSegments",
+                           targetLocation = "AT ENTRY",
+                           action = "org.apache.cassandra.db.PostFlushShutdownTest.observeDiscard($1)") })
 public class PostFlushShutdownTest extends CQLTester
 {
     private static volatile String stallTable;
     private static final CountDownLatch stalled = new CountDownLatch(1);
     private static final CountDownLatch release = new CountDownLatch(1);
+
+    private static volatile String holdTable;
+    private static volatile TableId observedTable;
+    private static volatile Tracker observedTracker;
+    private static final AtomicInteger discards = new AtomicInteger();
+    private static final AtomicInteger discardsUnderLock = new AtomicInteger();
 
     public static void maybeStall(Memtable memtable)
     {
@@ -58,6 +80,30 @@ public class PostFlushShutdownTest extends CQLTester
         stallTable = null;
         stalled.countDown();
         Uninterruptibles.awaitUninterruptibly(release);
+    }
+
+    public static void maybeHold(ColumnFamilyStore cfs, ListenableFuture<?> flushed)
+    {
+        if (!cfs.name.equals(holdTable))
+            return;
+        holdTable = null;
+        try
+        {
+            flushed.get(30, TimeUnit.SECONDS);
+        }
+        catch (Exception e)
+        {
+            throw new RuntimeException(e);
+        }
+    }
+
+    public static void observeDiscard(TableId id)
+    {
+        if (!id.equals(observedTable))
+            return;
+        discards.incrementAndGet();
+        if (Thread.holdsLock(observedTracker))
+            discardsUnderLock.incrementAndGet();
     }
 
     @After
@@ -85,6 +131,15 @@ public class PostFlushShutdownTest extends CQLTester
         write(cfs);
         cfs.forceFlush().get(30, TimeUnit.SECONDS);
         cfs.forceFlush().get(30, TimeUnit.SECONDS); // clean memtable: waitForFlushes
+
+        // flush done before its post-flush is scheduled, so the rejected task is ready on the switchMemtable thread
+        observedTable = cfs.metadata.id;
+        observedTracker = cfs.getTracker();
+        write(cfs);
+        holdTable = cfs.name;
+        cfs.forceFlush().get(30, TimeUnit.SECONDS);
+        assertEquals(1, discards.get());
+        assertEquals(0, discardsUnderLock.get());
     }
 
     private static void write(ColumnFamilyStore cfs)
