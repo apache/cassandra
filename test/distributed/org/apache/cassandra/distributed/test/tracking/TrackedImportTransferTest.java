@@ -291,4 +291,41 @@ public class TrackedImportTransferTest extends TrackedTransferTestBase
         Assertions.assertThat(failed).isEmpty();
         assertLocalSelect(cluster, keyspace, rows -> assertRows(rows, row(1, 1), row(8, 1)));
     }
+
+    @Test
+    public void importWrapAroundShard() throws IOException
+    {
+        // See CASSANDRA-21723
+        String keyspace = "wrap_around_shard";
+        cluster.schemaChange("CREATE KEYSPACE " + keyspace + " WITH replication = {'class': 'SimpleStrategy', 'replication_factor': 3} AND replication_type='tracked';");
+        cluster.schemaChange("CREATE TABLE " + tableWithKeyspace(keyspace) + " (k BLOB PRIMARY KEY, v INT)");
+
+        String file = Files.createTempDirectory(TrackedTransferTestBase.class.getSimpleName()).toString();
+
+        CQLSSTableWriter.Builder builder = CQLSSTableWriter.builder()
+                                                           .forTable("CREATE TABLE " + tableWithKeyspace(keyspace) + " (k BLOB PRIMARY KEY, v INT)")
+                                                           .inDirectory(file)
+                                                           .using("INSERT INTO " + tableWithKeyspace(keyspace) + " (k, v) " + "VALUES (?, ?)");
+
+        try (CQLSSTableWriter writer = builder.build())
+        {
+            writer.addRow(KEY_100, 1);
+            writer.addRow(KEY_400, 1);
+        }
+
+        assertLocalSelect(cluster, keyspace, AssertUtils::assertRows);
+
+        List<String> failed = cluster.get(1).callOnInstance(() -> {
+            ColumnFamilyStore cfs = ColumnFamilyStore.getIfExists(keyspace, TABLE);
+            Set<String> paths = Set.of(file);
+            logger.info("Importing SSTables {}", paths);
+            return cfs.importNewSSTables(paths, true, true, true, true, true, true, true);
+         });
+
+        // Sleep for a while to make sure import completes
+        Uninterruptibles.sleepUninterruptibly(3, TimeUnit.SECONDS);
+
+        Assertions.assertThat(failed).isEmpty();
+        assertLocalSelect(cluster, keyspace, rows -> assertRows(rows, row(KEY_100, 1), row(KEY_400, 1))); 
+    }
 }
