@@ -61,7 +61,6 @@ public class TableMetricTables
     private final static String MAX = "max";
     private final static String RATE = "per_second";
     private final static double BYTES_TO_MIB = 1.0 / (1024 * 1024);
-    private final static double TIMER_UNIT_TO_MS = (double) DEFAULT_TIMER_UNIT.toNanos(1) / TimeUnit.MILLISECONDS.toNanos(1);
 
     private final static AbstractType<?> TYPE = CompositeType.getInstance(UTF8Type.instance,
                                                                           UTF8Type.instance);
@@ -90,12 +89,13 @@ public class TableMetricTables
     }
 
     /**
-     * Creates a latency table over the given metric, so tests can control the values it reports
+     * Creates a latency table over the given metric, whose timer values are in {@code timerUnit}, so tests can control
+     * the values it reports
      */
     @VisibleForTesting
-    static <M extends Metric & Sampling> VirtualTable latencyTable(String keyspace, String table, Function<TableMetrics, M> func)
+    static <M extends Metric & Sampling> VirtualTable latencyTable(String keyspace, String table, Function<TableMetrics, M> func, TimeUnit timerUnit)
     {
-        return new LatencyTableMetric(keyspace, table, func);
+        return new LatencyTableMetric(keyspace, table, func, timerUnit);
     }
 
     /**
@@ -155,9 +155,17 @@ public class TableMetricTables
      */
     private static class LatencyTableMetric extends HistogramTableMetric
     {
+        private final double timerUnitToMs;
+
         <M extends Metric & Sampling> LatencyTableMetric(String keyspace, String table, Function<TableMetrics, M> func)
         {
+            this(keyspace, table, func, DEFAULT_TIMER_UNIT);
+        }
+
+        <M extends Metric & Sampling> LatencyTableMetric(String keyspace, String table, Function<TableMetrics, M> func, TimeUnit timerUnit)
+        {
             super(keyspace, table, func, "_ms");
+            timerUnitToMs = (double) timerUnit.toNanos(1) / TimeUnit.MILLISECONDS.toNanos(1);
         }
 
         /**
@@ -166,7 +174,7 @@ public class TableMetricTables
         public void add(SimpleDataSet result, String column, double value)
         {
             if (column.endsWith(suffix))
-                value *= TIMER_UNIT_TO_MS;
+                value *= timerUnitToMs;
 
             super.add(result, column, value);
         }
@@ -221,7 +229,7 @@ public class TableMetricTables
                     {
                         Sampling histo = (Sampling) metric;
                         Snapshot snapshot = histo.getSnapshot();
-                        // LatencyTableMetric converts timer values from DEFAULT_TIMER_UNIT to the more readable ms
+                        // LatencyTableMetric converts timer values from the timer unit to the more readable ms
                         add(result, P50 + suffix, snapshot.getMedian());
                         add(result, P99 + suffix, snapshot.get99thPercentile());
                         add(result, MAX + suffix, (double) snapshot.getMax());

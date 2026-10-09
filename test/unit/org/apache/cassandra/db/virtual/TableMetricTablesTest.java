@@ -19,6 +19,7 @@
 package org.apache.cassandra.db.virtual;
 
 import java.util.List;
+import java.util.concurrent.TimeUnit;
 
 import com.codahale.metrics.Snapshot;
 import com.codahale.metrics.Timer;
@@ -30,6 +31,8 @@ import org.junit.Test;
 
 import org.apache.cassandra.cql3.CQLTester;
 import org.apache.cassandra.cql3.UntypedResultSet;
+import org.apache.cassandra.metrics.CassandraMetricsRegistry;
+import org.apache.cassandra.metrics.SnapshottingTimer;
 import org.apache.cassandra.metrics.TableMetrics;
 
 import static java.util.concurrent.TimeUnit.MICROSECONDS;
@@ -98,12 +101,26 @@ public class TableMetricTablesTest extends CQLTester
         };
 
         createTable("CREATE TABLE %s (pk int PRIMARY KEY, v int)");
-        UntypedResultSet.Row row = queryLatencyTable(TableMetricTables.latencyTable(KS_NAME, LATENCY_TABLE, t -> timer));
+        UntypedResultSet.Row row = queryLatencyTable(TableMetricTables.latencyTable(KS_NAME, LATENCY_TABLE, t -> timer, DEFAULT_TIMER_UNIT));
 
         for (String column : LATENCY_COLUMNS)
             assertEquals(column, 5.0, row.getDouble(column), 0.0);
         assertEquals("count", 3, row.getLong("count"));
         assertEquals("per_second", 1234.5, row.getDouble("per_second"), 0.0);
+    }
+
+    @Test
+    public void testLatencyIsReportedInMillisecondsForAnyTimerUnit()
+    {
+        createTable("CREATE TABLE %s (pk int PRIMARY KEY, v int)");
+        for (TimeUnit timerUnit : List.of(MILLISECONDS, MICROSECONDS, NANOSECONDS))
+        {
+            // Created the way Metrics.timer() would create it if timerUnit were the DEFAULT_TIMER_UNIT
+            SnapshottingTimer timer = new SnapshottingTimer(CassandraMetricsRegistry.createReservoir(timerUnit));
+            timer.update(5, MILLISECONDS);
+            UntypedResultSet.Row row = queryLatencyTable(TableMetricTables.latencyTable(KS_NAME, LATENCY_TABLE, t -> timer, timerUnit));
+            assertLatencyColumns(LATENCY_TABLE + '[' + timerUnit + ']', row, 5.0);
+        }
     }
 
     private void assertLatencyTablesReport(long latencyMicros)
@@ -125,13 +142,18 @@ public class TableMetricTablesTest extends CQLTester
         {
             UntypedResultSet.Row row = execute("SELECT * FROM " + VIRTUAL_VIEWS + '.' + table + " WHERE keyspace_name = ? AND table_name = ?",
                                                keyspace(), currentTable()).one();
-            for (String column : LATENCY_COLUMNS)
-            {
-                // The timer histogram reports the upper bound of a bucket, at most 20% above the recorded value.
-                double actualMs = row.getDouble(column);
-                assertTrue(String.format("%s.%s: expected %s ms (up to 20%% higher), got %s ms", table, column, expectedMs, actualMs),
-                           actualMs >= expectedMs && actualMs <= expectedMs * 1.2);
-            }
+            assertLatencyColumns(table, row, expectedMs);
+        }
+    }
+
+    private static void assertLatencyColumns(String table, UntypedResultSet.Row row, double expectedMs)
+    {
+        for (String column : LATENCY_COLUMNS)
+        {
+            // The timer histogram reports the upper bound of a bucket, at most 20% above the recorded value.
+            double actualMs = row.getDouble(column);
+            assertTrue(String.format("%s.%s: expected %s ms (up to 20%% higher), got %s ms", table, column, expectedMs, actualMs),
+                       actualMs >= expectedMs && actualMs <= expectedMs * 1.2);
         }
     }
 
