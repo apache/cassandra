@@ -59,8 +59,9 @@ public abstract class AbstractMutationVerbHandler<T extends IMutation> implement
         if (message.epoch().isAfter(Epoch.FIRST))
         {
             ClusterMetadata metadata = ClusterMetadata.current();
-            metadata = checkTokenOwnership(metadata, message, respondTo);
+            // check schema version first to make sure we can catch up if we're behind
             metadata = checkSchemaVersion(metadata, message, respondTo);
+            metadata = checkTokenOwnership(metadata, message, respondTo);
         }
 
         try
@@ -187,6 +188,11 @@ public abstract class AbstractMutationVerbHandler<T extends IMutation> implement
             else
             {
                 metadata = ClusterMetadataService.instance().fetchLogFromPeerOrCMS(metadata, respondTo, message.epoch());
+                if (metadata.schema.getKeyspace(keyspace) == null)
+                    throw new IllegalStateException(String.format("Could not find keyspace %s after catching up from peer/CMS. our epoch is %s, message epoch is %s",
+                                                                  keyspace,
+                                                                  metadata.epoch,
+                                                                  message.epoch()));
             }
         }
 
