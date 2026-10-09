@@ -29,6 +29,7 @@ import org.apache.cassandra.dht.Token;
 import org.apache.cassandra.distributed.Cluster;
 import org.apache.cassandra.distributed.api.ConsistencyLevel;
 import org.apache.cassandra.distributed.test.TestBaseImpl;
+import org.apache.cassandra.net.Verb;
 import org.apache.cassandra.repair.RepairJobDesc;
 import org.apache.cassandra.repair.SharedContext;
 import org.apache.cassandra.replication.MutationTrackingService;
@@ -62,12 +63,6 @@ public class MutationTrackingSyncCoordinatorTest extends TestBaseImpl
     private String tableName(String suffix)
     {
         return KS_NAME + suffix + '.' + TBL_NAME;
-    }
-
-    private void pauseOffsetBroadcasts(Cluster cluster, boolean pause)
-    {
-        for (int i = 1; i <= cluster.size(); i++)
-            cluster.get(i).runOnInstance(() -> MutationTrackingService.instance().pauseOffsetBroadcast(pause));
     }
 
     private static Range<Token> fullTokenRange()
@@ -233,9 +228,6 @@ public class MutationTrackingSyncCoordinatorTest extends TestBaseImpl
         {
             createTrackedKeyspace(cluster, "4");
 
-            // Pause offset broadcasts on all nodes to prevent sync from completing
-            pauseOffsetBroadcasts(cluster, true);
-
             for (int i = 0; i < 100; i++)
             {
                 cluster.coordinator(1).execute(
@@ -243,7 +235,10 @@ public class MutationTrackingSyncCoordinatorTest extends TestBaseImpl
                     ConsistencyLevel.ONE, i, i);
             }
 
-            // Start coordinator - it will be stuck waiting for offsets
+            // Drop sync responses so the coordinator never receives them
+            cluster.filters().verbs(Verb.MT_SYNC_RSP.id).drop();
+
+            // Start coordinator - it will be stuck waiting for sync responses
             Boolean wasCancelled = cluster.get(1).callOnInstance(() -> {
                 Range<Token> range = fullTokenRange();
                 RepairJobDesc desc = new RepairJobDesc(TimeUUID.Generator.nextTimeUUID(),

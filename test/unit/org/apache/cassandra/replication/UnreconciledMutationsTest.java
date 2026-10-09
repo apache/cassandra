@@ -22,6 +22,7 @@ import java.util.ArrayList;
 import java.util.List;
 
 import org.junit.Assert;
+import org.junit.AfterClass;
 import org.junit.BeforeClass;
 import org.junit.Test;
 
@@ -41,9 +42,11 @@ import org.apache.cassandra.schema.KeyspaceParams;
 import org.apache.cassandra.schema.Schema;
 import org.apache.cassandra.schema.TableId;
 import org.apache.cassandra.schema.TableMetadata;
+import org.apache.cassandra.schema.SchemaTestUtil;
 import org.apache.cassandra.utils.ByteBufferUtil;
 
 import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertTrue;
 
 public class UnreconciledMutationsTest
 {
@@ -61,6 +64,13 @@ public class UnreconciledMutationsTest
                                                  .addRegularColumn("v", Int32Type.instance)
                                                  .build());
         TABLE_ID = Schema.instance.getTableMetadata(KEYSPACE, TABLE).id;
+    }
+
+    @AfterClass
+    public static void tearDown()
+    {
+        if (MutationJournal.instance() != null)
+            MutationJournal.instance().truncateForTesting();
     }
 
     private static Token tokenFor(int key)
@@ -446,5 +456,87 @@ public class UnreconciledMutationsTest
         unreconciled.collect(mutation6.key().getToken(), TABLE_ID, false, loadedOffsets);
         unreconciled.collect(mutation7.key().getToken(), TABLE_ID, false, loadedOffsets);
         assertEquals(List.of(6, 7), loadedOffsets.asList());
+    }
+
+    @Test
+    public void testLoadFromJournalWithDroppedTable()
+    {
+        MutationJournal.start();
+        MutationJournal.instance().truncateForTesting();
+
+        String dropKs = "drop_ks";
+        String dropTbl = "drop_tbl";
+        SchemaLoader.createKeyspace(dropKs, KeyspaceParams.simple(1),
+                                    TableMetadata.builder(dropKs, dropTbl)
+                                                 .addPartitionKeyColumn("k", Int32Type.instance)
+                                                 .addRegularColumn("v", Int32Type.instance)
+                                                 .build());
+        TableMetadata dropTableMetadata = Schema.instance.getTableMetadata(dropKs, dropTbl);
+
+        CoordinatorLogId logId = new CoordinatorLogId(10, 1);
+
+        Offsets.Mutable offsets1 = new Offsets.Mutable(logId);
+        offsets1.add(1, 2);
+
+        Offsets.Mutable offsets2 = new Offsets.Mutable(logId);
+
+        Node2OffsetsMap witnessed = new Node2OffsetsMap();
+        witnessed.set(1, offsets1);
+        witnessed.set(2, offsets2);
+
+        MutationId id1 = new MutationId(logId.asLong(), MutationId.sequenceId(1, 0));
+        Mutation mutation1 = new RowUpdateBuilder(dropTableMetadata, 0, 1)
+                             .add("v", 1)
+                             .build()
+                             .withMutationId(id1);
+
+        TableMetadata tableMetadata = Schema.instance.getTableMetadata(KEYSPACE, TABLE);
+        MutationId id2 = new MutationId(logId.asLong(), MutationId.sequenceId(2, 0));
+        Mutation mutation2 = new RowUpdateBuilder(tableMetadata, 0, 2)
+                             .add("v", 2)
+                             .build()
+                             .withMutationId(id2);
+
+        MutationJournal.instance().write(mutation1.id(), mutation1);
+        MutationJournal.instance().write(mutation2.id(), mutation2);
+
+        SchemaTestUtil.announceTableDrop(dropKs, dropTbl);
+
+        UnreconciledMutations unreconciled = UnreconciledMutations.loadFromJournal(witnessed, 1);
+        Offsets.Mutable loadedOffsets = new Offsets.Mutable(logId);
+        unreconciled.collect(mutation2.key().getToken(), TABLE_ID, false, loadedOffsets);
+        assertEquals(List.of(2, 2), loadedOffsets.asList());
+        assertTrue(loadedOffsets.contains(2));
+        assertEquals(1, loadedOffsets.offsetCount());
+    }
+
+    @Test
+    public void testReplayStaticSegmentsWithDroppedTable()
+    {
+        MutationJournal.start();
+        MutationJournal.instance().truncateForTesting();
+
+        String dropKs = "replay_drop_ks";
+        String dropTbl = "replay_drop_tbl";
+        SchemaLoader.createKeyspace(dropKs, KeyspaceParams.simple(1),
+                                    TableMetadata.builder(dropKs, dropTbl)
+                                                 .addPartitionKeyColumn("k", Int32Type.instance)
+                                                 .addRegularColumn("v", Int32Type.instance)
+                                                 .build());
+        TableMetadata dropTableMetadata = Schema.instance.getTableMetadata(dropKs, dropTbl);
+
+        CoordinatorLogId logId = new CoordinatorLogId(20, 1);
+        MutationId id1 = new MutationId(logId.asLong(), MutationId.sequenceId(1, 0));
+        Mutation mutation1 = new RowUpdateBuilder(dropTableMetadata, 0, 1)
+                             .add("v", 1)
+                             .build()
+                             .withMutationId(id1);
+
+        MutationJournal.instance().write(mutation1.id(), mutation1);
+        MutationJournal.instance().closeCurrentSegmentForTestingIfNonEmpty();
+
+        SchemaTestUtil.announceTableDrop(dropKs, dropTbl);
+
+        MutationJournal.instance().replayStaticSegments();
     }
 }

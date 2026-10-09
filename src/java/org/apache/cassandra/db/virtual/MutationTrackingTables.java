@@ -107,7 +107,7 @@ public class MutationTrackingTables
 
             for (Segment<ShortMutationId, Mutation> segment : MutationJournal.instance().getAllSegments())
             {
-                List<String> referringSstables = referenceTracker.referrerDescriptors(segment.id());
+                List<String> referringSstables = referenceTracker.referrerDescriptors(segment);
                 result.row(segment.id())
                       .column(IS_ACTIVE, segment instanceof ActiveSegment)
                       .column(BYTES_ON_DISK, segment.segmentSizeOnDisk())

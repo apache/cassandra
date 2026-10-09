@@ -908,4 +908,47 @@ public class OffsetsTest
             assertFalse(offsets.containsRange(9, 9));
         }
     }
+
+    @Test
+    public void testOverlaps()
+    {
+        {
+            Offsets.Mutable offsets = offsets();
+            assertFalse(offsets.overlaps(0, 1));
+            assertFalse(offsets.overlaps(2, 4));
+        }
+
+        {
+            Offsets.Mutable offsets = offsets(2, 4);
+
+            assertTrue(offsets.overlaps(2, 4));
+            assertTrue(offsets.overlaps(3, 4));
+            assertTrue(offsets.overlaps(2, 3));
+            assertTrue(offsets.overlaps(1, 2));
+            assertTrue(offsets.overlaps(1, 3));
+            assertTrue(offsets.overlaps(1, 5));
+            assertTrue(offsets.overlaps(4, 5));
+
+            assertFalse(offsets.overlaps(0, 1));
+            assertFalse(offsets.overlaps(5, 6));
+            assertFalse(offsets.overlaps(4, 2));
+        }
+
+        {
+            Offsets.Mutable offsets = offsets(2, 4, 6, 8);
+
+            assertTrue(offsets.overlaps(2, 4));
+            assertTrue(offsets.overlaps(6, 8));
+            assertTrue(offsets.overlaps(0, 2));
+            assertTrue(offsets.overlaps(3, 5));
+            assertTrue(offsets.overlaps(4, 6));
+            assertTrue(offsets.overlaps(5, 7));
+            assertTrue(offsets.overlaps(7, 9));
+            assertTrue(offsets.overlaps(0, 10));
+
+            assertFalse(offsets.overlaps(0, 1));
+            assertFalse(offsets.overlaps(5, 5));
+            assertFalse(offsets.overlaps(9, 10));
+        }
+    }
 }

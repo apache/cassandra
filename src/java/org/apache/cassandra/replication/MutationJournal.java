@@ -53,6 +53,7 @@ import org.apache.cassandra.db.Mutation;
 import org.apache.cassandra.db.TypeSizes;
 import org.apache.cassandra.db.commitlog.CommitLogPosition;
 import org.apache.cassandra.db.partitions.PartitionUpdate;
+import org.apache.cassandra.exceptions.UnknownTableException;
 import org.apache.cassandra.io.util.DataInputPlus;
 import org.apache.cassandra.io.util.DataOutputPlus;
 import org.apache.cassandra.io.util.File;
@@ -76,6 +77,7 @@ import org.apache.cassandra.journal.ValueSerializer;
 import org.apache.cassandra.net.MessagingService;
 import org.apache.cassandra.schema.Schema;
 import org.apache.cassandra.schema.TableId;
+import org.apache.cassandra.service.StorageService;
 import org.apache.cassandra.tcm.ClusterMetadata;
 import org.apache.cassandra.utils.Crc;
 import org.apache.cassandra.utils.concurrent.OpOrder;
@@ -203,7 +205,9 @@ public class MutationJournal
                               }
                           };
         this.journal = journal;
-        segmentReferenceTracker = new SegmentReferenceTracker(() -> journal.compactor().triggerNow());
+        segmentReferenceTracker = new SegmentReferenceTracker(() -> journal.compactor().triggerNow(),
+                                                              StorageService.instance::getLocalHostUUID,
+                                                              journal::getAllSegments);
     }
 
     /**
@@ -427,6 +431,25 @@ public class MutationJournal
     {
         replay(new DeserializedRecordConsumer<>(MutationSerializer.INSTANCE)
         {
+            @Override
+            public void accept(long segment, int position, ShortMutationId key, ByteBuffer buffer, int userVersion)
+            {
+                try
+                {
+                    super.accept(segment, position, key, buffer, userVersion);
+                }
+                catch (RuntimeException e)
+                {
+                    if (e.getCause() instanceof UnknownTableException)
+                    {
+                        UnknownTableException ute = (UnknownTableException) e.getCause();
+                        logger.warn("Skipping replaying mutation {} from unknown (probably removed) table with id {}", key, ute.id);
+                        return;
+                    }
+                    throw e;
+                }
+            }
+
             @Override
             protected void accept(long segmentId, int position, ShortMutationId key, Mutation value)
             {
@@ -724,6 +747,23 @@ public class MutationJournal
 
         abstract Map<Long, Long> asMap();
 
+        abstract boolean overlapsLog(long logId, Offsets offsets);
+
+        public boolean overlaps(CoordinatorLogOffsets<?> offsets)
+        {
+            if (offsets == null || offsets.isEmpty())
+                return false;
+
+            CoordinatorLogOffsets.Mutations<? extends Offsets> mutations = offsets.mutations();
+            for (long logId : mutations)
+            {
+                Offsets sstOffsets = mutations.getOffsets(logId);
+                if (sstOffsets != null && !sstOffsets.isEmpty() && overlapsLog(logId, sstOffsets))
+                    return true;
+            }
+            return false;
+        }
+
         @Override
         public String toString()
         {
@@ -762,6 +802,17 @@ public class MutationJournal
         protected Map<Long, Long> asMap()
         {
             return ranges;
+        }
+
+        @Override
+        boolean overlapsLog(long logId, Offsets offsets)
+        {
+            Long val = ranges.get(logId);
+            if (val == null)
+                return false;
+
+            long range = val;
+            return offsets.overlaps(minOffset(range), maxOffset(range));
         }
 
         @Override
@@ -856,6 +907,32 @@ public class MutationJournal
             return range != NO_VALUE && mayContain(range, id);
         }
 
+        @Override
+        boolean overlapsLog(long logId, Offsets offsets)
+        {
+            long range = ranges.get(logId);
+            if (range == NO_VALUE)
+                return false;
+            return offsets.overlaps(minOffset(range), maxOffset(range));
+        }
+
+        @VisibleForTesting
+        static StaticOffsetRanges of(long logId, int minOffset, int maxOffset)
+        {
+            Long2LongHashMap map = new Long2LongHashMap(1, 0.65f, NO_VALUE, false);
+            map.put(logId, range(minOffset, maxOffset));
+            return new StaticOffsetRanges(map);
+        }
+
+        @VisibleForTesting
+        static StaticOffsetRanges of(Map<Long, Long> rangesMap)
+        {
+            Long2LongHashMap map = new Long2LongHashMap(rangesMap.size(), 0.65f, NO_VALUE, false);
+            for (Map.Entry<Long, Long> entry : rangesMap.entrySet())
+                map.put(entry.getKey().longValue(), entry.getValue().longValue());
+            return new StaticOffsetRanges(map);
+        }
+
         static StaticOffsetRanges read(DataInputPlus in) throws IOException
         {
             CRC32 crc = Crc.crc32();
@@ -942,6 +1019,15 @@ public class MutationJournal
     /*
      * Test helpers
      */
+
+    @VisibleForTesting
+    void truncateForTesting()
+    {
+        journal.truncateForTesting();
+        segmentStateTrackers.clear();
+        pendingClearReplay.clear();
+        lastSegmentTracker = null;
+    }
 
     @VisibleForTesting
     public void closeCurrentSegmentForTestingIfNonEmpty()

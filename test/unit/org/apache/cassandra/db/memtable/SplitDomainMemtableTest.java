@@ -62,8 +62,10 @@ import org.apache.cassandra.replication.MutationId;
 import org.apache.cassandra.replication.MutationJournal;
 import org.apache.cassandra.replication.MutationTrackingService;
 import org.apache.cassandra.schema.KeyspaceParams;
+import org.apache.cassandra.schema.MemtableParams;
 import org.apache.cassandra.schema.ReplicationType;
 import org.apache.cassandra.schema.TableMetadata;
+import org.apache.cassandra.schema.TableParams;
 import org.apache.cassandra.utils.ByteBufferUtil;
 import org.apache.cassandra.utils.FBUtilities;
 import org.apache.cassandra.utils.concurrent.OpOrder;
@@ -106,6 +108,8 @@ public class SplitDomainMemtableTest
         TableMetadata metadata = TableMetadata.builder(ks, "tbl")
                                               .addPartitionKeyColumn("k", Int32Type.instance)
                                               .addRegularColumn("v", Int32Type.instance)
+                                              // test relies on Memtable#lastToken, so we explicitly set skiplist
+                                              .params(TableParams.builder().memtable(MemtableParams.get("skiplist")).build())
                                               .build();
         SchemaLoader.createKeyspace(ks, KeyspaceParams.simple(1, ReplicationType.tracked), metadata);
         ColumnFamilyStore cfs = Keyspace.open(ks).getColumnFamilyStore("tbl");
@@ -228,6 +232,7 @@ public class SplitDomainMemtableTest
         TableMetadata metadata = TableMetadata.builder(ks, "tbl")
                                               .addPartitionKeyColumn("k", Int32Type.instance)
                                               .addRegularColumn("v", Int32Type.instance)
+                                              .params(TableParams.builder().memtable(MemtableParams.get("skiplist")).build())
                                               .build();
         SchemaLoader.createKeyspace(ks, KeyspaceParams.simple(1, ReplicationType.untracked), metadata);
 
