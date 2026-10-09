@@ -498,8 +498,7 @@ public class LifecycleTransaction extends Transactional.AbstractTransactional im
     public void cancel(SSTableReader cancel)
     {
         logger.trace("Cancelling {} from transaction", cancel);
-        assert originals.contains(cancel) : "may only cancel a reader in the 'original' set: " + cancel + " vs " + originals;
-        assert !(staged.contains(cancel) || logged.contains(cancel)) : "may only cancel a reader that has not been updated or obsoleted in this transaction: " + cancel;
+        checkCancellable(cancel);
         originals.remove(cancel);
         marked.remove(cancel);
         identities.remove(cancel.instanceId);
@@ -507,12 +506,35 @@ public class LifecycleTransaction extends Transactional.AbstractTransactional im
     }
 
     /**
-     * remove the readers from the set we're modifying
+     * remove the readers from the set we're modifying, with a single update to the tracker's View
+     * <p>
+     * Every View update makes any concurrent one that started from an older View retry, and flushes and
+     * compactions rebuild the whole interval tree on each attempt, so unmarking readers one by one can starve
+     * them (CASSANDRA-20159).
      */
     public void cancel(Iterable<SSTableReader> cancels)
     {
-        for (SSTableReader cancel : cancels)
-            cancel(cancel);
+        Set<SSTableReader> cancelled = ImmutableSet.copyOf(cancels);
+        if (cancelled.isEmpty())
+            return;
+
+        logger.trace("Cancelling {} from transaction", cancelled);
+        for (SSTableReader cancel : cancelled)
+            checkCancellable(cancel);
+
+        for (SSTableReader cancel : cancelled)
+        {
+            originals.remove(cancel);
+            marked.remove(cancel);
+            identities.remove(cancel.instanceId);
+        }
+        maybeFail(unmarkCompacting(cancelled, null));
+    }
+
+    private void checkCancellable(SSTableReader cancel)
+    {
+        assert originals.contains(cancel) : "may only cancel a reader in the 'original' set: " + cancel + " vs " + originals;
+        assert !(staged.contains(cancel) || logged.contains(cancel)) : "may only cancel a reader that has not been updated or obsoleted in this transaction: " + cancel;
     }
 
     /**

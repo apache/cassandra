@@ -1,4 +1,5 @@
 4.0.22
+ * IndexSummaryRedistribution should unmark compacting SSTables in batch (CASSANDRA-20159)
  * Fix global MemtableOffHeapDataSize metric reporting on-heap memtable usage (CASSANDRA-21762)
  * Fix function inference for arithmetic on DESC clustering columns (CASSANDRA-19919)
  * Fix incorrect fsync usage (CASSANDRA-21673)
