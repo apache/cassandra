@@ -109,9 +109,9 @@ public class BlockBalancedTreeReader extends BlockBalancedTreeWalker implements 
         }
 
         listener.onSegmentHit();
-        IndexInput treeInput = IndexFileUtils.instance.openInput(treeIndexFile);
-        IndexInput postingsInput = IndexFileUtils.instance.openInput(postingsFile);
-        IndexInput postingsSummaryInput = IndexFileUtils.instance.openInput(postingsFile);
+        IndexInput treeInput = IndexFileUtils.instance().openInput(treeIndexFile);
+        IndexInput postingsInput = IndexFileUtils.instance().openInput(postingsFile);
+        IndexInput postingsSummaryInput = IndexFileUtils.instance().openInput(postingsFile);
 
         Intersection intersection = relation == Relation.CELL_INSIDE_QUERY
                                     ? new Intersection(treeInput, postingsInput, postingsSummaryInput, listener, context)

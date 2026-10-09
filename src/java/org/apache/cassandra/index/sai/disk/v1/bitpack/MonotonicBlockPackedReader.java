@@ -84,7 +84,7 @@ public class MonotonicBlockPackedReader implements LongArray.Factory
     @Override
     public LongArray open()
     {
-        final IndexInput indexInput = IndexFileUtils.instance.openInput(file);
+        final IndexInput indexInput = IndexFileUtils.instance().openInput(file);
         return new AbstractBlockPackedReader(indexInput, blockBitsPerValue, blockShift, blockMask, valueCount)
         {
             @Override
