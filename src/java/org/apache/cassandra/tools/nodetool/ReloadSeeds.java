@@ -31,6 +31,7 @@ public class ReloadSeeds extends AbstractCommand
     public void execute(NodeProbe probe)
     {
         PrintStream out = probe.output().out;
+        List<String> originalSeeds = probe.getSeeds();
         List<String> seedList = probe.reloadSeeds();
         if (seedList == null)
         {
@@ -42,7 +43,16 @@ public class ReloadSeeds extends AbstractCommand
         }
         else
         {
-            out.println("Updated seed node IP list, excluding the current node's IP: " + String.join(" ", seedList));
+            if (originalSeeds.equals(seedList))
+            {
+                out.println("Seeds have not changed or the seed is equal to the node's address which is meaningless operation. " +
+                            "Seed node IP list, excluding the current node's IP:"
+                            + String.join(" ", seedList));
+            }
+            else
+            {
+                out.println("Updated seed node IP list, excluding the current node's IP: " + String.join(" ", seedList));
+            }
         }
     }
 }
