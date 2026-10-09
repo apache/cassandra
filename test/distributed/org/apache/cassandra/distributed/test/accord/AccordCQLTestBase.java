@@ -3688,4 +3688,23 @@ public abstract class AccordCQLTestBase extends AccordTestBase
                       .hasMessage("Attempted to set an element on a list which is null");
         });
     }
+
+    @Test
+    public void testCasWithStaticAndRegularRowConditions() throws Exception
+    {
+        test("CREATE TABLE " + qualifiedAccordTableName + " (k int, c int, s int static, v int, primary key (k, c)) WITH " + transactionalMode.asCqlParam(), cluster ->
+        {
+            cluster.coordinator(1).execute("INSERT INTO " + qualifiedAccordTableName + " (k, c, s, v) VALUES (1, 1, 1, 1);", ConsistencyLevel.ALL);
+
+            cluster.coordinator(1).execute("UPDATE " + qualifiedAccordTableName + " SET v = 9 WHERE k = 1 AND c = 1 IF s = 1 AND v = 8;",
+                                           ConsistencyLevel.SERIAL, ConsistencyLevel.ALL);
+
+            String read = "BEGIN TRANSACTION\n" +
+                          " SELECT * FROM " + qualifiedAccordTableName + " WHERE k = 1 AND c = 1;\n" +
+                          "COMMIT TRANSACTION";
+
+            SimpleQueryResult result = cluster.coordinator(1).executeWithResult(read, ConsistencyLevel.SERIAL);
+            assertThat(result).hasSize(1).contains(1, 1, 1, 1);
+        });
+    }
 }
