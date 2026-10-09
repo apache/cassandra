@@ -83,6 +83,7 @@ import org.apache.cassandra.replication.BroadcastLogOffsets;
 import org.apache.cassandra.replication.ForwardedWrite;
 import org.apache.cassandra.replication.PullMutationsRequest;
 import org.apache.cassandra.replication.PushMutationRequest;
+import org.apache.cassandra.replication.SealingCoordinator.AwaitEpoch;
 import org.apache.cassandra.replication.SealingCoordinator.CompleteSealing;
 import org.apache.cassandra.replication.SealingCoordinator.Drain;
 import org.apache.cassandra.replication.SealingCoordinator.FetchShards;
@@ -390,16 +391,18 @@ public enum Verb
     MT_SHARD_METADATA_REQ    (919, P2, writeTimeout,             MISC,             () -> mtEmbedded(ShardMetadataRequest.serializer),         () -> ShardMetadataRequest.verbHandler,    MT_SHARD_METADATA_RSP   ),
     MT_FETCH_SHARDS_RSP      (920, P2, rpcTimeout,               REQUEST_RESPONSE, () -> mtEmbedded(FetchShards.responseSerializer),          RESPONSE_HANDLER                                                   ),
     MT_FETCH_SHARDS_REQ      (921, P2, rpcTimeout,               ANTI_ENTROPY,     () -> mtEmbedded(FetchShards.requestSerializer),           () -> FetchShards.verbHandler,             MT_FETCH_SHARDS_RSP     ),
-    MT_INIT_SEALING_RSP      (922, P2, rpcTimeout,               REQUEST_RESPONSE, () -> mtEmbedded(InitSealing.responseSerializer),          RESPONSE_HANDLER                                                   ),
-    MT_INIT_SEALING_REQ      (923, P2, rpcTimeout,               ANTI_ENTROPY,     () -> mtEmbedded(InitSealing.requestSerializer),           () -> InitSealing.verbHandler,             MT_INIT_SEALING_RSP     ),
-    MT_DRAIN_RSP             (924, P2, rpcTimeout,               REQUEST_RESPONSE, () -> mtEmbedded(Drain.responseSerializer),                RESPONSE_HANDLER                                                   ),
-    MT_DRAIN_REQ             (925, P2, rpcTimeout,               ANTI_ENTROPY,     () -> mtEmbedded(Drain.requestSerializer),                 () -> Drain.verbHandler,                   MT_DRAIN_RSP            ),
-    MT_RECONCILE_CAPTURE_RSP (926, P2, rpcTimeout,               REQUEST_RESPONSE, () -> mtEmbedded(ReconcileCapture.responseSerializer),     RESPONSE_HANDLER                                                   ),
-    MT_RECONCILE_CAPTURE_REQ (927, P2, rpcTimeout,               ANTI_ENTROPY,     () -> mtEmbedded(ReconcileCapture.requestSerializer),      () -> ReconcileCapture.verbHandler,        MT_RECONCILE_CAPTURE_RSP),
-    MT_RECONCILE_POLL_RSP    (928, P2, rpcTimeout,               REQUEST_RESPONSE, () -> mtEmbedded(ReconcilePoll.responseSerializer),        RESPONSE_HANDLER                                                   ),
-    MT_RECONCILE_POLL_REQ    (929, P2, rpcTimeout,               ANTI_ENTROPY,     () -> mtEmbedded(ReconcilePoll.requestSerializer),         () -> ReconcilePoll.verbHandler,           MT_RECONCILE_POLL_RSP   ),
-    MT_COMPLETE_SEALING_RSP  (930, P2, rpcTimeout,               REQUEST_RESPONSE, () -> mtEmbedded(CompleteSealing.responseSerializer),      RESPONSE_HANDLER                                                   ),
-    MT_COMPLETE_SEALING_REQ  (931, P2, rpcTimeout,               ANTI_ENTROPY,     () -> mtEmbedded(CompleteSealing.requestSerializer),       () -> CompleteSealing.verbHandler,         MT_COMPLETE_SEALING_RSP ),
+    MT_AWAIT_EPOCH_RSP       (922, P2, rpcTimeout,               REQUEST_RESPONSE, () -> mtEmbedded(AwaitEpoch.responseSerializer),           RESPONSE_HANDLER                                                   ),
+    MT_AWAIT_EPOCH_REQ       (923, P2, rpcTimeout,               ANTI_ENTROPY,     () -> mtEmbedded(AwaitEpoch.requestSerializer),            () -> AwaitEpoch.verbHandler,              MT_AWAIT_EPOCH_RSP      ),
+    MT_INIT_SEALING_RSP      (924, P2, rpcTimeout,               REQUEST_RESPONSE, () -> mtEmbedded(InitSealing.responseSerializer),          RESPONSE_HANDLER                                                   ),
+    MT_INIT_SEALING_REQ      (925, P2, rpcTimeout,               ANTI_ENTROPY,     () -> mtEmbedded(InitSealing.requestSerializer),           () -> InitSealing.verbHandler,             MT_INIT_SEALING_RSP     ),
+    MT_DRAIN_RSP             (926, P2, rpcTimeout,               REQUEST_RESPONSE, () -> mtEmbedded(Drain.responseSerializer),                RESPONSE_HANDLER                                                   ),
+    MT_DRAIN_REQ             (927, P2, rpcTimeout,               ANTI_ENTROPY,     () -> mtEmbedded(Drain.requestSerializer),                 () -> Drain.verbHandler,                   MT_DRAIN_RSP            ),
+    MT_RECONCILE_CAPTURE_RSP (928, P2, rpcTimeout,               REQUEST_RESPONSE, () -> mtEmbedded(ReconcileCapture.responseSerializer),     RESPONSE_HANDLER                                                   ),
+    MT_RECONCILE_CAPTURE_REQ (929, P2, rpcTimeout,               ANTI_ENTROPY,     () -> mtEmbedded(ReconcileCapture.requestSerializer),      () -> ReconcileCapture.verbHandler,        MT_RECONCILE_CAPTURE_RSP),
+    MT_RECONCILE_POLL_RSP    (930, P2, rpcTimeout,               REQUEST_RESPONSE, () -> mtEmbedded(ReconcilePoll.responseSerializer),        RESPONSE_HANDLER                                                   ),
+    MT_RECONCILE_POLL_REQ    (931, P2, rpcTimeout,               ANTI_ENTROPY,     () -> mtEmbedded(ReconcilePoll.requestSerializer),         () -> ReconcilePoll.verbHandler,           MT_RECONCILE_POLL_RSP   ),
+    MT_COMPLETE_SEALING_RSP  (932, P2, rpcTimeout,               REQUEST_RESPONSE, () -> mtEmbedded(CompleteSealing.responseSerializer),      RESPONSE_HANDLER                                                   ),
+    MT_COMPLETE_SEALING_REQ  (933, P2, rpcTimeout,               ANTI_ENTROPY,     () -> mtEmbedded(CompleteSealing.requestSerializer),       () -> CompleteSealing.verbHandler,         MT_COMPLETE_SEALING_RSP ),
 
     // accord
     ACCORD_SIMPLE_RSP               (119, P2, writeTimeout, IMMEDIATE,          () -> accordEmbedded(EnumSerializer.simpleReply),           AccordService::responseHandlerOrNoop                                           ),

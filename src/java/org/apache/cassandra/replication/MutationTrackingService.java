@@ -172,11 +172,13 @@ public class MutationTrackingService implements MutationTrackingServiceMBean
     private static final NoSpamLogger noSpamLogger = NoSpamLogger.getLogger(logger, 1, TimeUnit.MINUTES);
 
     private final TrackedLocalReads localReads = new TrackedLocalReads();
+
+    // TODO (consider): move these two out and refactor to remove unnecessary CHMs, and probably shardLock
     private volatile ConcurrentHashMap<String, KeyspaceShards> keyspaceShards = new ConcurrentHashMap<>();
     private volatile ConcurrentHashMap<CoordinatorLogId, Shard> log2ShardMap = new ConcurrentHashMap<>();
     private final ChangeListener tcmListener;
 
-    // The highest TCM epoch we have applied to keyspaceShards via onNewClusterMetadata.
+    // The highest TCM epoch successfully processed by onNewClusterMetadata, whether or not it required a shard update.
     // Updates with next.epoch <= this value are skipped. Protects against state going
     // backwards in time when events are delivered out of order
     private volatile Epoch lastAppliedEpoch = Epoch.EMPTY;
@@ -1023,14 +1025,17 @@ public class MutationTrackingService implements MutationTrackingServiceMBean
             logger.trace("Processing cluster metadata change - epoch {} -> {}",
                         prev != null ? prev.epoch : "none", next.epoch);
 
-        if (!next.epoch.isAfter(lastAppliedEpoch))
+        if (hasAppliedEpoch(next.epoch))
             return;
 
         shardLock.readLock().lock();
         try
         {
             if (!shardUpdateNeeded(keyspaceShards, prev, next))
+            {
+                lastAppliedEpoch = next.epoch;
                 return;
+            }
         }
         finally
         {
@@ -1042,11 +1047,14 @@ public class MutationTrackingService implements MutationTrackingServiceMBean
         ConcurrentHashMap<String, KeyspaceShards> originalKeyspaceShards = keyspaceShards;
         try
         {
-            if (!next.epoch.isAfter(lastAppliedEpoch))
+            if (hasAppliedEpoch(next.epoch))
                 return;
 
             if (!shardUpdateNeeded(keyspaceShards, prev, next))
+            {
+                lastAppliedEpoch = next.epoch;
                 return;
+            }
 
             originalLog2ShardMap = new ConcurrentHashMap<>(log2ShardMap);
             keyspaceShards = applyUpdatedMetadata(keyspaceShards, prev, next, this::nextLogId, this::onNewLog, this::onDroppedLog);
@@ -1063,6 +1071,13 @@ public class MutationTrackingService implements MutationTrackingServiceMBean
         }
         catch (Throwable t)
         {
+            // TODO (required): when anything throws, we can get into an unfortunate
+            //  broken state; what are we even supposed to do / can do if a failure
+            //  happens, and, as a result of that, some shards aren't created?
+            //  writes will not work, reads will not properly work;
+            //  lastAppliedEpoch will also be unreliable, if subsequently updated
+            //  from one of `if (!shardUpdateNeeded())` branches
+
             // TODO (required): carefully review the rollback logic
             //  this use of concurrent maps is unorthodox,
             //  and I don't think we always grab the shardLock to read them
@@ -1078,6 +1093,11 @@ public class MutationTrackingService implements MutationTrackingServiceMBean
         {
             shardLock.writeLock().unlock();
         }
+    }
+
+    boolean hasAppliedEpoch(Epoch epoch)
+    {
+        return lastAppliedEpoch.isEqualOrAfter(epoch);
     }
 
     private static boolean shardUpdateNeeded(Map<String, KeyspaceShards> current, @Nullable ClusterMetadata prev, ClusterMetadata next)

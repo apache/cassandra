@@ -105,7 +105,7 @@ public class Participants
         return set;
     }
 
-    private void addTo(IntHashSet set)
+    void addTo(IntHashSet set)
     {
         for (int i = 0; i < size(); i++)
             set.add(hosts[i]);

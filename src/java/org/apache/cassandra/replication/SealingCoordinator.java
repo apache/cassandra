@@ -32,6 +32,8 @@ import java.util.concurrent.locks.LockSupport;
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 
+import org.agrona.collections.IntHashSet;
+
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.db.ColumnFamilyStore;
 import org.apache.cassandra.db.Keyspace;
@@ -56,6 +58,8 @@ import org.apache.cassandra.net.RequestCallback;
 import org.apache.cassandra.net.Verb;
 import org.apache.cassandra.schema.KeyspaceMetadata;
 import org.apache.cassandra.tcm.ClusterMetadata;
+import org.apache.cassandra.tcm.ClusterMetadataService;
+import org.apache.cassandra.tcm.Epoch;
 import org.apache.cassandra.tcm.membership.NodeId;
 import org.apache.cassandra.tcm.ownership.DataPlacement;
 import org.apache.cassandra.tcm.ownership.MovementMap;
@@ -181,7 +185,7 @@ public final class SealingCoordinator
      */
     public static void sealShardsAtMidJoin(ClusterMetadata metadata, MovementMap movements)
     {
-        seal(discoverShardsAtMidJoinOrReplace(metadata, movements));
+        seal(discoverShardsAtMidJoinOrReplace(metadata, movements), metadata.epoch);
     }
 
     /**
@@ -189,7 +193,7 @@ public final class SealingCoordinator
      */
     public static void sealShardsAtFinishJoin(ClusterMetadata metadata, long finishEpoch, PlacementDeltas finishDelta)
     {
-        seal(discoverShardsAtFinishJoinOrReplace(metadata, finishEpoch, finishDelta, null));
+        seal(discoverShardsAtFinishJoinOrReplace(metadata, finishEpoch, finishDelta, null), metadata.epoch);
     }
 
     /*
@@ -264,7 +268,7 @@ public final class SealingCoordinator
      */
     public static void sealShardsAtMidReplace(ClusterMetadata metadata, MovementMap movements, @Nonnull NodeId deadNode)
     {
-        seal(discoverShardsAtMidJoinOrReplace(metadata, movements), deadNode);
+        seal(discoverShardsAtMidJoinOrReplace(metadata, movements), deadNode, metadata.epoch);
     }
 
     /**
@@ -273,7 +277,7 @@ public final class SealingCoordinator
      */
     public static void sealShardsAtFinishReplace(ClusterMetadata metadata, long finishEpoch, PlacementDeltas finishDelta, @Nonnull NodeId deadNode)
     {
-        seal(discoverShardsAtFinishJoinOrReplace(metadata, finishEpoch, finishDelta, deadNode), deadNode);
+        seal(discoverShardsAtFinishJoinOrReplace(metadata, finishEpoch, finishDelta, deadNode), deadNode, metadata.epoch);
     }
 
     /**
@@ -457,7 +461,7 @@ public final class SealingCoordinator
             throw new RuntimeException("Failed to fetch shards to seal for leave", e);
         }
 
-        seal(shards, kind == LeaveStreams.Kind.UNBOOTSTRAP ? null : leavingOrDeparted);
+        seal(shards, kind == LeaveStreams.Kind.UNBOOTSTRAP ? null : leavingOrDeparted, metadata.epoch);
     }
 
     /**
@@ -502,24 +506,68 @@ public final class SealingCoordinator
             throw new RuntimeException("Failed to fetch shards to seal for leave finish", e);
         }
 
-        seal(shards, kind == LeaveStreams.Kind.UNBOOTSTRAP ? null : leavingOrDeparted);
+        seal(shards, kind == LeaveStreams.Kind.UNBOOTSTRAP ? null : leavingOrDeparted, metadata.epoch);
     }
 
     /*
      * Sealing logic.
      */
 
-    private static void seal(Set<ShardMetadata> shards)
+    private static void seal(Set<ShardMetadata> shards, Epoch epoch)
     {
-        seal(shards, null);
+        seal(shards, null, epoch);
     }
 
-    private static void seal(Set<ShardMetadata> shards, @Nullable NodeId withoutNode)
+    private static void seal(Set<ShardMetadata> shards, @Nullable NodeId withoutNode, Epoch epoch)
     {
-        initiate(shards, withoutNode);  // ACTIVE -> SEALING for each Shard
-        drain(shards, withoutNode);     // drain in-flight local writes
-        reconcile(shards, withoutNode); // wait for logs to reconcile
-        complete(shards, withoutNode);  // SEALING -> SEALED for each Shard + journal flush
+        awaitEpoch(shards, withoutNode, epoch); // wait for all involved replicas to catch up to the relevant TCM epoch
+        initiate(shards, withoutNode);          // ACTIVE -> SEALING for each Shard
+        drain(shards, withoutNode);             // drain in-flight local writes
+        reconcile(shards, withoutNode);         // wait for logs to reconcile
+        complete(shards, withoutNode);          // SEALING -> SEALED for each Shard + journal flush
+    }
+
+    /**
+     * TCM commit doesn't require/wait for all participants to ack. However, before we seal any shards,
+     * we must ensure that their successor shards have been initialized (which happens in MTS in a callback
+     * to TCM changes, after the new epoch has been set).
+     * So what we have to do is to wait for all affected replicas to reach at least the epoch
+     * of this change and for MTS to process its TCM post-commit callback.
+     */
+    private static void awaitEpoch(Set<ShardMetadata> shards, @Nullable NodeId withoutNode, Epoch epoch)
+    {
+        IntHashSet participants = new IntHashSet();
+        for (ShardMetadata shard : shards)
+            shard.participants.addTo(participants);
+        if (withoutNode != null)
+            participants.remove(withoutNode.id());
+
+        if (participants.isEmpty())
+            return;
+
+        ClusterMetadata metadata = ClusterMetadata.current();
+        List<InetAddressAndPort> pending = new ArrayList<>(participants.size());
+        participants.forEach(id -> pending.add(metadata.directory.endpoint(new NodeId(id))));
+
+        long deadlineNanos = nanoTime() + DatabaseDescriptor.getCmsAwaitTimeout().to(NANOSECONDS);
+        while (true)
+        {
+            try
+            {
+                pending.removeAll(AwaitEpoch.poll(epoch, pending)
+                       .get(DatabaseDescriptor.getRpcTimeout(MILLISECONDS), MILLISECONDS));
+            }
+            catch (InterruptedException | ExecutionException | TimeoutException e)
+            {
+                throw new RuntimeException(format("Failed to poll await epoch %s; still pending: %s", epoch, pending), e);
+            }
+
+            if (pending.isEmpty())
+                return;
+            if (nanoTime() >= deadlineNanos)
+                throw new RuntimeException(format("Timed out awaiting epoch %s; still pending: %s", epoch, pending));
+            LockSupport.parkNanos(SECONDS.toNanos(1));
+        }
     }
 
     private static void initiate(Set<ShardMetadata> shards, @Nullable NodeId withoutNode)
@@ -538,13 +586,7 @@ public final class SealingCoordinator
     }
 
     /**
-     * Fence allocation on every participant of the obsoleted shard (ACTIVE -> SEALING) by marking the shard
-     * SEALING on each.
-     * TODO (expected): this assumes every participant has already enacted the topology change that obsoleted the shard (so
-     *   it no longer allocates new ids on it). The ProgressBarrier gating bootstrap()/MID_JOIN only waits for
-     *   EACH_QUORUM of the affected replicas, NOT all live replicas, so a live-but-lagging participant could still
-     *   be on the old shard. Bringing each participant up to the seal epoch must be done per-replica (not
-     *   per-shard) and will be added later.
+     * Fence allocation on every participant of the obsoleted shard (ACTIVE -> SEALING).
      */
     private static AsyncPromise<Void> initiate(ShardMetadata shard, @Nullable NodeId withoutNode)
     {
@@ -805,6 +847,121 @@ public final class SealingCoordinator
             public long serializedSize(Response r, Version version)
             {
                 return CollectionSerializers.serializedCollectionSize(r.shards, version, ShardMetadata.serializer);
+            }
+        };
+    }
+
+    public static final class AwaitEpoch
+    {
+        public static final class Request
+        {
+            final Epoch epoch;
+
+            Request(Epoch epoch)
+            {
+                this.epoch = epoch;
+            }
+        }
+
+        public static final class Response
+        {
+            final boolean applied;
+
+            Response(boolean applied)
+            {
+                this.applied = applied;
+            }
+        }
+
+        public static AsyncPromise<Set<InetAddressAndPort>> poll(Epoch epoch, List<InetAddressAndPort> endpoints)
+        {
+            checkArgument(!endpoints.isEmpty());
+
+            AsyncPromise<Set<InetAddressAndPort>> promise = new AsyncPromise<>();
+            Set<InetAddressAndPort> applied = ConcurrentHashMap.newKeySet();
+
+            RequestCallback<Response> callback = new RequestCallback<>()
+            {
+                private final AtomicInteger remaining = new AtomicInteger(endpoints.size());
+
+                @Override
+                public void onResponse(Message<Response> msg)
+                {
+                    if (msg.payload.applied)
+                        applied.add(msg.from());
+                    if (remaining.decrementAndGet() == 0)
+                        promise.trySuccess(applied);
+                }
+
+                @Override
+                public void onFailure(InetAddressAndPort from, RequestFailure failure)
+                {
+                    promise.tryFailure(new RuntimeException(format("Failed to poll await epoch %s on %s: %s", epoch, from, failure)));
+                }
+
+                @Override
+                public boolean invokeOnFailure()
+                {
+                    return true;
+                }
+            };
+
+            Message<Request> message = Message.out(Verb.MT_AWAIT_EPOCH_REQ, new Request(epoch));
+            for (InetAddressAndPort peer : endpoints)
+                MessagingService.instance().sendWithCallback(message, peer, callback);
+
+            return promise;
+        }
+
+        public static final IVerbHandler<Request> verbHandler = message -> {
+            MutationTrackingService.ensureEnabled();
+            Request request = message.payload;
+            boolean applied = MutationTrackingService.instance().hasAppliedEpoch(request.epoch);
+            MessagingService.instance().send(message.responseWith(new Response(applied)), message.from());
+            ClusterMetadata metadata = ClusterMetadata.current();
+            if (!applied && metadata.epoch.isBefore(request.epoch))
+                ClusterMetadataService.instance().fetchLogFromPeerOrCMSAsync(metadata, message.from(), request.epoch);
+        };
+
+        public static final UnversionedSerializer<Request> requestSerializer = new UnversionedSerializer<>()
+        {
+            @Override
+            public void serialize(Request r, DataOutputPlus out) throws IOException
+            {
+                Epoch.serializer.serialize(r.epoch, out);
+            }
+
+            @Override
+            public Request deserialize(DataInputPlus in) throws IOException
+            {
+                return new Request(Epoch.serializer.deserialize(in));
+            }
+
+            @Override
+            public long serializedSize(Request r)
+            {
+                return Epoch.serializer.serializedSize(r.epoch);
+            }
+        };
+
+        public static final UnversionedSerializer<Response> responseSerializer = new UnversionedSerializer<>()
+        {
+            @Override
+            public void serialize(Response r, DataOutputPlus out) throws IOException
+            {
+                out.writeBoolean(r.applied);
+            }
+
+            @Override
+            public Response deserialize(DataInputPlus in) throws IOException
+            {
+                return new Response(in.readBoolean());
+            }
+
+            @Override
+            public long serializedSize(Response r)
+            {
+                return TypeSizes.sizeof(r.applied);
             }
         };
     }
