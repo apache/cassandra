@@ -27,6 +27,13 @@ import static org.apache.cassandra.utils.LocalizeString.toLowerCaseLocalized;
 public class QualifiedName
 {
     /**
+     * A sentinel {@link QualifiedName} used to represent the {@code *} wildcard in index hints
+     * (e.g. {@code WITH excluded_indexes = {*}}). It has no keyspace and uses {@code "*"} as the
+     * name, which is not a valid identifier and can therefore never collide with an actual index name.
+     */
+    public static final QualifiedName WILDCARD = new QualifiedName(null, "*");
+
+    /**
      * The keyspace name as stored internally.
      */
     private String keyspace;
@@ -65,6 +72,14 @@ public class QualifiedName
     public final String getKeyspace()
     {
         return keyspace;
+    }
+
+    /**
+     * @return {@code true} if this name represents the {@code *} wildcard, {@code false} otherwise
+     */
+    public boolean isWildcard()
+    {
+        return !hasKeyspace() && "*".equals(name);
     }
 
     public void setName(String cf, boolean keepCase)
