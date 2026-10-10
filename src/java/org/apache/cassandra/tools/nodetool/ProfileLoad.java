@@ -47,7 +47,11 @@ import static org.apache.cassandra.tools.nodetool.CommandUtils.concatArgs;
 import static org.apache.cassandra.utils.LocalizeString.toUpperCaseLocalized;
 import static org.apache.commons.lang3.StringUtils.join;
 
-@Command(name = "profileload", description = "Low footprint profiling of activity for a period of time")
+@Command(name = "profileload", description = "Low footprint profiling of activity for a period of time",
+         footerHeading = "%n",
+         footer = { "EXAMPLES",
+                    "        Sample reads and writes of all tables for 10 seconds:",
+                    "            nodetool profileload -a READS,WRITES 10000" })
 public class ProfileLoad extends AbstractCommand
 {
     @CassandraUsage(usage = "<keyspace> <cfname> <duration>", description = "The keyspace, column family name, and duration in milliseconds (Default: 10000)")

@@ -85,3 +85,7 @@ OPTIONS
 
         -u <username>, --username <username>
             Remote jmx agent username
+
+EXAMPLES
+        Log only DDL and DCL queries:
+            nodetool enableauditlog --included-categories DDL,DCL

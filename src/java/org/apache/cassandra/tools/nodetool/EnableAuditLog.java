@@ -25,7 +25,11 @@ import org.apache.cassandra.tools.NodeProbe;
 import picocli.CommandLine.Command;
 import picocli.CommandLine.Option;
 
-@Command(name = "enableauditlog", description = "Enable the audit log")
+@Command(name = "enableauditlog", description = "Enable the audit log",
+         footerHeading = "%n",
+         footer = { "EXAMPLES",
+                    "        Log only DDL and DCL queries:",
+                    "            nodetool enableauditlog --included-categories DDL,DCL" })
 public class EnableAuditLog extends AbstractCommand
 {
     @Option(paramLabel = "logger", names = { "--logger" }, description = "Logger name to be used for AuditLogging. Default BinAuditLogger. If not set the value from cassandra.yaml will be used")

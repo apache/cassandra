@@ -7,7 +7,7 @@ SYNOPSIS
                 [(-pw <password> | --password <password>)]
                 [(-pwf <passwordFilePath> | --password-file <passwordFilePath>)]
                 [(-u <username> | --username <username>)] accord mark_stale [--]
-                <nodeIds>
+                <nodeIds>...
 
 OPTIONS
         -h <host>, --host <host>
@@ -32,3 +32,7 @@ OPTIONS
 
         <nodeIds>
             One or more node IDs to mark stale
+
+EXAMPLES
+        Mark two nodes as stale (node id or host id):
+            nodetool accord mark_stale 2 3

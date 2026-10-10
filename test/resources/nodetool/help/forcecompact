@@ -32,3 +32,7 @@ OPTIONS
         [<keyspace> <table> <keys>]
             The keyspace, table, and a list of partition keys ignoring the
             gc_grace_seconds
+
+EXAMPLES
+        Force compaction of two partition keys of ks1.table1:
+            nodetool forcecompact ks1 table1 key1 key2

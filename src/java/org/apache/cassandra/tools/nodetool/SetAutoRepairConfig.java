@@ -28,6 +28,7 @@ import com.google.common.annotations.VisibleForTesting;
 import com.google.common.base.Splitter;
 
 import org.apache.cassandra.tools.NodeProbe;
+import org.apache.cassandra.tools.nodetool.layout.CassandraUsage;
 
 import picocli.CommandLine.Command;
 import picocli.CommandLine.Option;
@@ -38,22 +39,29 @@ import static com.google.common.base.Preconditions.checkArgument;
 /**
  * Allows to set AutoRepair configuration through nodetool.
  */
-@Command(name = "setautorepairconfig", description = "sets the autorepair configuration")
+@Command(name = "setautorepairconfig", description = "sets the autorepair configuration",
+         footerHeading = "%n",
+         footer = { "EXAMPLES",
+                    "        Run full auto repair on each table at most once a day:",
+                    "            nodetool setautorepairconfig -t full min_repair_interval 24h" })
 public class SetAutoRepairConfig extends AbstractCommand
 {
+    private static final String PARAM_TYPES = "Possible autorepair parameters are as following: " +
+                                              "start_scheduler, number_of_repair_threads, min_repair_interval, " +
+                                              "sstable_upper_threshold, enabled, table_max_repair_time, priority_hosts, " +
+                                              "forcerepair_hosts, ignore_dcs, history_clear_delete_hosts_buffer_interval, " +
+                                              "repair_primary_token_range_only, parallel_repair_count, " +
+                                              "parallel_repair_percentage, allow_parallel_replica_repair, " +
+                                              "allow_parallel_replica_repair_across_schedules, " +
+                                              "materialized_view_repair_enabled, repair_max_retries, repair_retry_backoff, " +
+                                              "repair_session_timeout, min_repair_task_duration, repair_by_keyspace, " +
+                                              "mixed_major_version_repair_enabled, token_range_splitter.<property>";
+
     @VisibleForTesting
+    @CassandraUsage(usage = "<autorepairparam> <value>", description = "autorepair param and value. " + PARAM_TYPES)
     protected List<String> args = new ArrayList<>();
 
-    @Parameters(index = "0", arity = "0..1", description = { "Autorepair param type.",
-                                                          "Possible autorepair parameters are as following: " +
-                                                          "[start_scheduler|number_of_repair_threads|min_repair_interval|sstable_upper_threshold" +
-                                                          "|enabled|table_max_repair_time|priority_hosts|forcerepair_hosts|ignore_dcs" +
-                                                          "|history_clear_delete_hosts_buffer_interval|repair_primary_token_range_only" +
-                                                          "|parallel_repair_count|parallel_repair_percentage" +
-                                                          "|allow_parallel_replica_repair|allow_parallel_repair_across_schedules" +
-                                                          "|materialized_view_repair_enabled|repair_max_retries" +
-                                                          "|repair_retry_backoff|repair_session_timeout|min_repair_task_duration" +
-                                                          "|repair_by_keyspace|mixed_major_version_repair_enabled|token_range_splitter.<property>]" })
+    @Parameters(index = "0", arity = "0..1", description = { "Autorepair param type.", PARAM_TYPES })
     public String autorepairParamType;
 
     @Parameters(index = "1", description = "Autorepair param value", arity = "0..1")

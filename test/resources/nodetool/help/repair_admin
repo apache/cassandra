@@ -45,7 +45,7 @@ SYNOPSIS
                 [(-pw <password> | --password <password>)]
                 [(-pwf <passwordFilePath> | --password-file <passwordFilePath>)]
                 [(-u <username> | --username <username>)] repair_admin cancel
-                [(-f | --force)] [(-s <session> | --session <session>)]
+                [(-f | --force)] (-s <session> | --session <session>)
 
 OPTIONS
         -h <host>, --host <host>

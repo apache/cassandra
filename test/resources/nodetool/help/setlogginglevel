@@ -35,3 +35,10 @@ OPTIONS
             The component or class to change the level for and the log level
             threshold to set. Will reset to initial level if omitted. Available
             components: bootstrap, compaction, repair, streaming, cql, ring
+
+EXAMPLES
+        Set compaction logging to DEBUG:
+            nodetool setlogginglevel compaction DEBUG
+
+        Set the level of one class:
+            nodetool setlogginglevel org.apache.cassandra.gms.Gossiper TRACE

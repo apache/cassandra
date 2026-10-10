@@ -31,7 +31,11 @@ import static com.google.common.base.Preconditions.checkArgument;
 import static org.apache.cassandra.tools.nodetool.CommandUtils.concatArgs;
 import static org.apache.cassandra.tools.nodetool.CommandUtils.parsePartitionKeys;
 
-@Command(name = "forcecompact", description = "Force a (major) compaction on a table")
+@Command(name = "forcecompact", description = "Force a (major) compaction on a table",
+         footerHeading = "%n",
+         footer = { "EXAMPLES",
+                    "        Force compaction of two partition keys of ks1.table1:",
+                    "            nodetool forcecompact ks1 table1 key1 key2" })
 public class ForceCompact extends AbstractCommand
 {
     @CassandraUsage(usage = "[<keyspace> <table> <keys>]", description = "The keyspace, table, and a list of partition keys ignoring the gc_grace_seconds")

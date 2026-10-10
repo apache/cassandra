@@ -227,7 +227,9 @@ public class CassandraCliHelpLayout extends CommandLine.Help
             .concatItems(commandOptionsList)
             .concatItem(endOfOptionsText)
             // All other fields added to the synopsis are left-adjusted, so we don't need to add them one by one.
-            .flush(positionalParamText.concat(commandText));
+            .flush(positionalParamText.plainString().isEmpty() || commandText.plainString().isEmpty() ?
+                   positionalParamText.concat(commandText) :
+                   positionalParamText.concat(" ").concat(commandText));
 
         textTable.addEmptyRow();
         return textTable.toString();
@@ -249,6 +251,10 @@ public class CassandraCliHelpLayout extends CommandLine.Help
         for (CommandLine.Model.PositionalParamSpec positionalParam : positionals)
         {
             Ansi.Text label = parameterLabelRenderer.renderParameterLabel(positionalParam, colorScheme.ansi(), colorScheme.parameterStyles());
+            if (positionalParam.isMultiValue())
+                label = label.concat("...");
+            if (positionalParam.arity().min() == 0)
+                label = colorScheme.text("[").concat(label).concat("]");
             text = text.plainString().isEmpty() ? label : text.concat(" ").concat(label);
         }
         return text;
@@ -316,11 +322,15 @@ public class CassandraCliHelpLayout extends CommandLine.Help
 
             Ansi.Text text = ansi().new Text(0);
             String[] names = sortShortestFirst(option.names());
+            // Required options are shown without brackets, options of a group are required only together.
+            boolean optional = !option.required() || option.group() != null;
+            String open = optional ? "[" : "";
+            String close = optional ? "]" : "";
             if (names.length == 1)
             {
-                text = text.concat("[").concat(colorScheme.optionText(names[0]))
+                text = text.concat(open).concat(colorScheme.optionText(names[0]))
                            .concat(spacedParamLabel(option, parameterLabelRenderer, colorScheme))
-                           .concat("]");
+                           .concat(close);
             }
             else
             {
@@ -330,13 +340,13 @@ public class CassandraCliHelpLayout extends CommandLine.Help
                     option.userObject() instanceof Field
                     && (((Field) option.userObject()).getType().isArray() ||
                         Collection.class.isAssignableFrom(((Field) option.userObject()).getType()));
-                text = text.concat("[(")
+                text = text.concat(open + '(')
                            .concat(shortName)
                            .concat(spacedParamLabel(option, parameterLabelRenderer, colorScheme))
                            .concat(" | ")
                            .concat(fullName)
                            .concat(spacedParamLabel(option, parameterLabelRenderer, colorScheme))
-                           .concat(isArrayOrCollection ? ")...]" : ")]");
+                           .concat(isArrayOrCollection ? ")..." + close : ')' + close);
             }
 
             result.add(text);
@@ -447,7 +457,8 @@ public class CassandraCliHelpLayout extends CommandLine.Help
                         };
 
         layout.addAllPositionalParameters(positionalParams, CassandraStyleParamLabelRender.create());
-        table.addEmptyRow();
+        if (!hasSubcommandFooter())
+            table.addEmptyRow();
         return layout.toString();
     }
 
@@ -529,18 +540,16 @@ public class CassandraCliHelpLayout extends CommandLine.Help
     @Override
     public String footerHeading(Object... params)
     {
-        return createHeading(FOOTER_HEADING, params);
+        // The previous section already ends with an empty line.
+        return hasSubcommandFooter() ? "" : createHeading(FOOTER_HEADING, params);
     }
 
     @Override
     public String footer(Object... params)
     {
-        String[] footer;
-        if (commandSpec().parent() == null)
-            footer = isEmpty(commandSpec().usageMessage().footer()) ? new String[]{ USAGE_HELP_FOOTER } :
-                     commandSpec().usageMessage().footer();
-        else
-            footer = EMPTY_FOOTER;
+        String[] footer = commandSpec().usageMessage().footer();
+        if (isEmpty(footer))
+            footer = commandSpec().parent() == null ? new String[]{ USAGE_HELP_FOOTER } : EMPTY_FOOTER;
 
         TextTable table = TextTable.forColumns(colorScheme(), new Column(commandSpec().usageMessage().width(), 0, Column.Overflow.WRAP));
         table.setAdjustLineBreaksForWideCJKCharacters(commandSpec().usageMessage().adjustLineBreaksForWideCJKCharacters());
@@ -550,6 +559,11 @@ public class CassandraCliHelpLayout extends CommandLine.Help
             table.addRowValues(String.format(summaryLine, params));
         table.addEmptyRow();
         return table.toString();
+    }
+
+    private boolean hasSubcommandFooter()
+    {
+        return commandSpec().parent() != null && !isEmpty(commandSpec().usageMessage().footer());
     }
 
     public String topLevelCommandListHeading(Object... params)
@@ -724,12 +738,15 @@ public class CassandraCliHelpLayout extends CommandLine.Help
         @Override
         public Ansi.Text[][] render(CommandLine.Model.PositionalParamSpec param, IParamLabelRenderer parameterLabelRenderer, ColorScheme scheme)
         {
-            String descriptionString = param.description()[0];
             Ansi.Text descPadding = Ansi.OFF.new Text(leadingSpaces(DESCRIPTION_INDENT), scheme);
-            Ansi.Text[][] result = new Ansi.Text[3][];
+            String[] description = param.description().length == 0 ? new String[]{ "" } : param.description();
+            // label, descriptions [0..*], empty line
+            int height = 2 + description.length;
+            Ansi.Text[][] result = new Ansi.Text[height][];
             result[0] = new Ansi.Text[]{ parameterLabelRenderer.renderParameterLabel(param, scheme.ansi(), scheme.parameterStyles()) };
-            result[1] = new Ansi.Text[]{ descPadding.concat(scheme.parameterText(descriptionString)) };
-            result[2] = new Ansi.Text[]{ Ansi.OFF.new Text("", scheme) };
+            for (int i = 0; i < description.length; i++)
+                result[i + 1] = new Ansi.Text[]{ descPadding.concat(scheme.parameterText(description[i])) };
+            result[height - 1] = new Ansi.Text[]{ Ansi.OFF.new Text("", scheme) };
             return result;
         }
     }
@@ -777,7 +794,16 @@ public class CassandraCliHelpLayout extends CommandLine.Help
 
         public void flush(Ansi.Text end)
         {
-            textTable.addRowValues(current == padding ? end : current.concat(" ").concat(end));
+            // Wrap word by word, so that a word is never broken in the middle (e.g. "<node=dc:rack>").
+            String plain = end.plainString();
+            int start = 0;
+            for (int i = plain.indexOf(' '); i >= 0; i = plain.indexOf(' ', start))
+            {
+                concatItem(end.substring(start, i));
+                start = i + 1;
+            }
+            Ansi.Text last = end.substring(start, plain.length());
+            textTable.addRowValues(current == padding ? last : current.concat(" ").concat(last));
         }
     }
 

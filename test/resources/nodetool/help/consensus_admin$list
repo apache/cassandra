@@ -6,7 +6,7 @@ SYNOPSIS
                 [(-pw <password> | --password <password>)]
                 [(-pwf <passwordFilePath> | --password-file <passwordFilePath>)]
                 [(-u <username> | --username <username>)] consensus_admin list
-                [(-f <format> | --format <format>)] [--] <keyspace> <tables>
+                [(-f <format> | --format <format>)] [--] [<keyspace>] [<tables>...]
 
 OPTIONS
         -f <format>, --format <format>
@@ -38,3 +38,7 @@ OPTIONS
 
         <tables>
             The tables
+
+EXAMPLES
+        List migration state of ks1 as JSON:
+            nodetool consensus_admin list -f json ks1

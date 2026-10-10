@@ -6,7 +6,8 @@ SYNOPSIS
         nodetool [(-h <host> | --host <host>)] [(-p <port> | --port <port>)]
                 [(-pw <password> | --password <password>)]
                 [(-pwf <passwordFilePath> | --password-file <passwordFilePath>)]
-                [(-u <username> | --username <username>)] altertopology [--] <args>
+                [(-u <username> | --username <username>)] altertopology [--]
+                <node=dc:rack> [<node=dc:rack>...]
 
 OPTIONS
         -h <host>, --host <host>
@@ -29,6 +30,6 @@ OPTIONS
             list of argument, (useful when arguments might be mistaken for
             command-line options
 
-        <args>
+        <node=dc:rack> [<node=dc:rack>...]
             One or more node identifiers, which may be either a node id, host
             id or broadcast address, each with a target dc:rack

@@ -2,7 +2,7 @@ NAME
         nodetool help - Display help information
 
 SYNOPSIS
-        nodetool help [--] <command>
+        nodetool help [--] [<command>...]
 
 OPTIONS
         --
@@ -10,5 +10,5 @@ OPTIONS
             list of argument, (useful when arguments might be mistaken for
             command-line options
 
-        <command>
+        [<command>...]
             The COMMAND to display the usage help message for.

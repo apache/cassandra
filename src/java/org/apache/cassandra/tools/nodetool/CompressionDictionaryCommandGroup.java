@@ -68,7 +68,11 @@ import static org.apache.cassandra.io.compress.IDictionaryCompressor.TRAINING_MA
 public class CompressionDictionaryCommandGroup
 {
     @Command(name = "train",
-             description = "Manually trigger compression dictionary training for a table. If no SSTables are available, the memtable will be flushed first.")
+             description = "Manually trigger compression dictionary training for a table. If no SSTables are available, the memtable will be flushed first.",
+             footerHeading = "%n",
+             footer = { "EXAMPLES",
+                        "        Train a dictionary of at most 1 MiB for ks1.table1:",
+                        "            nodetool compressiondictionary train --max-dict-size 1MiB ks1 table1" })
     public static class TrainDictionary extends AbstractCommand
     {
         private static final String MAX_DICT_SIZE_PARAM_NAME = "--max-dict-size";
