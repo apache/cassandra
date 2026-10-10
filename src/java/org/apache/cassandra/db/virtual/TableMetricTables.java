@@ -20,6 +20,7 @@ package org.apache.cassandra.db.virtual;
 
 import java.math.BigDecimal;
 import java.util.Collection;
+import java.util.concurrent.TimeUnit;
 import java.util.function.Function;
 
 import com.codahale.metrics.Counting;
@@ -28,6 +29,7 @@ import com.codahale.metrics.Metered;
 import com.codahale.metrics.Metric;
 import com.codahale.metrics.Sampling;
 import com.codahale.metrics.Snapshot;
+import com.google.common.annotations.VisibleForTesting;
 import com.google.common.collect.ImmutableList;
 
 import org.apache.commons.math3.util.Precision;
@@ -44,6 +46,8 @@ import org.apache.cassandra.dht.LocalPartitioner;
 import org.apache.cassandra.metrics.TableMetrics;
 import org.apache.cassandra.schema.TableMetadata;
 
+import static org.apache.cassandra.metrics.CassandraMetricsRegistry.DEFAULT_TIMER_UNIT;
+
 /**
  * Contains multiple the Table Metric virtual tables. This is not a direct wrapper over the Metrics like with JMX but a
  * view to the metrics so that the underlying mechanism can change but still give same appearance (like nodetool).
@@ -57,7 +61,6 @@ public class TableMetricTables
     private final static String MAX = "max";
     private final static String RATE = "per_second";
     private final static double BYTES_TO_MIB = 1.0 / (1024 * 1024);
-    private final static double NS_TO_MS = 0.000001;
 
     private final static AbstractType<?> TYPE = CompositeType.getInstance(UTF8Type.instance,
                                                                           UTF8Type.instance);
@@ -83,6 +86,16 @@ public class TableMetricTables
             new StorageTableMetric(name, "max_partition_size", (TableMetrics t) -> t.maxPartitionSize),
             new StorageTableMetric(name, "max_sstable_size", (TableMetrics t) -> t.maxSSTableSize),
             new TableMetricTable(name, "max_sstable_duration", t -> t.maxSSTableDuration, "max_sstable_duration", LongType.instance, ""));
+    }
+
+    /**
+     * Creates a latency table over the given metric, whose timer values are in {@code timerUnit}, so tests can control
+     * the values it reports
+     */
+    @VisibleForTesting
+    static <M extends Metric & Sampling> VirtualTable latencyTable(String keyspace, String table, Function<TableMetrics, M> func, TimeUnit timerUnit)
+    {
+        return new LatencyTableMetric(keyspace, table, func, timerUnit);
     }
 
     /**
@@ -142,18 +155,26 @@ public class TableMetricTables
      */
     private static class LatencyTableMetric extends HistogramTableMetric
     {
+        private final double timerUnitToMs;
+
         <M extends Metric & Sampling> LatencyTableMetric(String keyspace, String table, Function<TableMetrics, M> func)
         {
+            this(keyspace, table, func, DEFAULT_TIMER_UNIT);
+        }
+
+        <M extends Metric & Sampling> LatencyTableMetric(String keyspace, String table, Function<TableMetrics, M> func, TimeUnit timerUnit)
+        {
             super(keyspace, table, func, "_ms");
+            timerUnitToMs = (double) timerUnit.toNanos(1) / TimeUnit.MILLISECONDS.toNanos(1);
         }
 
         /**
-         * For the metrics that are time based, convert to to milliseconds
+         * For the metrics that are time based, convert from the timer unit to milliseconds
          */
         public void add(SimpleDataSet result, String column, double value)
         {
             if (column.endsWith(suffix))
-                value *= NS_TO_MS;
+                value *= timerUnitToMs;
 
             super.add(result, column, value);
         }
@@ -208,7 +229,7 @@ public class TableMetricTables
                     {
                         Sampling histo = (Sampling) metric;
                         Snapshot snapshot = histo.getSnapshot();
-                        // EstimatedHistogram keeping them in ns is hard to parse as a human so convert to ms
+                        // LatencyTableMetric converts timer values from the timer unit to the more readable ms
                         add(result, P50 + suffix, snapshot.getMedian());
                         add(result, P99 + suffix, snapshot.get99thPercentile());
                         add(result, MAX + suffix, (double) snapshot.getMax());
