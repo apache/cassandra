@@ -43,8 +43,9 @@ import static org.apache.cassandra.utils.LocalizeString.toUpperCaseLocalized;
 public enum CassandraRelevantProperties
 {
     ACCORD_DEBUG("accord.debug"),
-    ACCORD_DEBUG_EXECUTION("accord.debug_execution"),
-    ACCORD_DEBUG_EXECUTION_REPORT("accord.debug_execution_report"),
+    ACCORD_DEBUG_EXECUTION("accord.debug.execution"),
+    ACCORD_DEBUG_EXECUTION_REPORT("accord.debug.execution.report"),
+    ACCORD_DEBUG_PROGRESS_LOG("accord.debug.progresslog"),
     ACCORD_PARANOIA_COSTFACTOR(Invariants.KEY_PARANOIA_COSTFACTOR),
     ACCORD_PARANOIA_CPU(Invariants.KEY_PARANOIA_CPU),
     ACCORD_PARANOIA_MEMORY(Invariants.KEY_PARANOIA_MEMORY),

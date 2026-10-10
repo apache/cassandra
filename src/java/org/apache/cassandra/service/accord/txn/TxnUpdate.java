@@ -48,6 +48,7 @@ import accord.utils.SortedArrays;
 import org.apache.cassandra.cql3.QueryOptions;
 import org.apache.cassandra.db.ConsistencyLevel;
 import org.apache.cassandra.db.TypeSizes;
+import org.apache.cassandra.db.partitions.PartitionUpdate;
 import org.apache.cassandra.exceptions.RequestValidationException;
 import org.apache.cassandra.io.ParameterisedUnversionedSerializer;
 import org.apache.cassandra.io.UnversionedSerializer;
@@ -889,10 +890,8 @@ public final class TxnUpdate extends AccordUpdate
         return deserializedCondition.applies((TxnData) data);
     }
 
-    public List<TxnWrite.Update> completeUpdatesForKey(SimpleBitSet conditionalBlockBitSet, RoutableKey key)
+    public void completeUpdatesForKey(List<PartitionUpdate> updates, SimpleBitSet conditionalBlockBitSet, RoutableKey key, TableMetadatas tables)
     {
-        List<TxnWrite.Update> updates = new ArrayList<>();
-
         // each block is a separate IF/ELSE/END
         for (Block block : blocks)
         {
@@ -913,11 +912,10 @@ public final class TxnUpdate extends AccordUpdate
                     List<Fragment> fragments = deserialize(tables, block, conditionalBlock.fragmentIds);
                     for (Fragment fragment : fragments)
                         if (fragment.isComplete() && fragment.key.equals(key))
-                            updates.add(fragment.toUpdate(tables));
+                            updates.add(fragment.baseUpdate);
                 }
             }
         }
-        return updates;
     }
 
     public static final AccordUpdateSerializer<TxnUpdate> serializer = new AccordUpdateSerializer<>()
@@ -1046,7 +1044,7 @@ public final class TxnUpdate extends AccordUpdate
 
         for (Fragment fragment : fragments)
             if (!fragment.isComplete())
-                allUpdates.add(fragment.complete(parameters, tables));
+                allUpdates.add(fragment.completeSerialized(parameters, tables));
         return Pair.create(allUpdates, conditionalBlocksMatched);
     }
 
