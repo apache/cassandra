@@ -27,6 +27,7 @@ import org.openjdk.jmh.annotations.Fork;
 import org.openjdk.jmh.annotations.Level;
 import org.openjdk.jmh.annotations.Measurement;
 import org.openjdk.jmh.annotations.Mode;
+import org.openjdk.jmh.annotations.OperationsPerInvocation;
 import org.openjdk.jmh.annotations.OutputTimeUnit;
 import org.openjdk.jmh.annotations.Param;
 import org.openjdk.jmh.annotations.Scope;
@@ -39,8 +40,8 @@ import org.openjdk.jmh.runner.RunnerException;
 import org.openjdk.jmh.runner.options.Options;
 import org.openjdk.jmh.runner.options.OptionsBuilder;
 
+import org.apache.cassandra.concurrent.CassandraThread;
 import org.apache.cassandra.metrics.DecayingEstimatedHistogramReservoir;
-import org.apache.cassandra.utils.MonotonicClock;
 
 import static org.apache.cassandra.metrics.DecayingEstimatedHistogramReservoir.DEFAULT_BUCKET_COUNT;
 import static org.apache.cassandra.metrics.DecayingEstimatedHistogramReservoir.DEFAULT_STRIPE_COUNT;
@@ -48,51 +49,82 @@ import static org.apache.cassandra.metrics.DecayingEstimatedHistogramReservoir.D
 
 @BenchmarkMode(Mode.Throughput)
 @OutputTimeUnit(TimeUnit.MILLISECONDS)
-@Warmup(iterations = 2, time = 1, timeUnit = TimeUnit.SECONDS)
-@Measurement(iterations = 4, time = 2, timeUnit = TimeUnit.SECONDS)
+@Warmup(iterations = 5, time = 1, timeUnit = TimeUnit.SECONDS)
+@Measurement(iterations = 6, time = 2, timeUnit = TimeUnit.SECONDS)
 @Threads(4)
-@Fork(value = 3)
+@Fork(value = 3, jvmArgsAppend = { "-Djmh.executor=CUSTOM",
+                                   "-Djmh.executor.class=org.apache.cassandra.test.microbench.FastThreadExecutor" })
 @State(Scope.Benchmark)
 public class DecayingEstimatedHistogramBench
 {
-    @Param({ "100000", "500000", "1000000" })
-    private long landmarkResetIntervalNs;
+    /** Updates replayed per invocation; large enough that the JMH cost per update is negligible. */
+    private static final int BATCH = 1024;
 
-    DecayingEstimatedHistogramReservoir reservoir;
 
-    @Setup
+    /**
+     * Upper bound of the updated values. Values are spread over the log-linear buckets between 1 and this bound,
+     * so it controls how many distinct buckets a thread touches
+     */
+    @Param({ "10", "500", "100000" })
+    private int maxValue;
+
+    /**
+     * How many histograms a thread rotates through. One buffer serves all of a thread's histograms, so together
+     * with {@link #maxValue} this sets how many distinct (histogram, bucket) pairs a flush has to aggregate, and
+     * therefore how much of the batch it can coalesce.
+     */
+    @Param({ "1", "16" })
+    private int histogramCount;
+
+    private DecayingEstimatedHistogramReservoir[] reservoirs;
+
+    @Setup(Level.Trial)
     public void setup()
     {
-        reservoir = new DecayingEstimatedHistogramReservoir(DEFAULT_ZERO_CONSIDERATION,
-                                                            DEFAULT_BUCKET_COUNT,
-                                                            DEFAULT_STRIPE_COUNT,
-                                                            MonotonicClock.Global.approxTime,
-                                                            landmarkResetIntervalNs);
+        reservoirs = new DecayingEstimatedHistogramReservoir[histogramCount];
+        for (int i = 0; i < histogramCount; i++)
+            reservoirs[i] = new DecayingEstimatedHistogramReservoir(DEFAULT_ZERO_CONSIDERATION, DEFAULT_BUCKET_COUNT, DEFAULT_STRIPE_COUNT);
     }
 
     @State(Scope.Thread)
-    public static class HistogramUpdateState
+    public static class Values
     {
-        int update;
+        long[] values;
 
-        @Setup(Level.Invocation)
-        public void setup() throws Throwable
+        @Setup(Level.Trial)
+        public void setup(DecayingEstimatedHistogramBench bench)
         {
-            update = ThreadLocalRandom.current().nextInt(10, 1000);
+            if (!(Thread.currentThread() instanceof CassandraThread))
+                throw new IllegalStateException("benchmark must run on a CassandraThread, got "
+                                                + Thread.currentThread().getClass().getName());
+
+            values = new long[BATCH];
+            for (int i = 0; i < values.length; i++)
+                values[i] = ThreadLocalRandom.current().nextInt(1, bench.maxValue);
         }
     }
 
     @Benchmark
-    public void update(HistogramUpdateState state)
+    @OperationsPerInvocation(BATCH)
+    public void update(Values state)
     {
-        reservoir.update(state.update);
+        long[] values = state.values;
+        DecayingEstimatedHistogramReservoir[] reservoirs = this.reservoirs;
+        int count = reservoirs.length;
+        int reservoir = 0;
+        for (int i = 0; i < values.length; i++)
+        {
+            reservoirs[reservoir].update(values[i]);
+            if (++reservoir == count)
+                reservoir = 0;
+        }
     }
 
     public static void main(String[] args) throws RunnerException
     {
         Options options = new OptionsBuilder()
-                              .include(DecayingEstimatedHistogramBench.class.getSimpleName())
-                              .build();
+                          .include(DecayingEstimatedHistogramBench.class.getSimpleName())
+                          .build();
         new Runner(options).run();
     }
 }
