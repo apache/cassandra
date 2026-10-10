@@ -128,6 +128,12 @@ public class BtiFormat extends AbstractSSTableFormat<BtiTableReader, BtiTableWri
     }
 
     @Override
+    public boolean supportsCursorCompaction()
+    {
+        return true;
+    }
+
+    @Override
     public Version getLatestVersion()
     {
         return latestVersion;

@@ -387,6 +387,14 @@ public class SSTableCursorReader implements AutoCloseable
                 return;
             }
             serializationHeader.readDeletionTime(dataReader, complexDeletion);
+            // A row with any complex deletion writes one for every complex column, and a column
+            // without one gets LIVE.  LIVE's local deletion time does not survive the header's
+            // delta encoding, so treat a deletion with no timestamp as LIVE, as BTreeRow.Builder does.
+            if (complexDeletion.markedForDeleteAt() == Long.MIN_VALUE)
+            {
+                complexDeletion.resetLive();
+                return;
+            }
             // Do what DeserializationHelper.isDroppedComplexDeletion does: drop a complex deletion
             // at or before the drop time of its column.
             if (isDroppedAt(complexDeletion.markedForDeleteAt(), currIndex))

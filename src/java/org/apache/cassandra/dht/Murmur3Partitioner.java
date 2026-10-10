@@ -327,14 +327,8 @@ public class Murmur3Partitioner implements IPartitioner
 
     private long calculateTokenValue(ByteBuffer key, long[] hash)
     {
-        if (key.remaining() == 0)
-        {
-            hash[0] = MINIMUM.token;
-            hash[1] = 0;
-            return MINIMUM.token;
-        }
         populateHash(key, hash);
-        return normalize(hash[0]);
+        return key.remaining() == 0 ? MINIMUM.token : normalize(hash[0]);
     }
 
     @Override
@@ -617,6 +611,14 @@ public class Murmur3Partitioner implements IPartitioner
             Token token = getToken();
             ((ReusableLongToken) token).setToken(Murmur3Partitioner.instance.calculateTokenValue(key, hash));
             tokenValue = token.getLongValue();
+        }
+
+        /** Reuses the token and hash from the last copyKey, so the key is not hashed again. */
+        @Override
+        public DecoratedKey retainable()
+        {
+            return new PreHashedDecoratedKey(new LongToken(tokenValue), ByteBuffer.wrap(Arrays.copyOf(keyBytes, keyLength)),
+                                             hash[0], hash[1]);
         }
 
         @Override

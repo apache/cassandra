@@ -654,6 +654,14 @@ public enum CassandraRelevantProperties
     TEST_CASSANDRA_SKIP_SYNC("cassandra.skip_sync"),
     TEST_CASSANDRA_SUITENAME("suitename", "suitename_IS_UNDEFINED"),
     TEST_CASSANDRA_TESTTAG("cassandra.testtag", "cassandra.testtag_IS_UNDEFINED"),
+    /** Generated examples for the ClusteringDescriptorPrefixView property test. */
+    TEST_CLUSTERING_PREFIX_VIEW_EXAMPLES("cassandra.test.clustering_prefix_view.examples", "1000"),
+    /** Records the JFR allocation profiles in CursorCompactionAllocationGateTest; they are skipped otherwise. */
+    TEST_COMPACTION_ALLOCATION_PROFILE("cassandra.test.compaction.allocation_profile", "false"),
+    TEST_COMPACTION_BURN_CHECKPOINT("cassandra.test.compaction_burn_checkpoint", "build/test/logs/burn-checkpoint.tsv"),
+    TEST_COMPACTION_BURN_MINUTES("cassandra.test.compaction_burn_minutes", "0"),
+    TEST_COMPACTION_BURN_SCALE("cassandra.test.compaction_burn_scale"),
+    TEST_COMPACTION_BURN_TARGET_ROWS("cassandra.test.compaction_burn_target_rows", "0"),
     TEST_COMPRESSION("cassandra.test.compression"),
     TEST_COMPRESSION_ALGO("cassandra.test.compression.algo", "lz4"),
     TEST_DEBUG_REF_COUNT("cassandra.debugrefcount"),
@@ -667,6 +675,12 @@ public enum CassandraRelevantProperties
     TEST_DIFFERENTIAL_BIGVOLUME_ROUNDS("cassandra.test.differential.bigvolume.rounds", "20"),
     TEST_DIFFERENTIAL_BIGVOLUME_ROWS_PER_ROUND("cassandra.test.differential.bigvolume.rows_per_round", "100"),
     TEST_DIFFERENTIAL_BIGVOLUME_VALUE_PADDING("cassandra.test.differential.bigvolume.value_padding", "200"),
+    /**
+     * Padding-byte width of the block-boundary sweeps in EdgeCaseDifferentialCompactionTest. It must
+     * exceed the per-row serialization overhead, plus one range tombstone marker for the marker sweep.
+     * Both sweeps fail naming this property if it stops being wide enough to bracket the cut.
+     */
+    TEST_DIFFERENTIAL_BLOCK_BOUNDARY_SWEEP("cassandra.test.differential.block_boundary.sweep", "160"),
     /** Number of generated examples the randomized differential soak runs; must be > 0. */
     TEST_DIFFERENTIAL_EXAMPLES("cassandra.test.differential.examples"),
     /**
@@ -680,6 +694,18 @@ public enum CassandraRelevantProperties
     TEST_DIFFERENTIAL_LARGEPARTITION_VALUE_PADDING("cassandra.test.differential.largepartition.value_padding", "240"),
     /** Seed for the randomized differential soak; defaults to the wall clock, logged per example. */
     TEST_DIFFERENTIAL_SEED("cassandra.test.differential.seed"),
+    /**
+     * Reads every row of a captured output back through a routed slice, so the BTI row trie is
+     * exercised as an index rather than only compared as bytes. On by default; skipped in scale mode.
+     */
+    TEST_DIFFERENTIAL_SLICE_READBACK("cassandra.test.differential.slice_readback", "true"),
+    /** Per-partition slice cap for the read-back; the default clears the widest current scenario. */
+    TEST_DIFFERENTIAL_SLICE_READBACK_MAX_ROWS("cassandra.test.differential.slice_readback.max_rows", "5000"),
+    /**
+     * Upper bound of the randomized soak's per-example row count for its wide partitions; the floor is
+     * a quarter of it. Zero disables the wide partitions, which then fails the soak's row index assertion.
+     */
+    TEST_DIFFERENTIAL_WIDE_PARTITION_ROWS_PER_ROUND("cassandra.test.differential.wide_partition_rows_per_round", "120"),
     /** Column counts for the pathological wide-table differential test. */
     TEST_DIFFERENTIAL_WIDE_REGULARS("cassandra.test.differential.wide.regulars", "1800"),
     TEST_DIFFERENTIAL_WIDE_STATICS("cassandra.test.differential.wide.statics", "200"),
