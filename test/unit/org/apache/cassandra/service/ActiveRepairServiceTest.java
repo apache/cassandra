@@ -62,6 +62,7 @@ import org.apache.cassandra.locator.AbstractReplicationStrategy;
 import org.apache.cassandra.locator.InetAddressAndPort;
 import org.apache.cassandra.locator.Replica;
 import org.apache.cassandra.repair.messages.RepairOption;
+import org.apache.cassandra.schema.CompactionParams;
 import org.apache.cassandra.schema.KeyspaceParams;
 import org.apache.cassandra.service.disk.usage.DiskUsageMonitor;
 import org.apache.cassandra.service.snapshot.SnapshotManager;
@@ -99,6 +100,8 @@ public class ActiveRepairServiceTest
 {
     public static final String KEYSPACE5 = "Keyspace5";
     public static final String CF_STANDARD1 = "Standard1";
+    public static final String CF_STANDARD_LCS = "StandardLCS";
+    public static final String CF_STANDARD_LCS_2 = "StandardLCS2";
     public static final String CF_COUNTER = "Counter1";
     public static final int TASK_SECONDS = 10;
 
@@ -123,7 +126,11 @@ public class ActiveRepairServiceTest
         SchemaLoader.createKeyspace(KEYSPACE5,
                                     KeyspaceParams.simple(2),
                                     SchemaLoader.standardCFMD(KEYSPACE5, CF_COUNTER),
-                                    SchemaLoader.standardCFMD(KEYSPACE5, CF_STANDARD1));
+                                    SchemaLoader.standardCFMD(KEYSPACE5, CF_STANDARD1),
+                                    SchemaLoader.standardCFMD(KEYSPACE5, CF_STANDARD_LCS)
+                                                .compaction(CompactionParams.lcs(Collections.emptyMap())),
+                                    SchemaLoader.standardCFMD(KEYSPACE5, CF_STANDARD_LCS_2)
+                                                .compaction(CompactionParams.lcs(Collections.emptyMap())));
         LOCAL = FBUtilities.getBroadcastAddressAndPort();
         // generate a fake endpoint for which we can spoof receiving/sending trees
         REMOTE = InetAddressAndPort.getByName("127.0.0.2");
@@ -131,6 +138,7 @@ public class ActiveRepairServiceTest
         NodeId remote = Register.register(new NodeAddresses(REMOTE));
         UnsafeJoin.unsafeJoin(local, Collections.singleton(DatabaseDescriptor.getPartitioner().getRandomToken()));
         UnsafeJoin.unsafeJoin(remote, Collections.singleton(DatabaseDescriptor.getPartitioner().getMinimumToken()));
+        DatabaseDescriptor.setIncrementalRepairL0SSTableCountRejectThreshold(Integer.MAX_VALUE);
         initMocks(this);
     }
 
@@ -330,8 +338,13 @@ public class ActiveRepairServiceTest
 
     private ColumnFamilyStore prepareColumnFamilyStore()
     {
+        return prepareColumnFamilyStore(CF_STANDARD1);
+    }
+
+    private ColumnFamilyStore prepareColumnFamilyStore(String table)
+    {
         Keyspace keyspace = Keyspace.open(KEYSPACE5);
-        ColumnFamilyStore store = keyspace.getColumnFamilyStore(CF_STANDARD1);
+        ColumnFamilyStore store = keyspace.getColumnFamilyStore(table);
         store.truncateBlocking();
         store.disableAutoCompaction();
         createSSTables(store, 10);
@@ -563,6 +576,70 @@ public class ActiveRepairServiceTest
         when(diskUsageMonitor.getDiskUsage()).thenReturn(1.5);
 
         instance().prepareForRepair(TimeUUID.maxAtUnixMillis(0), null, null, opts(INCREMENTAL_KEY, b2s(true)), false, null);
+    }
+
+    @Test
+    public void testVerifyL0SSTableCountThresholdNonIncremental()
+    {
+        ColumnFamilyStore cfs = prepareColumnFamilyStore(CF_STANDARD_LCS);
+        DatabaseDescriptor.setIncrementalRepairL0SSTableCountRejectThreshold(0);
+
+        Assert.assertTrue(ActiveRepairService.verifyL0SSTableCountThreshold(
+            TimeUUID.maxAtUnixMillis(0), PreviewKind.NONE, false, List.of(cfs)));
+    }
+
+    @Test
+    public void testVerifyL0SSTableCountThresholdBelowThreshold()
+    {
+        ColumnFamilyStore cfs = prepareColumnFamilyStore(CF_STANDARD_LCS);
+        DatabaseDescriptor.setIncrementalRepairL0SSTableCountRejectThreshold(cfs.getUnleveledSSTables() + 1);
+
+        Assert.assertTrue(ActiveRepairService.verifyL0SSTableCountThreshold(
+            TimeUUID.maxAtUnixMillis(0), PreviewKind.NONE, true, List.of(cfs)));
+    }
+
+    @Test
+    public void testVerifyL0SSTableCountThresholdAboveThreshold()
+    {
+        ColumnFamilyStore cfs = prepareColumnFamilyStore(CF_STANDARD_LCS);
+        DatabaseDescriptor.setIncrementalRepairL0SSTableCountRejectThreshold(0);
+
+        Assert.assertFalse(ActiveRepairService.verifyL0SSTableCountThreshold(
+            TimeUUID.maxAtUnixMillis(0), PreviewKind.NONE, true, List.of(cfs)));
+    }
+
+    @Test
+    public void testVerifyL0SSTableCountThresholdDisabled()
+    {
+        ColumnFamilyStore cfs = prepareColumnFamilyStore(CF_STANDARD_LCS);
+        DatabaseDescriptor.setIncrementalRepairL0SSTableCountRejectThreshold(Integer.MAX_VALUE);
+
+        Assert.assertTrue(ActiveRepairService.verifyL0SSTableCountThreshold(
+            TimeUUID.maxAtUnixMillis(0), PreviewKind.NONE, true, List.of(cfs)));
+    }
+
+    @Test
+    public void testVerifyL0SSTableCountThresholdChecksAllLCSTablesAndAttributesMetrics()
+    {
+        ColumnFamilyStore firstOffender = prepareColumnFamilyStore(CF_STANDARD_LCS);
+        ColumnFamilyStore secondOffender = prepareColumnFamilyStore(CF_STANDARD_LCS_2);
+        ColumnFamilyStore nonLCS = prepareColumnFamilyStore(CF_STANDARD1);
+        DatabaseDescriptor.setIncrementalRepairL0SSTableCountRejectThreshold(0);
+
+        long firstFailures = firstOffender.metric.repairFailuresDueToL0SSTableCount.getCount();
+        long secondFailures = secondOffender.metric.repairFailuresDueToL0SSTableCount.getCount();
+        long nonLCSFailures = nonLCS.metric.repairFailuresDueToL0SSTableCount.getCount();
+        long keyspaceFailures = firstOffender.keyspace.metric.repairFailuresDueToL0SSTableCount.getCount();
+
+        Assert.assertFalse(ActiveRepairService.verifyL0SSTableCountThreshold(
+            TimeUUID.maxAtUnixMillis(0), PreviewKind.NONE, true,
+            List.of(firstOffender, nonLCS, secondOffender)));
+
+        assertEquals(firstFailures + 1, firstOffender.metric.repairFailuresDueToL0SSTableCount.getCount());
+        assertEquals(secondFailures + 1, secondOffender.metric.repairFailuresDueToL0SSTableCount.getCount());
+        assertEquals(nonLCSFailures, nonLCS.metric.repairFailuresDueToL0SSTableCount.getCount());
+        assertEquals(keyspaceFailures + 2,
+                     firstOffender.keyspace.metric.repairFailuresDueToL0SSTableCount.getCount());
     }
 
     private static class Task implements Runnable

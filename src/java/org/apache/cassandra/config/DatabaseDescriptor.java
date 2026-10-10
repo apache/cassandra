@@ -1368,6 +1368,13 @@ public class DatabaseDescriptor
     @VisibleForTesting
     static void applyThresholdsValidations(Config config)
     {
+        if (config.incremental_repair_l0_sstable_count_reject_threshold < 0)
+        {
+            throw new ConfigurationException(
+                "incremental_repair_l0_sstable_count_reject_threshold must be >= 0, but was "
+                + config.incremental_repair_l0_sstable_count_reject_threshold);
+        }
+
         // Validate read thresholds
         validateReadThresholds("coordinator_read_size", config.coordinator_read_size_warn_threshold, config.coordinator_read_size_fail_threshold);
         validateReadThresholds("local_read_size", config.local_read_size_warn_threshold, config.local_read_size_fail_threshold);
@@ -6520,6 +6527,20 @@ public class DatabaseDescriptor
             throw new IllegalArgumentException("Value must be >= 0 and <= 1 for repair_disk_headroom_reject_ratio");
         }
         conf.repair_disk_headroom_reject_ratio = value;
+    }
+
+    public static int getIncrementalRepairL0SSTableCountRejectThreshold()
+    {
+        return conf.incremental_repair_l0_sstable_count_reject_threshold;
+    }
+
+    public static void setIncrementalRepairL0SSTableCountRejectThreshold(int value)
+    {
+        if (value < 0)
+        {
+            throw new IllegalArgumentException("incremental_repair_l0_sstable_count_reject_threshold must be >= 0");
+        }
+        conf.incremental_repair_l0_sstable_count_reject_threshold = value;
     }
 
     @VisibleForTesting

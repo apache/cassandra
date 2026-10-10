@@ -133,6 +133,17 @@ public class TableMetricsTest
     }
 
     @Test
+    public void testRepairFailuresDueToL0SSTableCountAggregatesAtKeyspace()
+    {
+        ColumnFamilyStore cfs = recreateTable();
+        long previousCount = cfs.keyspace.metric.repairFailuresDueToL0SSTableCount.getCount();
+
+        cfs.metric.repairFailuresDueToL0SSTableCount.inc();
+
+        assertEquals(previousCount + 1, cfs.keyspace.metric.repairFailuresDueToL0SSTableCount.getCount());
+    }
+
+    @Test
     public void testRegularStatementsExecuted()
     {
         ColumnFamilyStore cfs = recreateTable();

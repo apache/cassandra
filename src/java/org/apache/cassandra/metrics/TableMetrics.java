@@ -218,6 +218,7 @@ public class TableMetrics
     public final Counter repairsStarted;
     /** Number of completed repairs as coordinator on this table */
     public final Counter repairsCompleted;
+    public final Counter repairFailuresDueToL0SSTableCount;
     /** time spent anticompacting data before participating in a consistent repair */
     public final TableTimer anticompactionTime;
     /** time spent creating merkle trees */
@@ -859,6 +860,7 @@ public class TableMetrics
 
         repairsStarted = createTableCounter("RepairJobsStarted");
         repairsCompleted = createTableCounter("RepairJobsCompleted");
+        repairFailuresDueToL0SSTableCount = createTableCounter("RepairFailuresDueToL0SSTableCount");
 
         anticompactionTime = createTableTimer("AnticompactionTime", cfs.keyspace.metric.anticompactionTime);
         validationTime = createTableTimer("ValidationTime", cfs.keyspace.metric.validationTime);
