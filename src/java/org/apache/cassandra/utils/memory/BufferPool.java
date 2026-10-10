@@ -882,16 +882,12 @@ public class BufferPool
         {
             Chunk chunk = Chunk.getParentChunk(buffer);
             int originalCapacity = buffer.capacity();
-            int size = originalCapacity - buffer.limit();
 
             if (chunk == null)
-            {
-                updateOverflowMemoryUsage(-size);
                 return;
-            }
 
             chunk.freeUnusedPortion(buffer);
-            // Calculate the actual freed bytes which may be different from `size` when pooling is involved
+            // The actual freed bytes may differ from (originalCapacity - limit) when pooling is involved
             memoryInUse.inc(buffer.capacity() - originalCapacity);
         }
 
