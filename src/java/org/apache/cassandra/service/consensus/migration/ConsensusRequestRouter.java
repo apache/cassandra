@@ -60,6 +60,7 @@ import org.apache.cassandra.schema.TableMetadata;
 import org.apache.cassandra.schema.TableParams;
 import org.apache.cassandra.service.accord.IAccordService;
 import org.apache.cassandra.service.accord.TokenRange;
+import org.apache.cassandra.service.accord.txn.TxnRead;
 import org.apache.cassandra.service.consensus.TransactionalMode;
 import org.apache.cassandra.service.consensus.migration.ConsensusKeyMigrationState.KeyMigrationState;
 import org.apache.cassandra.service.paxos.Paxos;
@@ -503,7 +504,7 @@ public class ConsensusRequestRouter
         return false;
     }
 
-    public static Txn.Kind shouldReadEphemerally(Seekables<?, ?> keys, TableParams tableParams, Txn.Kind kind)
+    public static Txn.Kind shouldReadEphemerally(Seekables<?, ?> keys, TableParams tableParams, Txn.Kind kind, TxnRead read)
     {
         if (kind != Kind.Read)
             return kind;
@@ -515,7 +516,7 @@ public class ConsensusRequestRouter
         // Number of ranges doesn't matter
         if (keys.domain() == Domain.Range)
             return Kind.EphemeralRead;
-        if (keys.size() > 1)
+        if (keys.size() > 1 || read.size() > 1)
             return kind;
         return Kind.EphemeralRead;
     }
