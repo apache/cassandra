@@ -38,7 +38,7 @@ There are three methods of installing Cassandra that are common:
 
 * Docker image
 * Tarball binary file
-* Package installation (RPM, YUM)
+* Package installation (APT, YUM)
 
 If you are a current Docker user, installing a Docker image is simple.
 You'll need to install Docker Desktop for Mac, Docker Desktop for Windows, or have `docker` installed on Linux.
