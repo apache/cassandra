@@ -89,18 +89,12 @@ public class FixedSplitTokenRangeSplitterHelper
         long perTokenSizeTable3 = 2048L / totalToken;
         for (Range<Token> tokenRange : tokensAndWrappedAroundCount.left)
         {
-            ksTablesEstimatedBytes.put(AutoRepairUtils.getKeyspaceTableName(KEYSPACE, TABLE1), new HashMap<>()
-            {{
-                put(tokenRange, new AutoRepairUtils.SizeEstimate(AutoRepairConfig.RepairType.FULL, "", "", tokenRange, 0, perTokenSizeTable1, perTokenSizeTable1));
-            }});
-            ksTablesEstimatedBytes.put(AutoRepairUtils.getKeyspaceTableName(KEYSPACE, TABLE2), new HashMap<>()
-            {{
-                put(tokenRange, new AutoRepairUtils.SizeEstimate(AutoRepairConfig.RepairType.FULL, "", "", tokenRange, 0, perTokenSizeTable2, perTokenSizeTable2));
-            }});
-            ksTablesEstimatedBytes.put(AutoRepairUtils.getKeyspaceTableName(KEYSPACE, TABLE3), new HashMap<>()
-            {{
-                put(tokenRange, new AutoRepairUtils.SizeEstimate(AutoRepairConfig.RepairType.FULL, "", "", tokenRange, 0, perTokenSizeTable3, perTokenSizeTable3));
-            }});
+            ksTablesEstimatedBytes.computeIfAbsent(AutoRepairUtils.getKeyspaceTableName(KEYSPACE, TABLE1), k -> new HashMap<>())
+                                  .put(tokenRange, new AutoRepairUtils.SizeEstimate(AutoRepairConfig.RepairType.FULL, "", "", tokenRange, 0, perTokenSizeTable1, perTokenSizeTable1));
+            ksTablesEstimatedBytes.computeIfAbsent(AutoRepairUtils.getKeyspaceTableName(KEYSPACE, TABLE2), k -> new HashMap<>())
+                                  .put(tokenRange, new AutoRepairUtils.SizeEstimate(AutoRepairConfig.RepairType.FULL, "", "", tokenRange, 0, perTokenSizeTable2, perTokenSizeTable2));
+            ksTablesEstimatedBytes.computeIfAbsent(AutoRepairUtils.getKeyspaceTableName(KEYSPACE, TABLE3), k -> new HashMap<>())
+                                  .put(tokenRange, new AutoRepairUtils.SizeEstimate(AutoRepairConfig.RepairType.FULL, "", "", tokenRange, 0, perTokenSizeTable3, perTokenSizeTable3));
         }
     }
 
@@ -144,14 +138,16 @@ public class FixedSplitTokenRangeSplitterHelper
             List<Range<Token>> expectedTokensForATable = new ArrayList<>();
             for (int j = 0; j < assignmentsPerTable; j++)
             {
-                long expectedBytes = ksTablesEstimatedBytes.get(AutoRepairUtils.getKeyspaceTableName(KEYSPACE, tables.get(i))).values().stream().mapToLong(sizeEstimate -> sizeEstimate.sizeForRepair).sum() / numberOfSplits;
                 int theTableAssignmentIdx = i * assignmentsPerTable + j;
-                assertEquals(expectedBytes, assignments.get(theTableAssignmentIdx).estimatedBytes);
                 assertEquals(Collections.singletonList(tables.get(i)), assignments.get(theTableAssignmentIdx).getTableNames());
                 assignmentForATable.add(assignments.get(theTableAssignmentIdx));
                 expectedTokensForATable.add(expectedToken.get(theTableAssignmentIdx));
             }
             compare(numTokens, numberOfSplits, expectedTokensForATable, assignmentForATable);
+            long expectedBytes = ksTablesEstimatedBytes.get(AutoRepairUtils.getKeyspaceTableName(KEYSPACE, tables.get(i)))
+                                                      .values().stream().mapToLong(sizeEstimate -> sizeEstimate.sizeForRepair).sum();
+            assertEquals(expectedBytes, assignmentForATable.stream().mapToLong(RepairAssignment::getEstimatedBytes).sum());
+            assertEvenByteDistribution(assignmentForATable);
         }
     }
 
@@ -189,14 +185,19 @@ public class FixedSplitTokenRangeSplitterHelper
 
         compare(numTokens, numberOfSplits, expectedToken, assignments);
 
-        for (int i = 0; i < assignments.size(); i++)
-        {
-            assertEquals(assignments.get(i).estimatedBytes,
-                         ksTablesEstimatedBytes.values().stream()
-                                               .flatMap(tableMap -> tableMap.values().stream())
-                                               .mapToLong(sizeEstimate -> sizeEstimate.sizeForRepair)
-                                               .sum() / numberOfSplits);
-        }
+        long expectedBytes = ksTablesEstimatedBytes.values().stream()
+                                                  .flatMap(tableMap -> tableMap.values().stream())
+                                                  .mapToLong(sizeEstimate -> sizeEstimate.sizeForRepair).sum();
+        assertEquals(expectedBytes, assignments.stream().mapToLong(RepairAssignment::getEstimatedBytes).sum());
+        assertEvenByteDistribution(assignments);
+    }
+
+    private static void assertEvenByteDistribution(List<RepairAssignment> assignments)
+    {
+        long min = assignments.stream().mapToLong(RepairAssignment::getEstimatedBytes).min().getAsLong();
+        long max = assignments.stream().mapToLong(RepairAssignment::getEstimatedBytes).max().getAsLong();
+        assertTrue(min >= 0);
+        assertTrue(max - min <= 1);
     }
 
     public static void testTokenRangesWithDefaultSplit(int numTokens, AutoRepairConfig.RepairType repairType)
@@ -244,7 +245,8 @@ public class FixedSplitTokenRangeSplitterHelper
                                                                        config.getRepairPrimaryTokenRangeOnly(repairType));
         assertEquals(1, plan.size());
         assertEquals(1, plan.get(0).getKeyspaceRepairPlans().size());
-        plan.get(0).getKeyspaceRepairPlans().get(0).ksTablesEstimatedBytes = ksTablesEstimatedBytes;
-        return plan;
+        KeyspaceRepairPlan snapshot = plan.get(0).getKeyspaceRepairPlans().get(0);
+        KeyspaceRepairPlan repairPlan = new KeyspaceRepairPlan(KEYSPACE, tables, snapshot.getTokenRanges(), ksTablesEstimatedBytes);
+        return List.of(new PrioritizedRepairPlan(plan.get(0).getPriority(), List.of(repairPlan)));
     }
 }

@@ -44,8 +44,8 @@ public interface IAutoRepairTokenRangeSplitter
      * @param primaryRangeOnly Whether to repair only this node's primary ranges or all of its ranges.
      * @param repairPlans A list of ordered prioritized repair plans to generate assignments for in order.
      * @return iterator of repair assignments, with each element representing a grouping of repair assignments for a given keyspace.
-     * The iterator is traversed lazily {@link KeyspaceRepairAssignments} at a time with the intent to try to get the
-     * most up-to-date representation of your data (e.g. how much data exists and is unrepaired at a given time).
+     * The iterator is traversed lazily {@link KeyspaceRepairAssignments} at a time. Assignments must use the ranges
+     * and estimates saved in the plans so that statistics and scheduling budgets describe the same repair work.
      */
     Iterator<KeyspaceRepairAssignments> getRepairAssignments(boolean primaryRangeOnly, List<PrioritizedRepairPlan> repairPlans);
 
