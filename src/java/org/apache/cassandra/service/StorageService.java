@@ -188,6 +188,7 @@ import org.apache.cassandra.service.paxos.PaxosState;
 import org.apache.cassandra.service.paxos.cleanup.PaxosCleanupLocalCoordinator;
 import org.apache.cassandra.service.paxos.cleanup.PaxosRepairState;
 import org.apache.cassandra.service.snapshot.SnapshotManager;
+import org.apache.cassandra.service.storage.StorageProviders;
 import org.apache.cassandra.streaming.StreamManager;
 import org.apache.cassandra.streaming.StreamResultFuture;
 import org.apache.cassandra.streaming.StreamState;
@@ -4043,6 +4044,10 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
 
             // wait for miscellaneous tasks like sstable and commitlog segment deletion
             ColumnFamilyStore.shutdownPostFlushExecutor();
+
+            // After the flushes above, so that a provider doing asynchronous work for the sstables they produced
+            // can finish it instead of having it abandoned.
+            StorageProviders.shutdown();
 
             if (isFinalShutdown)
                 DiskErrorsHandlerService.get().close();

@@ -167,6 +167,13 @@ public abstract class SortedTableScrubber<R extends SSTableReaderWithFilter> imp
 
     public static void deleteOrphanedComponents(Descriptor descriptor, Set<Component> components)
     {
+        // A storage provider may keep the Data component outside the local filesystem, in which case its absence
+        // here is the normal state rather than the signature of a flush that died half way. The check below
+        // cannot tell those apart - it is a local stat() - so with a provider configured it is skipped, and the
+        // provider is left to answer for the component when something opens it.
+        if (DatabaseDescriptor.getStorageProviderConfig() != null)
+            return;
+
         File dataFile = descriptor.fileFor(Components.DATA);
         if (components.contains(Components.DATA) && dataFile.length() > 0)
             // everything appears to be in order... moving on.

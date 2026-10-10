@@ -32,6 +32,7 @@ import org.apache.cassandra.io.sstable.CorruptSSTableException;
 import org.apache.cassandra.io.sstable.Descriptor;
 import org.apache.cassandra.io.sstable.format.SSTableFormat.Components;
 import org.apache.cassandra.io.util.File;
+import org.apache.cassandra.service.storage.StorageProviders;
 
 public class CompressionInfoComponent
 {
@@ -56,8 +57,10 @@ public class CompressionInfoComponent
     public static CompressionMetadata load(Descriptor descriptor,
                                            @Nullable CompressionDictionaryManager compressionDictionaryManager)
     {
+        // Not File.length(): a storage provider may hold the Data component elsewhere, where a local stat
+        // reports 0 and every read off this metadata would hit EOF immediately.
         return CompressionMetadata.open(descriptor.fileFor(Components.COMPRESSION_INFO),
-                                        descriptor.fileFor(Components.DATA).length(),
+                                        StorageProviders.length(descriptor.fileFor(Components.DATA)),
                                         descriptor.version.hasMaxCompressedLength(),
                                         compressionDictionaryManager);
     }

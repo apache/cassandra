@@ -155,6 +155,7 @@ import org.apache.cassandra.service.paxos.Ballot;
 import org.apache.cassandra.service.paxos.PaxosRepairHistory;
 import org.apache.cassandra.service.paxos.TablePaxosRepairHistory;
 import org.apache.cassandra.service.snapshot.SnapshotManager;
+import org.apache.cassandra.service.storage.StorageProviders;
 import org.apache.cassandra.streaming.TableStreamManager;
 import org.apache.cassandra.tcm.ClusterMetadata;
 import org.apache.cassandra.tcm.Epoch;
@@ -536,6 +537,7 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean, Memtable.Owner
         // be notified on the initial loading.
         data.subscribe(StorageService.instance.sstablesTracker);
         data.subscribe(SnapshotManager.instance);
+        StorageProviders.notificationConsumer().ifPresent(data::subscribe);
 
         // Created here, ahead of the `if (data.loadsstables)` block below, because the SSTableReader.openAll()
         // call in it reads back owner.compressionDictionaryManager() for every dictionary-compressed sstable it

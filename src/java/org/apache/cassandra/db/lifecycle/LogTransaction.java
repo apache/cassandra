@@ -414,7 +414,10 @@ class LogTransaction extends Transactional.AbstractTransactional implements Tran
 
                     logger.trace("Tidier running for old sstable {}", desc);
 
-                    if (!desc.fileFor(Components.DATA).exists() && !wasNew)
+                    // With a storage provider configured the Data component may have been offloaded, so its
+                    // absence here is expected rather than a sign that something went wrong.
+                    if (!desc.fileFor(Components.DATA).exists() && !wasNew
+                        && DatabaseDescriptor.getStorageProviderConfig() == null)
                         logger.error("SSTableTidier ran with no existing data file for an sstable that was not new");
 
                     desc.getFormat().delete(desc);
