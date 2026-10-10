@@ -142,13 +142,26 @@ public class ComplexColumnData extends ColumnData implements Iterable<Cell<?>>
         return size;
     }
 
+    @Override
+    public int liveDataSize(long nowInSec)
+    {
+        int size = 0;
+        for (Cell<?> cell : this)
+        {
+            if (!complexDeletion.deletes(cell))
+                size += cell.liveDataSize(nowInSec);
+        }
+        // Purging removes the column when no live cells remain.
+        return size == 0 ? 0 : complexDeletion.dataSize() + size;
+    }
+
+    @Override
     public long unsharedHeapSize()
     {
         long heapSize = EMPTY_SIZE + BTree.sizeOnHeapOf(cells) + complexDeletion.unsharedHeapSize();
         return BTree.<Cell>accumulate(cells, (cell, value) -> value + cell.unsharedHeapSize(), heapSize);
     }
 
-    @Override
     public long unsharedHeapSizeExcludingData()
     {
         long heapSize = EMPTY_SIZE + BTree.sizeOnHeapOf(cells) + complexDeletion.unsharedHeapSize();
