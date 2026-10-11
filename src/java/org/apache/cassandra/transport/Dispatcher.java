@@ -717,6 +717,11 @@ public class Dispatcher implements CQLMessageHandler.MessageConsumer<Message.Req
     public static void shutdown()
     {
         requestExecutor.shutdown();
+    }
+
+    /** Management connections also authenticate on {@link #authExecutor}, so both outlive {@link #shutdown()}. */
+    public static void shutdownManagement()
+    {
         authExecutor.shutdown();
         managementExecutor.shutdown();
     }

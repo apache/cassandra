@@ -30,6 +30,7 @@ import org.slf4j.LoggerFactory;
 import org.apache.cassandra.auth.AuthenticatedUser;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.config.EncryptionOptions;
+import org.apache.cassandra.metrics.ClientMetrics;
 import org.apache.cassandra.transport.Server;
 
 import io.netty.channel.EventLoopGroup;
@@ -87,6 +88,8 @@ public class NativeTransportManagementService implements CassandraDaemon.Server
                  .withManagementConnectionFlag(true)
                  .build();
 
+        ClientMetrics.instance.init(null);
+
         initialized = true;
     }
 
@@ -117,13 +120,24 @@ public class NativeTransportManagementService implements CassandraDaemon.Server
 
     public void stop()
     {
+        stop(false);
+    }
+
+    /** @param force close connections without waiting for in-flight requests */
+    public void stop(boolean force)
+    {
         if (server != null)
-            server.stop(false);
+            server.stop(force);
     }
 
     public void destroy()
     {
-        stop();
+        destroy(false);
+    }
+
+    public void destroy(boolean force)
+    {
+        stop(force);
         if (server == null)
             return;
 
