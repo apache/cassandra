@@ -24,8 +24,11 @@ import java.util.Optional;
 
 import org.junit.Test;
 
+import org.apache.cassandra.cql3.CQL3Type;
 import org.apache.cassandra.cql3.CQLTester;
 import org.apache.cassandra.cql3.UntypedResultSet;
+import org.apache.cassandra.db.marshal.AbstractType;
+import org.apache.cassandra.db.marshal.NumberType;
 import org.apache.cassandra.exceptions.OperationExecutionException;
 import org.apache.cassandra.serializers.SimpleDateSerializer;
 import org.apache.cassandra.serializers.TimestampSerializer;
@@ -874,6 +877,74 @@ public class OperationFctsTest extends CQLTester
                                   "the operation 'int / int' failed: / by zero",
                                   com.datastax.driver.core.exceptions.FunctionExecutionException.class,
                                   "SELECT c2 / c1 FROM %s WHERE pk = 1");
+    }
+
+    /**
+     * CASSANDRA-19919: without the fix, the DESC case fails only for smallint, bigint, float, double and decimal:
+     * the receiver is reversed, so the operation whose argument types equal the receiver type is never picked among
+     * the compatible ones and the call is ambiguous. The other types never reach that disambiguation:
+     * int, because int + int is an exact match for integer literals and returns int;
+     * varint, because int + int is again an exact match and varint accepts int values;
+     * tinyint, because only tinyint + tinyint returns a type a tinyint accepts, so it is the only compatible one.
+     */
+    @Test
+    public void testArithmeticOnClusteringColumnOfEveryNumericType() throws Throwable
+    {
+        for (CQL3Type.Native cql3Type : CQL3Type.Native.values())
+        {
+            AbstractType<?> type = cql3Type.getType();
+            // counter can not be a clustering column
+            if (!(type instanceof NumberType) || cql3Type == CQL3Type.Native.COUNTER)
+                continue;
+
+            for (String order : new String[]{ "ASC", "DESC" })
+            {
+                createTable(String.format("CREATE TABLE %%s (pk %1$s, ck %1$s, v %1$s, PRIMARY KEY (pk, ck)) " +
+                                          "WITH CLUSTERING ORDER BY (ck %2$s)", cql3Type, order));
+
+                execute("INSERT INTO %s (pk, ck, v) VALUES (-42 + -42, 42 + 42, -100 + -20)");
+                assertRows(execute("SELECT * FROM %s"),
+                           row(number(type, -84), number(type, 84), number(type, -120)));
+
+                assertRows(execute("SELECT * FROM %s WHERE pk = -42 + -42 AND ck = 42 + 42"),
+                           row(number(type, -84), number(type, 84), number(type, -120)));
+
+                execute("UPDATE %s SET v = 10 + 20 WHERE pk = -84 AND ck = 84");
+                assertRows(execute("SELECT v FROM %s WHERE pk = -84 AND ck = 84"),
+                           row(number(type, 30)));
+            }
+        }
+    }
+
+    /**
+     * CASSANDRA-19919: like testSingleOperations, but every numeric type is a clustering column, in both orders.
+     */
+    @Test
+    public void testOperationsOnClusteringColumns() throws Throwable
+    {
+        for (String order : new String[]{ "ASC", "DESC" })
+        {
+            createTable(String.format("CREATE TABLE %%s (pk int, a tinyint, b smallint, c int, d bigint, e float, f double, g varint, h decimal, " +
+                                      "PRIMARY KEY (pk, a, b, c, d, e, f, g, h)) " +
+                                      "WITH CLUSTERING ORDER BY (a %1$s, b %1$s, c %1$s, d %1$s, e %1$s, f %1$s, g %1$s, h %1$s)", order));
+
+            execute("INSERT INTO %s (pk, a, b, c, d, e, f, g, h) VALUES (0, 1 + 1, 1 + 2, 2 + 2, 2 + 3, 2.5 + 3, 3.5 + 3, 3 + 4, 4.5 + 4)");
+            assertRows(execute("SELECT a, b, c, d, e, f, g, h FROM %s WHERE pk = 0"),
+                       row((byte) 2, (short) 3, 4, 5L, 5.5F, 6.5, BigInteger.valueOf(7), BigDecimal.valueOf(8.5)));
+
+            assertRows(execute("SELECT a, b, c, d, e, f, g, h FROM %s " +
+                               "WHERE pk = 0 AND a = 1 + 1 AND b = 1 + 2 AND c = 2 + 2 AND d = 2 + 3 AND e = 2.5 + 3 AND f = 3.5 + 3 AND g = 3 + 4 AND h = 4.5 + 4"),
+                       row((byte) 2, (short) 3, 4, 5L, 5.5F, 6.5, BigInteger.valueOf(7), BigDecimal.valueOf(8.5)));
+
+            assertRows(execute("SELECT a + a, b + b, c + c, d + d, e + e, f + f, g + g, h + h FROM %s " +
+                               "WHERE pk = 0 AND a = 1 + 1 AND b = 1 + 2 AND c = 2 + 2 AND d = 2 + 3 AND e = 2.5 + 3 AND f = 3.5 + 3 AND g = 3 + 4 AND h = 4.5 + 4"),
+                       row((byte) 4, (short) 6, 8, 10L, 11.0F, 13.0, BigInteger.valueOf(14), BigDecimal.valueOf(17.0)));
+        }
+    }
+
+    private static Object number(AbstractType<?> type, int value)
+    {
+        return type.compose(type.fromString(String.valueOf(value)));
     }
 
 }

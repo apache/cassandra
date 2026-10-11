@@ -1,4 +1,5 @@
 4.0.22
+ * Fix function inference for arithmetic on DESC clustering columns (CASSANDRA-19919)
  * Fix incorrect fsync usage (CASSANDRA-21673)
  * Validate Digest.crc32 when zero-copy streaming SSTables (CASSANDRA-21694)
  * Avoid DNS lookup for hostname column in ClientsTable and GossipInfoTable (CASSANDRA-21539)
