@@ -412,7 +412,7 @@ public class ScrubTest
         if (BigFormat.is(sstable.descriptor.getFormat()))
             assertOrderedAll(cfs, 4);
         else if (BtiFormat.is(sstable.descriptor.getFormat()))
-            // For Trie format we won't be able to recover the damaged partition key (partion index doesn't store the whole key)
+            // For Trie format we won't be able to recover the damaged partition key (partition index doesn't store the whole key)
             assertOrderedAll(cfs, 3);
         else
             throw Util.testMustBeImplementedForSSTableFormat();
