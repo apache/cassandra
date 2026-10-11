@@ -28,7 +28,7 @@ import java.util.List;
 import org.junit.BeforeClass;
 import org.junit.Test;
 
-import org.apache.cassandra.cql3.CQLTester;
+import org.apache.cassandra.cql3.CQLNodetoolProtocolTester;
 import org.apache.cassandra.locator.InetAddressAndPort;
 import org.apache.cassandra.net.Message;
 import org.apache.cassandra.net.MessagingService;
@@ -44,7 +44,7 @@ import static java.util.Collections.emptyList;
 import static org.apache.cassandra.net.Verb.ECHO_REQ;
 import static org.assertj.core.api.Assertions.assertThat;
 
-public class NetStatsTest extends CQLTester
+public class NetStatsTest extends CQLNodetoolProtocolTester
 {
     @BeforeClass
     public static void setup() throws Exception
@@ -59,9 +59,9 @@ public class NetStatsTest extends CQLTester
         Message<NoPayload> echoMessageOut = Message.out(ECHO_REQ, NoPayload.noPayload);
         MessagingService.instance().send(echoMessageOut, FBUtilities.getBroadcastAddressAndPort());
 
-        ToolRunner.ToolResult tool = ToolRunner.invokeNodetool("netstats");
+        ToolRunner.ToolResult tool = invokeNodetool("netstats");
         tool.assertOnCleanExit();
-        assertThat(tool.getStdout()).contains("Gossip messages                 n/a         0              2         0");
+        assertThat(tool.getStdout()).containsPattern("Gossip messages\\s+n/a\\s+0\\s+\\d+\\s+0");
     }
 
     @Test

@@ -82,7 +82,8 @@ public enum AuditLogEntryType
     UNAUTHORIZED_ATTEMPT(AuditLogEntryCategory.AUTH),
     LOGIN_SUCCESS(AuditLogEntryCategory.AUTH),
     LIST_SUPERUSERS(AuditLogEntryCategory.DCL),
-    JMX(AuditLogEntryCategory.JMX);
+    JMX(AuditLogEntryCategory.JMX),
+    EXECUTE_COMMAND(AuditLogEntryCategory.OTHER);
 
     private final AuditLogEntryCategory category;
 

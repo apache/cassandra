@@ -19,6 +19,7 @@ package org.apache.cassandra.tools.nodetool;
 
 import java.io.IOException;
 import java.io.PrintStream;
+import java.lang.management.ManagementFactory;
 import java.lang.reflect.Field;
 import java.net.URL;
 import java.net.URLDecoder;
@@ -47,6 +48,7 @@ import org.gridkit.jvmtool.cli.CommandLauncher;
 import org.apache.cassandra.io.util.File;
 import org.apache.cassandra.tools.NodeProbe;
 import org.apache.cassandra.tools.Output;
+import org.apache.cassandra.tools.RemoteJmxMBeanAccessor;
 
 import picocli.CommandLine;
 import picocli.CommandLine.Command;
@@ -64,7 +66,7 @@ public class Sjk extends AbstractCommand
     private final Wrapper wrapper = new Wrapper();
 
     @Override
-    protected boolean shouldConnect() throws ExecutionException
+    public boolean shouldConnect() throws ExecutionException
     {
         // We want to parse the given arguments in advance to determine if the SJK command requires an MBeanServerConnection or not.
         wrapper.prepare(args.isEmpty() ? new String[]{ "--help" } : args.toArray(new String[0]), output.out, output.err);
@@ -243,7 +245,9 @@ public class Sjk extends AbstractCommand
                 {
                     public MBeanServerConnection getMServer()
                     {
-                        return probe.getMbeanServerConn();
+                        return probe.getMBeanAccessor() instanceof RemoteJmxMBeanAccessor ?
+                               ((RemoteJmxMBeanAccessor) probe.getMBeanAccessor()).getMBeanServerConnection() :
+                               ManagementFactory.getPlatformMBeanServer();
                     }
                 });
             }

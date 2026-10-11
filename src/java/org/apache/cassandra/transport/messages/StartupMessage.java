@@ -134,6 +134,12 @@ public class StartupMessage extends Message.Request
 
         Guardrails.minimumClientDriverVersion.guard(driverName, driverVersion, clientState);
 
+        if (connection instanceof ServerConnection)
+        {
+            ServerConnection serverConnection = (ServerConnection) connection;
+            clientState.setManagement(serverConnection.isManagementConnection());
+        }
+
         IAuthenticator authenticator = DatabaseDescriptor.getAuthenticator();
         if (authenticator.requireAuthentication())
         {
