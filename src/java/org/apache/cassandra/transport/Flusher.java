@@ -24,15 +24,16 @@ import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
-import java.util.concurrent.ConcurrentLinkedQueue;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 
 import com.google.common.annotations.VisibleForTesting;
 
+import org.jctools.queues.MpscUnboundedArrayQueue;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.net.FrameEncoder;
 import org.apache.cassandra.net.FrameEncoderCrc;
 import org.apache.cassandra.net.FrameEncoderLZ4;
@@ -115,7 +116,8 @@ abstract class Flusher implements Runnable
     }
 
     protected final EventLoop eventLoop;
-    private final ConcurrentLinkedQueue<FlushItem<?>> queued = new ConcurrentLinkedQueue<>();
+    // Many request threads produce, but only the event loop this flusher belongs to consumes, so an MPSC queue is enough.
+    private final MpscUnboundedArrayQueue<FlushItem<?>> queued = new MpscUnboundedArrayQueue<>(queuedChunkSize());
     protected final AtomicBoolean scheduled = new AtomicBoolean(false);
     protected final List<FlushItem<?>> processed = new ArrayList<>();
     private final HashSet<Channel> channels = new HashSet<>();
@@ -134,14 +136,23 @@ abstract class Flusher implements Runnable
         this.eventLoop = eventLoop;
     }
 
+    // a typical backlog should fit in one chunk, and overflow just links a new one
+    // MpscUnboundedArrayQueue requires >= 2 for chunk size
+    private static int queuedChunkSize()
+    {
+        return Math.max(2, DatabaseDescriptor.getNativeTransportMaxThreads());
+    }
+
     void enqueue(FlushItem<?> item)
     {
-       queued.add(item);
+       queued.offer(item);
     }
 
     FlushItem<?> poll()
     {
-        return queued.poll();
+        // MpscUnboundedArrayQueue.poll() busy-spins if a producer has claimed a slot but not yet written it.
+        // It could stall the Netty event loop, so we use relaxedPoll here
+        return queued.relaxedPoll();
     }
 
     boolean isEmpty()
@@ -387,6 +398,11 @@ abstract class Flusher implements Runnable
             try
             {
                 processQueue();
+                // relaxedPoll() may miss a slot that a producer has claimed but not yet written
+                // and that producer may have seen scheduled == true (so, we have a risk to miss a flush)
+                // Retry shortly instead of spinning on the event loop until the element becomes visible.
+                if (!isEmpty() && !scheduled.get() && scheduled.compareAndSet(false, true))
+                    eventLoop.schedule(this, 10000, TimeUnit.NANOSECONDS);
             }
             finally
             {
