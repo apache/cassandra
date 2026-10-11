@@ -1052,7 +1052,16 @@ def download_results_and_print_summary(k8s_client, pod_name: str, kube_ns: str, 
 
     def extract_and_rename(archive_path: str, local_results_dir: str, ci_summary_file: str, ci_details_file: str):
         with tarfile.open(archive_path, "r:gz") as tar:
-            tar.extractall(path=local_results_dir)
+            def safe_extract(tar, path):
+                """Safely extract tar file by validating member paths to prevent directory traversal."""
+                for member in tar.getmembers():
+                    # Normalize the member path and check for directory traversal
+                    if os.path.isabs(member.name) or ".." in member.name:
+                        continue  # Skip potentially dangerous paths
+                    # Extract the member
+                    tar.extract(member, path)
+            
+            safe_extract(tar, local_results_dir)
             if (local_results_dir / "archive/ci_summary.html").exists():
                 (local_results_dir / "archive/ci_summary.html").rename(ci_summary_file)
                 print(f"CI summary saved as {ci_summary_file}")
