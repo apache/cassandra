@@ -890,4 +890,29 @@ public class OperationFctsTest extends CQLTester
                                   "SELECT c2 / c1 FROM %s WHERE pk = 1");
     }
 
+    @Test
+    public void testArithmeticOnDescendingClusteringColumn() throws Throwable
+    {
+        createTable("CREATE TABLE %s (pk smallint, ck smallint, v smallint, PRIMARY KEY (pk, ck)) " +
+                    "WITH CLUSTERING ORDER BY (ck DESC)");
+
+        execute("INSERT INTO %s (pk, ck, v) VALUES (-42 + -42, 42 + 42, -8200 + -16990)");
+        assertRows(execute("SELECT * FROM %s"),
+                   row((short) -84, (short) 84, (short) -25190));
+
+        assertRows(execute("SELECT * FROM %s WHERE pk = -42 + -42 AND ck = 42 + 42"),
+                   row((short) -84, (short) 84, (short) -25190));
+
+        execute("UPDATE %s SET v = 10 + 20 WHERE pk = -84 AND ck = 84");
+        assertRows(execute("SELECT v FROM %s WHERE pk = -84 AND ck = 84"),
+                   row((short) 30));
+
+        // ASC must keep working the same way
+        createTable("CREATE TABLE %s (pk smallint, ck smallint, v smallint, PRIMARY KEY (pk, ck)) " +
+                    "WITH CLUSTERING ORDER BY (ck ASC)");
+        execute("INSERT INTO %s (pk, ck, v) VALUES (-42 + -42, 42 + 42, -8200 + -16990)");
+        assertRows(execute("SELECT * FROM %s"),
+                   row((short) -84, (short) 84, (short) -25190));
+    }
+
 }
