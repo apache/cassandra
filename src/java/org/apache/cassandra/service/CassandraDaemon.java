@@ -263,6 +263,9 @@ public class CassandraDaemon
 
         maybeInitJmx();
 
+        CommandInvokerService.instance.start();
+        startManagementTransport();
+
         Mx4jTool.maybeLoad();
 
         ThreadAwareSecurityManager.install();
@@ -400,9 +403,6 @@ public class CassandraDaemon
         setCompactionStrategyOverrides(Schema.instance.getKeyspaces());
         // re-enable auto-compaction after replay, so correct disk boundaries are used
         enableAutoCompaction(Schema.instance.getKeyspaces());
-
-        // Initialize command service (after JMX, before StorageService.initServer)
-        CommandInvokerService.instance.start();
 
         // start server internals
         StorageService.instance.registerDaemon(this);
@@ -677,9 +677,6 @@ public class CassandraDaemon
 
     public synchronized void initializeClientTransports()
     {
-        if (nativeTransportManagementService == null)
-            nativeTransportManagementService = new NativeTransportManagementService();
-
         // Native transport
         if (nativeTransportService == null)
             nativeTransportService = new NativeTransportService();
@@ -767,7 +764,6 @@ public class CassandraDaemon
         Set<InetAddressAndPort> peers = new HashSet<>(ClusterMetadata.current().directory.allJoinedEndpoints());
         connectivityChecker.execute(peers, ep -> locator.location(ep).datacenter);
 
-        // start management transports first.
         startManagementTransport();
 
         // check to see if transports may start else return without starting.  This is needed when in survey mode or
@@ -798,14 +794,13 @@ public class CassandraDaemon
             logger.info("Not starting native transport as requested. Use JMX (StorageService->startNativeTransport()) or nodetool (enablebinary) to start it");
     }
 
-    private void startManagementTransport()
+    private synchronized void startManagementTransport()
     {
-        if (NativeTransportManagementService.enabled())
-        {
-            if (nativeTransportManagementService == null)
-                throw new IllegalStateException("setup() must be called first for CassandraDaemon");
-            nativeTransportManagementService.start();
-        }
+        if (!NativeTransportManagementService.enabled())
+            return;
+        if (nativeTransportManagementService == null)
+            nativeTransportManagementService = new NativeTransportManagementService();
+        nativeTransportManagementService.start();
     }
 
     /**
@@ -818,8 +813,7 @@ public class CassandraDaemon
         // On linux, this doesn't entirely shut down Cassandra, just the RPC server.
         // jsvc takes care of taking the rest down
         logger.info("Cassandra shutting down...");
-        destroyClientTransports();
-        CommandInvokerService.instance.stop();
+        destroyNativeTransport();
         StorageService.instance.setRpcReady(false);
 
         if (jmxServer != null)
@@ -838,12 +832,27 @@ public class CassandraDaemon
     @VisibleForTesting
     public void destroyClientTransports()
     {
+        destroyNativeTransport();
+        destroyManagementTransport();
+    }
+
+    private void destroyNativeTransport()
+    {
         stopNativeTransport();
         if (nativeTransportService != null)
             nativeTransportService.destroy();
-        if (nativeTransportManagementService != null)
-            nativeTransportManagementService.destroy();
         Dispatcher.shutdown();
+    }
+
+    /**
+     * Called last, from the StorageService shutdown hook.
+     */
+    public void destroyManagementTransport()
+    {
+        if (nativeTransportManagementService != null)
+            nativeTransportManagementService.destroy(true);
+        CommandInvokerService.instance.stop();
+        Dispatcher.shutdownManagement();
     }
 
     /**

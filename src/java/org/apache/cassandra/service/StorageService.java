@@ -756,6 +756,8 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
             public void runMayThrow() throws InterruptedException, ExecutionException, IOException
             {
                 drain(true);
+                if (daemon != null)
+                    daemon.destroyManagementTransport();
                 try
                 {
                     ExecutorUtils.shutdownNowAndWait(1, MINUTES, ScheduledExecutors.scheduledFastTasks);
