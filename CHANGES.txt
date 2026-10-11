@@ -1,4 +1,5 @@
 6.0-alpha3
+ * Prepared statement metadata no longer reports NOT IN, !=, slice, and LIKE bind markers on a partition key as partition key bind indexes (CASSANDRA-21740)
  * Fix de/serialization of column constraints (CASSANDRA-21787)
  * Support skipping fsync in LogReplica.syncDirectory for tests (CASSANDRA-21785)
  * Avoid codec lookup in Cassandra Stress (CASSANDRA-21702)
