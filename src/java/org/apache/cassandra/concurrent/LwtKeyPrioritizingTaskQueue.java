@@ -26,15 +26,17 @@ import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentLinkedQueue;
 import java.util.concurrent.locks.ReentrantLock;
 
+import org.apache.cassandra.utils.ByteBufferUtil;
+
 /**
- * This implementation of TaskQueue lets only one LWT task per partition key.
+ * This implementation of TaskQueue lets only one LWT task per partition key run concurrently.
  */
 public class LwtKeyPrioritizingTaskQueue implements TaskQueue
 {
     private final ConcurrentLinkedQueue<Runnable> queue = new ConcurrentLinkedQueue<>();
-    private final ReentrantLock pollLock = new ReentrantLock();
+    private final ReentrantLock lock = new ReentrantLock();
 
-    // Set of partition keys currently running on an active worker thread:
+    // Set of partition keys currently running on an active worker thread (using ByteBufferUtil for robust value-based equality):
     private final Set<ByteBuffer> activeLwtKeys = ConcurrentHashMap.newKeySet();
 
     // Maps actively executing tasks to their acquired partition key:
@@ -64,15 +66,10 @@ public class LwtKeyPrioritizingTaskQueue implements TaskQueue
         return queue.size();
     }
 
-    /**
-     * @return For this implementation, poll means grab and return the first task that is actually allowed to run
-     * right now(so it may also return null if there are all LWT tasks on same key), unlike FIFO style, which would
-     * return the 0th index element
-     */
     @Override
     public Runnable poll()
     {
-        pollLock.lock();
+        lock.lock();
         try
         {
             Iterator<Runnable> iterator = queue.iterator();
@@ -88,9 +85,8 @@ public class LwtKeyPrioritizingTaskQueue implements TaskQueue
                     return task;
                 }
 
-                // It is an LWT targeting a specific partition key:
-                // Duplicate to ensure downstream buffer position/limit mutations do not corrupt hashCode/equals in the set.
-                ByteBuffer key = pt.partitionKey().duplicate();
+                // Normalize buffer to ensure array content comparison is independent of position/limit markers
+                ByteBuffer key = ByteBufferUtil.clone(pt.partitionKey());
                 if (activeLwtKeys.add(key))
                 {
                     iterator.remove();
@@ -103,21 +99,25 @@ public class LwtKeyPrioritizingTaskQueue implements TaskQueue
         }
         finally
         {
-            pollLock.unlock();
+            lock.unlock();
         }
     }
 
-    /**
-     * For this implementation, remove the LWT key from the active set so that other tasks targeting the same key can be executed.
-     * @param task
-     */
     @Override
     public void onTaskCompleted(Runnable task)
     {
-        ByteBuffer key = runningTasks.remove(task);
-        if (key != null)
+        lock.lock();
+        try
         {
-            activeLwtKeys.remove(key);
+            ByteBuffer key = runningTasks.remove(task);
+            if (key != null)
+            {
+                activeLwtKeys.remove(key);
+            }
+        }
+        finally
+        {
+            lock.unlock();
         }
     }
 }

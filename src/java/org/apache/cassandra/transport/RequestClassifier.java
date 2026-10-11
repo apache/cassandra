@@ -21,6 +21,9 @@ package org.apache.cassandra.transport;
 import java.nio.ByteBuffer;
 import java.util.List;
 
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+
 import org.apache.cassandra.cql3.CQLStatement;
 import org.apache.cassandra.cql3.QueryHandler;
 import org.apache.cassandra.cql3.QueryProcessor;
@@ -33,6 +36,8 @@ import org.apache.cassandra.transport.messages.ExecuteMessage;
 
 public class RequestClassifier
 {
+    private static final Logger logger = LoggerFactory.getLogger(RequestClassifier.class);
+
     public static RequestMetadata classify(Message.Request request)
     {
         if (request instanceof ExecuteMessage)
@@ -48,25 +53,34 @@ public class RequestClassifier
             ByteBuffer routingKey = null;
             if (kind == RequestKind.LWT)
             {
-                execute.options.prepare(statement.getBindVariables());
+                try
+                {
+                    execute.options.prepare(statement.getBindVariables());
 
-                if (statement instanceof ModificationStatement)
-                {
-                    ModificationStatement mod = (ModificationStatement) statement;
-                    List<ByteBuffer> keys = mod.buildPartitionKeyNames(execute.options, ClientState.forInternalCalls());
-                    if (keys != null && !keys.isEmpty())
-                        routingKey = keys.get(0);
-                }
-                else if (statement instanceof BatchStatement)
-                {
-                    BatchStatement batch = (BatchStatement) statement;
-                    List<ModificationStatement> statements = batch.getStatements();
-                    if (statements != null && !statements.isEmpty())
+                    if (statement instanceof ModificationStatement)
                     {
-                        List<ByteBuffer> keys = statements.get(0).buildPartitionKeyNames(execute.options, ClientState.forInternalCalls());
+                        ModificationStatement mod = (ModificationStatement) statement;
+                        List<ByteBuffer> keys = mod.buildPartitionKeyNames(execute.options, ClientState.forInternalCalls());
                         if (keys != null && !keys.isEmpty())
                             routingKey = keys.get(0);
                     }
+                    else if (statement instanceof BatchStatement)
+                    {
+                        BatchStatement batch = (BatchStatement) statement;
+                        List<ModificationStatement> statements = batch.getStatements();
+                        if (statements != null && !statements.isEmpty())
+                        {
+                            List<ByteBuffer> keys = statements.get(0).buildPartitionKeyNames(execute.options, ClientState.forInternalCalls());
+                            if (keys != null && !keys.isEmpty())
+                                routingKey = keys.get(0);
+                        }
+                    }
+                }
+                catch (Exception e)
+                {
+                    // Guard against malformed bind variables or unexpected state during early inspection
+                    logger.trace("Failed to extract partition key for LWT prioritization, treating as unprioritized", e);
+                    return new RequestMetadata(RequestKind.LWT, null);
                 }
             }
 
