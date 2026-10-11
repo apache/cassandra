@@ -605,3 +605,164 @@ NANOS_PER_SECOND = 1000 * NANOS_PER_MILLI
 NANOS_PER_MINUTE = 60 * NANOS_PER_SECOND
 NANOS_PER_HOUR = 60 * NANOS_PER_MINUTE
 MONTHS_PER_YEAR = 12
+
+
+# ---- JSON formatter registry ----
+# Parallel to _formatters, but each function returns a native Python object
+# suitable for json.dumps rather than a display string.
+# Types with no native JSON equivalent fall back to the display formatter.
+
+_json_formatters = {}
+
+
+def json_formatter_for(typname):
+    def registrator(f):
+        _json_formatters[typname.lower()] = f
+        return f
+    return registrator
+
+
+def get_json_formatter(val, cqltype):
+    if cqltype:
+        fmt = _json_formatters.get(cqltype.type_name.lower())
+        if fmt is not None:
+            return fmt
+    return _json_formatters.get(type(val).__name__.lower())
+
+
+def format_json_value(val, cqltype, encoding, date_time_format=None, float_precision=None,
+                      decimal_sep=None, thousands_sep=None, boolean_styles=None, nullval=None, **_):
+    """Return a native Python value for JSON serialization.
+
+    Integer, float, bool, str, list, and dict types are returned as their
+    Python equivalents.  Other types (UUID, timestamp, decimal, inet, blob,
+    duration, …) fall back to the display formatter and return a plain string.
+    None and EMPTY both become None (JSON null).
+    """
+    if val is None or val == EMPTY:
+        return None
+    fmt = get_json_formatter(val, cqltype)
+    if fmt is None:
+        return _json_fallback(val, cqltype=cqltype, encoding=encoding,
+                               date_time_format=date_time_format,
+                               float_precision=float_precision,
+                               decimal_sep=decimal_sep, thousands_sep=thousands_sep,
+                               boolean_styles=boolean_styles)
+    return fmt(val, cqltype=cqltype, encoding=encoding,
+                date_time_format=date_time_format, float_precision=float_precision,
+                decimal_sep=decimal_sep, thousands_sep=thousands_sep,
+                boolean_styles=boolean_styles)
+
+
+def _json_fallback(val, cqltype, encoding, date_time_format=None, float_precision=None,
+                   decimal_sep=None, thousands_sep=None, boolean_styles=None, **_):
+    """Use the display formatter with no color and return a plain string."""
+    if date_time_format is None:
+        date_time_format = DateTimeFormat()
+    if float_precision is None:
+        float_precision = default_float_precision
+    result = format_value(val, cqltype=cqltype, encoding=encoding, colormap=NO_COLOR_MAP,
+                           date_time_format=date_time_format, float_precision=float_precision,
+                           decimal_sep=decimal_sep, thousands_sep=thousands_sep,
+                           boolean_styles=boolean_styles)
+    if isinstance(result, FormattedValue):
+        return result.strval
+    return str(result)
+
+
+# Integer types → native int
+def _json_format_integer(val, **_):
+    return int(val)
+
+
+json_formatter_for('int')(_json_format_integer)
+json_formatter_for('long')(_json_format_integer)
+json_formatter_for('bigint')(_json_format_integer)
+json_formatter_for('varint')(_json_format_integer)
+json_formatter_for('smallint')(_json_format_integer)
+json_formatter_for('tinyint')(_json_format_integer)
+json_formatter_for('counter')(_json_format_integer)
+
+
+# Float/double → native float; NaN and Infinity are not valid JSON values,
+# so they fall back to their display string representation.
+def _json_format_float(val, **_):
+    if math.isnan(val):
+        return 'NaN'
+    if math.isinf(val):
+        return 'Infinity' if val > 0 else '-Infinity'
+    return float(val)
+
+
+json_formatter_for('float')(_json_format_float)
+json_formatter_for('double')(_json_format_float)
+
+
+# Boolean → native bool; boolean_styles are intentionally ignored so JSON
+# always uses the canonical true / false literals.
+def _json_format_boolean(val, **_):
+    return bool(val)
+
+
+json_formatter_for('bool')(_json_format_boolean)
+json_formatter_for('boolean')(_json_format_boolean)
+
+
+# Text → raw Python str; CQL quoting/escaping is intentionally omitted so
+# the value round-trips cleanly through json.dumps / json.loads.
+def _json_format_text(val, **_):
+    return str(val)
+
+
+json_formatter_for('str')(_json_format_text)
+json_formatter_for('unicode')(_json_format_text)
+json_formatter_for('text')(_json_format_text)
+json_formatter_for('ascii')(_json_format_text)
+json_formatter_for('varchar')(_json_format_text)
+
+
+# Sequences (list, tuple, set, frozenset, vector) → Python list with
+# recursively formatted elements.  Sets have no JSON equivalent.
+def _json_format_sequence(val, cqltype, encoding, date_time_format=None,
+                           float_precision=None, **kwargs):
+    val_list = list(val)
+    if not cqltype or not cqltype.sub_types:
+        return [format_json_value(v, None, encoding, date_time_format, float_precision, **kwargs)
+                for v in val_list]
+    try:
+        sub_types = cqltype.get_n_sub_types(len(val_list))
+    except Exception:
+        sub_types = [cqltype.sub_types[0]] * len(val_list)
+    return [format_json_value(v, st, encoding, date_time_format, float_precision, **kwargs)
+            for v, st in zip(val_list, sub_types)]
+
+
+json_formatter_for('list')(_json_format_sequence)
+json_formatter_for('tuple')(_json_format_sequence)
+json_formatter_for('set')(_json_format_sequence)
+json_formatter_for('frozenset')(_json_format_sequence)
+json_formatter_for('sortedset')(_json_format_sequence)
+
+
+# Map → Python dict; JSON only supports string keys, so non-string keys are
+# converted via format_json_value and then cast to str if needed.
+def _json_format_map(val, cqltype, encoding, date_time_format=None,
+                      float_precision=None, **kwargs):
+    if not cqltype or len(cqltype.sub_types) < 2:
+        return {str(k): format_json_value(v, None, encoding, date_time_format, float_precision, **kwargs)
+                for k, v in val.items()}
+    ktype, vtype = cqltype.sub_types[0], cqltype.sub_types[1]
+    result = {}
+    for k, v in val.items():
+        json_k = format_json_value(k, ktype, encoding, date_time_format, float_precision, **kwargs)
+        if not isinstance(json_k, str):
+            json_k = str(json_k)
+        result[json_k] = format_json_value(v, vtype, encoding, date_time_format, float_precision, **kwargs)
+    return result
+
+
+json_formatter_for('dict')(_json_format_map)
+json_formatter_for('OrderedDict')(_json_format_map)
+json_formatter_for('OrderedMap')(_json_format_map)
+json_formatter_for('OrderedMapSerializedKey')(_json_format_map)
+json_formatter_for('map')(_json_format_map)
