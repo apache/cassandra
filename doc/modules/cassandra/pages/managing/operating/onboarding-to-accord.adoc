@@ -229,9 +229,9 @@ Marking ranges as migrating is a lightweight operation and does not
 trigger the repairs that will finish the migration.
 
 The range to mark migrating needs to be explicitly
-provided otherwise the entire ring will be marked migrating for the
-specified keyspace and tables. If the entire range is marked migrating it is
-only necessary to invoke `begin-migration` on one node.
+provided otherwise it will default to the primary range
+of the node that `nodetool` is connecting to.
+This is similar to running repair with the -pr flag.
 
 This is only needed if
 `accord.default++_++transactional++_++mode=explicit` is set in
