@@ -24,16 +24,21 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.rmi.server.RMISocketFactory;
+import java.security.PrivilegedAction;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.Map;
 
+import javax.management.InstanceNotFoundException;
 import javax.management.JMX;
 import javax.management.MBeanServerConnection;
+import javax.management.MBeanServerFactory;
 import javax.management.ObjectName;
 import javax.management.remote.JMXConnector;
 import javax.management.remote.JMXConnectorFactory;
 import javax.management.remote.JMXServiceURL;
+import javax.management.remote.MBeanServerForwarder;
+import javax.security.auth.Subject;
 
 import com.datastax.driver.core.BatchStatement;
 import com.datastax.driver.core.PreparedStatement;
@@ -55,6 +60,7 @@ import org.junit.Test;
 
 import org.apache.cassandra.auth.AuthEvents;
 import org.apache.cassandra.auth.AuthenticatedUser;
+import org.apache.cassandra.auth.CassandraPrincipal;
 import org.apache.cassandra.auth.IAuthorizer;
 import org.apache.cassandra.auth.JMXResource;
 import org.apache.cassandra.auth.Permission;
@@ -838,6 +844,47 @@ public class AuditLoggerTest extends CQLTester
                                                1000L, 1000, null);
         assertTrue(AuditLogManager.instance.isEnabled());
         assertEquals("/xyz/not/null", AuditLogManager.instance.getAuditLogOptions().archive_command);
+    }
+
+    @Test
+    public void testJMXHandlerSubject() throws Exception
+    {
+        Subject authenticated = new Subject();
+        authenticated.getPrincipals().add(new CassandraPrincipal("audit_role"));
+        ObjectName missing = new ObjectName("subject-test:type=Missing");
+        AuditLogManager manager = AuditLogManager.instance;
+        manager.resetMBeanServerForwarder();
+        try
+        {
+            MBeanServerForwarder forwarder = manager.getMBeanServerForwarder();
+            forwarder.setMBeanServer(MBeanServerFactory.newMBeanServer("subject-test"));
+            InMemoryAuditLogger logger = (InMemoryAuditLogger) manager.getLogger();
+            logger.inMemQueue.clear();
+            for (Subject subject : new Subject[]{ authenticated, null })
+            {
+                Subject.doAs(subject, (PrivilegedAction<Void>) () -> {
+                    assertEquals("subject-test", forwarder.getDefaultDomain());
+                    Assertions.assertThatThrownBy(() -> forwarder.getAttribute(missing, "Missing"))
+                              .isInstanceOf(InstanceNotFoundException.class);
+                    return null;
+                });
+
+                String user = subject == null ? "null" : "CassandraPrincipal: audit_role";
+                AuditLogEntry success = logger.inMemQueue.remove();
+                assertEquals(AuditLogEntryType.JMX, success.getType());
+                assertEquals(user, success.getUser());
+                assertThat(success.getOperation(), stringContainsInOrder("JMX INVOCATION", "getDefaultDomain"));
+                AuditLogEntry failure = logger.inMemQueue.remove();
+                assertEquals(AuditLogEntryType.JMX, failure.getType());
+                assertEquals(user, failure.getUser());
+                assertThat(failure.getOperation(), stringContainsInOrder("JMX FAILURE", "getAttribute"));
+                assertTrue(logger.inMemQueue.isEmpty());
+            }
+        }
+        finally
+        {
+            manager.resetMBeanServerForwarder();
+        }
     }
 
     @Test
