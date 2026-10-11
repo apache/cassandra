@@ -37,10 +37,11 @@ import io.netty.channel.ChannelInboundHandlerAdapter;
 import io.netty.channel.ChannelInitializer;
 import io.netty.channel.ChannelOption;
 import io.netty.channel.EventLoopGroup;
+import io.netty.channel.MultiThreadIoEventLoopGroup;
 import io.netty.channel.local.LocalAddress;
 import io.netty.channel.local.LocalChannel;
+import io.netty.channel.local.LocalIoHandler;
 import io.netty.channel.local.LocalServerChannel;
-import io.netty.channel.nio.NioEventLoopGroup;
 import io.netty.handler.logging.LogLevel;
 import io.netty.handler.logging.LoggingHandler;
 
@@ -164,8 +165,8 @@ public class ProxyHandlerTest
 
     public void test(DoTest test) throws Throwable
     {
-        EventLoopGroup serverGroup = new NioEventLoopGroup(1);
-        EventLoopGroup clientGroup = new NioEventLoopGroup(1);
+        EventLoopGroup serverGroup = new MultiThreadIoEventLoopGroup(1, LocalIoHandler.newFactory());
+        EventLoopGroup clientGroup = new MultiThreadIoEventLoopGroup(1, LocalIoHandler.newFactory());
 
         InboundProxyHandler.Controller controller = new InboundProxyHandler.Controller();
         InboundProxyHandler proxyHandler = new InboundProxyHandler(controller);

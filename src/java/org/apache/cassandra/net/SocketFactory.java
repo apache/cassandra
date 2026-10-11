@@ -23,6 +23,8 @@ import java.net.InetSocketAddress;
 import java.nio.channels.ClosedChannelException;
 import java.nio.channels.spi.SelectorProvider;
 import java.util.List;
+import java.util.Queue;
+import java.util.concurrent.Executor;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.ThreadFactory;
 import java.util.concurrent.TimeoutException;
@@ -53,12 +55,17 @@ import io.netty.channel.ChannelFactory;
 import io.netty.channel.DefaultSelectStrategyFactory;
 import io.netty.channel.EventLoop;
 import io.netty.channel.EventLoopGroup;
+import io.netty.channel.IoEventLoop;
+import io.netty.channel.IoEventLoopGroup;
+import io.netty.channel.IoHandlerFactory;
+import io.netty.channel.MultiThreadIoEventLoopGroup;
 import io.netty.channel.ServerChannel;
+import io.netty.channel.SingleThreadIoEventLoop;
 import io.netty.channel.epoll.EpollChannelOption;
-import io.netty.channel.epoll.EpollEventLoopGroup;
+import io.netty.channel.epoll.EpollIoHandler;
 import io.netty.channel.epoll.EpollServerSocketChannel;
 import io.netty.channel.epoll.EpollSocketChannel;
-import io.netty.channel.nio.NioEventLoopGroup;
+import io.netty.channel.nio.NioIoHandler;
 import io.netty.channel.socket.nio.NioServerSocketChannel;
 import io.netty.channel.socket.nio.NioSocketChannel;
 import io.netty.channel.unix.Errors;
@@ -67,7 +74,6 @@ import io.netty.handler.ssl.SslContext;
 import io.netty.handler.ssl.SslHandler;
 import io.netty.util.concurrent.DefaultEventExecutorChooserFactory;
 import io.netty.util.concurrent.DefaultThreadFactory;
-import io.netty.util.concurrent.RejectedExecutionHandlers;
 import io.netty.util.concurrent.ThreadPerTaskExecutor;
 import io.netty.util.internal.logging.InternalLoggerFactory;
 import io.netty.util.internal.logging.Slf4JLoggerFactory;
@@ -89,30 +95,14 @@ public final class SocketFactory
 
     private static final int EVENT_THREADS = INTERNODE_EVENT_THREADS.getInt(FBUtilities.getAvailableProcessors());
 
-    /**
-     * The default task queue used by {@code NioEventLoop} and {@code EpollEventLoop} is {@code MpscUnboundedArrayQueue},
-     * provided by JCTools. While efficient, it has an undesirable quality for a queue backing an event loop: it is
-     * not non-blocking, and can cause the event loop to busy-spin while waiting for a partially completed task
-     * offer, if the producer thread has been suspended mid-offer.
-     *
-     * As it happens, however, we have an MPSC queue implementation that is perfectly fit for this purpose -
-     * {@link ManyToOneConcurrentLinkedQueue}, that is non-blocking, and already used throughout the codebase,
-     * that we can and do use here as well.
-     */
     enum Provider
     {
         NIO
         {
             @Override
-            NioEventLoopGroup makeEventLoopGroup(int threadCount, ThreadFactory threadFactory)
+            IoHandlerFactory ioHandlerFactory()
             {
-                return new NioEventLoopGroup(threadCount,
-                                             new ThreadPerTaskExecutor(threadFactory),
-                                             DefaultEventExecutorChooserFactory.INSTANCE,
-                                             SelectorProvider.provider(),
-                                             DefaultSelectStrategyFactory.INSTANCE,
-                                             RejectedExecutionHandlers.reject(),
-                                             capacity -> new ManyToOneConcurrentLinkedQueue<>());
+                return NioIoHandler.newFactory(SelectorProvider.provider(), DefaultSelectStrategyFactory.INSTANCE);
             }
 
             @Override
@@ -130,14 +120,9 @@ public final class SocketFactory
         EPOLL
         {
             @Override
-            EpollEventLoopGroup makeEventLoopGroup(int threadCount, ThreadFactory threadFactory)
+            IoHandlerFactory ioHandlerFactory()
             {
-                return new EpollEventLoopGroup(threadCount,
-                                               new ThreadPerTaskExecutor(threadFactory),
-                                               DefaultEventExecutorChooserFactory.INSTANCE,
-                                               DefaultSelectStrategyFactory.INSTANCE,
-                                               RejectedExecutionHandlers.reject(),
-                                               capacity -> new ManyToOneConcurrentLinkedQueue<>());
+                return EpollIoHandler.newFactory();
             }
 
             @Override
@@ -159,13 +144,56 @@ public final class SocketFactory
             return makeEventLoopGroup(threadCount, new DefaultThreadFactory(threadNamePrefix, true));
         }
 
-        abstract EventLoopGroup makeEventLoopGroup(int threadCount, ThreadFactory threadFactory);
+        EventLoopGroup makeEventLoopGroup(int threadCount, ThreadFactory threadFactory)
+        {
+            return new NonBlockingQueueEventLoopGroup(threadCount, new ThreadPerTaskExecutor(threadFactory), ioHandlerFactory());
+        }
+
+        abstract IoHandlerFactory ioHandlerFactory();
         abstract ChannelFactory<? extends Channel> clientChannelFactory();
         abstract ChannelFactory<? extends ServerChannel> serverChannelFactory();
 
         static Provider optimalProvider()
         {
             return NativeTransportService.useEpoll() ? EPOLL : NIO;
+        }
+    }
+
+    /**
+     * The default task queue used by Netty's event loops is {@code MpscUnboundedArrayQueue}, provided by JCTools.
+     * While efficient, it has an undesirable quality for a queue backing an event loop: it is not non-blocking,
+     * and can cause the event loop to busy-spin while waiting for a partially completed task offer, if the producer
+     * thread has been suspended mid-offer.
+     *
+     * As it happens, however, we have an MPSC queue implementation that is perfectly fit for this purpose -
+     * {@link ManyToOneConcurrentLinkedQueue}, that is non-blocking, and already used throughout the codebase,
+     * that we can and do use here as well.
+     */
+    private static class NonBlockingQueueEventLoopGroup extends MultiThreadIoEventLoopGroup
+    {
+        NonBlockingQueueEventLoopGroup(int threadCount, Executor executor, IoHandlerFactory ioHandlerFactory)
+        {
+            super(threadCount, executor, DefaultEventExecutorChooserFactory.INSTANCE, ioHandlerFactory);
+        }
+
+        @Override
+        protected IoEventLoop newChild(Executor executor, IoHandlerFactory ioHandlerFactory, Object... args)
+        {
+            return new NonBlockingQueueEventLoop(this, executor, ioHandlerFactory);
+        }
+
+        private static class NonBlockingQueueEventLoop extends SingleThreadIoEventLoop
+        {
+            NonBlockingQueueEventLoop(IoEventLoopGroup parent, Executor executor, IoHandlerFactory ioHandlerFactory)
+            {
+                super(parent, executor, ioHandlerFactory);
+            }
+
+            @Override
+            protected Queue<Runnable> newTaskQueue(int maxPendingTasks)
+            {
+                return new ManyToOneConcurrentLinkedQueue<>();
+            }
         }
     }
 
