@@ -161,6 +161,7 @@ public final class SchemaKeyspace
               + "comment text,"
               + "compaction frozen<map<text, text>>,"
               + "compression frozen<map<text, text>>,"
+              + "flush_compression text,"
               + "memtable text,"
               + "crc_check_chance double,"
               + "dclocal_read_repair_chance double," // no longer used, left for drivers' sake
@@ -247,6 +248,7 @@ public final class SchemaKeyspace
               + "comment text,"
               + "compaction frozen<map<text, text>>,"
               + "compression frozen<map<text, text>>,"
+              + "flush_compression text,"
               + "memtable text,"
               + "crc_check_chance double,"
               + "dclocal_read_repair_chance double," // no longer used, left for drivers' sake
@@ -652,6 +654,10 @@ public final class SchemaKeyspace
         // in mixed operation with pre-4.1 versioned node during upgrades.
         if (params.memtable != MemtableParams.DEFAULT)
             builder.add("memtable", params.memtable.configurationKey());
+
+        // Only add the flush_compression column if the value is not default (auto); absence means auto.
+        if (!params.flushCompression.equals(FlushCompressionParams.DEFAULT))
+            builder.add("flush_compression", params.flushCompression.toString());
 
         // As above, only add the allow_auto_snapshot column if the value is not default (true) and
         // auto-snapshotting is enabled, to avoid RTE in pre-4.2 versioned node during upgrades
@@ -1153,6 +1159,10 @@ public final class SchemaKeyspace
         {
             builder.automatedRepair(AutoRepairParams.fromMap(row.getFrozenTextMap("auto_repair")));
         }
+
+        // flush_compression column was introduced in 7.0
+        if (row.has("flush_compression"))
+            builder.flushCompression(FlushCompressionParams.fromString(row.getString("flush_compression")));
 
         return builder.build();
     }
