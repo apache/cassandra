@@ -206,8 +206,6 @@ public class AutoRepair
             if (turn == MY_TURN || turn == MY_TURN_DUE_TO_PRIORITY || turn == MY_TURN_FORCE_REPAIR)
             {
                 boolean forceRepairTurn = turn == MY_TURN_FORCE_REPAIR;
-                boolean repairSucceeded = false;
-                Throwable repairException = null;
                 try
                 {
                     repairState.recordTurn(turn);
@@ -274,22 +272,13 @@ public class AutoRepair
                     }
 
                     cleanupAndUpdateStats(turn, repairType, repairState, myId, startTimeInMillis, collectedRepairStats);
-                    // Reached only if the whole repair run above completed without throwing. On the
-                    // success path cleanupAndUpdateStats has already advanced repair_finish_ts (via
-                    // updateFinishAutoRepairHistory), so the record is no longer ongoing.
-                    repairSucceeded = true;
                 }
-                catch (Exception t)
+                catch (Exception e)
                 {
-                    // Remember the original failure so the finally block can avoid masking it.
-                    repairException = t;
-                    throw t;
-                }
-                finally
-                {
-                    // finalizeForceRepairFailure ends the ongoing state (rewinds repair_start_ts to the
-                    // existing repair_finish_ts) without recording the failed attempt as a successful repair.
-                    if (forceRepairTurn && !repairSucceeded)
+                    // The repair failed. For a force repair, finalizeForceRepairFailure ends the ongoing state
+                    // (rewinds repair_start_ts to the existing repair_finish_ts) without recording the failed
+                    // attempt as a successful repair.
+                    if (forceRepairTurn)
                     {
                         try
                         {
@@ -297,19 +286,10 @@ public class AutoRepair
                         }
                         catch (Throwable finalizeError)
                         {
-                            // Never let a failure here mask the original repair failure. If there was an
-                            // original exception, attach this one as suppressed so both are preserved (the
-                            // outer catch logs the original with the suppressed appended). Otherwise log it.
-                            if (repairException != null)
-                            {
-                                repairException.addSuppressed(finalizeError);
-                            }
-                            else
-                            {
-                                logger.error("Failed to finalize a failed force repair for {}:", myId, finalizeError);
-                            }
+                            e.addSuppressed(finalizeError);
                         }
                     }
+                    throw e;
                 }
             }
             else
