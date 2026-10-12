@@ -2323,9 +2323,7 @@ public class StorageProxy implements StorageProxyMBean
         TxnData data = (TxnData) txnResult;
 
         if (data.isEmpty())
-        {
             return serialReadResult(EmptyIterators.partition());
-        }
         else if (data.size() == 1)
         {
             TxnDataKeyValue value = ((TxnDataKeyValue)data.values().iterator().next());
@@ -2333,17 +2331,17 @@ public class StorageProxy implements StorageProxyMBean
         }
         else
         {
-            // TODO (review): 95% sure this isn't actually needed and the consumer is going consume these by DecoratedKey not iteration order, but the non-transactional path does preserve the order of the iterators
-            List<PartitionIterator> partitionIterators = new ArrayList<>(numQueries);
-            for (int i = 0; i < numQueries; i++)
-                partitionIterators.add(null);
+            // Rows are returned to the client in iteration order, so preserve the order of the queries like the non-transactional path does
+            PartitionIterator[] partitionIterators = new PartitionIterator[numQueries];
             for (Map.Entry<Integer, TxnDataValue> e : data.entrySet())
             {
                 int queryIndex = e.getKey();
                 TxnDataKeyValue value = ((TxnDataKeyValue)e.getValue());
-                partitionIterators.set(queryIndex, singletonIterator(value.rowIterator(isQueryReversed.test(queryIndex))));
+                partitionIterators[queryIndex] = singletonIterator(value.rowIterator(isQueryReversed.test(queryIndex)));
             }
-            return serialReadResult(partitionIterators.size() == 1 ? partitionIterators.get(0) : PartitionIterators.concat(partitionIterators));
+            // Queries that found no rows have no entry in TxnData, and concat treats a null iterator as the end of the
+            // partitions, so any gaps would truncate the results
+            return serialReadResult(PartitionIterators.concat(partitionIterators));
         }
     }
 

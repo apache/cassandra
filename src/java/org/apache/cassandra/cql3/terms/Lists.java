@@ -52,12 +52,12 @@ import org.apache.cassandra.db.rows.Row;
 import org.apache.cassandra.exceptions.InvalidRequestException;
 import org.apache.cassandra.schema.ColumnMetadata;
 import org.apache.cassandra.utils.ByteBufferUtil;
+import org.apache.cassandra.utils.TimeUUID;
 
 import static org.apache.cassandra.cql3.statements.RequestValidations.checkFalse;
 import static org.apache.cassandra.cql3.statements.RequestValidations.invalidRequest;
 import static org.apache.cassandra.cql3.terms.Constants.UNSET_VALUE;
 import static org.apache.cassandra.utils.Clock.Global.currentTimeMillis;
-import static org.apache.cassandra.utils.TimeUUID.Generator.atUnixMillisAsBytes;
 
 /**
  * Static helper methods and classes for lists.
@@ -221,6 +221,12 @@ public abstract class Lists
         }
     }
 
+    public static long prependMsb(long msb)
+    {
+        long reference = TimeUUID.unixMillisToRawTimestamp(PrecisionTime.REFERENCE_TIME, 0);
+        return TimeUUID.rawTimestampToMsb(reference - (TimeUUID.msbToRawTimestamp(msb) - reference));
+    }
+
     /**
      * For prepend, we need to be able to generate unique but decreasing time
      * UUIDs, which is a bit challenging. To do that, given a time in milliseconds,
@@ -243,6 +249,9 @@ public abstract class Lists
             this.nanos = nanos;
         }
 
+        // Reserves a set of monotonically decreasing unique timestamps.
+        // For the returned (millis, nanos), the reserved values are
+        // (millis, nanos + 1) .. (millis, nanos + count).
         static PrecisionTime getNext(long millis, int count)
         {
             if (count == 0)
@@ -469,6 +478,13 @@ public abstract class Lists
             List<ByteBuffer> toAdd = value.getElements();
             final int totalCount = toAdd.size();
 
+            if (!(builder instanceof FunctionContext.RealTimeFunctionContext))
+            {
+                for (int i = totalCount - 1; i >= 0; i--)
+                    builder.addCell(column, CellPath.create(ByteBuffer.wrap(builder.nextDecreasingTimeUUIDAsBytes())), toAdd.get(i));
+                return;
+            }
+
             // we have to obey MAX_NANOS per batch - in the unlikely event a client has decided to prepend a list with
             // an insane number of entries.
             PrecisionTime pt = null;
@@ -482,8 +498,7 @@ public abstract class Lists
                     pt = PrecisionTime.getNext(time, remainingInBatch);
                 }
 
-                // TODO: is this safe as part of LWTs?
-                ByteBuffer uuid = ByteBuffer.wrap(atUnixMillisAsBytes(pt.millis, (pt.nanos + remainingInBatch--)));
+                ByteBuffer uuid = ByteBuffer.wrap(builder.nextDecreasingTimeUUIDAsBytes());
                 builder.addCell(column, CellPath.create(uuid), toAdd.get(i));
             }
         }

@@ -12,6 +12,15 @@
  * Allow nodetool garbagecollect to take a user defined list of SSTables (CASSANDRA-16767)
  * Add a guardrail for misprepared statements (CASSANDRA-21139)
 Merged from 6.0:
+ * Fix dropped read results with in clause (CASSANDRA-21716)
+ * Fix nondeterministic List prepends for Accord and Paxos (CASSANDRA-21713)
+ * Share same counter for Accord across write fragments of a transaction, so appends/prepends from different statements don't collide
+ * Fix BTreeSet.toArray AIOBE (CASSANDRA-21603)
+ * Fix NormalizedRanges.Intersects incorrectly handles min token key (CASSANDRA-21602)
+ * Fix bug with firstPossibleRangeIdx (CASSANDRA-21601)
+ * Fix bug with IntegerInterval.covers (CASSANDRA-21600)
+ * Fix Accord LWT can discard condition + Journal error handling incorrectly calculates bufferPosition (CASSANDRA-21692)
+ * Fix Accord incorrectly deserializes CommandChange Journal fields for Load.MINIMAL and Load.MINIMAL_WITH_DEPS (CASSANDRA-21639)
  * Accord: Torn Single Partition Reads (CASSANDRA-21741)
  * Accord: Add support for ELSE/ELSE IF (CASSANDRA-21484)
  * Accord: Improve Rebootstrap (CASSANDRA-21687)

@@ -100,7 +100,6 @@ import org.apache.cassandra.db.partitions.Partition;
 import org.apache.cassandra.db.partitions.PartitionIterator;
 import org.apache.cassandra.db.partitions.PartitionIterators;
 import org.apache.cassandra.db.partitions.PartitionUpdate;
-import org.apache.cassandra.db.rows.Row;
 import org.apache.cassandra.db.rows.RowIterator;
 import org.apache.cassandra.db.view.View;
 import org.apache.cassandra.dht.Token;
@@ -1024,7 +1023,7 @@ public abstract class ModificationStatement implements CQLStatement.SingleKeyspa
 
     public ModificationStatement forTxn()
     {
-        if (requiresRead.isEmpty()) return this;
+        if (requiresRead.isEmpty() && !Iterables.any(operations, Operation::requiresTimestamp)) return this;
         ModificationStatement migrated = txnStmt;
         if (migrated == null)
         {
@@ -1081,8 +1080,7 @@ public abstract class ModificationStatement implements CQLStatement.SingleKeyspa
         {
             TxnWrite.Fragment writeFragment = writeFragments.get(i);
             PartitionKey key = writeFragment.key;
-            for (Row row : writeFragment.baseUpdate)
-                map.merge(new RowKey(key, row.clustering()), param, merge);
+            writeFragment.forEachRowClustering(clustering -> map.merge(new RowKey(key, clustering), param, merge));
         }
     }
 
