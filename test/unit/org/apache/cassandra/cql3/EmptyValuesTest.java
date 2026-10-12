@@ -31,6 +31,8 @@ import org.junit.Test;
 import com.datastax.driver.core.ResultSet;
 import com.datastax.driver.core.Row;
 import org.apache.cassandra.db.ColumnFamilyStore;
+import org.apache.cassandra.db.marshal.BooleanType;
+import org.apache.cassandra.db.marshal.ByteType;
 import org.apache.cassandra.db.marshal.BytesType;
 import org.apache.cassandra.db.marshal.DecimalType;
 import org.apache.cassandra.db.marshal.DoubleType;
@@ -117,6 +119,25 @@ public class EmptyValuesTest extends CQLTester
     {
         assumeTrue(Int32Type.instance.isEmptyValueMeaningless());
         String table = createTable("CREATE TABLE %s (id INT PRIMARY KEY, v INT)");
+        verifyJsonInsert("");
+        verifyPlainInsert("");
+    }
+
+    @Test
+    public void testEmptyBoolean() throws Throwable
+    {
+        assumeTrue(BooleanType.instance.isEmptyValueMeaningless());
+        String table = createTable("CREATE TABLE %s (id INT PRIMARY KEY, v BOOLEAN)");
+        // Not verifyJsonInsert(): BooleanType#fromString("") intentionally parses as false (not empty),
+        // so INSERT JSON with an empty string does not produce an empty stored value for this type.
+        verifyPlainInsert("");
+    }
+
+    @Test
+    public void testEmptyByte() throws Throwable
+    {
+        assumeTrue(ByteType.instance.isEmptyValueMeaningless());
+        String table = createTable("CREATE TABLE %s (id INT PRIMARY KEY, v TINYINT)");
         verifyJsonInsert("");
         verifyPlainInsert("");
     }
