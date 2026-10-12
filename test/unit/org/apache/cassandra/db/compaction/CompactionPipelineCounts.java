@@ -23,23 +23,7 @@ import org.apache.cassandra.config.DatabaseDescriptor;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertTrue;
 
-/**
- * Snapshot of {@link AbstractCompactionPipeline}'s pipeline-selection counters, plus the assertion
- * that a compaction really went through the pipeline the scenario asked for.
- * <p>
- * {@code CursorCompactor.isSupported} answers whether the cursor path COULD run;
- * {@link AbstractCompactionPipeline#create} additionally gates on
- * {@code DatabaseDescriptor.cursorCompactionEnabled()}, which isSupported never reads. So a
- * scenario can satisfy a supportability precheck and still be served by the iterator pipeline,
- * comparing that path against itself or asserting nothing about the cursor writer at all.
- * <p>
- * Lives in {@code org.apache.cassandra.db.compaction} so that it can read the package-private
- * counters without widening any production declaration.
- * <p>
- * Always a DELTA across one compaction, never an absolute: {@code forkmode=perTest} gives each test
- * class its own JVM, but the methods within a class share it, so the counters carry every earlier
- * compaction in the same fork.
- */
+/** Snapshot of {@link AbstractCompactionPipeline}'s pipeline-selection counters, with an assertion that a compaction ran the expected pipeline. */
 public final class CompactionPipelineCounts
 {
     private final long cursor;
@@ -53,11 +37,7 @@ public final class CompactionPipelineCounts
         this.cursorCompactionEnabled = cursorCompactionEnabled;
     }
 
-    /**
-     * Snapshots both counters and the current {@code cursorCompactionEnabled} setting. Take it
-     * immediately before the compaction under test, and after any flip of the flag that the exact
-     * check in {@link #assertPipelineRan} should apply to.
-     */
+    /** Snapshots both counters and the current {@code cursorCompactionEnabled} setting. */
     public static CompactionPipelineCounts mark()
     {
         return new CompactionPipelineCounts(AbstractCompactionPipeline.cursorPipelinesCreated(),
@@ -65,29 +45,19 @@ public final class CompactionPipelineCounts
                                             DatabaseDescriptor.cursorCompactionEnabled());
     }
 
-    /**
-     * Asserts that at least one compaction selecting the expected pipeline happened since
-     * {@code before}, and that no cursor pipeline was created at all if cursor compaction was
-     * switched off for the whole bracket.
-     * <p>
-     * The first is a lower bound on one counter only. A compaction unrelated to the scenario — a
-     * system table's, or a background compaction the test did not disable — moves the same static
-     * counters, so requiring the other counter to be unmoved, or requiring an exact delta, would
-     * fail for reasons that are not defects. A lower bound cannot fail that way: an incidental
-     * compaction only ever adds to a delta.
-     * <p>
-     * That lower bound alone can be satisfied by an incidental compaction while the scenario's own
-     * compaction selected the other pipeline. The second assertion closes that: while
-     * {@code cursorCompactionEnabled} is off, a compaction reaching
-     * {@link AbstractCompactionPipeline#create} cannot select the cursor pipeline, so any cursor
-     * pipeline across the bracket is a real defect. It applies only when the flag reads off both
-     * before and after, so a caller that flips the flag inside its own bracket cannot trip it. It
-     * reads the same accessor {@code create} does, so it cannot detect a setter that never changed
-     * that accessor's value; what it does pin is that {@code create} still honours it.
-     * <p>
-     * The exact check assumes no compaction was already in flight when the flag was flipped, which
-     * is why callers disable autocompaction on tables they do not intend to compact.
-     */
+    /** The raw cursor-pipeline counter. */
+    public static long cursorPipelines()
+    {
+        return AbstractCompactionPipeline.cursorPipelinesCreated();
+    }
+
+    /** The raw iterator-pipeline counter. */
+    public static long iteratorPipelines()
+    {
+        return AbstractCompactionPipeline.iteratorPipelinesCreated();
+    }
+
+    /** Asserts a compaction selecting the expected pipeline ran since {@code before}, and that no cursor pipeline was created while cursor compaction was off. */
     public static void assertPipelineRan(boolean expectCursor, CompactionPipelineCounts before)
     {
         CompactionPipelineCounts after = mark();

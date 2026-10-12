@@ -21,7 +21,6 @@ package org.apache.cassandra.io.sstable;
 import java.io.IOException;
 import java.nio.ByteBuffer;
 
-import org.apache.cassandra.db.DecoratedKey;
 import org.apache.cassandra.db.DeletionTime;
 import org.apache.cassandra.db.DeletionTime.ReusableDeletionTime;
 import org.apache.cassandra.dht.ReusableDecoratedKey;
@@ -79,7 +78,7 @@ public final class PartitionDescriptor extends ResizableByteBuffer
         return deletionTime;
     }
 
-    public DecoratedKey key()
+    public ReusableDecoratedKey key()
     {
         return decoratedKey;
     }

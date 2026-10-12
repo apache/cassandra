@@ -427,6 +427,23 @@ public class ComplexColumnCursorReadTest extends CQLTester
     }
 
     /**
+     * If one complex column in a row has a deletion, the row writes a deletion for every complex
+     * column, and a column without one gets LIVE.  The reader must read that back as LIVE, as the
+     * iterator does.
+     */
+    @Test
+    public void liveComplexDeletionBesideDeletedCollection() throws Exception
+    {
+        createTable("CREATE TABLE %s (pk bigint, ck bigint, a set<int>, b set<int>, PRIMARY KEY (pk, ck))");
+        getCurrentColumnFamilyStore().disableAutoCompaction();
+
+        // a is overwritten, which makes a complex deletion; b only gets an element, which makes none
+        execute("UPDATE %s SET a = ?, b = b + ? WHERE pk = ? AND ck = ?", set(1), set(2), 1L, 1L);
+
+        assertCursorReadsMatch();
+    }
+
+    /**
      * A caller that explicitly enables {@code pauseAtEmptyComplexColumns} still sees the CPLX record
      * of a deletion-only complex column. No production caller does this today — {@code StatefulCursor}
      * relies on the field's default instead, which {@link #deletionOnlyComplexColumnsSurfaceWithoutExplicitPause}

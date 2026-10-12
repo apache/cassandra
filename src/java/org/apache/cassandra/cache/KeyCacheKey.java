@@ -44,6 +44,14 @@ public class KeyCacheKey extends CacheKey
         assert this.key != null;
     }
 
+    /** Keeps the given array, so a caller that looks one key up in many sstables copies its bytes once. */
+    public KeyCacheKey(TableMetadata tableMetadata, Descriptor desc, byte[] key)
+    {
+        super(tableMetadata);
+        this.desc = desc;
+        this.key = key;
+    }
+
     private KeyCacheKey() // Only for EMPTY_SIZE
     {
         super(null, null);

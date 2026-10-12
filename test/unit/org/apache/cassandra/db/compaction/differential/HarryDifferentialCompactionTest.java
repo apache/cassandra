@@ -23,6 +23,7 @@ import java.util.concurrent.atomic.AtomicInteger;
 
 import org.junit.Test;
 
+import org.apache.cassandra.config.CassandraRelevantProperties;
 import org.apache.cassandra.db.ColumnFamilyStore;
 import org.apache.cassandra.db.Keyspace;
 import org.apache.cassandra.harry.ColumnSpec;
@@ -37,13 +38,7 @@ import org.apache.cassandra.harry.op.Visit;
 
 import static org.apache.cassandra.harry.checker.TestHelper.withRandom;
 
-/**
- * Runs Harry-generated delete and overwrite histories through the differential harness.
- *
- * The differential harness is the oracle, so this test issues no Harry read-validation visits.
- * The schema holds simple types only, because Harry cannot generate multi-cell columns. See the
- * TODO list at the top of {@link ColumnSpec}.
- */
+/** Runs Harry-generated delete and overwrite histories through the differential harness. */
 public class HarryDifferentialCompactionTest extends DifferentialCompactionTester
 {
     private static final AtomicInteger idGen = new AtomicInteger(0);
@@ -57,12 +52,15 @@ public class HarryDifferentialCompactionTest extends DifferentialCompactionTeste
     @Test
     public void harryTombstoneHistories() throws Throwable
     {
-        // withRandom rewraps every Throwable as an AssertionError. An assumption that fails inside
-        // the callback therefore reaches JUnit as a failure, not as a skip. This check runs first.
-        assumeBigFormatSelected();
+        // Check format support before entering withRandom, which would turn a skip into a failure.
+        assumeCursorSupportedFormatSelected();
 
-        long seed = System.currentTimeMillis();
-        logger.info("harryTombstoneHistories seed={}", seed);
+        // replay with -Dcassandra.test.differential.seed=N, through test-isolated.sh or -Dtest.jvm.args
+        String seedProperty = CassandraRelevantProperties.TEST_DIFFERENTIAL_SEED.getKey();
+        boolean pinned = CassandraRelevantProperties.TEST_DIFFERENTIAL_SEED.isPresent();
+        long seed = CassandraRelevantProperties.TEST_DIFFERENTIAL_SEED.getLong(System.currentTimeMillis());
+        logger.info("harryTombstoneHistories seed={} ({}); replay with -D{}={}",
+                    seed, pinned ? "from " + seedProperty : "from the clock", seedProperty, seed);
         withRandom(seed, rng -> {
             String ks = "harry_diff_ks" + idGen.incrementAndGet();
             String table = "tbl" + idGen.incrementAndGet();
