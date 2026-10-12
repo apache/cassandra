@@ -89,13 +89,31 @@ public class TableMetricTables
     }
 
     /**
+     * Convert a timer duration unit into a multiply-factor that yields milliseconds.
+     */
+    @VisibleForTesting
+    static double toMsFactor(TimeUnit timerUnit)
+    {
+        return (double) timerUnit.toNanos(1) / TimeUnit.MILLISECONDS.toNanos(1);
+    }
+
+    /**
+     * Factor used by latency virtual tables to convert timer values into milliseconds.
+     * Production code keeps this at {@link #toMsFactor(DEFAULT_TIMER_UNIT)}; tests may
+     * temporarily reassign it (via {@link #latencyTable}) to exercise other timer units.
+     */
+    @VisibleForTesting
+    static double TIMER_UNIT_TO_MS = toMsFactor(DEFAULT_TIMER_UNIT);
+
+    /**
      * Creates a latency table over the given metric, whose timer values are in {@code timerUnit}, so tests can control
-     * the values it reports
+     * the values it reports. Sets {@link #TIMER_UNIT_TO_MS} for the duration of the query.
      */
     @VisibleForTesting
     static <M extends Metric & Sampling> VirtualTable latencyTable(String keyspace, String table, Function<TableMetrics, M> func, TimeUnit timerUnit)
     {
-        return new LatencyTableMetric(keyspace, table, func, timerUnit);
+        TIMER_UNIT_TO_MS = toMsFactor(timerUnit);
+        return new LatencyTableMetric(keyspace, table, func);
     }
 
     /**
@@ -155,17 +173,9 @@ public class TableMetricTables
      */
     private static class LatencyTableMetric extends HistogramTableMetric
     {
-        private final double timerUnitToMs;
-
         <M extends Metric & Sampling> LatencyTableMetric(String keyspace, String table, Function<TableMetrics, M> func)
         {
-            this(keyspace, table, func, DEFAULT_TIMER_UNIT);
-        }
-
-        <M extends Metric & Sampling> LatencyTableMetric(String keyspace, String table, Function<TableMetrics, M> func, TimeUnit timerUnit)
-        {
             super(keyspace, table, func, "_ms");
-            timerUnitToMs = (double) timerUnit.toNanos(1) / TimeUnit.MILLISECONDS.toNanos(1);
         }
 
         /**
@@ -174,7 +184,7 @@ public class TableMetricTables
         public void add(SimpleDataSet result, String column, double value)
         {
             if (column.endsWith(suffix))
-                value *= timerUnitToMs;
+                value *= TIMER_UNIT_TO_MS;
 
             super.add(result, column, value);
         }

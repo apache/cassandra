@@ -113,13 +113,21 @@ public class TableMetricTablesTest extends CQLTester
     public void testLatencyIsReportedInMillisecondsForAnyTimerUnit()
     {
         createTable("CREATE TABLE %s (pk int PRIMARY KEY, v int)");
-        for (TimeUnit timerUnit : List.of(MILLISECONDS, MICROSECONDS, NANOSECONDS))
+        double savedFactor = TableMetricTables.TIMER_UNIT_TO_MS;
+        try
         {
-            // Created the way Metrics.timer() would create it if timerUnit were the DEFAULT_TIMER_UNIT
-            SnapshottingTimer timer = new SnapshottingTimer(CassandraMetricsRegistry.createReservoir(timerUnit));
-            timer.update(5, MILLISECONDS);
-            UntypedResultSet.Row row = queryLatencyTable(TableMetricTables.latencyTable(KS_NAME, LATENCY_TABLE, t -> timer, timerUnit));
-            assertLatencyColumns(LATENCY_TABLE + '[' + timerUnit + ']', row, 5.0);
+            for (TimeUnit timerUnit : List.of(MILLISECONDS, MICROSECONDS, NANOSECONDS))
+            {
+                // Created the way Metrics.timer() would create it if timerUnit were the DEFAULT_TIMER_UNIT
+                SnapshottingTimer timer = new SnapshottingTimer(CassandraMetricsRegistry.createReservoir(timerUnit));
+                timer.update(5, MILLISECONDS);
+                UntypedResultSet.Row row = queryLatencyTable(TableMetricTables.latencyTable(KS_NAME, LATENCY_TABLE, t -> timer, timerUnit));
+                assertLatencyColumns(LATENCY_TABLE + '[' + timerUnit + ']', row, 5.0);
+            }
+        }
+        finally
+        {
+            TableMetricTables.TIMER_UNIT_TO_MS = savedFactor;
         }
     }
 
