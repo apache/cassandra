@@ -76,6 +76,30 @@ public abstract class PartitionIterators
         return MorePartitions.extend(EmptyIterators.partition(), new Extend());
     }
 
+    public static PartitionIterator concat(PartitionIterator[] iterators)
+    {
+        if (iterators.length == 1)
+            return iterators[0];
+
+        class Extend implements MorePartitions<PartitionIterator>
+        {
+            int i = 0;
+            public PartitionIterator moreContents()
+            {
+                // Supplied array can be sparse so if we see null, we need to continue to iterate
+                while (i < iterators.length)
+                {
+                    PartitionIterator iterator = iterators[i++];
+                    if (iterator != null)
+                        return iterator;
+                }
+                return null;
+            }
+        }
+
+        return MorePartitions.extend(EmptyIterators.partition(), new Extend());
+    }
+
     public static PartitionIterator singletonIterator(RowIterator iterator)
     {
         return new SingletonPartitionIterator(iterator);

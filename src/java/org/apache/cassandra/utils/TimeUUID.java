@@ -342,7 +342,7 @@ public class TimeUUID implements Serializable, Comparable<TimeUUID>
                 throw new MarshalException(String.format("UUID should be 16 or 0 bytes (%d)", accessor.size(value)));
 
             if ((accessor.getByte(value, 6) & 0xf0) != 0x10)
-                throw new MarshalException(String.format("Invalid version for TimeUUID type: 0x%s", Integer.toHexString((accessor.getByte(value, 0) >> 4) & 0xf)));
+                throw new MarshalException(String.format("Invalid version for TimeUUID type: 0x%s", Integer.toHexString((accessor.getByte(value, 6) >> 4) & 0xf)));
         }
 
         public String toString(T value)
