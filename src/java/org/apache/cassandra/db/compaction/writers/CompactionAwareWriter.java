@@ -146,14 +146,29 @@ public abstract class CompactionAwareWriter extends Transactional.AbstractTransa
      */
     public final boolean append(UnfilteredRowIterator partition)
     {
-        maybeSwitchWriter(partition.partitionKey());
-        return realAppend(partition);
+        prepareForPartition(partition.partitionKey());
+        return sstableWriter.currentWriter().append(partition) != null;
     }
 
     // hot path, called per partition
     public final String getSStableDirectoryPath() throws IOException
     {
         return sstableDirectoryPath;
+    }
+
+    /**
+     * Call once per partition, before writing it. Switches to a new sstable writer if one is needed, and
+     * otherwise opens the current sstable early once enough has been written since the last early open.
+     * Both {@link #append} and cursor compaction call this, so a partition takes the same steps on both paths.
+     *
+     * @return the new writer, or null if the writer did not switch
+     */
+    public final SSTableWriter prepareForPartition(DecoratedKey key)
+    {
+        SSTableWriter newWriter = maybeSwitchWriter(key);
+        if (newWriter == null)
+            sstableWriter.maybeReopenEarly(key);
+        return newWriter;
     }
 
     @Override
@@ -163,15 +178,10 @@ public abstract class CompactionAwareWriter extends Transactional.AbstractTransa
         return super.doPostCleanup(accumulate);
     }
 
-    protected boolean realAppend(UnfilteredRowIterator partition)
-    {
-        return sstableWriter.append(partition) != null;
-    }
-
     /**
      * Switches the writer if necessary, i.e. if the new key should be placed in a different data directory, or if the
      * specific strategy has decided a new sstable is needed.
-     * Guaranteed to be called before the first call to realAppend.
+     * Guaranteed to be called before the first partition is written.
      */
     public final SSTableWriter maybeSwitchWriter(DecoratedKey key)
     {

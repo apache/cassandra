@@ -154,8 +154,7 @@ public class CompactionDeleteRowTest extends SimpleCompactionTest
 
         cfs.forceBlockingFlush(ColumnFamilyStore.FlushReason.USER_FORCED);
 
-        Thread.sleep(2000);
-        majorCompact(cfs);
+        majorCompactAt(cfs, anHourFromNow());
         SSTableReader sstable = cfs.getLiveSSTables().iterator().next();
         verifyAndPrint(cfs, sstable);
 
