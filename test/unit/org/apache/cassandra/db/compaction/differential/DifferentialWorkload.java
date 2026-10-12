@@ -18,27 +18,17 @@
 
 package org.apache.cassandra.db.compaction.differential;
 
-import org.junit.After;
-import org.junit.Before;
-
-import org.apache.cassandra.config.DatabaseDescriptor;
-import org.apache.cassandra.io.sstable.format.SSTableFormat;
-
-/** Runs the wide-table scenario on the BTI sstable format. */
-public class BtiPathologicalWideTableDifferentialCompactionTest extends PathologicalWideTableDifferentialCompactionTest
+/**
+ * The minimal surface a schema fixture needs to populate a table and cut it into sstables.
+ *
+ * <p>Path-agnostic: it names no compaction, flush or read type. An adapter supplies the execution
+ * and flush, delegating to CQLTester.
+ */
+public interface DifferentialWorkload
 {
-    private SSTableFormat<?, ?> originalFormat;
+    /** Runs one CQL statement, with CQLTester's {@code %s} table placeholder and bind arguments. */
+    void execute(String cql, Object... args);
 
-    @Before
-    public void selectBti()
-    {
-        originalFormat = DatabaseDescriptor.getSelectedSSTableFormat();
-        DatabaseDescriptor.setSelectedSSTableFormat("bti");
-    }
-
-    @After
-    public void restoreFormat()
-    {
-        DatabaseDescriptor.setSelectedSSTableFormat(originalFormat);
-    }
+    /** Flushes the memtable to a new sstable, ending the current round of writes. */
+    void flush();
 }

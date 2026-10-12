@@ -21,6 +21,9 @@ package org.apache.cassandra.io.sstable;
 import java.io.IOException;
 
 import org.apache.cassandra.db.DeletionTime;
+import org.apache.cassandra.db.SerializationHeader;
+import org.apache.cassandra.dht.ReusableDecoratedKey;
+import org.apache.cassandra.io.sstable.format.SortedTableWriter;
 
 /**
  * Format-specific partition/row index production for {@link SSTableCursorWriter}.
@@ -33,6 +36,12 @@ import org.apache.cassandra.db.DeletionTime;
  */
 public abstract class CursorIndexWriter
 {
+    /** Builds the index writer for one table writer. See {@link org.apache.cassandra.io.sstable.format.SSTableFormat#cursorIndexWriterFactory}. */
+    public interface Factory
+    {
+        CursorIndexWriter create(SortedTableWriter<?, ?> writer, SerializationHeader header);
+    }
+
     protected long partitionStart;
     // Offset of the current index block from the start of the current partition. Keep this a
     // long: a partition can exceed 2GiB. CursorIndexWriterOffsetWidthTest pins the width.
@@ -79,14 +88,24 @@ public abstract class CursorIndexWriter
                                     DeletionTime openMarker) throws IOException;
 
     /**
-     * The partition ends at partitionEnd, which includes the end-of-partition marker.
+     * The partition ends at partitionEnd, which is past its end-of-partition marker.
      *
-     * @param lastName the clustering of the last non-static unfiltered in this partition. A
-     *                 trailing index block uses it as the block's last name. Null if the
-     *                 partition wrote no non-static unfiltered, which leaves no trailing block
-     *                 to cut.
+     * @param key the partition key; a reusable instance, whose bytes and token the next partition
+     *            overwrites. Anything that keeps it past this call, such as the index summary's
+     *            readable boundary, the key cache or the BTI partition index, takes retainable().
+     * @param lastName the clustering of the last non-static unfiltered written to this
+     *                 partition, or null if the partition wrote none.
      */
-    public abstract void endPartition(byte[] key, int keyLength, int headerLength,
-                                      DeletionTime partitionDeletionTime, long partitionEnd,
-                                      ClusteringDescriptor lastName) throws IOException;
+    public abstract void endPartition(ReusableDecoratedKey key, byte[] keyBytes, int keyLength,
+                                      int headerLength, DeletionTime partitionDeletionTime,
+                                      long partitionEnd, ClusteringDescriptor lastName) throws IOException;
+
+    /**
+     * Releases the per-instance index state. The table writer that built this calls it in its
+     * transaction cleanup, on commit and on abort. The underlying file writers belong to the table
+     * writer, so an implementation must not close them.
+     */
+    public void close()
+    {
+    }
 }

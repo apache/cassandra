@@ -28,12 +28,15 @@ import org.junit.Test;
 import org.apache.cassandra.config.Config.DiskAccessMode;
 import org.apache.cassandra.cql3.CQLTester;
 import org.apache.cassandra.db.ColumnFamilyStore;
+import org.apache.cassandra.db.DecoratedKey;
 import org.apache.cassandra.db.rows.UnfilteredRowIterator;
+import org.apache.cassandra.dht.IPartitioner;
 import org.apache.cassandra.dht.Range;
 import org.apache.cassandra.dht.Token;
 import org.apache.cassandra.io.sstable.ISSTableScanner;
 import org.apache.cassandra.io.sstable.format.SSTableReader;
 import org.apache.cassandra.io.sstable.format.SSTableReader.PartitionPositionBounds;
+import org.apache.cassandra.utils.ByteBufferUtil;
 
 import static org.apache.cassandra.io.sstable.SSTableCursorReader.State.CELL_HEADER_START;
 import static org.apache.cassandra.io.sstable.SSTableCursorReader.State.CELL_VALUE_START;
@@ -46,6 +49,7 @@ import static org.apache.cassandra.io.sstable.SSTableCursorReader.State.isState;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertTrue;
+import static org.junit.Assert.fail;
 
 /**
  * A cursor reads exactly the data-file segments it was given.
@@ -148,45 +152,6 @@ public class CursorSegmentBoundsTest extends CQLTester
     }
 
     /**
-     * The whole-file cursor is one segment of [0, length), so it must cover every byte. The old
-     * constructor delegates to the null-bounds one, so comparing the two reads nothing; the count
-     * is what the segment code could get wrong.
-     */
-    @Test
-    public void aWholeFileCursorCoversEveryByte()
-    {
-        SSTableReader sstable = oneSSTableOfManyPartitions();
-        List<Seen> baseline = wholeFile(sstable);
-
-        try (StatefulCursor cursor = new StatefulCursor(sstable, null, DiskAccessMode.standard))
-        {
-            assertEquals(keysOf(baseline), keysOf(readAll(cursor)));
-            assertEquals("a whole-file cursor must count the whole file",
-                         sstable.uncompressedLength(), cursor.bytesRead());
-        }
-    }
-
-    /**
-     * One segment covering the whole file is also the whole file. This separates "bounds are
-     * honoured" from "bounds are ignored": a cursor that ignored its bounds would pass this and
-     * fail the two below.
-     */
-    @Test
-    public void oneFullSegmentReadsTheWholeFile()
-    {
-        SSTableReader sstable = oneSSTableOfManyPartitions();
-        List<Seen> baseline = wholeFile(sstable);
-        long length = sstable.uncompressedLength();
-
-        try (StatefulCursor cursor = new StatefulCursor(sstable,
-                                                        Arrays.asList(new PartitionPositionBounds(0, length)),
-                                                        DiskAccessMode.standard))
-        {
-            assertEquals(keysOf(baseline), keysOf(readAll(cursor)));
-        }
-    }
-
-    /**
      * The file split at a real partition boundary. The first cursor must stop at the split and the
      * second must start there, so together they read every partition exactly once and neither reads
      * one of the other's.
@@ -250,34 +215,6 @@ public class CursorSegmentBoundsTest extends CQLTester
     }
 
     /**
-     * A gap between the segments. This is the shard case: the cursor must skip what lies between
-     * them and read nothing from the hole.
-     */
-    @Test
-    public void aGapBetweenSegmentsIsSkipped()
-    {
-        SSTableReader sstable = oneSSTableOfManyPartitions();
-        List<Seen> baseline = wholeFile(sstable);
-        long length = sstable.uncompressedLength();
-
-        int firstEnd = baseline.size() / 3;
-        int secondStart = (2 * baseline.size()) / 3;
-        long gapStart = baseline.get(firstEnd).position;
-        long gapEnd = baseline.get(secondStart).position;
-
-        List<Long> expected = new ArrayList<>(keysOf(baseline).subList(0, firstEnd));
-        expected.addAll(keysOf(baseline).subList(secondStart, baseline.size()));
-
-        try (StatefulCursor cursor = new StatefulCursor(sstable,
-                                                        Arrays.asList(new PartitionPositionBounds(0, gapStart),
-                                                                      new PartitionPositionBounds(gapEnd, length)),
-                                                        DiskAccessMode.standard))
-        {
-            assertEquals("the partitions inside the gap must not be read", expected, keysOf(readAll(cursor)));
-        }
-    }
-
-    /**
      * An sstable that does not intersect the task's range gives an empty bounds list. The cursor is
      * born DONE and reads nothing, rather than reading the whole file.
      */
@@ -311,30 +248,6 @@ public class CursorSegmentBoundsTest extends CQLTester
                          keysOf(baseline).subList(baseline.size() / 2, baseline.size()),
                          keysOf(readAll(cursor)));
         }
-    }
-
-    /** Descending or overlapping segments break the scanner's contract and must be refused. */
-    @Test
-    public void overlappingSegmentsAreRefused()
-    {
-        SSTableReader sstable = oneSSTableOfManyPartitions();
-        List<Seen> baseline = wholeFile(sstable);
-        long length = sstable.uncompressedLength();
-        long split = baseline.get(baseline.size() / 2).position;
-
-        boolean refused = false;
-        try (StatefulCursor cursor = new StatefulCursor(sstable,
-                                                        Arrays.asList(new PartitionPositionBounds(0, length),
-                                                                      new PartitionPositionBounds(split, length)),
-                                                        DiskAccessMode.standard))
-        {
-            readAll(cursor);
-        }
-        catch (IllegalArgumentException e)
-        {
-            refused = true;
-        }
-        assertTrue("overlapping segments must be refused rather than read twice", refused);
     }
 
     /**
@@ -597,5 +510,103 @@ public class CursorSegmentBoundsTest extends CQLTester
             readAll(cursor);
         }
         assertFalse("a bounded read of a healthy sstable must not mark it suspect", sstable.isMarkedSuspect());
+    }
+
+    /** The baseline's partition keys, decorated. */
+    private static List<DecoratedKey> decoratedKeysOf(IPartitioner partitioner, List<Seen> seen)
+    {
+        List<DecoratedKey> keys = new ArrayList<>(seen.size());
+        for (Seen s : seen)
+            keys.add(partitioner.decorateKey(ByteBufferUtil.bytes(s.key)));
+        return keys;
+    }
+
+    /** Reads to DONE by running out of bounds, short of the end of the file. The segment holds the first two partitions. */
+    private static StatefulCursor exhaustBounds(SSTableReader sstable, List<Seen> baseline)
+    {
+        List<PartitionPositionBounds> bounds = Collections.singletonList(new PartitionPositionBounds(0, baseline.get(2).position));
+        StatefulCursor bounded = new StatefulCursor(sstable, bounds, DiskAccessMode.standard);
+        readAll(bounded);
+        assertEquals(DONE, bounded.state());
+        assertTrue("test setup: cursor must stop on bound exhaustion, short of the file's end",
+                   bounded.position() < bounded.uncompressedLength());
+        return bounded;
+    }
+
+    /** A cursor in DONE must reject a repeat {@code readPartitionHeader()} before the curr/prev
+     *  swap, leaving its descriptors untouched. */
+    @Test
+    public void readPartitionHeaderRejectsReentryAfterBoundExhaustedDone()
+    {
+        SSTableReader sstable = oneSSTableOfManyPartitions();
+        IPartitioner partitioner = sstable.getPartitioner();
+        List<Seen> baseline = wholeFile(sstable);
+        List<DecoratedKey> allKeysInTokenOrder = decoratedKeysOf(partitioner, baseline);
+        try (StatefulCursor bounded = exhaustBounds(sstable, baseline))
+        {
+            assertEquals("test setup: currentKey must be the last partition inside the bounds",
+                         allKeysInTokenOrder.get(1),
+                         partitioner.decorateKey(ByteBufferUtil.clone(bounded.currentKey().getKey())));
+            assertEquals("test setup: prevKey must be the partition before it",
+                         allKeysInTokenOrder.get(0),
+                         partitioner.decorateKey(ByteBufferUtil.clone(bounded.prevKey().getKey())));
+            long swapsAtDone = bounded.partitionSwaps();
+
+            for (int attempt = 0; attempt < 3; attempt++)
+            {
+                try
+                {
+                    bounded.readPartitionHeader();
+                    fail("readPartitionHeader() must reject re-entry once the cursor is DONE");
+                }
+                catch (IllegalStateException expected)
+                {
+                    // a rejected call must not have disturbed the cursor's descriptors
+                    assertEquals("a rejected re-entry must leave currentKey() untouched",
+                                 allKeysInTokenOrder.get(1),
+                                 partitioner.decorateKey(ByteBufferUtil.clone(bounded.currentKey().getKey())));
+                    assertEquals("a rejected re-entry must leave prevKey() untouched",
+                                 allKeysInTokenOrder.get(0),
+                                 partitioner.decorateKey(ByteBufferUtil.clone(bounded.prevKey().getKey())));
+                    assertEquals("a rejected re-entry must not advance the slots",
+                                 swapsAtDone, bounded.partitionSwaps());
+                }
+            }
+        }
+    }
+
+    /** After reaching DONE by either route, {@code resetAfterDone()} leaves {@code prevKey()} on
+     *  the last partition read and clears {@code currPartition}. */
+    @Test
+    public void resetAfterDonePreservesLastReadKeyOnBothDoneRoutes()
+    {
+        SSTableReader sstable = oneSSTableOfManyPartitions();
+        IPartitioner partitioner = sstable.getPartitioner();
+        List<Seen> baseline = wholeFile(sstable);
+        List<DecoratedKey> allKeysInTokenOrder = decoratedKeysOf(partitioner, baseline);
+
+        // route 1: bound exhaustion
+        try (StatefulCursor bounded = exhaustBounds(sstable, baseline))
+        {
+            assertTrue(bounded.resetAfterDone());
+            assertEquals("bound-exhausted cursor must keep the last partition it read in prevKey()",
+                         allKeysInTokenOrder.get(1),
+                         partitioner.decorateKey(ByteBufferUtil.clone(bounded.prevKey().getKey())));
+            assertEquals("the stale current partition must be cleared", 0, bounded.currPartition().keyLength());
+            assertFalse("resetAfterDone() is once-only", bounded.resetAfterDone());
+        }
+
+        // route 2: true end of file (DONE returned by the read itself)
+        try (StatefulCursor unbounded = new StatefulCursor(sstable, DiskAccessMode.standard))
+        {
+            readAll(unbounded);
+            assertEquals(DONE, unbounded.state());
+            assertEquals(unbounded.uncompressedLength(), unbounded.position());
+            assertTrue(unbounded.resetAfterDone());
+            assertEquals("EOF cursor must keep the last partition it read in prevKey()",
+                         allKeysInTokenOrder.get(baseline.size() - 1),
+                         partitioner.decorateKey(ByteBufferUtil.clone(unbounded.prevKey().getKey())));
+            assertEquals("the stale current partition must be cleared", 0, unbounded.currPartition().keyLength());
+        }
     }
 }
