@@ -1,4 +1,5 @@
 5.0.10
+ * Fix ignored global auto repair settings repair_max_retries and repair_retry_backoff (CASSANDRA-21748)
  * Replica filtering protection resurrects rows deleted by a range tombstone that spans pages (CASSANDRA-21781)
  * Write an sstable with the compression its components were chosen for when ALTER TABLE changes it (CASSANDRA-21780)
  * Clarify the unset, true and false behaviours of cassandra.reset_bootstrap_progress in the abort message and docs (CASSANDRA-21595)
