@@ -25,11 +25,12 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
-import java.util.HashMap;
 import java.util.HashSet;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.BiConsumer;
 import java.util.function.Consumer;
 import java.util.function.Supplier;
@@ -1654,30 +1655,11 @@ public class LogTransactionTest extends AbstractTransactionalTest
     // update time among the sstable's files change, even mid-deletion.
     private static void assertLastModifiedTimestampNeverChangesOnPartialDeletes(SSTableFormat<?, ?> format) throws IOException
     {
-        // 1) create an sstable's real component files
-        File dataDir = new File(Files.createTempDirectory("LastModifiedOnPartialDeletesTest").toFile());
-        Descriptor realDesc = new Descriptor(dataDir, "ks", "cf", new SequenceBasedSSTableId(1), format);
+        // 1) create an sstable's real component files, with reversed update times to require a full sort for correct deletion order
+        Descriptor realDesc = newTempDescriptor(format);
+        Map<Component, File> realFiles = createComponentFilesWithReversedUpdateTimes(realDesc, format);
 
-        Map<Component, File> realFiles = new HashMap<>();
-        for (Component component : format.allComponents())
-        {
-            File file = realDesc.fileFor(component);
-            file.parent().createDirectoriesIfNotExists();
-            assertTrue(file.createFileIfNotExists());
-            realFiles.put(component, file);
-        }
-
-        // 2) change the update times so that DATA ends up with the highest one
-        long base = System.currentTimeMillis();
-        long offset = 0;
-        for (Component component : realFiles.keySet())
-        {
-            if (!component.equals(SSTableFormat.Components.DATA))
-                assertTrue(realFiles.get(component).trySetLastModified(base + (offset++) * 1000));
-        }
-        assertTrue(realFiles.get(SSTableFormat.Components.DATA).trySetLastModified(base + realFiles.size() * 1000));
-
-        // 3) get the highest timestamp and save it
+        // 2) get the highest timestamp and save it
         long expectedMaxUpdateTime = realFiles.values().stream().mapToLong(File::lastModified).max().getAsLong();
 
         Set<Component> deleted = new HashSet<>();
@@ -1696,13 +1678,13 @@ public class LogTransactionTest extends AbstractTransactionalTest
                                + expectedMaxUpdateTime + " to " + remainingMax);
         });
 
-        // 4) run the real delete path and confirm each partial delete preserved the invariant
+        // 3) run the real delete path and confirm each partial delete preserved the invariant
         format.delete(stubDesc);
 
         assertTrue("expected no violations, got: " + violations, violations.isEmpty());
         assertEquals(realFiles.size(), deleted.size());
 
-        // 5) confirm the files were deleted oldest-first (the stub deletes nothing so the timestamps are unchanged)
+        // 4) confirm the files were deleted oldest-first (the stub deletes nothing so the timestamps are unchanged)
         assertEquals("each component should be deleted exactly once", realFiles.size(), deletionOrder.size());
         for (int i = 1; i < deletionOrder.size(); i++)
         {
@@ -1711,8 +1693,93 @@ public class LogTransactionTest extends AbstractTransactionalTest
             assertTrue("expected " + previous + " to be deleted before " + current + " (deletion order: " + deletionOrder + ')',
                        realFiles.get(previous).lastModified() <= realFiles.get(current).lastModified());
         }
-        assertEquals("DATA has the highest update time so it should be deleted last",
-                     SSTableFormat.Components.DATA, deletionOrder.get(deletionOrder.size() - 1));
+        List<Component> expectedOrder = new ArrayList<>(realFiles.keySet());
+        Collections.reverse(expectedOrder);
+        assertEquals(expectedOrder, deletionOrder);
+    }
+
+    @Test
+    public void testBigFormatPartialDeletesLeaveTransactionRecordValid() throws IOException
+    {
+        assertPartialDeletesLeaveTransactionRecordValid(BigFormat.getInstance());
+    }
+
+    @Test
+    public void testBtiFormatPartialDeletesLeaveTransactionRecordValid() throws IOException
+    {
+        assertPartialDeletesLeaveTransactionRecordValid(DatabaseDescriptor.getSSTableFormats().get(BtiFormat.NAME));
+    }
+
+    private static void assertPartialDeletesLeaveTransactionRecordValid(SSTableFormat<?, ?> format) throws IOException
+    {
+        int numComponents = format.allComponents().size();
+
+        // simulate a crash after each possible number of deleted files, including none and all of them
+        for (int deletesBeforeCrash = 0; deletesBeforeCrash <= numComponents; deletesBeforeCrash++)
+        {
+            Descriptor realDesc = newTempDescriptor(format);
+            Map<Component, File> realFiles = createComponentFilesWithReversedUpdateTimes(realDesc, format);
+
+            // the REMOVE record is logged while all the sstable's files still exist
+            String absolutePath = realDesc.baseFile().withSuffix(String.valueOf(Component.separator)).canonicalPath();
+            LogRecord record = LogRecord.make(LogRecord.Type.REMOVE, LogRecord.getExistingFiles(absolutePath), numComponents, absolutePath);
+
+            format.delete(crashAfterDeletes(realDesc, realFiles, deletesBeforeCrash));
+            assertEquals(numComponents - deletesBeforeCrash, realFiles.values().stream().filter(File::exists).count());
+
+            LogFile.verifyRecord(record, LogRecord.getExistingFiles(absolutePath));
+            assertFalse("record is corrupt after deleting " + deletesBeforeCrash + " of " + numComponents + " files: " + record.status.error,
+                        record.status.hasError());
+        }
+    }
+
+    private static Descriptor newTempDescriptor(SSTableFormat<?, ?> format) throws IOException
+    {
+        File dataDir = new File(Files.createTempDirectory("LogTransactionPartialDeletesTest").toFile());
+        return new Descriptor(dataDir, "ks", "cf", new SequenceBasedSSTableId(1), format);
+    }
+
+    private static Map<Component, File> createComponentFilesWithReversedUpdateTimes(Descriptor desc, SSTableFormat<?, ?> format)
+    {
+        Map<Component, File> files = new LinkedHashMap<>();
+        for (Component component : format.allComponents())
+        {
+            File file = desc.fileFor(component);
+            file.parent().createDirectoriesIfNotExists();
+            assertTrue(file.createFileIfNotExists());
+            files.put(component, file);
+        }
+
+        long base = System.currentTimeMillis();
+        long offset = files.size();
+        for (File file : files.values())
+            assertTrue(file.trySetLastModified(base + (offset--) * 1000));
+        return files;
+    }
+
+    // Returns a descriptor that crashes after the specified number of file deletions
+    private static Descriptor crashAfterDeletes(Descriptor realDesc, Map<Component, File> realFiles, int deletesBeforeCrash)
+    {
+        AtomicInteger remainingDeletes = new AtomicInteger(deletesBeforeCrash);
+        return new Descriptor(realDesc.version, realDesc.directory, realDesc.ksname,
+                               realDesc.cfname, realDesc.id)
+        {
+            @Override
+            public File fileFor(Component component)
+            {
+                File realFile = realFiles.get(component);
+                return new File(realFile.toPath())
+                {
+                    @Override
+                    public void deleteIfExists()
+                    {
+                        if (remainingDeletes.getAndDecrement() <= 0)
+                            throw new RuntimeException("simulated crash while deleting " + component);
+                        realFile.deleteIfExists();
+                    }
+                };
+            }
+        };
     }
 
     private static Descriptor stubDeletionOrder(Descriptor realDesc, Map<Component, File> realFiles, Consumer<Component> onDelete)
