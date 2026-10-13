@@ -211,18 +211,17 @@ public class CassandraValidationIterator extends ValidationPartitionIterator
         }
         else
         {
+            // For tracked keyspace validation, deliberately do NOT force a flush. Forcing Memtable contents to disk 
+            // right before selecting SSTables is a real side effect on what's supposed to be a read-only preview, and 
+            // it can pull writes issued after the offset out of Memtable and into a straddling SSTable. Once the
+            // validation also reads the journal, any data still sitting in Memtable is covered there.
             if (!isIncremental && validationOffsets == null)
             {
                 // flush first so everyone is validating data that is as similar as possible
                 cfs.forceBlockingFlush(ColumnFamilyStore.FlushReason.VALIDATION);
                 // Note: we also flush for incremental repair during the anti-compaction process.
             }
-            // For the tracked keyspace validation (validationOffsets != null), deliberately do NOT force a
-            // flush: forcing memtable contents to disk right before selecting SSTables is a real
-            // side effect on what's supposed to be a read-only preview, and it can pull writes issued
-            // after the offset out of memtable and into a straddling SSTable purely due to scheduling
-            // (see the "several SSTables" issue this fixes). Once the validation also reads the journal, any
-            // data still sitting in memtable is covered there instead of needing to be flushed here.
+
             sstables = getSSTablesToValidate(cfs, ctx, ranges, parentId, isIncremental, validationOffsets);
         }
 
