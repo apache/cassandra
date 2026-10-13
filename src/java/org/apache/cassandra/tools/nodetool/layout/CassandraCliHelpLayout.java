@@ -227,9 +227,9 @@ public class CassandraCliHelpLayout extends CommandLine.Help
             .concatItems(commandOptionsList)
             .concatItem(endOfOptionsText)
             // All other fields added to the synopsis are left-adjusted, so we don't need to add them one by one.
-            .flush(positionalParamText.plainString().isEmpty() || commandText.plainString().isEmpty() ?
-                   positionalParamText.concat(commandText) :
-                   positionalParamText.concat(" ").concat(commandText));
+            .flush(positionalParamText.plainString().isEmpty() ? commandText :
+                   commandText.plainString().isEmpty() ? positionalParamText :
+                   positionalParamText.concat(SINGLE_SPACE).concat(commandText));
 
         textTable.addEmptyRow();
         return textTable.toString();
@@ -238,15 +238,14 @@ public class CassandraCliHelpLayout extends CommandLine.Help
     private static Ansi.Text createCassandraSynopsisPositionalsText(CommandLine.Model.CommandSpec spec,
                                                                     ColorScheme colorScheme)
     {
-        List<CommandLine.Model.PositionalParamSpec> positionals = cassandraPositionals(spec);
-
         Pair<String, String> commandArgumensSpec = findCassandraBackwardCompatibleArgument(spec.userObject());
-        Ansi.Text text = colorScheme.text("");
         // If the command has a backward compatible @CassandraUsage argument,
         // use it to generate the synopsis based on the old format.
         if (commandArgumensSpec != null)
             return colorScheme.parameterText(commandArgumensSpec.left);
 
+        List<CommandLine.Model.PositionalParamSpec> positionals = cassandraPositionals(spec);
+        Ansi.Text text = colorScheme.text("");
         IParamLabelRenderer parameterLabelRenderer = CassandraStyleParamLabelRender.create();
         for (CommandLine.Model.PositionalParamSpec positionalParam : positionals)
         {
@@ -326,10 +325,11 @@ public class CassandraCliHelpLayout extends CommandLine.Help
             boolean optional = !option.required() || option.group() != null;
             String open = optional ? "[" : "";
             String close = optional ? "]" : "";
+            Ansi.Text paramLabel = spacedParamLabel(option, parameterLabelRenderer, colorScheme);
             if (names.length == 1)
             {
                 text = text.concat(open).concat(colorScheme.optionText(names[0]))
-                           .concat(spacedParamLabel(option, parameterLabelRenderer, colorScheme))
+                           .concat(paramLabel)
                            .concat(close);
             }
             else
@@ -342,10 +342,10 @@ public class CassandraCliHelpLayout extends CommandLine.Help
                         Collection.class.isAssignableFrom(((Field) option.userObject()).getType()));
                 text = text.concat(open + '(')
                            .concat(shortName)
-                           .concat(spacedParamLabel(option, parameterLabelRenderer, colorScheme))
+                           .concat(paramLabel)
                            .concat(" | ")
                            .concat(fullName)
-                           .concat(spacedParamLabel(option, parameterLabelRenderer, colorScheme))
+                           .concat(paramLabel)
                            .concat(isArrayOrCollection ? ")..." + close : ')' + close);
             }
 
@@ -739,7 +739,7 @@ public class CassandraCliHelpLayout extends CommandLine.Help
         public Ansi.Text[][] render(CommandLine.Model.PositionalParamSpec param, IParamLabelRenderer parameterLabelRenderer, ColorScheme scheme)
         {
             Ansi.Text descPadding = Ansi.OFF.new Text(leadingSpaces(DESCRIPTION_INDENT), scheme);
-            String[] description = param.description().length == 0 ? new String[]{ "" } : param.description();
+            String[] description = param.description();
             // label, descriptions [0..*], empty line
             int height = 2 + description.length;
             Ansi.Text[][] result = new Ansi.Text[height][];
@@ -757,7 +757,7 @@ public class CassandraCliHelpLayout extends CommandLine.Help
         private final int width;
         private final TextTable textTable;
         private final Ansi.Text padding;
-        /** Current line being built, always less than width. */
+        /** Current line being built, never longer than width. */
         private Ansi.Text current;
 
         public LineBreakingLayout(ColorScheme colorScheme, int width, TextTable textTable)
@@ -780,7 +780,7 @@ public class CassandraCliHelpLayout extends CommandLine.Help
             if (item.plainString().isEmpty())
                 return this;
 
-            if (current.plainString().length() + spaceWidth + item.plainString().length() >= width)
+            if (current.plainString().length() + spaceWidth + item.plainString().length() > width)
             {
                 textTable.addRowValues(current);
                 current = padding.concat(item);
@@ -797,13 +797,18 @@ public class CassandraCliHelpLayout extends CommandLine.Help
             // Wrap word by word, so that a word is never broken in the middle (e.g. "<node=dc:rack>").
             String plain = end.plainString();
             int start = 0;
-            for (int i = plain.indexOf(' '); i >= 0; i = plain.indexOf(' ', start))
+            while (start < plain.length())
             {
+                int i = plain.indexOf(SINGLE_SPACE, start);
+                if (i < 0)
+                {
+                    concatItem(end.substring(start));
+                    break;
+                }
                 concatItem(end.substring(start, i));
                 start = i + 1;
             }
-            Ansi.Text last = end.substring(start, plain.length());
-            textTable.addRowValues(current == padding ? last : current.concat(" ").concat(last));
+            textTable.addRowValues(current);
         }
     }
 
