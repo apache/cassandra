@@ -587,8 +587,7 @@ public class TrackedPreviewRepairTest extends TestBaseImpl
         CLUSTER.schemaChange("CREATE TABLE " + keyspace + '.' + table + " (k int PRIMARY KEY, v int) WITH compaction = {'class': 'SizeTieredCompactionStrategy'}");
 
         // Autocompaction could re-trigger finalizeMetadata() on its own schedule.
-        for (int i = 1; i <= NODES; i++)
-            CLUSTER.get(i).nodetoolResult("disableautocompaction", keyspace, table).asserts().success();
+        disableAutocompaction(CLUSTER, keyspace, table);
 
         writeRows(CLUSTER, keyspace, table, 0, 10);
 
@@ -679,6 +678,41 @@ public class TrackedPreviewRepairTest extends TestBaseImpl
             node2.runOnInstance(PauseValidationRequest::releaseAndDeactivate);
             ExecutorUtils.shutdownAndWait(60, TimeUnit.SECONDS, executor);
         }
+    }
+
+    @Test
+    public void validatesSSTableSpanningShardsOutsideValidationRange()
+    {
+        createTrackedSchema(CLUSTER, keyspace, table);
+        disableAutocompaction(CLUSTER, keyspace, table);
+
+        String ks = keyspace;
+
+        // 50 keys hashed across the ring should be enough to land in more than one shard.
+        writeRows(CLUSTER, keyspace, table, 0, 50);
+
+        // Flush before settling reconciliation, so the SSTable is written unrepaired with real
+        // offsets instead of being auto-promoted and cleared on write.
+        flushAll(CLUSTER, keyspace, table);
+        settleReconciliation(CLUSTER);
+
+        // Validate only one shard's range, deliberately excluding the other(s) this SSTable also spans.
+        List<String> shardBoundaries = CLUSTER.get(1).callOnInstance(() -> {
+            List<String> boundaries = new ArrayList<>();
+            MutationTrackingService.instance().forEachShardInKeyspace(ks, shard ->
+                boundaries.add(shard.range.left + "," + shard.range.right));
+            return boundaries;
+        });
+        assertThat(shardBoundaries.size()).as("expected more than one shard to exist").isGreaterThan(1);
+        String[] bounds = shardBoundaries.get(0).split(",");
+
+        NodeToolResult result = CLUSTER.get(1).nodetoolResult(true, "repair", "--validate", keyspace, table, "-st", bounds[0], "-et", bounds[1]);
+        result.asserts().success();
+
+        // The SSTable spans all 3 shards, but only logs belonging to the validated shard are
+        // required to be covered, so it's still validated instead of being wrongly excluded.
+        for (IInvokableInstance instance : CLUSTER)
+            assertThat(totalValidatedSSTables(instance, keyspace, table)).as("expected the SSTable to be validated on %s", instance.config().num()).isEqualTo(1);
     }
 
     @Test
@@ -876,6 +910,11 @@ public class TrackedPreviewRepairTest extends TestBaseImpl
     private static void flushAll(Cluster cluster, String keyspace, String table)
     {
         cluster.forEach(i -> i.nodetoolResult("flush", keyspace, table).asserts().success());
+    }
+
+    private static void disableAutocompaction(Cluster cluster, String keyspace, String table)
+    {
+        cluster.forEach(i -> i.nodetoolResult("disableautocompaction", keyspace, table).asserts().success());
     }
 
     private static Future<NodeToolResult> submitValidate(ExecutorService executor, IInvokableInstance coordinator, String keyspace)

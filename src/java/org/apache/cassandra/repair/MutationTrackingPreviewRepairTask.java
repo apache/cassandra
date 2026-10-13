@@ -267,7 +267,7 @@ public class MutationTrackingPreviewRepairTask extends AbstractRepairTask
         long bytes = 0;
         for (SSTableReader sstable : cfs.getLiveSSTables())
         {
-            if (!sstable.isRepaired() && !offset.containsAll(sstable.getCoordinatorLogOffsets()))
+            if (!sstable.isRepaired() && !offset.covers(sstable.getCoordinatorLogOffsets(), normalizedRanges))
                 continue;
             for (SSTableReader.PartitionPositionBounds bounds : sstable.getPositionsForRanges(normalizedRanges))
                 bytes += bounds.upperPosition - bounds.lowerPosition;

@@ -18,11 +18,14 @@
 package org.apache.cassandra.replication;
 
 import java.io.IOException;
+import java.util.Collection;
 import java.util.HashMap;
 import java.util.Map;
 
 import com.google.common.collect.ImmutableMap;
 
+import org.apache.cassandra.dht.Range;
+import org.apache.cassandra.dht.Token;
 import org.apache.cassandra.io.UnversionedSerializer;
 import org.apache.cassandra.io.util.DataInputPlus;
 import org.apache.cassandra.io.util.DataOutputPlus;
@@ -31,7 +34,7 @@ import org.apache.cassandra.utils.CollectionSerializers;
 /**
  * Per-log offset frontier produced by mutation-tracking incremental repair, used by the
  * tracked keyspace reconciled data validation to filter SSTables
- * ({@link #containsAll(ImmutableCoordinatorLogOffsets)}) and journal mutations
+ * ({@link #covers(ImmutableCoordinatorLogOffsets, Collection)}) and journal mutations
  * ({@link #containsMutation(ShortMutationId)}) down to what's safe to compare.
  */
 public final class ValidationOffsets
@@ -47,11 +50,10 @@ public final class ValidationOffsets
 
     /**
      * @return true iff {@code sstableOffsets} is non-empty and every offset in it is ≤ these
-     * offsets. An SSTable with no offsets at all (bulk import, or written before mutation
-     * tracking existed) or one that references a log these offsets don't know about is NOT
-     * considered contained.
+     * offsets, or belongs to a log whose shard doesn't intersect {@code ranges}. An SSTable with no offsets at 
+     * all (bulk import, or written before mutation tracking existed) is NOT considered covered.
      */
-    public boolean containsAll(ImmutableCoordinatorLogOffsets sstableOffsets)
+    public boolean covers(ImmutableCoordinatorLogOffsets sstableOffsets, Collection<Range<Token>> ranges)
     {
         if (sstableOffsets == null || sstableOffsets.isEmpty())
             return false;
@@ -62,11 +64,31 @@ public final class ValidationOffsets
             CoordinatorLogId logId = CoordinatorLogId.fromLong(entry.getKey());
             Offsets.Immutable offsetsForLog = perLog.get(logId);
             if (offsetsForLog == null)
-                return false;
+            {
+                if (logShardIntersects(logId, ranges))
+                    return false;
+                continue;
+            }
             if (!offsetsContainAll(offsetsForLog, entry.getValue()))
                 return false;
         }
         return sawEntry;
+    }
+
+    /**
+     * @return true if the log's shard intersects {@code ranges}, or the shard is unknown
+     */
+    private static boolean logShardIntersects(CoordinatorLogId logId, Collection<Range<Token>> ranges)
+    {
+        Range<Token> shardRange = MutationTrackingService.instance().rangeForLog(logId);
+        if (shardRange == null)
+            return true;
+        for (Range<Token> range : ranges)
+        {
+            if (range.intersects(shardRange))
+                return true;
+        }
+        return false;
     }
 
     /**

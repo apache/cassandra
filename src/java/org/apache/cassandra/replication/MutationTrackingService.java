@@ -913,6 +913,24 @@ public class MutationTrackingService implements MutationTrackingServiceMBean
         return Preconditions.checkNotNull(log2ShardMap.get(logId));
     }
 
+    /**
+     * @return the range of the shard that owns {@code logId}, or null if the log is unknown
+     */
+    @Nullable
+    public Range<Token> rangeForLog(CoordinatorLogId logId)
+    {
+        shardLock.readLock().lock();
+        try
+        {
+            Shard shard = getShardNullable(logId);
+            return shard == null ? null : shard.range;
+        }
+        finally
+        {
+            shardLock.readLock().unlock();
+        }
+    }
+
     private KeyspaceShards getOrCreateShards(TableId tableId)
     {
         //noinspection DataFlowIssue

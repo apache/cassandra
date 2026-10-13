@@ -138,7 +138,7 @@ public class CassandraValidationIterator extends ValidationPartitionIterator
         if (validationOffsets != null)
         {
             // Repaired data is durably reconciled across the whole replica set, so we don't even need to check the offsets.
-            predicate = s -> s.isRepaired() || validationOffsets.containsAll(s.getCoordinatorLogOffsets());
+            predicate = s -> s.isRepaired() || validationOffsets.covers(s.getCoordinatorLogOffsets(), ranges);
         }
         else if (prs.isPreview())
         {
