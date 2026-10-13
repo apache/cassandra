@@ -71,6 +71,7 @@ public abstract class AbstractSSTableFormat<R extends SSTableReader, W extends S
 
         // delete older files first so the overall SSTable timestamp stays the same on partial deletes
         Map<Component, File> files = new HashMap<>();
+        // snapshot each file's last-modified time once, so the sort's repeated comparisons see stable values and don't hit the filesystem
         Map<Component, Long> lastModified = new HashMap<>();
         for (Component c : components)
         {
