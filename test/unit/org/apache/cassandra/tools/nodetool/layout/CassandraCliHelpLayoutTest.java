@@ -87,6 +87,21 @@ public class CassandraCliHelpLayoutTest
         assertThat(usage).contains(String.format("            The tables%n            <table> [<table>...]"));
     }
 
+    @Test
+    public void testLastSynopsisWordMovesToNextLine()
+    {
+        String usage = usage("lastword");
+        String synopsis = usage.substring(usage.indexOf("SYNOPSIS"), usage.indexOf("OPTIONS"));
+        assertThat(synopsis.lines().map(String::trim)).contains("<node=dc:rack>");
+    }
+
+    @Test
+    public void testPositionalWithoutDescription()
+    {
+        String usage = usage("nodescription");
+        assertThat(usage).contains(String.format("        <first>%n%n        <second>%n            The second"));
+    }
+
     private static String usage(String subcommand)
     {
         return commandLine().getSubcommands().get(subcommand).getUsageMessage(CommandLine.Help.Ansi.OFF).trim();
@@ -99,7 +114,8 @@ public class CassandraCliHelpLayoutTest
                                           .setHelpSectionKeys(CassandraCliHelpLayout.cassandraHelpSectionKeys());
     }
 
-    @Command(name = "root", subcommands = { WithFooter.class, WithoutFooter.class, WithArgs.class, WithOptions.class })
+    @Command(name = "root", subcommands = { WithFooter.class, WithoutFooter.class, WithArgs.class, WithOptions.class,
+                                            LastWord.class, NoDescription.class })
     public static class Root implements Runnable
     {
         public void run() {}
@@ -151,5 +167,29 @@ public class CassandraCliHelpLayoutTest
     {
         @Option(names = "--epoch", paramLabel = "epoch", required = true, description = "Required together with the group")
         private String epoch;
+    }
+
+    @Command(name = "lastword", description = "Command whose last synopsis word does not fit on the line")
+    public static class LastWord implements Runnable
+    {
+        @Parameters(index = "0", paramLabel = "a_positional_label_long_enough_to_fill_the_line", description = "The first")
+        private String first;
+
+        @Parameters(index = "1", paramLabel = "node=dc:rack", description = "The last")
+        private String last;
+
+        public void run() {}
+    }
+
+    @Command(name = "nodescription", description = "Command with a positional without description")
+    public static class NoDescription implements Runnable
+    {
+        @Parameters(index = "0", paramLabel = "first")
+        private String first;
+
+        @Parameters(index = "1", paramLabel = "second", description = "The second")
+        private String second;
+
+        public void run() {}
     }
 }

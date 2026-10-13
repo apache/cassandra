@@ -8,8 +8,8 @@ SYNOPSIS
                 [(-pwf <passwordFilePath> | --password-file <passwordFilePath>)]
                 [(-u <username> | --username <username>)] profileload [-a <samplers>]
                 [(-i <intervalMillis> | --interval <intervalMillis>)] [-k <topCount>]
-                [(-l | --list)] [-s <capacity>] [(-t | --stop)] [--] <keyspace>
-                <cfname> <duration>
+                [(-l | --list)] [-s <capacity>] [(-t | --stop)] [--] <keyspace> <cfname>
+                <duration>
 
 OPTIONS
         -a <samplers>

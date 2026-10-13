@@ -7,8 +7,8 @@ SYNOPSIS
         nodetool [(-h <host> | --host <host>)] [(-p <port> | --port <port>)]
                 [(-pw <password> | --password <password>)]
                 [(-pwf <passwordFilePath> | --password-file <passwordFilePath>)]
-                [(-u <username> | --username <username>)] setbatchlogreplaythrottle
-                [--] <batchlog_replay_throttle>
+                [(-u <username> | --username <username>)] setbatchlogreplaythrottle [--]
+                <batchlog_replay_throttle>
 
 OPTIONS
         -h <host>, --host <host>
