@@ -20,6 +20,8 @@ package org.apache.cassandra.db.compaction;
 
 import java.util.Arrays;
 import java.util.Collection;
+import java.util.Collections;
+import java.util.Set;
 import java.util.concurrent.ExecutionException;
 
 import com.google.common.collect.Iterables;
@@ -43,11 +45,14 @@ import org.apache.cassandra.db.DecoratedKey;
 import org.apache.cassandra.db.Keyspace;
 import org.apache.cassandra.db.Mutation;
 import org.apache.cassandra.db.RowUpdateBuilder;
+import org.apache.cassandra.db.lifecycle.LifecycleTransaction;
 import org.apache.cassandra.db.partitions.ImmutableBTreePartition;
 import org.apache.cassandra.db.partitions.PartitionUpdate;
 import org.apache.cassandra.db.rows.Row;
+import org.apache.cassandra.dht.Murmur3Partitioner;
 import org.apache.cassandra.exceptions.ConfigurationException;
 import org.apache.cassandra.io.sstable.format.SSTableReader;
+import org.apache.cassandra.io.sstable.format.big.BigFormat;
 import org.apache.cassandra.schema.CachingParams;
 import org.apache.cassandra.schema.KeyspaceParams;
 import org.apache.cassandra.utils.ByteBufferUtil;
@@ -56,6 +61,7 @@ import org.apache.cassandra.utils.FBUtilities;
 import static org.apache.cassandra.Util.dk;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
+import static org.junit.Assert.assertNotNull;
 import static org.junit.Assert.assertTrue;
 
 @RunWith(Parameterized.class)
@@ -64,6 +70,7 @@ public class CompactionsPurgeTest
     private static final String KEYSPACE1 = "CompactionsPurgeTest1";
     private static final String CF_STANDARD1 = "Standard1";
     private static final String CF_STANDARD2 = "Standard2";
+    private static final String CF_STANDARD3 = "Standard3";
     private static final String KEYSPACE2 = "CompactionsPurgeTest2";
     private static final String KEYSPACE_CACHED = "CompactionsPurgeTestCached";
     private static final String CF_CACHED = "CachedCF";
@@ -112,7 +119,9 @@ public class CompactionsPurgeTest
         SchemaLoader.createKeyspace(KEYSPACE1,
                                     KeyspaceParams.simple(1),
                                     SchemaLoader.standardCFMD(KEYSPACE1, CF_STANDARD1),
-                                    SchemaLoader.standardCFMD(KEYSPACE1, CF_STANDARD2));
+                                    SchemaLoader.standardCFMD(KEYSPACE1, CF_STANDARD2),
+                                    // cursor compaction needs a partitioner that supports reusable keys
+                                    SchemaLoader.standardCFMD(KEYSPACE1, CF_STANDARD3).partitioner(Murmur3Partitioner.instance));
 
         SchemaLoader.createKeyspace(KEYSPACE2,
                                     KeyspaceParams.simple(1),
@@ -415,6 +424,52 @@ public class CompactionsPurgeTest
         assertEquals(2, partition.rowCount());
         for (Row row : partition)
             assertFalse(row.hasLiveData(FBUtilities.nowInSeconds(), enforceStrictLiveness));
+    }
+
+    /**
+     * A partition tombstone is compacted while older data it shadows is still in a memtable, and that memtable is
+     * flushed after the compaction has created its controller. The tombstone must not be purged, or the older data
+     * becomes readable again (CASSANDRA-21749).
+     */
+    @Test
+    public void testFlushDuringCompactionDoesNotResurrect()
+    {
+        CompactionManager.instance.disableAutoCompaction();
+
+        ColumnFamilyStore cfs = Keyspace.open(KEYSPACE1).getColumnFamilyStore(CF_STANDARD3);
+        cfs.truncateBlocking();
+        DecoratedKey key = cfs.decorateKey(ByteBufferUtil.bytes("key1"));
+
+        // the tombstone sstable also holds a newer live row for another key, so it is not fully expired and the
+        // compaction has to decide about the tombstone in the purge evaluator
+        new Mutation(PartitionUpdate.fullPartitionDelete(cfs.metadata(), key, 10, FBUtilities.nowInSeconds())).applyUnsafe();
+        new RowUpdateBuilder(cfs.metadata(), 20, "key0").clustering("c").add("val", ByteBufferUtil.EMPTY_BYTE_BUFFER).build().applyUnsafe();
+        Util.flush(cfs);
+        SSTableReader tombstoneSSTable = Iterables.getOnlyElement(cfs.getLiveSSTables());
+
+        // older data for the deleted partition, still in the memtable when the compaction starts
+        new RowUpdateBuilder(cfs.metadata(), 1, key).clustering("c").add("val", ByteBufferUtil.EMPTY_BYTE_BUFFER).build().applyUnsafe();
+        Util.assertEmpty(Util.cmd(cfs, key).build());
+
+        LifecycleTransaction txn = cfs.getTracker().tryModify(Collections.singleton(tombstoneSSTable), OperationType.COMPACTION);
+        assertNotNull(txn);
+        CompactionTask task = new CompactionTask(cfs, txn, FBUtilities.nowInSeconds() + 5)
+        {
+            @Override
+            protected CompactionController getCompactionController(Set<SSTableReader> toCompact, long gcBefore)
+            {
+                CompactionController controller = super.getCompactionController(toCompact, gcBefore);
+                // stands in for a flush that happens while a long compaction is running
+                Util.flush(cfs);
+                return controller;
+            }
+        };
+
+        CompactionPipelineCounts before = CompactionPipelineCounts.mark();
+        task.execute(ActiveCompactionsTracker.NOOP);
+        CompactionPipelineCounts.assertPipelineRan(cursorCompactionEnabled && BigFormat.isSelected(), before);
+
+        Util.assertEmpty(Util.cmd(cfs, key).build());
     }
 
     @Test
