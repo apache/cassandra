@@ -26,7 +26,6 @@ import java.util.Set;
 import com.google.common.base.Preconditions;
 import com.google.common.collect.ImmutableSet;
 import com.google.common.collect.Iterables;
-import com.google.common.collect.Lists;
 import com.google.common.collect.Sets;
 
 import org.apache.cassandra.cache.KeyCacheKey;
@@ -228,7 +227,7 @@ public class BigFormat extends AbstractSSTableFormat<BigTableReader, BigTableWri
                 }
             }
 
-            deleteComponentsOldestFirst(desc, Lists.newArrayList(Sets.intersection(allComponents(), desc.discoverComponents())));
+            deleteComponentsOldestFirst(desc, Sets.intersection(allComponents(), desc.discoverComponents()));
         }
         catch (Throwable t)
         {
