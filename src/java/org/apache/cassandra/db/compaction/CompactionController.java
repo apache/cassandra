@@ -37,6 +37,7 @@ import org.apache.cassandra.db.AbstractCompactionController;
 import org.apache.cassandra.db.ColumnFamilyStore;
 import org.apache.cassandra.db.DecoratedKey;
 import org.apache.cassandra.db.PartitionPosition;
+import org.apache.cassandra.db.lifecycle.View;
 import org.apache.cassandra.db.memtable.Memtable;
 import org.apache.cassandra.db.rows.UnfilteredRowIterator;
 import org.apache.cassandra.io.sstable.format.SSTableReader;
@@ -63,6 +64,9 @@ public class CompactionController extends AbstractCompactionController
     // is no overlap.
     private Refs<SSTableReader> overlappingSSTables;
     private OverlapIterator<PartitionPosition, SSTableReader> overlapIterator;
+    // the tracker's live sstable set, read before overlappingSSTables was last computed; the View creates a new set
+    // instance whenever the live set changes, so an identity mismatch means sstables were added or removed since
+    private Set<SSTableReader> liveSSTablesAtRefresh;
     private final Iterable<SSTableReader> compacting;
     private final RateLimiter limiter;
     private final long minTimestamp;
@@ -121,6 +125,7 @@ public class CompactionController extends AbstractCompactionController
         if (this.overlappingSSTables != null)
             close();
 
+        liveSSTablesAtRefresh = cfs.getTracker().getView().liveSSTables();
         if (compacting == null)
             overlappingSSTables = Refs.tryRef(Collections.<SSTableReader>emptyList());
         else
@@ -128,9 +133,32 @@ public class CompactionController extends AbstractCompactionController
         this.overlapIterator = new OverlapIterator<>(buildIntervals(overlappingSSTables));
     }
 
+    /**
+     * Returns the current view of the table, after refreshing the overlapping sstables if the live sstable set has
+     * changed since they were computed (by a flush, streaming, import or another compaction). The overlapping sstables
+     * then come from a view no older than the returned one. A flush swaps a memtable for its sstable atomically, so
+     * any data outside this compaction is either in the returned view's memtables or in an overlapping sstable, as
+     * long as the caller reads the memtables from the returned view (or an older one) and not from a newer one.
+     */
+    private View viewWithCurrentOverlaps()
+    {
+        View view = cfs.getTracker().getView();
+        if (compacting != null && overlapIterator != null && view.liveSSTables() != liveSSTablesAtRefresh)
+            refreshOverlaps();
+        return view;
+    }
+
     public Set<SSTableReader> getFullyExpiredSSTables()
     {
-        return getFullyExpiredSSTables(cfs, compacting, overlappingSSTables, gcBefore, ignoreOverlaps());
+        if (overlappingSSTables == null)
+            return Collections.emptySet();
+
+        // the overlapping sstables are iterated after the memtables are read, so the refresh check must happen then
+        Iterable<SSTableReader> overlapping = () -> {
+            viewWithCurrentOverlaps();
+            return overlappingSSTables.iterator();
+        };
+        return getFullyExpiredSSTables(cfs, compacting, overlapping, gcBefore, ignoreOverlaps());
     }
 
     /**
@@ -182,6 +210,9 @@ public class CompactionController extends AbstractCompactionController
         List<SSTableReader> candidates = new ArrayList<>();
         long minTimestamp = Long.MAX_VALUE;
 
+        // read the memtables before the overlapping sstables, so that a memtable flushed in between is still seen,
+        // as the sstable it was flushed to
+        Iterable<Memtable> memtables = cfStore.getTracker().getView().getAllMemtables();
         for (SSTableReader sstable : overlapping)
         {
             // Overlapping might include fully expired sstables. What we care about here is
@@ -198,7 +229,7 @@ public class CompactionController extends AbstractCompactionController
                 minTimestamp = Math.min(minTimestamp, candidate.getMinTimestamp());
         }
 
-        for (Memtable memtable : cfStore.getTracker().getView().getAllMemtables())
+        for (Memtable memtable : memtables)
         {
             if (memtable.getMinTimestamp() != Memtable.NO_MIN_TIMESTAMP)
                 minTimestamp = Math.min(minTimestamp, memtable.getMinTimestamp());
@@ -247,9 +278,10 @@ public class CompactionController extends AbstractCompactionController
         if (NEVER_PURGE_TOMBSTONES_PROPERTY_VALUE || !compactingRepaired() || cfs.getNeverPurgeTombstones() || overlapIterator == null)
             return time -> false;
 
+        View view = viewWithCurrentOverlaps();
         overlapIterator.update(key);
         Set<SSTableReader> filteredSSTables = overlapIterator.overlaps();
-        Iterable<Memtable> memtables = cfs.getTracker().getView().getAllMemtables();
+        Iterable<Memtable> memtables = view.getAllMemtables();
         long minTimestampSeen = Long.MAX_VALUE;
         boolean hasTimestamp = false;
 
