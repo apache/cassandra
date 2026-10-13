@@ -19,6 +19,8 @@
 package org.apache.cassandra.db.compaction;
 
 import java.nio.ByteBuffer;
+import java.util.Collection;
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.Set;
@@ -46,10 +48,15 @@ import org.apache.cassandra.db.DecoratedKey;
 import org.apache.cassandra.db.Keyspace;
 import org.apache.cassandra.db.Mutation;
 import org.apache.cassandra.db.RowUpdateBuilder;
+import org.apache.cassandra.db.SerializationHeader;
 import org.apache.cassandra.db.marshal.AsciiType;
 import org.apache.cassandra.db.partitions.PartitionUpdate;
+import org.apache.cassandra.db.rows.EncodingStats;
 import org.apache.cassandra.exceptions.ConfigurationException;
+import org.apache.cassandra.io.sstable.Descriptor;
+import org.apache.cassandra.io.sstable.SSTableTxnWriter;
 import org.apache.cassandra.io.sstable.format.SSTableReader;
+import org.apache.cassandra.io.util.File;
 import org.apache.cassandra.schema.KeyspaceParams;
 import org.apache.cassandra.schema.TableMetadata;
 import org.apache.cassandra.utils.ByteBufferUtil;
@@ -66,6 +73,7 @@ public class CompactionControllerTest extends SchemaLoader
     private static final String KEYSPACE = "CompactionControllerTest";
     private static final String CF1 = "Standard1";
     private static final String CF2 = "Standard2";
+    private static final String CF3 = "Standard3";
     private static final int TTL_SECONDS = 10;
     private static CountDownLatch compaction2FinishLatch = new CountDownLatch(1);
     private static CountDownLatch createCompactionControllerLatch = new CountDownLatch(1);
@@ -84,6 +92,10 @@ public class CompactionControllerTest extends SchemaLoader
                                                  .addClusteringColumn("ck", AsciiType.instance)
                                                  .addRegularColumn("val", AsciiType.instance),
                                     TableMetadata.builder(KEYSPACE, CF2)
+                                                 .addPartitionKeyColumn("pk", AsciiType.instance)
+                                                 .addClusteringColumn("ck", AsciiType.instance)
+                                                 .addRegularColumn("val", AsciiType.instance),
+                                    TableMetadata.builder(KEYSPACE, CF3)
                                                  .addPartitionKeyColumn("pk", AsciiType.instance)
                                                  .addClusteringColumn("ck", AsciiType.instance)
                                                  .addRegularColumn("val", AsciiType.instance));
@@ -200,6 +212,127 @@ public class CompactionControllerTest extends SchemaLoader
         expired = CompactionController.getFullyExpiredSSTables(cfs, compacting, x -> overlapping, gcBefore, true);
         assertNotNull(expired);
         assertEquals(1, expired.size());
+    }
+
+    /**
+     * Older data for a partition sits in a memtable when the controller is created and is flushed while the
+     * compaction runs. The purge evaluator must still see it, now in the flushed sstable (CASSANDRA-21749).
+     */
+    @Test
+    public void testPurgeEvaluatorSeesSSTableFlushedAfterCreation()
+    {
+        ColumnFamilyStore cfs = Keyspace.open(KEYSPACE).getColumnFamilyStore(CF3);
+        cfs.truncateBlocking();
+        cfs.disableAutoCompaction();
+
+        DecoratedKey key = Util.dk("k1");
+        long tombstoneTimestamp = 10;
+        long olderTimestamp = 1;
+        SSTableReader tombstoneSSTable = writeTombstoneSSTable(cfs, key, tombstoneTimestamp, true);
+        applyMutation(cfs.metadata(), key, olderTimestamp);
+
+        long gcBefore = FBUtilities.nowInSeconds() + 5;
+        try (CompactionController controller = new CompactionController(cfs, Sets.newHashSet(tombstoneSSTable), gcBefore))
+        {
+            assertPurgeBoundary(controller.getPurgeEvaluator(key), olderTimestamp);
+
+            Util.flush(cfs);
+            controller.maybeRefreshOverlaps();
+
+            assertPurgeBoundary(controller.getPurgeEvaluator(key), olderTimestamp);
+        }
+    }
+
+    /**
+     * Like {@link #testPurgeEvaluatorSeesSSTableFlushedAfterCreation()}, but the older data arrives in an sstable
+     * added to the table while the compaction runs, as streaming or import would do.
+     */
+    @Test
+    public void testPurgeEvaluatorSeesSSTableAddedAfterCreation()
+    {
+        ColumnFamilyStore cfs = Keyspace.open(KEYSPACE).getColumnFamilyStore(CF3);
+        cfs.truncateBlocking();
+        cfs.disableAutoCompaction();
+
+        DecoratedKey key = Util.dk("k1");
+        long tombstoneTimestamp = 10;
+        long olderTimestamp = 1;
+        SSTableReader tombstoneSSTable = writeTombstoneSSTable(cfs, key, tombstoneTimestamp, true);
+        SSTableReader added = writeOfflineSSTable(cfs, new RowUpdateBuilder(cfs.metadata(), olderTimestamp, key)
+                                                       .clustering("ck")
+                                                       .add("val", ByteBufferUtil.bytes(1L))
+                                                       .buildUpdate());
+
+        long gcBefore = FBUtilities.nowInSeconds() + 5;
+        try (CompactionController controller = new CompactionController(cfs, Sets.newHashSet(tombstoneSSTable), gcBefore))
+        {
+            assertTrue(controller.getPurgeEvaluator(key).test(tombstoneTimestamp));
+
+            cfs.addSSTable(added);
+
+            assertPurgeBoundary(controller.getPurgeEvaluator(key), olderTimestamp);
+        }
+    }
+
+    /**
+     * An sstable holding only a tombstone is fully expired unless older data exists elsewhere. That older data is in
+     * a memtable when the controller is created and is flushed before the expiry check runs (CASSANDRA-21749).
+     */
+    @Test
+    public void testFullyExpiredSeesSSTableFlushedAfterCreation()
+    {
+        ColumnFamilyStore cfs = Keyspace.open(KEYSPACE).getColumnFamilyStore(CF3);
+        cfs.truncateBlocking();
+        cfs.disableAutoCompaction();
+
+        DecoratedKey key = Util.dk("k1");
+        SSTableReader tombstoneSSTable = writeTombstoneSSTable(cfs, key, 10, false);
+        applyMutation(cfs.metadata(), key, 1);
+
+        long gcBefore = FBUtilities.nowInSeconds() + 5;
+        try (CompactionController controller = new CompactionController(cfs, Sets.newHashSet(tombstoneSSTable), gcBefore))
+        {
+            assertTrue(controller.getFullyExpiredSSTables().isEmpty());
+
+            Util.flush(cfs);
+
+            assertTrue(controller.getFullyExpiredSSTables().isEmpty());
+        }
+
+        // control: without the older data the tombstone-only sstable is fully expired
+        cfs.truncateBlocking();
+        tombstoneSSTable = writeTombstoneSSTable(cfs, key, 10, false);
+        try (CompactionController controller = new CompactionController(cfs, Sets.newHashSet(tombstoneSSTable), FBUtilities.nowInSeconds() + 5))
+        {
+            assertEquals(Collections.singleton(tombstoneSSTable), controller.getFullyExpiredSSTables());
+        }
+    }
+
+    /**
+     * Flushes a partition tombstone for {@code key} into a new sstable and returns it. With {@code withLiveRow} the
+     * sstable also holds a newer live row for another key, so that it is not fully expired.
+     */
+    private static SSTableReader writeTombstoneSSTable(ColumnFamilyStore cfs, DecoratedKey key, long timestamp, boolean withLiveRow)
+    {
+        Set<SSTableReader> before = Sets.newHashSet(cfs.getLiveSSTables());
+        new Mutation(PartitionUpdate.fullPartitionDelete(cfs.metadata(), key, timestamp, FBUtilities.nowInSeconds())).applyUnsafe();
+        if (withLiveRow)
+            new RowUpdateBuilder(cfs.metadata(), timestamp * 2, Util.dk("k0")).clustering("ck").add("val", ByteBufferUtil.bytes(1L)).build().applyUnsafe();
+        Util.flush(cfs);
+        return Iterables.getOnlyElement(Sets.difference(cfs.getLiveSSTables(), before));
+    }
+
+    private static SSTableReader writeOfflineSSTable(ColumnFamilyStore cfs, PartitionUpdate update)
+    {
+        File dir = cfs.getDirectories().getDirectoryForNewSSTables();
+        Descriptor desc = cfs.newSSTableDescriptor(dir);
+        SerializationHeader header = new SerializationHeader(true, cfs.metadata(), cfs.metadata().regularAndStaticColumns(), EncodingStats.NO_STATS);
+        try (SSTableTxnWriter writer = SSTableTxnWriter.create(cfs, desc, 1, 0, null, false, header))
+        {
+            writer.append(update.unfilteredIterator());
+            Collection<SSTableReader> sstables = writer.finish(true);
+            return Iterables.getOnlyElement(sstables);
+        }
     }
 
     @Test
