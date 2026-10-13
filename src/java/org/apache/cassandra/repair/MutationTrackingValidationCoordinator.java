@@ -165,12 +165,15 @@ public class MutationTrackingValidationCoordinator
         fail(new RuntimeException("Validation cancelled"));
     }
 
-    private synchronized void fail(Throwable cause)
+    private void fail(Throwable cause)
     {
         if (future.tryFailure(cause))
         {
-            logger.warn("Validation coordinator failed for {}: {}", desc, cause.getMessage());
-            releaseTrees();
+            synchronized (this)
+            {
+                logger.warn("Validation coordinator failed for {}: {}", desc, cause.getMessage());
+                releaseTrees();
+            }
         }
     }
 

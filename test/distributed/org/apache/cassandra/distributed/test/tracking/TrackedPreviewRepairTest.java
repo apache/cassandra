@@ -23,7 +23,9 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Set;
 import java.util.concurrent.Callable;
+import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.CyclicBarrier;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.Future;
@@ -39,6 +41,7 @@ import net.bytebuddy.ByteBuddy;
 import net.bytebuddy.dynamic.loading.ClassLoadingStrategy;
 import net.bytebuddy.implementation.MethodDelegation;
 import net.bytebuddy.implementation.bind.annotation.SuperCall;
+import net.bytebuddy.implementation.bind.annotation.This;
 
 import org.junit.AfterClass;
 import org.junit.Before;
@@ -69,6 +72,7 @@ import org.apache.cassandra.metrics.TableMetrics;
 import org.apache.cassandra.net.Message;
 import org.apache.cassandra.net.Verb;
 import org.apache.cassandra.repair.MutationTrackingPreviewRepairTask;
+import org.apache.cassandra.repair.MutationTrackingValidationCoordinator;
 import org.apache.cassandra.repair.RepairMessageVerbHandler;
 import org.apache.cassandra.repair.messages.RepairMessage;
 import org.apache.cassandra.replication.MutationId;
@@ -113,6 +117,7 @@ public class TrackedPreviewRepairTest extends TestBaseImpl
         CLUSTER = Cluster.build(NODES).withConfig(CONFIG).withDataDirCount(1).withInstanceInitializer((cl, num) -> {
             PauseValidationRequest.install(cl, num);
             PauseEpochCheck.install(cl, num);
+            RaceValidationFailures.install(cl, num);
         }).start();
     }
 
@@ -880,6 +885,55 @@ public class TrackedPreviewRepairTest extends TestBaseImpl
         assertNotificationAbsent(result, MutationTrackingPreviewRepairTask.ESTABLISHING_OFFSETS);
     }
 
+    @Test
+    public void cancelsSiblingCoordinatorsConcurrentlyWithoutDeadlock() throws Exception
+    {
+        CLUSTER.schemaChange("CREATE KEYSPACE " + keyspace + " WITH replication = {'class': 'SimpleStrategy', 'replication_factor': " + NODES + "} AND replication_type='tracked'");
+        String tableA = table + "_a";
+        String tableB = table + "_b";
+        CLUSTER.schemaChange("CREATE TABLE " + keyspace + '.' + tableA + " (k int PRIMARY KEY, v int)");
+        CLUSTER.schemaChange("CREATE TABLE " + keyspace + '.' + tableB + " (k int PRIMARY KEY, v int)");
+
+        IInvokableInstance coordinator = CLUSTER.get(1);
+        IInvokableInstance node2 = CLUSTER.get(2);
+
+        // Keep both coordinators pending indefinitely, so we can force the race ourselves rather than depend on their validation timeout.
+        node2.runOnInstance(PauseValidationRequest::activate);
+
+        coordinator.runOnInstance(RaceValidationFailures::reset);
+        coordinator.runOnInstance(RaceValidationFailures::arm);
+
+        ExecutorService executor = Executors.newSingleThreadExecutor();
+        try
+        {
+            submitValidate(executor, coordinator, keyspace);
+
+            // Wait for both coordinators to be created and started.
+            await().atMost(30, TimeUnit.SECONDS)
+                   .pollInterval(100, TimeUnit.MILLISECONDS)
+                   .until(() -> coordinator.callOnInstance(RaceValidationFailures::capturedCount) == 2);
+
+            // Cancel both coordinators from different threads at once. Each cancel() wins its own future first, then 
+            // tries to cancel the other. This must complete without deadlocking.
+            coordinator.runOnInstance(() -> {
+                try
+                {
+                    RaceValidationFailures.cancelCapturedConcurrently();
+                }
+                catch (Exception e)
+                {
+                    throw new RuntimeException(e);
+                }
+            });
+        }
+        finally
+        {
+            coordinator.runOnInstance(RaceValidationFailures::disarm);
+            node2.runOnInstance(PauseValidationRequest::releaseAndDeactivate);
+            ExecutorUtils.shutdownAndWait(10, TimeUnit.SECONDS, executor);
+        }
+    }
+
     private static void createTrackedSchema(Cluster cluster, String keyspace, String table)
     {
         cluster.schemaChange("CREATE KEYSPACE " + keyspace + " WITH replication = {'class': 'SimpleStrategy', 'replication_factor': " + NODES + "} AND replication_type='tracked'");
@@ -1318,6 +1372,111 @@ public class TrackedPreviewRepairTest extends TestBaseImpl
             catch (Exception e)
             {
                 throw new RuntimeException(e);
+            }
+        }
+    }
+
+    public static class RaceValidationFailures
+    {
+        private static volatile CyclicBarrier barrier;
+        private static final ThreadLocal<Object> home = new ThreadLocal<>();
+        private static final List<Object> captured = new CopyOnWriteArrayList<>();
+
+        @SuppressWarnings("resource")
+        public static void install(ClassLoader cl, int nodeNumber)
+        {
+            new ByteBuddy().rebase(MutationTrackingValidationCoordinator.class)
+                           .method(named("fail").or(named("start")))
+                           .intercept(MethodDelegation.to(RaceValidationFailures.class))
+                           .make()
+                           .load(cl, ClassLoadingStrategy.Default.INJECTION);
+        }
+
+        public static void arm()
+        {
+            barrier = new CyclicBarrier(2);
+        }
+
+        public static void disarm()
+        {
+            barrier = null;
+        }
+
+        public static void reset()
+        {
+            captured.clear();
+        }
+
+        public static int capturedCount()
+        {
+            return captured.size();
+        }
+
+        @SuppressWarnings("unused")
+        public static org.apache.cassandra.utils.concurrent.Future<?> start(@This Object self, @SuperCall Callable<?> zuper) throws Exception
+        {
+            captured.add(self);
+            return (org.apache.cassandra.utils.concurrent.Future<?>) zuper.call();
+        }
+
+        @SuppressWarnings("unused")
+        public static void fail(Throwable cause, @This Object self, @SuperCall Callable<?> zuper) throws Exception
+        {
+            CyclicBarrier local = barrier;
+            if (local != null)
+            {
+                Object h = home.get();
+                if (h == null)
+                    home.set(self);
+                else if (h != self)
+                {
+                    try
+                    {
+                        local.await(60, TimeUnit.SECONDS);
+                    }
+                    catch (Exception ignored)
+                    {
+                    }
+                }
+            }
+            try
+            {
+                zuper.call();
+            }
+            catch (Exception e)
+            {
+                throw new RuntimeException(e);
+            }
+        }
+
+        /**
+         * Cancels every captured coordinator from its own independent thread, all at once, so that
+         * if two coordinators deadlock on each other's monitor, this call itself hangs and throws.
+         */
+        public static void cancelCapturedConcurrently() throws Exception
+        {
+            List<Object> toCancel = new ArrayList<>(captured);
+            if (toCancel.size() != 2)
+                throw new AssertionError("expected exactly 2 captured coordinators, found " + toCancel.size());
+
+            ExecutorService pool = Executors.newFixedThreadPool(2);
+            try
+            {
+                List<Future<?>> futures = new ArrayList<>();
+                for (Object coord : toCancel)
+                {
+                    MutationTrackingValidationCoordinator typed = (MutationTrackingValidationCoordinator) coord;
+                    futures.add(pool.submit(() -> {
+                        typed.cancel();
+                        return null;
+                    }));
+                }
+                for (Future<?> f : futures)
+                    f.get(20, TimeUnit.SECONDS);
+            }
+            finally
+            {
+                pool.shutdownNow();
             }
         }
     }
