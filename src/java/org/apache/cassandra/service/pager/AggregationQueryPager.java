@@ -42,25 +42,11 @@ import org.apache.cassandra.service.ClientState;
 import org.apache.cassandra.transport.Dispatcher;
 
 /**
- * {@code QueryPager} that takes care of fetching the pages for aggregation queries.
+ * Pages input for aggregation queries to bound memory use when a group spans many rows.
+ * {@link #fetchPage(PageSize, ConsistencyLevel, ClientState, Dispatcher.RequestTime)} may fetch multiple internal subpages.
  * <p/>
- * For aggregation/group by queries, the user page size is in number of groups. But each group could be composed of very
- * many rows so to avoid running into OOMs, this pager will page internal queries into sub-pages. So each call to
- * {@link #fetchPage(PageSize, ConsistencyLevel, ClientState, long)} may (transparently) yield multiple internal queries
- * (sub-pages).
- * <p/>
- * TL;DR
- * The sub-pager is the source of data, and the following limits need to be maintained when fetching a page of internal
- * results:
- * <ul>
- * <li>CQL limit for the total maximum groups number (provided by user as CQL clause)</li>
- * <li>CQL limit for the maximum number of groups per partition (provided by user as CQL clause)</li>
- * <li>page size specified in the number of groups</li>
- * <li>sub-pager page size in rows, bytes or both</li>
- * </ul>
- * There is no way to specify all the limits separately when fetching next page from the sub-pager. Therefore, they need
- * to be squashed.
- *
+ * Internal reads enforce the total and per-partition group limits, client group page size,
+ * and internal row and byte limits together.
  */
 public final class AggregationQueryPager implements QueryPager
 {
@@ -81,13 +67,9 @@ public final class AggregationQueryPager implements QueryPager
     }
 
     /**
-     * This will return the iterator over the partitions. The iterator is limited by the provided page size and the user
-     * specified limit (in the query). Both the limit and the page size are applied to the number of groups covered by
-     * the returned data.
-     * <p/>
-     * In case of group-by queries the page size can be provided only in rows unit ({@link OperationExecutionException}
-     * is thrown otherwise). In case of 'aggregate everything' queries, the provided page size and the limits are
-     * ignored as we always return a single row.
+     * Returns source partitions for aggregation. For grouped queries, the page size and query limits count groups.
+     * A defined page size must use rows; byte sizes throw {@link InvalidRequestException}.
+     * Ungrouped aggregation ignores the row page size and consumes all input for one aggregate result.
      *
      * @param pageSize    the maximum number of elements to return in the next page (groups)
      * @param consistency the consistency level to achieve for the query
@@ -116,7 +98,8 @@ public final class AggregationQueryPager implements QueryPager
     }
 
     /**
-     * {@see #fetchPage}
+     * The internal-read equivalent of
+     * {@link #fetchPage(PageSize, ConsistencyLevel, ClientState, Dispatcher.RequestTime)}.
      *
      * @param pageSize the maximum number of elements to return in the next page
      * @param executionController the {@code ReadExecutionController} protecting the read

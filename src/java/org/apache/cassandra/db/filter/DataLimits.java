@@ -59,11 +59,10 @@ import org.apache.cassandra.utils.ByteBufferUtil;
  * This is more complicated than a single count because we support {@code PER PARTITION}
  * limits, but also due to {@code GROUP BY} and paging.
  * <p/>
- * Tracking happens by row count ({@see count()}) and bytes ({@see bytes()}), with the first exhausted limit
- * taking precedence.
+ * Tracks row or group counts ({@link #count()}) and bytes ({@link #bytes()}), stopping at an applicable limit.
  * <p/>
- * When paging is used (see {@code forPaging} methods), the minimum number between the page size and the rows/bytes
- * limit is enforced, meaning that we'll never return more rows than requested.
+ * Paging reduces the limit in the requested unit while preserving the other query limits.
+ * The final row and associated static data can exceed the byte limit.
  */
 public abstract class DataLimits
 {
@@ -183,11 +182,8 @@ public abstract class DataLimits
     }
 
     /**
-     * Returns true if the count limit is not reached.
-     * <p/>
-     * Note: currently this method's only usage is for paging, where it is checked after processing a page as a quick
-     * signal that the data for the query is complete - if the count limit is not reached at the end of the page, this
-     * must be because there is no more data to return - that is - the input is exhausted.
+     * Returns true when no applicable limit was reached. After fully consuming the iterator,
+     * this indicates that the input was exhausted.
      */
     public boolean isExhausted(Counter counter)
     {
@@ -234,11 +230,9 @@ public abstract class DataLimits
                                        boolean enforceStrictLiveness);
 
     /**
-     * The max number of bytes this limits enforces.
-     * <p>
-     * Note that if this value is set, fewer rows might be returned if the size of the current rows exceeds the bytes limit.
+     * The byte threshold for stopping iteration. The final row and associated static data can exceed this threshold.
      *
-     * @return the maximum number of bytes this limits enforces.
+     * @return the byte threshold
      */
     public abstract int bytes();
 
@@ -451,11 +445,8 @@ public abstract class DataLimits
     }
 
     /**
-     * Limits used by CQL; this counts rows or bytes read. Please note:
-     * <ul>
-     * <li>When paging on rows, the minimum number of rows between the current limit and the page size is used as actual limit.</li>
-     * <li>When paging on bytes, the number of bytes takes precedence over the rows limit.</li>
-     * </ul>
+     * CQL row and byte limits. Row paging reduces the row limit to the page size.
+     * Byte paging preserves the row limit and stops when either limit is reached.
      */
     private static class CQLLimits extends DataLimits
     {

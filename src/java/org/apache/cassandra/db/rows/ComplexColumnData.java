@@ -151,7 +151,7 @@ public class ComplexColumnData extends ColumnData implements Iterable<Cell<?>>
             if (!complexDeletion.deletes(cell))
                 size += cell.liveDataSize(nowInSec);
         }
-        // Purging removes the column when no live cells remain.
+        // Exclude complex deletion metadata when no live cells contribute bytes.
         return size == 0 ? 0 : complexDeletion.dataSize() + size;
     }
 

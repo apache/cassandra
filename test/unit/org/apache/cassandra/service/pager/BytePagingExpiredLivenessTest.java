@@ -43,12 +43,9 @@ import static org.assertj.core.api.Assertions.assertThat;
 /**
  * Byte paging must not report a pager as exhausted while live rows remain.
  * <p>
- * A row written by {@code INSERT ... USING TTL} whose other cell was written without a TTL stays live after the row
- * marker expires. The replica-side counter ({@code ReadCommand.executeLocally}) sizes such a row before purge, when
- * the expired marker still counts as an expiring {@code LivenessInfo}. The pager counts the same row after
- * {@code Filter} has purged the marker to {@code LivenessInfo.EMPTY}, which is smaller. The replica therefore stops
- * at the byte limit while the pager sees fewer bytes than the limit, concludes that the data is exhausted, and ends
- * the query early.
+ * A non-expiring cell keeps a row live after its row marker expires. Previously, replica-side sizing included
+ * the expired marker while pager-side sizing excluded it after filtering. The difference caused false exhaustion.
+ * Both counters must exclude expired row liveness from the byte count.
  */
 public class BytePagingExpiredLivenessTest extends CQLTester
 {

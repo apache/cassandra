@@ -341,10 +341,10 @@ public interface Row extends Unfiltered, Iterable<ColumnData>, IMeasurableMemory
     public int dataSize();
 
     /**
-     * Returns the size of the data hold by this row that is live at {@code nowInSec}.
+     * Returns the size in bytes of data live at {@code nowInSec}.
      *
      * @param nowInSec the query timestamp in seconds
-     * @return the size of the data hold by this row that is live at {@code nowInSec}.
+     * @return the live data size in bytes
      */
     int liveDataSize(long nowInSec);
 

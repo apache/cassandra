@@ -272,17 +272,17 @@ public abstract class ColumnData implements IMeasurableMemory
     public final ColumnMetadata column() { return column; }
 
     /**
-     * The size of the data hold by this {@code ColumnData}.
+     * The size of the data held by this {@code ColumnData}.
      *
      * @return the size used by the data of this {@code ColumnData}.
      */
     public abstract int dataSize();
 
     /**
-     * The size of the data hold by this {@code ColumnData} that is live at {@code nowInSec}.
+     * Returns the size in bytes of data live at {@code nowInSec}.
      *
      * @param nowInSec the query timestamp in seconds
-     * @return the size used by the live data of this {@code ColumnData}.
+     * @return the live data size in bytes
      */
     public abstract int liveDataSize(long nowInSec);
 

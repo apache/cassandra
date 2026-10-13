@@ -221,11 +221,9 @@ public class MultiPartitionPager<T extends SinglePartitionReadQuery> implements 
     }
 
     /**
-     * This is an iterator over RowIterators (subsequent partitions). It starts from {@link #pagers}
-     * at {@link #curQueryIdx} and make sure that the overall amount of data does not exceed
-     * the provided {@link PagersIterator#pageSize} and user-defined data limits. This means that it can cut
-     * the row iteration in the first partition or return multiple partitions and cut the row iterator
-     * in n-th partition. It will update the {@link #curQueryIdx} index and {@link #remaining} as it goes.
+     * Iterates child pagers from {@link #curQueryIdx} until a page or query limit is reached.
+     * The final row and associated static data can exceed the byte threshold.
+     * Updates {@link #curQueryIdx} and {@link #remaining} as partitions are consumed.
      */
     private class PagersIterator extends AbstractIterator<RowIterator> implements PartitionIterator
     {
@@ -250,8 +248,7 @@ public class MultiPartitionPager<T extends SinglePartitionReadQuery> implements 
         private final DataLimits pageLimits;
 
         /**
-         * The counter used to count data on the current page across all the traversed internal pagers. In contains
-         * a sum of what has been counted by the internal pagers on this page.
+         * Sums the counters of child pagers used on this page.
          */
         private final DataLimits.Counter curPageCounter;
 
@@ -279,20 +276,16 @@ public class MultiPartitionPager<T extends SinglePartitionReadQuery> implements 
                 DataLimits.Counter lastPartitionCounter = null;
                 if (partitionIterator != null)
                 {
-                    // we've just reached the end of partition - let's close the row iterator and update the global counters
                     partitionIterator.close();
 
                     lastPartitionCounter = curPager.getLastCounter();
 
-                    // the counts of data measured by the lastly iterated partition are added to the outer query counter
                     curPageCounter.add(lastPartitionCounter);
-                    // the remaining limit needs to be decreased as well by the number of counted rows
+                    // counted() measures rows or groups, depending on the query limits.
                     remaining -= lastPartitionCounter.counted();
                 }
 
-                // We are done if:
-                // - we have reached the page size,
-                // - or in the case of GROUP BY if the current pager is not exhausted - which means that we read all the rows withing the limit before exhausting the pager
+                // Stop at a page limit, or when a GROUP BY child pager stops before exhausting its partition.
                 boolean isDone = !pageLimits.isExhausted(curPageCounter)
                                  || (partitionIterator != null && limits.isGroupByLimit() && !curPager.isExhausted());
 
@@ -308,21 +301,13 @@ public class MultiPartitionPager<T extends SinglePartitionReadQuery> implements 
                 }
 
                 if (isNewPartition)
-                    // since a new partition is started... it is for resetting per partition count in the outer counter
-                    // EMPTY_STATIC_ROW is passed to just not pass null - we simply don't care here because if a static
-                    // row is encountered, it will be handled by inner counter of a partition query - that is, its data
-                    // will be counted by inner counter and then added to the outer counter as above
+                    // Reset the outer per-partition counter. Child counters already include static data.
                     curPageCounter.applyToPartition(curPager.query.partitionKey(), Rows.EMPTY_STATIC_ROW);
 
-                // initially individual queries have their limits set to the initial value passed in the constructor
-                // the limits for subsequent queries have to be adjusted to the current page limits reduced by what has
-                // been counted so far on this page
+                // Limit the next child pager to the unused portion of this page.
                 DataLimits partitionLimits = curPageLimits.reducedBy(curPageCounter);
                 curPager = curPager.withUpdatedLimit(isNewPartition ? partitionLimits.withoutState() : partitionLimits);
 
-                // a single page may span multiple partitions, so we may be in a middle of a page when switching
-                // to the next partition; therefore, a full page should not be requested from the next partition query,
-                // and a remaining part of the page has to be calculated
                 PageSize remainingPagePart = curPageCounter.getDecreasedPageSize(pageSize);
 
                 partitionIterator = consistency == null

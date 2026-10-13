@@ -158,9 +158,6 @@ public class PagingQueryTest extends CQLTester
         };
     }
 
-    /**
-     * Inovke the test and check for the expected number of rows
-     */
     private void assertResults(Supplier<Pair<QueryPager, SelectStatement>> pagerSupplier, int expectedCount)
     {
         Pair<QueryPager, SelectStatement> pagerAndStmt = pagerSupplier.get();
@@ -181,20 +178,12 @@ public class PagingQueryTest extends CQLTester
         assertThat(pager.isExhausted()).isTrue();
     }
 
-    /**
-     * Invoke the tests with the provided page size. Firstly we just request the page size in rows as provided by the parameter.
-     * In the second test we convert (by multiplying) the requested number of rows on page to the number of bytes (assuming certain row size).
-     */
     private void assertResults(Supplier<Pair<QueryPager, SelectStatement>> pagerSupplier, int requestedPageSizeInRows, int expectedCountOnFirstPage, int expectedCount)
     {
         assertResults(pagerSupplier, PageSize.inRows(requestedPageSizeInRows), expectedCountOnFirstPage, expectedCount);
         assertResults(pagerSupplier, PageSize.inBytes(requestedPageSizeInRows * ROW_SIZE), expectedCountOnFirstPage, expectedCount);
     }
 
-    /**
-     * Invoke the tests with the provided page size. Firstly we just request the page size in rows as provided by the parameter.
-     * In the second test we convert (by multiplying) the requested number of rows on page to the number of bytes (assuming certain row size).
-     */
     private void assertResults(Supplier<Pair<QueryPager, SelectStatement>> pagerSupplier, int requestedPageSizeInRows, int expectedCountOnFirstPage, int expectedCount, int expectedValue)
     {
         List<List<byte[]>> rows = assertResults(pagerSupplier, PageSize.inRows(requestedPageSizeInRows), expectedCountOnFirstPage, expectedCount);
@@ -323,7 +312,7 @@ public class PagingQueryTest extends CQLTester
         pagerSupplier = getPager("%s PER PARTITION LIMIT %d ALLOW FILTERING", query, selClusterings / 2);
         assertResults(pagerSupplier, selClusterings / 2, selClusterings / 2, selPartitions * (selClusterings / 2));
 
-        // - where page size is > per partition limit (case for single partition and mulitple partitions)
+        // - where page size is > per partition limit (case for single partition and multiple partitions)
         pagerSupplier = getPager("%s PER PARTITION LIMIT %d ALLOW FILTERING", query, selClusterings / 3);
         if (selPartitions == 1)
             assertResults(pagerSupplier, selClusterings / 2, selClusterings / 3, selClusterings / 3);
@@ -345,28 +334,28 @@ public class PagingQueryTest extends CQLTester
         pagerSupplier = getPager("%s PER PARTITION LIMIT %d LIMIT %d ALLOW FILTERING", query, selClusterings / 2, selClusterings / 4);
         assertResults(pagerSupplier, selClusterings / 3, selClusterings / 4, selClusterings / 4);
 
-        // - where per query limit > per partition limit > page size (case for single partition and mulitple partitions)
+        // - where per query limit > per partition limit > page size (case for single partition and multiple partitions)
         pagerSupplier = getPager("%s PER PARTITION LIMIT %d LIMIT %d ALLOW FILTERING", query, selClusterings / 3, selClusterings / 2);
         if (selPartitions == 1)
             assertResults(pagerSupplier, selClusterings / 4, selClusterings / 4, selClusterings / 3);
         else
             assertResults(pagerSupplier, selClusterings / 4, selClusterings / 4, selClusterings / 2);
 
-        // - where per query limit > page size > per partition limit (case for single partition and mulitple partitions)
+        // - where per query limit > page size > per partition limit (case for single partition and multiple partitions)
         pagerSupplier = getPager("%s PER PARTITION LIMIT %d LIMIT %d ALLOW FILTERING", query, selClusterings / 4, selClusterings / 2);
         if (selPartitions == 1)
             assertResults(pagerSupplier, selClusterings / 3, selClusterings / 4, selClusterings / 4);
         else
             assertResults(pagerSupplier, selClusterings / 3, selClusterings / 3, selClusterings / 2);
 
-        // - where page size > per partition limit > query limit (case for single partition and mulitple partitions)
+        // - where page size > per partition limit > query limit (case for single partition and multiple partitions)
         pagerSupplier = getPager("%s PER PARTITION LIMIT %d LIMIT %d ALLOW FILTERING", query, selClusterings / 3, selClusterings / 4);
         if (selPartitions == 1)
             assertResults(pagerSupplier, selClusterings / 2, selClusterings / 4, selClusterings / 4);
         else
             assertResults(pagerSupplier, selClusterings / 2, selClusterings / 4, selClusterings / 4);
 
-        // - where page size > query limit > per partition limit (case for single partition and mulitple partitions)
+        // - where page size > query limit > per partition limit (case for single partition and multiple partitions)
         pagerSupplier = getPager("%s PER PARTITION LIMIT %d LIMIT %d ALLOW FILTERING", query, selClusterings / 4, selClusterings / 3);
         if (selPartitions == 1)
             assertResults(pagerSupplier, selClusterings / 2, selClusterings / 4, selClusterings / 4);

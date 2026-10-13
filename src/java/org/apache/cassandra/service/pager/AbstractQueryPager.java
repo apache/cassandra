@@ -79,15 +79,13 @@ abstract class AbstractQueryPager<T extends ReadQuery> implements QueryPager
     private DecoratedKey lastKey;
 
     /**
-     * Whether the pager is exhausted or not. The pager gets exhausted if the recently fetched, iterated and closed
-     * page had fewer items than the requested page size.
+     * Whether the last completed page exhausted its input before reaching any page limit.
      */
     private boolean exhausted;
 
     /**
-     * The paging transformation which is used for the recently requested page. It is set when a new page is requested
-     * and then cleaned (nulled), when the page is closed. It is used to prevent fetching a new page until the previous
-     * one is still being iterated.
+     * The current page transformation, cleared when the page closes.
+     * Prevents another fetch while the current page is open.
      */
     private PagerTransformation<?> currentPagerTransformation;
 
@@ -216,11 +214,7 @@ abstract class AbstractQueryPager<T extends ReadQuery> implements QueryPager
             this.pageCounter = pageLimits.newCounter(nowInSec, true, query.selectsFullPartition(), enforceStrictLiveness);
             AbstractQueryPager.this.lastCounter = this.pageCounter;
 
-            // Page limits are passed to the transformation for two reasons
-            // - to create a counter,
-            // - to determine if the query pager is exhausted when we reach the end of data (if the end of data
-            //   is reached before we reach the page limit, we conclude that the query pager is exhausted and there
-            //   are no more pages to fetch)
+            // Retain the limits to detect exhaustion when the page closes.
             this.pageLimits = pageLimits;
 
             if (logger.isTraceEnabled())
@@ -232,15 +226,7 @@ abstract class AbstractQueryPager<T extends ReadQuery> implements QueryPager
         {
             currentKey = partition.partitionKey();
 
-            // If this is the first partition on this page, and it was started on some previous page, and it is empty,
-            // there is no point in returning it.
-            // TL;DR
-            // When the partition has no more regular rows, and it has a static row it will look like an empty partition
-            // with a static row for the upper layer. The upper layer may treat such partitions in a special way - it is
-            // undesired in this case because this is just an empty fragment of non-empty partition. That is why
-            // skipping this partition is not just a slight optimization but also a requirement for correctness.
-            // When the partition is indeed empty, it must have been returned as such on the previous page.
-            // TODO would be good to have a unit test case for that
+            // Skip an empty continuation so its static data is not returned as a separate static-only result.
             if (isFirstPartition)
             {
                 isFirstPartition = false;

@@ -363,10 +363,8 @@ public class SelectStatement implements CQLStatement.SingleKeyspaceCqlStatement,
     }
 
     /**
-     * Returns whether the paging can be skipped based on the user limits and the page size - that is, if the user limit
-     * is provided and does not exceed the page size, it means that we will only return at most one page and thus paging
-     * is unnecessary in this case. That applies to the page size defined in rows - if the page size is defined in bytes
-     * we cannot say anything about the relation beteween the user rows limit and the page size.
+     * Paging can be skipped when no page size is specified or the query limit fits within a row page.
+     * A byte page size cannot establish whether the query limit fits.
      */
     private boolean canSkipPaging(DataLimits userLimits, PageSize pageSize)
     {

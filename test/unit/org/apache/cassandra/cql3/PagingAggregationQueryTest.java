@@ -99,16 +99,11 @@ public class PagingAggregationQueryTest extends CQLTester
     }
 
     /**
-     * DSP-22813, DBPE-16245, DBPE-16378 and CNDB-13978: Test that count(*) aggregation queries return the correct
-     * number of rows, even if there are tombstones and paging is required.
-     * </p>
-     * Before the DSP-22813/DBPE-16245/DBPE-16378/CNDB-13978 fix these queries would stop counting after hitting the
-     * {@code aggregation_sub_page_size} page size, returning only the count of a single page.
+     * Checks that COUNT(*) and GROUP BY consume all subpages when rows contain cell tombstones.
      */
     @Test
     public void testAggregationWithCellTomsbstones()
     {
-        // we are only interested in the NULL value case, which produces cell tombstones
         Assume.assumeTrue(value == null && !flush);
 
         createTable("CREATE TABLE %s (k int, c1 int, c2 int, v blob, PRIMARY KEY (k, c1, c2))");
@@ -117,7 +112,6 @@ public class PagingAggregationQueryTest extends CQLTester
         int c1s = NUM_CLUSTERINGS / 2;
         int c2s = NUM_CLUSTERINGS / 2;
 
-        // insert some data
         for (int k = 0; k < ks; k++)
         {
             for (int c1 = 0; c1 < c1s; c1++)
@@ -128,14 +122,11 @@ public class PagingAggregationQueryTest extends CQLTester
                 }
             }
 
-            // test aggregation on single partition query
             assertPartitionCount(k, c1s * c2s);
         }
 
-        // test aggregation on range query
         assertRangeCount(ks * c1s * c2s);
 
-        // test aggregation with group by
         Assertions.assertThat(execute("SELECT COUNT(*) FROM %s GROUP BY k").size()).isEqualTo(ks);
         Assertions.assertThat(execute("SELECT COUNT(*) FROM %s GROUP BY k, c1").size()).isEqualTo(ks * c1s);
         Assertions.assertThat(execute("SELECT COUNT(*) FROM %s GROUP BY k, c1, c2").size()).isEqualTo(ks * c1s * c2s);
@@ -146,10 +137,8 @@ public class PagingAggregationQueryTest extends CQLTester
     {
         createTable("CREATE TABLE %s (k bigint, c int, v blob, PRIMARY KEY(k, c))");
 
-        // insert some clusterings, and flush
         for (long k = 1; k <= NUM_PARTITIONS; k++)
         {
-            // insert some clusterings
             for (int c = 1; c <= NUM_CLUSTERINGS; c++)
             {
                 execute("INSERT INTO %s (k, c, v) VALUES (?, ?, ?)", k, c, value);
@@ -163,7 +152,6 @@ public class PagingAggregationQueryTest extends CQLTester
             execute("DELETE FROM %s WHERE k = ? AND c = ?", k, 1);
             execute("DELETE FROM %s WHERE k = ? AND c = ?", k, NUM_CLUSTERINGS);
 
-            // test aggregation on single partition query
             assertPartitionCount(k, NUM_CLUSTERINGS - 2);
             long maxK = execute("SELECT max(k) FROM %s WHERE k=?", k).one().getLong("system.max(k)");
             Assertions.assertThat(maxK).isEqualTo(k);
@@ -171,14 +159,12 @@ public class PagingAggregationQueryTest extends CQLTester
             Assertions.assertThat(maxC).isEqualTo(NUM_CLUSTERINGS - 1);
         }
 
-        // test aggregation on range query
         assertRangeCount(NUM_PARTITIONS * (NUM_CLUSTERINGS - 2));
         long maxK = execute("SELECT max(k) FROM %s").one().getLong("system.max(k)");
         Assertions.assertThat(maxK).isEqualTo(NUM_PARTITIONS);
         int maxC = execute("SELECT max(c) FROM %s").one().getInt("system.max(c)");
         Assertions.assertThat(maxC).isEqualTo(NUM_CLUSTERINGS - 1);
 
-        // test aggregation with group by
         Assertions.assertThat(execute("SELECT COUNT(*) FROM %s GROUP BY k").size()).isEqualTo(NUM_PARTITIONS);
         Assertions.assertThat(execute("SELECT COUNT(*) FROM %s GROUP BY k, c").size()).isEqualTo(NUM_PARTITIONS * (NUM_CLUSTERINGS - 2));
     }
@@ -188,10 +174,8 @@ public class PagingAggregationQueryTest extends CQLTester
     {
         createTable("CREATE TABLE %s (k bigint, c int, v blob, PRIMARY KEY(k, c))");
 
-        // insert some clusterings, and flush
         for (long k = 1; k <= NUM_PARTITIONS; k++)
         {
-            // insert some clusterings
             for (int c = 1; c <= NUM_CLUSTERINGS; c++)
             {
                 execute("INSERT INTO %s (k, c, v) VALUES (?, ?, ?)", k, c, value);
@@ -206,7 +190,6 @@ public class PagingAggregationQueryTest extends CQLTester
             {
                 execute("DELETE FROM %s WHERE k = ? AND c = ?", k, c);
 
-                // test aggregation on single partition query
                 assertPartitionCount(k, NUM_CLUSTERINGS - c);
             }
 
@@ -214,12 +197,10 @@ public class PagingAggregationQueryTest extends CQLTester
             Assertions.assertThat(execute("SELECT max(k) FROM %s WHERE k=?", k).one().getBytes("system.max(c)")).isNull();
         }
 
-        // test aggregation on range query
         assertRangeCount(0);
         Assertions.assertThat(execute("SELECT max(k) FROM %s").one().getBytes("system.max(k)")).isNull();
         Assertions.assertThat(execute("SELECT max(k) FROM %s").one().getBytes("system.max(c)")).isNull();
 
-        // test aggregation with group by
         Assertions.assertThat(execute("SELECT COUNT(*) FROM %s GROUP BY k").size()).isEqualTo(0);
         Assertions.assertThat(execute("SELECT COUNT(*) FROM %s GROUP BY k, c").size()).isEqualTo(0);
     }
@@ -229,10 +210,8 @@ public class PagingAggregationQueryTest extends CQLTester
     {
         createTable("CREATE TABLE %s (k bigint, c int, v blob, PRIMARY KEY(k, c))");
 
-        // insert some clusterings, and flush
         for (long k = 1; k <= NUM_PARTITIONS; k++)
         {
-            // insert some clusterings
             for (int c = 1; c <= NUM_CLUSTERINGS; c++)
             {
                 execute("INSERT INTO %s (k, c, v) VALUES (?, ?, ?)", k, c, value);
@@ -246,7 +225,6 @@ public class PagingAggregationQueryTest extends CQLTester
             execute("DELETE FROM %s WHERE k = ? AND c <= ?", k, 2);
             execute("DELETE FROM %s WHERE k = ? AND c >= ?", k, NUM_CLUSTERINGS - 1);
 
-            // test aggregation on single partition query
             assertPartitionCount(k, NUM_CLUSTERINGS - 4);
             long maxK = execute("SELECT max(k) FROM %s WHERE k=?", k).one().getLong("system.max(k)");
             Assertions.assertThat(maxK).isEqualTo(k);
@@ -254,14 +232,12 @@ public class PagingAggregationQueryTest extends CQLTester
             Assertions.assertThat(maxC).isEqualTo(NUM_CLUSTERINGS - 2);
         }
 
-        // test aggregation on range query
         assertRangeCount(NUM_PARTITIONS * (NUM_CLUSTERINGS - 4));
         long maxK = execute("SELECT max(k) FROM %s").one().getLong("system.max(k)");
         Assertions.assertThat(maxK).isEqualTo(NUM_PARTITIONS);
         int maxC = execute("SELECT max(c) FROM %s").one().getInt("system.max(c)");
         Assertions.assertThat(maxC).isEqualTo(NUM_CLUSTERINGS - 2);
 
-        // test aggregation with group by
         Assertions.assertThat(execute("SELECT COUNT(*) FROM %s GROUP BY k").size()).isEqualTo(NUM_PARTITIONS);
         Assertions.assertThat(execute("SELECT COUNT(*) FROM %s GROUP BY k, c").size()).isEqualTo(NUM_PARTITIONS * (NUM_CLUSTERINGS - 4));
     }
@@ -274,7 +250,6 @@ public class PagingAggregationQueryTest extends CQLTester
         int c1s = 11;
         int c2s = 17;
 
-        // insert some rows, and flush
         for (int k = 1; k <= NUM_PARTITIONS; k++)
         {
             for (int c1 = 1; c1 <= c1s; c1++)
@@ -296,11 +271,9 @@ public class PagingAggregationQueryTest extends CQLTester
                 execute("DELETE FROM %s WHERE k = ? AND c1 = ? AND c2 >= ?", k, c1, c2s - 1);
             }
 
-            // test aggregation on single partition query
             assertPartitionCount(k, c1s * (c2s - 4));
         }
 
-        // test aggregation on range query
         assertRangeCount(NUM_PARTITIONS * c1s * (c2s - 4));
     }
 
@@ -309,7 +282,6 @@ public class PagingAggregationQueryTest extends CQLTester
     {
         createTable("CREATE TABLE %s (k bigint PRIMARY KEY, v blob)");
 
-        // insert some partitions, and flush
         for (long k = 1; k <= NUM_PARTITIONS; k++)
         {
             execute("INSERT INTO %s (k, v) VALUES (?, ?)", k, value);
@@ -328,13 +300,11 @@ public class PagingAggregationQueryTest extends CQLTester
         {
             execute("INSERT INTO %s (k) VALUES (?)", k);
 
-            // test aggregation on single partition query
             assertPartitionCount(k, 1);
             long max = execute("SELECT max(k) FROM %s WHERE k=?", k).one().getLong("system.max(k)");
             Assertions.assertThat(max).isEqualTo(k);
         }
 
-        // test aggregation on range query
         assertRangeCount(NUM_PARTITIONS);
         long max = execute("SELECT max(k) FROM %s").one().getLong("system.max(k)");
         Assertions.assertThat(max).isEqualTo(NUM_PARTITIONS);
@@ -348,7 +318,6 @@ public class PagingAggregationQueryTest extends CQLTester
         int numClusteringsBeforeDeletion = 10;
         int numClusteringsAfterDeletion = 7;
 
-        // insert some partitions, and flush
         for (long k = 1; k <= NUM_PARTITIONS; k++)
         {
             for (int c = 1; c <= numClusteringsBeforeDeletion; c++)
@@ -373,13 +342,11 @@ public class PagingAggregationQueryTest extends CQLTester
                 execute("INSERT INTO %s (k, c) VALUES (?, ?)", k, c);
             }
 
-            // test aggregation on single partition query
             assertPartitionCount(k, numClusteringsAfterDeletion);
             long max = execute("SELECT max(k) FROM %s WHERE k=?", k).one().getLong("system.max(k)");
             Assertions.assertThat(max).isEqualTo(k);
         }
 
-        // test aggregation on range query
         assertRangeCount(NUM_PARTITIONS * numClusteringsAfterDeletion);
         long max = execute("SELECT max(k) FROM %s").one().getLong("system.max(k)");
         Assertions.assertThat(max).isEqualTo(NUM_PARTITIONS);
@@ -388,15 +355,12 @@ public class PagingAggregationQueryTest extends CQLTester
     @Test
     public void testAggregationWithLists()
     {
-        // we are only interested in the not NULL value case
         Assume.assumeTrue(value != null);
 
         createTable("CREATE TABLE %s (k bigint, c int, v list<blob>, PRIMARY KEY(k, c))");
 
-        // insert some clusterings, and flush
         for (long k = 1; k <= NUM_PARTITIONS; k++)
         {
-            // insert some clusterings
             for (int c = 1; c <= NUM_CLUSTERINGS; c++)
             {
                 execute("INSERT INTO %s (k, c, v) VALUES (?, ?, ?)", k, c, list(value, value, value, value, value));
@@ -414,12 +378,10 @@ public class PagingAggregationQueryTest extends CQLTester
                 execute("DELETE v[2] FROM %s WHERE k = ? AND c = ?", k, c);
             }
 
-            // test aggregation on single partition query
             assertPartitionCount(k, NUM_CLUSTERINGS);
         }
         maybeFlush();
 
-        // test aggregation on range query
         assertRangeCount(NUM_PARTITIONS * NUM_CLUSTERINGS);
 
         // for each row, add some list elements
@@ -430,12 +392,10 @@ public class PagingAggregationQueryTest extends CQLTester
                 execute("UPDATE %s SET v = v + ? WHERE k = ? AND c = ?", list(value, value), k, c);
             }
 
-            // test aggregation on single partition query
             assertPartitionCount(k, NUM_CLUSTERINGS);
         }
         maybeFlush();
 
-        // test aggregation on range query
         assertRangeCount(NUM_PARTITIONS * NUM_CLUSTERINGS);
 
         // for each row, drop the entire list
@@ -446,19 +406,16 @@ public class PagingAggregationQueryTest extends CQLTester
                 execute("INSERT INTO %s (k, c, v) VALUES (?, ?, ?)", k, c, null);
             }
 
-            // test aggregation on single partition query
             assertPartitionCount(k, NUM_CLUSTERINGS);
         }
         maybeFlush();
 
-        // test aggregation on range query
         assertRangeCount(NUM_PARTITIONS * NUM_CLUSTERINGS);
     }
 
     @Test
     public void testAggregationWithSets()
     {
-        // we are only interested in the not NULL value case
         Assume.assumeTrue(value != null);
 
         createTable("CREATE TABLE %s (k bigint, c int, v set<text>, PRIMARY KEY(k, c))");
@@ -469,10 +426,8 @@ public class PagingAggregationQueryTest extends CQLTester
         String v4 = ByteBufferUtil.bytesToHex(value) + "_4";
         String v5 = ByteBufferUtil.bytesToHex(value) + "_5";
 
-        // insert some clusterings, and flush
         for (long k = 1; k <= NUM_PARTITIONS; k++)
         {
-            // insert some clusterings
             for (int c = 1; c <= NUM_CLUSTERINGS; c++)
             {
                 execute("INSERT INTO %s (k, c, v) VALUES (?, ?, ?)", k, c, set(v1, v2, v3, v4));
@@ -489,12 +444,10 @@ public class PagingAggregationQueryTest extends CQLTester
                 execute("UPDATE %s SET v = v - ? WHERE k = ? AND c = ?", set(v3, v5), k, c);
             }
 
-            // test aggregation on single partition query
             assertPartitionCount(k, NUM_CLUSTERINGS);
         }
         maybeFlush();
 
-        // test aggregation on range query
         assertRangeCount(NUM_PARTITIONS * NUM_CLUSTERINGS);
 
         // for each row, add some set elements
@@ -505,12 +458,10 @@ public class PagingAggregationQueryTest extends CQLTester
                 execute("UPDATE %s SET v = v + ? WHERE k = ? AND c = ?", set(v1, v3), k, c);
             }
 
-            // test aggregation on single partition query
             assertPartitionCount(k, NUM_CLUSTERINGS);
         }
         maybeFlush();
 
-        // test aggregation on range query
         assertRangeCount(NUM_PARTITIONS * NUM_CLUSTERINGS);
 
         // for each row, drop the entire set
@@ -521,19 +472,16 @@ public class PagingAggregationQueryTest extends CQLTester
                 execute("INSERT INTO %s (k, c, v) VALUES (?, ?, ?)", k, c, null);
             }
 
-            // test aggregation on single partition query
             assertPartitionCount(k, NUM_CLUSTERINGS);
         }
         maybeFlush();
 
-        // test aggregation on range query
         assertRangeCount(NUM_PARTITIONS * NUM_CLUSTERINGS);
     }
 
     @Test
     public void testAggregationWithMaps()
     {
-        // we are only interested in the not NULL value case
         Assume.assumeTrue(value != null);
 
         createTable("CREATE TABLE %s (k bigint, c int, v map<text, text>, PRIMARY KEY(k, c))");
@@ -550,10 +498,8 @@ public class PagingAggregationQueryTest extends CQLTester
         String v4 = stringValue + "_v_4";
         String v5 = stringValue + "_v_5";
 
-        // insert some clusterings, and flush
         for (long k = 1; k <= NUM_PARTITIONS; k++)
         {
-            // insert some clusterings
             for (int c = 1; c <= NUM_CLUSTERINGS; c++)
             {
                 execute("INSERT INTO %s (k, c, v) VALUES (?, ?, ?)", k, c,
@@ -571,12 +517,10 @@ public class PagingAggregationQueryTest extends CQLTester
                 execute("UPDATE %s SET v = v - ? WHERE k = ? AND c = ?", set(k3, k5), k, c);
             }
 
-            // test aggregation on single partition query
             assertPartitionCount(k, NUM_CLUSTERINGS);
         }
         maybeFlush();
 
-        // test aggregation on range query
         assertRangeCount(NUM_PARTITIONS * NUM_CLUSTERINGS);
 
         // for each row, add some map elements
@@ -587,12 +531,10 @@ public class PagingAggregationQueryTest extends CQLTester
                 execute("UPDATE %s SET v = v + ? WHERE k = ? AND c = ?", map(k1, v1, k3, v3), k, c);
             }
 
-            // test aggregation on single partition query
             assertPartitionCount(k, NUM_CLUSTERINGS);
         }
         maybeFlush();
 
-        // test aggregation on range query
         assertRangeCount(NUM_PARTITIONS * NUM_CLUSTERINGS);
 
         // for each row, drop the entire map
@@ -603,28 +545,23 @@ public class PagingAggregationQueryTest extends CQLTester
                 execute("INSERT INTO %s (k, c, v) VALUES (?, ?, ?)", k, c, null);
             }
 
-            // test aggregation on single partition query
             assertPartitionCount(k, NUM_CLUSTERINGS);
         }
         maybeFlush();
 
-        // test aggregation on range query
         assertRangeCount(NUM_PARTITIONS * NUM_CLUSTERINGS);
     }
 
     @Test
     public void testAggregationWithUDTs()
     {
-        // we are only interested in the not NULL value case
         Assume.assumeTrue(value != null);
 
         String type = createType("CREATE TYPE %s (x blob, y blob)");
         createTable("CREATE TABLE %s (k bigint, c int, v " + type + ", PRIMARY KEY(k, c))");
 
-        // insert some rows, and flush
         for (long k = 1; k <= NUM_PARTITIONS; k++)
         {
-            // insert some clusterings
             for (int c = 1; c <= NUM_CLUSTERINGS; c++)
             {
                 execute("INSERT INTO %s (k, c, v) VALUES (?, ?, ?)", k, c, tuple(value, value));
@@ -640,12 +577,10 @@ public class PagingAggregationQueryTest extends CQLTester
                 execute("UPDATE %s SET v.x = null WHERE k = ? AND c = ?", k, c);
             }
 
-            // test aggregation on single partition query
             assertPartitionCount(k, NUM_CLUSTERINGS);
         }
         maybeFlush();
 
-        // test aggregation on range query
         assertRangeCount(NUM_PARTITIONS * NUM_CLUSTERINGS);
 
         // for each row, update a tuple element
@@ -656,12 +591,10 @@ public class PagingAggregationQueryTest extends CQLTester
                 execute("UPDATE %s SET v.x = ? WHERE k = ? AND c = ?", value, k, c);
             }
 
-            // test aggregation on single partition query
             assertPartitionCount(k, NUM_CLUSTERINGS);
         }
         maybeFlush();
 
-        // test aggregation on range query
         assertRangeCount(NUM_PARTITIONS * NUM_CLUSTERINGS);
 
         // for each row, delete the tuple
@@ -672,19 +605,16 @@ public class PagingAggregationQueryTest extends CQLTester
                 execute("DELETE v FROM %s WHERE k = ? AND c = ?", k, c);
             }
 
-            // test aggregation on single partition query
             assertPartitionCount(k, NUM_CLUSTERINGS);
         }
         maybeFlush();
 
-        // test aggregation on range query
         assertRangeCount(NUM_PARTITIONS * NUM_CLUSTERINGS);
     }
 
     @Test
     public void testTTLsWithSkinnyTable()
     {
-        // we are only interested in the not NULL value case
         Assume.assumeTrue(value != null);
 
         createTable("CREATE TABLE %s (k int PRIMARY KEY, c int, v text)");
@@ -693,32 +623,27 @@ public class PagingAggregationQueryTest extends CQLTester
         String v1 = stringValue + "_1";
         String v2 = stringValue + "_2";
 
-        // insert some rows, and flush
         for (int k = 1; k <= NUM_PARTITIONS; k++)
         {
             execute("INSERT INTO %s (k, v) VALUES (?, ?)", k, v1);
         }
         maybeFlush();
 
-        // test aggregation on range query
         assertRangeCount(NUM_PARTITIONS);
 
-        // Give a TTL the two first and two last partitions
+        // Apply a TTL to v in the first and penultimate partitions; row liveness keeps both rows live.
         execute("UPDATE %s USING TTL 1 SET v = ? WHERE k = ? ", v2, 1);
         execute("UPDATE %s USING TTL 1 SET v = ? WHERE k = ? ", v2, NUM_PARTITIONS - 1);
         maybeFlush();
 
-        // wait for the TTL to expire
         Uninterruptibles.sleepUninterruptibly(2, TimeUnit.SECONDS);
 
-        // test aggregation on range query
         assertRangeCount(NUM_PARTITIONS);
     }
 
     @Test
     public void testTTLsWithWideTable()
     {
-        // we are only interested in the not NULL value case
         Assume.assumeTrue(value != null);
 
         createTable("CREATE TABLE %s (k int, c int, v text, PRIMARY KEY(k, c))");
@@ -727,7 +652,6 @@ public class PagingAggregationQueryTest extends CQLTester
         String v1 = stringValue + "_1";
         String v2 = stringValue + "_2";
 
-        // insert some rows, and flush
         for (int k = 1; k <= NUM_PARTITIONS; k++)
         {
             for (int c = 1; c <= NUM_CLUSTERINGS; c++)
@@ -737,10 +661,9 @@ public class PagingAggregationQueryTest extends CQLTester
         }
         maybeFlush();
 
-        // test aggregation on range query
         assertRangeCount(NUM_PARTITIONS * NUM_CLUSTERINGS);
 
-        // for each partition, give a TTL the two first and two last clusterings
+        // Apply a TTL to v in the first and penultimate rows of each partition; row liveness keeps them live.
         for (int k = 1; k <= NUM_PARTITIONS; k++)
         {
             execute("UPDATE %s USING TTL 1 SET v = ? WHERE k = ? AND c = ?", v2, k, 1);
@@ -748,10 +671,8 @@ public class PagingAggregationQueryTest extends CQLTester
         }
         maybeFlush();
 
-        // wait for the TTL to expire
         Uninterruptibles.sleepUninterruptibly(2, TimeUnit.SECONDS);
 
-        // test aggregation on range query
         assertRangeCount(NUM_PARTITIONS * NUM_CLUSTERINGS);
     }
 
@@ -761,10 +682,8 @@ public class PagingAggregationQueryTest extends CQLTester
         // create the table with a very short gc_grace_seconds, so there are tombstones to be purged on the replicas
         createTable("CREATE TABLE %s (k bigint, c int, v blob, PRIMARY KEY(k, c)) WITH gc_grace_seconds = 0");
 
-        // insert some clusterings, and flush
         for (long k = 1; k <= NUM_PARTITIONS; k++)
         {
-            // insert some clusterings
             for (int c = 1; c <= NUM_CLUSTERINGS; c++)
             {
                 execute("INSERT INTO %s (k, c, v) VALUES (?, ?, ?) USING TIMESTAMP 1", k, c, value);
@@ -778,7 +697,6 @@ public class PagingAggregationQueryTest extends CQLTester
             execute("DELETE v FROM %s USING TIMESTAMP 2 WHERE k = ? AND c = ?", k, 1);
             execute("DELETE v FROM %s USING TIMESTAMP 2 WHERE k = ? AND c = ?", k, NUM_CLUSTERINGS);
 
-            // test aggregation on single partition query
             assertPartitionCount(k, NUM_CLUSTERINGS);
         }
         maybeFlush();
@@ -786,7 +704,6 @@ public class PagingAggregationQueryTest extends CQLTester
         // wait for the tombstones to be purgeable
         Uninterruptibles.sleepUninterruptibly(1, TimeUnit.SECONDS);
 
-        // test aggregation on range query
         assertRangeCount(NUM_PARTITIONS * NUM_CLUSTERINGS);
     }
 
@@ -820,8 +737,8 @@ public class PagingAggregationQueryTest extends CQLTester
     {
         int selectRows = execute(selectQuery, args).size();
         long selectCountRows = execute(countQuery, args).one().getLong("count");
-        Assertions.assertThat(selectRows).isEqualTo(expectedCount); // both are consistent
-        Assertions.assertThat(selectRows).isEqualTo(selectCountRows); // both are correct
+        Assertions.assertThat(selectRows).isEqualTo(expectedCount);
+        Assertions.assertThat(selectRows).isEqualTo(selectCountRows);
     }
 
     private void maybeFlush()
