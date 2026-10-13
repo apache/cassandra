@@ -1681,10 +1681,12 @@ public class LogTransactionTest extends AbstractTransactionalTest
         long expectedMaxUpdateTime = realFiles.values().stream().mapToLong(File::lastModified).max().getAsLong();
 
         Set<Component> deleted = new HashSet<>();
+        List<Component> deletionOrder = new ArrayList<>();
         List<String> violations = new ArrayList<>();
         Descriptor stubDesc = stubDeletionOrder(realDesc, realFiles, component ->
         {
             deleted.add(component);
+            deletionOrder.add(component);
             long remainingMax = realFiles.entrySet().stream()
                                           .filter(e -> !deleted.contains(e.getKey()))
                                           .mapToLong(e -> e.getValue().lastModified())
@@ -1699,6 +1701,18 @@ public class LogTransactionTest extends AbstractTransactionalTest
 
         assertTrue("expected no violations, got: " + violations, violations.isEmpty());
         assertEquals(realFiles.size(), deleted.size());
+
+        // 5) confirm the files were deleted oldest-first (the stub deletes nothing so the timestamps are unchanged)
+        assertEquals("each component should be deleted exactly once", realFiles.size(), deletionOrder.size());
+        for (int i = 1; i < deletionOrder.size(); i++)
+        {
+            Component previous = deletionOrder.get(i - 1);
+            Component current = deletionOrder.get(i);
+            assertTrue("expected " + previous + " to be deleted before " + current + " (deletion order: " + deletionOrder + ')',
+                       realFiles.get(previous).lastModified() <= realFiles.get(current).lastModified());
+        }
+        assertEquals("DATA has the highest update time so it should be deleted last",
+                     SSTableFormat.Components.DATA, deletionOrder.get(deletionOrder.size() - 1));
     }
 
     private static Descriptor stubDeletionOrder(Descriptor realDesc, Map<Component, File> realFiles, Consumer<Component> onDelete)

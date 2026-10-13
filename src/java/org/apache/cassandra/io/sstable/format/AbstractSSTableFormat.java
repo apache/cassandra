@@ -18,6 +18,7 @@
 
 package org.apache.cassandra.io.sstable.format;
 
+import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.HashMap;
 import java.util.List;
@@ -54,35 +55,36 @@ public abstract class AbstractSSTableFormat<R extends SSTableReader, W extends S
     @Override
     public final void deleteOrphanedComponents(Descriptor descriptor, Set<Component> components)
     {
-        File dataFile = descriptor.fileFor(Components.DATA);
-        if (components.contains(Components.DATA) && dataFile.length() > 0)
+        if (components.contains(Components.DATA) && descriptor.fileFor(Components.DATA).length() > 0)
             // everything appears to be in order... moving on.
             return;
 
         // missing the DATA file! all components are orphaned
         logger.warn("[{}] Removing orphans for {}: {}", getClass().getSimpleName(), descriptor, components);
         for (Component component : components)
-        {
-            File file = descriptor.fileFor(component);
-            if (file.exists())
-                descriptor.fileFor(component).delete();
-        }
+            descriptor.fileFor(component).deleteIfExists();
     }
 
-    protected final void deleteComponentsOldestFirst(Descriptor desc, List<Component> components)
+    protected final void deleteComponentsOldestFirst(Descriptor desc, Set<Component> components)
     {
         logger.info("[{}] Deleting sstable: {}", getClass().getSimpleName(), desc);
 
         // delete older files first so the overall SSTable timestamp stays the same on partial deletes
+        Map<Component, File> files = new HashMap<>();
         Map<Component, Long> lastModified = new HashMap<>();
         for (Component c : components)
-            lastModified.put(c, desc.fileFor(c).lastModified());
-        components.sort(Comparator.comparingLong(lastModified::get));
+        {
+            File file = desc.fileFor(c);
+            files.put(c, file);
+            lastModified.put(c, file.lastModified());
+        }
+        List<Component> oldestFirst = new ArrayList<>(components);
+        oldestFirst.sort(Comparator.comparingLong(lastModified::get));
 
-        for (Component component : components)
+        for (Component component : oldestFirst)
         {
             logger.trace("[{}] Deleting component {} of {}", getClass().getSimpleName(), component, desc);
-            desc.fileFor(component).deleteIfExists();
+            files.get(component).deleteIfExists();
         }
     }
 
