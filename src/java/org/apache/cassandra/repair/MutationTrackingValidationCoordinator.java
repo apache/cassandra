@@ -30,6 +30,7 @@ import java.util.concurrent.TimeoutException;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.dht.Range;
 import org.apache.cassandra.dht.Token;
 import org.apache.cassandra.locator.InetAddressAndPort;
@@ -54,10 +55,6 @@ public class MutationTrackingValidationCoordinator
 
     /** Session-keyed registry so inbound {@link Verb#MT_VALIDATION_RSP} messages find the right coordinator. */
     private static final Map<RepairJobDesc, MutationTrackingValidationCoordinator> REGISTRY = new ConcurrentHashMap<>();
-
-    // Bound how long we wait; a participant that never responds fails the whole validation
-    // rather than hanging it forever.
-    private static final long VALIDATION_TIMEOUT_SECONDS = 120;
 
     private final SharedContext ctx;
     private final RepairJobDesc desc;
@@ -89,10 +86,11 @@ public class MutationTrackingValidationCoordinator
         }
         future.addListener(() -> REGISTRY.remove(desc, this));
 
+        long timeout = DatabaseDescriptor.getMutationTrackingValidationTimeout(TimeUnit.SECONDS);
         ctx.scheduledTasks().schedule(() -> {
             if (!future.isDone())
-                fail(new TimeoutException("MT validation timed out after " + VALIDATION_TIMEOUT_SECONDS + "s for " + desc));
-        }, VALIDATION_TIMEOUT_SECONDS, TimeUnit.SECONDS);
+                fail(new TimeoutException("MT validation timed out after " + timeout + "s for " + desc));
+        }, timeout, TimeUnit.SECONDS);
 
         MutationTrackingValidationRequest request = new MutationTrackingValidationRequest(desc, FBUtilities.nowInSeconds(), false, offset);
         for (InetAddressAndPort participant : participants)
@@ -145,19 +143,26 @@ public class MutationTrackingValidationCoordinator
 
     private synchronized void complete()
     {
-        List<InetAddressAndPort> endpoints = new ArrayList<>(trees.keySet());
-        Set<Range<Token>> mismatchingRanges = new HashSet<>();
-        for (int i = 0; i < endpoints.size(); i++)
+        try
         {
-            for (int j = i + 1; j < endpoints.size(); j++)
+            List<InetAddressAndPort> endpoints = new ArrayList<>(trees.keySet());
+            Set<Range<Token>> mismatchingRanges = new HashSet<>();
+            for (int i = 0; i < endpoints.size(); i++)
             {
-                MerkleTrees left = trees.get(endpoints.get(i));
-                MerkleTrees right = trees.get(endpoints.get(j));
-                mismatchingRanges.addAll(MerkleTrees.difference(left, right));
+                for (int j = i + 1; j < endpoints.size(); j++)
+                {
+                    MerkleTrees left = trees.get(endpoints.get(i));
+                    MerkleTrees right = trees.get(endpoints.get(j));
+                    mismatchingRanges.addAll(MerkleTrees.difference(left, right));
+                }
             }
+            if (future.trySuccess(new Result(mismatchingRanges)))
+                releaseTrees();
         }
-        if (future.trySuccess(new Result(mismatchingRanges)))
-            releaseTrees();
+        catch (Throwable t)
+        {
+            fail(t);
+        }
     }
 
     public void cancel()
