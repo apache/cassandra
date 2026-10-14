@@ -69,7 +69,7 @@ public final class ValidationOffsets
                     return false;
                 continue;
             }
-            if (!offsetsContainAll(offsetsForLog, entry.getValue()))
+            if (!Offsets.Immutable.difference(entry.getValue(), offsetsForLog).isEmpty())
                 return false;
         }
         return sawEntry;
@@ -98,16 +98,6 @@ public final class ValidationOffsets
     {
         Offsets.Immutable offsetsForLog = perLog.get(id.asLogId());
         return offsetsForLog != null && offsetsForLog.contains(id.offset());
-    }
-
-    private static boolean offsetsContainAll(Offsets.Immutable superset, Offsets.Immutable subset)
-    {
-        for (ShortMutationId id : subset)
-        {
-            if (!superset.contains(id.offset()))
-                return false;
-        }
-        return true;
     }
 
     @Override
