@@ -36,6 +36,7 @@ import org.apache.cassandra.distributed.api.IInvokableInstance;
 import org.apache.cassandra.distributed.api.TokenSupplier;
 import org.apache.cassandra.distributed.shared.ClusterUtils;
 import org.apache.cassandra.distributed.shared.NetworkTopology;
+import org.apache.cassandra.net.Verb;
 
 import static java.lang.String.format;
 import static org.apache.cassandra.distributed.api.Feature.GOSSIP;
@@ -71,6 +72,12 @@ public class TrackedBootstrapTest extends TestBaseImpl
     }
 
     @Test
+    public void bootstrapSealsObsoletedShards_withTransientDrainTimeout() throws Throwable
+    {
+        bootstrapAndSeal(3, 3, 2);
+    }
+
+    @Test
     public void bootstrapSealsObsoletedShards_largerRing() throws Throwable
     {
         bootstrapAndSeal(5, 3);
@@ -83,6 +90,11 @@ public class TrackedBootstrapTest extends TestBaseImpl
      */
     private void bootstrapAndSeal(int initialNodes, int rf) throws Throwable
     {
+        bootstrapAndSeal(initialNodes, rf, 0);
+    }
+
+    private void bootstrapAndSeal(int initialNodes, int rf, int dropDrainCount) throws Throwable
+    {
         int expandedNodes = initialNodes + 1;
         // Real Murmur3 tokens for the full expanded ring; the joining node (index expandedNodes) gets the top
         // token slot, whose primary range is interior (does not wrap MIN).
@@ -90,8 +102,12 @@ public class TrackedBootstrapTest extends TestBaseImpl
         try (Cluster cluster = builder().withNodes(initialNodes)
                                         .withTokenSupplier(tokenSupplier)
                                         .withNodeIdTopology(NetworkTopology.singleDcNetworkTopology(expandedNodes, "dc0", "rack0"))
-                                        .withConfig(config -> config.with(NETWORK, GOSSIP)
-                                                                    .set("num_tokens", 1))
+                                        .withConfig(config -> {
+                                            config.with(NETWORK, GOSSIP)
+                                                  .set("num_tokens", 1);
+                                            if (dropDrainCount > 0)
+                                                config.set("shard_sealing_timeout", "1000ms");
+                                        })
                                         .start())
         {
             // RF tracked keyspace (mutation tracking is enabled by default in jvm-dtest)
@@ -126,7 +142,17 @@ public class TrackedBootstrapTest extends TestBaseImpl
             IInstanceConfig config = cluster.newInstanceConfig()
                                             .set("auto_bootstrap", true)
                                             .set(Constants.KEY_DTEST_FULL_STARTUP, true);
+            if (dropDrainCount > 0)
+                config.set("shard_sealing_timeout", "1000ms");
             IInvokableInstance newNode = cluster.bootstrap(config);
+
+            AtomicInteger dropped = new AtomicInteger();
+            if (dropDrainCount > 0)
+            {
+                cluster.filters().verbs(Verb.MT_DRAIN_REQ.id).messagesMatching((from, to, msg) -> {
+                    return dropped.getAndIncrement() < dropDrainCount;
+                }).drop();
+            }
 
             // Keep client writes running in the background for the whole duration of the bootstrap, through the
             // existing (always-alive) coordinators. The joining node must obtain these writes -- already-acked ones
@@ -170,6 +196,9 @@ public class TrackedBootstrapTest extends TestBaseImpl
             writer.start();
 
             newNode.startup(cluster);
+
+            if (dropDrainCount > 0)
+                assertTrue("expected drain requests to be dropped", dropped.get() >= dropDrainCount);
 
             ClusterUtils.awaitRingJoin(cluster.get(1), newNode);
             ClusterUtils.awaitRingJoin(newNode, cluster.get(1));

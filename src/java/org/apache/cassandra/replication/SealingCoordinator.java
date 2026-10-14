@@ -19,6 +19,8 @@ package org.apache.cassandra.replication;
 
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.Collection;
+import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
@@ -28,12 +30,17 @@ import java.util.concurrent.ExecutionException;
 import java.util.concurrent.TimeoutException;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.locks.LockSupport;
+import java.util.function.BiFunction;
+import java.util.function.Predicate;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 
 import org.agrona.collections.IntHashSet;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
+import org.apache.cassandra.config.CassandraRelevantProperties;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.db.TypeSizes;
 import org.apache.cassandra.dht.AbstractBounds;
@@ -68,6 +75,7 @@ import org.apache.cassandra.utils.CollectionSerializers;
 import org.apache.cassandra.utils.concurrent.AsyncPromise;
 import org.apache.cassandra.utils.concurrent.Future;
 import org.apache.cassandra.utils.concurrent.FutureCombiner;
+import org.apache.cassandra.utils.concurrent.UncheckedInterruptedException;
 
 import static com.google.common.base.Preconditions.checkArgument;
 import static java.lang.String.format;
@@ -98,6 +106,27 @@ import static org.apache.cassandra.utils.Clock.Global.nanoTime;
  */
 public final class SealingCoordinator
 {
+    private static final Logger logger = LoggerFactory.getLogger(SealingCoordinator.class);
+
+    private static final int MAX_RETRIES = CassandraRelevantProperties.SHARD_SEALING_RETRIES.getInt();
+    private static final long INITIAL_BACKOFF_MS = 200;
+    private static final long MAX_BACKOFF_MS = 2000;
+
+    private static long sleepWithBackoff(long currentBackoffMs)
+    {
+        if (currentBackoffMs > 0)
+        {
+            try
+            {
+                Thread.sleep(currentBackoffMs);
+            }
+            catch (InterruptedException e)
+            {
+                throw new UncheckedInterruptedException(e);
+            }
+        }
+        return Math.min(MAX_BACKOFF_MS, (long) (currentBackoffMs * 1.5));
+    }
     /*
      * BOOTSTRAP sequence illustrated. Stages in which write placements
      * remain unchanged, and only read placements change, are skipped
@@ -309,10 +338,14 @@ public final class SealingCoordinator
         Set<ShardMetadata> shards = new HashSet<>();
         try
         {
-            for (Set<ShardMetadata> fetched : FutureCombiner.allOf(futures).get(DatabaseDescriptor.getRpcTimeout(MILLISECONDS), MILLISECONDS))
+            for (Set<ShardMetadata> fetched : FutureCombiner.allOf(futures).get(DatabaseDescriptor.getShardSealingTimeout(MILLISECONDS), MILLISECONDS))
                 shards.addAll(fetched);
         }
-        catch (InterruptedException | ExecutionException | TimeoutException e)
+        catch (InterruptedException e)
+        {
+            throw new UncheckedInterruptedException(e);
+        }
+        catch (ExecutionException | TimeoutException e)
         {
             throw new RuntimeException("Failed to fetch shards to seal", e);
         }
@@ -448,12 +481,16 @@ public final class SealingCoordinator
         Set<ShardMetadata> shards = new HashSet<>();
         try
         {
-            for (Set<ShardMetadata> fetched : FutureCombiner.allOf(futures).get(DatabaseDescriptor.getRpcTimeout(MILLISECONDS), MILLISECONDS))
+            for (Set<ShardMetadata> fetched : FutureCombiner.allOf(futures).get(DatabaseDescriptor.getShardSealingTimeout(MILLISECONDS), MILLISECONDS))
                 for (ShardMetadata shard : fetched)
                     if (shard.participants.contains(leavingOrDeparted.id()))
                         shards.add(shard);
         }
-        catch (InterruptedException | ExecutionException | TimeoutException e)
+        catch (InterruptedException e)
+        {
+            throw new UncheckedInterruptedException(e);
+        }
+        catch (ExecutionException | TimeoutException e)
         {
             throw new RuntimeException("Failed to fetch shards to seal for leave", e);
         }
@@ -495,10 +532,14 @@ public final class SealingCoordinator
         Set<ShardMetadata> shards = new HashSet<>();
         try
         {
-            for (Set<ShardMetadata> fetched : FutureCombiner.allOf(futures).get(DatabaseDescriptor.getRpcTimeout(MILLISECONDS), MILLISECONDS))
+            for (Set<ShardMetadata> fetched : FutureCombiner.allOf(futures).get(DatabaseDescriptor.getShardSealingTimeout(MILLISECONDS), MILLISECONDS))
                 shards.addAll(fetched);
         }
-        catch (InterruptedException | ExecutionException | TimeoutException e)
+        catch (InterruptedException e)
+        {
+            throw new UncheckedInterruptedException(e);
+        }
+        catch (ExecutionException | TimeoutException e)
         {
             throw new RuntimeException("Failed to fetch shards to seal for leave finish", e);
         }
@@ -567,60 +608,164 @@ public final class SealingCoordinator
         }
     }
 
-    private static void initiate(Set<ShardMetadata> shards, @Nullable NodeId withoutNode)
+    static class StepCallback<T> implements RequestCallback<T>
     {
-        List<Future<Void>> futures = new ArrayList<>(shards.size());
-        for (ShardMetadata shard : shards)
-            futures.add(initiate(shard, withoutNode));
-        try
+        private final String keyspace;
+        private final String operation;
+        private final AsyncPromise<Void> future = new AsyncPromise<>();
+        private final Set<InetAddressAndPort> remaining;
+        private final Set<InetAddressAndPort> succeeded = ConcurrentHashMap.newKeySet();
+        private final Map<InetAddressAndPort, RequestFailure> failures = new ConcurrentHashMap<>();
+        private final Predicate<T> successCondition;
+
+        public StepCallback(Collection<InetAddressAndPort> endpoints, String keyspace, String operation)
         {
-            FutureCombiner.allOf(futures).get(DatabaseDescriptor.getRpcTimeout(MILLISECONDS), MILLISECONDS);
+            this(endpoints, keyspace, operation, payload -> true);
         }
-        catch (InterruptedException | ExecutionException | TimeoutException e)
+
+        public StepCallback(Collection<InetAddressAndPort> endpoints, String keyspace, String operation, Predicate<T> successCondition)
         {
-            throw new RuntimeException("Failed to initiate sealing", e);
+            this.keyspace = keyspace;
+            this.operation = operation;
+            this.successCondition = successCondition;
+            this.remaining = ConcurrentHashMap.newKeySet();
+            this.remaining.addAll(endpoints);
+        }
+
+        Future<Void> future()
+        {
+            return future;
+        }
+
+        Set<InetAddressAndPort> succeeded()
+        {
+            return succeeded;
+        }
+
+        Map<InetAddressAndPort, RequestFailure> failures()
+        {
+            return failures;
+        }
+
+        private void maybeComplete(InetAddressAndPort ep)
+        {
+            remaining.remove(ep);
+            if (!remaining.isEmpty())
+                return;
+
+            if (failures.isEmpty())
+            {
+                future.trySuccess(null);
+                return;
+            }
+
+            future.tryFailure(new RuntimeException(format("Failed to complete %s on keyspace %s: %s", operation, keyspace, failures)));
+        }
+
+        @Override
+        public void onResponse(Message<T> msg)
+        {
+            if (successCondition.test(msg.payload))
+                succeeded.add(msg.from());
+            maybeComplete(msg.from());
+        }
+
+        @Override
+        public void onFailure(InetAddressAndPort from, RequestFailure failure)
+        {
+            logger.debug("Failed {} on {} for keyspace {}: {}", operation, from, keyspace, failure);
+            failures.put(from, failure);
+            maybeComplete(from);
+        }
+
+        @Override
+        public boolean invokeOnFailure()
+        {
+            return true;
+        }
+    }
+
+    private static void executeWithRetry(
+        String operationName,
+        Set<ShardMetadata> shards,
+        @Nullable NodeId withoutNode,
+        BiFunction<ShardMetadata, Set<InetAddressAndPort>, StepCallback<?>> stepRunner)
+    {
+        Map<ShardMetadata, Set<InetAddressAndPort>> pending = new HashMap<>();
+        for (ShardMetadata shard : shards)
+        {
+            List<InetAddressAndPort> endpoints = toEndpoints(shard.participants, withoutNode);
+            if (!endpoints.isEmpty())
+                pending.put(shard, new HashSet<>(endpoints));
+        }
+
+        if (pending.isEmpty())
+            return;
+
+        long backoffMs = INITIAL_BACKOFF_MS;
+        long timeoutMs = DatabaseDescriptor.getShardSealingTimeout(MILLISECONDS);
+        int attempts = 0;
+        Throwable lastError = null;
+
+        while (!pending.isEmpty())
+        {
+            if (attempts++ >= MAX_RETRIES)
+                throw new RuntimeException("Exceeded maximum retries " + operationName + "; still pending: " + pending, lastError);
+
+            Map<ShardMetadata, StepCallback<?>> callbacks = new HashMap<>();
+            List<Future<Void>> futures = new ArrayList<>(pending.size());
+            for (Map.Entry<ShardMetadata, Set<InetAddressAndPort>> entry : pending.entrySet())
+            {
+                ShardMetadata shard = entry.getKey();
+                Set<InetAddressAndPort> endpoints = entry.getValue();
+                StepCallback<?> callback = stepRunner.apply(shard, endpoints);
+                callbacks.put(shard, callback);
+                futures.add(callback.future());
+            }
+
+            try
+            {
+                FutureCombiner.allOf(futures).get(timeoutMs, MILLISECONDS);
+            }
+            catch (InterruptedException e)
+            {
+                throw new UncheckedInterruptedException(e);
+            }
+            catch (ExecutionException | TimeoutException e)
+            {
+                lastError = e;
+                logger.debug("Transient failure {}, will retry (attempt {}/{})", operationName, attempts, MAX_RETRIES, e);
+            }
+
+            for (Map.Entry<ShardMetadata, StepCallback<?>> entry : callbacks.entrySet())
+            {
+                ShardMetadata shard = entry.getKey();
+                StepCallback<?> callback = entry.getValue();
+                Set<InetAddressAndPort> pendingEndpoints = pending.get(shard);
+                pendingEndpoints.removeAll(callback.succeeded());
+            }
+
+            pending.entrySet().removeIf(entry -> entry.getValue().isEmpty());
+            if (pending.isEmpty())
+                return;
+
+            backoffMs = sleepWithBackoff(backoffMs);
         }
     }
 
     /**
      * Fence allocation on every participant of the obsoleted shard (ACTIVE -> SEALING).
      */
-    private static AsyncPromise<Void> initiate(ShardMetadata shard, @Nullable NodeId withoutNode)
+    private static void initiate(Set<ShardMetadata> shards, @Nullable NodeId withoutNode)
     {
-        return InitSealing.initiate(shard.keyspace, shard.sinceEpoch, shard.range, toEndpoints(shard.participants, withoutNode));
+        executeWithRetry("initiating sealing", shards, withoutNode, (shard, endpoints) ->
+            InitSealing.initiate(shard.keyspace, shard.sinceEpoch, shard.range, endpoints));
     }
 
     private static void drain(Set<ShardMetadata> shards, @Nullable NodeId withoutNode)
     {
-        long deadlineNanos = nanoTime() + DatabaseDescriptor.getRpcTimeout(NANOSECONDS);
-        Set<ShardMetadata> pending = new HashSet<>(shards);
-        while (true)
-        {
-            // non-blocking poll: each participant reports its drain status immediately; retry until all drained
-            pending.removeIf(shard -> drain(shard, withoutNode));
-            if (pending.isEmpty())
-                return;
-            if (nanoTime() >= deadlineNanos)
-                throw new RuntimeException("Timed out draining shards; still pending: " + pending);
-            LockSupport.parkNanos(SECONDS.toNanos(1));
-        }
-    }
-
-    /**
-     * Poll every participant of the SEALING shard once for drain status; true iff all report that no mutation
-     * id allocated before the SEALING fence is still applying locally.
-     */
-    private static boolean drain(ShardMetadata shard, @Nullable NodeId withoutNode)
-    {
-        try
-        {
-            return Drain.poll(shard.keyspace, shard.sinceEpoch, shard.range, toEndpoints(shard.participants, withoutNode))
-                        .get(DatabaseDescriptor.getRpcTimeout(MILLISECONDS), MILLISECONDS);
-        }
-        catch (InterruptedException | ExecutionException | TimeoutException e)
-        {
-            throw new RuntimeException(format("Failed to poll drain for shard %s", shard), e);
-        }
+        executeWithRetry("draining shards", shards, withoutNode, (shard, endpoints) ->
+            Drain.poll(shard.keyspace, shard.sinceEpoch, shard.range, endpoints));
     }
 
     /**
@@ -645,65 +790,74 @@ public final class SealingCoordinator
     private static Log2OffsetsMap.Mutable captureWitnessedOffsets(ShardMetadata shard, @Nullable NodeId withoutNode)
     {
         List<InetAddressAndPort> endpoints = toEndpoints(shard.participants, withoutNode);
-        try
+        if (endpoints.isEmpty())
+            return new Log2OffsetsMap.Mutable();
+
+        long backoffMs = INITIAL_BACKOFF_MS;
+        long timeoutMs = DatabaseDescriptor.getShardSealingTimeout(MILLISECONDS);
+        int attempts = 0;
+        Throwable lastError = null;
+
+        while (attempts++ < MAX_RETRIES)
         {
-            return ReconcileCapture.capture(shard.keyspace, shard.sinceEpoch, shard.range, endpoints)
-                                   .get(DatabaseDescriptor.getRpcTimeout(MILLISECONDS), MILLISECONDS);
+            try
+            {
+                return ReconcileCapture.capture(shard.keyspace, shard.sinceEpoch, shard.range, endpoints)
+                                       .get(timeoutMs, MILLISECONDS);
+            }
+            catch (InterruptedException e)
+            {
+                throw new UncheckedInterruptedException(e);
+            }
+            catch (ExecutionException | TimeoutException e)
+            {
+                lastError = e;
+                logger.debug("Transient failure capturing witnessed offsets for shard {}, will retry (attempt {}/{})", shard, attempts, MAX_RETRIES, e);
+            }
+            backoffMs = sleepWithBackoff(backoffMs);
         }
-        catch (InterruptedException | ExecutionException | TimeoutException e)
-        {
-            throw new RuntimeException(format("Failed to capture witnessed offsets for shard %s", shard), e);
-        }
+        throw new RuntimeException(format("Failed to capture witnessed offsets for shard %s after %d retries", shard, MAX_RETRIES), lastError);
     }
 
     private static void pollUntilWitnesses(ShardMetadata shard, Log2OffsetsMap.Mutable offsets, InetAddressAndPort endpoint)
     {
-        // TODO (expected): use a longer timeout
-        long deadlineNanos = nanoTime() + DatabaseDescriptor.getRpcTimeout(NANOSECONDS);
+        long backoffMs = INITIAL_BACKOFF_MS;
+        long timeoutMs = DatabaseDescriptor.getShardSealingTimeout(MILLISECONDS);
+        int attempts = 0;
+        Throwable lastError = null;
 
-        while (true)
+        while (attempts++ < MAX_RETRIES)
         {
-            if (nanoTime() >= deadlineNanos)
-                throw new RuntimeException("Timed out reconciling shard: " + shard);
             try
             {
                 boolean witnessed =
                     ReconcilePoll.poll(shard.keyspace, shard.sinceEpoch, shard.range, offsets, endpoint)
-                                 .get(DatabaseDescriptor.getRpcTimeout(MILLISECONDS), MILLISECONDS);
+                                 .get(timeoutMs, MILLISECONDS);
                 if (witnessed)
                     return;
             }
-            catch (InterruptedException | ExecutionException | TimeoutException e)
+            catch (InterruptedException e)
             {
-                throw new RuntimeException(format("Failed to poll reconcile for shard %s", shard), e);
+                throw new UncheckedInterruptedException(e);
+            }
+            catch (ExecutionException | TimeoutException e)
+            {
+                lastError = e;
+                logger.debug("Transient failure polling reconcile on {} for shard {}, will retry (attempt {}/{})", endpoint, shard, attempts, MAX_RETRIES, e);
             }
 
-            LockSupport.parkNanos(SECONDS.toNanos(1));
+            backoffMs = sleepWithBackoff(backoffMs);
         }
-    }
-
-    private static void complete(Set<ShardMetadata> shards, @Nullable NodeId withoutNode)
-    {
-        List<Future<Void>> futures = new ArrayList<>(shards.size());
-        for (ShardMetadata shard : shards)
-            futures.add(complete(shard, withoutNode));
-
-        try
-        {
-            FutureCombiner.allOf(futures).get(DatabaseDescriptor.getRpcTimeout(MILLISECONDS), MILLISECONDS);
-        }
-        catch (InterruptedException | ExecutionException | TimeoutException e)
-        {
-            throw new RuntimeException("Failed to complete sealing", e);
-        }
+        throw new RuntimeException(format("Timed out reconciling shard %s on endpoint %s after %d retries", shard, endpoint, MAX_RETRIES), lastError);
     }
 
     /**
      * Promote every participant of the (drained and reconciled) shard from SEALING to SEALED.
      */
-    private static AsyncPromise<Void> complete(ShardMetadata shard, @Nullable NodeId withoutNode)
+    private static void complete(Set<ShardMetadata> shards, @Nullable NodeId withoutNode)
     {
-        return CompleteSealing.complete(shard.keyspace, shard.sinceEpoch, shard.range, toEndpoints(shard.participants, withoutNode));
+        executeWithRetry("completing sealing", shards, withoutNode, (shard, endpoints) ->
+            CompleteSealing.complete(shard.keyspace, shard.sinceEpoch, shard.range, endpoints));
     }
 
     /**
@@ -988,42 +1142,17 @@ public final class SealingCoordinator
         /**
          * Tell every participant of an obsoleted shard to fence id allocation (mark it SEALING)
          */
-        public static AsyncPromise<Void> initiate(
-            String keyspace, long sinceEpoch, Range<Token> range, List<InetAddressAndPort> endpoints)
+        public static StepCallback<Response> initiate(
+            String keyspace, long sinceEpoch, Range<Token> range, Collection<InetAddressAndPort> endpoints)
         {
             checkArgument(!endpoints.isEmpty());
 
-            AsyncPromise<Void> promise = new AsyncPromise<>();
-
-            RequestCallback<Response> callback = new RequestCallback<>()
-            {
-                private final AtomicInteger remaining = new AtomicInteger(endpoints.size());
-
-                @Override
-                public void onResponse(Message<Response> msg)
-                {
-                    if (remaining.decrementAndGet() == 0)
-                        promise.trySuccess(null);
-                }
-
-                @Override
-                public void onFailure(InetAddressAndPort from, RequestFailure failure)
-                {
-                    promise.tryFailure(new RuntimeException(format("Failed to initiate sealing on %s for keyspace %s: %s", from, keyspace, failure)));
-                }
-
-                @Override
-                public boolean invokeOnFailure()
-                {
-                    return true;
-                }
-            };
-
+            StepCallback<Response> callback = new StepCallback<>(endpoints, keyspace, "initiate sealing");
             Message<Request> message = Message.out(Verb.MT_INIT_SEALING_REQ, new Request(keyspace, sinceEpoch, range));
             for (InetAddressAndPort peer : endpoints)
                 MessagingService.instance().sendWithCallback(message, peer, callback);
 
-            return promise;
+            return callback;
         }
 
         public static final IVerbHandler<Request> verbHandler = message -> {
@@ -1110,48 +1239,20 @@ public final class SealingCoordinator
         }
 
         /**
-         * Poll every participant of a SEALING shard for whether it has drained its in-flight local
-         * writes. Succeeds with {@code true} iff every participant reports drained.
+         * Poll given participants of a SEALING shard for whether they have drained their in-flight local
+         * writes. Records participants reporting drained.
          */
-        public static AsyncPromise<Boolean> poll(
-            String keyspace, long sinceEpoch, Range<Token> range, List<InetAddressAndPort> endpoints)
+        public static StepCallback<Response> poll(
+            String keyspace, long sinceEpoch, Range<Token> range, Collection<InetAddressAndPort> endpoints)
         {
             checkArgument(!endpoints.isEmpty());
 
-            AsyncPromise<Boolean> promise = new AsyncPromise<>();
-
-            RequestCallback<Response> callback = new RequestCallback<>()
-            {
-                private final AtomicInteger remaining = new AtomicInteger(endpoints.size());
-                private volatile boolean allDrained = true;
-
-                @Override
-                public void onResponse(Message<Response> msg)
-                {
-                    if (!msg.payload.drained)
-                        allDrained = false;
-                    if (remaining.decrementAndGet() == 0)
-                        promise.trySuccess(allDrained);
-                }
-
-                @Override
-                public void onFailure(InetAddressAndPort from, RequestFailure failure)
-                {
-                    promise.tryFailure(new RuntimeException(format("Failed to poll drain on %s for keyspace %s: %s", from, keyspace, failure)));
-                }
-
-                @Override
-                public boolean invokeOnFailure()
-                {
-                    return true;
-                }
-            };
-
+            StepCallback<Response> callback = new StepCallback<>(endpoints, keyspace, "drain poll", r -> r.drained);
             Message<Request> message = Message.out(Verb.MT_DRAIN_REQ, new Request(keyspace, sinceEpoch, range));
             for (InetAddressAndPort peer : endpoints)
                 MessagingService.instance().sendWithCallback(message, peer, callback);
 
-            return promise;
+            return callback;
         }
 
         public static final IVerbHandler<Request> verbHandler = message -> {
@@ -1489,42 +1590,17 @@ public final class SealingCoordinator
         /**
          * Tell every participant of a sealing shard to promote it from SEALING to SEALED.
          */
-        public static AsyncPromise<Void> complete(
-            String keyspace, long sinceEpoch, Range<Token> range, List<InetAddressAndPort> endpoints)
+        public static StepCallback<Response> complete(
+            String keyspace, long sinceEpoch, Range<Token> range, Collection<InetAddressAndPort> endpoints)
         {
             checkArgument(!endpoints.isEmpty());
 
-            AsyncPromise<Void> promise = new AsyncPromise<>();
-
-            RequestCallback<Response> callback = new RequestCallback<>()
-            {
-                private final AtomicInteger remaining = new AtomicInteger(endpoints.size());
-
-                @Override
-                public void onResponse(Message<Response> msg)
-                {
-                    if (remaining.decrementAndGet() == 0)
-                        promise.trySuccess(null);
-                }
-
-                @Override
-                public void onFailure(InetAddressAndPort from, RequestFailure failure)
-                {
-                    promise.tryFailure(new RuntimeException(format("Failed to complete sealing on %s for keyspace %s: %s", from, keyspace, failure)));
-                }
-
-                @Override
-                public boolean invokeOnFailure()
-                {
-                    return true;
-                }
-            };
-
+            StepCallback<Response> callback = new StepCallback<>(endpoints, keyspace, "complete sealing");
             Message<Request> message = Message.out(Verb.MT_COMPLETE_SEALING_REQ, new Request(keyspace, sinceEpoch, range));
             for (InetAddressAndPort peer : endpoints)
                 MessagingService.instance().sendWithCallback(message, peer, callback);
 
-            return promise;
+            return callback;
         }
 
         public static final IVerbHandler<Request> verbHandler = message -> {

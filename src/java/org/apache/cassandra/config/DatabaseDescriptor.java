@@ -1674,6 +1674,12 @@ public class DatabaseDescriptor
             logInfo("accord_preaccept_timeout", conf.accord_preaccept_timeout, LOWEST_ACCEPTED_TIMEOUT);
             conf.accord_preaccept_timeout = LOWEST_ACCEPTED_TIMEOUT;
         }
+
+        if (conf.shard_sealing_timeout.toMilliseconds() < LOWEST_ACCEPTED_TIMEOUT.toMilliseconds())
+        {
+            logInfo("shard_sealing_timeout", conf.shard_sealing_timeout, LOWEST_ACCEPTED_TIMEOUT);
+            conf.shard_sealing_timeout = LOWEST_ACCEPTED_TIMEOUT;
+        }
     }
 
     private static void logInfo(String property, DurationSpec.LongMillisecondsBound actualValue, DurationSpec.LongMillisecondsBound lowestAcceptedValue)
@@ -2703,6 +2709,16 @@ public class DatabaseDescriptor
     public static void setMutationTrackingValidationTimeout(long timeoutInMillis)
     {
         conf.mutation_tracking_validation_timeout = new DurationSpec.LongMillisecondsBound(timeoutInMillis);
+    }
+
+    public static long getShardSealingTimeout(TimeUnit unit)
+    {
+        return conf.shard_sealing_timeout.to(unit);
+    }
+
+    public static void setShardSealingTimeout(long timeoutInMillis)
+    {
+        conf.shard_sealing_timeout = new DurationSpec.LongMillisecondsBound(timeoutInMillis);
     }
 
     public static boolean hasCrossNodeTimeout()

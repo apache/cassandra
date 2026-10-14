@@ -1355,6 +1355,11 @@ truncate_request_timeout: 60000ms
 # Min unit: ms
 request_timeout: 10000ms
 
+# The default timeout for shard sealing operations during topology changes.
+# Lowest acceptable value is 10 ms.
+# Min unit: ms
+shard_sealing_timeout: 120000ms
+
 # Defensive settings for protecting Cassandra from true network partitions.
 # See (CASSANDRA-14358) for details.
 #
