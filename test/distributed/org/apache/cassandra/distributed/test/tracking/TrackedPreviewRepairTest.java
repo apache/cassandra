@@ -77,6 +77,7 @@ import org.apache.cassandra.net.Verb;
 import org.apache.cassandra.repair.MutationTrackingPreviewRepairTask;
 import org.apache.cassandra.repair.MutationTrackingValidationCoordinator;
 import org.apache.cassandra.repair.RepairMessageVerbHandler;
+import org.apache.cassandra.repair.SharedContext;
 import org.apache.cassandra.repair.messages.RepairMessage;
 import org.apache.cassandra.replication.MutationId;
 import org.apache.cassandra.replication.MutationJournal;
@@ -948,8 +949,8 @@ public class TrackedPreviewRepairTest extends TestBaseImpl
         long originalTimeoutMillis = coordinator.callOnInstance(() -> DatabaseDescriptor.getMutationTrackingValidationTimeout(TimeUnit.MILLISECONDS));
 
         // Make the validation timeout essentially infinite, so the only path to resolution is an explicit failure.
-        long veryLongTimeout = TimeUnit.MINUTES.toMillis(10);
-        coordinator.runOnInstance(() -> DatabaseDescriptor.setMutationTrackingValidationTimeout(veryLongTimeout));
+        long longTimeoutMillis = TimeUnit.MINUTES.toMillis(10);
+        coordinator.runOnInstance(() -> DatabaseDescriptor.setMutationTrackingValidationTimeout(longTimeoutMillis));
         coordinator.runOnInstance(ThrowOnTreeDifference::activate);
 
         ExecutorService executor = Executors.newSingleThreadExecutor();
@@ -958,12 +959,43 @@ public class TrackedPreviewRepairTest extends TestBaseImpl
             Future<NodeToolResult> resultFuture = submitValidate(executor, coordinator, keyspace);
 
             // This should terminate immediately...
-            NodeToolResult result = resultFuture.get(veryLongTimeout / 2, TimeUnit.SECONDS);
+            NodeToolResult result = resultFuture.get(longTimeoutMillis / 2, TimeUnit.MILLISECONDS);
             result.asserts().failure();
         }
         finally
         {
             coordinator.runOnInstance(ThrowOnTreeDifference::deactivate);
+            coordinator.runOnInstance(() -> DatabaseDescriptor.setMutationTrackingValidationTimeout(originalTimeoutMillis));
+            ExecutorUtils.shutdownAndWait(10, TimeUnit.SECONDS, executor);
+        }
+    }
+
+    @Test
+    public void failsFastWhenParticipantReturnsFailure() throws Exception
+    {
+        createTrackedSchema(CLUSTER, keyspace, table);
+
+        IInvokableInstance coordinator = CLUSTER.get(1);
+        IInvokableInstance node2 = CLUSTER.get(2);
+        long originalTimeoutMillis = coordinator.callOnInstance(() -> DatabaseDescriptor.getMutationTrackingValidationTimeout(TimeUnit.MILLISECONDS));
+
+        // Make the validation timeout essentially infinite, so the only path to resolution is an explicit failure.
+        long longTimeoutMillis = TimeUnit.MINUTES.toMillis(10);
+        coordinator.runOnInstance(() -> DatabaseDescriptor.setMutationTrackingValidationTimeout(longTimeoutMillis));
+        node2.runOnInstance(PauseValidationRequest::activateToFail);
+
+        ExecutorService executor = Executors.newSingleThreadExecutor();
+        try
+        {
+            Future<NodeToolResult> resultFuture = submitValidate(executor, coordinator, keyspace);
+
+            // This should terminate immediately...
+            NodeToolResult result = resultFuture.get(longTimeoutMillis / 2, TimeUnit.MILLISECONDS);
+            result.asserts().failure();
+        }
+        finally
+        {
+            node2.runOnInstance(PauseValidationRequest::releaseAndDeactivate);
             coordinator.runOnInstance(() -> DatabaseDescriptor.setMutationTrackingValidationTimeout(originalTimeoutMillis));
             ExecutorUtils.shutdownAndWait(10, TimeUnit.SECONDS, executor);
         }
@@ -1273,6 +1305,7 @@ public class TrackedPreviewRepairTest extends TestBaseImpl
     {
         private static volatile CountDownLatch arrived;
         private static volatile CountDownLatch release;
+        private static volatile boolean failFast;
 
         @SuppressWarnings("resource")
         public static void install(ClassLoader cl, int nodeNumber)
@@ -1288,6 +1321,14 @@ public class TrackedPreviewRepairTest extends TestBaseImpl
         {
             arrived = new CountDownLatch(1);
             release = new CountDownLatch(1);
+            failFast = false;
+        }
+
+        public static void activateToFail()
+        {
+            arrived = new CountDownLatch(1);
+            release = new CountDownLatch(1);
+            failFast = true;
         }
 
         public static void awaitArrival()
@@ -1309,6 +1350,7 @@ public class TrackedPreviewRepairTest extends TestBaseImpl
                 release.countDown();
             arrived = null;
             release = null;
+            failFast = false;
         }
 
         @SuppressWarnings("unused")
@@ -1319,6 +1361,13 @@ public class TrackedPreviewRepairTest extends TestBaseImpl
             if (localArrived != null && message.verb() == Verb.MT_VALIDATION_REQ)
             {
                 localArrived.countDown();
+
+                if (failFast)
+                {
+                    RepairMessage.sendFailureResponse(SharedContext.Global.instance, message);
+                    return;
+                }
+
                 try
                 {
                     if (!localRelease.await(60, TimeUnit.SECONDS))
