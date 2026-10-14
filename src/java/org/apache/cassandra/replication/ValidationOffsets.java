@@ -23,13 +23,14 @@ import java.util.HashMap;
 import java.util.Map;
 
 import com.google.common.collect.ImmutableMap;
+import org.agrona.collections.Long2ObjectHashMap;
 
+import org.apache.cassandra.db.TypeSizes;
 import org.apache.cassandra.dht.Range;
 import org.apache.cassandra.dht.Token;
 import org.apache.cassandra.io.UnversionedSerializer;
 import org.apache.cassandra.io.util.DataInputPlus;
 import org.apache.cassandra.io.util.DataOutputPlus;
-import org.apache.cassandra.utils.CollectionSerializers;
 
 /**
  * Per-log offset frontier produced by mutation-tracking incremental repair, used by the
@@ -41,16 +42,18 @@ public final class ValidationOffsets
 {
     public static final ValidationOffsets EMPTY = new ValidationOffsets(ImmutableMap.of());
 
-    private final ImmutableMap<CoordinatorLogId, Offsets.Immutable> perLog;
+    private final Long2ObjectHashMap<Offsets.Immutable> perLog;
 
     public ValidationOffsets(Map<CoordinatorLogId, Offsets.Immutable> perLog)
     {
-        this.perLog = ImmutableMap.copyOf(perLog);
+        this.perLog = new Long2ObjectHashMap<>(perLog.size(), 0.9f, false);
+        for (Map.Entry<CoordinatorLogId, Offsets.Immutable> entry : perLog.entrySet())
+            this.perLog.put(entry.getKey().asLong(), entry.getValue());
     }
 
     /**
      * @return true iff {@code sstableOffsets} is non-empty and every offset in it is ≤ these
-     * offsets, or belongs to a log whose shard doesn't intersect {@code ranges}. An SSTable with no offsets at 
+     * offsets, or belongs to a log whose shard doesn't intersect {@code ranges}. An SSTable with no offsets at
      * all (bulk import, or written before mutation tracking existed) is NOT considered covered.
      */
     public boolean covers(ImmutableCoordinatorLogOffsets sstableOffsets, Collection<Range<Token>> ranges)
@@ -61,15 +64,15 @@ public final class ValidationOffsets
         for (Map.Entry<Long, Offsets.Immutable> entry : sstableOffsets.entries())
         {
             sawEntry = true;
-            CoordinatorLogId logId = CoordinatorLogId.fromLong(entry.getKey());
+            long logId = entry.getKey();
             Offsets.Immutable offsetsForLog = perLog.get(logId);
             if (offsetsForLog == null)
             {
-                if (logShardIntersects(logId, ranges))
+                if (logShardIntersects(CoordinatorLogId.fromLong(logId), ranges))
                     return false;
                 continue;
             }
-            if (!offsetsContainAll(offsetsForLog, entry.getValue()))
+            if (!Offsets.Immutable.difference(entry.getValue(), offsetsForLog).isEmpty())
                 return false;
         }
         return sawEntry;
@@ -96,18 +99,8 @@ public final class ValidationOffsets
      */
     public boolean containsMutation(ShortMutationId id)
     {
-        Offsets.Immutable offsetsForLog = perLog.get(id.asLogId());
+        Offsets.Immutable offsetsForLog = perLog.get(id.logId());
         return offsetsForLog != null && offsetsForLog.contains(id.offset());
-    }
-
-    private static boolean offsetsContainAll(Offsets.Immutable superset, Offsets.Immutable subset)
-    {
-        for (ShortMutationId id : subset)
-        {
-            if (!superset.contains(id.offset()))
-                return false;
-        }
-        return true;
     }
 
     @Override
@@ -118,23 +111,31 @@ public final class ValidationOffsets
 
     public static final UnversionedSerializer<ValidationOffsets> serializer = new UnversionedSerializer<>()
     {
-        private final UnversionedSerializer<Map<CoordinatorLogId, Offsets.Immutable>> perLogSerializer =
-        CollectionSerializers.newMapSerializer(CoordinatorLogId.serializer, Offsets.serializer);
-
         public void serialize(ValidationOffsets offsets, DataOutputPlus out) throws IOException
         {
-            perLogSerializer.serialize(offsets.perLog, out);
+            out.writeUnsignedVInt32(offsets.perLog.size());
+            for (Offsets.Immutable offsetsForLog : offsets.perLog.values())
+                Offsets.serializer.serialize(offsetsForLog, out);
         }
 
         public ValidationOffsets deserialize(DataInputPlus in) throws IOException
         {
-            Map<CoordinatorLogId, Offsets.Immutable> perLog = perLogSerializer.deserialize(in);
+            int size = in.readUnsignedVInt32();
+            Map<CoordinatorLogId, Offsets.Immutable> perLog = new HashMap<>();
+            for (int i = 0; i < size; i++)
+            {
+                Offsets.Immutable offsetsForLog = Offsets.serializer.deserialize(in);
+                perLog.put(offsetsForLog.logId(), offsetsForLog);
+            }
             return new ValidationOffsets(perLog);
         }
 
         public long serializedSize(ValidationOffsets offsets)
         {
-            return perLogSerializer.serializedSize(offsets.perLog);
+            long size = TypeSizes.sizeofUnsignedVInt(offsets.perLog.size());
+            for (Offsets.Immutable offsetsForLog : offsets.perLog.values())
+                size += Offsets.serializer.serializedSize(offsetsForLog);
+            return size;
         }
     };
 
