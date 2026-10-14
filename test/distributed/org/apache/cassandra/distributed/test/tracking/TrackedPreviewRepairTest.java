@@ -48,6 +48,7 @@ import org.junit.Before;
 import org.junit.BeforeClass;
 import org.junit.Test;
 
+import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.db.CassandraWriteContext;
 import org.apache.cassandra.db.ColumnFamilyStore;
 import org.apache.cassandra.db.DecoratedKey;
@@ -58,6 +59,8 @@ import org.apache.cassandra.db.RowUpdateBuilder;
 import org.apache.cassandra.db.compaction.OperationType;
 import org.apache.cassandra.db.marshal.Int32Type;
 import org.apache.cassandra.db.partitions.PartitionUpdate;
+import org.apache.cassandra.dht.Range;
+import org.apache.cassandra.dht.Token;
 import org.apache.cassandra.distributed.Cluster;
 import org.apache.cassandra.distributed.api.ConsistencyLevel;
 import org.apache.cassandra.distributed.api.Feature;
@@ -89,6 +92,7 @@ import org.apache.cassandra.tcm.Epoch;
 import org.apache.cassandra.utils.DiagnosticSnapshotService;
 import org.apache.cassandra.utils.ExecutorUtils;
 import org.apache.cassandra.utils.FBUtilities;
+import org.apache.cassandra.utils.MerkleTrees;
 import org.apache.cassandra.utils.concurrent.OpOrder;
 
 import static net.bytebuddy.matcher.ElementMatchers.named;
@@ -118,6 +122,7 @@ public class TrackedPreviewRepairTest extends TestBaseImpl
             PauseValidationRequest.install(cl, num);
             PauseEpochCheck.install(cl, num);
             RaceValidationFailures.install(cl, num);
+            ThrowOnTreeDifference.install(cl, num);
         }).start();
     }
 
@@ -934,6 +939,36 @@ public class TrackedPreviewRepairTest extends TestBaseImpl
         }
     }
 
+    @Test
+    public void failsFastWhenTreeDifferenceThrows() throws Exception
+    {
+        createTrackedSchema(CLUSTER, keyspace, table);
+
+        IInvokableInstance coordinator = CLUSTER.get(1);
+        long originalTimeoutMillis = coordinator.callOnInstance(() -> DatabaseDescriptor.getMutationTrackingValidationTimeout(TimeUnit.MILLISECONDS));
+
+        // Make the validation timeout essentially infinite, so the only path to resolution is an explicit failure.
+        long veryLongTimeout = TimeUnit.MINUTES.toMillis(10);
+        coordinator.runOnInstance(() -> DatabaseDescriptor.setMutationTrackingValidationTimeout(veryLongTimeout));
+        coordinator.runOnInstance(ThrowOnTreeDifference::activate);
+
+        ExecutorService executor = Executors.newSingleThreadExecutor();
+        try
+        {
+            Future<NodeToolResult> resultFuture = submitValidate(executor, coordinator, keyspace);
+
+            // This should terminate immediately...
+            NodeToolResult result = resultFuture.get(veryLongTimeout / 2, TimeUnit.SECONDS);
+            result.asserts().failure();
+        }
+        finally
+        {
+            coordinator.runOnInstance(ThrowOnTreeDifference::deactivate);
+            coordinator.runOnInstance(() -> DatabaseDescriptor.setMutationTrackingValidationTimeout(originalTimeoutMillis));
+            ExecutorUtils.shutdownAndWait(10, TimeUnit.SECONDS, executor);
+        }
+    }
+
     private static void createTrackedSchema(Cluster cluster, String keyspace, String table)
     {
         cluster.schemaChange("CREATE KEYSPACE " + keyspace + " WITH replication = {'class': 'SimpleStrategy', 'replication_factor': " + NODES + "} AND replication_type='tracked'");
@@ -1478,6 +1513,39 @@ public class TrackedPreviewRepairTest extends TestBaseImpl
             {
                 pool.shutdownNow();
             }
+        }
+    }
+
+    public static class ThrowOnTreeDifference
+    {
+        private static volatile boolean active;
+
+        @SuppressWarnings("resource")
+        public static void install(ClassLoader cl, int nodeNumber)
+        {
+            new ByteBuddy().rebase(MerkleTrees.class)
+                           .method(named("difference"))
+                           .intercept(MethodDelegation.to(ThrowOnTreeDifference.class))
+                           .make()
+                           .load(cl, ClassLoadingStrategy.Default.INJECTION);
+        }
+
+        public static void activate()
+        {
+            active = true;
+        }
+
+        public static void deactivate()
+        {
+            active = false;
+        }
+
+        @SuppressWarnings("unused")
+        public static List<Range<Token>> difference(MerkleTrees ltrees, MerkleTrees rtrees, @SuperCall Callable<List<Range<Token>>> zuper) throws Exception
+        {
+            if (active)
+                throw new RuntimeException("injected failure for testing");
+            return zuper.call();
         }
     }
 }

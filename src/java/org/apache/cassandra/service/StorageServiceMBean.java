@@ -1358,8 +1358,11 @@ public interface StorageServiceMBean extends NotificationEmitter
     public Long getRepairRpcTimeout();
     public void setRepairRpcTimeout(Long timeoutInMillis);
 
-    public long getMutationTrackingSyncTimeout();
-    public void setMutationTrackingSyncTimeout(long timeoutInMillis);
+    long getMutationTrackingSyncTimeout();
+    void setMutationTrackingSyncTimeout(long timeoutInMillis);
+
+    long getMutationTrackingValidationTimeout();
+    void setMutationTrackingValidationTimeout(long timeoutInMillis);
 
     public void evictHungRepairs();
     public void clearPaxosRepairs();

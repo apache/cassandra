@@ -2695,6 +2695,16 @@ public class DatabaseDescriptor
         conf.mutation_tracking_sync_timeout = new DurationSpec.LongMillisecondsBound(timeoutInMillis);
     }
 
+    public static long getMutationTrackingValidationTimeout(TimeUnit unit)
+    {
+        return conf.mutation_tracking_validation_timeout.to(unit);
+    }
+
+    public static void setMutationTrackingValidationTimeout(long timeoutInMillis)
+    {
+        conf.mutation_tracking_validation_timeout = new DurationSpec.LongMillisecondsBound(timeoutInMillis);
+    }
+
     public static boolean hasCrossNodeTimeout()
     {
         return conf.internode_timeout;
