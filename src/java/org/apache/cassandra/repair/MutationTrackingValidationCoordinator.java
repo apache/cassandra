@@ -33,7 +33,11 @@ import org.slf4j.LoggerFactory;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.dht.Range;
 import org.apache.cassandra.dht.Token;
+import org.apache.cassandra.exceptions.RequestFailure;
 import org.apache.cassandra.locator.InetAddressAndPort;
+import org.apache.cassandra.net.Message;
+import org.apache.cassandra.net.NoPayload;
+import org.apache.cassandra.net.RequestCallbackWithFailure;
 import org.apache.cassandra.net.Verb;
 import org.apache.cassandra.repair.messages.MutationTrackingValidationRequest;
 import org.apache.cassandra.repair.messages.RepairMessage;
@@ -100,7 +104,21 @@ public class MutationTrackingValidationCoordinator
                                                  RepairMessage.notDone(future),
                                                  request,
                                                  Verb.MT_VALIDATION_REQ,
-                                                 participant);
+                                                 participant,
+                                                 new RequestCallbackWithFailure<NoPayload>()
+                                                 {
+                                                     @Override
+                                                     public void onResponse(Message<NoPayload> msg)
+                                                     {
+                                                         // Trees are delivered separately via MT_VALIDATION_RSP
+                                                     }
+
+                                                     @Override
+                                                     public void onFailure(InetAddressAndPort from, RequestFailure failure)
+                                                     {
+                                                         fail(new RuntimeException(String.format("Mutation tracking validation failed: participant %s returned failure %s", from, failure.reason)));
+                                                     }
+                                                 });
         }
         return future;
     }
