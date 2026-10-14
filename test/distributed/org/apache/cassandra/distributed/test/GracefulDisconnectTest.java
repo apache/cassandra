@@ -28,6 +28,8 @@ import java.util.concurrent.TimeUnit;
 import org.awaitility.Awaitility;
 import org.junit.BeforeClass;
 import org.junit.Test;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.cql3.QueryOptions;
@@ -54,6 +56,7 @@ public class GracefulDisconnectTest
 {
 
     private static final String GRACE_PERIOD = "4s";
+    private static final Logger log = LoggerFactory.getLogger(GracefulDisconnectTest.class);
 
     @BeforeClass
     public static void setUp() throws IOException
@@ -269,42 +272,62 @@ public class GracefulDisconnectTest
         }
     }
 
-    @Test
-    public void testInFlightQueryCompletesDuringDrain() throws Exception
-    {
-        try (Cluster cluster = buildCluster(1, true))
-        {
-            cluster.schemaChange("CREATE KEYSPACE ks WITH replication = {'class': 'SimpleStrategy', 'replication_factor': 1}");
-            cluster.schemaChange("CREATE TABLE ks.tbl (id int PRIMARY KEY, val text)");
-            cluster.get(1).executeInternal("INSERT INTO ks.tbl (id, val) VALUES (1, 'test_val')");
 
+    @Test
+    public void testQuerySucceedsDuringGracefulDisconnect() throws Exception
+    {
+        try (Cluster cluster = Cluster.build(1)
+                                      .withConfig(config ->
+                                                  config.with(Feature.NATIVE_PROTOCOL, Feature.GOSSIP)
+                                                        .set("graceful_disconnect_enabled", true)
+                                                        .set("graceful_disconnect_grace_period", "5s"))
+                                      .start())
+        {
             InetSocketAddress nativeAddr = cluster.get(1).config().broadcastAddress();
+
             try (SimpleClient client = SimpleClient.builder(nativeAddr.getHostString(), 9042)
                                                    .protocolVersion(ProtocolVersion.V5)
+                                                   .ignoreGracefulDisconnect()
                                                    .build())
             {
                 client.connect(false);
-                client.execute(new RegisterMessage(Collections.singletonList(Event.Type.GRACEFUL_DISCONNECT)));
+                client.execute(new RegisterMessage(
+                Collections.singletonList(Event.Type.GRACEFUL_DISCONNECT)));
 
-                CompletableFuture<Void> drainFuture = CompletableFuture.runAsync(() -> {
-                    cluster.get(1).nodetool("drain");
-                });
+                CompletableFuture<Void> drainFuture = CompletableFuture.runAsync(() ->
+                                                                                 cluster.get(1).nodetool("drain")
+                );
 
-                Message.Response response = client.execute(new QueryMessage("SELECT val FROM ks.tbl WHERE id = 1", org.apache.cassandra.cql3.QueryOptions.DEFAULT));
+                try
+                {
+                    Awaitility.await()
+                              .atMost(10, TimeUnit.SECONDS)
+                              .pollInterval(100, TimeUnit.MILLISECONDS)
+                              .until(() -> cluster.get(1).callOnInstance(() ->
+                                                                         ClientMetrics.instance.connectionsDraining.get() > 0
+                              ));
+
+                    Message.Response response = client.execute(new QueryMessage(
+                    "SELECT * FROM system.local",
+                    QueryOptions.DEFAULT
+                    ));
 
                 assertThat(response)
-                .as("Query must succeed during drain without connection drop or timeout")
-                .isInstanceOf(org.apache.cassandra.transport.messages.ResultMessage.Rows.class);
+                .as("Query must succeed while graceful disconnect is active")
+                .isInstanceOf(ResultMessage.Rows.class);
+                }
+                finally
+                {
+                    drainFuture.get(15, TimeUnit.SECONDS);
+                }
 
-                drainFuture.get(10, TimeUnit.SECONDS);
-
-                assertThatThrownBy(() -> {
-                    SimpleClient newClient = SimpleClient.builder(nativeAddr.getHostString(), 9042).build();
-                    newClient.connect(false);
-                }).isNotNull();
+                assertThat(client.isConnected())
+                .as("The uncooperative client must eventually be disconnected")
+                .isFalse();
             }
         }
     }
+
 
     @Test
     public void testCooperativeClientDisconnectsWithinGracePeriod() throws Exception
