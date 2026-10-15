@@ -85,6 +85,9 @@ import org.apache.cassandra.utils.btree.BTree;
 
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertTrue;
+import static org.mockito.Mockito.clearInvocations;
+import static org.mockito.Mockito.spy;
+import static org.mockito.Mockito.verify;
 
 public class RowIndexEntryTest extends CQLTester
 {
@@ -159,6 +162,68 @@ public class RowIndexEntryTest extends CQLTester
         }
     }
 
+    @Test
+    public void testSkipForCacheConsumesEveryIndexInfo() throws Exception
+    {
+        DatabaseDescriptor.setColumnIndexCacheSize(99999);
+        long sentinel = 0x0123456789ABCDEFL;
+
+        try (DoubleSerializer doubleSerializer = new DoubleSerializer())
+        {
+            doubleSerializer.build(null,
+                                   partitionKey(42L),
+                                   Arrays.asList(cn(42), cn(43), cn(44)),
+                                   0L);
+
+            assertTrue(doubleSerializer.rieNew.indexOnHeap());
+            assertTrue(doubleSerializer.rieNew.blockCount() > 1);
+
+            try (DataOutputBuffer out = new DataOutputBuffer())
+            {
+                doubleSerializer.rieNew.serializeForCache(out);
+                out.writeLong(sentinel);
+
+                try (DataInputBuffer in = new DataInputBuffer(out.buffer(), false))
+                {
+                    BigFormat.getInstance().getKeyCacheValueSerializer()
+                             .skip(in, doubleSerializer.version, doubleSerializer.metadata);
+                    assertEquals(sentinel, in.readLong());
+                }
+            }
+        }
+    }
+
+    @Test
+    public void testBigFormatSkipUsesSavedVersion() throws Exception
+    {
+        Version latestVersion = BigFormat.getInstance().getLatestVersion();
+        Version savedVersion = spy(BigFormat.getInstance()
+                                            .getVersion(latestVersion.hasUIntDeletionTime() ? "nb" : "oa"));
+        DeletionTime deletionTime = latestVersion.hasUIntDeletionTime()
+                                    ? DeletionTime.build(-1L, -1L)
+                                    : DeletionTime.LIVE;
+        long sentinel = 0x0123456789ABCDEFL;
+
+        try (DoubleSerializer doubleSerializer = new DoubleSerializer(savedVersion);
+             DataOutputBuffer out = new DataOutputBuffer())
+        {
+            out.writeUnsignedVInt(0L);
+            out.writeByte(RowIndexEntry.CACHE_INDEXED);
+            out.writeUnsignedVInt(0L);
+            DeletionTime.getSerializer(savedVersion).serialize(deletionTime, out);
+            out.writeUnsignedVInt32(0);
+            out.writeLong(sentinel);
+            clearInvocations(savedVersion);
+
+            try (DataInputBuffer in = new DataInputBuffer(out.buffer(), false))
+            {
+                BigFormat.getInstance().getKeyCacheValueSerializer().skip(in, savedVersion, doubleSerializer.metadata);
+                verify(savedVersion).hasUIntDeletionTime();
+                assertEquals(sentinel, in.readLong());
+            }
+        }
+    }
+
     private static DecoratedKey partitionKey(long l)
     {
         ByteBuffer key = LongSerializer.instance.serialize(l);
@@ -172,17 +237,17 @@ public class RowIndexEntryTest extends CQLTester
             CreateTableStatement.parse("CREATE TABLE pipe.dev_null (pk bigint, ck bigint, val text, PRIMARY KEY(pk, ck))", "foo")
                                 .build();
 
-        Version version = BigFormat.getInstance().getLatestVersion();
+        final Version version;
 
         DeletionTime deletionInfo = DeletionTime.build(FBUtilities.timestampMicros(), FBUtilities.nowInSeconds());
         LivenessInfo primaryKeyLivenessInfo = LivenessInfo.EMPTY;
         Row.Deletion deletion = Row.Deletion.LIVE;
 
-        SerializationHeader header = new SerializationHeader(true, metadata, metadata.regularAndStaticColumns(), EncodingStats.NO_STATS);
+        final SerializationHeader header;
 
         // create C-11206 + old serializer instances
-        RowIndexEntry.IndexSerializer rieSerializer = new RowIndexEntry.Serializer(version, header, null);
-        Pre_C_11206_RowIndexEntry.Serializer oldSerializer = new Pre_C_11206_RowIndexEntry.Serializer(metadata, version, header);
+        final RowIndexEntry.IndexSerializer rieSerializer;
+        final Pre_C_11206_RowIndexEntry.Serializer oldSerializer;
 
         final DataOutputBuffer rieOutput = new DataOutputBuffer(1024);
         final DataOutputBuffer oldOutput = new DataOutputBuffer(1024);
@@ -198,6 +263,19 @@ public class RowIndexEntryTest extends CQLTester
 
         DoubleSerializer() throws IOException
         {
+            this(BigFormat.getInstance().getLatestVersion());
+        }
+
+        DoubleSerializer(Version version) throws IOException
+        {
+            this.version = version;
+            this.header = new SerializationHeader(true,
+                                                  metadata,
+                                                  metadata.regularAndStaticColumns(),
+                                                  EncodingStats.NO_STATS);
+            this.rieSerializer = new RowIndexEntry.Serializer(version, header, null);
+            this.oldSerializer = new Pre_C_11206_RowIndexEntry.Serializer(metadata, version, header);
+
             SequentialWriterOption option = SequentialWriterOption.newBuilder().bufferSize(1024).build();
             File f = FileUtils.createTempFile("RowIndexEntryTest-", "db");
             dataWriterNew = new SequentialWriter(f, option);
@@ -231,13 +309,21 @@ public class RowIndexEntryTest extends CQLTester
                                           partitionWriter.indexInfoSerializedSize(),
                                           partitionWriter.indexSamples(), partitionWriter.offsets(),
                                           rieSerializer.indexInfoSerializer(),
-                                          BigFormat.getInstance().getLatestVersion());
+                                          version);
             rieSerializer.serialize(rieNew, rieOutput, partitionWriter.buffer());
             rieNewSerialized = rieOutput.buffer().duplicate();
 
             Iterator<Clustering<?>> clusteringIter2 = clusterings.iterator();
-            ColumnIndex columnIndex = RowIndexEntryTest.ColumnIndex.writeAndBuildIndex(makeRowIter(staticRow, partitionKey, clusteringIter2, dataWriterOld),
-                                                                                       dataWriterOld, header, Collections.emptySet(), BigFormat.getInstance().getLatestVersion());
+            AbstractUnfilteredRowIterator oldRowIter = makeRowIter(staticRow,
+                                                                   partitionKey,
+                                                                   clusteringIter2,
+                                                                   dataWriterOld);
+            ColumnIndex columnIndex =
+                RowIndexEntryTest.ColumnIndex.writeAndBuildIndex(oldRowIter,
+                                                                 dataWriterOld,
+                                                                 header,
+                                                                 Collections.emptySet(),
+                                                                 version);
             rieOld = Pre_C_11206_RowIndexEntry.create(startPosition, deletionInfo, columnIndex, version);
             oldSerializer.serialize(rieOld, oldOutput);
             rieOldSerialized = oldOutput.buffer().duplicate();
@@ -868,5 +954,34 @@ public class RowIndexEntryTest extends CQLTester
         assertEquals(1, indexState.indexFor(cn(12L), 2));
         assertEquals(1, indexState.indexFor(cn(100L), 1));
         assertEquals(2, indexState.indexFor(cn(100L), 2));
+    }
+
+    /**
+     * The IndexInfo list of an on-heap indexed entry can only be stepped over with a serializer built from the
+     * table metadata, so skipping one for an unknown table must fail rather than misalign the key cache file.
+     */
+    @Test(expected = IOException.class)
+    public void testSkipForCacheIndexedEntryWithoutSerializer() throws IOException
+    {
+        skipForCache(RowIndexEntry.CACHE_INDEXED, null);
+    }
+
+    @Test(expected = IOException.class)
+    public void testSkipForCacheUnknownKind() throws IOException
+    {
+        skipForCache(42, null);
+    }
+
+    private static void skipForCache(int kind, IndexInfo.Serializer idxInfoSerializer) throws IOException
+    {
+        DataOutputBuffer out = new DataOutputBuffer();
+        out.writeUnsignedVInt(0L);
+        out.writeByte(kind);
+        try (DataInputBuffer in = new DataInputBuffer(out.buffer(), false))
+        {
+            RowIndexEntry.Serializer.skipForCache(in,
+                                                  BigFormat.getInstance().getLatestVersion(),
+                                                  idxInfoSerializer);
+        }
     }
 }
