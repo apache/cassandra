@@ -35,8 +35,6 @@ import javax.annotation.Nullable;
 import org.agrona.collections.IntHashSet;
 
 import org.apache.cassandra.config.DatabaseDescriptor;
-import org.apache.cassandra.db.ColumnFamilyStore;
-import org.apache.cassandra.db.Keyspace;
 import org.apache.cassandra.db.TypeSizes;
 import org.apache.cassandra.dht.AbstractBounds;
 import org.apache.cassandra.dht.IPartitioner;
@@ -67,7 +65,6 @@ import org.apache.cassandra.tcm.ownership.PlacementDeltas;
 import org.apache.cassandra.tcm.ownership.VersionedEndpoints;
 import org.apache.cassandra.tcm.sequences.LeaveStreams;
 import org.apache.cassandra.utils.CollectionSerializers;
-import org.apache.cassandra.utils.FBUtilities;
 import org.apache.cassandra.utils.concurrent.AsyncPromise;
 import org.apache.cassandra.utils.concurrent.Future;
 import org.apache.cassandra.utils.concurrent.FutureCombiner;
@@ -524,7 +521,7 @@ public final class SealingCoordinator
         initiate(shards, withoutNode);          // ACTIVE -> SEALING for each Shard
         drain(shards, withoutNode);             // drain in-flight local writes
         reconcile(shards, withoutNode);         // wait for logs to reconcile
-        complete(shards, withoutNode);          // SEALING -> SEALED for each Shard + journal flush
+        complete(shards, withoutNode);          // SEALING -> SEALED for each Shard
     }
 
     /**
@@ -1533,12 +1530,6 @@ public final class SealingCoordinator
         public static final IVerbHandler<Request> verbHandler = message -> {
             MutationTrackingService.ensureEnabled();
             Request request = message.payload;
-
-            // flush every table in the keyspace so a just-sealed shard's mutations are all made durable as SSTables
-            List<Future<?>> flushes = new ArrayList<>();
-            for (ColumnFamilyStore cfs : Keyspace.open(request.keyspace).getColumnFamilyStores())
-                flushes.add(cfs.forceFlush(ColumnFamilyStore.FlushReason.INTERNALLY_FORCED));
-            FBUtilities.waitOnFutures(flushes);
 
             MutationTrackingService.instance().markShardSealed(request.keyspace, request.sinceEpoch, request.range);
             MessagingService.instance().send(message.responseWith(Response.instance), message.from());
