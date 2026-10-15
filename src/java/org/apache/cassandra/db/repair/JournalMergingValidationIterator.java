@@ -18,6 +18,8 @@
 
 package org.apache.cassandra.db.repair;
 
+import java.io.IOException;
+import java.io.UncheckedIOException;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.HashMap;
@@ -43,10 +45,9 @@ import org.apache.cassandra.db.rows.UnfilteredRowIterators;
 import org.apache.cassandra.db.rows.WrappingUnfilteredRowIterator;
 import org.apache.cassandra.dht.Range;
 import org.apache.cassandra.dht.Token;
-import org.apache.cassandra.journal.DeserializedRecordConsumer;
+import org.apache.cassandra.io.util.DataInputBuffer;
 import org.apache.cassandra.repair.ValidationPartitionIterator;
 import org.apache.cassandra.replication.MutationJournal;
-import org.apache.cassandra.replication.ShortMutationId;
 import org.apache.cassandra.replication.ValidationOffsets;
 import org.apache.cassandra.schema.TableId;
 import org.apache.cassandra.schema.TableMetadata;
@@ -84,13 +85,6 @@ public class JournalMergingValidationIterator extends ValidationPartitionIterato
         this.merged = UnfilteredPartitionIterators.merge(List.of(sstableIterator, journalIterator), UnfilteredPartitionIterators.MergeListener.NOOP);
     }
 
-    /**
-     * Journal partitions grouped by key, alongside the summed {@link PartitionUpdate#dataSize()}
-     * of everything read -- the journal's counterpart to the SSTable stream's file-position-based
-     * {@link CassandraValidationIterator#getEstimatedBytes()}, since journal-resident data has no
-     * file byte range to measure. {@code rangeCounts} is the same idea for partition counts: one
-     * entry per range in {@code ranges}, counting distinct journal partitions in that range.
-     */
     private static final class JournalPartitions
     {
         final NavigableMap<DecoratedKey, List<PartitionUpdate>> byKey;
@@ -115,26 +109,38 @@ public class JournalMergingValidationIterator extends ValidationPartitionIterato
 
         try (MutationJournal.Snapshot snapshot = MutationJournal.instance().snapshot())
         {
-            snapshot.readAll(new DeserializedRecordConsumer<ShortMutationId, Mutation>(MutationJournal.MutationSerializer.INSTANCE)
+            snapshot.readAll((segment, position, key, buffer, userVersion) ->
             {
-                @Override
-                protected void accept(long segment, int position, ShortMutationId key, Mutation mutation)
+                // Check the offset before we actually deserialize a mutation:
+                if (!validationOffsets.containsMutation(key))
+                    return;
+
+                Mutation mutation;
+                try (DataInputBuffer in = new DataInputBuffer(buffer, false))
                 {
-                    if (!validationOffsets.containsMutation(key))
-                        return;
-                    PartitionUpdate update = mutation.modifications().get(tableId);
-                    if (update == null)
-                        return;
-                    DecoratedKey partitionKey = update.partitionKey();
-                    Range<Token> range = findRange(partitionKey.getToken(), ranges);
-                    if (range == null)
-                        return;
-                    List<PartitionUpdate> updatesForKey = byKey.computeIfAbsent(partitionKey, k -> new ArrayList<>());
-                    if (updatesForKey.isEmpty())
-                        rangeCounts.merge(range, 1L, Long::sum);
-                    updatesForKey.add(update);
-                    estimatedBytes[0] += update.dataSize();
+                    mutation = MutationJournal.MutationSerializer.INSTANCE.deserialize(key, in, userVersion);
                 }
+                catch (IOException e)
+                {
+                    throw new UncheckedIOException(e);
+                }
+
+                // Ignore the mutation if it doesn't belong to this table:
+                PartitionUpdate update = mutation.modifications().get(tableId);
+                if (update == null)
+                    return;
+
+                // Ignore the mutation if it doesn't belong to a validating range:
+                DecoratedKey partitionKey = update.partitionKey();
+                Range<Token> range = findRange(partitionKey.getToken(), ranges);
+                if (range == null)
+                    return;
+                
+                List<PartitionUpdate> updatesForKey = byKey.computeIfAbsent(partitionKey, k -> new ArrayList<>());
+                if (updatesForKey.isEmpty())
+                    rangeCounts.merge(range, 1L, Long::sum);
+                updatesForKey.add(update);
+                estimatedBytes[0] += update.dataSize();
             });
         }
 
@@ -250,7 +256,7 @@ public class JournalMergingValidationIterator extends ValidationPartitionIterato
             List<UnfilteredRowIterator> toMerge = new ArrayList<>(updates.size());
             for (PartitionUpdate update : updates)
                 toMerge.add(update.unfilteredIterator());
-            
+
             return UnfilteredRowIterators.merge(toMerge);
         }
 

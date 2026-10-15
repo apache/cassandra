@@ -322,6 +322,12 @@ public class MutationJournal
         return write(id, mutation, true);
     }
 
+    @VisibleForTesting
+    public void writeUnsafe(ShortMutationId id, byte[] bytes)
+    {
+        journal.blockingWrite(id, (out, userVersion) -> out.write(bytes));
+    }
+
     /**
      * Append a mutation to the journal.
      *
