@@ -75,7 +75,10 @@ public class JournalMergingValidationIterator extends ValidationPartitionIterato
                                             ValidationOffsets validationOffsets)
     {
         this.sstableIterator = sstableIterator;
-        JournalPartitions journalPartitions = readJournalPartitions(cfs, ranges, validationOffsets);
+        // Narrow the offsets for the journal to exclude anything the selected SSTables already cover.
+        // The journal isn't pruned on flush, so without this, we could merge the same data from both sources.
+        ValidationOffsets journalOffsets = validationOffsets.without(sstableIterator.sstableCoordinatorLogOffsets());
+        JournalPartitions journalPartitions = readJournalPartitions(cfs, ranges, journalOffsets);
         this.estimatedBytes = sstableIterator.getEstimatedBytes() + journalPartitions.estimatedBytes;
         this.estimatedPartitions = sstableIterator.estimatedPartitions() + journalPartitions.byKey.size();
         this.rangePartitionCounts = new HashMap<>(sstableIterator.getRangePartitionCounts());

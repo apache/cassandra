@@ -55,6 +55,7 @@ import org.apache.cassandra.metrics.TopPartitionTracker;
 import org.apache.cassandra.repair.NoSuchRepairSessionException;
 import org.apache.cassandra.repair.SharedContext;
 import org.apache.cassandra.repair.ValidationPartitionIterator;
+import org.apache.cassandra.replication.ImmutableCoordinatorLogOffsets;
 import org.apache.cassandra.replication.ValidationOffsets;
 import org.apache.cassandra.schema.TableMetadata;
 import org.apache.cassandra.service.ActiveRepairService;
@@ -332,5 +333,16 @@ public class CassandraValidationIterator extends ValidationPartitionIterator
     public Map<Range<Token>, Long> getRangePartitionCounts()
     {
         return rangePartitionCounts;
+    }
+
+    /**
+     * @return the union of every selected SSTable's {@link ImmutableCoordinatorLogOffsets}
+     */
+    public ImmutableCoordinatorLogOffsets sstableCoordinatorLogOffsets()
+    {
+        ImmutableCoordinatorLogOffsets.Builder builder = new ImmutableCoordinatorLogOffsets.Builder();
+        for (SSTableReader sstable : sstables)
+            builder.addAll(sstable.getCoordinatorLogOffsets());
+        return builder.build();
     }
 }

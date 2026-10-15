@@ -508,6 +508,39 @@ public class TrackedPreviewRepairTest extends TestBaseImpl
     }
 
     @Test
+    public void detectsDivergenceInJournalOnlyWritesAlongsideSSTableCoveredWrites()
+    {
+        createTrackedSchema(CLUSTER, keyspace, table);
+
+        // flushed and fully covered by the resulting SSTable
+        writeRows(CLUSTER, keyspace, table, 0, 10);
+        settleReconciliation(CLUSTER);
+        flushAll(CLUSTER, keyspace, table);
+
+        // reconciled but journal-resident (not covered by any SSTable)
+        writeRows(CLUSTER, keyspace, table, 10, 20);
+        settleReconciliation(CLUSTER);
+
+        // Diverge a row specifically from the journal-only batch
+        injectJournalPayloadDivergence(CLUSTER.get(2), keyspace, table, 15, 999);
+
+        long[] previewFailuresBefore = previewFailuresPerNode(CLUSTER);
+        long desyncBefore = desyncRangesOnCoordinator(CLUSTER, 1, keyspace, table);
+
+        NodeToolResult result = CLUSTER.get(1).nodetoolResult(true, "repair", "--validate", keyspace);
+        result.asserts().success();
+
+        assertNotificationContains(result, MutationTrackingPreviewRepairTask.INCONSISTENT_MESSAGE);
+        assertPreviewFailuresBumpedOnCoordinator(CLUSTER, previewFailuresBefore, 1);
+        assertDesyncRangesBumped(CLUSTER, 1, keyspace, table, desyncBefore);
+        assertDiagnosticSnapshotExists(CLUSTER, keyspace, table, 1, 2, 3);
+
+        // The divergence being caught is not just a coincidence of the SSTable path alone finding it:
+        assertThat(totalValidatedSSTables(CLUSTER.get(1), keyspace, table)).isEqualTo(1);
+        assertThat(totalValidatedJournalPartitions(CLUSTER.get(1), keyspace, table)).isGreaterThanOrEqualTo(10);
+    }
+
+    @Test
     public void excludesSSTablesFlushedAfterOffsetEstablishment() throws Exception
     {
         createTrackedSchema(CLUSTER, keyspace, table);
