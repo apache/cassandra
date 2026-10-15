@@ -57,7 +57,10 @@ import org.apache.cassandra.db.rows.BufferCell;
 import org.apache.cassandra.db.rows.Cell;
 import org.apache.cassandra.db.rows.Row;
 import org.apache.cassandra.db.rows.RowIterator;
+import org.apache.cassandra.dht.Bounds;
+import org.apache.cassandra.dht.ByteOrderedPartitioner;
 import org.apache.cassandra.dht.ByteOrderedPartitioner.BytesToken;
+import org.apache.cassandra.dht.Range;
 import org.apache.cassandra.dht.Token;
 import org.apache.cassandra.distributed.test.log.ClusterMetadataTestHelper;
 import org.apache.cassandra.gms.Gossiper;
@@ -66,7 +69,6 @@ import org.apache.cassandra.locator.EndpointsForToken;
 import org.apache.cassandra.locator.InetAddressAndPort;
 import org.apache.cassandra.locator.Replica;
 import org.apache.cassandra.locator.ReplicaPlan;
-import org.apache.cassandra.locator.ReplicaUtils;
 import org.apache.cassandra.net.Message;
 import org.apache.cassandra.schema.KeyspaceMetadata;
 import org.apache.cassandra.schema.KeyspaceParams;
@@ -81,7 +83,6 @@ import org.apache.cassandra.utils.ByteBufferUtil;
 
 import static org.apache.cassandra.locator.Replica.fullReplica;
 import static org.apache.cassandra.locator.ReplicaPlans.forReadRepair;
-import static org.apache.cassandra.locator.ReplicaUtils.FULL_RANGE;
 import static org.apache.cassandra.net.Verb.INTERNAL_RSP;
 import static org.apache.cassandra.utils.Clock.Global.nanoTime;
 import static org.apache.cassandra.utils.LocalizeString.toLowerCaseLocalized;
@@ -238,7 +239,7 @@ public abstract  class AbstractReadRepairTest
 
         targets = ImmutableList.of(target1, target2, target3);
         remotes = ImmutableList.of(remote1, remote2, remote3);
-
+        Range<Token> FULL_RANGE = new Range<>(ByteOrderedPartitioner.MINIMUM, ByteOrderedPartitioner.MINIMUM);
         replica1 = fullReplica(target1, FULL_RANGE);
         replica2 = fullReplica(target2, FULL_RANGE);
         replica3 = fullReplica(target3, FULL_RANGE);
@@ -356,7 +357,7 @@ public abstract  class AbstractReadRepairTest
         return new ReplicaPlan.ForRangeRead(keyspace,
                                             keyspace.getReplicationStrategy(),
                                             consistencyLevel,
-                                            ReplicaUtils.FULL_BOUNDS,
+                                            new Bounds<>(ByteOrderedPartitioner.MINIMUM.minKeyBound(), ByteOrderedPartitioner.MINIMUM.minKeyBound()),
                                             replicas,
                                             targets,
                                             replicas,

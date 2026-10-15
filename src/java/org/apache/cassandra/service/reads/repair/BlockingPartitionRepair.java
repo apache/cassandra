@@ -47,6 +47,7 @@ import org.apache.cassandra.net.RequestCallback;
 import org.apache.cassandra.schema.TableId;
 import org.apache.cassandra.service.reads.ReadCoordinator;
 import org.apache.cassandra.service.reads.repair.BlockingReadRepair.PendingPartitionRepair;
+import org.apache.cassandra.tcm.Epoch;
 import org.apache.cassandra.tracing.Tracing;
 import org.apache.cassandra.utils.concurrent.AsyncFuture;
 import org.apache.cassandra.utils.concurrent.CountDownLatch;
@@ -68,6 +69,7 @@ public class BlockingPartitionRepair
     private final CountDownLatch latch;
     private final int blockFor;
     private volatile long mutationsSentTime;
+    private final EndpointsForToken repairedEndpoints;
 
     @VisibleForTesting
     public BlockingPartitionRepair(ReadCoordinator coordinator, DecoratedKey key, Map<Replica, Mutation> repairs, ReplicaPlan.ForWrite repairPlan)
@@ -76,6 +78,9 @@ public class BlockingPartitionRepair
         this.key = key;
         this.pendingRepairs = new ConcurrentHashMap<>(repairs);
         this.repairPlan = repairPlan;
+        this.repairedEndpoints = EndpointsForToken.builder(key.getToken(), repairs.size())
+                                                  .addAll(repairs.keySet())
+                                                  .build();
 
         // make sure all the read repair targets are contact of the repair write plan
         Preconditions.checkState(all(repairs.keySet(), (r) -> repairPlan.contacts().contains(r)),
@@ -105,9 +110,15 @@ public class BlockingPartitionRepair
     }
 
     @Override
-    public ReplicaPlan.ForWrite repairPlan()
+    public Epoch epoch()
     {
-        return repairPlan;
+        return repairPlan.epoch();
+    }
+
+    @Override
+    public EndpointsForToken repairedEndpoints()
+    {
+        return repairedEndpoints;
     }
 
     @Override
@@ -258,7 +269,8 @@ public class BlockingPartitionRepair
         }
     }
 
-    Keyspace getKeyspace()
+    @Override
+    public Keyspace getKeyspace()
     {
         return repairPlan.keyspace();
     }
