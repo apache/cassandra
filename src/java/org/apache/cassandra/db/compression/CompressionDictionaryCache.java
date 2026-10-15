@@ -20,7 +20,6 @@ package org.apache.cassandra.db.compression;
 
 import java.time.Duration;
 import java.util.concurrent.atomic.AtomicInteger;
-import java.util.concurrent.atomic.AtomicReference;
 
 import javax.annotation.Nullable;
 
@@ -50,7 +49,10 @@ public class CompressionDictionaryCache implements ICompressionDictionaryCache
     private static final Logger logger = LoggerFactory.getLogger(CompressionDictionaryCache.class);
 
     private final Cache<DictId, CompressionDictionary> cache;
-    private final AtomicReference<DictId> currentDictId = new AtomicReference<>();
+    // the cache holds a reference of its own to the current dictionary, so its eviction or expiry from the cache
+    // does not release it
+    private volatile CompressionDictionary current;
+    private Ref<? extends CompressionDictionary> currentRef; // guarded by this
 
     public CompressionDictionaryCache()
     {
@@ -90,16 +92,19 @@ public class CompressionDictionaryCache implements ICompressionDictionaryCache
     @Override
     public CompressionDictionary getCurrent()
     {
-        DictId dictId = currentDictId.get();
-        return dictId == null ? null : get(dictId);
+        CompressionDictionary dictionary = current;
+        // keeps the cache entry of the current dictionary from expiring while the dictionary is in use
+        if (dictionary != null)
+            get(dictionary.dictId());
+        return dictionary;
     }
 
     @Nullable
     @Override
-    public Ref<? extends CompressionDictionary> refCurrent()
+    public synchronized Ref<? extends CompressionDictionary> refCurrent()
     {
+        // the current dictionary can not change meanwhile, and the cache references it as long as it is current
         CompressionDictionary dictionary = getCurrent();
-        // released since it was looked up, i.e. evicted, it is not the current one anymore
         return dictionary == null ? null : dictionary.tryRef();
     }
 
@@ -116,37 +121,46 @@ public class CompressionDictionaryCache implements ICompressionDictionaryCache
         if (compressionDictionary == null)
             return null;
 
-        DictId newDictId = compressionDictionary.dictId();
-        CompressionDictionary cached = cache.get(newDictId, id -> {
-            Ref<?> ref = compressionDictionary.initRefLazily();
+        Ref<? extends CompressionDictionary> ref = refForReading(compressionDictionary);
+        CompressionDictionary dictionary = ref.get();
+        useIfNewer(ref);
+        return dictionary;
+    }
+
+    @Override
+    public CompressionDictionary addForReading(@Nullable CompressionDictionary compressionDictionary)
+    {
+        if (compressionDictionary == null)
+            return null;
+
+        return cache.get(compressionDictionary.dictId(), id -> {
+            CompressionDictionary dictionary = unreferenced(compressionDictionary);
+            Ref<?> ref = dictionary.initRefLazily();
             if (ref == null)
             {
                 throw new IllegalStateException("Failed to acquire reference to compression dictionary");
             }
-            return compressionDictionary;
+            return dictionary;
         });
-
-        // Update current dictionary if we don't have one or the new one has a higher ID (newer)
-        DictId currentId = currentDictId.get();
-        while ((currentId == null || newDictId.id > currentId.id)
-               && !currentDictId.compareAndSet(currentId, newDictId))
-        {
-            currentId = currentDictId.get();
-        }
-
-        return cached;
     }
 
     @Override
     public Ref<? extends CompressionDictionary> refForReading(CompressionDictionary compressionDictionary)
     {
-        Ref<? extends CompressionDictionary> ref = add(compressionDictionary).tryRef();
+        Ref<? extends CompressionDictionary> ref = addForReading(compressionDictionary).tryRef();
         if (ref != null)
             return ref;
 
         // the cached instance was released before it could be referenced, e.g. evicted right after it was cached or
         // looked up; a fresh instance is not cached, its self-reference is the caller's
         return unreferenced(compressionDictionary).initRefLazily();
+    }
+
+    @Override
+    public void setCurrent(@Nullable CompressionDictionary compressionDictionary)
+    {
+        Ref<? extends CompressionDictionary> ref = compressionDictionary == null ? null : refForReading(compressionDictionary);
+        replaceCurrent(ref == null ? null : ref.get(), ref);
     }
 
     /**
@@ -160,9 +174,31 @@ public class CompressionDictionaryCache implements ICompressionDictionaryCache
             return dictionary;
 
         return dictionary.kind().createDictionary(dictionary.dictId(),
+                                                  dictionary.nodeId(),
                                                   dictionary.rawDictionary(),
                                                   dictionary.checksum(),
                                                   dictionary.createdAt());
+    }
+
+    /**
+     * Makes the referenced dictionary the current one if there is no current dictionary or the dictionary has a higher
+     * id (newer). The reference is kept for the current dictionary, otherwise it is released.
+     */
+    private synchronized void useIfNewer(Ref<? extends CompressionDictionary> ref)
+    {
+        CompressionDictionary previous = current;
+        if (previous != null && ref.get().dictId().id <= previous.dictId().id)
+            ref.release();
+        else
+            replaceCurrent(ref.get(), ref);
+    }
+
+    private synchronized void replaceCurrent(@Nullable CompressionDictionary dictionary, @Nullable Ref<? extends CompressionDictionary> ref)
+    {
+        if (currentRef != null)
+            currentRef.release();
+        currentRef = ref;
+        current = dictionary;
     }
 
     @Override
@@ -176,8 +212,13 @@ public class CompressionDictionaryCache implements ICompressionDictionaryCache
     @Override
     public synchronized void close()
     {
-        currentDictId.set(null);
-        // Invalidate cache will trigger removalListener to close all cached dictionaries, including the currentDictionary
+        current = null;
+        if (currentRef != null)
+        {
+            currentRef.release();
+            currentRef = null;
+        }
+        // Invalidate cache will trigger removalListener to close all cached dictionaries
         cache.invalidateAll();
         // Force synchronous cleanup to ensure removal listener executes immediately
         cache.cleanUp();

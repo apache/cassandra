@@ -55,6 +55,7 @@ import static java.nio.file.StandardOpenOption.WRITE;
 import static java.util.stream.Collectors.joining;
 import static org.apache.cassandra.io.compress.IDictionaryCompressor.DEFAULT_TRAINING_MAX_DICTIONARY_SIZE_PARAMETER_VALUE;
 import static org.apache.cassandra.io.compress.IDictionaryCompressor.DEFAULT_TRAINING_MAX_TOTAL_SAMPLE_SIZE_PARAMETER_VALUE;
+import static org.apache.cassandra.io.compress.IDictionaryCompressor.TRAINING_GLOBAL_SCOPE_PARAMETER_NAME;
 import static org.apache.cassandra.io.compress.IDictionaryCompressor.TRAINING_MAX_DICTIONARY_SIZE_PARAMETER_NAME;
 import static org.apache.cassandra.io.compress.IDictionaryCompressor.TRAINING_MAX_TOTAL_SAMPLE_SIZE_PARAMETER_NAME;
 
@@ -64,7 +65,9 @@ import static org.apache.cassandra.io.compress.IDictionaryCompressor.TRAINING_MA
                          CompressionDictionaryCommandGroup.ListDictionaries.class,
                          CompressionDictionaryCommandGroup.ExportDictionary.class,
                          CompressionDictionaryCommandGroup.ImportDictionary.class,
-                         CompressionDictionaryCommandGroup.CleanupDictionaries.class})
+                         CompressionDictionaryCommandGroup.CleanupDictionaries.class,
+                         CompressionDictionaryCommandGroup.PromoteDictionary.class,
+                         CompressionDictionaryCommandGroup.DiscardDictionary.class})
 public class CompressionDictionaryCommandGroup
 {
     @Command(name = "train",
@@ -82,6 +85,9 @@ public class CompressionDictionaryCommandGroup
 
         @Option(names = { "-f", "--force" }, description = "Force the dictionary training even if there are not enough samples")
         private boolean force = false;
+
+        @Option(names = { "-l", "--local" }, description = "Use the dictionary on this node only. It is stored in system_distributed with the id of this node and other nodes use it only after it is promoted.")
+        private boolean local = false;
 
         @Option(names = MAX_DICT_SIZE_PARAM_NAME, description = "Maximum size of a trained compression dictionary. " +
                                                                 "Larger dictionaries may provide better compression but use more memory. When not set, " +
@@ -115,6 +121,8 @@ public class CompressionDictionaryCommandGroup
 
                 if (trainingMaxTotalSampleSize != null)
                     parameters.put(TRAINING_MAX_TOTAL_SAMPLE_SIZE_PARAMETER_NAME, trainingMaxTotalSampleSize);
+
+                parameters.put(TRAINING_GLOBAL_SCOPE_PARAMETER_NAME, Boolean.toString(!local));
 
                 probe.trainCompressionDictionary(keyspace, table, force, parameters);
 
@@ -236,9 +244,62 @@ public class CompressionDictionaryCommandGroup
         }
     }
 
+    @Command(name = "promote",
+    description = "Promote the latest dictionary for given keyspace and table, trained or imported with --local, " +
+                  "to be used by all nodes.")
+    public static class PromoteDictionary extends AbstractCommand
+    {
+        @Parameters(index = "0", description = "The keyspace name", arity = "1")
+        private String keyspace;
+
+        @Parameters(index = "1", description = "The table name", arity = "1")
+        private String table;
+
+        @Override
+        protected void execute(NodeProbe probe)
+        {
+            try
+            {
+                probe.promoteDictionary(keyspace, table);
+            }
+            catch (Throwable e)
+            {
+                probe.output().err.printf("Failed to promote dictionary: %s%n", e.getMessage());
+                System.exit(1);
+            }
+        }
+    }
+
+    @Command(name = "discard",
+    description = "Discard the latest dictionary for given keyspace and table, trained or imported with --local, " +
+                  "its node compresses with the latest dictionary used by all nodes again.")
+    public static class DiscardDictionary extends AbstractCommand
+    {
+        @Parameters(index = "0", description = "The keyspace name", arity = "1")
+        private String keyspace;
+
+        @Parameters(index = "1", description = "The table name", arity = "1")
+        private String table;
+
+        @Override
+        protected void execute(NodeProbe probe)
+        {
+            try
+            {
+                probe.discardDictionary(keyspace, table);
+            }
+            catch (Throwable e)
+            {
+                probe.output().err.printf("Failed to discard dictionary: %s%n", e.getMessage());
+                System.exit(1);
+            }
+        }
+    }
+
     @Command(name = "cleanup", description = "Clean up orphaned dictionaries by deleting them from " + SystemDistributedKeyspace.NAME
                                              + '.' + SystemDistributedKeyspace.COMPRESSION_DICTIONARIES +
-                                             " table, these are ones for which a table they were trained for was dropped.")
+                                             " table, these are ones for which a table they were trained for was dropped, " +
+                                             "or which are local to a node which left the cluster.")
     public static class CleanupDictionaries extends AbstractCommand
     {
         @Option(names = {"-d", "--dry"}, description = "Only display orphaned dictionaries, do not remove them.")
@@ -323,6 +384,9 @@ public class CompressionDictionaryCommandGroup
              description = "Import local dictionary to Cassandra.")
     public static class ImportDictionary extends AbstractCommand
     {
+        @Option(names = { "-l", "--local" }, description = "Use the dictionary on this node only. It is stored in system_distributed with the id of this node and other nodes use it only after it is promoted.")
+        private boolean local = false;
+
         @Parameters(index = "0", description = "The path to a dictionary JSON", arity = "1")
         private String dictionaryPath;
 
@@ -337,7 +401,7 @@ public class CompressionDictionaryCommandGroup
                 String jsonContent = FileUtils.readLines(dictionaryFile).stream().collect(joining(lineSeparator()));
                 CompressionDictionaryDataObject dictionaryDataObject = JsonUtils.JSON_OBJECT_MAPPER.readValue(jsonContent, CompressionDictionaryDataObject.class);
                 CompositeData compositeData = CompressionDictionaryDetailsTabularData.fromCompressionDictionaryDataObject(dictionaryDataObject);
-                probe.importCompressionDictionary(compositeData);
+                probe.importCompressionDictionary(compositeData, !local);
             }
             catch (ValueInstantiationException ex)
             {
@@ -420,7 +484,9 @@ public class CompressionDictionaryCommandGroup
                         if (removedColumnsIndices.contains(i))
                             continue;
 
-                        rowValues.add(dictRow.get(i).toString());
+                        // node id is null for a dictionary used by all nodes
+                        Object value = dictRow.get(i);
+                        rowValues.add(value == null ? "" : value.toString());
                         hasOuput = true;
                     }
                     tableBuilder.add(rowValues);

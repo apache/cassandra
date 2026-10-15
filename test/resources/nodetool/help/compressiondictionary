@@ -12,7 +12,8 @@ SYNOPSIS
                 [(-pw <password> | --password <password>)]
                 [(-pwf <passwordFilePath> | --password-file <passwordFilePath>)]
                 [(-u <username> | --username <username>)] compressiondictionary train
-                [(-f | --force)] [--max-dict-size <trainingMaxDictionarySize>]
+                [(-f | --force)] [(-l | --local)]
+                [--max-dict-size <trainingMaxDictionarySize>]
                 [--max-total-sample-size <trainingMaxTotalSampleSize>] [--] <keyspace>
                 <table>
 
@@ -32,13 +33,25 @@ SYNOPSIS
                 [(-pw <password> | --password <password>)]
                 [(-pwf <passwordFilePath> | --password-file <passwordFilePath>)]
                 [(-u <username> | --username <username>)] compressiondictionary import
-                [--] <dictionaryPath>
+                [(-l | --local)] [--] <dictionaryPath>
 
         nodetool [(-h <host> | --host <host>)] [(-p <port> | --port <port>)]
                 [(-pw <password> | --password <password>)]
                 [(-pwf <passwordFilePath> | --password-file <passwordFilePath>)]
                 [(-u <username> | --username <username>)] compressiondictionary cleanup
                 [(-d | --dry)]
+
+        nodetool [(-h <host> | --host <host>)] [(-p <port> | --port <port>)]
+                [(-pw <password> | --password <password>)]
+                [(-pwf <passwordFilePath> | --password-file <passwordFilePath>)]
+                [(-u <username> | --username <username>)] compressiondictionary promote
+                [--] <keyspace> <table>
+
+        nodetool [(-h <host> | --host <host>)] [(-p <port> | --port <port>)]
+                [(-pw <password> | --password <password>)]
+                [(-pwf <passwordFilePath> | --password-file <passwordFilePath>)]
+                [(-u <username> | --username <username>)] compressiondictionary discard
+                [--] <keyspace> <table>
 
 OPTIONS
         -h <host>, --host <host>
@@ -66,6 +79,10 @@ COMMANDS
             With --force option, Force the dictionary training even if there are not
             enough samples
 
+            With --local option, Use the dictionary on this node only. It is stored in
+            system_distributed with the id of this node and other nodes use it only
+            after it is promoted.
+
             With --max-dict-size option, Maximum size of a trained compression
             dictionary. Larger dictionaries may provide better compression but use more
             memory. When not set, the value from compression configuration from CQL for
@@ -85,9 +102,21 @@ COMMANDS
             dictionary is returned.
         import
             Import local dictionary to Cassandra.
+
+            With --local option, Use the dictionary on this node only. It is stored in
+            system_distributed with the id of this node and other nodes use it only
+            after it is promoted.
         cleanup
             Clean up orphaned dictionaries by deleting them from system_distributed.
             compression_dictionaries table, these are ones for which a table they were
-            trained for was dropped.
+            trained for was dropped, or which are local to a node which left the
+            cluster.
 
             With --dry option, Only display orphaned dictionaries, do not remove them.
+        promote
+            Promote the latest dictionary for given keyspace and table, trained or
+            imported with --local, to be used by all nodes.
+        discard
+            Discard the latest dictionary for given keyspace and table, trained or
+            imported with --local, its node compresses with the latest dictionary used
+            by all nodes again.

@@ -20,9 +20,14 @@ package org.apache.cassandra.tools.nodetool;
 
 import java.nio.file.Files;
 import java.time.Instant;
+import java.util.ArrayList;
+import java.util.Comparator;
+import java.util.List;
+import java.util.concurrent.TimeUnit;
 
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.node.ObjectNode;
+import com.google.common.util.concurrent.Uninterruptibles;
 
 import org.junit.Assert;
 import org.junit.BeforeClass;
@@ -32,6 +37,7 @@ import org.apache.cassandra.cql3.CQLTester;
 import org.apache.cassandra.db.compression.CompressionDictionaryDetailsTabularData.CompressionDictionaryDataObject;
 import org.apache.cassandra.io.util.File;
 import org.apache.cassandra.io.util.FileUtils;
+import org.apache.cassandra.tcm.ClusterMetadata;
 import org.apache.cassandra.tools.ToolRunner.ToolResult;
 import org.apache.cassandra.utils.JsonUtils;
 import org.apache.cassandra.utils.Pair;
@@ -68,6 +74,31 @@ public class ExportImportListCompressionDictionaryTest extends CQLTester
     }
 
     @Test
+    public void testListShowsNodeOfLocalDictionary() throws Throwable
+    {
+        String table = createTable("CREATE TABLE %s (id int PRIMARY KEY, data text) WITH compression = {'class': 'ZstdDictionaryCompressor'}");
+        trainDictionary(table);
+        // dictionary ids are second-granular, the local one has to be newer than the global one
+        Uninterruptibles.sleepUninterruptibly(1, TimeUnit.SECONDS);
+        invokeNodetool("compressiondictionary", "train", "--force", "--local", keyspace(), table).assertOnCleanExit();
+
+        ToolResult result = invokeNodetool("compressiondictionary", "list", keyspace(), table);
+        result.assertOnCleanExit();
+        String[] lines = result.getStdout().trim().split("\\R");
+        assertThat(lines[0].trim()).endsWith("NodeId");
+
+        // columns: keyspace, table, dict id, kind, checksum, size, created at and node id, which is empty for a global dictionary
+        List<String[]> rows = new ArrayList<>();
+        for (int i = 1; i < lines.length; i++)
+            rows.add(lines[i].trim().split("\\s+"));
+        rows.sort(Comparator.comparingLong(row -> Long.parseLong(row[2])));
+        assertThat(rows).hasSize(2);
+        assertThat(rows.get(0)).as("global dictionary").hasSize(7);
+        assertThat(rows.get(1)).as("local dictionary, the newer one").hasSize(8);
+        assertThat(rows.get(1)[7]).isEqualTo(String.valueOf(ClusterMetadata.current().myNodeId().id()));
+    }
+
+    @Test
     public void testExportingSpecificDictionary() throws Throwable
     {
         String table = createTable("CREATE TABLE %s (id int PRIMARY KEY, data text) WITH compression = {'class': 'ZstdDictionaryCompressor'}");
@@ -94,7 +125,8 @@ public class ExportImportListCompressionDictionaryTest extends CQLTester
                                                                 pair.left.kind,
                                                                 pair.left.dictChecksum,
                                                                 pair.left.dictLength,
-                                                                Instant.now()), pair.right);
+                                                                Instant.now(),
+                                                                1), pair.right);
 
         ToolResult result = invokeNodetool("compressiondictionary", "import", pair.right.absolutePath());
         assertTrue(result.getStderr().contains("Unable to import dictionary JSON: Table abc.def does not exist or does not support dictionary compression"));
@@ -187,7 +219,8 @@ public class ExportImportListCompressionDictionaryTest extends CQLTester
                                                                 pair.left.kind,
                                                                 pair.left.dictChecksum,
                                                                 pair.left.dictLength,
-                                                                pair.left.createdAt),
+                                                                pair.left.createdAt,
+                                                                1),
                             pair.right);
     }
 

@@ -24,11 +24,15 @@ import java.util.function.Consumer;
 
 import javax.management.openmbean.CompositeData;
 
+import com.fasterxml.jackson.databind.node.ObjectNode;
+
 import org.junit.Test;
 
 import org.apache.cassandra.db.compression.CompressionDictionary.LightweightCompressionDictionary;
 import org.apache.cassandra.db.compression.CompressionDictionaryDetailsTabularData.CompressionDictionaryDataObject;
+import org.apache.cassandra.tcm.membership.NodeId;
 import org.apache.cassandra.utils.CompressionDictionaryHelper;
+import org.apache.cassandra.utils.JsonUtils;
 
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.junit.Assert.assertArrayEquals;
@@ -85,7 +89,8 @@ public class CompressionDictionaryDataObjectTest
                                                                                             COMPRESSION_DICTIONARY.dictId(),
                                                                                             COMPRESSION_DICTIONARY.checksum(),
                                                                                             COMPRESSION_DICTIONARY.rawDictionary().length,
-                                                                                            now);
+                                                                                            now,
+                                                                                            new NodeId(1));
 
         CompositeData compositeData = CompressionDictionaryDetailsTabularData.fromLightweightCompressionDictionary(lightweight);
 
@@ -98,6 +103,22 @@ public class CompressionDictionaryDataObjectTest
         assertEquals(COMPRESSION_DICTIONARY.checksum(), compositeData.get(CompressionDictionaryDetailsTabularData.CHECKSUM_NAME));
         assertEquals(COMPRESSION_DICTIONARY.rawDictionary().length, compositeData.get(CompressionDictionaryDetailsTabularData.SIZE_NAME));
         assertEquals(now.toString(), compositeData.get(CompressionDictionaryDetailsTabularData.CREATED_AT_NAME));
+        assertEquals(1, compositeData.get(CompressionDictionaryDetailsTabularData.NODE_ID));
+    }
+
+    @Test
+    public void testNodeIdExportedButIgnoredOnImport() throws Exception
+    {
+        String json = JsonUtils.writeAsPrettyJsonString(VALID_OBJECT);
+        ObjectNode tree = (ObjectNode) JsonUtils.JSON_OBJECT_MAPPER.readTree(json);
+        assertEquals(1, tree.get("nodeId").asInt());
+
+        CompressionDictionaryDataObject imported = JsonUtils.JSON_OBJECT_MAPPER.readValue(json, CompressionDictionaryDataObject.class);
+        assertNull(CompressionDictionaryDetailsTabularData.fromCompressionDictionaryDataObject(imported).get(CompressionDictionaryDetailsTabularData.NODE_ID));
+
+        // exported before node ids existed
+        tree.remove("nodeId");
+        assertNull(JsonUtils.JSON_OBJECT_MAPPER.readValue(tree.toString(), CompressionDictionaryDataObject.class).nodeId);
     }
 
     @Test
@@ -144,7 +165,8 @@ public class CompressionDictionaryDataObjectTest
                                                                                            123,
                                                                                            COMPRESSION_DICTIONARY.rawDictionary()),
                                                    COMPRESSION_DICTIONARY.rawDictionary().length,
-                                                   now);
+                                                   now,
+                                                   1);
     }
 
     private static class DataObjectModifier
@@ -174,7 +196,7 @@ public class CompressionDictionaryDataObjectTest
 
         public CompressionDictionaryDataObject build()
         {
-            return new CompressionDictionaryDataObject(keyspace, table, tableId, dictId, dict, kind, dictChecksum, dictLength, createdAt);
+            return new CompressionDictionaryDataObject(keyspace, table, tableId, dictId, dict, kind, dictChecksum, dictLength, createdAt, 1);
         }
 
         public DataObjectModifier withKeyspace(String keyspace)

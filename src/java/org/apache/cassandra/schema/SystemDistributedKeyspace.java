@@ -47,6 +47,7 @@ import org.apache.cassandra.config.CassandraRelevantProperties;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.cql3.QueryProcessor;
 import org.apache.cassandra.cql3.UntypedResultSet;
+import org.apache.cassandra.cql3.statements.ModificationStatement;
 import org.apache.cassandra.cql3.statements.schema.CreateTableStatement;
 import org.apache.cassandra.db.ColumnFamilyStore;
 import org.apache.cassandra.db.ConsistencyLevel;
@@ -59,6 +60,8 @@ import org.apache.cassandra.locator.InetAddressAndPort;
 import org.apache.cassandra.repair.CommonRange;
 import org.apache.cassandra.repair.messages.RepairOption;
 import org.apache.cassandra.tcm.ClusterMetadata;
+import org.apache.cassandra.tcm.membership.NodeId;
+import org.apache.cassandra.tcm.membership.NodeState;
 import org.apache.cassandra.utils.ByteBufferUtil;
 import org.apache.cassandra.utils.FBUtilities;
 import org.apache.cassandra.utils.TimeUUID;
@@ -208,6 +211,7 @@ public final class SystemDistributedKeyspace
                                                               "dict_length int," +
                                                               "dict_checksum int," +
                                                               "created_at timestamp," +
+                                                              "node_id int," +
                                                               "PRIMARY KEY ((keyspace_name, table_name), table_id, dict_id)) " +
                                                               "WITH CLUSTERING ORDER BY (table_id DESC, dict_id DESC)"; // in order to retrieve the latest dictionary; the contract is the newer the dictionary the larger the dict_id
 
@@ -414,6 +418,14 @@ public final class SystemDistributedKeyspace
         forceBlockingFlush(VIEW_BUILD_STATUS, ColumnFamilyStore.FlushReason.INTERNALLY_FORCED);
     }
 
+    public static void storeCompressionDictionary(String keyspaceName,
+                                                  String tableName,
+                                                  String tableId,
+                                                  CompressionDictionary dictionary)
+    {
+        storeCompressionDictionary(keyspaceName, tableName, tableId, true, dictionary);
+    }
+
     /**
      * Stores a compression dictionary for a given keyspace and table in the distributed system keyspace. It throws when
      * the dictionary can not be stored, e.g. when a quorum of replicas is not available.
@@ -421,31 +433,60 @@ public final class SystemDistributedKeyspace
      * @param keyspaceName the keyspace name to associate with the dictionary
      * @param tableName the table name to associate with the dictionary
      * @param tableId the unique id of a table to associate with the dictionary
+     * @param global whether all nodes use the dictionary, or only this node, whose id it is stored with
      * @param dictionary the compression dictionary to store
      */
     public static void storeCompressionDictionary(String keyspaceName,
                                                   String tableName,
                                                   String tableId,
+                                                  boolean global,
                                                   CompressionDictionary dictionary)
     {
         byte[] dict = dictionary.rawDictionary();
-        String query = "INSERT INTO %s.%s (keyspace_name, table_name, table_id, kind, dict_id, dict, dict_length, dict_checksum, created_at) VALUES ('%s', '%s', '%s', '%s', %s, ?, %s, %s, ?)";
-        String fmtQuery = format(query,
-                                 SchemaConstants.DISTRIBUTED_KEYSPACE_NAME,
-                                 COMPRESSION_DICTIONARIES,
-                                 keyspaceName,
-                                 tableName,
-                                 tableId,
-                                 dictionary.kind(),
-                                 dictionary.dictId().id,
-                                 dict.length,
-                                 dictionary.checksum());
+        String fmtQuery;
+        if (global)
+        {
+            // a dictionary used by all nodes does not belong to any node
+            String query = "INSERT INTO %s.%s (keyspace_name, table_name, table_id, kind, dict_id, dict, dict_length, dict_checksum, created_at, node_id) " +
+                           "VALUES ('%s', '%s', '%s', '%s', %s, ?, %s, %s, ?, null)";
+            fmtQuery = format(query,
+                              SchemaConstants.DISTRIBUTED_KEYSPACE_NAME,
+                              COMPRESSION_DICTIONARIES,
+                              keyspaceName,
+                              tableName,
+                              tableId,
+                              dictionary.kind(),
+                              dictionary.dictId().id,
+                              dict.length,
+                              dictionary.checksum());
+        }
+        else
+        {
+            String query = "INSERT INTO %s.%s (keyspace_name, table_name, table_id, kind, dict_id, dict, dict_length, dict_checksum, created_at, node_id) " +
+                           "VALUES ('%s', '%s', '%s', '%s', %s, ?, %s, %s, ?, %s)";
+            fmtQuery = format(query,
+                              SchemaConstants.DISTRIBUTED_KEYSPACE_NAME,
+                              COMPRESSION_DICTIONARIES,
+                              keyspaceName,
+                              tableName,
+                              tableId,
+                              dictionary.kind(),
+                              dictionary.dictId().id,
+                              dict.length,
+                              dictionary.checksum(),
+                              ClusterMetadata.current().myNodeId().id());
+        }
+
         QueryProcessor.process(fmtQuery, ConsistencyLevel.QUORUM,
                                List.of(ByteBuffer.wrap(dict), ByteBufferUtil.bytes(dictionary.createdAt().toEpochMilli())));
     }
 
     /**
      * Retrieves the latest compression dictionary for a given keyspace and table.
+     *
+     * Retrieved compression dictionary may have its node id set to null. It means that such a dictionary
+     * was either trained or imported to be globally used by every node or it was promoted from local to global one.
+     * A local dictionary does not have its node id null.
      *
      * @param keyspaceName the keyspace name to retrieve the dictionary for
      * @param tableName the table name to retrieve the dictionary for
@@ -456,7 +497,8 @@ public final class SystemDistributedKeyspace
     @Nullable
     public static CompressionDictionary retrieveLatestCompressionDictionary(String keyspaceName, String tableName, String tableId)
     {
-        String query = "SELECT kind, dict_id, dict, dict_length, dict_checksum, created_at FROM %s.%s WHERE keyspace_name='%s' AND table_name='%s' AND table_id='%s' LIMIT 1";
+        String query = "SELECT kind, dict_id, dict, dict_length, dict_checksum, created_at, node_id " +
+                       "FROM %s.%s WHERE keyspace_name='%s' AND table_name='%s' AND table_id='%s' LIMIT 1";
         String fmtQuery = format(query, SchemaConstants.DISTRIBUTED_KEYSPACE_NAME, COMPRESSION_DICTIONARIES, keyspaceName, tableName, tableId);
         try
         {
@@ -490,20 +532,33 @@ public final class SystemDistributedKeyspace
     @Nullable
     public static LightweightCompressionDictionary retrieveLightweightLatestCompressionDictionary(String keyspaceName, String tableName, String tableId)
     {
-        String query = "SELECT keyspace_name, table_name, table_id, kind, dict_id, dict_checksum, dict_length, created_at FROM %s.%s WHERE keyspace_name='%s' AND table_name='%s' AND table_id='%s' LIMIT 1";
-        String fmtQuery = format(query, SchemaConstants.DISTRIBUTED_KEYSPACE_NAME, COMPRESSION_DICTIONARIES, keyspaceName, tableName, tableId);
         try
         {
-            UntypedResultSet result = QueryProcessor.execute(fmtQuery, ConsistencyLevel.QUORUM);
-            if (result.isEmpty())
-                return null;
-            return CompressionDictionary.createFromRowLightweight(result.one());
+            return readLightweightLatestCompressionDictionary(keyspaceName, tableName, tableId);
         }
         catch (Exception e)
         {
             logger.warn("Could not read the latest compression dictionary metadata for {}.{}", keyspaceName, tableName, e);
             return null;
         }
+    }
+
+    /**
+     * Same as {@link #retrieveLightweightLatestCompressionDictionary(String, String, String)} but an error during
+     * retrieval is thrown, it is not mistaken for no dictionary.
+     *
+     * @return the latest compression dictionary for the specified keyspace and table, or null if no dictionary exists
+     */
+    @Nullable
+    public static LightweightCompressionDictionary readLightweightLatestCompressionDictionary(String keyspaceName, String tableName, String tableId)
+    {
+        String query = "SELECT keyspace_name, table_name, table_id, kind, dict_id, dict_checksum, dict_length, created_at, node_id " +
+                       "FROM %s.%s WHERE keyspace_name='%s' AND table_name='%s' AND table_id='%s' LIMIT 1";
+        String fmtQuery = format(query, SchemaConstants.DISTRIBUTED_KEYSPACE_NAME, COMPRESSION_DICTIONARIES, keyspaceName, tableName, tableId);
+        UntypedResultSet result = QueryProcessor.execute(fmtQuery, ConsistencyLevel.QUORUM);
+        if (result.isEmpty())
+            return null;
+        return CompressionDictionary.createFromRowLightweight(result.one());
     }
 
     /**
@@ -520,7 +575,8 @@ public final class SystemDistributedKeyspace
     @Nullable
     public static CompressionDictionary retrieveCompressionDictionary(String keyspaceName, String tableName, String tableId, long dictionaryId)
     {
-        String query = "SELECT kind, dict_id, dict, dict_length, dict_checksum, created_at FROM %s.%s WHERE keyspace_name='%s' AND table_name='%s' AND table_id='%s' AND dict_id=%s";
+        String query = "SELECT kind, dict_id, dict, dict_length, dict_checksum, created_at, node_id " +
+                       "FROM %s.%s WHERE keyspace_name='%s' AND table_name='%s' AND table_id='%s' AND dict_id=%s";
         String fmtQuery = format(query, SchemaConstants.DISTRIBUTED_KEYSPACE_NAME, COMPRESSION_DICTIONARIES, keyspaceName, tableName, tableId, dictionaryId);
         try
         {
@@ -548,8 +604,34 @@ public final class SystemDistributedKeyspace
     @Nullable
     public static List<LightweightCompressionDictionary> retrieveLightweightCompressionDictionaries(String keyspaceName, String tableName, String tableId)
     {
-        String query = "SELECT keyspace_name, table_name, table_id, kind, dict_id, dict_length, dict_checksum, created_at FROM %s.%s WHERE keyspace_name='%s' AND table_name='%s' AND table_id='%s'";
+        String query = "SELECT keyspace_name, table_name, table_id, kind, dict_id, dict_length, dict_checksum, created_at, node_id " +
+                       "FROM %s.%s WHERE keyspace_name='%s' AND table_name='%s' AND table_id='%s'";
         String fmtQuery = format(query, SchemaConstants.DISTRIBUTED_KEYSPACE_NAME, COMPRESSION_DICTIONARIES, keyspaceName, tableName, tableId);
+        return retrieveLightweightCompressionDictionariesInternal(fmtQuery);
+    }
+
+    /**
+     * Retrieves a page of dictionaries for a given keyspace and table, newest first.
+     *
+     * @param keyspaceName the keyspace name to retrieve the dictionaries for
+     * @param tableName the table name to retrieve the dictionaries for
+     * @param tableId the table id to retrieve the dictionaries for
+     * @param olderThan only dictionaries with a lower id are retrieved, all when null
+     * @param limit the maximum number of dictionaries to retrieve
+     * @return at most limit newest compression dictionaries older than the given id,
+     *         empty list if there is no such dictionary or null if an error occurs during retrieval
+     */
+    @Nullable
+    public static List<LightweightCompressionDictionary> retrieveLightweightCompressionDictionaries(String keyspaceName,
+                                                                                                   String tableName,
+                                                                                                   String tableId,
+                                                                                                   @Nullable Long olderThan,
+                                                                                                   int limit)
+    {
+        String query = "SELECT keyspace_name, table_name, table_id, kind, dict_id, dict_length, dict_checksum, created_at, node_id " +
+                       "FROM %s.%s WHERE keyspace_name='%s' AND table_name='%s' AND table_id='%s'%s LIMIT %s";
+        String fmtQuery = format(query, SchemaConstants.DISTRIBUTED_KEYSPACE_NAME, COMPRESSION_DICTIONARIES, keyspaceName, tableName, tableId,
+                                 olderThan == null ? "" : " AND dict_id < " + olderThan, limit);
         return retrieveLightweightCompressionDictionariesInternal(fmtQuery);
     }
 
@@ -562,16 +644,17 @@ public final class SystemDistributedKeyspace
     @Nullable
     public static List<LightweightCompressionDictionary> retrieveLightweightCompressionDictionaries()
     {
-        String query = "SELECT keyspace_name, table_name, table_id, kind, dict_id, dict_length, dict_checksum, created_at FROM %s.%s";
+        String query = "SELECT keyspace_name, table_name, table_id, kind, dict_id, dict_length, dict_checksum, created_at, node_id FROM %s.%s";
         String fmtQuery = format(query, SchemaConstants.DISTRIBUTED_KEYSPACE_NAME, COMPRESSION_DICTIONARIES);
         return retrieveLightweightCompressionDictionariesInternal(fmtQuery);
     }
 
     /**
-     * Retrieves all orphaned compression dictionaries in a lightweight form.
+     * Retrieves all orphaned compression dictionaries in a lightweight form. A dictionary is orphaned when
+     * its table was dropped, or when it is local to a node which is not in the cluster anymore.
      *
-     * @return all orphaned compression dictionaries, lightweight form, empty list if no dictionary exists
-     *         or null if an error occurs during retrieval
+     * @return all orphaned compression dictionaries, lightweight form, empty list if there is none
+     *         or an error occurs during retrieval
      */
     public static List<LightweightCompressionDictionary> retrieveOrphanedLightweightCompressionDictionaries()
     {
@@ -579,15 +662,29 @@ public final class SystemDistributedKeyspace
         if (dicts == null || dicts.isEmpty())
             return List.of();
 
+        ClusterMetadata metadata = ClusterMetadata.current();
         List<LightweightCompressionDictionary> orphaned = new ArrayList<>();
         for (LightweightCompressionDictionary dict : dicts)
         {
-            TableMetadata tableMetadata = ClusterMetadata.current().schema.getTableMetadata(dict.keyspaceName, dict.tableName);
-            if (tableMetadata == null || !tableMetadata.id.toLongString().equals(dict.tableId))
+            TableMetadata tableMetadata = metadata.schema.getTableMetadata(dict.keyspaceName, dict.tableName);
+            if (tableMetadata == null || !tableMetadata.id.toLongString().equals(dict.tableId) || !isInCluster(metadata, dict.nodeId))
                 orphaned.add(dict);
         }
 
         return orphaned;
+    }
+
+    /**
+     * @return true for a global dictionary, or when the node a local dictionary belongs to is in the cluster, i.e. it
+     *         is known and has not left
+     */
+    private static boolean isInCluster(ClusterMetadata metadata, @Nullable NodeId nodeId)
+    {
+        if (nodeId == null)
+            return true;
+
+        NodeState state = metadata.directory.peerState(nodeId);
+        return state != null && state != NodeState.LEFT;
     }
 
     /**
@@ -599,14 +696,7 @@ public final class SystemDistributedKeyspace
         {
             try
             {
-                QueryProcessor.execute(String.format("DELETE FROM %s.%s WHERE keyspace_name='%s' AND table_name='%s' AND table_id='%s' AND dict_id=%s",
-                                                     SchemaConstants.DISTRIBUTED_KEYSPACE_NAME,
-                                                     SystemDistributedKeyspace.COMPRESSION_DICTIONARIES,
-                                                     orphanedDict.keyspaceName,
-                                                     orphanedDict.tableName,
-                                                     orphanedDict.tableId,
-                                                     orphanedDict.dictId.id),
-                                       ConsistencyLevel.QUORUM);
+                deleteCompressionDictionary(orphanedDict.keyspaceName, orphanedDict.tableName, orphanedDict.tableId, orphanedDict.dictId.id);
             }
             catch (Exception e)
             {
@@ -615,6 +705,104 @@ public final class SystemDistributedKeyspace
                              e.getMessage());
             }
         }
+    }
+
+    /**
+     * Deletes a compression dictionary of a table.
+     *
+     * @param keyspaceName the keyspace name of the dictionary
+     * @param tableName the table name of the dictionary
+     * @param tableId the table id of the dictionary
+     * @param dictId the id of the dictionary
+     */
+    public static void deleteCompressionDictionary(String keyspaceName, String tableName, String tableId, long dictId)
+    {
+        QueryProcessor.execute(String.format("DELETE FROM %s.%s WHERE keyspace_name='%s' AND table_name='%s' AND table_id='%s' AND dict_id=%s",
+                                             SchemaConstants.DISTRIBUTED_KEYSPACE_NAME,
+                                             COMPRESSION_DICTIONARIES,
+                                             keyspaceName,
+                                             tableName,
+                                             tableId,
+                                             dictId),
+                               ConsistencyLevel.QUORUM);
+    }
+
+    /**
+     * Promotes the latest dictionary of a table to be used by all nodes by setting its node id to null.
+     *
+     * @return id of the promoted dictionary
+     * @throws IllegalStateException if no dictionary is found, the latest one is already used by all nodes
+     *                               or it was deleted before it could be promoted
+     */
+    public static CompressionDictionary.DictId promoteCompressionDictionary(String keyspaceName, String tableName, String tableId)
+    {
+        LightweightCompressionDictionary latest = readLightweightLatestCompressionDictionary(keyspaceName, tableName, tableId);
+        if (latest == null)
+            throw new IllegalStateException(format("Could not find a dictionary to promote for table %s.%s", keyspaceName, tableName));
+        if (latest.nodeId == null)
+            throw new IllegalStateException(format("The latest dictionary %s of table %s.%s is already used by all nodes",
+                                                   latest.dictId.id, keyspaceName, tableName));
+
+        UntypedResultSet result = QueryProcessor.execute(String.format("UPDATE %s.%s SET node_id = null " +
+                                                                       "WHERE keyspace_name='%s' " +
+                                                                       "AND table_name='%s' " +
+                                                                       "AND table_id='%s' " +
+                                                                       "AND dict_id=%s " +
+                                                                       "IF EXISTS", // LWT
+                                                                       SchemaConstants.DISTRIBUTED_KEYSPACE_NAME,
+                                                                       SystemDistributedKeyspace.COMPRESSION_DICTIONARIES,
+                                                                       latest.keyspaceName,
+                                                                       latest.tableName,
+                                                                       latest.tableId,
+                                                                       latest.dictId.id),
+                                                         ConsistencyLevel.QUORUM);
+
+        // the row might have been deleted since it was read, e.g. discarded on another node or removed by the cleanup
+        // of orphaned dictionaries
+        if (result == null || result.isEmpty() || !result.one().getBoolean(ModificationStatement.CAS_RESULT_COLUMN.toString()))
+            throw new IllegalStateException(format("The latest dictionary %s of table %s.%s was not promoted, it does not exist anymore",
+                                                   latest.dictId.id, keyspaceName, tableName));
+
+        return latest.dictId;
+    }
+
+    /**
+     * Discards the latest dictionary of a table, which has to be local to a node, by deleting it.
+     *
+     * @return the discarded dictionary
+     * @throws IllegalStateException if no dictionary is found, the latest one is used by all nodes,
+     *                               or it was promoted or deleted before it could be discarded
+     */
+    public static LightweightCompressionDictionary discardCompressionDictionary(String keyspaceName, String tableName, String tableId)
+    {
+        LightweightCompressionDictionary latest = readLightweightLatestCompressionDictionary(keyspaceName, tableName, tableId);
+        if (latest == null)
+            throw new IllegalStateException(format("Could not find a dictionary to discard for table %s.%s", keyspaceName, tableName));
+        if (latest.nodeId == null)
+            throw new IllegalStateException(format("The latest dictionary %s of table %s.%s is used by all nodes, only a local one can be discarded",
+                                                   latest.dictId.id, keyspaceName, tableName));
+
+        UntypedResultSet result = QueryProcessor.execute(String.format("DELETE FROM %s.%s " +
+                                                                       "WHERE keyspace_name='%s' " +
+                                                                       "AND table_name='%s' " +
+                                                                       "AND table_id='%s' " +
+                                                                       "AND dict_id=%s " +
+                                                                       "IF node_id = %s", // LWT
+                                                                       SchemaConstants.DISTRIBUTED_KEYSPACE_NAME,
+                                                                       SystemDistributedKeyspace.COMPRESSION_DICTIONARIES,
+                                                                       latest.keyspaceName,
+                                                                       latest.tableName,
+                                                                       latest.tableId,
+                                                                       latest.dictId.id,
+                                                                       latest.nodeId.id()),
+                                                         ConsistencyLevel.QUORUM);
+
+        // promoted or deleted since it was read
+        if (result == null || result.isEmpty() || !result.one().getBoolean(ModificationStatement.CAS_RESULT_COLUMN.toString()))
+            throw new IllegalStateException(format("The latest dictionary %s of table %s.%s was not discarded, it was promoted or deleted meanwhile",
+                                                   latest.dictId.id, keyspaceName, tableName));
+
+        return latest;
     }
 
     private static List<LightweightCompressionDictionary> retrieveLightweightCompressionDictionariesInternal(String query)
@@ -635,6 +823,7 @@ public final class SystemDistributedKeyspace
         }
         catch (Exception e)
         {
+            logger.warn("Could not read compression dictionaries with query {}", query, e);
             return null;
         }
     }

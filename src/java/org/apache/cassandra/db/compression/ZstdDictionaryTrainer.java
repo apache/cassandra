@@ -33,6 +33,7 @@ import org.apache.cassandra.concurrent.ScheduledExecutors;
 import org.apache.cassandra.db.compression.CompressionDictionary.DictId;
 import org.apache.cassandra.db.compression.CompressionDictionary.Kind;
 import org.apache.cassandra.io.util.FileUtils;
+import org.apache.cassandra.tcm.membership.NodeId;
 import org.apache.cassandra.utils.Clock;
 import org.apache.cassandra.utils.concurrent.AsyncFuture;
 import org.apache.cassandra.utils.concurrent.Future;
@@ -120,7 +121,9 @@ public class ZstdDictionaryTrainer implements ICompressionDictionaryTrainer
             DictId dictId = new DictId(Kind.ZSTD, makeDictionaryId(Clock.Global.currentTimeMillis(), zstdDictId));
             logger.debug("New dictionary is trained with {}", dictId);
             int checksum = CompressionDictionary.calculateChecksum((byte) dictId.kind.ordinal(), dictId.id, dictBytes);
-            dictionary = Kind.ZSTD.createDictionary(dictId, dictBytes, checksum);
+            CompressionDictionaryTrainingConfig trainingConfig = config;
+            NodeId nodeId = trainingConfig != null && !trainingConfig.global ? CompressionDictionary.localNodeId() : null;
+            dictionary = Kind.ZSTD.createDictionary(dictId, nodeId, dictBytes, checksum);
         }
         catch (Exception e)
         {

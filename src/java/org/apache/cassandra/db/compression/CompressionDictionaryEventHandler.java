@@ -29,17 +29,19 @@ import org.apache.cassandra.locator.InetAddressAndPort;
 import org.apache.cassandra.net.Message;
 import org.apache.cassandra.net.MessagingService;
 import org.apache.cassandra.net.Verb;
-import org.apache.cassandra.schema.SystemDistributedKeyspace;
 import org.apache.cassandra.tcm.ClusterMetadata;
+import org.apache.cassandra.tcm.membership.Directory;
+import org.apache.cassandra.tcm.membership.NodeId;
+import org.apache.cassandra.tcm.membership.NodeState;
 import org.apache.cassandra.utils.FBUtilities;
 
 /**
  * Handles compression dictionary events including training completion and cluster notifications.
  * <p>
  * This class handles:
- * - Broadcasting dictionary updates to cluster nodes
- * - Retrieving new dictionaries when notified by other nodes
- * - Managing dictionary cache updates
+ * - Notifying other nodes about a dictionary trained, imported or promoted to be used by all nodes, and the node
+ *   a discarded dictionary was local to
+ * - Refreshing the current dictionary when notified, or when this node promoted a dictionary
  */
 public class CompressionDictionaryEventHandler implements ICompressionDictionaryEventHandler
 {
@@ -48,19 +50,23 @@ public class CompressionDictionaryEventHandler implements ICompressionDictionary
     private final ColumnFamilyStore cfs;
     private final String keyspaceName;
     private final String tableName;
-    private final ICompressionDictionaryCache cache;
+    // makes the newest dictionary used by all nodes or local to this node the current one
+    private final Runnable refresh;
 
-    public CompressionDictionaryEventHandler(ColumnFamilyStore cfs, ICompressionDictionaryCache cache)
+    public CompressionDictionaryEventHandler(ColumnFamilyStore cfs, Runnable refresh)
     {
         this.cfs = cfs;
         this.keyspaceName = cfs.keyspace.getName();
         this.tableName = cfs.getTableName();
-        this.cache = cache;
+        this.refresh = refresh;
     }
 
     @Override
-    public void onNewDictionaryTrained(CompressionDictionary.DictId dictionaryId)
+    public void onNewDictionaryTrained(CompressionDictionary.DictId dictionaryId, boolean global)
     {
+        if (!global)
+            return;
+
         logger.info("Notifying cluster about dictionary update for {}.{} with {}",
                     keyspaceName, tableName, dictionaryId);
 
@@ -76,9 +82,24 @@ public class CompressionDictionaryEventHandler implements ICompressionDictionary
     }
 
     @Override
+    public void onDictionaryDiscarded(CompressionDictionary.DictId dictionaryId, NodeId owner)
+    {
+        // a node which left the cluster neither uses the dictionary nor receives messages anymore
+        Directory directory = ClusterMetadata.current().directory;
+        NodeState state = directory.peerState(owner);
+        InetAddressAndPort endpoint = directory.endpoint(owner);
+        if (state == null || state == NodeState.LEFT || endpoint == null)
+            return;
+
+        logger.info("Notifying {} about discarded dictionary {} for {}.{}", endpoint, dictionaryId, keyspaceName, tableName);
+        sendNotification(endpoint, new CompressionDictionaryUpdateMessage(cfs.metadata().id, dictionaryId));
+    }
+
+    @Override
     public void onNewDictionaryAvailable(CompressionDictionary.DictId dictionaryId)
     {
-        // Best effort to retrieve the dictionary; otherwise, the periodic task should retrieve the dictionary later
+        // Whether a dictionary was trained, imported, promoted or discarded, this node refreshes its current
+        // dictionary. Best effort; otherwise, the periodic task refreshes it later.
         ScheduledExecutors.nonPeriodicTasks.submit(() -> {
             try
             {
@@ -87,22 +108,12 @@ public class CompressionDictionaryEventHandler implements ICompressionDictionary
                     return;
                 }
 
-                CompressionDictionary dictionary = SystemDistributedKeyspace.retrieveCompressionDictionary(keyspaceName, tableName, cfs.metadata().id.toLongString(), dictionaryId.id);
-                if (dictionary == null)
-                {
-                    // cache.add(null) is a no-op, so without this the node keeps writing with the dictionary it
-                    // already has and nothing anywhere says so. The periodic refresh is the only recovery, and
-                    // it runs on compression_dictionary_refresh_interval - an hour by default.
-                    logger.info("Notified of compression dictionary {} for {}.{} but could not read it back; " +
-                                "this node keeps using its current dictionary until the next periodic refresh.",
-                                dictionaryId, keyspaceName, tableName);
-                    return;
-                }
-                cache.add(dictionary);
+                refresh.run();
             }
             catch (Exception e)
             {
-                logger.warn("Failed to retrieve compression dictionary for {}.{}. {}",
+                logger.warn("Failed to refresh compression dictionary for {}.{} on the announcement of {}; " +
+                            "this node refreshes it on the next periodic refresh.",
                             keyspaceName, tableName, dictionaryId, e);
             }
         });
