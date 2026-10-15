@@ -111,7 +111,7 @@ public class UnrecoverableRepairUpdate<E extends Endpoints<E>, P extends Replica
     public final Key updateKey;
 
     public UnrecoverableRepairUpdate(Node.Id nodeId, BlockingReadRepair<E, P> parent,
-                                      Seekables<?, ?> keys, DecoratedKey dk, Map<Replica, Mutation> mutations, ReplicaPlan.ForWrite writePlan)
+                                     Seekables<?, ?> keys, DecoratedKey dk, Map<Replica, Mutation> mutations, ReplicaPlan.ForWrite writePlan)
     {
         this.parent = parent;
         this.keys = keys;
