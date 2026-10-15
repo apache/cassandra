@@ -39,8 +39,8 @@ import org.apache.cassandra.net.Message;
 import org.apache.cassandra.net.NoPayload;
 import org.apache.cassandra.net.RequestCallbackWithFailure;
 import org.apache.cassandra.net.Verb;
-import org.apache.cassandra.repair.messages.MutationTrackingValidationRequest;
 import org.apache.cassandra.repair.messages.RepairMessage;
+import org.apache.cassandra.repair.messages.ValidationRequest;
 import org.apache.cassandra.repair.messages.ValidationResponse;
 import org.apache.cassandra.replication.ValidationOffsets;
 import org.apache.cassandra.utils.FBUtilities;
@@ -96,7 +96,7 @@ public class MutationTrackingValidationCoordinator
                 fail(new TimeoutException("MT validation timed out after " + timeout + "s for " + desc));
         }, timeout, TimeUnit.SECONDS);
 
-        MutationTrackingValidationRequest request = new MutationTrackingValidationRequest(desc, FBUtilities.nowInSeconds(), false, offset);
+        ValidationRequest request = new ValidationRequest(desc, FBUtilities.nowInSeconds(), false, offset);
         for (InetAddressAndPort participant : participants)
         {
             logger.debug("Sending mutation tracking validation request to {} for {}", participant, desc);

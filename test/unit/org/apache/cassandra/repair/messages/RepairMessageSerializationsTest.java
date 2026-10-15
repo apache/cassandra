@@ -50,6 +50,7 @@ import org.apache.cassandra.net.MessagingService;
 import org.apache.cassandra.repair.RepairJobDesc;
 import org.apache.cassandra.repair.SyncNodePair;
 import org.apache.cassandra.replication.ShortMutationId;
+import org.apache.cassandra.replication.ValidationOffsets;
 import org.apache.cassandra.schema.KeyspaceMetadata;
 import org.apache.cassandra.schema.KeyspaceParams;
 import org.apache.cassandra.schema.SchemaTestUtil;
@@ -88,10 +89,17 @@ public class RepairMessageSerializationsTest extends CassandraTestBase
         ValidationRequest msg = new ValidationRequest(jobDesc, GC_BEFORE, false);
         ValidationRequest deserialized = serializeRoundTrip(msg, ValidationRequest.serializer);
         Assert.assertEquals(jobDesc, deserialized.desc);
+        Assert.assertNull(deserialized.offset);
 
         msg = new ValidationRequest(jobDesc, GC_BEFORE, true);
         deserialized = serializeRoundTrip(msg, ValidationRequest.serializer);
         Assert.assertEquals(jobDesc, deserialized.desc);
+        Assert.assertNull(deserialized.offset);
+
+        msg = new ValidationRequest(jobDesc, GC_BEFORE, true, ValidationOffsets.EMPTY);
+        deserialized = serializeRoundTrip(msg, ValidationRequest.serializer);
+        Assert.assertEquals(jobDesc, deserialized.desc);
+        Assert.assertNotNull(deserialized.offset);
     }
 
     private RepairJobDesc buildRepairJobDesc()

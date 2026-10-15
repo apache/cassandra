@@ -40,7 +40,6 @@ import org.apache.cassandra.repair.messages.CleanupMessage;
 import org.apache.cassandra.repair.messages.FailSession;
 import org.apache.cassandra.repair.messages.MutationTrackingSyncRequest;
 import org.apache.cassandra.repair.messages.MutationTrackingSyncResponse;
-import org.apache.cassandra.repair.messages.MutationTrackingValidationRequest;
 import org.apache.cassandra.repair.messages.PrepareMessage;
 import org.apache.cassandra.repair.messages.RepairMessage;
 import org.apache.cassandra.repair.messages.StatusRequest;
@@ -231,6 +230,7 @@ public class RepairMessageVerbHandler implements IVerbHandler<RepairMessage>
                     break;
 
                 case VALIDATION_REQ:
+                case MT_VALIDATION_REQ:
                 {
                     ValidationRequest validationRequest = (ValidationRequest) message.payload;
                     logger.debug("Validating {}", validationRequest);
@@ -253,22 +253,28 @@ public class RepairMessageVerbHandler implements IVerbHandler<RepairMessage>
                         ColumnFamilyStore store = ColumnFamilyStore.getIfExists(desc.keyspace, desc.columnFamily);
                         if (store == null)
                         {
-                            String msg = String.format("Table %s.%s was dropped during validation phase of repair %s", desc.keyspace, desc.columnFamily, desc.parentSessionId);
+                            String msg = String.format("Table %s.%s was dropped during validation phase of repair %s",
+                                                       desc.keyspace, desc.columnFamily, desc.parentSessionId);
                             vState.phase.fail(msg);
                             logErrorAndSendFailureResponse(msg, message);
                             return;
                         }
 
-                        try
+                        boolean mutationTracking = validationRequest.offset != null;
+
+                        if (!mutationTracking)
                         {
-                            ctx.repair().consistent.local.maybeSetRepairing(desc.parentSessionId);
-                        }
-                        catch (Throwable t)
-                        {
-                            JVMStabilityInspector.inspectThrowable(t);
-                            vState.phase.fail(t.toString());
-                            logErrorAndSendFailureResponse(t.toString(), message);
-                            return;
+                            try
+                            {
+                                ctx.repair().consistent.local.maybeSetRepairing(desc.parentSessionId);
+                            }
+                            catch (Throwable t)
+                            {
+                                JVMStabilityInspector.inspectThrowable(t);
+                                vState.phase.fail(t.toString());
+                                logErrorAndSendFailureResponse(t.toString(), message);
+                                return;
+                            }
                         }
                         PreviewKind previewKind;
                         try
@@ -297,80 +303,11 @@ public class RepairMessageVerbHandler implements IVerbHandler<RepairMessage>
                         sendAck(message);
 
                         Validator validator = new Validator(ctx, vState, validationRequest.nowInSec,
-                                                            isIncremental(desc.parentSessionId),
-                                                            previewKind,
-                                                            validationRequest.dontPurgeTombstones);
-                        ctx.validationManager().submitValidation(store, validator);
-                    }
-                    catch (Throwable t)
-                    {
-                        vState.phase.fail(t);
-                        throw t;
-                    }
-                }
-                    break;
-
-                case MT_VALIDATION_REQ:
-                {
-                    MutationTrackingValidationRequest validationRequest = (MutationTrackingValidationRequest) message.payload;
-                    logger.debug("Handling mutation tracking validation request {}", validationRequest);
-
-                    ParticipateState participate = ctx.repair().participate(desc.parentSessionId);
-                    if (participate == null)
-                    {
-                        logErrorAndSendFailureResponse("Unknown repair " + desc.parentSessionId, message);
-                        return;
-                    }
-
-                    ValidationState vState = new ValidationState(ctx.clock(), desc, message.from());
-                    if (!register(message, participate, vState,
-                                  participate::register,
-                                  (d, i) -> participate.validation(d)))
-                        return;
-                    try
-                    {
-                        ColumnFamilyStore store = ColumnFamilyStore.getIfExists(desc.keyspace, desc.columnFamily);
-                        if (store == null)
-                        {
-                            String msg = String.format("Table %s.%s was dropped during MT validation of repair %s",
-                                                       desc.keyspace, desc.columnFamily, desc.parentSessionId);
-                            vState.phase.fail(msg);
-                            logErrorAndSendFailureResponse(msg, message);
-                            return;
-                        }
-
-                        PreviewKind previewKind;
-                        try
-                        {
-                            previewKind = previewKind(desc.parentSessionId);
-                        }
-                        catch (NoSuchRepairSessionException e)
-                        {
-                            logger.warn("Parent repair session {} has been removed, failing MT validation", desc.parentSessionId);
-                            vState.phase.fail(e);
-                            sendFailureResponse(message);
-                            return;
-                        }
-
-                        if (!acceptMessage(desc, ctx.broadcastAddressAndPort(), message.from()))
-                        {
-                            RepairOutOfTokenRangeException e = new RepairOutOfTokenRangeException(desc.ranges);
-
-                            logger.error("Got out-of-range repair request from " + message.from() + ": " + desc.ranges, e);
-                            vState.phase.fail(e);
-                            sendFailureResponse(message);
-                            return;
-                        }
-
-                        vState.phase.accept();
-                        sendAck(message);
-
-                        Validator validator = new Validator(ctx, vState, validationRequest.nowInSec,
                                                             false,
-                                                            true,
+                                                            mutationTracking || isIncremental(desc.parentSessionId),
                                                             previewKind,
                                                             validationRequest.dontPurgeTombstones,
-                                                            Verb.MT_VALIDATION_RSP,
+                                                            mutationTracking ? Verb.MT_VALIDATION_RSP : Verb.VALIDATION_RSP,
                                                             validationRequest.offset);
                         ctx.validationManager().submitValidation(store, validator);
                     }

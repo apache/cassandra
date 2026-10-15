@@ -45,7 +45,6 @@ import org.apache.cassandra.metrics.StorageMetrics;
 import org.apache.cassandra.net.Message;
 import org.apache.cassandra.net.MessagingService;
 import org.apache.cassandra.net.Verb;
-import org.apache.cassandra.repair.messages.MutationTrackingValidationRequest;
 import org.apache.cassandra.repair.messages.PrepareMessage;
 import org.apache.cassandra.repair.messages.RepairMessage;
 import org.apache.cassandra.repair.messages.ValidationRequest;
@@ -189,22 +188,22 @@ public class RepairMessageVerbHandlerOutOfRangeTest
     }
 
     @Test
-    public void testMutationTrackingValidationRequestWithRequestedRangeWithinOwned() throws Exception
+    public void testTrackedValidationRequestWithRequestedRangeWithinOwned() throws Exception
     {
         setLocalTokens(100);
-        MutationTrackingValidationRequest request = mtValidationMsg(generateRange(10, 20));
+        ValidationRequest request = mtValidationMsg(generateRange(10, 20));
         tryTrackedValidation(request, false);
     }
 
     @Test
-    public void testMutationTrackingValidationRequestWithRequestedRangeOutsideOwned() throws Exception
+    public void testTrackedValidationRequestWithRequestedRangeOutsideOwned() throws Exception
     {
         setLocalTokens(100);
-        MutationTrackingValidationRequest request = mtValidationMsg(generateRange(110, 120));
+        ValidationRequest request = mtValidationMsg(generateRange(110, 120));
         tryTrackedValidation(request, true);
     }
 
-    private static void tryTrackedValidation(MutationTrackingValidationRequest request, boolean expectFailure) throws Exception
+    private static void tryTrackedValidation(ValidationRequest request, boolean expectFailure) throws Exception
     {
         long startMetricCount = StorageMetrics.totalOpsForInvalidToken.getCount();
         MessagingService.instance().outboundSink.clear();
@@ -237,7 +236,7 @@ public class RepairMessageVerbHandlerOutOfRangeTest
         }
     }
 
-    private static MutationTrackingValidationRequest mtValidationMsg(Range<Token> range)
+    private static ValidationRequest mtValidationMsg(Range<Token> range)
     {
         TimeUUID parentId = uuid();
         List<ColumnFamilyStore> stores = tableIds.stream()
@@ -251,8 +250,8 @@ public class RepairMessageVerbHandlerOutOfRangeTest
                                                                  ActiveRepairService.UNREPAIRED_SSTABLE,
                                                                  true,
                                                                  PreviewKind.NONE);
-        return new MutationTrackingValidationRequest(new RepairJobDesc(parentId, uuid(), KEYSPACE, TABLE, Collections.singleton(range)),
-                                                      randomInt(), false, ValidationOffsets.EMPTY);
+        return new ValidationRequest(new RepairJobDesc(parentId, uuid(), KEYSPACE, TABLE, Collections.singleton(range)),
+                                     randomInt(), false, ValidationOffsets.EMPTY);
     }
 
     private static void tryValidationExpectingFailure(ValidationRequest request) throws Exception
