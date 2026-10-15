@@ -100,6 +100,17 @@ public class ServerConnection extends Connection
         return new QueryState(clientState);
     }
 
+    private void authenticationComplete()
+    {
+        channel().eventLoop().execute(() -> {
+            AuthenticationTimeoutHandler handler =
+            channel().pipeline().get(AuthenticationTimeoutHandler.class);
+
+            if (handler != null)
+                handler.authenticationComplete();
+        });
+    }
+
     void applyStateTransition(Message.Type requestType, Message.Type responseType)
     {
         switch (stage)
@@ -120,11 +131,19 @@ public class ServerConnection extends Connection
                 if (responseType == Message.Type.READY || responseType == Message.Type.AUTH_SUCCESS)
                 {
                     stage = ConnectionStage.READY;
+                    authenticationComplete();
                     // we won't use the authenticator again, null it so that it can be GC'd
                     saslNegotiator = null;
                 }
                 break;
             case READY:
+                if (responseType == Message.Type.AUTHENTICATE)
+                    stage = ConnectionStage.AUTHENTICATING;
+                else if (responseType == Message.Type.READY)
+                {
+                    stage = ConnectionStage.READY;
+                    authenticationComplete();
+                }
                 break;
             default:
                 throw new AssertionError();

@@ -1113,6 +1113,14 @@ native_transport_port: 9042
 # The default is true, which means all supported protocols will be honored.
 native_transport_allow_older_protocols: true
 
+# Controls when unauthenticated client connections are closed. Connections that have
+# not completed authentication within this time period are closed by the server,
+# independent of idle or active state.
+#
+# Authentication timeouts are enabled by default (10000ms). Set to 0ms to disable.
+# Min unit: ms
+# native_transport_auth_timeout: 10000ms
+
 # Controls when idle client connections are closed. Idle connections are ones that had neither reads
 # nor writes for a time period.
 #
