@@ -1,4 +1,5 @@
 5.0.10
+ * Harden client STARTUP options (CASSANDRA-21755)
  * Assorted fixes for post-filtering on collection elements and inet columns (CASSANDRA-21863)
  * CONTAINS KEY restriction on a frozen map clustering column with descending order is rejected: "Cannot use CONTAINS KEY on non-map column" (CASSANDRA-21742)
  * Prevent tiny SSTables from accumulating under UCS (CASSANDRA-21615)
