@@ -165,7 +165,7 @@ public final class ConnectedClient
         Map<String, String> safeOptions = new LinkedHashMap<>();
         for (Map.Entry<String, String> entry : rawOptions.entrySet())
         {
-            safeOptions.put(entry.getKey(), escapeOptionValue(entry.getValue()));
+            safeOptions.put(entry.getKey(), escapeOptionString(entry.getValue()));
         }
 
         return ImmutableMap.<String, String>builder()
@@ -195,13 +195,16 @@ public final class ConnectedClient
      * <p>
      * Example: foo,bar=baz becomes foo\\,bar\\=baz
      *
-     * @param val the raw option value string
+     * @param str the raw option value string
      * @return the escaped option value string
      */
-    private static String escapeOptionValue(String val)
+    private static String escapeOptionString(String str)
     {
-        if (val == null)
+        if (str == null)
             return "";
-        return val.replace(",", "\\,").replace("=", "\\=");
+        // Escape backslashes first, then delimiters
+        return str.replace("\\", "\\\\")
+                  .replace(",", "\\,")
+                  .replace("=", "\\=");
     }
 }

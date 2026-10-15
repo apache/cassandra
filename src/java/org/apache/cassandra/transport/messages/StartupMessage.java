@@ -180,40 +180,63 @@ public class StartupMessage extends Message.Request
     }
 
     /**
-     * Validates and sanitizes the startup options.
-     * @param options The startup options to validate and sanitize.
-     * @return The validated and sanitized startup options.
-     * @throws ProtocolException If the startup options are invalid. Validation conditions to be found in
-     * ticket <a href="https://issues.apache.org/jira/browse/CASSANDRA-21755">CASSANDRA-21755</a>.
+     * Validates and sanitizes a startup option key or value string.
+     * Ensures strings do not exceed length limits, do not contain illegal control characters
+     * or newlines, and that keys are non-null.
+     *
+     * @param str the string to validate
+     * @param maxLength the maximum allowed length for the string
+     * @param isKey true if validating a key, false if validating a value
+     * @throws ProtocolException if the string violates validation constraints
      */
+    private static void validateString(String str, int maxLength, boolean isKey)
+    {
+        if (str == null)
+        {
+            if (isKey)
+                throw new ProtocolException("Startup option keys cannot be null");
+            return;
+        }
+
+        if (str.length() > maxLength)
+        {
+            throw new ProtocolException(String.format("Startup option %s exceeds maximum length: %d (maximum allowed is %d)",
+                                                      isKey ? "key" : "value", str.length(), maxLength));
+        }
+
+        for (int i = 0; i < str.length(); i++)
+        {
+            char c = str.charAt(i);
+            // Block all ISO control characters. Allow tabs, but disallow newlines/carriage returns
+            // to prevent terminal/log injection.
+            if (Character.isISOControl(c) && c != '\t')
+            {
+                throw new ProtocolException(String.format("Startup option %s cannot contain control characters", isKey ? "key" : "value"));
+            }
+            if (c == '\n' || c == '\r')
+            {
+                throw new ProtocolException(String.format("Startup option %s cannot contain newline characters", isKey ? "key" : "value"));
+            }
+        }
+    }
+
     private static Map<String, String> validateAndSanitizeOptions(Map<String, String> options)
     {
         if (options == null || options.isEmpty())
             return Collections.emptyMap();
+
         if (options.size() > MAX_OPTIONS_ENTRIES)
             throw new ProtocolException(String.format("Too many startup options provided: %d (maximum allowed is %d)", options.size(), MAX_OPTIONS_ENTRIES));
+
         Map<String, String> sanitized = new HashMap<>(options.size());
         for (Map.Entry<String, String> entry : options.entrySet())
         {
             String key = entry.getKey();
             String value = entry.getValue();
 
-            if (key == null)
-                throw new ProtocolException("Startup option keys cannot be null");
-            if (key.length() > MAX_OPTION_KEY_LENGTH)
-                throw new ProtocolException(String.format("Startup option key exceeds maximum length: %d (maximum allowed is %d)", key.length(), MAX_OPTION_KEY_LENGTH));
-            if (value != null)
-            {
-                if (value.length() > MAX_OPTION_VALUE_LENGTH)
-                    throw new ProtocolException(String.format("Startup option value exceeds maximum length: %d (maximum allowed is %d)", value.length(), MAX_OPTION_VALUE_LENGTH));
+            validateString(key, MAX_OPTION_KEY_LENGTH, true);
+            validateString(value, MAX_OPTION_VALUE_LENGTH, false);
 
-                for (int i = 0; i < value.length(); i++)
-                {
-                    char c = value.charAt(i);
-                    if (Character.isISOControl(c) && c != '\t' && c != '\n' && c != '\r')
-                        throw new ProtocolException("Startup option values cannot contain control characters");
-                }
-            }
             sanitized.put(key, value);
         }
         return sanitized;

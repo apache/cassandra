@@ -58,8 +58,7 @@ public class StartupMessageTest extends EncodeAndDecodeTestBase<StartupMessage>
     public void testKeyTooLong()
     {
         Map<String, String> options = new HashMap<>();
-        String longKey = new String(new char[257]).replace('\0', 'a');
-        options.put(longKey, "value");
+        options.put("a".repeat(257), "value");
         new StartupMessage(options);
     }
 
@@ -67,8 +66,7 @@ public class StartupMessageTest extends EncodeAndDecodeTestBase<StartupMessage>
     public void testValueTooLong()
     {
         Map<String, String> options = new HashMap<>();
-        String longValue = new String(new char[1025]).replace('\0', 'b');
-        options.put("KEY", longValue);
+        options.put("KEY", "b".repeat(1025));
         new StartupMessage(options);
     }
 
@@ -85,7 +83,7 @@ public class StartupMessageTest extends EncodeAndDecodeTestBase<StartupMessage>
     {
         Map<String, String> options = new HashMap<>();
         options.put(StartupMessage.CQL_VERSION, "3.0.0");
-        options.put("KEY", "value\twith\nwhitespace\r");
+        options.put("KEY", "value\twith\ttab");
         StartupMessage msg = new StartupMessage(options);
         Assert.assertNotNull(msg);
     }
