@@ -161,6 +161,18 @@ public class TimeSerializerTest
         assert(strResult.equals(source));
     }
 
+    @Test
+    public void testValidateAcceptsEmptyBuffer()
+    {
+        TimeSerializer.instance.validate(ByteBuffer.allocate(0));
+    }
+
+    @Test (expected=MarshalException.class)
+    public void testValidateRejectsWrongSizedBuffer()
+    {
+        TimeSerializer.instance.validate(ByteBuffer.allocate(7));
+    }
+
     @Test (expected=MarshalException.class)
     public void testBadHourLow()
     {

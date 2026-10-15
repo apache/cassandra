@@ -29,6 +29,7 @@ import org.apache.cassandra.cql3.CQL3Type;
 import org.apache.cassandra.serializers.TypeSerializer;
 import org.apache.cassandra.serializers.MarshalException;
 import org.apache.cassandra.transport.ProtocolVersion;
+import org.apache.cassandra.utils.ByteBufferUtil;
 
 /**
  * Nanosecond resolution time values
@@ -40,6 +41,10 @@ public class TimeType extends TemporalType<Long>
 
     public ByteBuffer fromString(String source) throws MarshalException
     {
+        // Return an empty ByteBuffer for an empty string.
+        if (source.isEmpty())
+            return ByteBufferUtil.EMPTY_BYTE_BUFFER;
+
         return decompose(TimeSerializer.timeStringToLong(source));
     }
 
@@ -65,7 +70,14 @@ public class TimeType extends TemporalType<Long>
     @Override
     public String toJSONString(ByteBuffer buffer, ProtocolVersion protocolVersion)
     {
-        return '"' + TimeSerializer.instance.toString(TimeSerializer.instance.deserialize(buffer)) + '"';
+        Long value = TimeSerializer.instance.deserialize(buffer);
+        return value == null ? "\"\"" : '"' + TimeSerializer.instance.toString(value) + '"';
+    }
+
+    @Override
+    public boolean isEmptyValueMeaningless()
+    {
+        return true;
     }
 
     @Override
