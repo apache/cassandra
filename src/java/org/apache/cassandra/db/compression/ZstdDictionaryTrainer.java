@@ -121,7 +121,9 @@ public class ZstdDictionaryTrainer implements ICompressionDictionaryTrainer
             DictId dictId = new DictId(Kind.ZSTD, makeDictionaryId(Clock.Global.currentTimeMillis(), zstdDictId));
             logger.debug("New dictionary is trained with {}", dictId);
             int checksum = CompressionDictionary.calculateChecksum((byte) dictId.kind.ordinal(), dictId.id, dictBytes);
-            dictionary = Kind.ZSTD.createDictionary(dictId, dictBytes, checksum);
+            CompressionDictionaryTrainingConfig trainingConfig = config;
+            CompressionDictionaryScope scope = trainingConfig == null ? CompressionDictionaryScope.CLUSTER : trainingConfig.scope;
+            dictionary = Kind.ZSTD.createDictionary(dictId, scope, dictBytes, checksum);
         }
         catch (Exception e)
         {

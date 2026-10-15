@@ -31,9 +31,11 @@ import static java.lang.String.format;
 import static org.apache.cassandra.io.compress.IDictionaryCompressor.DEFAULT_TRAINING_MAX_DICTIONARY_SIZE_PARAMETER_VALUE;
 import static org.apache.cassandra.io.compress.IDictionaryCompressor.DEFAULT_TRAINING_MAX_TOTAL_SAMPLE_SIZE_PARAMETER_VALUE;
 import static org.apache.cassandra.io.compress.IDictionaryCompressor.DEFAULT_TRAINING_MIN_FREQUENCY;
+import static org.apache.cassandra.io.compress.IDictionaryCompressor.DEFAULT_TRAINING_SCOPE_PARAMETER_VALUE;
 import static org.apache.cassandra.io.compress.IDictionaryCompressor.TRAINING_MAX_DICTIONARY_SIZE_PARAMETER_NAME;
 import static org.apache.cassandra.io.compress.IDictionaryCompressor.TRAINING_MAX_TOTAL_SAMPLE_SIZE_PARAMETER_NAME;
 import static org.apache.cassandra.io.compress.IDictionaryCompressor.TRAINING_MIN_FREQUENCY_PARAMETER_NAME;
+import static org.apache.cassandra.io.compress.IDictionaryCompressor.TRAINING_SCOPE_PARAMETER_NAME;
 
 /**
  * Configuration for dictionary training parameters.
@@ -45,6 +47,7 @@ public class CompressionDictionaryTrainingConfig
     public final int acceptableTotalSampleSize;
     public final int chunkSize;
     public final int minTrainingFrequency;
+    public final CompressionDictionaryScope scope;
 
     private CompressionDictionaryTrainingConfig(Builder builder)
     {
@@ -53,6 +56,7 @@ public class CompressionDictionaryTrainingConfig
         this.acceptableTotalSampleSize = builder.maxTotalSampleSize / 10 * 8;
         this.chunkSize = builder.chunkSize;
         this.minTrainingFrequency = builder.minTrainingFrequency;
+        this.scope = builder.scope;
     }
 
     public static Builder builder()
@@ -66,6 +70,13 @@ public class CompressionDictionaryTrainingConfig
         private int maxTotalSampleSize = 10 * 1024 * 1024; // 10MB total
         private int chunkSize = 64 * 1024; // 64KB default
         private int minTrainingFrequency = 0; // in minutes
+        private CompressionDictionaryScope scope = CompressionDictionaryScope.CLUSTER;
+
+        public Builder scope(CompressionDictionaryScope scope)
+        {
+            this.scope = scope;
+            return this;
+        }
 
         public Builder maxDictionarySize(int size)
         {
@@ -136,6 +147,17 @@ public class CompressionDictionaryTrainingConfig
                                                    parameters.get(TRAINING_MAX_TOTAL_SAMPLE_SIZE_PARAMETER_NAME),
                                                    TRAINING_MAX_TOTAL_SAMPLE_SIZE_PARAMETER_NAME,
                                                    DEFAULT_TRAINING_MAX_TOTAL_SAMPLE_SIZE_PARAMETER_VALUE);
+    }
+
+    /**
+     * @param parameters user supplied training parameters
+     * @return the scope a dictionary trained on this node with the given parameters has, the whole cluster by default
+     * @throws IllegalArgumentException if the scope parameter is not a valid kind of scope
+     */
+    public static CompressionDictionaryScope getScope(Map<String, String> parameters)
+    {
+        String value = parameters.getOrDefault(TRAINING_SCOPE_PARAMETER_NAME, DEFAULT_TRAINING_SCOPE_PARAMETER_VALUE);
+        return CompressionDictionaryScope.Kind.parse(value).of(CompressionDictionary.localNodeId());
     }
 
     private static int internalTrainingParameterResolution(CompressionParams compressionParams,

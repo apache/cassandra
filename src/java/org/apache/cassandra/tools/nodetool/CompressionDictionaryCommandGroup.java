@@ -33,6 +33,7 @@ import com.google.common.util.concurrent.Uninterruptibles;
 
 import org.apache.cassandra.db.compression.CompressionDictionaryDetailsTabularData;
 import org.apache.cassandra.db.compression.CompressionDictionaryDetailsTabularData.CompressionDictionaryDataObject;
+import org.apache.cassandra.db.compression.CompressionDictionaryScope;
 import org.apache.cassandra.db.compression.CompressionDictionaryTrainingConfig;
 import org.apache.cassandra.db.compression.ICompressionDictionaryTrainer.TrainingStatus;
 import org.apache.cassandra.db.compression.TrainingState;
@@ -57,6 +58,7 @@ import static org.apache.cassandra.io.compress.IDictionaryCompressor.DEFAULT_TRA
 import static org.apache.cassandra.io.compress.IDictionaryCompressor.DEFAULT_TRAINING_MAX_TOTAL_SAMPLE_SIZE_PARAMETER_VALUE;
 import static org.apache.cassandra.io.compress.IDictionaryCompressor.TRAINING_MAX_DICTIONARY_SIZE_PARAMETER_NAME;
 import static org.apache.cassandra.io.compress.IDictionaryCompressor.TRAINING_MAX_TOTAL_SAMPLE_SIZE_PARAMETER_NAME;
+import static org.apache.cassandra.io.compress.IDictionaryCompressor.TRAINING_SCOPE_PARAMETER_NAME;
 
 @Command(name = "compressiondictionary",
          description = "Manage compression dictionaries",
@@ -64,7 +66,9 @@ import static org.apache.cassandra.io.compress.IDictionaryCompressor.TRAINING_MA
                          CompressionDictionaryCommandGroup.ListDictionaries.class,
                          CompressionDictionaryCommandGroup.ExportDictionary.class,
                          CompressionDictionaryCommandGroup.ImportDictionary.class,
-                         CompressionDictionaryCommandGroup.CleanupDictionaries.class})
+                         CompressionDictionaryCommandGroup.CleanupDictionaries.class,
+                         CompressionDictionaryCommandGroup.PromoteDictionary.class,
+                         CompressionDictionaryCommandGroup.DiscardDictionary.class})
 public class CompressionDictionaryCommandGroup
 {
     @Command(name = "train",
@@ -82,6 +86,12 @@ public class CompressionDictionaryCommandGroup
 
         @Option(names = { "-f", "--force" }, description = "Force the dictionary training even if there are not enough samples")
         private boolean force = false;
+
+        @Option(names = "--scope", paramLabel = "scope",
+                description = "Scope of the dictionary, the nodes which compress with it: " +
+                              "node (this node only, until the dictionary is promoted) or cluster (all nodes). " +
+                              "The default is cluster.")
+        private String scope = CompressionDictionaryScope.Kind.CLUSTER.displayName();
 
         @Option(names = MAX_DICT_SIZE_PARAM_NAME, description = "Maximum size of a trained compression dictionary. " +
                                                                 "Larger dictionaries may provide better compression but use more memory. When not set, " +
@@ -103,6 +113,7 @@ public class CompressionDictionaryCommandGroup
             PrintStream err = probe.output().err;
 
             validateParameters(err, trainingMaxDictionarySize, trainingMaxTotalSampleSize);
+            validateScope(err, scope);
 
             try
             {
@@ -115,6 +126,8 @@ public class CompressionDictionaryCommandGroup
 
                 if (trainingMaxTotalSampleSize != null)
                     parameters.put(TRAINING_MAX_TOTAL_SAMPLE_SIZE_PARAMETER_NAME, trainingMaxTotalSampleSize);
+
+                parameters.put(TRAINING_SCOPE_PARAMETER_NAME, scope);
 
                 probe.trainCompressionDictionary(keyspace, table, force, parameters);
 
@@ -236,9 +249,62 @@ public class CompressionDictionaryCommandGroup
         }
     }
 
+    @Command(name = "promote",
+    description = "Promote the latest dictionary for given keyspace and table, trained or imported with --scope node, " +
+                  "to be used by all nodes.")
+    public static class PromoteDictionary extends AbstractCommand
+    {
+        @Parameters(index = "0", description = "The keyspace name", arity = "1")
+        private String keyspace;
+
+        @Parameters(index = "1", description = "The table name", arity = "1")
+        private String table;
+
+        @Override
+        protected void execute(NodeProbe probe)
+        {
+            try
+            {
+                probe.promoteDictionary(keyspace, table);
+            }
+            catch (Throwable e)
+            {
+                probe.output().err.printf("Failed to promote dictionary: %s%n", e.getMessage());
+                System.exit(1);
+            }
+        }
+    }
+
+    @Command(name = "discard",
+    description = "Discard the latest dictionary for given keyspace and table, trained or imported with --scope node, " +
+                  "its node compresses with the latest dictionary used by all nodes again.")
+    public static class DiscardDictionary extends AbstractCommand
+    {
+        @Parameters(index = "0", description = "The keyspace name", arity = "1")
+        private String keyspace;
+
+        @Parameters(index = "1", description = "The table name", arity = "1")
+        private String table;
+
+        @Override
+        protected void execute(NodeProbe probe)
+        {
+            try
+            {
+                probe.discardDictionary(keyspace, table);
+            }
+            catch (Throwable e)
+            {
+                probe.output().err.printf("Failed to discard dictionary: %s%n", e.getMessage());
+                System.exit(1);
+            }
+        }
+    }
+
     @Command(name = "cleanup", description = "Clean up orphaned dictionaries by deleting them from " + SystemDistributedKeyspace.NAME
                                              + '.' + SystemDistributedKeyspace.COMPRESSION_DICTIONARIES +
-                                             " table, these are ones for which a table they were trained for was dropped.")
+                                             " table, these are ones for which a table they were trained for was dropped, " +
+                                             "or which are scoped to a node which left the cluster.")
     public static class CleanupDictionaries extends AbstractCommand
     {
         @Option(names = {"-d", "--dry"}, description = "Only display orphaned dictionaries, do not remove them.")
@@ -323,6 +389,12 @@ public class CompressionDictionaryCommandGroup
              description = "Import local dictionary to Cassandra.")
     public static class ImportDictionary extends AbstractCommand
     {
+        @Option(names = "--scope", paramLabel = "scope",
+                description = "Scope of the dictionary, the nodes which compress with it: " +
+                              "node (this node only, until the dictionary is promoted) or cluster (all nodes). " +
+                              "The default is cluster.")
+        private String scope = CompressionDictionaryScope.Kind.CLUSTER.displayName();
+
         @Parameters(index = "0", description = "The path to a dictionary JSON", arity = "1")
         private String dictionaryPath;
 
@@ -331,13 +403,14 @@ public class CompressionDictionaryCommandGroup
         {
             File dictionaryFile = new File(dictionaryPath);
             validateFile(dictionaryFile, probe);
+            validateScope(probe.output().err, scope);
 
             try
             {
                 String jsonContent = FileUtils.readLines(dictionaryFile).stream().collect(joining(lineSeparator()));
                 CompressionDictionaryDataObject dictionaryDataObject = JsonUtils.JSON_OBJECT_MAPPER.readValue(jsonContent, CompressionDictionaryDataObject.class);
                 CompositeData compositeData = CompressionDictionaryDetailsTabularData.fromCompressionDictionaryDataObject(dictionaryDataObject);
-                probe.importCompressionDictionary(compositeData);
+                probe.importCompressionDictionary(compositeData, scope);
             }
             catch (ValueInstantiationException ex)
             {
@@ -372,6 +445,22 @@ public class CompressionDictionaryCommandGroup
                 probe.output().err.printf("Path %s is not readable.%n", dictionaryPath);
                 System.exit(1);
             }
+        }
+    }
+
+    /**
+     * Fails fast on the client on a scope the node would reject.
+     */
+    private static void validateScope(PrintStream err, String scope)
+    {
+        try
+        {
+            CompressionDictionaryScope.Kind.parse(scope);
+        }
+        catch (IllegalArgumentException e)
+        {
+            err.println("Invalid value for --scope: " + e.getMessage());
+            System.exit(1);
         }
     }
 
@@ -420,7 +509,11 @@ public class CompressionDictionaryCommandGroup
                         if (removedColumnsIndices.contains(i))
                             continue;
 
-                        rowValues.add(dictRow.get(i).toString());
+                        Object value = dictRow.get(i);
+                        if (CompressionDictionaryDetailsTabularData.SCOPE_NAME.equals(indexNames.get(i)))
+                            rowValues.add(CompressionDictionaryScope.fromFlattened((String[][]) value).toString()); // null for the whole cluster
+                        else
+                            rowValues.add(value == null ? "" : value.toString());
                         hasOuput = true;
                     }
                     tableBuilder.add(rowValues);

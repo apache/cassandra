@@ -80,8 +80,8 @@ public class CompressionDictionaryManager implements CompressionDictionaryManage
         this.isEnabled = this.compressionParams.isDictionaryCompressionEnabled();
         this.kind = columnFamilyStore.metadata().params.compression.getCompressionDictionaryKind();
         this.cache = new CompressionDictionaryCache();
-        this.eventHandler = new CompressionDictionaryEventHandler(columnFamilyStore, cache);
         this.scheduler = new CompressionDictionaryScheduler(keyspaceName, tableName, tableId, cache, isEnabled);
+        this.eventHandler = new CompressionDictionaryEventHandler(columnFamilyStore, scheduler::refreshCurrentDictionary);
         if (isEnabled)
         {
             scheduler.scheduleRefreshTask();
@@ -160,9 +160,21 @@ public class CompressionDictionaryManager implements CompressionDictionaryManage
     }
 
     @Override
+    public CompressionDictionary addForReading(@Nullable CompressionDictionary compressionDictionary)
+    {
+        return cache.addForReading(compressionDictionary);
+    }
+
+    @Override
     public Ref<? extends CompressionDictionary> refForReading(CompressionDictionary compressionDictionary)
     {
         return cache.refForReading(compressionDictionary);
+    }
+
+    @Override
+    public void setCurrent(@Nullable CompressionDictionary compressionDictionary)
+    {
+        cache.setCurrent(compressionDictionary);
     }
 
     @Override
@@ -172,9 +184,15 @@ public class CompressionDictionaryManager implements CompressionDictionaryManage
     }
 
     @Override
-    public void onNewDictionaryTrained(CompressionDictionary.DictId dictionaryId)
+    public void onNewDictionaryTrained(CompressionDictionary.DictId dictionaryId, CompressionDictionaryScope scope)
     {
-        eventHandler.onNewDictionaryTrained(dictionaryId);
+        eventHandler.onNewDictionaryTrained(dictionaryId, scope);
+    }
+
+    @Override
+    public void onDictionaryDiscarded(CompressionDictionary.DictId dictionaryId, CompressionDictionaryScope scope)
+    {
+        eventHandler.onDictionaryDiscarded(dictionaryId, scope);
     }
 
     @Override
@@ -199,6 +217,7 @@ public class CompressionDictionaryManager implements CompressionDictionaryManage
                                                                                                      columnFamilyStore.getTableName(),
                                                                                                      columnFamilyStore.metadata.id.toLongString());
 
+        checkLatestIsCluster(dictionary);
         checkTrainingFrequency(dictionary, trainingConfig);
 
         // SSTable-based training: sample from existing SSTables
@@ -274,13 +293,16 @@ public class CompressionDictionaryManager implements CompressionDictionaryManage
     }
 
     @Override
-    public synchronized void importCompressionDictionary(CompositeData compositeData)
+    public synchronized void importCompressionDictionary(CompositeData compositeData, String scope)
     {
         if (!isEnabled || this.kind == null)
         {
             throw new IllegalStateException(format("The compression on table %s.%s is not enabled or SSTable compressor is not a dictionary compressor.",
                                                    keyspaceName, tableName));
         }
+
+        // a scope recorded in the composite data, e.g. exported with the dictionary, is ignored
+        CompressionDictionaryScope dictionaryScope = CompressionDictionaryScope.Kind.parse(scope).of(CompressionDictionary.localNodeId());
 
         CompressionDictionaryDataObject dataObject = CompressionDictionaryDetailsTabularData.fromCompositeData(compositeData);
 
@@ -303,16 +325,49 @@ public class CompressionDictionaryManager implements CompressionDictionaryManage
         LightweightCompressionDictionary latestCompressionDictionary = retrieveLightweightLatestCompressionDictionary(keyspaceName, tableName, tableId);
         if (latestCompressionDictionary != null)
         {
+            checkLatestIsCluster(latestCompressionDictionary);
+
             if (latestCompressionDictionary.dictId.id > dictId.id)
             {
                 throw new IllegalArgumentException(format("Dictionary to import has older dictionary id (%s) than the latest compression dictionary (%s) for table %s.%s",
                                                           dictId.id, latestCompressionDictionary.dictId.id, keyspaceName, tableName));
             }
 
+            // importing it again could overwrite its scope, e.g. turning a dictionary used by all nodes into one used by this node only
+            if (latestCompressionDictionary.dictId.id == dictId.id)
+            {
+                throw new IllegalArgumentException(format("Dictionary to import (%s) is already stored for table %s.%s",
+                                                          dictId.id, keyspaceName, tableName));
+            }
+
             checkTrainingFrequency(latestCompressionDictionary, createTrainingConfig(Map.of()));
         }
 
-        handleNewDictionary(kind.createDictionary(dictId, dataObject.dict, dataObject.dictChecksum));
+        handleNewDictionary(kind.createDictionary(dictId, dictionaryScope, dataObject.dict, dataObject.dictChecksum));
+    }
+
+    @Override
+    public void discardDictionary()
+    {
+        LightweightCompressionDictionary discarded = SystemDistributedKeyspace.discardCompressionDictionary(keyspaceName, tableName, tableId);
+        // only the nodes of its scope use it, they go back to the newest dictionary whose scope contains them, or to
+        // none, right away instead of on their next refresh: this node refreshes when it is one of them, the others
+        // are notified
+        if (discarded.scope.contains(CompressionDictionary.localNodeId()))
+            scheduler.refreshCurrentDictionary();
+        onDictionaryDiscarded(discarded.dictId, discarded.scope);
+    }
+
+    @Override
+    public void promoteDictionary()
+    {
+        CompressionDictionaryScope target = CompressionDictionaryScope.CLUSTER;
+        LightweightCompressionDictionary promoted = SystemDistributedKeyspace.promoteCompressionDictionary(keyspaceName, tableName, tableId, target);
+        // the nodes of the new scope use it right away instead of on their next refresh: this node refreshes when it
+        // is one of them, the announcement skips this node
+        if (target.contains(CompressionDictionary.localNodeId()))
+            onNewDictionaryAvailable(promoted.dictId);
+        onNewDictionaryTrained(promoted.dictId, target);
     }
 
     /**
@@ -329,9 +384,12 @@ public class CompressionDictionaryManager implements CompressionDictionaryManage
 
     void handleNewDictionary(CompressionDictionary dictionary)
     {
+        // checked again, training takes a while and a dictionary scoped narrower than the cluster could have been
+        // stored meanwhile
+        checkLatestIsCluster(retrieveLightweightLatestCompressionDictionary(keyspaceName, tableName, tableId));
         // sequence meatters; persist the new dictionary before broadcasting to others.
         storeDictionary(dictionary);
-        onNewDictionaryTrained(dictionary.dictId());
+        onNewDictionaryTrained(dictionary.dictId(), dictionary.scope());
     }
 
     /**
@@ -346,6 +404,7 @@ public class CompressionDictionaryManager implements CompressionDictionaryManage
     {
         return CompressionDictionaryTrainingConfig
                .builder()
+               .scope(CompressionDictionaryTrainingConfig.getScope(parameters))
                .maxDictionarySize(CompressionDictionaryTrainingConfig.getMaxDictionarySizeWithUserSuppliedParams(compressionParams, parameters))
                .maxTotalSampleSize(CompressionDictionaryTrainingConfig.getMaxTotalSampleSizeWithUserSuppliedParams(compressionParams, parameters))
                .minTrainingFrequency(CompressionDictionaryTrainingConfig.getMinTrainingFrequency(compressionParams.getOtherOptions()))
@@ -353,6 +412,18 @@ public class CompressionDictionaryManager implements CompressionDictionaryManage
                .build();
     }
 
+
+    /**
+     * A dictionary scoped narrower than the cluster, the candidate, has to be promoted to the cluster or discarded
+     * before another dictionary is trained or imported, so a table has at most one candidate, its latest dictionary,
+     * unless dictionaries are trained or imported concurrently.
+     */
+    private void checkLatestIsCluster(@Nullable LightweightCompressionDictionary latest)
+    {
+        if (latest != null && !latest.scope.isCluster())
+            throw new IllegalStateException(format("The latest dictionary %s of table %s.%s is scoped to %s, promote or discard it first",
+                                                   latest.dictId.id, keyspaceName, tableName, latest.scope));
+    }
 
     private void checkTrainingFrequency(LightweightCompressionDictionary lastDictionary, CompressionDictionaryTrainingConfig config)
     {
@@ -383,7 +454,8 @@ public class CompressionDictionaryManager implements CompressionDictionaryManage
         }
 
         SystemDistributedKeyspace.storeCompressionDictionary(keyspaceName, tableName, tableId, dictionary);
-        cache.add(dictionary);
+
+        scheduler.addStoredDictionary(dictionary);
     }
 
     private void registerMbean()

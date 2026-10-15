@@ -20,11 +20,15 @@ package org.apache.cassandra.tools.nodetool;
 
 import java.nio.file.Files;
 import java.time.Instant;
+import java.util.ArrayList;
+import java.util.Comparator;
 import java.util.List;
+import java.util.concurrent.TimeUnit;
 import java.util.stream.Collectors;
 
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.node.ObjectNode;
+import com.google.common.util.concurrent.Uninterruptibles;
 
 import org.junit.Assert;
 import org.junit.BeforeClass;
@@ -32,8 +36,10 @@ import org.junit.Test;
 
 import org.apache.cassandra.cql3.CQLTester;
 import org.apache.cassandra.db.compression.CompressionDictionaryDetailsTabularData.CompressionDictionaryDataObject;
+import org.apache.cassandra.db.compression.CompressionDictionaryScope;
 import org.apache.cassandra.io.util.File;
 import org.apache.cassandra.io.util.FileUtils;
+import org.apache.cassandra.tcm.ClusterMetadata;
 import org.apache.cassandra.tools.ToolRunner.ToolResult;
 import org.apache.cassandra.utils.JsonUtils;
 import org.apache.cassandra.utils.Pair;
@@ -70,6 +76,45 @@ public class ExportImportListCompressionDictionaryTest extends CQLTester
     }
 
     @Test
+    public void testListShowsScope() throws Throwable
+    {
+        String table = createTable("CREATE TABLE %s (id int PRIMARY KEY, data text) WITH compression = {'class': 'ZstdDictionaryCompressor'}");
+        trainDictionary(table);
+        // dictionary ids are second-granular, the local one has to be newer than the global one
+        Uninterruptibles.sleepUninterruptibly(1, TimeUnit.SECONDS);
+        invokeNodetool("compressiondictionary", "train", "--force", "--scope", "node", keyspace(), table).assertOnCleanExit();
+
+        ToolResult result = invokeNodetool("compressiondictionary", "list", keyspace(), table);
+        result.assertOnCleanExit();
+        String[] lines = result.getStdout().trim().split("\\R");
+        assertThat(lines[0].trim()).endsWith("Scope");
+
+        // columns: keyspace, table, dict id, kind, checksum, size, created at and scope, "node <id>" is two words
+        List<String[]> rows = new ArrayList<>();
+        for (int i = 1; i < lines.length; i++)
+            rows.add(lines[i].trim().split("\\s+"));
+        rows.sort(Comparator.comparingLong(row -> Long.parseLong(row[2])));
+        assertThat(rows).hasSize(2);
+        assertThat(rows.get(0)).as("dictionary of the cluster").hasSize(8);
+        assertThat(rows.get(0)[7]).isEqualTo("cluster");
+        assertThat(rows.get(1)).as("dictionary of this node, the newer one").hasSize(9);
+        assertThat(rows.get(1)[7]).isEqualTo("node");
+        assertThat(rows.get(1)[8]).isEqualTo(String.valueOf(ClusterMetadata.current().myNodeId().id()));
+
+        // the candidate has to be promoted or discarded before anything else is trained
+        invokeNodetool("compressiondictionary", "train", "--force", keyspace(), table)
+        .asserts().failure().errorContains("is scoped to node " + ClusterMetadata.current().myNodeId().id() + ", promote or discard it first");
+    }
+
+    @Test
+    public void testInvalidScope() throws Throwable
+    {
+        String table = createTable("CREATE TABLE %s (id int PRIMARY KEY, data text) WITH compression = {'class': 'ZstdDictionaryCompressor'}");
+        invokeNodetool("compressiondictionary", "train", "--force", "--scope", "rack", keyspace(), table)
+        .asserts().failure().errorContains("Invalid value for --scope: Invalid scope 'rack', valid scopes are [node, cluster]");
+    }
+
+    @Test
     public void testExportingSpecificDictionary() throws Throwable
     {
         String table = createTable("CREATE TABLE %s (id int PRIMARY KEY, data text) WITH compression = {'class': 'ZstdDictionaryCompressor'}");
@@ -96,7 +141,8 @@ public class ExportImportListCompressionDictionaryTest extends CQLTester
                                                                 pair.left.kind,
                                                                 pair.left.dictChecksum,
                                                                 pair.left.dictLength,
-                                                                Instant.now()), pair.right);
+                                                                Instant.now(),
+                                                                null), pair.right);
 
         ToolResult result = invokeNodetool("compressiondictionary", "import", pair.right.absolutePath());
         assertTrue(result.getStderr().contains("Unable to import dictionary JSON: Table abc.def does not exist or does not support dictionary compression"));
@@ -177,15 +223,18 @@ public class ExportImportListCompressionDictionaryTest extends CQLTester
                                         .lines()
                                         .map(line -> List.of(line.trim().split("\\s+")))
                                         .collect(Collectors.toList());
+        List<String> expected = new ArrayList<>(List.of(keyspace(),
+                                                         table,
+                                                         String.valueOf(dataObject.dictId),
+                                                         dataObject.kind,
+                                                         String.valueOf(dataObject.dictChecksum),
+                                                         String.valueOf(dataObject.dictLength),
+                                                         dataObject.createdAt.toString()));
+        // "cluster" or "node <id>"
+        expected.addAll(List.of(CompressionDictionaryScope.fromValue(dataObject.scope).toString().split(" ")));
         assertThat(rows)
         .as("rows listed for %s.%s", keyspace(), table)
-        .contains(List.of(keyspace(),
-                          table,
-                          String.valueOf(dataObject.dictId),
-                          dataObject.kind,
-                          String.valueOf(dataObject.dictChecksum),
-                          String.valueOf(dataObject.dictLength),
-                          dataObject.createdAt.toString()));
+        .contains(expected);
     }
 
     private void rewriteTable(String table, Pair<CompressionDictionaryDataObject, File> pair) throws Throwable
@@ -198,7 +247,8 @@ public class ExportImportListCompressionDictionaryTest extends CQLTester
                                                                 pair.left.kind,
                                                                 pair.left.dictChecksum,
                                                                 pair.left.dictLength,
-                                                                pair.left.createdAt),
+                                                                pair.left.createdAt,
+                                                                pair.left.scope),
                             pair.right);
     }
 

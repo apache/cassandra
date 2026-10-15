@@ -42,6 +42,10 @@ public interface IDictionaryCompressor<T extends CompressionDictionary>
     // that once we train a dictionary for given table, then we can train again after at least 1 hour.
     String DEFAULT_TRAINING_MIN_FREQUENCY = "0m";
 
+    // the nodes which compress with the trained dictionary, see CompressionDictionaryScope.Kind
+    String TRAINING_SCOPE_PARAMETER_NAME = "scope";
+    String DEFAULT_TRAINING_SCOPE_PARAMETER_VALUE = "cluster";
+
     /**
      * Returns a compressor instance configured with the specified compression dictionary.
      * <br>
