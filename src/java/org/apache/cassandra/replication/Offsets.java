@@ -1615,7 +1615,7 @@ public abstract class Offsets implements Iterable<ShortMutationId>
     void serialize(DataOutputPlus out) throws IOException
     {
         CoordinatorLogId.serializer.serialize(logId, out);
-        out.writeUnsignedVInt32(size);
+        out.writeInt(size);
         for (int i = 0; i < size; i++)
             out.writeInt(bounds[i]);
     }
@@ -1623,7 +1623,7 @@ public abstract class Offsets implements Iterable<ShortMutationId>
     static Offsets.Immutable deserialize(DataInputPlus in) throws IOException
     {
         CoordinatorLogId logId = CoordinatorLogId.serializer.deserialize(in);
-        int size = in.readUnsignedVInt32();
+        int size = in.readInt();
         Preconditions.checkArgument(size >= 0 && size % 2 == 0);
         int[] bounds = new int[size];
         for (int i = 0; i < size; i++)
@@ -1634,7 +1634,7 @@ public abstract class Offsets implements Iterable<ShortMutationId>
     long serializedSize()
     {
         long size = CoordinatorLogId.serializer.serializedSize(logId);
-        size += TypeSizes.sizeofUnsignedVInt(this.size);
+        size += TypeSizes.sizeof(this.size);
         size += (long) TypeSizes.INT_SIZE * this.size;
         return size;
     }
