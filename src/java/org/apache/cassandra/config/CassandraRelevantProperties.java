@@ -604,6 +604,12 @@ public enum CassandraRelevantProperties
     SNAPSHOT_NAME_VALIDATION("cassandra.snapshot.validation", "true"),
     SSL_ENABLE("ssl.enable"),
     SSL_STORAGE_PORT("cassandra.ssl_storage_port"),
+    /** Maximum UTF-8 byte length allowed for a client option key in a STARTUP message. */
+    STARTUP_CLIENT_OPTION_KEY_MAX_LENGTH("cassandra.startup_client_option.key_max_length", "256"),
+    /** Maximum number of client options allowed in a STARTUP message. */
+    STARTUP_CLIENT_OPTION_MAX_COUNT("cassandra.startup_client_option.max_count", "64"),
+    /** Maximum UTF-8 byte length allowed for a client option value in a STARTUP message. */
+    STARTUP_CLIENT_OPTION_VALUE_MAX_LENGTH("cassandra.startup_client_option.value_max_length", "1024"),
     START_GOSSIP("cassandra.start_gossip", "true"),
     START_NATIVE_TRANSPORT("cassandra.start_native_transport"),
     STORAGE_DIR("cassandra.storagedir"),
