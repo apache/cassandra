@@ -86,17 +86,17 @@ public class GracefulDisconnectMetricsTest
     public void cooperativeClientDrainsAndMetricsReturnToBaseline() throws Exception
     {
         Server server = startServer();
-        long baselineForced = ClientMetrics.instance.forcedDisconnects.getCount();
-        int baselineDraining = ClientMetrics.instance.connectionsDraining.get();
+        long baselineForced = ClientMetrics.instance.getForcedDisconnectsCount();
+        int baselineDraining = ClientMetrics.instance.getConnectionsDraining();
 
         try (SimpleClient client = registeredClient(true))
         {
             server.stop();
 
-            assertThat(ClientMetrics.instance.connectionsDraining.get())
+            assertThat(ClientMetrics.instance.getConnectionsDraining())
             .as("connectionsDraining should settle back to its pre-drain baseline")
             .isEqualTo(baselineDraining);
-            assertThat(ClientMetrics.instance.forcedDisconnects.getCount())
+            assertThat(ClientMetrics.instance.getForcedDisconnectsCount())
             .as("a cooperative disconnect must not be counted as forced")
             .isEqualTo(baselineForced);
         }
@@ -106,8 +106,8 @@ public class GracefulDisconnectMetricsTest
     public void uncooperativeClientIsCountedDrainingThenForceDisconnected() throws Exception
     {
         Server server = startServer();
-        long baselineForced = ClientMetrics.instance.forcedDisconnects.getCount();
-        int baselineDraining = ClientMetrics.instance.connectionsDraining.get();
+        long baselineForced = ClientMetrics.instance.getForcedDisconnectsCount();
+        int baselineDraining = ClientMetrics.instance.getConnectionsDraining();
 
         try (SimpleClient ignored = registeredClient(false))
         {
@@ -116,14 +116,14 @@ public class GracefulDisconnectMetricsTest
 
             Awaitility.await()
                       .atMost(2, TimeUnit.SECONDS)
-                      .until(() -> ClientMetrics.instance.connectionsDraining.get() == baselineDraining + 1);
+                      .until(() -> ClientMetrics.instance.getConnectionsDraining() == baselineDraining + 1);
 
             stopper.join(10_000);
 
-            assertThat(ClientMetrics.instance.connectionsDraining.get())
+            assertThat(ClientMetrics.instance.getConnectionsDraining())
             .as("connectionsDraining should settle back to baseline once the channel is force-closed")
             .isEqualTo(baselineDraining);
-            assertThat(ClientMetrics.instance.forcedDisconnects.getCount())
+            assertThat(ClientMetrics.instance.getForcedDisconnectsCount())
             .as("the uncooperative client should be counted as a forced disconnect")
             .isEqualTo(baselineForced + 1);
         }

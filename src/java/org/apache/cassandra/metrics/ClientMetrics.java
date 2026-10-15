@@ -71,9 +71,11 @@ public final class ClientMetrics
     @VisibleForTesting
     Gauge<Integer> connectedNativeClients;
 
-    public AtomicInteger connectionsDraining = new AtomicInteger();
+    @VisibleForTesting
+    AtomicInteger connectionsDraining = new AtomicInteger();
 
-    public Meter forcedDisconnects;
+    @VisibleForTesting
+    Meter forcedDisconnects;
 
     @VisibleForTesting
     Gauge<Integer> encryptedConnectedNativeClients;
@@ -351,5 +353,22 @@ public final class ClientMetrics
     public void queueTime(long value, TimeUnit unit)
     {
         queueTime.update(value, unit);
+    }
+
+    @VisibleForTesting
+    public long getForcedDisconnectsCount()
+    {
+        return forcedDisconnects.getCount();
+    }
+
+    @VisibleForTesting
+    public int getConnectionsDraining()
+    {
+        return connectionsDraining.get();
+    }
+
+    public void setConnectionsDraining(int draining)
+    {
+        connectionsDraining.set(draining);
     }
 }

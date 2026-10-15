@@ -304,7 +304,7 @@ public class GracefulDisconnectTest
                               .atMost(10, TimeUnit.SECONDS)
                               .pollInterval(100, TimeUnit.MILLISECONDS)
                               .until(() -> cluster.get(1).callOnInstance(() ->
-                                                                         ClientMetrics.instance.connectionsDraining.get() > 0
+                                                                         ClientMetrics.instance.getConnectionsDraining() > 0
                               ));
 
                     Message.Response response = client.execute(new QueryMessage(
@@ -344,9 +344,7 @@ public class GracefulDisconnectTest
 
             cluster.get(1).nodetool("drain");
 
-            long forcedCount = cluster.get(1).callOnInstance(() ->
-                org.apache.cassandra.metrics.ClientMetrics.instance.forcedDisconnects.getCount()
-            );
+            long forcedCount = cluster.get(1).callOnInstance(ClientMetrics.instance::getForcedDisconnectsCount);
             assertThat(forcedCount).as("ForcedDisconnects metric should be 0 for a cooperative client").isEqualTo(0);
         }
     }
@@ -483,19 +481,16 @@ public class GracefulDisconnectTest
                 Awaitility.await()
                           .atMost(10, TimeUnit.SECONDS)
                           .pollInterval(100, TimeUnit.MILLISECONDS)
-                          .until(() -> cluster.get(1).callOnInstance(() ->
-                                                                     ClientMetrics.instance.connectionsDraining.get()) == 1);
+                          .until(() -> cluster.get(1).callOnInstance(ClientMetrics.instance::getConnectionsDraining) == 1);
 
-                assertThat(cluster.get(1).callOnInstance(() ->
-                                                         ClientMetrics.instance.connectionsDraining.get()))
+                assertThat(cluster.get(1).callOnInstance(ClientMetrics.instance::getConnectionsDraining))
                 .isEqualTo(1);
 
                 drainFuture.get(10, TimeUnit.SECONDS);
 
                 Awaitility.await()
                           .atMost(10, TimeUnit.SECONDS)
-                          .until(() -> cluster.get(1).callOnInstance(() ->
-                                                                     ClientMetrics.instance.connectionsDraining.get()) == 0);
+                          .until(() -> cluster.get(1).callOnInstance(ClientMetrics.instance::getConnectionsDraining) == 0);
             }
         }
     }

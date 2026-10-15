@@ -161,12 +161,10 @@ public class Server implements CassandraDaemon.Server
         if (channelGroup.isEmpty())
             return;
 
-        channelGroup.forEach(channel ->
-                             {
-                                 ClientMetrics.instance.connectionsDraining.incrementAndGet();
-                                 channel.closeFuture().addListener(future -> ClientMetrics.instance.decrementConnectionsDraining());
-                             }
-        );
+        List<Channel> drainingChannels = new ArrayList<>(channelGroup);
+        ClientMetrics.instance.setConnectionsDraining(drainingChannels.size());
+        drainingChannels.forEach(channel ->
+                                 channel.closeFuture().addListener(future -> ClientMetrics.instance.decrementConnectionsDraining()));
 
         connectionTracker.send(new Event.GracefulDisconnect());
 
