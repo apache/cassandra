@@ -25,29 +25,30 @@ import java.util.concurrent.ExecutionException;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
 
-import com.codahale.metrics.Meter;
 import com.google.common.util.concurrent.UncheckedExecutionException;
-
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import accord.primitives.Keys;
 import accord.primitives.Txn;
-
+import com.codahale.metrics.Meter;
 import org.apache.cassandra.concurrent.Stage;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.db.ConsistencyLevel;
 import org.apache.cassandra.db.DecoratedKey;
+import org.apache.cassandra.db.Keyspace;
 import org.apache.cassandra.db.Mutation;
 import org.apache.cassandra.db.ReadCommand;
 import org.apache.cassandra.db.ReadCommand.PotentialTxnConflicts;
 import org.apache.cassandra.db.partitions.UnfilteredPartitionIterators;
 import org.apache.cassandra.exceptions.ReadTimeoutException;
 import org.apache.cassandra.locator.Endpoints;
+import org.apache.cassandra.locator.EndpointsForToken;
 import org.apache.cassandra.locator.Replica;
 import org.apache.cassandra.locator.ReplicaPlan;
 import org.apache.cassandra.locator.ReplicaPlan.ForWrite;
 import org.apache.cassandra.metrics.ReadRepairMetrics;
+import org.apache.cassandra.schema.KeyspaceMetadata;
 import org.apache.cassandra.service.accord.AccordService;
 import org.apache.cassandra.service.accord.api.PartitionKey;
 import org.apache.cassandra.service.accord.serializers.TableMetadatas;
@@ -61,6 +62,7 @@ import org.apache.cassandra.service.consensus.migration.ConsensusMigrationMutati
 import org.apache.cassandra.service.consensus.migration.TransactionalMigrationFromMode;
 import org.apache.cassandra.service.reads.ReadCoordinator;
 import org.apache.cassandra.tcm.ClusterMetadata;
+import org.apache.cassandra.tcm.Epoch;
 import org.apache.cassandra.tracing.Tracing;
 import org.apache.cassandra.transport.Dispatcher;
 import org.apache.cassandra.utils.concurrent.Future;
@@ -132,7 +134,11 @@ public class BlockingReadRepair<E extends Endpoints<E>, P extends ReplicaPlan.Fo
             return -1;
         }
 
-        ForWrite repairPlan();
+        EndpointsForToken repairedEndpoints();
+
+        Epoch epoch();
+
+        Keyspace getKeyspace();
     }
 
     BlockingReadRepair(ReadCoordinator coordinator, ReadCommand command, ReplicaPlan.Shared<E, P> replicaPlan, Dispatcher.RequestTime requestTime)
@@ -165,8 +171,9 @@ public class BlockingReadRepair<E extends Endpoints<E>, P extends ReplicaPlan.Fo
     public void awaitWrites()
     {
         PendingPartitionRepair timedOut = null;
-        ReplicaPlan.ForWrite repairPlan = null;
 
+        if (repairs.isEmpty())
+            return;
         for (PendingPartitionRepair repair : repairs)
         {
             long deadline = requestTime.computeDeadline(DatabaseDescriptor.getReadRpcTimeout(NANOSECONDS));
@@ -176,7 +183,6 @@ public class BlockingReadRepair<E extends Endpoints<E>, P extends ReplicaPlan.Fo
                 timedOut = repair;
                 break;
             }
-            repairPlan = repair.repairPlan();
         }
         if (timedOut != null)
         {
@@ -192,8 +198,24 @@ public class BlockingReadRepair<E extends Endpoints<E>, P extends ReplicaPlan.Fo
             throw new ReadTimeoutException(replicaPlan().consistencyLevel(), received, blockFor, true);
         }
 
-        if (repairs.isEmpty() || repairPlan.stillAppliesTo(ClusterMetadata.current()))
-            return;
+        ClusterMetadata metadata = ClusterMetadata.current();
+        for (PendingPartitionRepair repair : repairs)
+        {
+            if (repair.epoch().equals(metadata.epoch))
+                continue;
+            EndpointsForToken originalEndpoints = repair.repairedEndpoints();
+            // check against write placements since a pending node might get read-repaired, see ReplicaPlans.writeReadRepair
+            KeyspaceMetadata ksm = metadata.schema.getKeyspaceMetadata(repair.getKeyspace().getName());
+            EndpointsForToken newEndpoints = metadata.placement(ksm.params.replication).writes.forToken(originalEndpoints.token()).get();
+            for (Replica repairedEp : originalEndpoints)
+            {
+                if (!newEndpoints.contains(repairedEp.endpoint()))
+                    throw new IllegalStateException(String.format("Read repair of %s.%s key %s was sent to %s, which is no longer a write replica " +
+                                                                  "after the cluster metadata changed from epoch %s to %s (current write replicas: %s)",
+                                                                  repair.getKeyspace().getName(), command.metadata().name, originalEndpoints.token(),
+                                                                  repairedEp, repair.epoch(), metadata.epoch, newEndpoints));
+            }
+        }
     }
 
     @Override
@@ -252,6 +274,9 @@ public class BlockingReadRepair<E extends Endpoints<E>, P extends ReplicaPlan.Fo
 
         repairs.add(new PendingPartitionRepair()
         {
+            final EndpointsForToken repairedEndpoints = EndpointsForToken.builder(dk.getToken(), repairs.size())
+                                                                         .addAll(accordMutations.keySet())
+                                                                         .build();
             @Override
             public boolean awaitRepairs(long remaining, TimeUnit timeUnit) throws InterruptedException, ExecutionException
             {
@@ -262,15 +287,26 @@ public class BlockingReadRepair<E extends Endpoints<E>, P extends ReplicaPlan.Fo
                 }
                 catch (TimeoutException e)
                 {
-
                     return false;
                 }
             }
 
             @Override
-            public ForWrite repairPlan()
+            public Epoch epoch()
             {
-                return writePlan;
+                return writePlan.epoch();
+            }
+
+            @Override
+            public EndpointsForToken repairedEndpoints()
+            {
+                return repairedEndpoints;
+            }
+
+            @Override
+            public Keyspace getKeyspace()
+            {
+                return writePlan.keyspace();
             }
         });
     }

@@ -23,6 +23,8 @@ import java.util.List;
 import java.util.Map;
 import java.util.concurrent.Callable;
 import java.util.concurrent.ExecutionException;
+import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.atomic.AtomicReference;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
@@ -36,7 +38,6 @@ import net.bytebuddy.implementation.bind.annotation.SuperCall;
 import org.checkerframework.checker.nullness.qual.Nullable;
 import org.junit.Assert;
 import org.junit.Before;
-import org.junit.Ignore;
 import org.junit.Test;
 
 import org.apache.cassandra.concurrent.ExecutorFactory;
@@ -55,6 +56,7 @@ import org.apache.cassandra.distributed.api.ICoordinator;
 import org.apache.cassandra.distributed.api.IInstanceConfig;
 import org.apache.cassandra.distributed.api.IMessageFilters.Filter;
 import org.apache.cassandra.distributed.api.TokenSupplier;
+import org.apache.cassandra.distributed.shared.ClusterUtils;
 import org.apache.cassandra.distributed.shared.NetworkTopology;
 import org.apache.cassandra.distributed.test.accord.AccordTestBase;
 import org.apache.cassandra.locator.Replica;
@@ -62,7 +64,10 @@ import org.apache.cassandra.locator.ReplicaPlan;
 import org.apache.cassandra.service.consensus.TransactionalMode;
 import org.apache.cassandra.service.reads.repair.BlockingReadRepair;
 import org.apache.cassandra.service.reads.repair.ReadRepairStrategy;
+import org.apache.cassandra.tcm.Epoch;
+import org.apache.cassandra.tcm.Transformation;
 import org.apache.cassandra.utils.concurrent.Condition;
+import org.apache.cassandra.utils.concurrent.CountDownLatch;
 import org.apache.cassandra.utils.concurrent.Future;
 
 import static net.bytebuddy.matcher.ElementMatchers.named;
@@ -211,7 +216,7 @@ public class ReadRepairTest extends TestBaseImpl
         }
     }
 
-    @Test @Ignore
+    @Test
     public void movingTokenReadRepairTest() throws Throwable
     {
         // TODO: rewrite using FuzzTestBase to control progress through decommission
@@ -234,12 +239,10 @@ public class ReadRepairTest extends TestBaseImpl
 
             // write only to #4
             cluster.get(4).executeInternal("INSERT INTO " + KEYSPACE + ".tbl (pk, ck, v) VALUES (?, 1, 1)", i);
-            // mark #2 as leaving in #4
-//            cluster.get(4).acceptsOnInstance((InetSocketAddress endpoint) -> {
-////                StorageService.instance.getTokenMetadata().addLeavingEndpoint(InetAddressAndPort.getByAddressOverrideDefaults(endpoint.getAddress(), endpoint.getPort()));
-//                PendingRangeCalculatorService.instance.update();
-//                PendingRangeCalculatorService.instance.blockUntilFinished();
-//            }).accept(cluster.get(2).broadcastAddress());
+            Callable<Epoch> pending = ClusterUtils.pauseBeforeCommit(cluster.get(1), (transformation -> transformation.kind() == Transformation.Kind.MID_LEAVE));
+            Thread t = new Thread(() -> cluster.get(2).nodetoolResult("decommission").asserts().success());
+            t.start();
+            pending.call();
 
             // prevent #4 from reading or writing to #3, so our QUORUM must contain #2 and #4
             // since #1 is taking over the range, this means any read-repair must make it to #1 as well
@@ -250,10 +253,124 @@ public class ReadRepairTest extends TestBaseImpl
             assertRows(cluster.coordinator(4).execute("SELECT * FROM " + KEYSPACE + ".tbl WHERE pk = ?",
                                                       ConsistencyLevel.QUORUM, i),
                        row(i, 1, 1));
-
             // verify that #1 receives the write
             assertRows(cluster.get(1).executeInternal("SELECT * FROM " + KEYSPACE + ".tbl WHERE pk = ?", i),
                        row(i, 1, 1));
+            ClusterUtils.unpauseCommits(cluster.get(1));
+            t.join();
+        }
+    }
+
+    @Test
+    public void epochBumpReadRepairSuccessTest() throws Throwable
+    {
+        // node1 will not own the token after the bootstrap, so if we make sure the quorum is nodes 2, 3, it should be ok
+        epochBumpReadRepairTestHelper(false, 1);
+    }
+
+    @Test
+    public void epochBumpReadRepairFailureTest() throws Throwable
+    {
+        // node1 will not own the token after the bootstrap, so if we make the quorum nodes 1, 2, it should fail the read
+        // since it will get the read repair response from node1
+        epochBumpReadRepairTestHelper(true, 3);
+    }
+
+
+    public void epochBumpReadRepairTestHelper(boolean shouldFail, int avoidReadRepair) throws Throwable
+    {
+        TokenSupplier tokenSupplier = TokenSupplier.evenlyDistributedTokens(4);
+        try (Cluster cluster = init(Cluster.build()
+                                           .withNodes(3)
+                                           .withTokenSupplier(tokenSupplier)
+                                           .withNodeIdTopology(NetworkTopology.singleDcNetworkTopology(4, "dc0", "rack0"))
+                                           .withConfig(c -> c.with(Feature.GOSSIP, Feature.NETWORK))
+                                           .withInstanceInitializer(BlockingRRByteBuddy::install)
+                                           .start()))
+        {
+            List<Token> tokens = cluster.tokens();
+            cluster.schemaChange("CREATE TABLE " + KEYSPACE + ".tbl (pk int, ck int, v int, PRIMARY KEY (pk, ck)) WITH read_repair='blocking'");
+
+            int i = 0;
+            // find key that lives on node2,3,4 after bootstrap
+            while (true)
+            {
+                Token t = Murmur3Partitioner.instance.getToken(Int32Type.instance.decompose(i));
+                // the list of tokens uses zero-based numbering, whereas the cluster nodes use one-based numbering
+                if (t.compareTo(tokens.get(2 - 1)) < 0 && t.compareTo(tokens.get(1 - 1)) > 0)
+                    break;
+                ++i;
+            }
+
+            cluster.get(2).executeInternal("INSERT INTO " + KEYSPACE + ".tbl (pk, ck, v) VALUES (?, 1, 1)", i);
+            Callable<Epoch> pending = ClusterUtils.pauseBeforeCommit(cluster.get(1), (transformation -> transformation.kind() == Transformation.Kind.FINISH_JOIN));
+            Thread bootstrapThread = new Thread(() -> bootstrapAndJoinNode(cluster));
+            bootstrapThread.start();
+            cluster.get(2).runOnInstance(() -> BlockingRRByteBuddy.active.set(true));
+
+            cluster.filters().verbs(READ_REQ.id).from(2).to(avoidReadRepair).drop();
+            cluster.filters().verbs(READ_REPAIR_REQ.id).from(2).to(avoidReadRepair).drop();
+            AtomicReference<Exception> exception = new AtomicReference<>(null);
+            int finali = i;
+            Thread readThread = new Thread(() -> {
+                try
+                {
+                    cluster.coordinator(2).execute("SELECT * FROM " + KEYSPACE + ".tbl WHERE pk = ?", ConsistencyLevel.QUORUM, finali);
+                }
+                catch (Exception e)
+                {
+                    exception.set(e);
+                }
+            } );
+            readThread.start();
+            pending.call();
+            long mark = cluster.get(2).logs().mark();
+            ClusterUtils.unpauseCommits(cluster.get(1));
+            bootstrapThread.join();
+            cluster.get(2).logs().watchFor(mark, "Enacted FinishJoin");
+            cluster.get(2).runOnInstance(() -> BlockingRRByteBuddy.waitForBootstrap.decrement());
+            readThread.join();
+
+            if (!shouldFail)
+            {
+                Assert.assertNull(exception.get());
+                for (int node = 2; node <= 3; node++)
+                {
+                    assertRows(cluster.get(node).executeInternal("SELECT * FROM " + KEYSPACE + ".tbl WHERE pk = ?", i),
+                               row(i, 1, 1));
+                }
+            }
+            else
+            {
+                Exception e = exception.get();
+                Assert.assertTrue(e.getMessage(), e.getMessage().contains("Read repair of distributed_test_keyspace.tbl key"));
+                Assert.assertTrue(e.getMessage().contains("was sent to Full(/127.0.0.1:7012"));
+            }
+        }
+    }
+
+    public static class BlockingRRByteBuddy
+    {
+        static AtomicBoolean active = new AtomicBoolean();
+        static CountDownLatch waitForBootstrap = CountDownLatch.newCountDownLatch(1);
+        static void install(ClassLoader cl, int nodeNumber)
+        {
+            // Only on coordinating node
+            if (nodeNumber == 2)
+            {
+                new ByteBuddy().rebase(BlockingReadRepair.class)
+                               .method(named("awaitWrites"))
+                               .intercept(MethodDelegation.to(BlockingRRByteBuddy.class))
+                               .make()
+                               .load(cl, ClassLoadingStrategy.Default.INJECTION);
+            }
+        }
+
+        public static void awaitWrites(@SuperCall Callable<Void> zuper) throws Exception
+        {
+            if (active.get())
+                waitForBootstrap.await();
+            zuper.call();
         }
     }
 
