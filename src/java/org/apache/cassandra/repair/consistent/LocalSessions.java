@@ -56,6 +56,7 @@ import com.google.common.util.concurrent.FutureCallback;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import org.apache.cassandra.cql3.PageSize;
 import org.apache.cassandra.cql3.QueryProcessor;
 import org.apache.cassandra.cql3.UntypedResultSet;
 import org.apache.cassandra.db.ColumnFamilyStore;
@@ -389,7 +390,7 @@ public class LocalSessions
         int loadedSessionsCount = 0;
         Preconditions.checkArgument(!started, "LocalSessions.start can only be called once");
         Preconditions.checkArgument(sessions.isEmpty(), "No sessions should be added before start");
-        UntypedResultSet rows = QueryProcessor.executeInternalWithPaging(String.format("SELECT * FROM %s.%s", keyspace, table), 1000);
+        UntypedResultSet rows = QueryProcessor.executeInternalWithPaging(String.format("SELECT * FROM %s.%s", keyspace, table), PageSize.inRows(1000));
         Map<TimeUUID, LocalSession> loadedSessions = new HashMap<>();
         Map<TableId, List<RepairedState.Level>> initialLevels = new HashMap<>();
         for (UntypedResultSet.Row row : rows)

@@ -199,14 +199,26 @@ public interface GuardrailsConfig
     boolean getBulkLoadEnabled();
 
     /**
-     * @return The threshold to warn when page size exceeds given size.
+     * @return The threshold to warn when a requested row page size exceeds the given number of rows.
      */
     int getPageSizeWarnThreshold();
 
     /**
-     * @return The threshold to fail when page size exceeds given size.
+     * @return The threshold to fail when a requested row page size exceeds the given number of rows.
      */
     int getPageSizeFailThreshold();
+
+    /**
+     * @return The threshold to warn when a requested byte page size exceeds the given size. {@code null} disables it.
+     */
+    @Nullable
+    DataStorageSpec.LongBytesBound getPageSizeInBytesWarnThreshold();
+
+    /**
+     * @return The threshold to fail when a requested byte page size exceeds the given size. {@code null} disables it.
+     */
+    @Nullable
+    DataStorageSpec.LongBytesBound getPageSizeInBytesFailThreshold();
 
     /**
      * Returns whether list operations that require read before write are allowed.

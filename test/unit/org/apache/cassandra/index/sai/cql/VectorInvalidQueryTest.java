@@ -27,6 +27,7 @@ import org.junit.Test;
 
 import org.apache.cassandra.cql3.CQLStatement;
 import org.apache.cassandra.cql3.CQLTester;
+import org.apache.cassandra.cql3.PageSize;
 import org.apache.cassandra.cql3.QueryOptions;
 import org.apache.cassandra.cql3.QueryProcessor;
 import org.apache.cassandra.cql3.ResultSet;
@@ -426,7 +427,7 @@ public class VectorInvalidQueryTest extends SAITester
         statement.validate(state);
 
         QueryOptions options = QueryOptions.withConsistencyLevel(QueryOptions.forInternalCalls(Collections.emptyList()), consistencyLevel);
-        options = QueryOptions.withPageSize(options, pageSize);
+        options = QueryOptions.withPageSize(options, pageSize < 0 ? PageSize.NONE : PageSize.inRows(pageSize));
 
         return ((ResultMessage.Rows)statement.execute(queryState, options, Dispatcher.RequestTime.forImmediateExecution())).result;
     }

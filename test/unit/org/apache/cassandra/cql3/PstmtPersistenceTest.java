@@ -284,12 +284,12 @@ public class PstmtPersistenceTest extends CQLTester
      * paging happening in the path of QueryProcessor.preloadPreparedStatements with the expected page size.
      */
     @SuppressWarnings("unused")
-    private static void nextPageReadQuery(ReadQuery query, int pageSize)
+    private static void nextPageReadQuery(ReadQuery query, PageSize pageSize)
     {
         TableMetadata metadata = query.metadata();
         if (metadata.keyspace.equals(SchemaConstants.SYSTEM_KEYSPACE_NAME) &&
             metadata.name.equals(SystemKeyspace.PREPARED_STATEMENTS) &&
-            pageSize == PRELOAD_PAGE_SIZE)
+            pageSize.getUnit() == PageSize.PageUnit.ROWS && pageSize.rows() == PRELOAD_PAGE_SIZE)
         {
             for (StackTraceElement stackTraceElement : Thread.currentThread().getStackTrace())
             {
@@ -305,7 +305,7 @@ public class PstmtPersistenceTest extends CQLTester
     @Test
     @BMRule(name = "CapturePageInvocations",
             targetClass = "PartitionRangeQueryPager",
-            targetMethod = "nextPageReadQuery(int)",
+            targetMethod = "nextPageReadQuery(PageSize, DataLimits)",
             action = "org.apache.cassandra.cql3.PstmtPersistenceTest.nextPageReadQuery($this.query, $pageSize)")
     public void testPreloadPreparedStatements() throws Throwable
     {

@@ -538,7 +538,8 @@ Table of Contents
                 to the query (if any) will have the NO_METADATA flag (see
                 Section 4.2.5.2).
         0x0004: Page_size. If set, <result_page_size> is an [int]
-                controlling the desired page size of the result (in CQL3 rows).
+                controlling the desired page size of the result in CQL3 rows,
+                or in bytes when Page_size_in_bytes is also set.
                 See the section on paging (Section 7) for more details.
         0x0008: With_paging_state. If set, <paging_state> should be present.
                 <paging_state> is a [bytes] value that should have been returned
@@ -573,6 +574,12 @@ Table of Contents
                 the query. Affects TTL cell liveness in read queries and local deletion
                 time for tombstones and TTL cells in update requests. It's intended
                 for testing purposes and is optional.
+        0x40000000: Page_size_in_bytes. If set together with Page_size (0x0004),
+                <result_page_size> specifies a byte budget instead of a row count.
+                This flag adds no fields to <query_parameters>. It is an extension
+                introduced in Cassandra 6.0. Clients must first check that the
+                server advertises "BYTES" in "PAGE_UNIT" (Section 4.2.4).
+                See Section 7 for byte-budget semantics and upgrade fallback.
 
   Note that the consistency is ignored by some queries (USE, CREATE, ALTER,
   TRUNCATE, ...).
@@ -756,6 +763,11 @@ Table of Contents
       supported, encoded as the version number followed by a slash and the
       version description. For example: 3/v3, 4/v4, 5/v5-beta. If a version is
       in beta, it will have the word "beta" in its description.
+      - "PAGE_UNIT": the supported page-size units. Cassandra 6.0 advertises
+      "ROWS" and "BYTES". Clients choose the unit per QUERY or EXECUTE request;
+      no STARTUP option is required. Byte paging requires protocol v5 or later.
+      This capability describes the coordinator's support; byte requests can
+      still fall back to row pages during a rolling upgrade (Section 7).
 
 
 4.2.5. RESULT
@@ -1229,34 +1241,51 @@ Table of Contents
 
   The protocol allows for paging the result of queries. For that, the QUERY and
   EXECUTE messages have a <result_page_size> value that indicate the desired
-  page size in CQL3 rows.
+  page size in CQL3 rows, or a byte budget when Page_size_in_bytes is set.
 
-  If a positive value is provided for <result_page_size>, the result set of the
-  RESULT message returned for the query will contain at most the
-  <result_page_size> first rows of the query result. If that first page of results
-  contains the full result set for the query, the RESULT message (of kind `Rows`)
-  will have the Has_more_pages flag *not* set. However, if some results are not
-  part of the first response, the Has_more_pages flag will be set and the result
-  will contain a <paging_state> value. In that case, the <paging_state> value
-  should be used in a QUERY or EXECUTE message (that has the *same* query as
-  the original one or the behavior is undefined) to retrieve the next page of
-  results.
+  For row paging, a positive <result_page_size> requests at most that many
+  CQL3 rows in the first RESULT message.
+
+  For either unit, a RESULT message of kind `Rows` has the Has_more_pages flag
+  set when more results remain, and includes a <paging_state> value. Send that
+  value in a QUERY or EXECUTE message with the *same* query to retrieve the next
+  page; using a different query has undefined behavior. When no results remain,
+  the Has_more_pages flag is not set.
+
+  Cassandra 6.0 adds byte paging through the Page_size_in_bytes flag. Set both
+  Page_size and Page_size_in_bytes (mask 0x40000004) and supply a positive
+  <result_page_size> in bytes. For example, 1048576 requests a 1 MiB budget.
+  The budget uses Cassandra's internal row-data size. A page can exceed it
+  when the last row is included, so a row larger than the budget can still be
+  returned. Encoded response size and heap usage can differ from that budget.
+  Explicit byte page sizes are not supported for aggregation queries.
+
+  Clients must check the server's PAGE_UNIT capability before using this
+  extension. An older server using protocol v5 can interpret the supplied
+  page size as a row count if it does not support Page_size_in_bytes.
+
+  A Cassandra 6.0 coordinator uses byte paging only when all cluster members
+  run Cassandra 6.0 or later. Otherwise, it uses pages of
+  10000 rows, reduced by any applicable positive row page-size failure threshold,
+  and returns a warning. This also applies if an older node is recorded between
+  page requests; the existing paging state can be used to continue. The
+  original request is still checked against configured byte page-size guardrails.
 
   Only CQL3 queries that return a result set (RESULT message with a Rows `kind`)
   support paging. For other type of queries, the <result_page_size> value is
   ignored.
 
   Note to client implementors:
-  - While <result_page_size> can be as low as 1, it will likely be detrimental
-    to performance to pick a value too low. A value below 100 is probably too
-    low for most use cases.
+  - For row paging, while <result_page_size> can be as low as 1, choosing a very
+    small value can reduce performance. A value below 100 is probably too low
+    for most use cases.
   - Clients should not rely on the actual size of the result set returned to
     decide if there are more results to fetch or not. Instead, they should always
     check the Has_more_pages flag (unless they did not enable paging for the query
-    obviously). Clients should also not assert that no result will have more than
-    <result_page_size> results. While the current implementation always respects
-    the exact value of <result_page_size>, we reserve the right to return
-    slightly smaller or bigger pages in the future for performance reasons.
+    obviously). Clients should not assume the requested page size is an exact
+    response size: byte pages can exceed their budget to include a row, and
+    compatibility fallback can change the unit to rows. Row pages may also
+    contain fewer rows than requested.
   - The <paging_state> is specific to a protocol version and drivers should not
     send a <paging_state> returned by a node using the protocol v3 to query a node
     using the protocol v4 for instance.
