@@ -3398,16 +3398,17 @@ public <T> T withAllSSTables(final OperationType operationType, Function<Lifecyc
         return neverPurgeTombstones;
     }
 
-    void onTableDropped()
+    void onTableDroppedBeforeCommitlogSegmentRecycling()
     {
         indexManager.markAllIndexesRemoved();
 
         CompactionManager.instance.interruptCompactionForCFs(concatWithIndexes(), (sstable) -> true, true);
 
         data.notifyDropped(DatabaseDescriptor.getAutoSnapshotTtl());
+    }
 
-        CommitLog.instance.forceRecycleAllSegments(Collections.singleton(metadata.id));
-
+    void onTableDroppedAfterCommitlogSegmentRecycling()
+    {
         compactionStrategyManager.shutdown();
 
         // wait for any outstanding reads/writes that might affect the CFS
