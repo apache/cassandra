@@ -18,6 +18,7 @@
 package org.apache.cassandra.journal;
 
 import java.io.IOException;
+import java.io.UncheckedIOException;
 import java.nio.ByteBuffer;
 import java.nio.channels.ClosedByInterruptException;
 import java.nio.file.FileStore;
@@ -682,16 +683,34 @@ public class Journal<K, V> implements Shutdownable
         try (DataOutputBuffer dob = DataOutputBuffer.scratchBuffer.get())
         {
             valueSerializer.serialize(id, record, dob, params.userVersion());
-            ActiveSegment<K, V>.Allocation alloc = allocate(dob.getLength());
-            alloc.writeInternal(id, dob.unsafeGetBufferAndFlip());
-            flusher.flushAndAwaitDurable(alloc);
-            return alloc.recordPointer();
+            return blockingWriteSerialized(id, dob);
         }
         catch (IOException e)
         {
-            // exception during record serialization into the scratch buffer
-            throw new RuntimeException(e);
+            throw new UncheckedIOException(e);
         }
+    }
+
+    @VisibleForTesting
+    public RecordPointer blockingWrite(K id, Writer writer)
+    {
+        try (DataOutputBuffer dob = DataOutputBuffer.scratchBuffer.get())
+        {
+            writer.write(dob, params.userVersion());
+            return blockingWriteSerialized(id, dob);
+        }
+        catch (IOException e)
+        {
+            throw new UncheckedIOException(e);
+        }
+    }
+
+    private RecordPointer blockingWriteSerialized(K id, DataOutputBuffer dob)
+    {
+        ActiveSegment<K, V>.Allocation alloc = allocate(dob.getLength());
+        alloc.writeInternal(id, dob.unsafeGetBufferAndFlip());
+        flusher.flushAndAwaitDurable(alloc);
+        return alloc.recordPointer();
     }
 
     /**

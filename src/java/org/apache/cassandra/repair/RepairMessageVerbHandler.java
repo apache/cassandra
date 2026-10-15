@@ -35,6 +35,7 @@ import org.apache.cassandra.dht.Token;
 import org.apache.cassandra.locator.InetAddressAndPort;
 import org.apache.cassandra.net.IVerbHandler;
 import org.apache.cassandra.net.Message;
+import org.apache.cassandra.net.Verb;
 import org.apache.cassandra.repair.messages.CleanupMessage;
 import org.apache.cassandra.repair.messages.FailSession;
 import org.apache.cassandra.repair.messages.MutationTrackingSyncRequest;
@@ -45,6 +46,7 @@ import org.apache.cassandra.repair.messages.StatusRequest;
 import org.apache.cassandra.repair.messages.StatusResponse;
 import org.apache.cassandra.repair.messages.SyncRequest;
 import org.apache.cassandra.repair.messages.ValidationRequest;
+import org.apache.cassandra.repair.messages.ValidationResponse;
 import org.apache.cassandra.repair.state.AbstractCompletable;
 import org.apache.cassandra.repair.state.AbstractState;
 import org.apache.cassandra.repair.state.Completable;
@@ -228,6 +230,7 @@ public class RepairMessageVerbHandler implements IVerbHandler<RepairMessage>
                     break;
 
                 case VALIDATION_REQ:
+                case MT_VALIDATION_REQ:
                 {
                     ValidationRequest validationRequest = (ValidationRequest) message.payload;
                     logger.debug("Validating {}", validationRequest);
@@ -250,22 +253,28 @@ public class RepairMessageVerbHandler implements IVerbHandler<RepairMessage>
                         ColumnFamilyStore store = ColumnFamilyStore.getIfExists(desc.keyspace, desc.columnFamily);
                         if (store == null)
                         {
-                            String msg = String.format("Table %s.%s was dropped during validation phase of repair %s", desc.keyspace, desc.columnFamily, desc.parentSessionId);
+                            String msg = String.format("Table %s.%s was dropped during validation phase of repair %s",
+                                                       desc.keyspace, desc.columnFamily, desc.parentSessionId);
                             vState.phase.fail(msg);
                             logErrorAndSendFailureResponse(msg, message);
                             return;
                         }
 
-                        try
+                        boolean mutationTracking = validationRequest.offset != null;
+
+                        if (!mutationTracking)
                         {
-                            ctx.repair().consistent.local.maybeSetRepairing(desc.parentSessionId);
-                        }
-                        catch (Throwable t)
-                        {
-                            JVMStabilityInspector.inspectThrowable(t);
-                            vState.phase.fail(t.toString());
-                            logErrorAndSendFailureResponse(t.toString(), message);
-                            return;
+                            try
+                            {
+                                ctx.repair().consistent.local.maybeSetRepairing(desc.parentSessionId);
+                            }
+                            catch (Throwable t)
+                            {
+                                JVMStabilityInspector.inspectThrowable(t);
+                                vState.phase.fail(t.toString());
+                                logErrorAndSendFailureResponse(t.toString(), message);
+                                return;
+                            }
                         }
                         PreviewKind previewKind;
                         try
@@ -280,11 +289,11 @@ public class RepairMessageVerbHandler implements IVerbHandler<RepairMessage>
                             return;
                         }
 
-                        if (!acceptMessage(validationRequest, ctx.broadcastAddressAndPort(), message.from()))
+                        if (!acceptMessage(desc, ctx.broadcastAddressAndPort(), message.from()))
                         {
-                            RepairOutOfTokenRangeException e = new RepairOutOfTokenRangeException(validationRequest.desc.ranges);
+                            RepairOutOfTokenRangeException e = new RepairOutOfTokenRangeException(desc.ranges);
 
-                            logger.error("Got out-of-range repair request from " + message.from() + ": " + validationRequest.desc.ranges, e);
+                            logger.error("Got out-of-range repair request from " + message.from() + ": " + desc.ranges, e);
                             vState.phase.fail(e);
                             sendFailureResponse(message);
                             return;
@@ -294,9 +303,12 @@ public class RepairMessageVerbHandler implements IVerbHandler<RepairMessage>
                         sendAck(message);
 
                         Validator validator = new Validator(ctx, vState, validationRequest.nowInSec,
-                                                            isIncremental(desc.parentSessionId),
+                                                            false,
+                                                            mutationTracking || isIncremental(desc.parentSessionId),
                                                             previewKind,
-                                                            validationRequest.dontPurgeTombstones);
+                                                            validationRequest.dontPurgeTombstones,
+                                                            mutationTracking ? Verb.MT_VALIDATION_RSP : Verb.VALIDATION_RSP,
+                                                            validationRequest.offset);
                         ctx.validationManager().submitValidation(store, validator);
                     }
                     catch (Throwable t)
@@ -304,6 +316,15 @@ public class RepairMessageVerbHandler implements IVerbHandler<RepairMessage>
                         vState.phase.fail(t);
                         throw t;
                     }
+                }
+                    break;
+
+                case MT_VALIDATION_RSP:
+                {
+                    ValidationResponse validationResponse = (ValidationResponse) message.payload;
+                    logger.debug("Handling mutation tracking validation response for {}", validationResponse.desc);
+                    sendAck(message);
+                    MutationTrackingValidationCoordinator.deliverResponse(message.from(), validationResponse);
                 }
                     break;
 
@@ -493,14 +514,11 @@ public class RepairMessageVerbHandler implements IVerbHandler<RepairMessage>
         RepairMessage.sendAck(ctx, message);
     }
 
-    private static boolean acceptMessage(final ValidationRequest validationRequest, InetAddressAndPort broadcastAddressAndPort, final InetAddressAndPort from)
+    private static boolean acceptMessage(final RepairJobDesc desc, InetAddressAndPort broadcastAddressAndPort, final InetAddressAndPort from)
     {
         return StorageService.instance
-               .getNormalizedLocalRanges(validationRequest.desc.keyspace, broadcastAddressAndPort)
-               .validateRangeRequest(validationRequest.desc.ranges,
-                                     "RepairSession #" + validationRequest.desc.parentSessionId,
-                                     "validation request",
-                                     from);
+               .getNormalizedLocalRanges(desc.keyspace, broadcastAddressAndPort)
+               .validateRangeRequest(desc.ranges, "RepairSession #" + desc.parentSessionId, "validation request", from);
     }
 
     @SuppressWarnings("unchecked")
