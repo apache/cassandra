@@ -1679,11 +1679,33 @@ public class TableMetadata implements SchemaElement
         return builder.toString();
     }
 
+    /**
+     * Fully expanded CREATE TABLE recorded in the metadata log as the serialized form of the statement. Unlike
+     * {@link #toCqlString}, options the previous major does not know are left out at their default value so that
+     * not yet upgraded nodes can replay it.
+     */
+    public String toExpandedCqlString(boolean withInternals, boolean ifNotExists)
+    {
+        CqlBuilder builder = new CqlBuilder(2048);
+        appendCqlTo(builder, false, false, withInternals, ifNotExists, true);
+        return builder.toString();
+    }
+
     public void appendCqlTo(CqlBuilder builder,
                             boolean withWarnings,
                             boolean includeDroppedColumns,
                             boolean withInternals,
                             boolean ifNotExists)
+    {
+        appendCqlTo(builder, withWarnings, includeDroppedColumns, withInternals, ifNotExists, false);
+    }
+
+    private void appendCqlTo(CqlBuilder builder,
+                             boolean withWarnings,
+                             boolean includeDroppedColumns,
+                             boolean withInternals,
+                             boolean ifNotExists,
+                             boolean omitUpgradeDefaults)
     {
         assert !isView();
 
@@ -1720,7 +1742,7 @@ public class TableMetadata implements SchemaElement
         builder.append(" WITH ")
                .increaseIndent();
 
-        appendTableOptions(builder, withInternals);
+        appendTableOptions(builder, withInternals, omitUpgradeDefaults);
 
         builder.decreaseIndent();
 
@@ -1802,7 +1824,7 @@ public class TableMetadata implements SchemaElement
         builder.append(')').newLine();
     }
 
-    void appendTableOptions(CqlBuilder builder, boolean withInternals)
+    void appendTableOptions(CqlBuilder builder, boolean withInternals, boolean omitUpgradeDefaults)
     {
         if (withInternals)
             builder.append("ID = ")
@@ -1825,7 +1847,7 @@ public class TableMetadata implements SchemaElement
         }
         else
         {
-            params.appendCqlTo(builder, isView());
+            params.appendCqlTo(builder, isView(), omitUpgradeDefaults);
         }
         builder.append(";");
     }
@@ -2090,7 +2112,7 @@ public class TableMetadata implements SchemaElement
         }
 
         @Override
-        void appendTableOptions(CqlBuilder builder, boolean withInternals)
+        void appendTableOptions(CqlBuilder builder, boolean withInternals, boolean omitUpgradeDefaults)
         {
             builder.append("COMPACT STORAGE")
                    .newLine()
@@ -2124,7 +2146,7 @@ public class TableMetadata implements SchemaElement
             }
             else
             {
-                params.appendCqlTo(builder, isView());
+                params.appendCqlTo(builder, isView(), omitUpgradeDefaults);
             }
             builder.append(";");
         }

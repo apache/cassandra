@@ -64,7 +64,7 @@ public class FlushCompressionUpgradeTest extends UpgradeTestBase
 
             // plain DDL from an upgraded coordinator must still be applied by the 6.0 node
             cluster.coordinator(1).execute("CREATE TABLE " + KEYSPACE + ".t2 (pk int PRIMARY KEY, v int)", ConsistencyLevel.ALL);
-            awaitSchema(cluster, "t2", "table_name", row("t2"));
+            awaitQueryable(cluster, "t2");
             cluster.coordinator(3).execute("INSERT INTO " + KEYSPACE + ".t2 (pk, v) VALUES (1, 1)", ConsistencyLevel.ALL);
 
             IUpgradeableInstance node3 = cluster.get(3);
@@ -86,6 +86,25 @@ public class FlushCompressionUpgradeTest extends UpgradeTestBase
     private static void alter(UpgradeableCluster cluster, int node, String option)
     {
         cluster.coordinator(node).execute("ALTER TABLE " + TABLE + " WITH " + option, ConsistencyLevel.ALL);
+    }
+
+    /** system_schema is written before the epoch is enacted, so wait until every node serves queries for the table. */
+    private static void awaitQueryable(UpgradeableCluster cluster, String table)
+    {
+        await().atMost(1, TimeUnit.MINUTES).until(() -> {
+            for (int node = 1; node <= 3; node++)
+            {
+                try
+                {
+                    cluster.get(node).executeInternal("SELECT * FROM " + KEYSPACE + '.' + table + " LIMIT 1");
+                }
+                catch (Exception e)
+                {
+                    return false;
+                }
+            }
+            return true;
+        });
     }
 
     /** Committed schema reaches non-coordinator nodes asynchronously, so poll every node. */

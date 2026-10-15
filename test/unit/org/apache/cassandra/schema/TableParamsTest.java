@@ -124,6 +124,22 @@ public class TableParamsTest
         assertThat(builder.toString()).contains("AND flush_compression = 'fast'");
     }
 
+    @Test
+    public void expandedCqlOmitsDefaultFlushCompression()
+    {
+        CqlBuilder builder = new CqlBuilder();
+        TableParams.builder().build().appendCqlTo(builder, false, true);
+        assertThat(builder.toString()).doesNotContain("flush_compression");
+
+        builder = new CqlBuilder();
+        TableParams.builder().build().appendCqlTo(builder, false, false);
+        assertThat(builder.toString()).contains("AND flush_compression = 'auto'");
+
+        builder = new CqlBuilder();
+        TableParams.builder().flushCompression(FlushCompressionParams.fromString("fast")).build().appendCqlTo(builder, false, true);
+        assertThat(builder.toString()).contains("AND flush_compression = 'fast'");
+    }
+
     private static TableParams serde(TableParams params, Version version) throws IOException
     {
         DataOutputBuffer out = new DataOutputBuffer();

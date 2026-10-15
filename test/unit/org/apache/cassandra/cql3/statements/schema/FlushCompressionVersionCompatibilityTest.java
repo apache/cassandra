@@ -100,9 +100,14 @@ public class FlushCompressionVersionCompatibilityTest
     public void createTable()
     {
         assertRejected("CREATE TABLE " + KS + ".t1 (k int PRIMARY KEY, v int) WITH flush_compression = 'none'");
-        commit("CREATE TABLE " + KS + ".t1 (k int PRIMARY KEY, v int) WITH comment = 'no flush option'");
+        SchemaTransformation plain = transformation("CREATE TABLE " + KS + ".t1 (k int PRIMARY KEY, v int) WITH comment = 'no flush option'");
+        commit(plain);
+        // expanded CQL recorded in the log must stay parseable by the V10 node
+        assertThat(plain.cql()).contains("comment = 'no flush option'").doesNotContain("flush_compression");
         upgradeOldNode();
-        commit("CREATE TABLE " + KS + ".t2 (k int PRIMARY KEY, v int) WITH flush_compression = 'none'");
+        SchemaTransformation withOption = transformation("CREATE TABLE " + KS + ".t2 (k int PRIMARY KEY, v int) WITH flush_compression = 'none'");
+        commit(withOption);
+        assertThat(withOption.cql()).contains("flush_compression = 'none'");
     }
 
     @Test
@@ -149,7 +154,12 @@ public class FlushCompressionVersionCompatibilityTest
 
     private static void commit(String cql)
     {
-        ClusterMetadataService.instance().commit(new AlterSchema(transformation(cql)));
+        commit(transformation(cql));
+    }
+
+    private static void commit(SchemaTransformation transformation)
+    {
+        ClusterMetadataService.instance().commit(new AlterSchema(transformation));
     }
 
     private static void assertRejected(String cql)

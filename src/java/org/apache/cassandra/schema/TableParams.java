@@ -379,6 +379,15 @@ public final class TableParams
 
     public void appendCqlTo(CqlBuilder builder, boolean isView)
     {
+        appendCqlTo(builder, isView, false);
+    }
+
+    /**
+     * @param omitUpgradeDefaults leave out options the previous major does not know when at their default, so the
+     *                            output can be replayed by not yet upgraded nodes (expanded CQL in the metadata log)
+     */
+    public void appendCqlTo(CqlBuilder builder, boolean isView, boolean omitUpgradeDefaults)
+    {
         // option names should be in alphabetical order
         builder.append("additional_write_policy = ").appendWithSingleQuotes(additionalWritePolicy.toString())
                .newLine()
@@ -414,10 +423,12 @@ public final class TableParams
                                                              .collect(toMap(Entry::getKey,
                                                                             e -> "0x" + ByteBufferUtil.bytesToHex(e.getValue()))),
                                                    false)
-               .newLine()
-               .append("AND flush_compression = ").appendWithSingleQuotes(flushCompression.toString())
-               .newLine()
-               .append("AND gc_grace_seconds = ").append(gcGraceSeconds)
+               .newLine();
+
+        if (!omitUpgradeDefaults || !flushCompression.equals(FlushCompressionParams.DEFAULT))
+            builder.append("AND flush_compression = ").appendWithSingleQuotes(flushCompression.toString()).newLine();
+
+        builder.append("AND gc_grace_seconds = ").append(gcGraceSeconds)
                .newLine()
                .append("AND incremental_backups = ").append(incrementalBackups)
                .newLine()
