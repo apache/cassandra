@@ -223,6 +223,18 @@ public class SimpleClient implements Closeable
         return this;
     }
 
+    public SimpleClient connect(Map<String, String> options) throws IOException
+    {
+        establishConnection();
+        connection.setThrowOnOverload("1".equals(options.get(StartupMessage.THROW_ON_OVERLOAD)));
+        // The server matches COMPRESSION case-insensitively, so match the same way here, or the server would start
+        // compressing while this client has no compressor set and nothing after STARTUP could be decoded.
+        if ("LZ4".equalsIgnoreCase(options.get(StartupMessage.COMPRESSION)))
+            connection.setCompressor(Compressor.LZ4Compressor.instance);
+        execute(new StartupMessage(options));
+        return this;
+    }
+
     public void setEventHandler(EventHandler eventHandler)
     {
         responseHandler.eventHandler = eventHandler;
@@ -451,6 +463,7 @@ public class SimpleClient implements Closeable
                     }
                     break;
                 case SUPPORTED:
+                case ERROR:
                     // just pass through
                     results.add(request);
                     break;
