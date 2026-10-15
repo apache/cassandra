@@ -157,6 +157,9 @@ import static org.apache.cassandra.config.CassandraRelevantProperties.REPLACE_NO
 import static org.apache.cassandra.config.CassandraRelevantProperties.REPLACE_TOKEN;
 import static org.apache.cassandra.config.CassandraRelevantProperties.SEARCH_CONCURRENCY_FACTOR;
 import static org.apache.cassandra.config.CassandraRelevantProperties.SSL_STORAGE_PORT;
+import static org.apache.cassandra.config.CassandraRelevantProperties.STARTUP_CLIENT_OPTION_KEY_MAX_LENGTH;
+import static org.apache.cassandra.config.CassandraRelevantProperties.STARTUP_CLIENT_OPTION_MAX_COUNT;
+import static org.apache.cassandra.config.CassandraRelevantProperties.STARTUP_CLIENT_OPTION_VALUE_MAX_LENGTH;
 import static org.apache.cassandra.config.CassandraRelevantProperties.STORAGE_DIR;
 import static org.apache.cassandra.config.CassandraRelevantProperties.STORAGE_PORT;
 import static org.apache.cassandra.config.CassandraRelevantProperties.SUN_ARCH_DATA_MODEL;
@@ -601,6 +604,34 @@ public class DatabaseDescriptor
         applyStartupChecks();
     }
 
+    public static void applyCompressorProviders()
+    {
+        CompressorRegistry.instance.registerProviders(conf.compressor_providers);
+    }
+
+    /**
+     * The limits on STARTUP options are system properties that StartupMessage parses on every new connection and on
+     * every STARTUP. Parse them here as well, so that a malformed value fails startup instead of failing every client
+     * connection once the node has reported itself as up.
+     */
+    @VisibleForTesting
+    static void validateStartupClientOptionLimits()
+    {
+        for (CassandraRelevantProperties limit : Arrays.asList(STARTUP_CLIENT_OPTION_MAX_COUNT,
+                                                               STARTUP_CLIENT_OPTION_KEY_MAX_LENGTH,
+                                                               STARTUP_CLIENT_OPTION_VALUE_MAX_LENGTH))
+        {
+            try
+            {
+                limit.getInt();
+            }
+            catch (ConfigurationException e)
+            {
+                throw new ConfigurationException(limit.getKey() + ": " + e.getMessage(), false);
+            }
+        }
+    }
+
     private static void applySimpleConfig()
     {
         //Doing this first before all other things in case other pieces of config want to construct
@@ -767,6 +798,8 @@ public class DatabaseDescriptor
                                                            valueInBytes),
                                              false);
         }
+
+        validateStartupClientOptionLimits();
 
         if (conf.column_index_size != null)
             checkValidForByteConversion(conf.column_index_size, "column_index_size");

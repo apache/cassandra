@@ -56,6 +56,7 @@ import org.apache.cassandra.utils.ClassLoadingTestSupport;
 import static org.apache.cassandra.config.CassandraRelevantProperties.ALLOW_UNLIMITED_CONCURRENT_VALIDATIONS;
 import static org.apache.cassandra.config.CassandraRelevantProperties.CONFIG_LOADER;
 import static org.apache.cassandra.config.CassandraRelevantProperties.PARTITIONER;
+import static org.apache.cassandra.config.CassandraRelevantProperties.STARTUP_CLIENT_OPTION_VALUE_MAX_LENGTH;
 import static org.apache.cassandra.config.DataStorageSpec.DataStorageUnit.KIBIBYTES;
 import static org.apache.cassandra.config.DataStorageSpec.DataStorageUnit.MEBIBYTES;
 import static org.assertj.core.api.Assertions.assertThat;
@@ -269,6 +270,24 @@ public class DatabaseDescriptorTest
             // this is a bit implementation specific, so free to change; mostly here to make sure reason isn't lost
             Assert.assertEquals(ClassNotFoundException.class, cause.getClass());
             Assert.assertEquals("org.apache.cassandra.dht.ThisDoesNotExist", cause.getMessage());
+        }
+    }
+
+    @Test
+    public void testMalformedStartupClientOptionLimitFailsStartup()
+    {
+        // StartupMessage parses these per connection; a malformed value has to fail startup instead.
+        try (WithProperties properties = new WithProperties().set(STARTUP_CLIENT_OPTION_VALUE_MAX_LENGTH, "1k"))
+        {
+            assertThatThrownBy(DatabaseDescriptor::validateStartupClientOptionLimits)
+            .isInstanceOf(ConfigurationException.class)
+            .hasMessageContaining(STARTUP_CLIENT_OPTION_VALUE_MAX_LENGTH.getKey())
+            .hasMessageContaining("1k");
+        }
+
+        try (WithProperties properties = new WithProperties().set(STARTUP_CLIENT_OPTION_VALUE_MAX_LENGTH, "-1"))
+        {
+            DatabaseDescriptor.validateStartupClientOptionLimits();
         }
     }
 
