@@ -17,6 +17,7 @@
  */
 package org.apache.cassandra.transport.messages;
 
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.Map;
 
@@ -51,6 +52,9 @@ public class StartupMessage extends Message.Request
     public static final String DRIVER_NAME = "DRIVER_NAME";
     public static final String DRIVER_VERSION = "DRIVER_VERSION";
     public static final String THROW_ON_OVERLOAD = "THROW_ON_OVERLOAD";
+    public static final int MAX_OPTION_KEY_LENGTH = 256;
+    public static final int MAX_OPTION_VALUE_LENGTH = 1024;
+    public static final int MAX_OPTIONS_ENTRIES = 64;
 
     public static final Message.Codec<StartupMessage> codec = new Message.Codec<StartupMessage>()
     {
@@ -77,7 +81,7 @@ public class StartupMessage extends Message.Request
     public StartupMessage(Map<String, String> options)
     {
         super(Message.Type.STARTUP);
-        this.options = options;
+        this.options = validateAndSanitizeOptions(options);
     }
 
     @Override
@@ -173,6 +177,46 @@ public class StartupMessage extends Message.Request
         for (Map.Entry<String, String> entry : options.entrySet())
             newMap.put(toUpperCaseLocalized(entry.getKey()), entry.getValue());
         return newMap;
+    }
+
+    /**
+     * Validates and sanitizes the startup options.
+     * @param options The startup options to validate and sanitize.
+     * @return The validated and sanitized startup options.
+     * @throws ProtocolException If the startup options are invalid. Validation conditions to be found in
+     * ticket <a href="https://issues.apache.org/jira/browse/CASSANDRA-21755">CASSANDRA-21755</a>.
+     */
+    private static Map<String, String> validateAndSanitizeOptions(Map<String, String> options)
+    {
+        if (options == null || options.isEmpty())
+            return Collections.emptyMap();
+        if (options.size() > MAX_OPTIONS_ENTRIES)
+            throw new ProtocolException(String.format("Too many startup options provided: %d (maximum allowed is %d)", options.size(), MAX_OPTIONS_ENTRIES));
+        Map<String, String> sanitized = new HashMap<>(options.size());
+        for (Map.Entry<String, String> entry : options.entrySet())
+        {
+            String key = entry.getKey();
+            String value = entry.getValue();
+
+            if (key == null)
+                throw new ProtocolException("Startup option keys cannot be null");
+            if (key.length() > MAX_OPTION_KEY_LENGTH)
+                throw new ProtocolException(String.format("Startup option key exceeds maximum length: %d (maximum allowed is %d)", key.length(), MAX_OPTION_KEY_LENGTH));
+            if (value != null)
+            {
+                if (value.length() > MAX_OPTION_VALUE_LENGTH)
+                    throw new ProtocolException(String.format("Startup option value exceeds maximum length: %d (maximum allowed is %d)", value.length(), MAX_OPTION_VALUE_LENGTH));
+
+                for (int i = 0; i < value.length(); i++)
+                {
+                    char c = value.charAt(i);
+                    if (Character.isISOControl(c) && c != '\t' && c != '\n' && c != '\r')
+                        throw new ProtocolException("Startup option values cannot contain control characters");
+                }
+            }
+            sanitized.put(key, value);
+        }
+        return sanitized;
     }
 
     @Override

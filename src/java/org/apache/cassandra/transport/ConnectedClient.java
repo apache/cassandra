@@ -19,6 +19,7 @@ package org.apache.cassandra.transport;
 
 import java.net.InetSocketAddress;
 import java.util.Collections;
+import java.util.LinkedHashMap;
 import java.util.Map;
 import java.util.Optional;
 
@@ -160,13 +161,20 @@ public final class ConnectedClient
 
     public Map<String, String> asMap()
     {
+        Map<String, String> rawOptions = clientOptions().orElse(Collections.emptyMap());
+        Map<String, String> safeOptions = new LinkedHashMap<>();
+        for (Map.Entry<String, String> entry : rawOptions.entrySet())
+        {
+            safeOptions.put(entry.getKey(), escapeOptionValue(entry.getValue()));
+        }
+
         return ImmutableMap.<String, String>builder()
                            .put(ADDRESS, remoteAddress().toString())
                            .put(USER, username().orElse(UNDEFINED))
                            .put(VERSION, String.valueOf(protocolVersion()))
                            .put(CLIENT_OPTIONS, Joiner.on(", ")
                                                       .withKeyValueSeparator("=")
-                                                      .join(clientOptions().orElse(Collections.emptyMap())))
+                                                      .join(safeOptions))
                            .put(DRIVER_NAME, driverName().orElse(UNDEFINED))
                            .put(DRIVER_VERSION, driverVersion().orElse(UNDEFINED))
                            .put(REQUESTS, String.valueOf(requestCount()))
@@ -179,5 +187,21 @@ public final class ConnectedClient
                                                                .withKeyValueSeparator("=")
                                                                .join(authenticationMetadata()))
                            .build();
+    }
+
+    /**
+     * Escapes special delimiter characters (commas and equals signs) in client option values
+     * to prevent format injection when rendering options into operator-facing maps.
+     * <p>
+     * Example: foo,bar=baz becomes foo\\,bar\\=baz
+     *
+     * @param val the raw option value string
+     * @return the escaped option value string
+     */
+    private static String escapeOptionValue(String val)
+    {
+        if (val == null)
+            return "";
+        return val.replace(",", "\\,").replace("=", "\\=");
     }
 }
