@@ -823,6 +823,34 @@ public class TrackedPreviewRepairTest extends TestBaseImpl
     }
 
     @Test
+    public void reportsInSyncDespiteCorruptedJournalEntryOutsideOffsets()
+    {
+        createTrackedSchema(CLUSTER, keyspace, table);
+        writeRows(CLUSTER, keyspace, table, 0, 10);
+        settleReconciliation(CLUSTER);
+
+        long[] previewFailuresBefore = previewFailuresPerNode(CLUSTER);
+
+        byte[] corruptBytes = {(byte) 0xFF, (byte) 0xFF, (byte) 0xFF, (byte) 0xFF, (byte) 0xFF, (byte) 0xFF, (byte) 0xFF, (byte) 0xFF};
+        CLUSTER.get(2).runOnInstance(() -> MutationJournal.instance().writeUnsafe(new ShortMutationId(Long.MAX_VALUE, 0), corruptBytes));
+
+        try
+        {
+            NodeToolResult result = CLUSTER.get(1).nodetoolResult(true, "repair", "--validate", keyspace);
+            result.asserts().success();
+
+            assertNotificationContains(result, MutationTrackingPreviewRepairTask.IN_SYNC_MESSAGE);
+            assertPreviewFailuresUnchanged(CLUSTER, previewFailuresBefore);
+            assertNoDiagnosticSnapshot(CLUSTER, keyspace, table);
+        }
+        finally
+        {
+            // Clear the corrupt record so it doesn't interfere with tests run after:
+            CLUSTER.get(2).runOnInstance(() -> MutationJournal.instance().truncateForTesting());
+        }
+    }
+
+    @Test
     public void rejectsWhenKeyspaceIsMigrating()
     {
         CLUSTER.schemaChange("CREATE KEYSPACE " + keyspace + " WITH replication = {'class': 'SimpleStrategy', 'replication_factor': " + NODES + "} AND replication_type='untracked'");

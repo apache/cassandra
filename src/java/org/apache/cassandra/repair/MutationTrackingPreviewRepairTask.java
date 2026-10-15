@@ -196,7 +196,7 @@ public class MutationTrackingPreviewRepairTask extends AbstractRepairTask
                     // Any validation failure fails the whole preview. Cancel siblings so they
                     // don't keep running to completion or their own timeout, holding merkle
                     // trees and registry entries for a result nobody will consume.
-                    promise.tryFailure(new RuntimeException("MT validation failed: " + failure.getMessage(), failure));
+                    promise.tryFailure(new RuntimeException("Tracked validation failed: " + failure.getMessage(), failure));
                     for (ValidationHandle sibling : handles)
                         sibling.coordinator.cancel();
                 }

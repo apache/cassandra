@@ -93,7 +93,7 @@ public class MutationTrackingValidationCoordinator
         long timeout = DatabaseDescriptor.getMutationTrackingValidationTimeout(TimeUnit.SECONDS);
         ctx.scheduledTasks().schedule(() -> {
             if (!future.isDone())
-                fail(new TimeoutException("MT validation timed out after " + timeout + "s for " + desc));
+                fail(new TimeoutException("Tracked validation timed out after " + timeout + "s for " + desc));
         }, timeout, TimeUnit.SECONDS);
 
         ValidationRequest request = new ValidationRequest(desc, FBUtilities.nowInSeconds(), false, offset);
