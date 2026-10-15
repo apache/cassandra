@@ -121,7 +121,8 @@ public class PrepareLeave implements Transformation
 
         StartLeave start = new StartLeave(leaving, startDelta, unlockKey);
         MidLeave mid = new MidLeave(leaving, midDelta, unlockKey);
-        FinishLeave leave = new FinishLeave(leaving, finishDelta, unlockKey, !RetireSingleNodeSequence.isSupportedBy(prev));
+        boolean unlock = streamKind == LeaveStreams.Kind.ASSASSINATE || !RetireSingleNodeSequence.isSupportedBy(prev);
+        FinishLeave leave = new FinishLeave(leaving, finishDelta, unlockKey, unlock);
 
         UnbootstrapAndLeave plan = UnbootstrapAndLeave.newSequence(prev.nextEpoch(),
                                                                    unlockKey,
