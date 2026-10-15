@@ -21,9 +21,12 @@ import java.net.InetSocketAddress;
 import java.util.Collections;
 import java.util.Map;
 import java.util.Optional;
+import java.util.stream.Collectors;
 
 import com.google.common.base.Joiner;
 import com.google.common.collect.ImmutableMap;
+
+import org.apache.commons.lang3.StringUtils;
 
 import org.apache.cassandra.auth.AuthenticatedUser;
 import org.apache.cassandra.auth.IAuthenticator;
@@ -48,6 +51,9 @@ public final class ConnectedClient
     public static final String PROTOCOL = "protocol";
     public static final String AUTHENTICATION_MODE = "authenticationMode";
     public static final String AUTHENTICATION_METADATA = "authenticationMetadata";
+
+    private static final String[] SEARCH  = { "\\",   ",",   "="   };
+    private static final String[] REPLACE = { "\\\\", "\\,", "\\=" };
 
     private static final String UNDEFINED = "undefined";
 
@@ -158,26 +164,58 @@ public final class ConnectedClient
         return connection.channel().pipeline().get(SslHandler.class);
     }
 
+    /**
+     * @return true once the client has authenticated (has a user).
+     * Unauthenticated clients may still be visible in operator-facing views,
+     * but client-supplied metadata is withheld until authentication.
+     */
+    public boolean loggedIn()
+    {
+        return state() != null && state().getUser() != null;
+    }
+
     public Map<String, String> asMap()
     {
-        return ImmutableMap.<String, String>builder()
-                           .put(ADDRESS, remoteAddress().toString())
-                           .put(USER, username().orElse(UNDEFINED))
-                           .put(VERSION, String.valueOf(protocolVersion()))
-                           .put(CLIENT_OPTIONS, Joiner.on(", ")
-                                                      .withKeyValueSeparator("=")
-                                                      .join(clientOptions().orElse(Collections.emptyMap())))
+        ImmutableMap.Builder<String, String> builder = ImmutableMap.<String, String>builder()
+                                                                   .put(ADDRESS, remoteAddress().toString())
+                                                                   .put(VERSION, String.valueOf(protocolVersion()))
+                                                                   .put(REQUESTS, String.valueOf(requestCount()))
+                                                                   .put(SSL, Boolean.toString(sslEnabled()))
+                                                                   .put(CIPHER, sslCipherSuite().orElse(UNDEFINED))
+                                                                   .put(PROTOCOL, sslProtocol().orElse(UNDEFINED));
+        if (loggedIn())
+        {
+            builder.put(USER, username().orElse(UNDEFINED))
+                           .put(CLIENT_OPTIONS, clientOptions().orElse(Collections.emptyMap())
+                                                               .entrySet()
+                                                               .stream()
+                                                               .map(e -> escapeOptionString(e.getKey()) + '=' + escapeOptionString(e.getValue()))
+                                                               .collect(Collectors.joining(", ")))
                            .put(DRIVER_NAME, driverName().orElse(UNDEFINED))
                            .put(DRIVER_VERSION, driverVersion().orElse(UNDEFINED))
-                           .put(REQUESTS, String.valueOf(requestCount()))
                            .put(KEYSPACE, keyspace().orElse(""))
-                           .put(SSL, Boolean.toString(sslEnabled()))
-                           .put(CIPHER, sslCipherSuite().orElse(UNDEFINED))
-                           .put(PROTOCOL, sslProtocol().orElse(UNDEFINED))
                            .put(AUTHENTICATION_MODE, authenticationMode().toString())
                            .put(AUTHENTICATION_METADATA, Joiner.on(", ")
                                                                .withKeyValueSeparator("=")
                                                                .join(authenticationMetadata()))
                            .build();
+        }
+        return builder.build();
+    }
+
+    /**
+     * Escapes backslashes first, then special delimiter characters (commas and equals signs)
+     * in client option keys and values to prevent format injection in operator-facing maps.
+     * <p>
+     * Example: {@code foo,bar=baz} becomes {@code foo\\,bar\\=baz}
+     *
+     * @param str the raw option string
+     * @return the safely escaped string
+     */
+    static String escapeOptionString(String str)
+    {
+        if (str == null)
+            return "";
+        return StringUtils.replaceEach(str, SEARCH, REPLACE);
     }
 }

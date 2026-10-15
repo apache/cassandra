@@ -303,4 +303,228 @@ public class ProtocolErrorTest {
             Assert.assertTrue(e.getMessage().contains("Unsupported message"));
         }
     }
+
+    @Test
+    public void testCustomMaxTotalLength() throws Exception
+    {
+        Envelope.Decoder dec = new Envelope.Decoder(12);
+
+        // 13-byte envelope: 9-byte header + 4-byte body, exceeding the 12-byte limit.
+        byte[] bytes = new byte[] {
+        (byte) REQUEST.addToVersion(ProtocolVersion.CURRENT.asInt()),
+        0x00,
+        0x00, 0x01,
+        0x05,
+        0x00, 0x00, 0x00, 0x04,
+        0x01, 0x02, 0x03, 0x04
+        };
+
+        ByteBuf buf = Unpooled.wrappedBuffer(bytes);
+
+        try
+        {
+            dec.decode(buf);
+            Assert.fail("Expected oversized request exception");
+        }
+        catch (ErrorMessage.WrappedException e)
+        {
+            Assert.assertEquals(1, e.getStreamId());
+            Assert.assertTrue(e.getMessage().contains("Request is too big"));
+            Assert.assertTrue(e.getMessage().contains("length 13"));
+            Assert.assertTrue(e.getMessage().contains("maximum allowed length 12"));
+        }
+        finally
+        {
+            buf.release();
+        }
+    }
+
+    @Test
+    public void testStartupUsesCustomMaxTotalLength() throws Exception
+    {
+        // General limit: 1024 bytes. STARTUP limit: 128 bytes.
+        Envelope.Decoder dec = new Envelope.Decoder(1024, 128);
+
+        // 129-byte envelope: 9-byte header + 120-byte body.
+        byte[] bytes = new byte[9 + 120];
+        bytes[0] = (byte) REQUEST.addToVersion(ProtocolVersion.CURRENT.asInt());
+        bytes[1] = 0x00; // flags
+        bytes[2] = 0x00;
+        bytes[3] = 0x01; // stream ID
+        bytes[4] = 0x01; // opcode = STARTUP
+        bytes[5] = 0x00;
+        bytes[6] = 0x00;
+        bytes[7] = 0x00;
+        bytes[8] = 0x78; // body length = 120
+
+        ByteBuf buf = Unpooled.wrappedBuffer(bytes);
+
+        try
+        {
+            dec.decode(buf);
+            Assert.fail("Expected oversized STARTUP request exception");
+        }
+        catch (ErrorMessage.WrappedException e)
+        {
+            Assert.assertEquals(1, e.getStreamId());
+            Assert.assertTrue(e.getMessage().contains("Request is too big"));
+            Assert.assertTrue(e.getMessage().contains("length 129"));
+            Assert.assertTrue(e.getMessage().contains("maximum allowed length 128"));
+        }
+        finally
+        {
+            buf.release();
+        }
+    }
+
+    @Test
+    public void testNonStartupUsesGeneralMaxTotalLength() throws Exception
+    {
+        // General limit: 1024 bytes. STARTUP limit: 128 bytes.
+        Envelope.Decoder dec = new Envelope.Decoder(1024, 128);
+
+        // 129-byte envelope: 9-byte header + 120-byte body.
+        // This exceeds the STARTUP limit but remains below the general limit.
+        byte[] bytes = new byte[9 + 120];
+        bytes[0] = (byte) REQUEST.addToVersion(ProtocolVersion.CURRENT.asInt());
+        bytes[1] = 0x00; // flags
+        bytes[2] = 0x00;
+        bytes[3] = 0x01; // stream ID
+        bytes[4] = 0x05; // opcode = OPTIONS
+        bytes[5] = 0x00;
+        bytes[6] = 0x00;
+        bytes[7] = 0x00;
+        bytes[8] = 0x78; // body length = 120
+
+        ByteBuf buf = Unpooled.wrappedBuffer(bytes);
+
+        try
+        {
+            Envelope decoded = dec.decode(buf);
+
+            Assert.assertNotNull(decoded);
+            Assert.assertEquals(120, decoded.header.bodySizeInBytes);
+            decoded.body.release();
+        }
+        finally
+        {
+            buf.release();
+        }
+    }
+
+    @Test
+    public void extractHeaderRejectsOversizedStartup() throws Exception
+    {
+        Envelope.Decoder dec = new Envelope.Decoder(1024, 128);
+
+        // 129-byte envelope: 9-byte header + 120-byte body.
+        byte[] header = new byte[] {
+        (byte) REQUEST.addToVersion(ProtocolVersion.V5.asInt()),
+        0x00,                    // flags
+        0x00, 0x01,              // stream ID
+        0x01,                    // opcode = STARTUP
+        0x00, 0x00, 0x00, 0x78   // body length = 120
+        };
+
+        ByteBuffer buf = ByteBuffer.wrap(header);
+
+        Envelope.Decoder.HeaderExtractionResult result = dec.extractHeader(buf);
+
+        Assert.assertFalse("Oversized STARTUP should fail header extraction", result.isSuccess());
+        Assert.assertEquals(1, result.streamId());
+        Assert.assertEquals(120, result.bodyLength());
+
+        Assert.assertTrue(result.error().getMessage().contains("Request is too big"));
+        Assert.assertTrue(result.error().getMessage().contains("length 129"));
+        Assert.assertTrue(result.error().getMessage().contains("maximum allowed length 128"));
+    }
+
+    @Test
+    public void extractHeaderUsesGeneralLimitForNonStartup() throws Exception
+    {
+        Envelope.Decoder dec = new Envelope.Decoder(1024, 128);
+
+        // Same 129-byte envelope, but opcode = OPTIONS.
+        byte[] header = new byte[] {
+        (byte) REQUEST.addToVersion(ProtocolVersion.V5.asInt()),
+        0x00,                    // flags
+        0x00, 0x01,              // stream ID
+        0x05,                    // opcode = OPTIONS
+        0x00, 0x00, 0x00, 0x78   // body length = 120
+        };
+
+        ByteBuffer buf = ByteBuffer.wrap(header);
+
+        Envelope.Decoder.HeaderExtractionResult result = dec.extractHeader(buf);
+
+        Assert.assertTrue("OPTIONS should use the general envelope limit",
+                          result.isSuccess());
+        Assert.assertEquals(Message.Type.OPTIONS, result.header().type);
+    }
+
+    @Test
+    public void testCustomMaxTotalLengthExactBoundary() throws Exception
+    {
+        Envelope.Decoder dec = new Envelope.Decoder(13);
+
+        byte[] bytes = new byte[] {
+        (byte) REQUEST.addToVersion(ProtocolVersion.CURRENT.asInt()),
+        0x00,
+        0x00, 0x01,
+        0x05,
+        0x00, 0x00, 0x00, 0x04,
+        0x01, 0x02, 0x03, 0x04
+        };
+
+        ByteBuf buf = Unpooled.wrappedBuffer(bytes);
+
+        try
+        {
+            Envelope decoded = dec.decode(buf);
+            Assert.assertNotNull(decoded);
+            Assert.assertEquals(4, decoded.header.bodySizeInBytes);
+            decoded.body.release();
+        }
+        finally
+        {
+            buf.release();
+        }
+    }
+
+    @Test
+    public void testCustomMaxTotalLengthDiscardsPartialFrame() throws Exception
+    {
+        Envelope.Decoder dec = new Envelope.Decoder(12);
+        ByteBuf buf = Unpooled.buffer();
+        try
+        {
+            byte[] headerAndPartialBody = new byte[] {
+            (byte) REQUEST.addToVersion(ProtocolVersion.CURRENT.asInt()),
+            0x00,
+            0x00, 0x01,
+            0x05,
+            0x00, 0x00, 0x00, 0x04,
+            0x01, 0x02
+            };
+
+            buf.writeBytes(headerAndPartialBody);
+            Assert.assertNull(dec.decode(buf));
+            buf.writeBytes(new byte[] { 0x03, 0x04 });
+
+            try
+            {
+                dec.decode(buf);
+                Assert.fail("Expected oversized request exception");
+            }
+            catch (ErrorMessage.WrappedException e)
+            {
+                Assert.assertEquals(1, e.getStreamId());
+                Assert.assertTrue(e.getMessage().contains("maximum allowed length 12"));
+            }
+        }
+        finally
+        {
+            buf.release();
+        }
+    }
 }
