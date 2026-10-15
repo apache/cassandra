@@ -818,7 +818,7 @@ public class DatabaseDescriptorTest
     }
 
     @Test
-    public void testGracefulDisconnectEnabled()
+    public void testGracefulDisconnectDisabledByDefault()
     {
         Assertions.assertThat(DatabaseDescriptor.getGracefulDisconnectEnabled()).as("Graceful disconnect should be disabled by default").isFalse();
     }
