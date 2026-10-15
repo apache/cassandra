@@ -80,19 +80,21 @@ public final class ValidationOffsets
     }
 
     /**
-     * @return true if the log's shard intersects {@code ranges}, or the shard is unknown
+     * @return a copy of these offsets with everything already covered by {@code offsets} removed
      */
-    private static boolean logShardIntersects(CoordinatorLogId logId, Collection<Range<Token>> ranges)
+    public ValidationOffsets without(ImmutableCoordinatorLogOffsets offsets)
     {
-        Range<Token> shardRange = MutationTrackingService.instance().rangeForLog(logId);
-        if (shardRange == null)
-            return true;
-        for (Range<Token> range : ranges)
+        if (offsets.isEmpty())
+            return this;
+
+        Map<CoordinatorLogId, Offsets.Immutable> narrowed = new HashMap<>();
+        for (Map.Entry<Long, Offsets.Immutable> entry : perLog.entrySet())
         {
-            if (range.intersects(shardRange))
-                return true;
+            Offsets.Immutable remaining = Offsets.Immutable.difference(entry.getValue(), offsets.mutations().getOffsets(entry.getKey()));
+            if (!remaining.isEmpty())
+                narrowed.put(CoordinatorLogId.fromLong(entry.getKey()), remaining);
         }
-        return false;
+        return new ValidationOffsets(narrowed);
     }
 
     /**
@@ -139,6 +141,22 @@ public final class ValidationOffsets
             return size;
         }
     };
+
+    /**
+     * @return true if the log's shard intersects {@code ranges}, or the shard is unknown
+     */
+    private static boolean logShardIntersects(CoordinatorLogId logId, Collection<Range<Token>> ranges)
+    {
+        Range<Token> shardRange = MutationTrackingService.instance().rangeForLog(logId);
+        if (shardRange == null)
+            return true;
+        for (Range<Token> range : ranges)
+        {
+            if (range.intersects(shardRange))
+                return true;
+        }
+        return false;
+    }
 
     /**
      * Flattens log-to-offset maps, taking the union when multiple offsets are reported for the same log.
