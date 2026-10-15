@@ -19,8 +19,13 @@
 package org.apache.cassandra.db.compression;
 
 import java.time.Instant;
+import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.List;
+import java.util.Map;
+import java.util.Set;
 
+import javax.annotation.Nullable;
 import javax.management.openmbean.ArrayType;
 import javax.management.openmbean.CompositeData;
 import javax.management.openmbean.CompositeDataSupport;
@@ -64,6 +69,7 @@ public class CompressionDictionaryDetailsTabularData
     public static final String CHECKSUM_NAME = "Checksum";
     public static final String SIZE_NAME = "Size";
     public static final String CREATED_AT_NAME = "CreatedAt";
+    public static final String SCOPE_NAME = "Scope";
 
     private static final String[] ITEM_NAMES = new String[]{ KEYSPACE_NAME,
                                                              TABLE_NAME,
@@ -73,7 +79,8 @@ public class CompressionDictionaryDetailsTabularData
                                                              KIND_NAME,
                                                              CHECKSUM_NAME,
                                                              SIZE_NAME,
-                                                             CREATED_AT_NAME };
+                                                             CREATED_AT_NAME,
+                                                             SCOPE_NAME};
 
     private static final String[] ITEM_DESCS = new String[]{ "keyspace",
                                                              "table",
@@ -83,7 +90,8 @@ public class CompressionDictionaryDetailsTabularData
                                                              "kind",
                                                              "checksum",
                                                              "size",
-                                                             "created_at" };
+                                                             "created_at",
+                                                             "scope"};
 
     private static final String TYPE_NAME = "DictionaryDetails";
     private static final String ROW_DESC = "DictionaryDetails";
@@ -103,7 +111,10 @@ public class CompressionDictionaryDetailsTabularData
                                          SimpleType.STRING, // kind
                                          SimpleType.INTEGER, // checksum
                                          SimpleType.INTEGER, // size of dict bytes
-                                         SimpleType.STRING }; // created_at
+                                         SimpleType.STRING, // created_at
+                                         // scope, per place its keys and values one after another, null for the whole cluster
+                                         new ArrayType<String[][]>(2, SimpleType.STRING)
+                                         };
 
             COMPOSITE_TYPE = new CompositeType(TYPE_NAME, ROW_DESC, ITEM_NAMES, ITEM_DESCS, ITEM_TYPES);
             TABULAR_TYPE = new TabularType(TYPE_NAME, ROW_DESC, COMPOSITE_TYPE, ITEM_NAMES);
@@ -136,7 +147,8 @@ public class CompressionDictionaryDetailsTabularData
                                             dictionary.dictId.kind.name(),
                                             dictionary.checksum,
                                             dictionary.size,
-                                            dictionary.createdAt.toString()
+                                            dictionary.createdAt.toString(),
+                                            dictionary.scope.toFlattened()
                                             });
         }
         catch (OpenDataException e)
@@ -171,6 +183,7 @@ public class CompressionDictionaryDetailsTabularData
                                             dictionary.checksum(),
                                             dictionary.rawDictionary().length,
                                             dictionary.createdAt().toString(),
+                                            dictionary.scope().toFlattened()
                                             });
         }
         catch (OpenDataException e)
@@ -181,7 +194,8 @@ public class CompressionDictionaryDetailsTabularData
 
     /**
      * Used upon deserialisation of data to composite data, e.g. upon importing a dictionary from JSON
-     * string to CompositeData before they are sent over JMX to import method.
+     * string to CompositeData before they are sent over JMX to import method. The scope is not carried over,
+     * the import says which scope the dictionary has.
      *
      * @param dataObject data class object to get composite data from
      * @return composite data representing data class
@@ -202,7 +216,8 @@ public class CompressionDictionaryDetailsTabularData
                                             dataObject.kind,
                                             dataObject.dictChecksum,
                                             dataObject.dictLength,
-                                            dataObject.createdAt.toString()
+                                            dataObject.createdAt.toString(),
+                                            null // scope, ignored on import
                                             });
         }
         catch (OpenDataException e)
@@ -228,7 +243,21 @@ public class CompressionDictionaryDetailsTabularData
                                                    (String) compositeData.get(CompressionDictionaryDetailsTabularData.KIND_NAME),
                                                    (Integer) compositeData.get(CompressionDictionaryDetailsTabularData.CHECKSUM_NAME),
                                                    (Integer) compositeData.get(CompressionDictionaryDetailsTabularData.SIZE_NAME),
-                                                   Instant.parse((String) compositeData.get(CompressionDictionaryDetailsTabularData.CREATED_AT_NAME)));
+                                                   Instant.parse((String) compositeData.get(CompressionDictionaryDetailsTabularData.CREATED_AT_NAME)),
+                                                   // absent in composite data of versions without scopes
+                                                   compositeData.containsKey(CompressionDictionaryDetailsTabularData.SCOPE_NAME)
+                                                   ? scopeValue(CompressionDictionaryScope.fromFlattened((String[][]) compositeData.get(CompressionDictionaryDetailsTabularData.SCOPE_NAME)))
+                                                   : null);
+    }
+
+    /**
+     * @return the places of the scope as a list, which keeps their order in JSON, null for the whole cluster
+     */
+    @Nullable
+    private static List<Map<String, String>> scopeValue(CompressionDictionaryScope scope)
+    {
+        Set<Map<String, String>> value = scope.toValue();
+        return value == null ? null : new ArrayList<>(value);
     }
 
     public static class CompressionDictionaryDataObject
@@ -242,6 +271,10 @@ public class CompressionDictionaryDetailsTabularData
         public final int dictChecksum;
         public final int dictLength;
         public final Instant createdAt;
+        // places of the scope, see CompressionDictionaryScope; null for a dictionary used by all nodes, or exported
+        // by a version without scopes
+        @Nullable
+        public final List<Map<String, String>> scope;
 
         @JsonCreator
         public CompressionDictionaryDataObject(@JsonProperty("keyspace") String keyspace,
@@ -252,7 +285,8 @@ public class CompressionDictionaryDetailsTabularData
                                                @JsonProperty("kind") String kind,
                                                @JsonProperty("dictChecksum") int dictChecksum,
                                                @JsonProperty("dictLength") int dictLength,
-                                               @JsonProperty("createdAt") Instant createdAt)
+                                               @JsonProperty("createdAt") Instant createdAt,
+                                               @JsonProperty("scope") @Nullable List<Map<String, String>> scope)
         {
             this.keyspace = keyspace;
             this.table = table;
@@ -263,6 +297,7 @@ public class CompressionDictionaryDetailsTabularData
             this.dictChecksum = dictChecksum;
             this.dictLength = dictLength;
             this.createdAt = createdAt;
+            this.scope = scope;
 
             validate();
         }

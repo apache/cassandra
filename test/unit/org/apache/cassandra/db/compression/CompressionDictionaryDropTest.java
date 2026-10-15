@@ -64,13 +64,13 @@ public class CompressionDictionaryDropTest extends CQLTester
     @BMRules(rules = {
         @BMRule(name = "refresh waits for the drop before it caches the dictionary it read",
                 targetClass = "org.apache.cassandra.db.compression.CompressionDictionaryScheduler",
-                targetMethod = "refreshDictionaryFromSystemTable",
-                targetLocation = "AT INVOKE org.apache.cassandra.db.compression.ICompressionDictionaryCache.add",
+                targetMethod = "refreshCurrentDictionary",
+                targetLocation = "AT INVOKE org.apache.cassandra.db.compression.ICompressionDictionaryCache.getCurrent",
                 action = "org.apache.cassandra.db.compression.CompressionDictionaryDropTest.beforeAdd($0.tableName)"),
         @BMRule(name = "refresh cached the dictionary it read",
                 targetClass = "org.apache.cassandra.db.compression.CompressionDictionaryScheduler",
-                targetMethod = "refreshDictionaryFromSystemTable",
-                targetLocation = "AFTER INVOKE org.apache.cassandra.db.compression.ICompressionDictionaryCache.add",
+                targetMethod = "refreshCurrentDictionary",
+                targetLocation = "AFTER INVOKE org.apache.cassandra.db.compression.ICompressionDictionaryCache.setCurrent",
                 action = "org.apache.cassandra.db.compression.CompressionDictionaryDropTest.afterAdd($0.tableName)")
     })
     public void refreshDuringDrop()
