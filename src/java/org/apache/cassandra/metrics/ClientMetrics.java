@@ -269,7 +269,11 @@ public final class ClientMetrics
         if (server != null)
         {
             for (ConnectedClient client : server.getConnectedClients())
-                clients.add(client.asMap());
+            {
+                Map<String, String> clientOptions = client.asMap(false);
+                if (clientOptions != null)
+                    clients.add(clientOptions);
+            }
         }
 
         return clients;
