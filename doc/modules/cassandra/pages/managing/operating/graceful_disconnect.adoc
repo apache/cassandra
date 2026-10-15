@@ -15,7 +15,7 @@ When a Cassandra node has to be taken offline client drivers have no reliable, i
 
 == Solution
 
-Introduce an in-band signal — `GRACEFUL_DISCONNECT` — so that the server can notify clients (that have subscribed) connection before closing it. This gives drivers time to:
+Introduce an in-band signal — `GRACEFUL_DISCONNECT` — so that the server can notify subscribed clients on the connection before closing it. This gives drivers time to:
 
 . Stop sending new requests on that connection/node.
 . Let all in-flight requests complete.
