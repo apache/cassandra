@@ -33,12 +33,14 @@ import org.slf4j.LoggerFactory;
 import org.apache.cassandra.db.ColumnFamilyStore;
 import org.apache.cassandra.db.DecoratedKey;
 import org.apache.cassandra.db.Mutation;
+import org.apache.cassandra.db.RegularAndStaticColumns;
 import org.apache.cassandra.db.partitions.AbstractUnfilteredPartitionIterator;
 import org.apache.cassandra.db.partitions.PartitionUpdate;
 import org.apache.cassandra.db.partitions.UnfilteredPartitionIterator;
 import org.apache.cassandra.db.partitions.UnfilteredPartitionIterators;
 import org.apache.cassandra.db.rows.UnfilteredRowIterator;
 import org.apache.cassandra.db.rows.UnfilteredRowIterators;
+import org.apache.cassandra.db.rows.WrappingUnfilteredRowIterator;
 import org.apache.cassandra.dht.Range;
 import org.apache.cassandra.dht.Token;
 import org.apache.cassandra.journal.DeserializedRecordConsumer;
@@ -233,13 +235,41 @@ public class JournalMergingValidationIterator extends ValidationPartitionIterato
         public UnfilteredRowIterator next()
         {
             List<PartitionUpdate> updates = iterator.next().getValue();
+            UnfilteredRowIterator update = rowIteratorFromUpdates(updates);
+
+            // PartitionUpdate only reflects columns that are part of a mutation, but the SSTable iterator reflects all
+            // columns in the schema. Expand the columns here to avoid digest mismatches on identical rows.
+            return withFullSchemaColumns(update, metadata.regularAndStaticColumns());
+        }
+
+        private static UnfilteredRowIterator rowIteratorFromUpdates(List<PartitionUpdate> updates)
+        {
             if (updates.size() == 1)
                 return updates.get(0).unfilteredIterator();
 
             List<UnfilteredRowIterator> toMerge = new ArrayList<>(updates.size());
             for (PartitionUpdate update : updates)
                 toMerge.add(update.unfilteredIterator());
+            
             return UnfilteredRowIterators.merge(toMerge);
+        }
+
+        private static UnfilteredRowIterator withFullSchemaColumns(UnfilteredRowIterator wrapped, RegularAndStaticColumns columns)
+        {
+            return new WrappingUnfilteredRowIterator()
+            {
+                @Override
+                public UnfilteredRowIterator wrapped()
+                {
+                    return wrapped;
+                }
+
+                @Override
+                public RegularAndStaticColumns columns()
+                {
+                    return columns;
+                }
+            };
         }
     }
 }

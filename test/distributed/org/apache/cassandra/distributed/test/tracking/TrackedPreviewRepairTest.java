@@ -20,6 +20,7 @@ package org.apache.cassandra.distributed.test.tracking;
 
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.List;
 import java.util.Set;
 import java.util.concurrent.Callable;
@@ -225,6 +226,49 @@ public class TrackedPreviewRepairTest extends TestBaseImpl
 
         assertPreviewFailuresUnchanged(CLUSTER, previewFailuresBefore);
         assertNoDiagnosticSnapshot(CLUSTER, keyspace, table);
+    }
+
+    @Test
+    public void reportsInSyncForPartialColumnUpdatesAcrossSSTableAndJournalSources()
+    {
+        CLUSTER.schemaChange("CREATE KEYSPACE " + keyspace + " WITH replication = {'class': 'SimpleStrategy', 'replication_factor': " + NODES + "} AND replication_type='tracked'");
+        CLUSTER.schemaChange("CREATE TABLE " + keyspace + '.' + table + " (k int PRIMARY KEY, v int, w int)");
+
+        // Disjoint key ranges so a digest mismatch in one combination can't be masked by another.
+        writeColumns(CLUSTER, keyspace, table, 0, 10, "v");
+        writeColumns(CLUSTER, keyspace, table, 10, 20, "w");
+        writeColumns(CLUSTER, keyspace, table, 20, 30, "v", "w");
+
+        for (int k = 30; k < 40; k++)
+            CLUSTER.coordinator(1).execute("INSERT INTO " + keyspace + '.' + table + " (k) VALUES (?)", ConsistencyLevel.ALL, k);
+
+        settleAndAssertInSyncWithCoordinatorFlushed(CLUSTER, keyspace, table);
+    }
+
+    @Test
+    public void reportsInSyncForPartialStaticColumnUpdatesAcrossSSTableAndJournalSources()
+    {
+        CLUSTER.schemaChange("CREATE KEYSPACE " + keyspace + " WITH replication = {'class': 'SimpleStrategy', 'replication_factor': " + NODES + "} AND replication_type='tracked'");
+        CLUSTER.schemaChange("CREATE TABLE " + keyspace + '.' + table + " (k int, c int, s1 int static, s2 int static, v int, PRIMARY KEY (k, c))");
+
+        // Disjoint key ranges so a digest mismatch in one combination can't be masked by another.
+        for (int k = 0; k < 10; k++)
+            writeClusteredRow(CLUSTER, keyspace, table, k, "s1", "v");
+        for (int k = 10; k < 20; k++)
+            writeClusteredRow(CLUSTER, keyspace, table, k, "s2", "v");
+        for (int k = 20; k < 30; k++)
+            writeClusteredRow(CLUSTER, keyspace, table, k, "s1", "s2", "v");
+
+        for (int k = 30; k < 40; k++)
+            writeStaticOnly(CLUSTER, keyspace, table, k, "s1");
+        for (int k = 40; k < 50; k++)
+            writeStaticOnly(CLUSTER, keyspace, table, k, "s1", "s2");
+
+        // Clustering row present but otherwise empty, so columns() is completely empty on the journal side.
+        for (int k = 50; k < 60; k++)
+            CLUSTER.coordinator(1).execute("INSERT INTO " + keyspace + '.' + table + " (k, c) VALUES (?, 0)", ConsistencyLevel.ALL, k);
+
+        settleAndAssertInSyncWithCoordinatorFlushed(CLUSTER, keyspace, table);
     }
 
     @Test
@@ -1013,6 +1057,35 @@ public class TrackedPreviewRepairTest extends TestBaseImpl
             cluster.coordinator(1).execute("INSERT INTO " + keyspace + '.' + table + " (k, v) VALUES (?, ?)", ConsistencyLevel.ALL, i, i);
     }
 
+    private static void writeColumns(Cluster cluster, String keyspace, String table, int fromInclusive, int toExclusive, String... columns)
+    {
+        String cql = "INSERT INTO " + keyspace + '.' + table + " (k, " + String.join(", ", columns) + ") VALUES (?" + ", ?".repeat(columns.length) + ")";
+        for (int i = fromInclusive; i < toExclusive; i++)
+        {
+            Object[] values = new Object[columns.length + 1];
+            values[0] = i;
+            Arrays.fill(values, 1, values.length, i);
+            cluster.coordinator(1).execute(cql, ConsistencyLevel.ALL, values);
+        }
+    }
+
+    private static void writeClusteredRow(Cluster cluster, String keyspace, String table, int key, String... columns)
+    {
+        String cql = "INSERT INTO " + keyspace + '.' + table + " (k, c, " + String.join(", ", columns) + ") VALUES (?, 0" + ", ?".repeat(columns.length) + ")";
+        Object[] values = new Object[columns.length + 1];
+        Arrays.fill(values, key);
+        cluster.coordinator(1).execute(cql, ConsistencyLevel.ALL, values);
+    }
+
+    private static void writeStaticOnly(Cluster cluster, String keyspace, String table, int key, String... staticColumns)
+    {
+        String cql = "UPDATE " + keyspace + '.' + table + " SET " + String.join(" = ?, ", staticColumns) + " = ? WHERE k = ?";
+        Object[] values = new Object[staticColumns.length + 1];
+        Arrays.fill(values, 0, staticColumns.length, key);
+        values[staticColumns.length] = key;
+        cluster.coordinator(1).execute(cql, ConsistencyLevel.ALL, values);
+    }
+
     private static void settleReconciliation(Cluster cluster)
     {
         cluster.forEach(i -> i.runOnInstance(() ->{
@@ -1031,6 +1104,22 @@ public class TrackedPreviewRepairTest extends TestBaseImpl
     private static void flushAll(Cluster cluster, String keyspace, String table)
     {
         cluster.forEach(i -> i.nodetoolResult("flush", keyspace, table).asserts().success());
+    }
+
+    private static void settleAndAssertInSyncWithCoordinatorFlushed(Cluster cluster, String keyspace, String table)
+    {
+        settleReconciliation(cluster);
+
+        cluster.get(1).nodetoolResult("flush", keyspace, table).asserts().success();
+
+        long[] previewFailuresBefore = previewFailuresPerNode(cluster);
+
+        NodeToolResult result = cluster.get(1).nodetoolResult(true, "repair", "--validate", keyspace);
+        result.asserts().success();
+
+        assertNotificationContains(result, MutationTrackingPreviewRepairTask.IN_SYNC_MESSAGE);
+        assertPreviewFailuresUnchanged(cluster, previewFailuresBefore);
+        assertNoDiagnosticSnapshot(cluster, keyspace, table);
     }
 
     private static void disableAutocompaction(Cluster cluster, String keyspace, String table)
