@@ -112,7 +112,7 @@ public class CompressionDictionaryEventHandlerTest
         MessagingService.instance().inboundSink.clear();
         MessagingService.instance().outboundSink.clear();
         testDictionary = createTestDictionary();
-        eventHandler = new CompressionDictionaryEventHandler(cfs, new CompressionDictionaryCache());
+        eventHandler = new CompressionDictionaryEventHandler(cfs, () -> {});
     }
 
     @After
@@ -145,7 +145,7 @@ public class CompressionDictionaryEventHandlerTest
             return false; // Don't actually send
         });
 
-        eventHandler.onNewDictionaryTrained(TEST_DICTIONARY_ID);
+        eventHandler.onNewDictionaryTrained(TEST_DICTIONARY_ID, true);
 
         // Wait for message to be processed
         assertThat(messageSentLatch.await(5, TimeUnit.SECONDS))
@@ -221,7 +221,7 @@ public class CompressionDictionaryEventHandlerTest
             return false;
         });
 
-        assertThatNoException().isThrownBy(() -> eventHandler.onNewDictionaryTrained(TEST_DICTIONARY_ID));
+        assertThatNoException().isThrownBy(() -> eventHandler.onNewDictionaryTrained(TEST_DICTIONARY_ID, true));
     }
 
     private static ZstdCompressionDictionary createTestDictionary()

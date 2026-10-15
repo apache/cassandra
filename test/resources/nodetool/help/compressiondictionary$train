@@ -8,7 +8,8 @@ SYNOPSIS
                 [(-pw <password> | --password <password>)]
                 [(-pwf <passwordFilePath> | --password-file <passwordFilePath>)]
                 [(-u <username> | --username <username>)] compressiondictionary train
-                [(-f | --force)] [--max-dict-size <trainingMaxDictionarySize>]
+                [(-f | --force)] [(-l | --local)]
+                [--max-dict-size <trainingMaxDictionarySize>]
                 [--max-total-sample-size <trainingMaxTotalSampleSize>] [--] <keyspace>
                 <table>
 
@@ -18,6 +19,11 @@ OPTIONS
 
         -h <host>, --host <host>
             Node hostname or ip address
+
+        -l, --local
+            Use the dictionary on this node only. It is stored in
+            system_distributed with the id of this node and other nodes use it
+            only after it is promoted.
 
         --max-dict-size <trainingMaxDictionarySize>
             Maximum size of a trained compression dictionary. Larger

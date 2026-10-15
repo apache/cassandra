@@ -26,6 +26,8 @@ import java.util.concurrent.ConcurrentLinkedQueue;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Function;
 
+import javax.annotation.Nullable;
+
 import com.github.luben.zstd.ZstdCompressCtx;
 import com.github.luben.zstd.ZstdDecompressCtx;
 import com.github.luben.zstd.ZstdDictCompress;
@@ -37,6 +39,7 @@ import org.slf4j.LoggerFactory;
 
 import org.apache.cassandra.io.compress.ZstdCompressorBase;
 import org.apache.cassandra.io.compress.ZstdDictionaryCompressor;
+import org.apache.cassandra.tcm.membership.NodeId;
 import org.apache.cassandra.utils.FBUtilities;
 import org.apache.cassandra.utils.concurrent.Ref;
 import org.apache.cassandra.utils.concurrent.RefCounted;
@@ -64,6 +67,7 @@ public class ZstdCompressionDictionary implements CompressionDictionary, SelfRef
     private final ConcurrentHashMap<Integer, ZstdDictionaryCompressor> compressorPerLevel = new ConcurrentHashMap<>();
     private volatile Ref<ZstdCompressionDictionary> selfRef;
     private final Instant createdAt;
+    private final NodeId nodeId;
 
     @VisibleForTesting
     public ZstdCompressionDictionary(DictId dictId, byte[] rawDictionary)
@@ -76,7 +80,13 @@ public class ZstdCompressionDictionary implements CompressionDictionary, SelfRef
 
     public ZstdCompressionDictionary(DictId dictId, byte[] rawDictionary, int checksum, Instant createdAt)
     {
+        this(dictId, null, rawDictionary, checksum, createdAt);
+    }
+
+    public ZstdCompressionDictionary(DictId dictId, NodeId nodeId, byte[] rawDictionary, int checksum, Instant createdAt)
+    {
         this.dictId = dictId;
+        this.nodeId = nodeId;
         this.rawDictionary = rawDictionary;
         this.checksum = checksum;
         this.selfRef = null;
@@ -87,6 +97,13 @@ public class ZstdCompressionDictionary implements CompressionDictionary, SelfRef
     public DictId dictId()
     {
         return dictId;
+    }
+
+    @Override
+    @Nullable
+    public NodeId nodeId()
+    {
+        return nodeId;
     }
 
     @Override

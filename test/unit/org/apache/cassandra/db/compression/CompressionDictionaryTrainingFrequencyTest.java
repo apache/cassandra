@@ -85,11 +85,24 @@ public class CompressionDictionaryTrainingFrequencyTest extends CQLTester
 
         alterDictTable("10m");
 
-        Pair<CompressionDictionaryDataObject, File> export = export();
-        assertFailingImport(export.right);
+        File newer = newer(export());
+        assertFailingImport(newer);
 
         alterDictTable("0m");
-        assertSuccessfulImport(export.right);
+        assertSuccessfulImport(newer);
+    }
+
+    /** the exported dictionary rewritten one second newer, the same dictionary can not be imported again */
+    private static File newer(Pair<CompressionDictionaryDataObject, File> export)
+    {
+        CompressionDictionaryDataObject dict = export.left;
+        // the upper bits of a dictionary id are seconds
+        long dictId = dict.dictId + (1L << 32);
+        int checksum = CompressionDictionary.calculateChecksum((byte) CompressionDictionary.Kind.valueOf(dict.kind).ordinal(), dictId, dict.dict);
+        CompressionDictionaryDataObject newer = new CompressionDictionaryDataObject(dict.keyspace, dict.table, dict.tableId, dictId, dict.dict,
+                                                                                    dict.kind, checksum, dict.dictLength, dict.createdAt, dict.nodeId);
+        FileUtils.write(export.right, List.of(JsonUtils.writeAsPrettyJsonString(newer)));
+        return export.right;
     }
 
     private String getTableId()

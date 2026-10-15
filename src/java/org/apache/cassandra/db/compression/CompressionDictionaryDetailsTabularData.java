@@ -21,6 +21,7 @@ package org.apache.cassandra.db.compression;
 import java.time.Instant;
 import java.util.Arrays;
 
+import javax.annotation.Nullable;
 import javax.management.openmbean.ArrayType;
 import javax.management.openmbean.CompositeData;
 import javax.management.openmbean.CompositeDataSupport;
@@ -64,6 +65,7 @@ public class CompressionDictionaryDetailsTabularData
     public static final String CHECKSUM_NAME = "Checksum";
     public static final String SIZE_NAME = "Size";
     public static final String CREATED_AT_NAME = "CreatedAt";
+    public static final String NODE_ID = "NodeId";
 
     private static final String[] ITEM_NAMES = new String[]{ KEYSPACE_NAME,
                                                              TABLE_NAME,
@@ -73,7 +75,8 @@ public class CompressionDictionaryDetailsTabularData
                                                              KIND_NAME,
                                                              CHECKSUM_NAME,
                                                              SIZE_NAME,
-                                                             CREATED_AT_NAME };
+                                                             CREATED_AT_NAME,
+                                                             NODE_ID};
 
     private static final String[] ITEM_DESCS = new String[]{ "keyspace",
                                                              "table",
@@ -83,7 +86,8 @@ public class CompressionDictionaryDetailsTabularData
                                                              "kind",
                                                              "checksum",
                                                              "size",
-                                                             "created_at" };
+                                                             "created_at",
+                                                             "node_id"};
 
     private static final String TYPE_NAME = "DictionaryDetails";
     private static final String ROW_DESC = "DictionaryDetails";
@@ -103,7 +107,9 @@ public class CompressionDictionaryDetailsTabularData
                                          SimpleType.STRING, // kind
                                          SimpleType.INTEGER, // checksum
                                          SimpleType.INTEGER, // size of dict bytes
-                                         SimpleType.STRING }; // created_at
+                                         SimpleType.STRING, // created_at
+                                         SimpleType.INTEGER // node id
+                                         };
 
             COMPOSITE_TYPE = new CompositeType(TYPE_NAME, ROW_DESC, ITEM_NAMES, ITEM_DESCS, ITEM_TYPES);
             TABULAR_TYPE = new TabularType(TYPE_NAME, ROW_DESC, COMPOSITE_TYPE, ITEM_NAMES);
@@ -136,7 +142,8 @@ public class CompressionDictionaryDetailsTabularData
                                             dictionary.dictId.kind.name(),
                                             dictionary.checksum,
                                             dictionary.size,
-                                            dictionary.createdAt.toString()
+                                            dictionary.createdAt.toString(),
+                                            dictionary.nodeId == null ? null : dictionary.nodeId.id()
                                             });
         }
         catch (OpenDataException e)
@@ -171,6 +178,7 @@ public class CompressionDictionaryDetailsTabularData
                                             dictionary.checksum(),
                                             dictionary.rawDictionary().length,
                                             dictionary.createdAt().toString(),
+                                            dictionary.nodeId() == null ? null : dictionary.nodeId().id()
                                             });
         }
         catch (OpenDataException e)
@@ -181,7 +189,8 @@ public class CompressionDictionaryDetailsTabularData
 
     /**
      * Used upon deserialisation of data to composite data, e.g. upon importing a dictionary from JSON
-     * string to CompositeData before they are sent over JMX to import method.
+     * string to CompositeData before they are sent over JMX to import method. The node id is not carried over,
+     * the importing node stores its own id for a local import and none for a global one.
      *
      * @param dataObject data class object to get composite data from
      * @return composite data representing data class
@@ -202,7 +211,8 @@ public class CompressionDictionaryDetailsTabularData
                                             dataObject.kind,
                                             dataObject.dictChecksum,
                                             dataObject.dictLength,
-                                            dataObject.createdAt.toString()
+                                            dataObject.createdAt.toString(),
+                                            null // node id, ignored on import
                                             });
         }
         catch (OpenDataException e)
@@ -228,7 +238,11 @@ public class CompressionDictionaryDetailsTabularData
                                                    (String) compositeData.get(CompressionDictionaryDetailsTabularData.KIND_NAME),
                                                    (Integer) compositeData.get(CompressionDictionaryDetailsTabularData.CHECKSUM_NAME),
                                                    (Integer) compositeData.get(CompressionDictionaryDetailsTabularData.SIZE_NAME),
-                                                   Instant.parse((String) compositeData.get(CompressionDictionaryDetailsTabularData.CREATED_AT_NAME)));
+                                                   Instant.parse((String) compositeData.get(CompressionDictionaryDetailsTabularData.CREATED_AT_NAME)),
+                                                   // absent in composite data of versions without node ids
+                                                   compositeData.containsKey(CompressionDictionaryDetailsTabularData.NODE_ID)
+                                                   ? (Integer) compositeData.get(CompressionDictionaryDetailsTabularData.NODE_ID)
+                                                   : null);
     }
 
     public static class CompressionDictionaryDataObject
@@ -242,6 +256,9 @@ public class CompressionDictionaryDetailsTabularData
         public final int dictChecksum;
         public final int dictLength;
         public final Instant createdAt;
+        // null for a dictionary used by all nodes, or exported by a version without node ids
+        @Nullable
+        public final Integer nodeId;
 
         @JsonCreator
         public CompressionDictionaryDataObject(@JsonProperty("keyspace") String keyspace,
@@ -252,7 +269,8 @@ public class CompressionDictionaryDetailsTabularData
                                                @JsonProperty("kind") String kind,
                                                @JsonProperty("dictChecksum") int dictChecksum,
                                                @JsonProperty("dictLength") int dictLength,
-                                               @JsonProperty("createdAt") Instant createdAt)
+                                               @JsonProperty("createdAt") Instant createdAt,
+                                               @JsonProperty("nodeId") @Nullable Integer nodeId)
         {
             this.keyspace = keyspace;
             this.table = table;
@@ -263,6 +281,7 @@ public class CompressionDictionaryDetailsTabularData
             this.dictChecksum = dictChecksum;
             this.dictLength = dictLength;
             this.createdAt = createdAt;
+            this.nodeId = nodeId;
 
             validate();
         }
