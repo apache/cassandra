@@ -415,7 +415,8 @@ public final class SystemDistributedKeyspace
     }
 
     /**
-     * Stores a compression dictionary for a given keyspace and table in the distributed system keyspace.
+     * Stores a compression dictionary for a given keyspace and table in the distributed system keyspace. It throws when
+     * the dictionary can not be stored, e.g. when a quorum of replicas is not available.
      *
      * @param keyspaceName the keyspace name to associate with the dictionary
      * @param tableName the table name to associate with the dictionary
@@ -439,9 +440,8 @@ public final class SystemDistributedKeyspace
                                  dictionary.dictId().id,
                                  dict.length,
                                  dictionary.checksum());
-        noThrow(fmtQuery,
-                () -> QueryProcessor.process(fmtQuery, ConsistencyLevel.QUORUM,
-                                             List.of(ByteBuffer.wrap(dict), ByteBufferUtil.bytes(dictionary.createdAt().toEpochMilli()))));
+        QueryProcessor.process(fmtQuery, ConsistencyLevel.QUORUM,
+                               List.of(ByteBuffer.wrap(dict), ByteBufferUtil.bytes(dictionary.createdAt().toEpochMilli())));
     }
 
     /**
