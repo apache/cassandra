@@ -18,7 +18,13 @@
 
 package org.apache.cassandra.db.compression;
 
+import java.io.ByteArrayInputStream;
+import java.io.ByteArrayOutputStream;
+import java.io.DataInputStream;
+import java.io.DataOutputStream;
+import java.io.IOException;
 import java.util.Map;
+import java.util.concurrent.atomic.AtomicBoolean;
 
 import org.junit.After;
 import org.junit.Before;
@@ -34,6 +40,7 @@ import org.apache.cassandra.db.compression.ICompressionDictionaryTrainer.Trainin
 import org.apache.cassandra.schema.CompressionParams;
 import org.apache.cassandra.schema.KeyspaceParams;
 import org.apache.cassandra.schema.TableMetadata;
+import org.apache.cassandra.utils.concurrent.Ref;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
@@ -187,6 +194,38 @@ public class CompressionDictionaryManagerTest
         assertThatThrownBy(() -> managerWithDict.train(false))
         .isInstanceOf(IllegalStateException.class)
         .hasMessageContaining("No SSTables available for training");
+    }
+
+    @Test
+    public void testDeserializeDictionaryReleasedAfterLookup() throws IOException
+    {
+        CompressionDictionary dictionary = new ZstdCompressionDictionary(new CompressionDictionary.DictId(CompressionDictionary.Kind.ZSTD, 1),
+                                                                         "dictionary".getBytes());
+        ByteArrayOutputStream serialized = new ByteArrayOutputStream();
+        dictionary.serialize(new DataOutputStream(serialized));
+
+        AtomicBoolean released = new AtomicBoolean();
+        try (CompressionDictionaryManager manager = new CompressionDictionaryManager(cfsWithDict, false)
+        {
+            @Override
+            public CompressionDictionary get(CompressionDictionary.DictId dictId)
+            {
+                CompressionDictionary cached = super.get(dictId);
+                // released before it is referenced, as an eviction right after the lookup does
+                if (released.compareAndSet(false, true))
+                    close();
+                return cached;
+            }
+        })
+        {
+            manager.add(dictionary);
+            Ref<? extends CompressionDictionary> ref = CompressionDictionary.deserialize(new DataInputStream(new ByteArrayInputStream(serialized.toByteArray())),
+                                                                                         manager);
+            assertThat(dictionary.tryRef()).as("Released dictionary").isNull();
+            assertThat(ref.get()).isNotSameAs(dictionary).isSameAs(manager.get(dictionary.dictId()));
+            assertThat(ref.get().dictId()).isEqualTo(dictionary.dictId());
+            ref.release();
+        }
     }
 
     @Test
