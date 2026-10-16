@@ -77,6 +77,20 @@ public class QueryReplayer implements Closeable
     }
 
     /**
+     * Constructor that takes SSL and auth provider settings via ConnectionOptions.
+     */
+    public QueryReplayer(Iterator<List<FQLQuery>> queryIterator,
+                         List<String> targetHosts,
+                         List<File> resultPaths,
+                         List<Predicate<FQLQuery>> filters,
+                         String queryFilePathString,
+                         ConnectionOptions connectionOptions)
+    {
+        this(queryIterator, targetHosts, resultPaths, filters, queryFilePathString,
+             new DefaultSessionProvider(connectionOptions), null);
+    }
+
+    /**
      * Constructor public to allow external users to build their own session provider
      *
      * sessionProvider takes the hosts in targetHosts and creates one session per entry
@@ -186,7 +200,7 @@ public class QueryReplayer implements Closeable
         resultHandler.close();
     }
 
-    static class ParsedTargetHost
+    public static class ParsedTargetHost
     {
         final int port;
         final String user;
@@ -201,26 +215,42 @@ public class QueryReplayer implements Closeable
             this.password = password;
         }
 
+        /**
+         * Masks the password in a target host string so it's never logged or written to result paths.
+         */
+        public static String maskPassword(String target)
+        {
+            int at = target.lastIndexOf('@');
+            if (at < 0)
+                return target;
+            String userInfo = target.substring(0, at);
+            int colon = userInfo.indexOf(':');
+            if (colon < 0)
+                return target;
+            return userInfo.substring(0, colon) + ":*****@" + target.substring(at + 1);
+        }
+
         static ParsedTargetHost fromString(String s)
         {
-            String [] userInfoHostPort = s.split("@");
-
-            String hostPort = null;
+            int at = s.lastIndexOf('@');
+            String hostPort;
             String user = null;
             String password = null;
-            if (userInfoHostPort.length == 2)
+
+            if (at >= 0)
             {
-                String [] userPassword = userInfoHostPort[0].split(":");
-                if (userPassword.length != 2)
+                String userInfo = s.substring(0, at);
+                hostPort = s.substring(at + 1);
+                int colon = userInfo.indexOf(':');
+                if (colon < 0)
                     throw new RuntimeException("Username provided but no password");
-                hostPort = userInfoHostPort[1];
-                user = userPassword[0];
-                password = userPassword[1];
+                user = userInfo.substring(0, colon);
+                password = userInfo.substring(colon + 1);
             }
-            else if (userInfoHostPort.length == 1)
-                hostPort = userInfoHostPort[0];
             else
-                throw new RuntimeException("Malformed target host: "+s);
+            {
+                hostPort = s;
+            }
 
             String[] splitHostPort = hostPort.split(":");
             int port = 9042;
@@ -241,6 +271,18 @@ public class QueryReplayer implements Closeable
     {
         private final static Map<String, Session> sessionCache = new HashMap<>();
 
+        private final ConnectionOptions connectionOptions;
+
+        DefaultSessionProvider()
+        {
+            this(ConnectionOptions.builder().build());
+        }
+
+        DefaultSessionProvider(ConnectionOptions connectionOptions)
+        {
+            this.connectionOptions = connectionOptions;
+        }
+
         public synchronized Session connect(String connectionString)
         {
             if (sessionCache.containsKey(connectionString))
@@ -249,8 +291,15 @@ public class QueryReplayer implements Closeable
             ParsedTargetHost pth = ParsedTargetHost.fromString(connectionString);
             builder.addContactPoint(pth.host);
             builder.withPort(pth.port);
-            if (pth.user != null)
+
+            if (connectionOptions.sslOptions() != null)
+                builder.withSSL(connectionOptions.sslOptions());
+
+            if (connectionOptions.authProviderClass() != null)
+                builder.withAuthProvider(connectionOptions.instantiateAuthProvider(pth.user, pth.password));
+            else if (pth.user != null)
                 builder.withCredentials(pth.user, pth.password);
+
             Cluster c = builder.build();
             sessionCache.put(connectionString, c.connect());
             return sessionCache.get(connectionString);
