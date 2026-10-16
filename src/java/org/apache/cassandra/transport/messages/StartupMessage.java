@@ -17,6 +17,7 @@
  */
 package org.apache.cassandra.transport.messages;
 
+import java.nio.charset.StandardCharsets;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.Map;
@@ -181,6 +182,7 @@ public class StartupMessage extends Message.Request
 
     /**
      * Validates and sanitizes a startup option key or value string.
+     * Enforces byte-length bounds, blocks ISO control characters, newlines,
      * Ensures strings do not exceed length limits, do not contain illegal control characters
      * or newlines, and that keys are non-null.
      *
@@ -198,24 +200,31 @@ public class StartupMessage extends Message.Request
             return;
         }
 
-        if (str.length() > maxLength)
+        byte[] utf8Bytes = str.getBytes(StandardCharsets.UTF_8);
+        if (utf8Bytes.length > maxLength)
         {
-            throw new ProtocolException(String.format("Startup option %s exceeds maximum length: %d (maximum allowed is %d)",
-                                                      isKey ? "key" : "value", str.length(), maxLength));
+            throw new ProtocolException(String.format("Startup option %s exceeds maximum byte length: %d (maximum allowed is %d)",
+                                                      isKey ? "key" : "value", utf8Bytes.length, maxLength));
         }
 
         for (int i = 0; i < str.length(); i++)
         {
             char c = str.charAt(i);
-            // Block all ISO control characters. Allow tabs, but disallow newlines/carriage returns
-            // to prevent terminal/log injection.
-            if (Character.isISOControl(c) && c != '\t')
-            {
-                throw new ProtocolException(String.format("Startup option %s cannot contain control characters", isKey ? "key" : "value"));
-            }
+
+            // Disallow newlines and carriage returns explicitly
             if (c == '\n' || c == '\r')
             {
                 throw new ProtocolException(String.format("Startup option %s cannot contain newline characters", isKey ? "key" : "value"));
+            }
+
+            // Block ISO controls (allow tab), and block unsafe Unicode categories (Format, Bidi overrides, Surrogates, Separators)
+            if ((Character.isISOControl(c) && c != '\t') ||
+                Character.getType(c) == Character.FORMAT ||
+                Character.getType(c) == Character.SURROGATE ||
+                Character.getType(c) == Character.LINE_SEPARATOR ||
+                Character.getType(c) == Character.PARAGRAPH_SEPARATOR)
+            {
+                throw new ProtocolException(String.format("Startup option %s contains forbidden control or formatting characters", isKey ? "key" : "value"));
             }
         }
     }

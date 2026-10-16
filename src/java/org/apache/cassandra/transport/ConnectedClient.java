@@ -165,7 +165,7 @@ public final class ConnectedClient
         Map<String, String> safeOptions = new LinkedHashMap<>();
         for (Map.Entry<String, String> entry : rawOptions.entrySet())
         {
-            safeOptions.put(entry.getKey(), escapeOptionString(entry.getValue()));
+            safeOptions.put(escapeOptionString(entry.getKey()), escapeOptionString(entry.getValue()));
         }
 
         return ImmutableMap.<String, String>builder()
@@ -190,19 +190,19 @@ public final class ConnectedClient
     }
 
     /**
-     * Escapes special delimiter characters (commas and equals signs) in client option values
-     * to prevent format injection when rendering options into operator-facing maps.
+     * Escapes backslashes first, then special delimiter characters (commas and equals signs)
+     * in client option keys and values to prevent format injection in operator-facing maps.
      * <p>
-     * Example: foo,bar=baz becomes foo\\,bar\\=baz
+     * Example: {@code foo,bar=baz} becomes {@code foo\\,bar\\=baz}
      *
-     * @param str the raw option value string
-     * @return the escaped option value string
+     * @param str the raw option string
+     * @return the safely escaped string
      */
     private static String escapeOptionString(String str)
     {
         if (str == null)
             return "";
-        // Escape backslashes first, then delimiters
+        // Escape backslashes first to prevent ambiguity, then commas and equals
         return str.replace("\\", "\\\\")
                   .replace(",", "\\,")
                   .replace("=", "\\=");

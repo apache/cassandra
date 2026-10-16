@@ -78,6 +78,14 @@ public class StartupMessageTest extends EncodeAndDecodeTestBase<StartupMessage>
         new StartupMessage(options);
     }
 
+    @Test(expected = ProtocolException.class)
+    public void testNewlineRejectedInValue()
+    {
+        Map<String, String> options = new HashMap<>();
+        options.put("KEY", "value\nwithnewline");
+        new StartupMessage(options);
+    }
+
     @Test
     public void testAllowedWhitespaceInValue()
     {
