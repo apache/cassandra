@@ -41,10 +41,11 @@ import org.apache.cassandra.io.sstable.format.Version;
 import org.apache.cassandra.io.util.DataInputBuffer;
 import org.apache.cassandra.io.util.DataOutputBuffer;
 import org.apache.cassandra.io.util.DataOutputPlus;
-import org.apache.cassandra.io.util.DataOutputStreamPlus;
 import org.apache.cassandra.io.util.File;
 import org.apache.cassandra.io.util.FileDataInput;
+import org.apache.cassandra.io.util.FileOutputStreamPlus;
 import org.apache.cassandra.io.util.RandomAccessReader;
+import org.apache.cassandra.utils.SyncUtil;
 import org.apache.cassandra.utils.TimeUUID;
 
 import static org.apache.cassandra.utils.FBUtilities.updateChecksumInt;
@@ -267,10 +268,11 @@ public class MetadataSerializer implements IMetadataSerializer
     public void rewriteSSTableMetadata(Descriptor descriptor, Map<MetadataType, MetadataComponent> currentComponents) throws IOException
     {
         File file = descriptor.tmpFileFor(Components.STATS);
-        try (DataOutputStreamPlus out = file.newOutputStream(File.WriteMode.OVERWRITE))
+        try (FileOutputStreamPlus out = file.newOutputStream(File.WriteMode.OVERWRITE))
         {
             serialize(currentComponents, out, descriptor.version);
             out.flush();
+            out.sync();
         }
         catch (IOException e)
         {
@@ -278,5 +280,6 @@ public class MetadataSerializer implements IMetadataSerializer
             throw new FSWriteError(e, file);
         }
         file.move(descriptor.fileFor(Components.STATS));
+        SyncUtil.trySyncDir(descriptor.directory);
     }
 }
