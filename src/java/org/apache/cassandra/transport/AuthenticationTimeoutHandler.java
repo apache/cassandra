@@ -15,7 +15,6 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-
 package org.apache.cassandra.transport;
 
 import java.util.concurrent.ScheduledFuture;
@@ -33,8 +32,8 @@ final class AuthenticationTimeoutHandler extends ChannelInboundHandlerAdapter
     private static final Logger logger = LoggerFactory.getLogger(AuthenticationTimeoutHandler.class);
 
     private final long timeoutMillis;
-    private final AtomicBoolean completed = new AtomicBoolean();
-    private volatile ScheduledFuture<?> timeoutFuture;
+    private final AtomicBoolean finished = new AtomicBoolean();
+    private ScheduledFuture<?> timeoutFuture;
 
     AuthenticationTimeoutHandler(long timeoutMillis)
     {
@@ -44,42 +43,44 @@ final class AuthenticationTimeoutHandler extends ChannelInboundHandlerAdapter
     @Override
     public void channelActive(ChannelHandlerContext ctx) throws Exception
     {
-        ScheduledFuture<?> future = ctx.executor().schedule(() -> {
-            if (completed.compareAndSet(false, true))
+        timeoutFuture = ctx.executor().schedule(() -> {
+            if (finished.compareAndSet(false, true))
             {
-                logger.info("Closing unauthenticated client connection {} after timeout of {}ms",
-                            ctx.channel().remoteAddress(), timeoutMillis);
-                ctx.close();
+                logger.warn("Closing unauthenticated client connection {} because it did not complete "
+                            + "authentication within {}ms (native_transport_auth_timeout)",
+                        ctx.channel().remoteAddress(), timeoutMillis);
+            ctx.close();
             }
         }, timeoutMillis, TimeUnit.MILLISECONDS);
-
-        timeoutFuture = future;
-
-        if (completed.get())
-            future.cancel(false);
 
         super.channelActive(ctx);
     }
 
-    void authenticationComplete()
+    void markAuthenticationComplete()
     {
-        if (completed.compareAndSet(false, true))
-        {
-            ScheduledFuture<?> future = timeoutFuture;
-            if (future != null)
-                future.cancel(false);
-        }
+        finished.compareAndSet(false, true);
+    }
+
+    @Override
+    public void handlerRemoved(ChannelHandlerContext ctx) throws Exception
+    {
+        cancelTimeout();
+        super.handlerRemoved(ctx);
     }
 
     @Override
     public void channelInactive(ChannelHandlerContext ctx) throws Exception
     {
-        completed.set(true);
-
-        ScheduledFuture<?> future = timeoutFuture;
-        if (future != null)
-            future.cancel(false);
-
+        cancelTimeout();
         super.channelInactive(ctx);
+    }
+
+    private void cancelTimeout()
+    {
+        if (timeoutFuture != null)
+        {
+            timeoutFuture.cancel(false);
+            timeoutFuture = null;
+        }
     }
 }

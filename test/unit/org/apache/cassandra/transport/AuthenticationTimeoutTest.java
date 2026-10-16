@@ -21,7 +21,8 @@ package org.apache.cassandra.transport;
 import java.util.Collections;
 import java.util.concurrent.TimeUnit;
 
-import org.junit.AfterClass;
+import org.junit.After;
+import org.junit.Before;
 import org.junit.BeforeClass;
 import org.junit.Test;
 
@@ -31,11 +32,13 @@ import org.apache.cassandra.cql3.QueryProcessor;
 import org.apache.cassandra.transport.messages.AuthResponse;
 import org.apache.cassandra.transport.messages.AuthSuccess;
 import org.apache.cassandra.transport.messages.AuthenticateMessage;
-import org.apache.cassandra.transport.messages.ErrorMessage;
+import org.apache.cassandra.transport.messages.OptionsMessage;
 import org.apache.cassandra.transport.messages.StartupMessage;
+import org.apache.cassandra.transport.messages.SupportedMessage;
 
 import static org.apache.cassandra.auth.AuthTestUtils.getToken;
 import static org.junit.Assert.assertFalse;
+import static org.junit.Assert.assertNull;
 import static org.junit.Assert.assertTrue;
 
 public class AuthenticationTimeoutTest extends CQLTester
@@ -44,16 +47,21 @@ public class AuthenticationTimeoutTest extends CQLTester
     private static long originalAuthTimeout;
 
     @BeforeClass
-    public static void setUp()
+    public static void setUpClass()
     {
-        originalAuthTimeout = DatabaseDescriptor.nativeTransportAuthTimeout();
-        DatabaseDescriptor.setNativeTransportAuthTimeout(AUTH_TIMEOUT_MS);
         requireAuthentication();
         requireNetwork();
     }
 
-    @AfterClass
-    public static void tearDown()
+    @Before
+    public void setUp()
+    {
+        originalAuthTimeout = DatabaseDescriptor.nativeTransportAuthTimeout();
+        DatabaseDescriptor.setNativeTransportAuthTimeout(AUTH_TIMEOUT_MS);
+    }
+
+    @After
+    public void tearDown()
     {
         DatabaseDescriptor.setNativeTransportAuthTimeout(originalAuthTimeout);
     }
@@ -82,10 +90,15 @@ public class AuthenticationTimeoutTest extends CQLTester
         try (SimpleClient client = new SimpleClient(nativeAddr.getHostAddress(), nativePort))
         {
             client.establishConnection();
-            assertTrue(client.channel.isOpen());
 
-            client.channel.writeAndFlush(new StartupMessage(
-            java.util.Collections.singletonMap(StartupMessage.CQL_VERSION, "3.0.0")));
+            StartupMessage startup = new StartupMessage(
+            Collections.singletonMap(StartupMessage.CQL_VERSION,
+                                     QueryProcessor.CQL_VERSION.toString()));
+
+            Message.Response response = client.execute(startup);
+
+            assertTrue("Expected AUTHENTICATE response",
+                       response instanceof AuthenticateMessage);
 
             long deadline = System.nanoTime() + TimeUnit.SECONDS.toNanos(10);
             while (client.channel.isOpen() && System.nanoTime() < deadline)
@@ -125,6 +138,7 @@ public class AuthenticationTimeoutTest extends CQLTester
 
             client.execute("SELECT * FROM system.local",
                            org.apache.cassandra.db.ConsistencyLevel.ONE);
+            assertAuthenticationTimeoutHandlerRemoved(client);
         }
     }
 
@@ -134,52 +148,36 @@ public class AuthenticationTimeoutTest extends CQLTester
     public void testAuthenticationTimeoutDisabled() throws Exception
     {
         DatabaseDescriptor.setNativeTransportAuthTimeout(0);
-
         try (SimpleClient client = new SimpleClient(nativeAddr.getHostAddress(), nativePort))
         {
             client.establishConnection();
-
             assertTrue("Connection should initially be open", client.channel.isOpen());
-
             Thread.sleep(AUTH_TIMEOUT_MS + 500);
-
             assertTrue("Connection should remain open when authentication timeout is disabled",
                        client.channel.isOpen());
-        }
-        finally
-        {
-            DatabaseDescriptor.setNativeTransportAuthTimeout(AUTH_TIMEOUT_MS);
         }
     }
 
     @Test
     public void testUnauthenticatedActivityDoesNotResetTimeout() throws Exception
     {
-        try (SimpleClient client = SimpleClient.builder(nativeAddr.getHostAddress(), nativePort).build())
+        try (SimpleClient client = new SimpleClient(nativeAddr.getHostAddress(), nativePort))
         {
             client.establishConnection();
 
-            StartupMessage startup = new StartupMessage(
-            Collections.singletonMap(StartupMessage.CQL_VERSION,
-                                     QueryProcessor.CQL_VERSION.toString()));
-
-            Message.Response startupResponse = client.execute(startup);
-
-            assertTrue("Expected AUTHENTICATE response",
-                       startupResponse instanceof AuthenticateMessage);
-
-            long deadline = System.nanoTime() + TimeUnit.SECONDS.toNanos(AUTH_TIMEOUT_MS);
+            long deadline = System.nanoTime() + TimeUnit.SECONDS.toNanos(10);
             long nextAttempt = System.nanoTime();
 
             while (client.channel.isOpen() && System.nanoTime() < deadline)
             {
                 if (System.nanoTime() >= nextAttempt)
                 {
-                    Message.Response response =
-                    client.execute(new AuthResponse(getToken("cassandra", "badpw")), false);
+                    Message.Response response = client.execute(new OptionsMessage());
 
-                    assertTrue("Expected authentication failure",
-                               response instanceof ErrorMessage);
+                    assertTrue("Expected SUPPORTED response to OPTIONS",
+                               response instanceof SupportedMessage);
+                    assertTrue("Connection should remain open before the timeout",
+                               client.channel.isOpen());
 
                     nextAttempt = System.nanoTime() + TimeUnit.MILLISECONDS.toNanos(250);
                 }
@@ -188,8 +186,22 @@ public class AuthenticationTimeoutTest extends CQLTester
                     Thread.sleep(25);
             }
 
-            assertFalse("Authentication attempts must not keep the connection alive indefinitely",
+            assertFalse("Unauthenticated activity must not prevent the timeout",
                         client.channel.isOpen());
         }
+    }
+
+    static void assertAuthenticationTimeoutHandlerRemoved(SimpleClient client) throws InterruptedException
+    {
+        long deadline = System.nanoTime() + TimeUnit.SECONDS.toNanos(5);
+
+        while (client.channel.pipeline().get(AuthenticationTimeoutHandler.class) != null
+               && System.nanoTime() < deadline)
+        {
+            Thread.sleep(10);
+        }
+
+        assertNull("Authentication timeout handler should be removed after authentication",
+                   client.channel.pipeline().get(AuthenticationTimeoutHandler.class));
     }
 }

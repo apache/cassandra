@@ -102,13 +102,19 @@ public class ServerConnection extends Connection
 
     private void authenticationComplete()
     {
-        channel().eventLoop().execute(() -> {
-            AuthenticationTimeoutHandler handler =
+        AuthenticationTimeoutHandler handler = channel().pipeline().get(AuthenticationTimeoutHandler.class);
+        if (handler != null)
+            handler.markAuthenticationComplete();
+        Runnable removeHandler = () -> {
+            AuthenticationTimeoutHandler current =
             channel().pipeline().get(AuthenticationTimeoutHandler.class);
-
-            if (handler != null)
-                handler.authenticationComplete();
-        });
+            if (current != null)
+                channel().pipeline().remove(current);
+        };
+        if (channel().eventLoop().inEventLoop())
+            removeHandler.run();
+        else
+            channel().eventLoop().execute(removeHandler);
     }
 
     void applyStateTransition(Message.Type requestType, Message.Type responseType)
@@ -121,7 +127,10 @@ public class ServerConnection extends Connection
                     if (responseType == Message.Type.AUTHENTICATE)
                         stage = ConnectionStage.AUTHENTICATING;
                     else if (responseType == Message.Type.READY)
+                    {
+                        authenticationComplete();
                         stage = ConnectionStage.READY;
+                    }
                 }
                 break;
             case AUTHENTICATING:
@@ -130,20 +139,13 @@ public class ServerConnection extends Connection
 
                 if (responseType == Message.Type.READY || responseType == Message.Type.AUTH_SUCCESS)
                 {
-                    stage = ConnectionStage.READY;
                     authenticationComplete();
+                    stage = ConnectionStage.READY;
                     // we won't use the authenticator again, null it so that it can be GC'd
                     saslNegotiator = null;
                 }
                 break;
             case READY:
-                if (responseType == Message.Type.AUTHENTICATE)
-                    stage = ConnectionStage.AUTHENTICATING;
-                else if (responseType == Message.Type.READY)
-                {
-                    stage = ConnectionStage.READY;
-                    authenticationComplete();
-                }
                 break;
             default:
                 throw new AssertionError();
