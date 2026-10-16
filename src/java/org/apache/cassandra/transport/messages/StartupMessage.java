@@ -183,15 +183,13 @@ public class StartupMessage extends Message.Request
     /**
      * Validates and sanitizes a startup option key or value string.
      * Enforces byte-length bounds, blocks ISO control characters, newlines,
-     * Ensures strings do not exceed length limits, do not contain illegal control characters
-     * or newlines, and that keys are non-null.
+     * and ensures keys are non-null.
      *
      * @param str the string to validate
-     * @param maxLength the maximum allowed length for the string
      * @param isKey true if validating a key, false if validating a value
      * @throws ProtocolException if the string violates validation constraints
      */
-    private static void validateString(String str, int maxLength, boolean isKey)
+    private static void validateString(String str, boolean isKey)
     {
         if (str == null)
         {
@@ -199,6 +197,8 @@ public class StartupMessage extends Message.Request
                 throw new ProtocolException("Startup option keys cannot be null");
             return;
         }
+
+        int maxLength = isKey ? MAX_OPTION_KEY_LENGTH : MAX_OPTION_VALUE_LENGTH;
 
         byte[] utf8Bytes = str.getBytes(StandardCharsets.UTF_8);
         if (utf8Bytes.length > maxLength)
@@ -243,8 +243,8 @@ public class StartupMessage extends Message.Request
             String key = entry.getKey();
             String value = entry.getValue();
 
-            validateString(key, MAX_OPTION_KEY_LENGTH, true);
-            validateString(value, MAX_OPTION_VALUE_LENGTH, false);
+            validateString(key, true);
+            validateString(value, false);
 
             sanitized.put(key, value);
         }
