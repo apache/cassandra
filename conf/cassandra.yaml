@@ -1336,6 +1336,14 @@ uuid_sstable_identifiers_enabled: false
 # disabled if internode encryption is enabled.
 # stream_entire_sstables: true
 
+# When an entire SSTable is received via zero-copy streaming, validate the Digest.crc32 that was streamed with it
+# against the received Data.db before the SSTable is added to the table. This detects corruption introduced in
+# transit as well as pre-existing corruption on the sending node's disk, neither of which is otherwise noticed by
+# this path, since it writes component bytes to disk without parsing them.
+# If there's no Digest.crc32, this check passes.
+# When unset, the default is validating Digest.crc32.
+# entire_sstable_stream_digest_validation_enabled: true
+
 # Throttles entire SSTable outbound streaming file transfers on
 # this node to the given total throughput in Mbps.
 # Setting this value to 0 it disables throttling.
