@@ -55,6 +55,7 @@ import org.apache.cassandra.db.compression.CompressionDictionary;
 import org.apache.cassandra.db.compression.CompressionDictionary.LightweightCompressionDictionary;
 import org.apache.cassandra.dht.Range;
 import org.apache.cassandra.dht.Token;
+import org.apache.cassandra.exceptions.RequestExecutionException;
 import org.apache.cassandra.locator.InetAddressAndPort;
 import org.apache.cassandra.repair.CommonRange;
 import org.apache.cassandra.repair.messages.RepairOption;
@@ -421,6 +422,7 @@ public final class SystemDistributedKeyspace
      * @param tableName the table name to associate with the dictionary
      * @param tableId the unique id of a table to associate with the dictionary
      * @param dictionary the compression dictionary to store
+     * @throws RequestExecutionException when the dictionary can not be stored, e.g. when a quorum of replicas is not available
      */
     public static void storeCompressionDictionary(String keyspaceName,
                                                   String tableName,
@@ -439,9 +441,8 @@ public final class SystemDistributedKeyspace
                                  dictionary.dictId().id,
                                  dict.length,
                                  dictionary.checksum());
-        noThrow(fmtQuery,
-                () -> QueryProcessor.process(fmtQuery, ConsistencyLevel.QUORUM,
-                                             List.of(ByteBuffer.wrap(dict), ByteBufferUtil.bytes(dictionary.createdAt().toEpochMilli()))));
+        QueryProcessor.process(fmtQuery, ConsistencyLevel.QUORUM,
+                               List.of(ByteBuffer.wrap(dict), ByteBufferUtil.bytes(dictionary.createdAt().toEpochMilli())));
     }
 
     /**

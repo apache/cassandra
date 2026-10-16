@@ -99,7 +99,8 @@ public interface ICompressionDictionaryTrainer extends AutoCloseable
     CompressionDictionary.Kind kind();
 
     /**
-     * Sets the listener for dictionary training events.
+     * Sets the listener for dictionary training events. A training completes only once the listener returns, it fails
+     * when the listener throws.
      *
      * @param listener the listener to be notified when dictionaries are trained, null to remove listener
      */
