@@ -1083,3 +1083,309 @@ class TestCqlshOutput(BaseTestCase):
                                         tty=False, input=query)
         self.assertEqual(0, result)
         self.assertEqual(output.splitlines()[3].strip(), "{data: 'I''m newb'}")
+
+    def test_csv_output(self):
+        ks = get_keyspace()
+        query = "SELECT a, b FROM twenty_rows_table WHERE a IN ('1', '2');"
+
+        output, result = cqlsh_testcall(args=('--mode', 'csv'), prompt=None, env=self.default_env,
+                                        tty=False, input=query + '\n')
+        self.assertEqual(0, result)
+
+        lines = output.strip().splitlines()
+        self.assertEqual(lines[0].strip(), 'a,b')
+        self.assertIn('1,1', [l.strip() for l in lines])
+        self.assertIn('2,2', [l.strip() for l in lines])
+
+        query2 = "SELECT num, setcol FROM has_all_types WHERE num = 0;"
+        output2, result2 = cqlsh_testcall(args=('--mode', 'csv'), prompt=None, env=self.default_env,
+                                          tty=False, input=query2 + '\n')
+        self.assertEqual(0, result2)
+        import csv, io
+        reader = csv.reader(io.StringIO(output2.strip()))
+        rows = list(reader)
+        self.assertEqual(rows[0], ['num', 'setcol'])
+        for row in rows[1:]:
+            self.assertEqual(len(row), 2,
+                             msg='CSV row has wrong field count (commas inside setcol not quoted?): %r' % row)
+
+        query3 = "SELECT num, varintcol FROM has_all_types WHERE num = 0;"
+        output3, result3 = cqlsh_testcall(args=('--mode', 'csv'), prompt=None, env=self.default_env,
+                                          tty=False, input=query3 + '\n')
+        self.assertEqual(0, result3)
+        reader3 = csv.reader(io.StringIO(output3.strip()))
+        rows3 = list(reader3)
+        varint_val = rows3[1][1]
+        self.assertNotIn(',', varint_val,
+                         msg='Large varint should not contain thousands separator in CSV: %r' % varint_val)
+
+        ks = get_keyspace()
+        setup_q = ("INSERT INTO %s.has_all_types (num, textcol) VALUES (9998, 'Smith, Joe');" % ks)
+        cqlsh_testcall(args=('--mode', 'csv'), prompt=None, env=self.default_env,
+                       tty=False, input=setup_q + '\n')
+        try:
+            q4 = "SELECT num, textcol FROM %s.has_all_types WHERE num = 9998;" % ks
+            output4, result4 = cqlsh_testcall(args=('--mode', 'csv'), prompt=None,
+                                              env=self.default_env, tty=False, input=q4 + '\n')
+            self.assertEqual(0, result4)
+            reader4 = csv.reader(io.StringIO(output4.strip()))
+            rows4 = list(reader4)
+            self.assertEqual(rows4[0], ['num', 'textcol'])
+            for row in rows4[1:]:
+                self.assertEqual(len(row), 2,
+                                 msg='Comma inside textcol must be quoted in CSV: %r' % row)
+            data_rows4 = [r for r in rows4[1:] if r[0] == '9998']
+            self.assertEqual(len(data_rows4), 1)
+            self.assertEqual(data_rows4[0][1], 'Smith, Joe')
+        finally:
+            cleanup_q = "DELETE FROM %s.has_all_types WHERE num = 9998;" % ks
+            cqlsh_testcall(args=('--mode', 'csv'), prompt=None, env=self.default_env,
+                           tty=False, input=cleanup_q + '\n')
+
+    def test_json_output(self):
+        ks = get_keyspace()
+        query = "SELECT a, b FROM twenty_rows_table WHERE a IN ('1', '2');"
+
+        output, result = cqlsh_testcall(args=('--mode', 'json'), prompt=None, env=self.default_env,
+                                        tty=False, input=query + '\n')
+        self.assertEqual(0, result)
+
+        import json
+        try:
+            parsed_json = json.loads(output)
+            self.assertEqual(len(parsed_json), 2)
+
+            results = { (item['a'], item['b']) for item in parsed_json }
+            self.assertIn(('1', '1'), results)
+            self.assertIn(('2', '2'), results)
+        except ValueError as e:
+            self.fail("Output is not valid JSON: %s\nOutput was:\n%s" % (e, output))
+
+        # Collections and maps should be native JSON types, not strings
+        query2 = "SELECT num, setcol, listcol, mapcol FROM has_all_types WHERE num = 0;"
+        output2, result2 = cqlsh_testcall(args=('--mode', 'json'), prompt=None, env=self.default_env,
+                                          tty=False, input=query2 + '\n')
+        self.assertEqual(0, result2)
+        try:
+            rows2 = json.loads(output2)
+            self.assertEqual(len(rows2), 1)
+            row = rows2[0]
+            self.assertIsInstance(row['setcol'], list,
+                                  msg='setcol (set<text>) should be a JSON array, got: %r' % type(row['setcol']))
+            self.assertIsInstance(row['listcol'], list,
+                                  msg='listcol (list<text>) should be a JSON array, got: %r' % type(row['listcol']))
+            self.assertIsInstance(row['mapcol'], dict,
+                                  msg='mapcol (map<text, int>) should be a JSON object, got: %r' % type(row['mapcol']))
+            # map values should be native ints, not strings
+            for v in row['mapcol'].values():
+                self.assertIsInstance(v, int,
+                                      msg='mapcol values should be int, got: %r' % type(v))
+        except ValueError as e:
+            self.fail("Output is not valid JSON: %s\nOutput was:\n%s" % (e, output2))
+
+        # Integer types should be native JSON numbers, not quoted strings
+        query3 = "SELECT num, varintcol, bigintcol, intcol FROM has_all_types WHERE num = 0;"
+        output3, result3 = cqlsh_testcall(args=('--mode', 'json'), prompt=None, env=self.default_env,
+                                          tty=False, input=query3 + '\n')
+        self.assertEqual(0, result3)
+        try:
+            rows3 = json.loads(output3)
+            self.assertEqual(rows3[0]['varintcol'], 10000000000000000000000000)
+            self.assertIsInstance(rows3[0]['varintcol'], int,
+                                  msg='varintcol should be int, got: %r' % type(rows3[0]['varintcol']))
+            self.assertIsInstance(rows3[0]['bigintcol'], int,
+                                  msg='bigintcol should be int, got: %r' % type(rows3[0]['bigintcol']))
+            self.assertIsInstance(rows3[0]['intcol'], int,
+                                  msg='intcol should be int, got: %r' % type(rows3[0]['intcol']))
+        except ValueError as e:
+            self.fail("Output is not valid JSON: %s\nOutput was:\n%s" % (e, output3))
+
+        # null values should be JSON null (Python None), not the string "null"
+        q3b = "SELECT num, setcol, listcol, mapcol, bigintcol FROM has_all_types WHERE num = 999;"
+        output3b, result3b = cqlsh_testcall(args=('--mode', 'json'), prompt=None, env=self.default_env,
+                                            tty=False, input=q3b + '\n')
+        self.assertEqual(0, result3b)
+        try:
+            rows3b = json.loads(output3b)
+            if rows3b:
+                row3b = rows3b[0]
+                for col in ('setcol', 'listcol', 'mapcol', 'bigintcol'):
+                    if col in row3b and row3b[col] is None:
+                        # None is correctly JSON null
+                        pass
+                    elif col in row3b:
+                        self.assertNotEqual(row3b[col], 'null',
+                                            msg='%s null should be JSON null, not the string "null"' % col)
+        except ValueError as e:
+            self.fail("Null-value JSON output is not valid JSON: %s\nOutput: %s" % (e, output3b))
+
+        q4 = "SELECT num, uuidcol, decimalcol, timestampcol FROM has_all_types WHERE num = 0;"
+        output4, result4 = cqlsh_testcall(args=('--mode', 'json'), prompt=None,
+                                          env=self.default_env, tty=False, input=q4 + '\n')
+        self.assertEqual(0, result4)
+        try:
+            rows4 = json.loads(output4)
+            self.assertEqual(len(rows4), 1)
+            row4 = rows4[0]
+            import re
+            uuid_val = row4.get('uuidcol', '')
+            self.assertRegex(uuid_val,
+                             r'^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$',
+                             msg='uuidcol must be a UUID-formatted string: %r' % uuid_val)
+            from decimal import Decimal as PyDecimal, InvalidOperation
+            decimal_val = row4.get('decimalcol', '')
+            self.assertIsInstance(decimal_val, str, msg='decimalcol must be a string in JSON')
+            try:
+                PyDecimal(decimal_val)
+            except InvalidOperation:
+                self.fail('decimalcol value %r is not a valid decimal string' % decimal_val)
+            ts_val = row4.get('timestampcol', '')
+            self.assertIsInstance(ts_val, str)
+            self.assertTrue(len(ts_val) > 0, msg='timestampcol must be a non-empty string')
+        except ValueError as e:
+            self.fail("UUID/Decimal/Timestamp JSON output invalid: %s\nOutput: %s" % (e, output4))
+
+        ks = get_keyspace()
+        setup_q2 = r"INSERT INTO " + ks + r".has_all_types (num, textcol) VALUES (9999, 'say \"hello\" \\ world');"
+        cqlsh_testcall(args=('--mode', 'json'), prompt=None, env=self.default_env,
+                       tty=False, input=setup_q2 + '\n')
+        try:
+            q5 = "SELECT num, textcol FROM %s.has_all_types WHERE num = 9999;" % ks
+            output5, result5 = cqlsh_testcall(args=('--mode', 'json'), prompt=None,
+                                              env=self.default_env, tty=False, input=q5 + '\n')
+            self.assertEqual(0, result5)
+            try:
+                rows5 = json.loads(output5)
+                self.assertEqual(len(rows5), 1)
+                text_val = rows5[0]['textcol']
+                self.assertIsInstance(text_val, str)
+                self.assertIn('"', text_val, msg='Double-quote must survive JSON round-trip')
+            except ValueError as e:
+                self.fail("Special-char JSON output is not valid JSON: %s\nOutput: %s" % (e, output5))
+        finally:
+            cleanup_q2 = "DELETE FROM %s.has_all_types WHERE num = 9999;" % ks
+            cqlsh_testcall(args=('--mode', 'json'), prompt=None, env=self.default_env,
+                           tty=False, input=cleanup_q2 + '\n')
+
+    def test_source_inherits_mode(self):
+        """SOURCE subshell must inherit --mode from the parent shell (not revert to tabular)."""
+        import json
+        import tempfile
+        import os
+
+        ks = get_keyspace()
+        query = "SELECT a, b FROM twenty_rows_table WHERE a IN ('1', '2');\n"
+
+        # Write the query to a temporary SOURCE file
+        with tempfile.NamedTemporaryFile(mode='w', suffix='.cql', delete=False) as f:
+            f.write(query)
+            source_file = f.name
+
+        try:
+            # Run cqlsh --mode json and SOURCE the file
+            source_cmd = "SOURCE '%s';\n" % source_file
+            output, result = cqlsh_testcall(args=('--mode', 'json'), prompt=None,
+                                            env=self.default_env, tty=False,
+                                            input=source_cmd)
+            self.assertEqual(0, result)
+            try:
+                rows = json.loads(output)
+                self.assertIsInstance(rows, list,
+                                      msg='SOURCE with --mode json must produce a JSON array')
+                self.assertEqual(len(rows), 2)
+                results = {(item['a'], item['b']) for item in rows}
+                self.assertIn(('1', '1'), results)
+                self.assertIn(('2', '2'), results)
+            except ValueError as e:
+                self.fail("SOURCE output is not valid JSON (mode not inherited): %s\nOutput: %r"
+                          % (e, output))
+
+            # Also verify CSV mode is inherited
+            output_csv, result_csv = cqlsh_testcall(args=('--mode', 'csv'), prompt=None,
+                                                    env=self.default_env, tty=False,
+                                                    input=source_cmd)
+            self.assertEqual(0, result_csv)
+            import csv, io
+            reader = csv.reader(io.StringIO(output_csv.strip()))
+            csv_rows = list(reader)
+            self.assertGreater(len(csv_rows), 1, msg='SOURCE with --mode csv must produce CSV rows')
+            self.assertIn('a', csv_rows[0], msg='First CSV row must be a header')
+        finally:
+            os.unlink(source_file)
+
+    def test_csv_null_handling(self):
+        """CSV output should use empty string for nulls, not literal 'null'."""
+        ks = get_keyspace()
+        # Insert a row with null and a row with string 'null'
+        setup = (
+            "INSERT INTO %s.has_all_types (num, textcol) VALUES (9990, null);"
+            "INSERT INTO %s.has_all_types (num, textcol) VALUES (9991, 'null');" % (ks, ks)
+        )
+        cqlsh_testcall(args=('--mode', 'csv'), prompt=None, env=self.default_env,
+                       tty=False, input=setup + '\n')
+        try:
+            query = "SELECT num, textcol FROM %s.has_all_types WHERE num IN (9990, 9991);" % ks
+            output, result = cqlsh_testcall(args=('--mode', 'csv'), prompt=None,
+                                            env=self.default_env, tty=False, input=query + '\n')
+            self.assertEqual(0, result)
+            import csv, io
+            reader = csv.reader(io.StringIO(output.strip()))
+            rows = list(reader)
+            self.assertEqual(rows[0], ['num', 'textcol'])
+
+            # Find the rows
+            data_rows = {int(r[0]): r[1] for r in rows[1:] if r[0] in ('9990', '9991')}
+
+            # Row with null should have empty string
+            self.assertEqual(data_rows[9990], '',
+                             msg='CSV null should be empty string, not literal "null"')
+            # Row with string 'null' should have 'null'
+            self.assertEqual(data_rows[9991], 'null',
+                             msg='CSV string "null" should remain as "null"')
+        finally:
+            cleanup = "DELETE FROM %s.has_all_types WHERE num IN (9990, 9991);" % ks
+            cqlsh_testcall(args=('--mode', 'csv'), prompt=None, env=self.default_env,
+                           tty=False, input=cleanup + '\n')
+
+    def test_json_float_precision(self):
+        """JSON output should preserve full float precision, not truncate to display precision."""
+        ks = get_keyspace()
+        # Insert a double with high precision
+        setup = "INSERT INTO %s.has_all_types (num, doublecol) VALUES (9992, 3.141592653589793);" % ks
+        cqlsh_testcall(args=('--mode', 'json'), prompt=None, env=self.default_env,
+                       tty=False, input=setup + '\n')
+        try:
+            query = "SELECT num, doublecol FROM %s.has_all_types WHERE num = 9992;" % ks
+            output, result = cqlsh_testcall(args=('--mode', 'json'), prompt=None,
+                                            env=self.default_env, tty=False, input=query + '\n')
+            self.assertEqual(0, result)
+            import json
+            rows = json.loads(output.strip())
+            self.assertEqual(len(rows), 1)
+            double_val = rows[0]['doublecol']
+            # Should preserve more than 5 digits (default display precision)
+            self.assertIsInstance(double_val, float)
+            # Check that we have more precision than 5 significant figures
+            self.assertAlmostEqual(double_val, 3.141592653589793, places=10,
+                                   msg='JSON should preserve full float precision')
+        finally:
+            cleanup = "DELETE FROM %s.has_all_types WHERE num = 9992;" % ks
+            cqlsh_testcall(args=('--mode', 'json'), prompt=None, env=self.default_env,
+                           tty=False, input=cleanup + '\n')
+
+    def test_json_duplicate_columns(self):
+        """JSON output with duplicate column names silently keeps only the last value."""
+        ks = get_keyspace()
+        # Select the same column multiple times
+        query = "SELECT num, num FROM %s.has_all_types WHERE num = 0;" % ks
+        output, result = cqlsh_testcall(args=('--mode', 'json'), prompt=None,
+                                        env=self.default_env, tty=False, input=query + '\n')
+        self.assertEqual(0, result)
+        import json
+        rows = json.loads(output.strip())
+        self.assertGreater(len(rows), 0)
+        # Dict comprehension silently collapses duplicate keys
+        # This is a known limitation documented in the code
+        self.assertIn('num', rows[0])
+        # Only one 'num' key should exist in the dict
+        self.assertEqual(len([k for k in rows[0].keys() if k == 'num']), 1)
