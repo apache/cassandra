@@ -689,9 +689,8 @@ def recordCellTime(cell, cell_suffix, splits, timeout_hours, duration_ms, outcom
 def processResults(cell, cell_suffix, logfile, splits) {
   dir("build") {
     organiseTestResultFiles(cell, cell_suffix)
-    if (!cell.step.startsWith("microbench")) {
-      junit testResults: "test/**/TEST-*.xml,test/**/cqlshlib*.xml,test/**/nosetests*.xml"
-    }
+    // microbench too: .build/sh/jmh-junit-report.py writes a failed benchmark as a failed test
+    junit testResults: "test/**/TEST-*.xml,test/**/cqlshlib*.xml,test/**/nosetests*.xml"
     debugOomKiller()
     compressTestResultFiles()
     archiveArtifacts artifacts: "test/logs/**,test/**/TEST-*.xml.xz,test/**/cqlshlib*.xml.xz,test/**/nosetests*.xml.xz,test/**/jmh-result.json", fingerprint: true
