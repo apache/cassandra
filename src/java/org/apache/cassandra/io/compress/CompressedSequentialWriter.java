@@ -41,6 +41,7 @@ import org.apache.cassandra.io.util.SequentialWriter;
 import org.apache.cassandra.io.util.SequentialWriterOption;
 import org.apache.cassandra.schema.CompressionParams;
 import org.apache.cassandra.utils.ByteBufferUtil;
+import org.apache.cassandra.utils.concurrent.Ref;
 import org.apache.cassandra.utils.memory.MemoryUtil;
 
 import static org.apache.cassandra.utils.Throwables.merge;
@@ -137,22 +138,28 @@ public class CompressedSequentialWriter extends SequentialWriter
         // Meanwhile, as long as dictionary-based compression is enabled, we want to collect samples.
         this.isDictionaryEnabled = compressionDictionaryManager != null && compressionDictionaryManager.isEnabled();
 
-        CompressionDictionary compressionDictionary = compressionDictionaryManager == null ? null : compressionDictionaryManager.getCurrent();
-        if (compressionDictionary != null && compressor instanceof IDictionaryCompressor)
+        // Without a dictionary compressor, likely on the sstable flushing path where LZ4 or something else is picked,
+        // we disable the compression dictionary, i.e. do not attach the dictionary bytes to the CompressionInfo
+        // component. The current dictionary is referenced as it is looked up, otherwise it could be released before.
+        Ref<? extends CompressionDictionary> compressionDictionaryRef = compressionDictionaryManager != null && compressor instanceof IDictionaryCompressor
+                                                                        ? compressionDictionaryManager.refCurrent()
+                                                                        : null;
+        try
         {
-            compressor = ((IDictionaryCompressor) compressor).getOrCopyWithDictionary(compressionDictionary);
+            if (compressionDictionaryRef != null)
+                compressor = ((IDictionaryCompressor) compressor).getOrCopyWithDictionary(compressionDictionaryRef.get());
+            this.compressor = compressor;
+            this.compressionDictionaryManager = compressionDictionaryManager;
+            /* Index File (-CompressionInfo.db component) and it's header */
+            metadataWriter = CompressionMetadata.Writer.open(parameters, offsetsFile, compressionDictionaryRef);
         }
-        else
+        catch (Throwable t)
         {
-            // It is likely on the sstable flushing path and LZ4 compressor or something else is picked.
-            // In this case, we disable the compression dictionary, i.e. do not attach the dictionary
-            // bytes to the CompressionInfo component.
-            compressionDictionary = null;
+            // not taken over by the metadata writer
+            if (compressionDictionaryRef != null)
+                compressionDictionaryRef.release();
+            throw t;
         }
-        this.compressor = compressor;
-        this.compressionDictionaryManager = compressionDictionaryManager;
-        /* Index File (-CompressionInfo.db component) and it's header */
-        metadataWriter = CompressionMetadata.Writer.open(parameters, offsetsFile, compressionDictionary);
 
         this.sstableMetadataCollector = sstableMetadataCollector;
         crcMetadata = createChecksumWriter();
