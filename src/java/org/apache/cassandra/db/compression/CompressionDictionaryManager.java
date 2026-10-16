@@ -43,6 +43,7 @@ import org.apache.cassandra.schema.SystemDistributedKeyspace;
 import org.apache.cassandra.utils.FBUtilities;
 import org.apache.cassandra.utils.MBeanWrapper;
 import org.apache.cassandra.utils.MBeanWrapper.OnException;
+import org.apache.cassandra.utils.concurrent.Ref;
 
 import static java.lang.String.format;
 import static org.apache.cassandra.schema.SystemDistributedKeyspace.retrieveLightweightLatestCompressionDictionary;
@@ -141,6 +142,13 @@ public class CompressionDictionaryManager implements CompressionDictionaryManage
         return cache.getCurrent();
     }
 
+    @Nullable
+    @Override
+    public Ref<? extends CompressionDictionary> refCurrent()
+    {
+        return cache.refCurrent();
+    }
+
     @Override
     public CompressionDictionary get(CompressionDictionary.DictId dictId)
     {
@@ -151,6 +159,12 @@ public class CompressionDictionaryManager implements CompressionDictionaryManage
     public CompressionDictionary add(@Nullable CompressionDictionary compressionDictionary)
     {
         return cache.add(compressionDictionary);
+    }
+
+    @Override
+    public Ref<? extends CompressionDictionary> refForReading(CompressionDictionary compressionDictionary)
+    {
+        return cache.refForReading(compressionDictionary);
     }
 
     @Override

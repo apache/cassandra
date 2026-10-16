@@ -342,12 +342,13 @@ public class ZstdCompressionDictionaryTest
         ByteArrayInputStream bais = new ByteArrayInputStream(serializedData);
         DataInputStream dis = new DataInputStream(bais);
 
-        CompressionDictionary deserializedDict = CompressionDictionary.deserialize(dis, null);
+        Ref<? extends CompressionDictionary> ref = CompressionDictionary.deserialize(dis, null);
 
-        assertThat(deserializedDict)
+        assertThat(ref)
         .as("Deserialized dictionary should not be null")
         .isNotNull();
 
+        CompressionDictionary deserializedDict = ref.get();
         assertThat(deserializedDict.dictId())
         .as("Deserialized dictionary ID should match")
         .isEqualTo(dictionary.dictId());
@@ -359,6 +360,7 @@ public class ZstdCompressionDictionaryTest
         assertThat(deserializedDict.rawDictionary())
         .as("Deserialized dictionary data should match")
         .isEqualTo(dictionary.rawDictionary());
+        ref.release();
     }
 
     @Test
@@ -375,17 +377,19 @@ public class ZstdCompressionDictionaryTest
         // First deserialization should create and cache the dictionary
         ByteArrayInputStream bais1 = new ByteArrayInputStream(serializedData);
         DataInputStream dis1 = new DataInputStream(bais1);
-        CompressionDictionary dict1 = CompressionDictionary.deserialize(dis1, null);
+        Ref<? extends CompressionDictionary> dict1 = CompressionDictionary.deserialize(dis1, null);
 
         // Second deserialization should return cached instance
         ByteArrayInputStream bais2 = new ByteArrayInputStream(serializedData);
         DataInputStream dis2 = new DataInputStream(bais2);
-        CompressionDictionary dict2 = CompressionDictionary.deserialize(dis2, null);
+        Ref<? extends CompressionDictionary> dict2 = CompressionDictionary.deserialize(dis2, null);
 
-        assertThat(dict1)
+        assertThat(dict1.get())
         .as("Both deserializations should return identical dictionary")
         .isNotNull()
-        .isEqualTo(dict2);
+        .isEqualTo(dict2.get());
+        dict1.release();
+        dict2.release();
     }
 
     @Test
