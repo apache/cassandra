@@ -27,11 +27,18 @@ import org.slf4j.LoggerFactory;
 import io.netty.channel.ChannelHandlerContext;
 import io.netty.channel.ChannelInboundHandlerAdapter;
 
+/**
+ * Closes native transport connections that do not complete authentication within the configured timeout.
+ * <p>
+ * The timeout starts when the channel becomes active and is cancelled when authentication completes
+ * or the channel is closed.
+ */
 final class AuthenticationTimeoutHandler extends ChannelInboundHandlerAdapter
 {
     private static final Logger logger = LoggerFactory.getLogger(AuthenticationTimeoutHandler.class);
 
     private final long timeoutMillis;
+    // Ensures timeout expiry and authentication completion can only win once.
     private final AtomicBoolean finished = new AtomicBoolean();
     private ScheduledFuture<?> timeoutFuture;
 
@@ -49,10 +56,9 @@ final class AuthenticationTimeoutHandler extends ChannelInboundHandlerAdapter
                 logger.warn("Closing unauthenticated client connection {} because it did not complete "
                             + "authentication within {}ms (native_transport_auth_timeout)",
                         ctx.channel().remoteAddress(), timeoutMillis);
-            ctx.close();
+                ctx.close();
             }
         }, timeoutMillis, TimeUnit.MILLISECONDS);
-
         super.channelActive(ctx);
     }
 

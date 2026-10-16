@@ -60,7 +60,9 @@ public class ServerConnection extends Connection
         return clientState;
     }
 
-    /** Must only be called on this connection's Netty event loop (single writer). */
+    /**
+     * Must only be called on this connection's Netty event loop (single writer).
+     */
     void incrementRequests()
     {
         requestsUpdater.lazySet(this, requests + 1);
@@ -103,18 +105,10 @@ public class ServerConnection extends Connection
     private void authenticationComplete()
     {
         AuthenticationTimeoutHandler handler = channel().pipeline().get(AuthenticationTimeoutHandler.class);
-        if (handler != null)
-            handler.markAuthenticationComplete();
-        Runnable removeHandler = () -> {
-            AuthenticationTimeoutHandler current =
-            channel().pipeline().get(AuthenticationTimeoutHandler.class);
-            if (current != null)
-                channel().pipeline().remove(current);
-        };
-        if (channel().eventLoop().inEventLoop())
-            removeHandler.run();
-        else
-            channel().eventLoop().execute(removeHandler);
+        if (handler == null)
+            return;
+        handler.markAuthenticationComplete();
+        channel().pipeline().remove(handler);
     }
 
     void applyStateTransition(Message.Type requestType, Message.Type responseType)
