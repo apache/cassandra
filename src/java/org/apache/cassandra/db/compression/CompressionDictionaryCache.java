@@ -96,6 +96,15 @@ public class CompressionDictionaryCache implements ICompressionDictionaryCache
 
     @Nullable
     @Override
+    public Ref<? extends CompressionDictionary> refCurrent()
+    {
+        CompressionDictionary dictionary = getCurrent();
+        // released since it was looked up, i.e. evicted, it is not the current one anymore
+        return dictionary == null ? null : dictionary.tryRef();
+    }
+
+    @Nullable
+    @Override
     public CompressionDictionary get(DictId dictId)
     {
         return cache.getIfPresent(dictId);
@@ -126,6 +135,34 @@ public class CompressionDictionaryCache implements ICompressionDictionaryCache
         }
 
         return cached;
+    }
+
+    @Override
+    public Ref<? extends CompressionDictionary> refForReading(CompressionDictionary compressionDictionary)
+    {
+        Ref<? extends CompressionDictionary> ref = add(compressionDictionary).tryRef();
+        if (ref != null)
+            return ref;
+
+        // the cached instance was released before it could be referenced, e.g. evicted right after it was cached or
+        // looked up; a fresh instance is not cached, its self-reference is the caller's
+        return unreferenced(compressionDictionary).initRefLazily();
+    }
+
+    /**
+     * @return the dictionary when it has no self-reference yet, otherwise a fresh instance of it. An instance with
+     *         a self-reference was referenced before, e.g. cached and then evicted, which released the self-reference;
+     *         taking that self-reference over, e.g. by caching the instance again, would release it twice.
+     */
+    private static CompressionDictionary unreferenced(CompressionDictionary dictionary)
+    {
+        if (dictionary.selfRef() == null)
+            return dictionary;
+
+        return dictionary.kind().createDictionary(dictionary.dictId(),
+                                                  dictionary.rawDictionary(),
+                                                  dictionary.checksum(),
+                                                  dictionary.createdAt());
     }
 
     @Override
