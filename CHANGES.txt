@@ -1,4 +1,5 @@
 4.1.13
+ * PreV5Handlers.toFlushItem may leak memory on disconnected channel (CASSANDRA-21766)
 Merged from 4.0:
  * Fix incorrect fsync usage (CASSANDRA-21673)
  * Validate Digest.crc32 when zero-copy streaming SSTables (CASSANDRA-21694)
