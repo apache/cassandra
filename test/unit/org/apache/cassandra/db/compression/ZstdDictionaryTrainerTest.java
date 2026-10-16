@@ -424,6 +424,21 @@ public class ZstdDictionaryTrainerTest
     }
 
     @Test
+    public void testListenerFailureFailsTraining()
+    {
+        trainer.setDictionaryTrainedListener(dictionary -> {
+            assertThat(trainer.getTrainingState().getStatus()).isEqualTo(TrainingStatus.TRAINING);
+            throw new IllegalStateException("not stored");
+        });
+        trainer.start(testConfig);
+        addSampleData(testConfig.acceptableTotalSampleSize);
+
+        assertThatThrownBy(() -> trainer.trainDictionary(false)).isInstanceOf(IllegalStateException.class).hasMessage("not stored");
+        assertThat(trainer.getTrainingState().getStatus()).isEqualTo(TrainingStatus.FAILED);
+        assertThat(trainer.getTrainingState().getFailureMessage()).contains("not stored");
+    }
+
+    @Test
     public void testMonotonicDictionaryIds()
     {
         long now = Clock.Global.currentTimeMillis();
