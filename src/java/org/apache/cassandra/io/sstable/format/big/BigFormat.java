@@ -41,6 +41,7 @@ import org.apache.cassandra.db.lifecycle.LifecycleTransaction;
 import org.apache.cassandra.db.memtable.Flushing;
 import org.apache.cassandra.dht.IPartitioner;
 import org.apache.cassandra.io.sstable.Component;
+import org.apache.cassandra.io.sstable.CursorIndexWriter;
 import org.apache.cassandra.io.sstable.Descriptor;
 import org.apache.cassandra.io.sstable.GaugeProvider;
 import org.apache.cassandra.io.sstable.IScrubber;
@@ -232,6 +233,12 @@ public class BigFormat extends AbstractSSTableFormat<BigTableReader, BigTableWri
     public static boolean isSelected()
     {
         return is(DatabaseDescriptor.getSelectedSSTableFormat());
+    }
+
+    @Override
+    public CursorIndexWriter.Factory cursorIndexWriterFactory()
+    {
+        return (writer, header) -> ((BigTableWriter) writer).createCursorIndexWriter();
     }
 
     @Override
