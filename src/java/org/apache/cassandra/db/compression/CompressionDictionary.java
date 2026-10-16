@@ -59,7 +59,8 @@ import org.apache.cassandra.utils.concurrent.Ref;
  * <ul>
  *   <li><b>CompressionDictionaryManager</b>: Holds the primary reference ({@link #selfRef()}) for cached dictionaries</li>
  *   <li><b>CompressionMetadata.Writer</b>: Acquires a reference during SSTable write, held for the writer's lifetime</li>
- *   <li><b>CompressionMetadata</b>: Acquires a reference when created (via {@link #tryRef()}), held for the SSTable reader's lifetime.
+ *   <li><b>CompressionMetadata</b>: Holds a reference for the SSTable reader's lifetime, which
+ *       {@link #deserialize(DataInput, CompressionDictionaryManager)} takes when the SSTable is opened.
  *       All copies created via sharedCopy() share this single reference through WrappedSharedCloseable</li>
  *   <li><b>CassandraCompressedStreamReader</b>: Holds a reference while it decompresses the chunks of a streamed
  *       SSTable written with the dictionary, which the stream carries</li>
@@ -224,11 +225,12 @@ public interface CompressionDictionary
      *
      * @param input   file input stream
      * @param manager compression dictionary manager that caches the dictionaries
-     * @return compression dictionary; otherwise, null if there is no dictionary
+     * @return reference to the compression dictionary, which the caller owns and has to release; otherwise, null if
+     *         there is no dictionary
      * @throws IOException on any I/O exception when reading from the file
      */
     @Nullable
-    static CompressionDictionary deserialize(DataInput input, @Nullable CompressionDictionaryManager manager) throws IOException
+    static Ref<? extends CompressionDictionary> deserialize(DataInput input, @Nullable CompressionDictionaryManager manager) throws IOException
     {
         int kindOrdinal;
         try
@@ -245,23 +247,17 @@ public interface CompressionDictionary
 
         if (manager != null)
         {
-            CompressionDictionary dictionary = manager.get(dictId);
-            if (dictionary != null)
+            CompressionDictionary cached = manager.get(dictId);
+            if (cached != null)
             {
-                return dictionary;
+                Ref<? extends CompressionDictionary> ref = cached.tryRef();
+                if (ref != null)
+                    return ref;
+                // released since it was looked up, e.g. evicted, it is read and cached again
             }
         }
 
-        CompressionDictionary dictionary = read(dictId, input);
-
-        if (manager != null)
-        {
-            CompressionDictionary canonical = manager.add(dictionary);
-            if (canonical != null)
-                dictionary = canonical;
-        }
-
-        return dictionary;
+        return refForReading(read(dictId, input), manager);
     }
 
     /**
@@ -280,9 +276,8 @@ public interface CompressionDictionary
     /**
      * @param dictionary dictionary an sstable was written with, read from the sstable or from a stream
      * @param manager compression dictionary manager that caches the dictionaries
-     * @return reference to the cached instance of the dictionary, which is cached when it was not, or to the
-     *         dictionary itself without a manager; the caller owns the reference and has to release it
-     * @throws IllegalStateException if the cached instance was released before it could be referenced
+     * @return reference to the cached instance of the dictionary, which is cached for reading when it was not, or to
+     *         the dictionary itself without a manager; the caller owns the reference and has to release it
      */
     static Ref<? extends CompressionDictionary> refForReading(CompressionDictionary dictionary, @Nullable CompressionDictionaryManager manager)
     {
@@ -290,11 +285,7 @@ public interface CompressionDictionary
         if (manager == null)
             return dictionary.initRefLazily();
 
-        Ref<? extends CompressionDictionary> ref = manager.add(dictionary).tryRef();
-        if (ref == null)
-            throw new IllegalStateException("Failed to acquire reference to compression dictionary");
-
-        return ref;
+        return manager.refForReading(dictionary);
     }
 
     private static Kind kind(int ordinal) throws IOException
