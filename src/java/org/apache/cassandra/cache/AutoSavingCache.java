@@ -21,16 +21,17 @@ import java.io.FileNotFoundException;
 import java.io.IOException;
 import java.nio.file.NoSuchFileException;
 import java.util.ArrayDeque;
+import java.util.EnumMap;
 import java.util.Iterator;
 import java.util.LinkedHashMap;
-import java.util.Set;
+import java.util.Map;
 import java.util.UUID;
 import java.util.concurrent.ScheduledFuture;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.locks.ReentrantLock;
 
 import javax.annotation.concurrent.NotThreadSafe;
 
-import org.cliffc.high_scale_lib.NonBlockingHashSet;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -81,8 +82,16 @@ public class AutoSavingCache<K extends CacheKey, V> extends InstrumentingCache<K
 
     private static final Logger logger = LoggerFactory.getLogger(AutoSavingCache.class);
 
-    /** True if a cache flush is currently executing: only one may execute at a time. */
-    public static final Set<CacheService.CacheType> flushInProgress = new NonBlockingHashSet<CacheService.CacheType>();
+    private static final Map<CacheService.CacheType, ReentrantLock> SAVE_LOCKS =
+        new EnumMap<>(CacheService.CacheType.class);
+
+    static
+    {
+        for (CacheService.CacheType cacheType : CacheService.CacheType.values())
+        {
+            SAVE_LOCKS.put(cacheType, new ReentrantLock(true));
+        }
+    }
 
     protected volatile ScheduledFuture<?> saveTask;
     protected final CacheService.CacheType cacheType;
@@ -349,7 +358,35 @@ public class AutoSavingCache<K extends CacheKey, V> extends InstrumentingCache<K
             return info.forProgress(keysWritten, totalKeys, totalKeys);
         }
 
-        public void saveCache()
+        public SaveOperation tryStartSave()
+        {
+            boolean acquired;
+            try
+            {
+                acquired = SAVE_LOCKS.get(cacheType).tryLock(0, TimeUnit.NANOSECONDS);
+            }
+            catch (InterruptedException e)
+            {
+                Thread.currentThread().interrupt();
+                acquired = false;
+            }
+
+            if (!acquired)
+            {
+                logger.trace("Cache flushing was already in progress: skipping {}", getCompactionInfo());
+                return null;
+            }
+
+            return new SaveOperation(this);
+        }
+
+        public SaveOperation startSaveBlocking() throws InterruptedException
+        {
+            SAVE_LOCKS.get(cacheType).lockInterruptibly();
+            return new SaveOperation(this);
+        }
+
+        private void saveCacheInternal()
         {
             logger.trace("Deleting old {} files.", cacheType);
             deleteOldCacheFiles();
@@ -463,6 +500,43 @@ public class AutoSavingCache<K extends CacheKey, V> extends InstrumentingCache<K
         public boolean isGlobal()
         {
             return false;
+        }
+    }
+
+    public final class SaveOperation implements AutoCloseable
+    {
+        private final Writer writer;
+        private boolean saved;
+        private boolean closed;
+
+        private SaveOperation(Writer writer)
+        {
+            this.writer = writer;
+        }
+
+        public void saveCache()
+        {
+            if (closed)
+            {
+                throw new IllegalStateException("Cache save operation is closed");
+            }
+            if (saved)
+            {
+                throw new IllegalStateException("Cache save operation has already run");
+            }
+
+            saved = true;
+            writer.saveCacheInternal();
+        }
+
+        @Override
+        public void close()
+        {
+            if (!closed)
+            {
+                closed = true;
+                SAVE_LOCKS.get(cacheType).unlock();
+            }
         }
     }
 
