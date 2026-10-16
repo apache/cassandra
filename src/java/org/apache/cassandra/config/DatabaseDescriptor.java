@@ -135,6 +135,7 @@ import org.apache.cassandra.service.accord.AccordService;
 import org.apache.cassandra.service.accord.api.AccordWaitStrategies;
 import org.apache.cassandra.service.consensus.TransactionalMode;
 import org.apache.cassandra.service.paxos.Paxos;
+import org.apache.cassandra.service.storage.StorageProviderConfig;
 import org.apache.cassandra.tcm.RegistrationStatus;
 import org.apache.cassandra.utils.FBUtilities;
 import org.apache.cassandra.utils.MBeanWrapper;
@@ -5812,6 +5813,11 @@ public class DatabaseDescriptor
     public static AccordConfig getAccord()
     {
         return conf.accord;
+    }
+
+    public static StorageProviderConfig getStorageProviderConfig()
+    {
+        return conf.storageProviderConfig;
     }
 
     // TODO (expected): move all getAccordX into AccordConfig
