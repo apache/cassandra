@@ -58,11 +58,12 @@ import org.apache.cassandra.utils.FBUtilities;
 import io.netty.channel.Channel;
 import io.netty.channel.ChannelFuture;
 import io.netty.channel.EventLoopGroup;
-import io.netty.channel.epoll.EpollEventLoopGroup;
+import io.netty.channel.MultiThreadIoEventLoopGroup;
+import io.netty.channel.epoll.EpollIoHandler;
 import io.netty.channel.group.ChannelGroup;
 import io.netty.channel.group.ChannelMatcher;
 import io.netty.channel.group.DefaultChannelGroup;
-import io.netty.channel.nio.NioEventLoopGroup;
+import io.netty.channel.nio.NioIoHandler;
 import io.netty.util.concurrent.GlobalEventExecutor;
 import io.netty.util.internal.logging.InternalLoggerFactory;
 import io.netty.util.internal.logging.Slf4JLoggerFactory;
@@ -106,9 +107,9 @@ public class Server implements CassandraDaemon.Server
         else
         {
             if (useEpoll)
-                workerGroup = new EpollEventLoopGroup();
+                workerGroup = new MultiThreadIoEventLoopGroup(EpollIoHandler.newFactory());
             else
-                workerGroup = new NioEventLoopGroup();
+                workerGroup = new MultiThreadIoEventLoopGroup(NioIoHandler.newFactory());
         }
 
         dispatcher = new Dispatcher(DatabaseDescriptor.useNativeTransportLegacyFlusher());

@@ -35,9 +35,10 @@ import org.apache.cassandra.transport.Server;
 import org.apache.cassandra.utils.NativeLibrary;
 
 import io.netty.channel.EventLoopGroup;
+import io.netty.channel.MultiThreadIoEventLoopGroup;
 import io.netty.channel.epoll.Epoll;
-import io.netty.channel.epoll.EpollEventLoopGroup;
-import io.netty.channel.nio.NioEventLoopGroup;
+import io.netty.channel.epoll.EpollIoHandler;
+import io.netty.channel.nio.NioIoHandler;
 import io.netty.util.Version;
 
 import static org.apache.cassandra.config.CassandraRelevantProperties.NATIVE_EPOLL_ENABLED;
@@ -66,12 +67,12 @@ public class NativeTransportService
 
         if (useEpoll())
         {
-            workerGroup = new EpollEventLoopGroup();
+            workerGroup = new MultiThreadIoEventLoopGroup(EpollIoHandler.newFactory());
             logger.info("Netty using native Epoll event loop");
         }
         else
         {
-            workerGroup = new NioEventLoopGroup();
+            workerGroup = new MultiThreadIoEventLoopGroup(NioIoHandler.newFactory());
             logger.info("Netty using Java NIO event loop");
         }
 
