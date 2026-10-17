@@ -56,16 +56,25 @@ for _fixture in test/unit/org/apache/cassandra/service/StorageServiceServerTest.
 done
 
 # the stub ant. For every non-option argument <a> it replays ${STUB_LOG_DIR}/<a>.log
-# and takes its exit code from ${STUB_LOG_DIR}/<a>.rc, defaulting to 0.
+# and takes its exit code from ${STUB_LOG_DIR}/<a>.rc, defaulting to 0.  A
+# ${STUB_LOG_DIR}/<a>.result is copied to <build.test.output.dir>/jmh-result.json,
+# the file JMH writes.
 cat > "${STUB_DIR}/bin/ant" <<'STUB'
 #!/bin/sh
 echo "ant $*" >> "${STUB_INVOCATIONS}"
 printf '%s\n' "${ANT_OPTS}" > "${STUB_ANT_OPTS}"
 _rc=0
+_output_dir=
+for _a in "$@"; do
+  case "${_a}" in -Dbuild.test.output.dir=*) _output_dir="${_a#*=}" ;; esac
+done
 for _a in "$@"; do
   case "${_a}" in -*) continue ;; esac
   [ -f "${STUB_LOG_DIR}/${_a}.log" ] && cat "${STUB_LOG_DIR}/${_a}.log"
   [ -f "${STUB_LOG_DIR}/${_a}.rc" ] && _rc="$(cat "${STUB_LOG_DIR}/${_a}.rc")"
+  if [ -f "${STUB_LOG_DIR}/${_a}.result" ]; then
+    mkdir -p "${_output_dir}" && cp "${STUB_LOG_DIR}/${_a}.result" "${_output_dir}/jmh-result.json"
+  fi
 done
 exit "${_rc}"
 STUB
@@ -89,8 +98,9 @@ reset_stub() {
   : > "${STUB_INVOCATIONS}"
 }
 
-stub_log() { printf '%s\n' "$2" > "${STUB_LOG_DIR}/$1.log"; }
-stub_rc()  { printf '%s\n' "$2" > "${STUB_LOG_DIR}/$1.rc"; }
+stub_log()    { printf '%s\n' "$2" > "${STUB_LOG_DIR}/$1.log"; }
+stub_rc()     { printf '%s\n' "$2" > "${STUB_LOG_DIR}/$1.rc"; }
+stub_result() { printf '%s\n' "$2" > "${STUB_LOG_DIR}/$1.result"; }
 
 ################################
 #
@@ -224,7 +234,7 @@ expect_no_invocation "run-tests.sh -s runs no test after a failed setup target" 
 
 ################################
 #
-# Case: generate-test-report is skipped for targets with no JUnit xml
+# Cases: microbench, whose JUnit xml .build/sh/jmh-junit-report.py renders
 #
 ################################
 
@@ -233,7 +243,9 @@ run_case "${CASSANDRA_DIR}/.build/run-tests.sh" -s -a microbench -t AutoBoxingBe
 expect_rc "run-tests.sh -s exits 0 on a green microbench run" 0
 expect_out "run-tests.sh -s reports the microbench pass" "completed successfully"
 expect_no_invocation "run-tests.sh skips generate-test-report for microbench" "generate-test-report"
+expect_invocation "run-tests.sh runs every benchmark, past a failed one" "-Djmh.foe=false"
 
+# a run that broke: ant failing is a compile or setup failure, or JMH aborting
 reset_stub
 stub_rc microbench 1
 run_case "${CASSANDRA_DIR}/.build/run-tests.sh" -s -a microbench -t AutoBoxingBench
@@ -245,6 +257,49 @@ reset_stub
 stub_rc microbench 1
 run_case "${CASSANDRA_DIR}/.build/run-tests.sh" -a microbench -t AutoBoxingBench
 expect_rc "run-tests.sh exits 1 on a failing microbench run without -s" 1
+
+# one benchmark of the two failed: JMH prints a header per benchmark, and the json has the passed one
+jmh_header() {
+  printf '     [java] # JMH version: 1.37\n'
+  printf '     [java] # Benchmark mode: Throughput, ops/time\n'
+  printf '     [java] # Benchmark: org.apache.cassandra.test.microbench.AutoBoxingBench.%s\n' "$1"
+  printf '     [java] \n'
+}
+microbench_log="$(jmh_header booleanFromBooleanSupplier
+                  printf '     [java] Iteration   1: 1.0 ops/ms\n'
+                  jmh_header booleanFromPlainBoolean
+                  printf '     [java] Iteration   1: <failure>\n     [java] \n     [java] java.lang.IllegalStateException: boom\n'
+                  printf '     [java] # Run complete. Total time: 00:00:02\n')"
+microbench_result='[{"benchmark": "org.apache.cassandra.test.microbench.AutoBoxingBench.booleanFromBooleanSupplier", "mode": "thrpt", "params": {}}]'
+
+# a failed benchmark is a failed test: xml is written, and the run goes on to be judged by it
+reset_stub
+stub_log microbench "${microbench_log}"
+stub_result microbench "${microbench_result}"
+run_case "${CASSANDRA_DIR}/.build/run-tests.sh" -a microbench -t AutoBoxingBench
+expect_rc "run-tests.sh exits 0 on a failed benchmark, as on a failed test" 0
+expect_out "run-tests.sh names the failed microbench run" "failed microbench"
+xml="$(find "${DIST_DIR}/test/output/microbench" -name 'TEST-org.apache.cassandra.test.microbench.AutoBoxingBench.xml' 2>/dev/null | head -1)"
+if [ -n "${xml}" ] && grep -q 'failures="1"' "${xml}" && grep -q 'message="java.lang.IllegalStateException: boom"' "${xml}"; then
+  pass "run-tests.sh writes the failed benchmark into the JUnit xml"
+else
+  fail "run-tests.sh writes the failed benchmark into the JUnit xml: ${xml:-no xml}"
+fi
+
+reset_stub
+stub_log microbench "${microbench_log}"
+stub_result microbench "${microbench_result}"
+run_case "${CASSANDRA_DIR}/.build/run-tests.sh" -s -a microbench -t AutoBoxingBench
+expect_rc "run-tests.sh -s exits 1 on a failed benchmark" 1
+expect_out "run-tests.sh -s names the failed benchmark" "booleanFromPlainBoolean[thrpt]"
+expect_out "run-tests.sh -s counts the benchmarks" "Run: 2, Failed: 1"
+
+# benchmarks ran, but no json: the run did not complete, and has no report to judge
+reset_stub
+stub_log microbench "${microbench_log}"
+run_case "${CASSANDRA_DIR}/.build/run-tests.sh" -a microbench -t AutoBoxingBench
+expect_rc "run-tests.sh exits 2 on a microbench run with no json" 2
+expect_out "run-tests.sh says why there is no JUnit xml" "no JUnit xml written"
 
 ################################
 #

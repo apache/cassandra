@@ -354,12 +354,16 @@ _run_microbench() {
     local -r arch="$(uname -m)"
     local -r output_dir="${DIST_DIR}/test/output/${_target}/jdk${java_version}/${arch}/${_split_chunk//\//_}"
 
-    # microbench produces JMH json, not JUnit xml
+    # microbench produces JMH json, and jmh-junit-report.py renders the run as JUnit xml: a failed benchmark is a
+    # failed test.  -foe false runs the benchmarks after a failed one, and leaves ant's status to the run itself
     set +o errexit
-    ant $_target ${ANT_TEST_OPTS} -Dbuild.test.output.dir=${output_dir} -Dbenchmark.name="${benchmark_pattern}" -Dmaven.test.failure.ignore=true
-    local -r _ant_status=$?
+    ant $_target ${ANT_TEST_OPTS} -Dbuild.test.output.dir=${output_dir} -Dbenchmark.name="${benchmark_pattern}" -Djmh.foe=false -Dmaven.test.failure.ignore=true 2>&1 \
+      | "${CASSANDRA_DIR}/.build/sh/jmh-junit-report.py" --result "${output_dir}/jmh-result.json" --output-dir "${output_dir}" --tag "_jdk${java_version}_${arch}"
+    local -r _statuses=("${PIPESTATUS[@]}")
     set -o errexit
-    if [[ ${_ant_status} -ne 0 ]]; then
+    local -r _ant_status=${_statuses[0]}
+    local -r _report_status=${_statuses[1]}
+    if [[ ${_ant_status} -ne 0 ]] || [[ ${_report_status} -ne 0 ]]; then
       echo "failed ${_target} ${_split_chunk}"
     else
       echo "${_target} completed successfully"
@@ -382,8 +386,11 @@ with open('${jmh_result}','w') as f:
 "
     fi
 
-    # fail the run, as microbench has no JUnit xml for generate-test-report to judge
-    return ${_ant_status}
+    # failed benchmarks are judged from the JUnit xml, as failed tests are.  A run with no xml fails here: ant failing
+    # is a compile or setup failure, or JMH aborting, and the report's 2 is a run that did not complete
+    [[ ${_ant_status} -eq 0 ]] || return ${_ant_status}
+    [[ ${_report_status} -le 1 ]] || return ${_report_status}
+    return 0
 }
 
 _main() {
@@ -532,7 +539,7 @@ _main() {
 
   # merge all unit xml files into one, and print summary test numbers
   case ${target} in
-    # Skip targets that produce no JUnit xml
+    # Skip targets that produce no JUnit xml, and microbench, whose xml jmh-junit-report.py has summarised
     "microbench" | "microbench-test" | "build_dtest_jars")
       ;;
     *)
