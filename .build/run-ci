@@ -41,16 +41,19 @@ import os
 import re
 import shutil
 import socket
+import stat
 import subprocess
 import sys
 import tarfile
+import tempfile
 import threading
 import time
+import warnings
 from contextlib import contextmanager
 from enum import Enum
 from pathlib import Path
 from urllib.error import HTTPError
-from urllib.request import urlretrieve
+from urllib.parse import quote, unquote, urlsplit, urlunsplit
 from typing import Optional, Tuple
 
 # External Libraries (`pip install -r .build/run-ci.d/requirements.txt`)
@@ -75,6 +78,8 @@ def base_job_name(args) -> str:
     Separate jobs are required because Jenkinsfiles are baked into the job configuration.
     ref: .jenkins/k8s/jenkins-deployment.yaml JCasC.configScripts.test-job
     """
+    if getattr(args, "job", None):
+        return args.job
     if not hasattr(base_job_name, "_cached_result"):
         raw_url = args.repository.replace("https://github.com/", "https://raw.githubusercontent.com/").removesuffix(".git") + f"/{args.branch}/build.xml"
         if 200 != requests.head(raw_url, timeout=30).status_code:
@@ -155,6 +160,7 @@ DEFAULT_CONTAINER_NAME = "jenkins"
 JENKINS_API_ERRORS = (jenkins.JenkinsException, requests.exceptions.ConnectionError)
 # number of consecutive failed polls before the script warns the user
 POLL_FAILURES_BEFORE_WARNING = 10
+SPLIT_PROGRESS_POLL_SECONDS = 15
 # errors urlretrieve raises, including HTTPError (a subclass of OSError) on a missing artifact
 DOWNLOAD_URL_ERRORS = (requests.exceptions.RequestException, IOError)
 LOCAL_RESULTS_BASEDIR = CASSANDRA_DIR / "build/ci/"
@@ -181,21 +187,120 @@ def load_environment_file():
         print("Warning: .build/run-ci.env file not found, or dotenv module not installed.")
 
 def setup_environment(kubeconfig, kubecontext) -> client.CoreV1Api:
-    """Ensures necessary tools are installed and sets up Kubernetes configuration."""
+    """Sets up the Kubernetes API client; CLI tools are checked only when invoked."""
     # Check Python version
     required_version = (3, 7)
     if sys.version_info < required_version:
         raise EnvironmentError(f"Python {required_version[0]}.{required_version[1]} or higher is required. "
                                f"Current version is {sys.version_info.major}.{sys.version_info.minor}.")
-    # check command line dependencies
-    dependencies = ["helm", "kubectl"]
-    for cmd in dependencies:
-        if not shutil.which(cmd):
-            raise EnvironmentError(f"{cmd} must be installed and available in the PATH.")
-
     # Initialize Kubernetes client and API instance
     config.load_kube_config(config_file=kubeconfig if kubeconfig else None, context=kubecontext or None)
     return client.CoreV1Api()
+
+def require_command(command):
+    if not shutil.which(command):
+        raise EnvironmentError(f"{command} must be installed and available in the PATH for this operation.")
+
+
+def normalize_jenkins_url(value):
+    """Keep scheme and context path, and exclude credentials from URLs and log messages."""
+    parts = urlsplit(value if "://" in value else "http://" + value)
+    if parts.scheme not in ("http", "https") or not parts.hostname:
+        raise ValueError("Use a Jenkins HTTP(S) URL with a hostname.")
+    if parts.username is not None or parts.password is not None or parts.query or parts.fragment:
+        raise ValueError("Use a Jenkins URL without embedded credentials, query or fragment.")
+    # Accessing port also validates malformed port numbers.
+    port = parts.port
+    if port == 0:
+        raise ValueError("Jenkins URL port must be greater than zero.")
+    host = f"[{parts.hostname}]" if ":" in parts.hostname else parts.hostname
+    if port and (parts.scheme, port) not in (("http", 80), ("https", 443)):
+        host += f":{port}"
+    return urlunsplit((parts.scheme, host, parts.path.rstrip("/"), "", ""))
+
+
+def default_credentials_file():
+    directory = Path(os.environ.get("XDG_CONFIG_HOME") or Path.home() / ".config")
+    if not directory.is_absolute():
+        directory = Path.home() / ".config"
+    return directory / "cassandra" / "run-ci-credentials.json"
+
+
+def read_credentials_file(path):
+    """Read an owner-only regular file without following a final symlink."""
+    path = Path(path).expanduser()
+    try:
+        descriptor = os.open(path, os.O_RDONLY | os.O_NOFOLLOW | os.O_NONBLOCK)
+    except FileNotFoundError:
+        return {}
+    with os.fdopen(descriptor, encoding="utf-8") as handle:
+        info = os.fstat(handle.fileno())
+        if (not stat.S_ISREG(info.st_mode) or info.st_uid != os.getuid()
+                or info.st_nlink != 1 or stat.S_IMODE(info.st_mode) & 0o077):
+            raise ValueError("Credentials must be an owned regular file with permissions 0600 and no links.")
+        try:
+            entries = json.load(handle)
+        except (ValueError, UnicodeError) as error:
+            raise ValueError("Invalid credentials file JSON.") from error
+    if not isinstance(entries, dict) or any(
+            not isinstance(url, str) or not isinstance(entry, dict)
+            or not isinstance(entry.get("user"), str) or not entry["user"]
+            or not isinstance(entry.get("token"), str) or not entry["token"]
+            for url, entry in entries.items()):
+        raise ValueError("Invalid credentials file entries; expected URL, user and token.")
+    return entries
+
+
+def load_credentials(path, url):
+    return read_credentials_file(path).get(normalize_jenkins_url(url))
+
+
+def save_credentials(path, url, user, token):
+    """Replace the file atomically; temporary and final files are accessible only to their owner."""
+    path = Path(path).expanduser()
+    path.parent.mkdir(mode=0o700, parents=True, exist_ok=True)
+    parent = path.parent.lstat()
+    if not stat.S_ISDIR(parent.st_mode) or parent.st_uid != os.getuid() or parent.st_mode & 0o022:
+        raise ValueError("Credentials directory must be owned by you and not writable by other users.")
+    entries = read_credentials_file(path)
+    entries[normalize_jenkins_url(url)] = {"user": user, "token": token}
+    descriptor, temporary = tempfile.mkstemp(prefix=".run-ci-credentials-", dir=path.parent)
+    try:
+        with os.fdopen(descriptor, "w", encoding="utf-8") as handle:
+            os.fchmod(handle.fileno(), 0o600)
+            json.dump(entries, handle, indent=2)
+            handle.write("\n")
+            handle.flush()
+            os.fsync(handle.fileno())
+        os.replace(temporary, path)
+    finally:
+        if os.path.exists(temporary):
+            os.unlink(temporary)
+
+
+def parse_attach(args, parser):
+    if not args.attach:
+        return
+    if any((args.setup, args.only_setup, args.tear_down, args.only_tear_down,
+            args.only_node_cleaner, args.download_results)):
+        parser.error("--attach cannot be combined with setup, teardown, node cleaner or --download-results.")
+    if args.attach.isdecimal():
+        if int(args.attach) < 1:
+            parser.error("--attach requires a positive build number.")
+        args.attach = int(args.attach)
+        return
+    url = urlsplit(normalize_jenkins_url(args.attach))
+    match = re.fullmatch(r"(.*?)((?:/job/[^/]+)+)/([1-9][0-9]*)", url.path)
+    if not match:
+        parser.error("--attach needs a build URL ending in /job/JOB/NUMBER/ or a positive build number.")
+    base = urlunsplit((url.scheme, url.netloc, match[1], "", ""))
+    job = "/".join(unquote(name) for name in match[2].split("/job/")[1:])
+    if args.url and normalize_jenkins_url(args.url) != base:
+        parser.error("--url and --attach name different Jenkins servers.")
+    if args.job and args.job != job:
+        parser.error("--job and --attach name different jobs.")
+    args.url, args.job, args.attach = base, job, int(match[3])
+
 
 def argument_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(description="Run CI pipeline for Cassandra on K8s using Jenkins.")
@@ -203,6 +308,13 @@ def argument_parser() -> argparse.ArgumentParser:
     parser.add_argument("-x", "--kubecontext", help="Use a different Kubernetes context.")
     parser.add_argument("-i", "--url", help="Jenkins url. Suitable when kubectl access in not available. Can also be specified via the JENKINS_URL environment variable (and in .build/.run-ci.env)")
     parser.add_argument("-u", "--user", help="Jenkins user. Can also be specified via the JENKINS_USER environment variable (and in .build/.run-ci.env)")
+    parser.add_argument("--credentials-file", type=Path, default=default_credentials_file(),
+                        help="Credentials file (default: $XDG_CONFIG_HOME/cassandra/run-ci-credentials.json or ~/.config/cassandra/run-ci-credentials.json).")
+    parser.add_argument("--save-credentials", action="store_true",
+                        help="Save or replace credentials after authentication succeeds. Prompts for an API token or password without echoing it.")
+    parser.add_argument("--attach", metavar="BUILD",
+                        help="Reconnect to a build number or URL. Infer the job from the repository and branch, as for a new build. Wait for completion and download results.")
+    parser.add_argument("--job", help="Override the inferred Jenkins job name, including folders.")
     parser.add_argument("-r", "--repository", default=DEFAULT_REPO_URL, help="Repository URL. Defaults to current tracking remote.")
     parser.add_argument("-b", "--branch", default=DEFAULT_REPO_BRANCH, help="Repository branch. Defaults to current branch.")
     parser.add_argument("-p", "--profile", choices=['packaging','skinny','pre-commit','pre-commit w/ upgrades','post-commit','custom'], default=DEFAULT_PROFILE, help="CI pipeline profile. Defaults to skinny.")
@@ -224,12 +336,24 @@ def parse_arguments() -> argparse.Namespace:
     Parses command-line arguments and sets environment variables based on inputs.
     If you update this please also update `.build/run-ci.d/README.md`
     """
-    args = argument_parser().parse_args()
+    parser = argument_parser()
+    args = parser.parse_args()
+    try:
+        parse_attach(args, parser)
+        if not args.url:
+            args.url = os.environ.get("JENKINS_URL")
+        if args.url:
+            args.url = normalize_jenkins_url(args.url)
+    except ValueError as error:
+        parser.error(str(error))
+    if args.job and any(part in ("", ".", "..") for part in args.job.split("/")):
+        parser.error("--job must contain nonempty job names, separated by / for folders.")
 
     # -r defaults to the branch's tracking remote, which is absent when the branch tracks nothing.  Only the
     # flows that build, or that name artefacts after a build, need it: installing and tearing down do not,
     # so an untracked branch can still deploy the cluster.
-    if not args.repository and not (args.only_setup or args.only_tear_down or args.only_node_cleaner):
+    if not args.repository and not (args.only_setup or args.only_tear_down or args.only_node_cleaner
+                                    or (args.attach and args.job)):
         require_tracking_remote(args.branch)
 
     assert not args.repository or (args.repository.startswith("https://github.com/")
@@ -243,14 +367,11 @@ def parse_arguments() -> argparse.Namespace:
     assert not (args.values_override and not (args.setup or args.only_setup)), "--values-override requires --setup or --only-setup."
     assert not (args.values_override and not Path(args.values_override).is_file()), f"No such values override file: {args.values_override}"
 
-    if not args.url and os.environ.get("JENKINS_URL"):
-        args.url = os.environ.get("JENKINS_URL")
     if not args.user and os.environ.get("JENKINS_USER"):
         args.user = os.environ.get("JENKINS_USER")
 
     assert not (args.url and (args.kubeconfig or args.kubecontext or args.setup or args.only_setup or args.tear_down or args.only_tear_down or args.only_node_cleaner)),\
         "Cannot specify both --url and any of --kubeconfig/--kubecontext/--setup/--only-setup/--tear-down/--only-tear-down/--only-node-cleaner. Setting the jenkins url implies no kubectl actions."
-    assert not (args.url and not args.user), "When specifying --url, --user is required."
 
     return args
 
@@ -274,6 +395,7 @@ def run_kubectl_command(kubeconfig: Optional[str], kubecontext: Optional[str], k
     Runs a kubectl command with the specified kubeconfig and context.
     Used when functionality is not available in k8s_client.
     """
+    require_command("kubectl")
     cmd = ["kubectl"]
     if kubeconfig:
         cmd += ["--kubeconfig", kubeconfig]
@@ -286,6 +408,7 @@ def run_kubectl_command(kubeconfig: Optional[str], kubecontext: Optional[str], k
 def run_helm_command(kubeconfig: Optional[str], kubecontext: Optional[str], kube_ns: str, command: list,
                      capture_output: bool = True, check: bool = True) -> subprocess.CompletedProcess:
     """Runs a helm command with the specified kubeconfig, context and namespace."""
+    require_command("helm")
     cmd = ["helm"]
     if kubeconfig:
         cmd += ["--kubeconfig", kubeconfig]
@@ -563,7 +686,7 @@ def install_jenkins(kubeconfig: Optional[str], kubecontext: Optional[str], kube_
 
     print("Adding Helm repository for Jenkins Operator...")
     subprocess.run(["helm", "repo", "add", "jenkins", "https://charts.jenkins.io"], check=True)
-    subprocess.run(["helm", "repo", "update"], check=True)
+    subprocess.run(["helm", "repo", "update", "jenkins"], check=True)
 
     # site customisations are applied last, helm merges each -f over the previous
     values_files = ["-f", DEPLOY_YAML] + (["-f", values_override] if values_override else [])
@@ -572,20 +695,24 @@ def install_jenkins(kubeconfig: Optional[str], kubecontext: Optional[str], kube_
     # succeeding.  Keep it clear of that budget plus the readinessProbe's, see jenkins-deployment.yaml
     result = run_helm_command(kubeconfig, kubecontext, kube_ns,
                               ["upgrade", "--install"] + values_files
-                              + ["cassius", "jenkins/jenkins", "--wait", "--timeout", "10m"])
+                              + ["cassius", "jenkins/jenkins", "--wait", "--timeout", "10m"], check=False)
+    if result.stdout:
+        print(result.stdout, end="")
+    if result.stderr:
+        print(result.stderr, end="", file=sys.stderr)
+    if result.returncode != 0:
+        print("Failed to install Jenkins using Helm.", file=sys.stderr)
+        sys.exit(result.returncode)
 
     run_kubectl_command(kubeconfig, kubecontext, kube_ns,
                         ["exec", DEFAULT_POD_NAME, "--",
                         "curl", "-sS", "https://www.apache.org/logos/originals/cassandra-4.svg",
                         "-o", "/var/jenkins_cache/war/images/svgs/logo.svg"])
 
-    if result.returncode != 0:
-        print("Failed to install Jenkins Operator using Helm. Check the configuration and/or `kubectl logs cassius-jenkins-0`.")
-        sys.exit(1)
-
 
 def wait_for_jenkins_http(ip: str):
-    host, port = (ip.rsplit(":", 1)[0], int(ip.rsplit(":", 1)[1])) if ":" in ip else (ip, 80)
+    endpoint = urlsplit(normalize_jenkins_url(ip))
+    host, port = endpoint.hostname, endpoint.port or (443 if endpoint.scheme == "https" else 80)
     spin_while(f"Waiting for Jenkins HTTP at {host}:{port}… ", lambda: _tcp_connect_ok(host, port))
 
 
@@ -597,34 +724,87 @@ def _tcp_connect_ok(host: str, port: int) -> bool:
         return False
 
 
+def jenkins_service_url(service) -> str:
+    """Prefer the Service's public DNS name, retaining its load-balancer address as a fallback."""
+    annotations = (service.metadata.annotations or {}) if service.metadata else {}
+    hostname = None
+    label = r"[a-zA-Z0-9](?:[a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?"
+    for key in ("external-dns.kubernetes.io/hostname", "external-dns.alpha.kubernetes.io/hostname"):
+        for candidate in annotations.get(key, "").split(","):
+            candidate = candidate.strip().removesuffix(".")
+            if len(candidate) <= 253 and re.fullmatch(rf"{label}(?:\.{label})*", candidate):
+                hostname = candidate
+                break
+        if hostname:
+            break
+
+    address = hostname
+    if not address:
+        balancer = service.status.load_balancer if service.status else None
+        for ingress in (balancer.ingress or []) if balancer else []:
+            address = ingress.ip or ingress.hostname
+            if address:
+                break
+    if not address:
+        raise ValueError("Unable to retrieve Jenkins Service hostname or load-balancer address")
+
+    ports = [port for port in service.spec.ports or [] if port.protocol in (None, "TCP")]
+    if not ports:
+        raise ValueError("Unable to retrieve Jenkins Service TCP port")
+    ssl_cert = annotations.get("service.beta.kubernetes.io/aws-load-balancer-ssl-cert")
+    ssl_ports_value = annotations.get("service.beta.kubernetes.io/aws-load-balancer-ssl-ports")
+    ssl_ports = {port.strip() for port in ssl_ports_value.split(",")} if ssl_ports_value is not None else None
+
+    def is_tls(port):
+        return (port.name == "https" or port.port == 443
+                or bool(ssl_cert and (ssl_ports is None or port.name in ssl_ports or str(port.port) in ssl_ports)))
+
+    secure = sorted((port for port in ports if is_tls(port)), key=lambda port: port.port != 443)
+    plain = sorted((port for port in ports if not is_tls(port)), key=lambda port: port.name != "http" and port.port != 80)
+    # The raw ELB name generally does not match the site's certificate; keep HTTP as its fallback.
+    port = (secure + plain if hostname else plain + secure)[0]
+    scheme = "https" if is_tls(port) else "http"
+    if ":" in address:
+        address = f"[{address}]"
+    return normalize_jenkins_url(f"{scheme}://{address}:{port.port}")
+
+
 def get_jenkins(k8s_client: client.CoreV1Api, args, kube_ns: str) -> Tuple[str, jenkins.Jenkins]:
-    """Authenticates to Jenkins and returns the Jenkins ip and server objects."""
-
-    def get_jenkins_ip(k8s_client, kube_ns: str) -> str:
-        svc = k8s_client.read_namespaced_service("cassius-jenkins", kube_ns)
-        if svc.status.load_balancer.ingress:
-            # the best we can do is the public IP or hostname of the controller, which may not be the common public url
-            ingress = svc.status.load_balancer.ingress[0]
-            ip = ingress.ip if ingress.ip else ingress.hostname
-            if svc.spec.ports[0].port != 80:
-                ip += ":" + str(svc.spec.ports[0].port)
-            print(f"Jenkins: {ip}\n---")
-            return ip
-        raise ValueError("Unable to retrieve Jenkins IP address")
-
-    def prompt_for_password():
-        return getpass.getpass("Enter Jenkins password: ")
-
-    kubeconfig = args.kubeconfig
-    kubecontext = args.kubecontext
-    user = args.user if args.user else "admin"
-    ip = args.url if args.url else get_jenkins_ip(k8s_client, kube_ns)
-
-    password = prompt_for_password() if args.user \
-        else run_kubectl_command(kubeconfig, kubecontext, kube_ns, ["exec", DEFAULT_POD_NAME, "--", "cat", "/run/secrets/additional/chart-admin-password"])
-    # Initialize Jenkins API clien
-    server = jenkins.Jenkins(f"http://{ip}", username=user, password=password)
-    return ip, server
+    """Authenticates to Jenkins and returns its base URL and API client."""
+    if args.url:
+        url = normalize_jenkins_url(args.url)
+    else:
+        url = jenkins_service_url(k8s_client.read_namespaced_service("cassius-jenkins", kube_ns))
+        print(f"Jenkins: {url}\n---")
+    credentials_file = getattr(args, "credentials_file", default_credentials_file())
+    saved = load_credentials(credentials_file, url)
+    user = args.user or (saved["user"] if saved else None)
+    saving = getattr(args, "save_credentials", False)
+    if saved and saved["user"] == user and not saving:
+        password = saved["token"]
+    elif args.url or args.user or saved:
+        if not user:
+            raise ValueError("Specify --user for this Jenkins URL; --save-credentials remembers it for later runs.")
+        with warnings.catch_warnings():
+            warnings.simplefilter("error", getpass.GetPassWarning)
+            try:
+                password = getpass.getpass("Enter Jenkins API token or password: ")
+            except getpass.GetPassWarning as error:
+                raise ValueError("Cannot read credentials without echo; use a terminal or saved credentials.") from error
+    else:
+        user = "admin"
+        password = run_kubectl_command(args.kubeconfig, args.kubecontext, kube_ns,
+                                      ["exec", DEFAULT_POD_NAME, "--", "cat", "/run/secrets/additional/chart-admin-password"])
+    if not password:
+        raise ValueError("Jenkins credentials cannot be empty.")
+    server = jenkins.Jenkins(url, username=user, password=password)
+    if saving:
+        if server.get_whoami().get("authenticated") is not True:
+            raise jenkins.JenkinsException("Jenkins did not authenticate these credentials; nothing was saved.")
+        save_credentials(credentials_file, url, user, password)
+        print(f"Saved Jenkins credentials to {credentials_file} (owner access only).")
+    args.user = user
+    return url, server
 
 
 def ensure_job_parameters_visible(server: jenkins.Jenkins, job_name: str):
@@ -711,6 +891,93 @@ def wait_for_build_number(server: jenkins.Jenkins, queue_item: int) -> int:
     return build_number
 
 
+def count_test_splits(tree):
+    """Count the outer parallel branches under Tests, including tasks with just one split."""
+    if not isinstance(tree, dict) or tree.get("status") != "ok":
+        raise ValueError("Invalid pipeline graph response")
+    stages = tree["data"]["stages"]
+    if not isinstance(stages, list):
+        raise ValueError("Invalid pipeline stages")
+    counts = dict.fromkeys(("total", "finished", "failed", "unstable", "aborted", "skipped",
+                            "running", "queued", "paused", "unknown"), 0)
+    terminal = {"success", "failure", "unstable", "aborted", "skipped", "not_built", "finished"}
+    pending = [(stage, False) for stage in stages]
+    seen = set()
+    while pending:
+        node, in_tests = pending.pop()
+        if not isinstance(node, dict) or not isinstance(node.get("id"), str):
+            raise ValueError("Invalid pipeline node")
+        if node["id"] in seen:
+            continue
+        seen.add(node["id"])
+        if node.get("nextSibling") is not None:
+            pending.append((node["nextSibling"], in_tests))
+        if node.get("placeholder"):
+            continue
+        in_tests = in_tests or (node.get("type") == "STAGE" and node.get("name") == "Tests")
+        if in_tests and node.get("type") == "PARALLEL":
+            counts["total"] += 1
+            status = node.get("state", "unknown")
+            if status in terminal:
+                counts["finished"] += 1
+                if status not in ("success", "finished"):
+                    counts[{"failure": "failed", "not_built": "skipped"}.get(status, status)] += 1
+            else:
+                counts[status if status in ("running", "queued", "paused") else "unknown"] += 1
+            # The branch encloses retries and setup. Their completion does not finish the split.
+            continue
+        children = node.get("children", [])
+        if not isinstance(children, list):
+            raise ValueError("Invalid pipeline children")
+        pending.extend((child, in_tests) for child in children)
+    return counts if counts["total"] else None
+
+
+def format_split_progress(counts):
+    if counts is None:
+        return "Splits: waiting for test branches"
+    text = f"Splits: {counts['finished']}/{counts['total']} finished"
+    outcomes = [f"{counts[key]} {key}" for key in ("failed", "unstable", "aborted", "skipped") if counts[key]]
+    if outcomes:
+        text += " (" + ", ".join(outcomes) + ")"
+    text += f" | {counts['running']} running | {counts['queued']} queued"
+    for key in ("paused", "unknown"):
+        if counts[key]:
+            text += f" | {counts[key]} {key}"
+    return text
+
+
+# One polling interface owns the refresh state.
+class SplitProgress:  # pylint: disable=too-few-public-methods
+    """Read optional graph data less often than the inexpensive build status poll."""
+    def __init__(self, server, job, number):
+        self.server = server
+        self.url = jenkins_build_url(server.server, job, number) if isinstance(server.server, str) else None
+        self.path = "stages/tree"
+        self.next_poll = 0
+        self.text = "Splits: unavailable"
+
+    def update(self, complete=False):
+        now = time.monotonic()
+        if self.url is None or (not complete and now < self.next_poll):
+            return
+        self.next_poll = now + SPLIT_PROGRESS_POLL_SECONDS
+        try:
+            try:
+                response = self.server.jenkins_open(requests.Request("GET", f"{self.url}/{self.path}"), add_crumb=False)
+            except jenkins.NotFoundException:
+                path = "pipeline-overview/tree" if self.path == "stages/tree" else "stages/tree"
+                response = self.server.jenkins_open(requests.Request("GET", f"{self.url}/{path}"), add_crumb=False)
+                self.path = path
+            counts = count_test_splits(json.loads(response))
+            self.text = "Splits: no test branches" if counts is None and complete else format_split_progress(counts)
+        except (jenkins.JenkinsException, requests.exceptions.RequestException, ValueError, TypeError, KeyError) as error:
+            self.text = "Splits: unavailable"
+            if isinstance(error, jenkins.NotFoundException):
+                self.next_poll = now + 60
+            debug(f"Split progress unavailable: {error}")
+
+
 def wait_for_build_complete(server: jenkins.Jenkins, job_name: str, build_number: int):
     """
     Waits for Jenkins build completion by monitoring the build status.
@@ -721,15 +988,19 @@ def wait_for_build_complete(server: jenkins.Jenkins, job_name: str, build_number
     """
     start_time = time.time()
     state = {"info": {}, "failures": 0, "latched": False}
+    progress = SplitProgress(server, job_name, build_number)
 
     def is_complete() -> bool:
         info = get_build_info(server, job_name, build_number)
         if not info:
+            progress.text = "Splits: unavailable (Jenkins connection lost)"
             warn_on_repeated_failures(state, f"{job_name} build {build_number}")
             return False
         state["failures"] = 0
         state["info"] = info
         result = info.get('result')
+        complete = info.get('building', True) is False and result is not None
+        progress.update(complete=complete)
         # default `building` to True: never read a missing field as finished
         if info.get('building', True):
             if result is not None and not state["latched"]:
@@ -740,26 +1011,29 @@ def wait_for_build_complete(server: jenkins.Jenkins, job_name: str, build_number
             return False
         return result is not None
 
-    elapsed_time = spin_while("Waiting for build to complete… ", is_complete)
+    elapsed_time = spin_while(lambda: progress.text, is_complete)
 
     minutes, seconds = divmod(elapsed_time, 60)
-    print(f"\r---\nBuild completed after {minutes:02}:{seconds:02} with status: {state['info'].get('result')}")
+    print(f"{progress.text}\n---\nBuild completed after {minutes:02}:{seconds:02} with status: {state['info'].get('result')}")
 
 
 def spin_while(message="", is_complete=lambda: False) -> int:
     spinner = itertools.cycle(['|', '/', '-', '\\'])
     start_time = time.time()
     elapsed_time = 0
-    while not is_complete():
-        elapsed_time = int(time.time() - start_time)
-        minutes, seconds = divmod(elapsed_time, 60)
-        for _ in range(10):
-            sys.stdout.write(f"\r{message} {minutes:02}:{seconds:02}   {next(spinner)}\033[?25l")
-            sys.stdout.flush()
-            time.sleep(0.3)
-    sys.stdout.write("\r" + " " * len(message + "          \033[?25h"))
-    sys.stdout.flush()
-    return elapsed_time
+    try:
+        while not is_complete():
+            for _ in range(10):
+                elapsed_time = int(time.time() - start_time)
+                minutes, seconds = divmod(elapsed_time, 60)
+                text = message() if callable(message) else message
+                sys.stdout.write(f"\r\033[K{text} | {minutes:02}:{seconds:02} {next(spinner)}\033[?25l")
+                sys.stdout.flush()
+                time.sleep(0.3)
+        return int(time.time() - start_time)
+    finally:
+        sys.stdout.write("\r\033[K\033[?25h")
+        sys.stdout.flush()
 
 def node_cleaner(k8s_client: client.CoreV1Api, kubeconfig: Optional[str], kubecontext: Optional[str], kube_ns: str):
     """
@@ -768,8 +1042,22 @@ def node_cleaner(k8s_client: client.CoreV1Api, kubeconfig: Optional[str], kubeco
 
     Env variables (per cloud provider): AWS_REGION, GCP_PROJECT_ID, GCP_ZONE
     """
+    stopped = threading.Event()
+    stop_lock = threading.Lock()
+
     def keep_running() -> bool:
-        return bool(globals().get("IS_RUNNING", True))
+        return not stopped.is_set() and bool(globals().get("IS_RUNNING", True))
+
+    def stop_on_error(error):
+        with stop_lock:
+            if stopped.is_set():
+                return
+            stopped.set()
+            detail = getattr(error, "stderr", None) or str(error)
+            print(f"\nNode cleaner stopped after a cluster access failure: {detail}\n"
+                  "Jenkins build monitoring is unaffected. Restore cluster access before restarting "
+                  "--only-node-cleaner; for AWS login credentials, run `aws login` with the same profile.",
+                  file=sys.stderr)
 
     def node_cleaner_debug(msg: str):
         if os.environ.get("NODE_CLEANER_DEBUG"):
@@ -792,29 +1080,32 @@ def node_cleaner(k8s_client: client.CoreV1Api, kubeconfig: Optional[str], kubeco
             k8s_client.patch_node(name=node_name, body={"spec": {"unschedulable": True}})
             node_cleaner_debug(f"Node {node_name} cordoned.")
         except client.exceptions.ApiException as e:
-            node_cleaner_debug(f"Failed to cordon node {node_name}: {e}")
+            stop_on_error(e)
 
     def drain_node(node_name: str):
         try:
             pods = k8s_client.list_pod_for_all_namespaces(field_selector=f"spec.nodeName={node_name}")
             for pod in pods.items:
+                if not keep_running():
+                    return
                 owner_refs = pod.metadata.owner_references or []
                 # Delete only non-DaemonSet pods
                 if not any(ref.kind == "DaemonSet" for ref in owner_refs):
                     try:
                         k8s_client.delete_namespaced_pod(name=pod.metadata.name, namespace=pod.metadata.namespace)
                     except client.exceptions.ApiException as e:
-                        node_cleaner_debug(f"Failed to delete pod {pod.metadata.name} on {node_name}: {e}")
+                        stop_on_error(e)
+                        return
             node_cleaner_debug(f"Node {node_name} drained (and all non-DaemonSet pods deleted).")
         except client.exceptions.ApiException as e:
-            node_cleaner_debug(f"Failed to drain node {node_name}: {e}")
+            stop_on_error(e)
 
     def delete_k8s_node(node_name: str):
         try:
             k8s_client.delete_node(node_name)
             node_cleaner_debug(f"Node {node_name} deleted from Kubernetes API.")
         except client.exceptions.ApiException as e:
-            node_cleaner_debug(f"Failed to delete node {node_name} from K8s API: {e}")
+            stop_on_error(e)
 
     def get_first_node_provider_id() -> Optional[str]:
         try:
@@ -825,7 +1116,8 @@ def node_cleaner(k8s_client: client.CoreV1Api, kubeconfig: Optional[str], kubeco
                 if n.spec and n.spec.provider_id:
                     return n.spec.provider_id
             return None
-        except client.exceptions.ApiException:
+        except client.exceptions.ApiException as e:
+            stop_on_error(e)
             return None
 
     def detect_cloud_provider(kubeconfig: Optional[str], kubecontext: Optional[str], kube_ns: str, node_name: str) -> Tuple[CloudProvider, str]:
@@ -833,13 +1125,15 @@ def node_cleaner(k8s_client: client.CoreV1Api, kubeconfig: Optional[str], kubeco
         try:
             node_obj = k8s_client.read_node(node_name)
         except client.exceptions.ApiException as e:
-            node_cleaner_debug(f"Failed to read node {node_name}: {e}")
+            stop_on_error(e)
             return CloudProvider.UNKNOWN, None
 
-        provider_id = getattr(node_obj.spec, "provider_id", None).lower()
+        provider_id = (getattr(node_obj.spec, "provider_id", None) or "").lower()
 
         if not provider_id:
-            provider_id = get_first_node_provider_id().lower()
+            provider_id = (get_first_node_provider_id() or "").lower()
+            if not keep_running():
+                return CloudProvider.UNKNOWN, None
 
         if provider_id:
             if provider_id.startswith("aws:"):
@@ -856,8 +1150,8 @@ def node_cleaner(k8s_client: client.CoreV1Api, kubeconfig: Optional[str], kubeco
                 return CloudProvider.AWS, provider_id
             if "gke_" in ctx or "gke" in ctx:
                 return CloudProvider.GCP, provider_id
-        except subprocess.CalledProcessError:
-            debug(f"failed to determine provider_id: {e}")
+        except (subprocess.CalledProcessError, OSError) as e:
+            stop_on_error(e)
         return CloudProvider.UNKNOWN, None
 
     def parse_aws_provider_id(provider_id: str) -> Tuple[Optional[str], Optional[str]]:
@@ -949,21 +1243,25 @@ def node_cleaner(k8s_client: client.CoreV1Api, kubeconfig: Optional[str], kubeco
                 if is_node_in_use(kubeconfig, kubecontext, kube_ns, node_name):
                     node_cleaner_debug(f"Node {node_name} in use [check {attempt}].")
                     return
-            except (subprocess.CalledProcessError, client.exceptions.ApiException) as e:
-                node_cleaner_debug(f"Failed to inspect node {node_name} [check {attempt}]: {e}")
+            except (subprocess.CalledProcessError, OSError, client.exceptions.ApiException) as e:
+                stop_on_error(e)
                 return  # Don't delete nodes we can't inspect safely
             time.sleep(10)
 
         # 2) Determine provider + IDs from providerID of this node
+        if not keep_running():
+            return
         cloud, provider_id = detect_cloud_provider(kubeconfig, kubecontext, kube_ns, node_name)
 
         # 3) Cordon & drain & delete K8s node (shared)
-        node_cleaner_debug(f"Deleting dangling node {node_name}…")
-        cordon_node(node_name)
-        drain_node(node_name)
-        delete_k8s_node(node_name)
+        for action in (cordon_node, drain_node, delete_k8s_node):
+            if not keep_running():
+                return
+            action(node_name)
 
         # 4) Cloud-specific instance delete/terminate
+        if not keep_running():
+            return
         if CloudProvider.AWS == cloud:
             instance_id, region = parse_aws_provider_id(provider_id)
             if not instance_id and node_name.startswith("ip-") and "." in node_name:
@@ -979,26 +1277,30 @@ def node_cleaner(k8s_client: client.CoreV1Api, kubeconfig: Optional[str], kubeco
     # Main node_cleaner loop
     while keep_running():
         try:
-            nodes = k8s_client.list_node().items
+            # kubectl propagates exec credential failures; the Python loader can log and swallow them.
+            nodes = json.loads(run_kubectl_command(
+                kubeconfig, kubecontext, kube_ns, ["get", "nodes", "-o", "json"]))["items"]
+            node_names = [n["metadata"]["name"] for n in nodes]
             node_cleaner_debug(f"  {len(nodes)} nodes")
-        except client.exceptions.ApiException as e:
-            node_cleaner_debug(f"Failed to list nodes: {e}")
-            time.sleep(10)
-            continue
+        except (subprocess.CalledProcessError, OSError, ValueError, KeyError, TypeError) as e:
+            stop_on_error(e)
+            break
         active_threads = {t.name for t in threading.enumerate()}
-        for n in nodes:
-            node_name = n.metadata.name
+        for node_name in node_names:
+            if not keep_running():
+                break
             # only act on nodes with "agent" in the name
             node_cleaner_debug(f"Checking node {node_name}…")
             if node_name not in active_threads:
                 t = threading.Thread(target=check_and_cleanup_node, args=(node_name,), name=node_name, daemon=True)
                 t.start()
-        time.sleep(10)
+        if keep_running():
+            time.sleep(10)
 
 
 def delete_remote_junit_files(k8s_client, pod_name: str, kube_ns: str, base_job_name: str, build_number: int):
     debug("Cleaning remote individual JUnit XML files...")
-    exec_command = ['rm', '-rf', f'/var/jenkins_home/jobs/{base_job_name}/builds/{build_number}/archive/test/output']
+    exec_command = ['rm', '-rf', f"/var/jenkins_home/jobs/{base_job_name.replace('/', '/jobs/')}/builds/{build_number}/archive/test/output"]
     stream.stream(k8s_client.connect_get_namespaced_pod_exec,
         pod_name, kube_ns, container=DEFAULT_CONTAINER_NAME, command=exec_command, stderr=True, stdin=False, stdout=True, tty=False, _preload_content=False)
     debug("Remote JUnit XML files cleaned.")
@@ -1006,7 +1308,7 @@ def delete_remote_junit_files(k8s_client, pod_name: str, kube_ns: str, base_job_
 
 def is_transient(error) -> bool:
     """A 404 means the artifact was never archived, so retrying it only wastes time."""
-    return not (isinstance(error, HTTPError) and 404 == error.code)
+    return not (isinstance(error, jenkins.NotFoundException) or (isinstance(error, HTTPError) and 404 == error.code))
 
 
 def retry_call(action, description: str, errors, max_retries: int = 5, delay: int = 5):
@@ -1030,7 +1332,7 @@ def retry_call(action, description: str, errors, max_retries: int = 5, delay: in
     raise last_error
 
 
-def download_results_and_print_summary(k8s_client, pod_name: str, kube_ns: str, build_number: int, ip: str, args):
+def download_results_and_print_summary(k8s_client, pod_name: str, kube_ns: str, build_number: int, ip: str, args, server=None):
 
     def download_console_log(pod_name: str, container_name: str,  kubeconfig: Optional[str], kubecontext: Optional[str], kube_ns: str, console_log_path: str, local_console_log: Path):
         # this runs in a thread, so it must report its own failure. an escaping
@@ -1041,8 +1343,6 @@ def download_results_and_print_summary(k8s_client, pod_name: str, kube_ns: str, 
                        f"download {pod_name}:{console_log_path}", subprocess.CalledProcessError)
         except subprocess.CalledProcessError as e:
             print(f"WARNING: could not download the console log {pod_name}:{console_log_path}: {e}")
-            return
-        print(f"Console log saved to {local_console_log}.gz\n")
 
     def download_archive_tarball(kubeconfig: Optional[str], kubecontext: Optional[str], kube_ns: str, pod_name: str, container_name: str, remote_path: str, local_path, max_retries=5):
         retry_call(lambda: run_kubectl_command(kubeconfig, kubecontext, kube_ns,
@@ -1066,34 +1366,41 @@ def download_results_and_print_summary(k8s_client, pod_name: str, kube_ns: str, 
 
     def print_results_summary_console(local_console_log):
         if local_console_log.exists():
-            with open(local_console_log, 'r', encoding="utf-8") as log_file:
-                log_content = log_file.read()
-                if "BUILD FAILED" in log_content:
-                    print("---")
-                    failed_index = log_content.index("BUILD FAILED")
-                    # Print the 200 characters after "BUILD FAILED"
-                    print(log_content[failed_index:failed_index + 200])
+            result = None
             with open(local_console_log, 'r', encoding="utf-8") as log_file:
                 for line in log_file:
-                    if "Finished: " in line:
-                        print(line.strip())
-                        break
+                    match = re.fullmatch(r"Finished: (SUCCESS|UNSTABLE|FAILURE|ABORTED|NOT_BUILT)", line.strip())
+                    if match:
+                        result = match[1]
+            print(f"Jenkins result: {result}" if result else "Jenkins result unavailable in console log.")
         else:
             print("Missing console log.")
 
     def print_results_summary_ci_summary(ci_summary_file):
         if ci_summary_file.exists():
             with open(ci_summary_file, 'r', encoding="utf-8") as log_file:
-                summary_parts = []
-                for line in log_file:
-                    if any(l in line for l in [">Passed<", ">Failed<", ">Skipped<", ">Total<"]):
-                        summary_parts.append(BeautifulSoup(line, 'html.parser').get_text().strip())
-                    if ">Total<" in line:
-                        break
-                if summary_parts:
-                    print(" – ".join(summary_parts))
+                report = BeautifulSoup(log_file, 'html.parser')
+            labels = ('Passed', 'Failed', 'Skipped', 'Total')
+            for table in report.find_all('table'):
+                totals = {}
+                for row in table.find_all('tr'):
+                    cells = row.find_all('td', recursive=False)
+                    if len(cells) == 3:
+                        label, count = cells[0].get_text(strip=True), cells[-1].get_text(strip=True)
+                        if label in labels and count.isdecimal():
+                            totals[label] = int(count)
+                if all(label in totals for label in labels):
+                    # Older reports stopped counting failures once the detail limit was reached.
+                    capped = totals['Failed'] >= 200 and table.get('data-failure-count-capped') != 'false'
+                    summary_parts = [f"{label} {totals[label]}{'+' if capped and label in ('Failed', 'Total') else ''}"
+                                     for label in labels]
+                    print("Tests: " + " | ".join(summary_parts))
+                    if capped:
+                        print("Counts marked + are lower bounds; this older CI summary may have capped failure totals.")
+                    return
+            print("Test totals unavailable in CI summary.")
         else:
-            print("No tests were run (or missing summary file).")
+            print("Test totals unavailable: CI summary missing.")
 
     def print_results_summary(local_console_log, ci_summary_file):
         print("--- Build Summary ---")
@@ -1104,23 +1411,44 @@ def download_results_and_print_summary(k8s_client, pod_name: str, kube_ns: str, 
             with open(local_console_log, 'rb') as f_in, gzip.open(f"{local_console_log}.gz", 'wb') as f_out:
                 f_out.writelines(f_in)
             os.remove(local_console_log)
+            print(f"Console log saved as {local_console_log}.gz")
 
     def download_url(url, dest, max_retries=5):
-        retry_call(lambda: urlretrieve(url, dest), f"download {url}", DOWNLOAD_URL_ERRORS, max_retries)
+        def transfer():
+            temporary = None
+            try:
+                with server.jenkins_request(requests.Request("GET", url), add_crumb=False, stream=True) as response:
+                    with tempfile.NamedTemporaryFile(dir=dest.parent, delete=False) as output:
+                        temporary = Path(output.name)
+                        for chunk in response.iter_content(chunk_size=1024 * 1024):
+                            output.write(chunk)
+                    temporary.replace(dest)
+            finally:
+                if temporary is not None and temporary.exists():
+                    temporary.unlink()
+        retry_call(transfer, f"download {url}", DOWNLOAD_URL_ERRORS + JENKINS_API_ERRORS, max_retries)
         debug(f" saved {dest}")
 
-    local_results_dir = LOCAL_RESULTS_BASEDIR / ip.replace(".", "-") / str(build_number)
+    endpoint = normalize_jenkins_url(ip)
+    job_name = base_job_name(args)
+    server_url = urlsplit(endpoint)
+    server_directory = quote(server_url.netloc + server_url.path, safe=":[]")
+    if server_directory in (".", ".."):
+        server_directory = server_directory.replace(".", "%2E")
+    local_results_dir = LOCAL_RESULTS_BASEDIR / server_directory / quote(job_name, safe="") / str(build_number)
     local_results_dir.mkdir(parents=True, exist_ok=True)
-    repo_owner = args.repository.split('/')[3] if 'https' in args.repository else args.repository.split(':')[1].split('/')[0]
-    ci_summary_file = local_results_dir / f"ci_summary_{repo_owner}_{args.branch.replace('/', '-')}_{build_number}.html"
-    ci_details_file = local_results_dir / f"results_details_{repo_owner}_{args.branch.replace('/', '-')}_{build_number}.tar.xz"
-    if args.url:
-        artifact_url = f"http://{ip}/job/{base_job_name(args)}/{build_number}/artifact"
+    repo_owner = urlsplit(args.repository).path.strip("/").split("/")[0] if args.repository else "unknown"
+    suffix = f"{quote(repo_owner, safe='')}_{quote((args.branch or 'unknown').replace('/', '-'), safe='')}_{build_number}"
+    ci_summary_file = local_results_dir / f"ci_summary_{suffix}.html"
+    ci_details_file = local_results_dir / f"results_details_{suffix}.tar.xz"
+    if args.url or args.attach:
+        build_url = jenkins_build_url(endpoint, job_name, build_number)
+        artifact_url = f"{build_url}/artifact"
         for url, dest in [(f"{artifact_url}/ci_summary.html", ci_summary_file),
                           (f"{artifact_url}/results_details.tar.xz", ci_details_file)]:
             try:
                 download_url(url, dest)
-            except DOWNLOAD_URL_ERRORS as e:
+            except DOWNLOAD_URL_ERRORS + JENKINS_API_ERRORS as e:
                 print(f" Could not download {url}: {e}")
                 print(" A build that was aborted or that failed skips the Summary stage,"
                       " and archives no artifacts.")
@@ -1130,14 +1458,18 @@ def download_results_and_print_summary(k8s_client, pod_name: str, kube_ns: str, 
             print(f"Details file saved as {ci_details_file}")
         if (ci_summary_file).exists() or (ci_details_file).exists():
             print(" (attach ci_summary….html and results_details….tar.xz to the JIRA ticket)")
-        print("--- Build Summary ---")
-        print_results_summary_ci_summary(ci_summary_file)
+        local_console_log = local_results_dir / "console_log.txt"
+        try:
+            download_url(f"{build_url}/consoleText", local_console_log)
+        except DOWNLOAD_URL_ERRORS + JENKINS_API_ERRORS as error:
+            print(f"Could not download the console log: {error}")
+        print_results_summary(local_console_log, ci_summary_file)
     else:
         kubeconfig = args.kubeconfig
         kubecontext = args.kubecontext
         local_console_log = local_results_dir / "console_log.txt"
         local_archive_tar = local_results_dir / "archive.tar.gz"
-        remote_build_dir = f"/var/jenkins_home/jobs/{base_job_name(args)}/builds/{build_number}"
+        remote_build_dir = f"/var/jenkins_home/jobs/{job_name.replace('/', '/jobs/')}/builds/{build_number}"
         remote_console_log_path = f"{remote_build_dir}/log"
         remote_archive_dir = f"{remote_build_dir}/archive"
 
@@ -1196,15 +1528,85 @@ def helm_installation_lock(lock_file: Path, timeout: int = 120):
                 time.sleep(1)
 
 
-def main_download_results(k8s_client, ip, args):
+def jenkins_job_url(url, job):
+    path = "/".join("job/" + quote(part, safe="") for part in job.split("/"))
+    return f"{normalize_jenkins_url(url)}/{path}"
+
+
+def jenkins_build_url(url, job, number):
+    return f"{jenkins_job_url(url, job)}/{number}"
+
+
+def build_parameters(info):
+    return {parameter["name"]: parameter.get("value")
+            for action in info.get("actions", []) for parameter in action.get("parameters", [])}
+
+
+def matching_running_build(server, url, job, parameters):
+    # Executor queries miss pipelines waiting for agents; `builds` alone omits runs older than the latest 100.
+    tree = "allBuilds[number,building],property[parameterDefinitions[name,defaultParameterValue[value]]]"
+    response = server.jenkins_open(requests.Request("GET", f"{jenkins_job_url(url, job)}/api/json",
+                                                   params={"tree": tree}), add_crumb=False)
+    try:
+        info = json.loads(response)
+    except (TypeError, ValueError) as error:
+        raise jenkins.JenkinsException(f"Could not read running builds for {job}; no build started.") from error
+    if not isinstance(info, dict) or not isinstance(info.get("allBuilds"), list):
+        raise jenkins.JenkinsException(f"Missing build list for {job}; no build started.")
+    expected = {}
+    for prop in info.get("property", []):
+        for definition in prop.get("parameterDefinitions", []):
+            default = definition.get("defaultParameterValue")
+            if default is not None:
+                expected[definition["name"]] = default.get("value")
+    expected.update(parameters)
+    for build in sorted(info["allBuilds"], key=lambda build: build["number"], reverse=True):
+        if build.get("building") is not True:
+            continue
+        try:
+            current = server.get_build_info(job, build["number"])
+        except jenkins.NotFoundException:
+            continue  # The build was deleted after listing it.
+        if current.get("building") is True and build_parameters(current) == expected:
+            return build["number"]
+    return None
+
+
+def confirm_attachment(job, number):
+    while True:
+        try:
+            answer = input(f"{job} #{number} is running with the same parameters. Attach? [Y/n]: ").strip().lower()
+        except (EOFError, OSError) as error:
+            raise SystemExit(f"No build started. Repeat this command with --attach {number} to reconnect.") from error
+        if answer in ("", "y", "yes"):
+            return True
+        if answer in ("n", "no"):
+            return False
+        print("Enter y to attach or n to start a new build.")
+
+
+def main_download_results(k8s_client, ip, args, server):
     build_number = int(args.download_results)
-    download_results_and_print_summary(k8s_client, DEFAULT_POD_NAME, DEFAULT_KUBE_NS, build_number, ip, args)
+    download_results_and_print_summary(k8s_client, DEFAULT_POD_NAME, DEFAULT_KUBE_NS, build_number, ip, args, server=server)
+
+
+def attach_build(k8s_client, url, server, args):
+    args.job = base_job_name(args)
+    # Read once before polling so an unknown build fails promptly. Its metadata supplies artifact names.
+    info = server.get_build_info(args.job, args.attach)
+    parameters = build_parameters(info)
+    args.repository = parameters.get("repository")
+    args.branch = parameters.get("branch")
+    print(f"Reconnecting to {jenkins_build_url(url, args.job, args.attach)}/")
+    wait_for_build_complete(server, args.job, args.attach)
+    download_results_and_print_summary(k8s_client, DEFAULT_POD_NAME, DEFAULT_KUBE_NS,
+                                      args.attach, url, args, server=server)
 
 
 def main():
     load_environment_file()
     args = parse_arguments()
-    k8s_client = None if args.url else setup_environment(args.kubeconfig, args.kubecontext)
+    k8s_client = None if args.url or args.only_tear_down else setup_environment(args.kubeconfig, args.kubecontext)
 
     if args.only_tear_down:
         cleanup_and_maybe_teardown(args.kubeconfig, args.kubecontext, DEFAULT_KUBE_NS, True)
@@ -1224,15 +1626,12 @@ def main():
         ensure_cassandra_job_parameters_visible(server)
     if args.only_setup:
         return
-    if args.download_results:
-        main_download_results(k8s_client, ip, args)
+    if args.attach:
+        attach_build(k8s_client, ip, server, args)
         return
-
-    # Background node cleaner: checks for dangling nodes and deletes them, can dramatically reduce k8s costs
-    # set env var NODE_CLEANER_DISABLE to disable
-    if not os.environ.get("NODE_CLEANER_DISABLE") and not args.url:
-        threading.Thread(target=node_cleaner,
-                         args=(k8s_client, args.kubeconfig, args.kubecontext, DEFAULT_KUBE_NS), daemon=True).start()
+    if args.download_results:
+        main_download_results(k8s_client, ip, args, server)
+        return
 
     # Trigger Jenkins build with parameters
     build_params = {
@@ -1245,6 +1644,13 @@ def main():
         "dtest_branch": args.dtest_branch or ""
     }
 
+    args.job = base_job_name(args)
+    running = matching_running_build(server, ip, args.job, build_params)
+    if running is not None and confirm_attachment(args.job, running):
+        args.attach = running
+        attach_build(k8s_client, ip, server, args)
+        return
+
     if DEFAULT_REPO_URL == args.repository and DEFAULT_REPO_BRANCH == args.branch and is_local_git_dirty(args):
         print("Local uncommitted/unpushed changes.")
         print(f"CI only runs on what is pushed in {args.repository} @ {args.branch}")
@@ -1254,15 +1660,21 @@ def main():
         if "y" != input().strip().lower():
             return
 
+    # Background node cleaner: checks for dangling nodes and deletes them, can dramatically reduce k8s costs
+    # set env var NODE_CLEANER_DISABLE to disable
+    if not os.environ.get("NODE_CLEANER_DISABLE") and not args.url:
+        threading.Thread(target=node_cleaner,
+                         args=(k8s_client, args.kubeconfig, args.kubecontext, DEFAULT_KUBE_NS), daemon=True).start()
+
     queue_item = trigger_jenkins_build(server, base_job_name(args), **build_params)
     build_number = wait_for_build_number(server, queue_item)
-    print(f"Jenkins UI at http://{ip}/job/{base_job_name(args)}/{build_number}/pipeline-overview/")
+    print(f"Jenkins UI at {jenkins_build_url(ip, base_job_name(args), build_number)}/pipeline-overview/")
     wait_for_build_complete(server, base_job_name(args), build_number)
 
     # Post-build processing and cleanup
     if not args.url:
         delete_remote_junit_files(k8s_client, DEFAULT_POD_NAME, DEFAULT_KUBE_NS, base_job_name(args), build_number)
-    download_results_and_print_summary(k8s_client, DEFAULT_POD_NAME, DEFAULT_KUBE_NS, build_number, ip, args)
+    download_results_and_print_summary(k8s_client, DEFAULT_POD_NAME, DEFAULT_KUBE_NS, build_number, ip, args, server=server)
     cleanup_and_maybe_teardown(args.kubeconfig, args.kubecontext, DEFAULT_KUBE_NS, args.tear_down)
 
 if __name__ == "__main__":
