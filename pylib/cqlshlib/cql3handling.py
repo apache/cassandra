@@ -268,6 +268,7 @@ JUNK ::= /([ \t\r\f\v]+|(--|[/][/])[^\n\r]*([\n\r]|$)|[/][*].*?[*][/])/ ;
                   | <schemaChangeStatement>
                   | <authenticationStatement>
                   | <authorizationStatement>
+                  | <identityStatement>
                   ;
 
 <dataChangeStatement> ::= <insertStatement>
@@ -327,6 +328,10 @@ JUNK ::= /([ \t\r\f\v]+|(--|[/][/])[^\n\r]*([\n\r]|$)|[/][*].*?[*][/])/ ;
                            | <revokeRoleStatement>
                            | <listPermissionsStatement>
                            ;
+
+<identityStatement> ::= <addIdentityStatement>
+                      | <dropIdentityStatement>
+                      ;
 
 # timestamp is included here, since it's also a keyword
 <simpleStorageType> ::= typename=( <identifier> | <stringLiteral> | "timestamp" ) ;
@@ -1772,6 +1777,14 @@ def username_name_completer(ctxt, cass):
 
     session = cass.session
     return map(maybe_escape_name, [row['name'] for row in session.execute("LIST USERS")])
+
+syntax_rules += r'''
+<addIdentityStatement> ::= "ADD" "IDENTITY" ( "IF" "NOT" "EXISTS" )? <stringLiteral>
+                             "TO" "ROLE" <rolename>
+                        ;
+<dropIdentityStatement> ::= "DROP" "IDENTITY" ( "IF" "NOT" "EXISTS" )? <stringLiteral>
+                          ;
+'''
 
 
 @completer_for('rolename', 'role')
