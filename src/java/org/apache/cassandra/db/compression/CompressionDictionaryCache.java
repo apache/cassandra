@@ -75,6 +75,9 @@ public class CompressionDictionaryCache implements ICompressionDictionaryCache
                                          // The dictionary's selfRef should never be null when evicting from cache
                                          // but using close() to have better resiliency
                                          dictionary.close();
+                                         // the compressor cached for this object would keep it alive until the
+                                         // compressor cache evicts it, e.g. long after the table was dropped
+                                         dictionary.kind().invalidateCompressor(dictionary);
                                      }
                                      catch (Exception e)
                                      {

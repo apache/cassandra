@@ -38,6 +38,7 @@ import org.junit.Test;
 
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.db.compression.ZstdCompressionDictionary;
+import org.apache.cassandra.utils.concurrent.Ref;
 
 import static org.apache.cassandra.db.compression.CompressionDictionary.DictId;
 import static org.apache.cassandra.db.compression.CompressionDictionary.Kind;
@@ -400,6 +401,49 @@ public class ZstdDictionaryCompressorTest
         {
             executor.shutdownNow();
             executor.awaitTermination(5, TimeUnit.SECONDS);
+        }
+    }
+
+    /**
+     * A compressor is cached for a dictionary object, which is then closed, as the dictionary cache does on eviction,
+     * and the same dictionary is loaded again as a new object. create() for the new object must return a compressor
+     * which uses the new object: the cached compressor uses the old object, which only the compressor cache keeps
+     * alive, so the old object is freed when the compressor cache evicts that compressor (invalidateCache() here).
+     */
+    @Test
+    public void equalDictionary() throws IOException
+    {
+        ZstdCompressionDictionary evicted = createTestDictionary(9002);
+        ZstdDictionaryCompressor.create(evicted);
+        evicted.close();
+
+        ZstdCompressionDictionary reloaded = new ZstdCompressionDictionary(evicted.dictId(), evicted.rawDictionary());
+        Ref<ZstdCompressionDictionary> ref = reloaded.tryRef();
+        try
+        {
+            ZstdDictionaryCompressor compressor = ZstdDictionaryCompressor.create(reloaded);
+            ZstdDictionaryCompressor.invalidateCache();
+
+            ByteBuffer input = ByteBuffer.allocateDirect(compressibleData.length);
+            input.put(compressibleData);
+            input.flip();
+            ByteBuffer compressed = ByteBuffer.allocateDirect(compressor.initialCompressedBufferLength(compressibleData.length));
+            compressor.compress(input, compressed);
+            compressed.flip();
+            ByteBuffer decompressed = ByteBuffer.allocateDirect(compressibleData.length);
+            compressor.uncompress(compressed, decompressed);
+            decompressed.flip();
+
+            byte[] result = new byte[decompressed.remaining()];
+            decompressed.get(result);
+            assertThat(result).isEqualTo(compressibleData);
+            assertThat(compressor.dictionary()).isSameAs(reloaded);
+            assertThat(evicted.selfRef().globalCount()).isZero();
+        }
+        finally
+        {
+            ref.release();
+            reloaded.close();
         }
     }
 
