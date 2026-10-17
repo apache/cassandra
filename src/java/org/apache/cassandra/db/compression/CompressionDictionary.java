@@ -33,6 +33,7 @@ import com.google.common.hash.Hasher;
 import com.google.common.hash.Hashing;
 
 import org.apache.cassandra.cql3.UntypedResultSet;
+import org.apache.cassandra.db.TypeSizes;
 import org.apache.cassandra.io.compress.ICompressor;
 import org.apache.cassandra.io.compress.ZstdDictionaryCompressor;
 import org.apache.cassandra.utils.FBUtilities;
@@ -60,6 +61,8 @@ import org.apache.cassandra.utils.concurrent.Ref;
  *   <li><b>CompressionMetadata.Writer</b>: Acquires a reference during SSTable write, held for the writer's lifetime</li>
  *   <li><b>CompressionMetadata</b>: Acquires a reference when created (via {@link #tryRef()}), held for the SSTable reader's lifetime.
  *       All copies created via sharedCopy() share this single reference through WrappedSharedCloseable</li>
+ *   <li><b>CassandraCompressedStreamReader</b>: Holds a reference while it decompresses the chunks of a streamed
+ *       SSTable written with the dictionary, which the stream carries</li>
  * </ul>
  *
  * <h3>Correctness Guarantee</h3>
@@ -205,6 +208,14 @@ public interface CompressionDictionary
     }
 
     /**
+     * @return number of bytes {@link #serialize(DataOutput)} writes
+     */
+    default int serializedSize()
+    {
+        return TypeSizes.BYTE_SIZE + TypeSizes.LONG_SIZE + TypeSizes.INT_SIZE + rawDictionary().length + TypeSizes.INT_SIZE;
+    }
+
+    /**
      * A factory method to create concrete CompressionDictionary from the file content
      *
      * @param input   file input stream
@@ -226,13 +237,7 @@ public interface CompressionDictionary
             return null;
         }
 
-        if (kindOrdinal < 0 || kindOrdinal >= Kind.values().length)
-        {
-            throw new IOException("Invalid compression dictionary kind: " + kindOrdinal);
-        }
-        Kind kind = Kind.values()[kindOrdinal];
-        long id = input.readLong();
-        DictId dictId = new DictId(kind, id);
+        DictId dictId = new DictId(kind(kindOrdinal), input.readLong());
 
         if (manager != null)
         {
@@ -243,16 +248,7 @@ public interface CompressionDictionary
             }
         }
 
-        int length = input.readInt();
-        byte[] dict = new byte[length];
-        input.readFully(dict);
-        int checksum = input.readInt();
-        int calculatedChecksum = calculateChecksum((byte) kindOrdinal, id, dict);
-        if (checksum != calculatedChecksum)
-            throw new IOException("Compression dictionary checksum does not match. " +
-                                  "Expected: " + checksum + "; actual: " + calculatedChecksum);
-
-        CompressionDictionary dictionary = kind.createDictionary(dictId, dict, checksum);
+        CompressionDictionary dictionary = read(dictId, input);
 
         if (manager != null)
         {
@@ -262,6 +258,61 @@ public interface CompressionDictionary
         }
 
         return dictionary;
+    }
+
+    /**
+     * Reads all of a dictionary written by {@link #serialize(DataOutput)}, unlike
+     * {@link #deserialize(DataInput, CompressionDictionaryManager)}, which stops after its id when it is cached.
+     *
+     * @param input input to read the dictionary from
+     * @return the dictionary, not referenced yet
+     * @throws IOException on any I/O exception when reading, or when the checksum of the dictionary does not match
+     */
+    static CompressionDictionary read(DataInput input) throws IOException
+    {
+        return read(new DictId(kind(input.readByte()), input.readLong()), input);
+    }
+
+    /**
+     * @param dictionary dictionary an sstable was written with, read from the sstable or from a stream
+     * @param manager compression dictionary manager that caches the dictionaries
+     * @return reference to the cached instance of the dictionary, which is cached when it was not, or to the
+     *         dictionary itself without a manager; the caller owns the reference and has to release it
+     * @throws IllegalStateException if the cached instance was released before it could be referenced
+     */
+    static Ref<? extends CompressionDictionary> refForReading(CompressionDictionary dictionary, @Nullable CompressionDictionaryManager manager)
+    {
+        // without a manager nothing caches it, its self-reference is the caller's
+        if (manager == null)
+            return dictionary.initRefLazily();
+
+        Ref<? extends CompressionDictionary> ref = manager.add(dictionary).tryRef();
+        if (ref == null)
+            throw new IllegalStateException("Failed to acquire reference to compression dictionary");
+
+        return ref;
+    }
+
+    private static Kind kind(int ordinal) throws IOException
+    {
+        if (ordinal < 0 || ordinal >= Kind.values().length)
+            throw new IOException("Invalid compression dictionary kind: " + ordinal);
+
+        return Kind.values()[ordinal];
+    }
+
+    private static CompressionDictionary read(DictId dictId, DataInput input) throws IOException
+    {
+        int length = input.readInt();
+        byte[] dict = new byte[length];
+        input.readFully(dict);
+        int checksum = input.readInt();
+        int calculatedChecksum = calculateChecksum((byte) dictId.kind.ordinal(), dictId.id, dict);
+        if (checksum != calculatedChecksum)
+            throw new IOException("Compression dictionary checksum does not match. " +
+                                  "Expected: " + checksum + "; actual: " + calculatedChecksum);
+
+        return dictId.kind.createDictionary(dictId, dict, checksum);
     }
 
     static LightweightCompressionDictionary createFromRowLightweight(UntypedResultSet.Row row)
