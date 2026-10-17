@@ -58,17 +58,10 @@ public class RouteMemtableIndexManager implements MemtableIndexManager
         JournalKey journalKey = AccordKeyspace.JournalColumns.getJournalKey(key);
         if (!RouteJournalIndex.allowed(journalKey))
             return 0;
-        //TODO (performance): we dropped jdk8 and this was fixed in jdk8... so do we need to do this still?
-        MemtableIndex current = liveMemtableIndexMap.get(mt);
 
-        // We expect the relevant IndexMemtable to be present most of the time, so only make the
-        // call to computeIfAbsent() if it's not. (see https://bugs.openjdk.java.net/browse/JDK-8161372)
-        MemtableIndex target = (current != null)
-                               ? current
-                               : liveMemtableIndexMap.computeIfAbsent(mt, memtable -> new MemtableIndex());
+        MemtableIndex target = liveMemtableIndexMap.computeIfAbsent(mt, memtable -> new MemtableIndex());
 
         long start = nanoTime();
-
         long bytes = 0;
 
         ByteBuffer value = RouteIndexFormat.extractParticipants(index, journalKey.id, row);

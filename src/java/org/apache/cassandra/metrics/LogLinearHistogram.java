@@ -54,6 +54,9 @@ public class LogLinearHistogram
 
     public void increment(long value)
     {
+        if (!Invariants.expect(value >= 0, "Negative value reported: %s", value))
+            return;
+
         int index = index(value);
         buckets(index)[index]++;
         ++totalCount;
@@ -61,6 +64,9 @@ public class LogLinearHistogram
 
     public void decrement(long value)
     {
+        if (!Invariants.expect(value >= 0, "Negative value reported: %s", value))
+            return;
+
         int index = index(value);
         buckets(index)[index]--;
         --totalCount;
@@ -68,6 +74,9 @@ public class LogLinearHistogram
 
     public void replace(long decrement, long increment)
     {
+        if (!Invariants.expect(decrement >= 0 && increment >= 0, "Negative value(s?) reported: %s and %s", decrement,  increment))
+            return;
+
         int decrementIndex = index(decrement);
         int incrementIndex = index(increment);
         long[] buckets = buckets(Math.max(decrementIndex, incrementIndex));

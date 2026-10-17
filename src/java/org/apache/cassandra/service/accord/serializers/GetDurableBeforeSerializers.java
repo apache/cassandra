@@ -31,12 +31,12 @@ public class GetDurableBeforeSerializers
     public static final UnversionedSerializer<GetDurableBefore> request = new UnversionedSerializer<>()
     {
         @Override
-        public void serialize(GetDurableBefore msg, DataOutputPlus out) throws IOException
+        public void serialize(GetDurableBefore msg, DataOutputPlus out)
         {
         }
 
         @Override
-        public GetDurableBefore deserialize(DataInputPlus in) throws IOException
+        public GetDurableBefore deserialize(DataInputPlus in)
         {
             return new GetDurableBefore();
         }

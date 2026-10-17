@@ -54,6 +54,7 @@ import org.junit.Test;
 import org.junit.rules.TemporaryFolder;
 
 import org.apache.cassandra.Util;
+import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.cql3.CQL3Type;
 import org.apache.cassandra.cql3.QueryProcessor;
 import org.apache.cassandra.cql3.UntypedResultSet;
@@ -150,6 +151,59 @@ public abstract class CQLSSTableWriterTest
     {
         SSTableFormat<?, ?> btiFormat = new BtiFormat.BtiFormatFactory().getInstance(Collections.emptyMap());
         testWritingSstableWithFormat(btiFormat);
+    }
+
+    @Test
+    public void testUUIDSSTableIdentifiers() throws Exception
+    {
+        String schema = "CREATE TABLE " + qualifiedTable + " ("
+                        + "  k int PRIMARY KEY,"
+                        + "  v int"
+                        + ")";
+        String insert = "INSERT INTO " + qualifiedTable + " (k, v) VALUES (?, ?)";
+        CQLSSTableWriter writer = CQLSSTableWriter.builder()
+                                                  .inDirectory(dataDir)
+                                                  .forTable(schema)
+                                                  .withSSTableIdBuilder(UUIDBasedSSTableId.Builder.instance)
+                                                  .using(insert).build();
+
+        writer.addRow(0, 1);
+        writer.close();
+
+        File[] dataFiles = dataDir.tryList((dir, name) -> name.contains("Data.db"));
+        assertEquals(1, dataFiles.length);
+
+        Descriptor descriptor = Descriptor.fromFile(dataFiles[0]);
+        assertTrue(UUIDBasedSSTableId.Builder.instance.isUniqueIdentifier(descriptor.id.toString()));
+    }
+
+    @Test
+    public void testDefaultSSTableIdentifiersFollowConfig() throws Exception
+    {
+        String schema = "CREATE TABLE " + qualifiedTable + " ("
+                        + "  k int PRIMARY KEY,"
+                        + "  v int"
+                        + ")";
+        String insert = "INSERT INTO " + qualifiedTable + " (k, v) VALUES (?, ?)";
+        CQLSSTableWriter writer = CQLSSTableWriter.builder()
+                                                  .inDirectory(dataDir)
+                                                  .forTable(schema)
+                                                  .using(insert).build();
+
+        writer.addRow(0, 1);
+        writer.close();
+
+        File[] dataFiles = dataDir.tryList((dir, name) -> name.contains("Data.db"));
+        assertEquals(1, dataFiles.length);
+
+        // With no builder given the writer falls back to SSTableIdFactory#defaultBuilder, which follows
+        // uuid_sstable_identifiers_enabled: false in cassandra.yaml, true in cassandra_latest.yaml.
+        SSTableId.Builder<?> expected = DatabaseDescriptor.isUUIDSSTableIdentifiersEnabled()
+                                        ? UUIDBasedSSTableId.Builder.instance
+                                        : SequenceBasedSSTableId.Builder.instance;
+
+        Descriptor descriptor = Descriptor.fromFile(dataFiles[0]);
+        assertTrue(expected.isUniqueIdentifier(descriptor.id.toString()));
     }
 
     private void testWritingSstableWithFormat(SSTableFormat<?, ?> format) throws Exception

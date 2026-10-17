@@ -27,6 +27,7 @@ import accord.api.ProtocolModifiers.CoordinatorBacklogExecution;
 import accord.api.ProtocolModifiers.FastExecution;
 import accord.api.ProtocolModifiers.ReplicaExecution;
 import accord.api.ProtocolModifiers.SendStableMessages;
+import accord.api.ProtocolModifiers.UniqueTimestampOnConflict;
 import accord.primitives.TxnId;
 import accord.utils.Invariants;
 
@@ -34,8 +35,6 @@ import org.apache.cassandra.journal.Params;
 import org.apache.cassandra.service.accord.serializers.Version;
 import org.apache.cassandra.service.consensus.TransactionalMode;
 
-import static org.apache.cassandra.config.AccordConfig.CatchupMode.NORMAL;
-import static org.apache.cassandra.config.AccordConfig.QueuePriorityModel.HLC_FIFO;
 import static org.apache.cassandra.config.AccordConfig.QueueShardModel.THREAD_POOL_PER_SHARD;
 import static org.apache.cassandra.config.AccordConfig.QueueSubmissionModel.SYNC;
 import static org.apache.cassandra.config.AccordConfig.RangeIndexMode.in_memory;
@@ -134,25 +133,49 @@ public class AccordConfig
         FIFO,
 
         /**
-         * If the work has an associated TxnId, prioritise by its HLC (and FIFO otherwise)
+         * If the work has an associated TxnId or Ballot, prioritise by the newest HLC (and FIFO otherwise)
          */
         HLC_FIFO,
 
         /**
-         * Prioritise Apply, Stable, Commit, Accept, and PreAccept messages in that order.
-         * Within a given message type, prioritise by HLC.
-         * Other messages will be mixed with PreAccept messages, but using the next counter rather than the HLC of the TxnId.
-         * Note: this can have some performance edge cases for contended keys, as we may process Stable messages for later commands before
-         *       we process earlier Accept/Commit, which may delay execution
+         * If the work has an associated TxnId, prioritise by its HLC (and FIFO otherwise).
+         * In this case, all phases with recovery ballots enter a QoS pool shared with other progress tasks,
+         * so that Accept/Commit do not compete. Recovery work is scheduled in age order.
          */
-        PHASE_HLC_FIFO,
+        ORIG_HLC_FIFO
+    }
+
+    public enum QueueBalancingModel
+    {
+        /**
+         * Always pick the task by priority
+         */
+        PRIORITY_ONLY,
 
         /**
-         * Prioritise Apply, Stable, Commit, Accept, and PreAccept messages from the original coordinator only, in that order.
-         * Within a given message type, prioritise by HLC.
-         * Other messages will be mixed with PreAccept messages, but using the next counter rather than the HLC of the TxnId.
+         * Pick by phase first, so the highest phase with work ALWAYS runs.
+         * Within a phase, pick by priority.
          */
-        ORIG_PHASE_HLC_FIFO
+        PHASE_ONLY,
+
+        /**
+         * Pick by phase first, selecting the phase that has processed the least work recently relative to arrivals.
+         * Tie-break between phases with round-robin.
+         * Within a phase, pick by priority.
+         */
+        PHASE_FAIR,
+
+        /**
+         * A blended (1:1) mix of PRIORITY and PHASE_FAIR
+         */
+        BLENDED_PRIORITY_PHASE_FAIR,
+    }
+
+    public enum UniqueTimestampReservations
+    {
+        NONE,
+        SMALL_SHARED,
+        HISTOGRAM
     }
 
     public QueueShardModel queue_shard_model = THREAD_POOL_PER_SHARD;
@@ -168,7 +191,36 @@ public class AccordConfig
      */
     public volatile OptionaldPositiveInt queue_thread_count = OptionaldPositiveInt.UNDEFINED;
 
-    public QueuePriorityModel queue_priority_model = HLC_FIFO;
+    public QueuePriorityModel queue_priority_model;
+    public QueueBalancingModel queue_balancing_model;
+
+    public String queue_active_limits;
+
+    public Boolean queue_nonsync_enabled;
+    public Boolean queue_key_ordering_enabled;
+
+    /**
+     * Size at which we will begin processing a task that is ASYNC, INCR OR INCR_ATOMIC.
+     * Note that a size of zero will effectively give implicit priority to INCR_ATOMIC tasks, as they may immediately
+     * take a FIFO queue slot (which is processed preferentially).
+     */
+    public Integer queue_nonsync_min_batch_size;
+
+    /**
+     * If there are more than min_batch_size keys ready for an ASYNC, INCR or INCR_ATOMIC task,
+     * process up to this many keys at once.
+     */
+    public Integer queue_nonsync_max_batch_size;
+
+    /**
+     * An ASYNC, INCR or INCR_ATOMIC task that is ready to run but waiting for batch_size work will proceed
+     * once this number of tasks are blocked behind it, regardless of batch_size.
+     */
+    public Integer queue_nonsync_blocked_limit;
+    /**
+     * The number of threads that may be used to execute distributed requests for migration tasks
+     */
+    public volatile OptionaldPositiveInt migration_concurrency = OptionaldPositiveInt.UNDEFINED;
 
     /**
      * If set, the signal loop does not match park/unpark pairs, but instead consumers perform timed-park spin waits
@@ -182,18 +234,9 @@ public class AccordConfig
     public DurationSpec.LongMicrosecondsBound queue_stop_check_interval;
 
     /**
-     * If set, the signal loop reduces the number of threads it is using when the time spent parked exceeds real-time
-     * by this interval.
+     * If the HLC is older than this, queue by next position instead
      */
-    public DurationSpec.LongMicrosecondsBound queue_signal_stop_check_interval_credit;
-
-    // yield to other executor threads after executing this many tasks in a row, if there are waiting threads and tasks
-    public int queue_yield_interval = 100;
-
-    /**
-     * If the HLC is older than this, queue by FIFO instead
-     */
-    public DurationSpec.IntMillisecondsBound queue_priority_age_to_fifo = new DurationSpec.IntMillisecondsBound(500);
+    public DurationSpec.IntMillisecondsBound queue_priority_age_limit = new DurationSpec.IntMillisecondsBound(500);
     /**
      * The target number of command stores to create per topology shard.
      * This determines the amount of execution parallelism possible for a given table/shard on the host.
@@ -203,9 +246,6 @@ public class AccordConfig
      * TODO (expected): adjust this by proportion of ring
      */
     public volatile OptionaldPositiveInt command_store_shard_count = OptionaldPositiveInt.UNDEFINED;
-
-    public volatile OptionaldPositiveInt max_queued_loads = OptionaldPositiveInt.UNDEFINED;
-    public volatile OptionaldPositiveInt max_queued_range_loads = OptionaldPositiveInt.UNDEFINED;
 
     public volatile OptionaldPositiveInt progress_log_concurrency = OptionaldPositiveInt.UNDEFINED;
     public DurationSpec.IntMillisecondsBound progress_log_query_fallback_timeout = new DurationSpec.IntMillisecondsBound("1m");
@@ -221,14 +261,16 @@ public class AccordConfig
     public String fetch_txn = "2s*attempts <= 60s";
     public String fetch_syncpoint = "5s*attempts <= 60s";
     public String expire_txn = "5s*attempts <= 60s";
-    public String expire_syncpoint = "60s*attempts<=300s";
+    public String expire_syncpoint = "15s*attempts<=300s";
     public String expire_epoch_wait = "10s";
     // we don't want to wait ages for durability as it blocks other durability progress; even this might be too long, as we can always retry
     public String expire_durability = "10s*attempts <= 30s";
     public String slow_syncpoint_preaccept = "10s";
     public String slow_txn_preaccept = "30ms <= p50*2 <= 1000ms";
     public String slow_read = "30ms <= p50*2 <= 1000ms";
-    public StringRetryStrategy retry_syncpoint = new StringRetryStrategy("10s*attempt <= 600s");
+    public String slow_status_check = "30ms <= p50*2 <= 1000ms";
+    public StringRetryStrategy retry_syncpoint = new StringRetryStrategy("500ms*attempt <= 10s");
+    public StringRetryStrategy retry_background_syncpoint = new StringRetryStrategy("10s*attempt <= 600s");
     public StringRetryStrategy retry_durability = new StringRetryStrategy("10s*attempt <= 600s");
     public StringRetryStrategy retry_bootstrap = new StringRetryStrategy("10s*attempt <= 600s");
     public StringRetryStrategy retry_join_bootstrap = new StringRetryStrategy("30s*attempt,attempts=5");
@@ -236,6 +278,7 @@ public class AccordConfig
     public StringRetryStrategy retry_fetch_topology = new StringRetryStrategy("200ms...1s*attempt <= 1s,retries=100");
     public StringRetryStrategy retry_journal_index_ready = new StringRetryStrategy("100ms");
 
+    public volatile DurationSpec.IntMillisecondsBound coordinator_exclusive_time_slice = new DurationSpec.IntMillisecondsBound("250ms");
     public volatile DurationSpec.IntSecondsBound fast_path_update_delay = null;
 
     public volatile int shard_durability_target_splits = 8;
@@ -243,6 +286,10 @@ public class AccordConfig
     public volatile DurationSpec.IntSecondsBound durability_txnid_lag = new DurationSpec.IntSecondsBound(5);
     public volatile DurationSpec.IntSecondsBound shard_durability_cycle = new DurationSpec.IntSecondsBound(5, TimeUnit.MINUTES);
     public volatile DurationSpec.IntSecondsBound global_durability_cycle = new DurationSpec.IntSecondsBound(5, TimeUnit.MINUTES);
+    /**
+     * Flush tables that a durability report is waiting on with approximately this frequency; defaults to {@link #shard_durability_cycle}.
+     */
+    public volatile DurationSpec.IntSecondsBound durability_flush_interval;
 
     public volatile DurationSpec.IntSecondsBound topology_watermark_interval = new DurationSpec.IntSecondsBound(60);
     public volatile boolean topology_sync_propagator_enabled_pre_start = false;
@@ -261,12 +308,12 @@ public class AccordConfig
      */
     public volatile TransactionalRangeMigration range_migration = TransactionalRangeMigration.auto;
 
-    public enum CatchupMode
+    public enum CatchupFallbackMode
     {
-        DISABLED,
-        NORMAL,
-        FALLBACK_TO_HARD,
-        HARD
+        IGNORE,
+        EXIT,
+        REBOOTSTRAP,
+        REBOOTSTRAP_AND_CATCHUP
     }
 
     /**
@@ -278,6 +325,7 @@ public class AccordConfig
 
     public CoordinatorBacklogExecution coordinator_backlog_execution;
     public Boolean permit_local_delivery;
+    public Boolean permit_atomic_incremental_tasks;
     public Boolean permit_coordinator_local_execution; // if disabled, the privileged coordinator optimisation will be counter-productive and should also be disabled
     public TxnId.FastPath permit_fast_path;
     public Boolean permit_track_stable_medium_path;
@@ -296,6 +344,9 @@ public class AccordConfig
     public Boolean send_minimal;
     // note: simulator incompatible (for now)
     public Boolean precise_micros;
+    public UniqueTimestampReservations unique_timestamp_reservations = UniqueTimestampReservations.HISTOGRAM;
+    public UniqueTimestampOnConflict unique_timestamp_on_conflict = UniqueTimestampOnConflict.STALE;
+    public DurationSpec.IntMillisecondsBound unique_timestamp_reservation_range = new DurationSpec.IntMillisecondsBound(100);
 
     public boolean ephemeral_reads = true;
     public boolean state_cache_listener_jfr_enabled = false;
@@ -311,16 +362,20 @@ public class AccordConfig
     public int commands_for_key_prune_interval = 64;
     public DurationSpec.IntSecondsBound max_conflicts_prune_delta = new DurationSpec.IntSecondsBound(1);
 
+    // number of times we will try to catch up if the catchup was slow (we do not retry if we fail for some other reason)
+    public int catchup_on_start_max_slow_attempts = 5;
+    public boolean catchup_on_start = true;
     public DurationSpec.IntSecondsBound catchup_on_start_success_latency = new DurationSpec.IntSecondsBound(60);
     public DurationSpec.IntSecondsBound catchup_on_start_fail_latency = new DurationSpec.IntSecondsBound(900);
-    public int catchup_on_start_max_attempts = 5;
-    // TODO (required): roll this back to catchup_on_start_exit_on_failure: true
-    public boolean catchup_on_start_exit_on_failure = false;
-    public CatchupMode catchup_on_start = NORMAL;
+    // TODO (required): default this to EXIT or REBOOTSTRAP
+    public CatchupFallbackMode catchup_on_start_on_timeout = CatchupFallbackMode.IGNORE;
+    public CatchupFallbackMode catchup_on_start_on_error = CatchupFallbackMode.IGNORE;
+    public CatchupFallbackMode catchup_on_start_on_rebootstrap_fallback = CatchupFallbackMode.IGNORE;
+    public DurationSpec.IntSecondsBound shutdown_grace_period = new DurationSpec.IntSecondsBound(15 * 60);
+
     public boolean execute_waiting_on_start = true;
     public DurationSpec.IntSecondsBound execute_waiting_on_start_timeout = new DurationSpec.IntSecondsBound(0);
     public boolean execute_waiting_on_start_fail_on_timeout = false;
-    public DurationSpec.IntSecondsBound shutdown_grace_period = new DurationSpec.IntSecondsBound(15 * 60);
 
     public enum RangeIndexMode { in_memory, journal_sai }
     public RangeIndexMode range_index_mode = in_memory;
@@ -358,7 +413,17 @@ public class AccordConfig
              * Replay journal entries for commands that are not durable to the data or command stores.
              * THIS MODE IS NOT YET SAFE TO RUN
              */
-            NON_DURABLE
+            NON_DURABLE,
+
+            /**
+             * Don't replay, simply rebootstrap, marking our log as incomplete.
+             */
+            REBOOTSTRAP_INCOMPLETE,
+
+            /**
+             * Don't replay, simply rebootstrap, marking our log as corrupted/unavailable.
+             */
+            REBOOTSTRAP_RESET
         }
 
         public enum ReplaySavePoint

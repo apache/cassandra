@@ -14,47 +14,69 @@ Apache Cassandra is a NoSQL distributed database. This is the official Git repos
 
 ## Build
 
+Prefer the `.build/*.sh` helper scripts over calling `ant` directly. See
+[.build/README.md](./.build/README.md) for the full set.
+
 ```bash
-.build/sh/ai-build       # clean, build JAR, and run checkstyle (output is summarized)
+.build/build-jars.sh -s          # build the Cassandra JAR (runs `ant jar`)
+.build/build-jars.sh -s --clean  # clean first, then build
 ```
 
-Do NOT call `ant` directly — always use the `ai-*` wrapper scripts which handle log summarization and correct working directory.
+All three scripts accept `-s`/`--summary`, which prints a summary of failures instead of the full ant output.  Omit it for the full output.  `--clean` applies to `.build/build-jars.sh` only.
 
 ## Testing
 
 - Do NOT run the entire test suite. Run only the specific test(s) relevant to your change.
+- The project must be built first (e.g. `.build/build-jars.sh`).
 
     ```bash
-    # Run a single unit test class
-    .build/sh/ai-ci-test org.apache.cassandra.service.StorageServiceServerTest
+    # Run a single test class: -a is the test type, -t is a class-name regexp
+    .build/run-tests.sh -s -a test -t StorageServiceServerTest
     ```
 
-- `ai-ci-test` does NOT support method-level filtering — it runs the entire test class.
+- `-a` is the test type (`test`, `jvm-dtest`, `long-test`, …; run `.build/run-tests.sh -h` for the full list).
+- `-t` matches the test class only, not individual methods.
+- `-s`/`--summary` prints a concise list of failed tests.  The full output is kept in `build/run-tests.log`.
 - When fixing a bug, first create a regression test that reproduces the failure, then implement the fix and verify.
 - Provide test(s) coverage for all new or modified code.
 
 ## Linting and Code Checks
 
-`.build/sh/ai-build` includes checkstyle validation. There is no need to run checkstyle separately.
+```bash
+.build/check-code.sh -s    # runs `ant check` (rat-check + checkstyle + checkstyle-test, after a build)
+```
+
+The `check` target depends on `_main-jar`, `build-test` and `gen-asciidoc`, so
+`.build/check-code.sh` builds the jar and the test classes itself.  Do not run
+`.build/build-jars.sh` before it.
+
+The same dependencies make `check` slower than checkstyle alone: it also generates the
+documentation, and `rat-check` reads every file in the working directory.
 
 ## Code Style
-Cassandra enforces style via Checkstyle (run via `.build/sh/ai-build`). The official style guide is at https://cassandra.apache.org/_/development/code_style.html. Always defer to it when in doubt.
+Cassandra enforces style via Checkstyle (run via `.build/check-code.sh`). The official style guide is at https://cassandra.apache.org/_/development/code_style.html. Always defer to it when in doubt.
 
 General style conventions:
 - 4-space indentation, no tabs.
 - Match existing code style in the file you are editing.
 - All new files must include the Apache License 2.0 header.
 - Concise English documentation is required for complex classes and methods; trivial ones may not require them.
+- Shorten (make succinct) comments. Comments are not needed for what can easily be read from the code.
+
+# Docker mode
+If commands fails due to host issues, and docker is available, use the `.build/docker/` command equivalents.
 
 ## Git Workflow
 - Do NOT commit unless explicitly asked.
 - Commit messages format. For example:
 
     ```
-    <One sentence description, usually Jira title or CHANGES.txt summary>
+    <One sentence description, usually Jira title or CHANGES.txt summary, no jira id>
 
     <Optional lengthier description>
   
+     patch by <Authors,>; reviewed by <Reviewers,> for CASSANDRA-#####
+
     Assisted-by: AGENT_NAME:MODEL_VERSION
     ```
 

@@ -1259,6 +1259,8 @@ public class ActiveRepairService implements IEndpointStateChangeSubscriber, IFai
 
     public void shutdownNowAndWait(long timeout, TimeUnit unit) throws InterruptedException, TimeoutException
     {
+        // sessions have their own executors that need to also be shutdown
+        terminateSessions();
         ExecutorUtils.shutdownNowAndWait(timeout, unit, snapshotExecutor);
     }
 

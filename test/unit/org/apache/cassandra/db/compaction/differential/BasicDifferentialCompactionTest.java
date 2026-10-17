@@ -27,14 +27,12 @@ import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertTrue;
 
 /**
- * Smoke scenarios for the differential cursor-vs-iterator compaction harness.
- * The full edge-case corpus lives in EdgeCaseDifferentialCompactionTest; this class
- * exists to prove the harness mechanics on the simplest supported shapes.
+ * Smoke scenarios for the differential cursor-vs-iterator compaction harness, over the
+ * simplest supported table shapes. The edge-case corpus lives in
+ * EdgeCaseDifferentialCompactionTest.
  */
 public class BasicDifferentialCompactionTest extends DifferentialCompactionTester
 {
-    /** Start empty: byte-identical output is the hypothesis increment 1 tests. */
-
     @Test
     public void overlappingOverwrites() throws Exception
     {
@@ -57,7 +55,7 @@ public class BasicDifferentialCompactionTest extends DifferentialCompactionTeste
     @Test
     public void tombstonesRetained() throws Exception
     {
-        // large gc_grace: nothing purgeable, all tombstone kinds must survive the merge identically
+        // large gc_grace: nothing written below is purgeable at compaction time
         createTable("CREATE TABLE %s (pk bigint, ck bigint, v1 bigint, v2 text, PRIMARY KEY (pk, ck)) " +
                     "WITH gc_grace_seconds = 864000");
         ColumnFamilyStore cfs = getCurrentColumnFamilyStore();
@@ -68,14 +66,14 @@ public class BasicDifferentialCompactionTest extends DifferentialCompactionTeste
                 execute("INSERT INTO %s (pk, ck, v1, v2) VALUES (?, ?, ?, ?)", pk, ck, ck, "v" + ck);
         flush();
 
-        // row deletes, cell deletes, range deletes, partition delete — one sstable of tombstones
+        // one sstable holding every tombstone kind
         execute("DELETE FROM %s WHERE pk = 1 AND ck = 5");
         execute("DELETE v1 FROM %s WHERE pk = 2 AND ck = 7");
         execute("DELETE FROM %s WHERE pk = 3 AND ck >= 5 AND ck < 15");
         execute("DELETE FROM %s WHERE pk = 4");
         flush();
 
-        // and a third sstable with data written over some of the deletions
+        // third sstable: writes that land inside the pk 3 range deletion
         for (long ck = 0; ck < 20; ck += 2)
             execute("INSERT INTO %s (pk, ck, v1, v2) VALUES (?, ?, ?, ?)", 3L, ck, ck + 100, "resurrect" + ck);
         flush();
@@ -86,8 +84,7 @@ public class BasicDifferentialCompactionTest extends DifferentialCompactionTeste
     @Test
     public void tombstonesPurged() throws Exception
     {
-        // gc_grace 0: tombstones written below are purgeable by the time we compact;
-        // partition 4 becomes fully empty and must be dropped by both paths
+        // gc_grace 0: every tombstone written below is purgeable at compaction time
         createTable("CREATE TABLE %s (pk bigint, ck bigint, v1 bigint, PRIMARY KEY (pk, ck)) " +
                     "WITH gc_grace_seconds = 0");
         ColumnFamilyStore cfs = getCurrentColumnFamilyStore();
@@ -103,8 +100,8 @@ public class BasicDifferentialCompactionTest extends DifferentialCompactionTeste
         execute("DELETE FROM %s WHERE pk = 0 AND ck = 0");
         flush();
 
-        // purge boundary: gcBefore strictly past the tombstones' recorded local deletion time,
-        // read from the sstable's own stats instead of sleeping past wall-clock now
+        // purge boundary: gcBefore goes strictly past the tombstones' local deletion time.
+        // The test reads that time from the sstable stats instead of sleeping past wall-clock now.
         long maxLdt = maxTombstoneLocalDeletionTime(cfs.getLiveSSTables());
 
         CapturedOutput out = assertCursorMatchesIterator(cfs, cfs.getLiveSSTables(), DEFAULT_TASK, maxLdt + 1);
@@ -163,7 +160,7 @@ public class BasicDifferentialCompactionTest extends DifferentialCompactionTeste
         }
         flush();
 
-        // static-only partitions + static overwrite in second sstable
+        // second sstable: static overwrites, plus a partition that holds only a static row
         for (long pk = 0; pk < 4; pk++)
             execute("INSERT INTO %s (pk, s1, s2) VALUES (?, ?, ?)", pk, pk * 100, "updated" + pk);
         execute("INSERT INTO %s (pk, s1) VALUES (?, ?)", 100L, 1L);
@@ -173,9 +170,9 @@ public class BasicDifferentialCompactionTest extends DifferentialCompactionTeste
     }
 
     /**
-     * A table with no clustering columns, which CursorSupportMatrixTest.noClusteringSupported
-     * declares supported without ever compacting one. Every row is the empty clustering, so each
-     * partition holds exactly one row and the merge decides on the partition key alone.
+     * Compacts a table with no clustering columns. CursorSupportMatrixTest.noClusteringSupported
+     * declares that shape supported, but never compacts one. Every partition holds a single row
+     * at the empty clustering, so the merge decides on the partition key alone.
      */
     @Test
     public void noClusteringColumns() throws Exception
@@ -188,7 +185,7 @@ public class BasicDifferentialCompactionTest extends DifferentialCompactionTeste
             execute("INSERT INTO %s (pk, v1, v2) VALUES (?, ?, ?)", pk, pk, "v" + pk);
         flush();
 
-        // pk 10..19 are overwritten and pk 20..29 are new, so the output is a genuine merge
+        // the overlap at pk 10..19 makes the output a genuine merge
         for (long pk = 10; pk < 30; pk++)
             execute("INSERT INTO %s (pk, v1, v2) VALUES (?, ?, ?)", pk, pk + 100, "updated" + pk);
         flush();

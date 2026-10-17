@@ -55,7 +55,7 @@ public class AccordBounceTest extends FuzzTestBase
     @Test
     public void emptyJournalAllocationBounceTest() throws Throwable
     {
-        try (Cluster cluster = init(builder().withNodes(1).start()))
+        try (Cluster cluster = init(builder().withNodes(1).withConfig(config -> { config.set("accord.catchup_on_start", "false"); }).start()))
         {
             withRandom(rng -> {
                 Generator<SchemaSpec> schemaGen = SchemaGenerators.trivialSchema(KEYSPACE, new Supplier<String>()
@@ -115,7 +115,7 @@ public class AccordBounceTest extends FuzzTestBase
     @Test
     public void commandStoresBounceTest() throws Throwable
     {
-        try (Cluster cluster = init(builder().withNodes(1).start()))
+        try (Cluster cluster = init(builder().withNodes(1).withConfig(config -> { config.set("accord.catchup_on_start", "false"); }).start()))
         {
             withRandom(rng -> {
                 Generator<SchemaSpec> schemaGen = SchemaGenerators.trivialSchema(KEYSPACE, new Supplier<>() {

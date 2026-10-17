@@ -18,7 +18,7 @@
 #
 # Creates the artifacts, performing additional QA checks
 #
-# Usage: _docker_run.sh <docker_image_name> <script_to_execute> <java_version>
+# Usage: _docker_run.sh <docker_image_name> <script_to_execute> [<java_version>] [<script arguments…>]
 
 ################################
 #
@@ -41,15 +41,23 @@ java_version_default=`grep 'property\s*name="java.default"' ${cassandra_dir}/bui
 java_version_supported=`grep 'property\s*name="java.supported"' ${cassandra_dir}/build.xml |sed -ne 's/.*value="\([^"]*\)".*/\1/p'`
 
 if [ "$1" == "-h" ]; then
-   echo "$0 [-h] <dockerfile> <run_script> [<java version>]"
-   echo " this script is used by check|build*.sh scripts (in the same directory) as a wrapper delegating the container run of the <dockerfile> and execution of the <run_script>, and using [<java version>] is specified"
-   exit 1
+   echo "$0 [-h] <dockerfile> <run_script> [<java_version>] [<script arguments…>]"
+   echo " this script is used by check|build*.sh scripts (in the same directory) as a wrapper delegating the container run of the <dockerfile> and execution of the <run_script>, using [<java_version>] if it is specified"
+   echo " [<script arguments…>] are passed to <run_script>. an argument that starts with - is never read as the java version"
+   exit 0
 fi
 
 # arguments
 dockerfile=$1
 run_script=$2
-java_version=$3
+shift 2
+# the java version is positional and optional. a leading - marks a run_script argument,
+# so that e.g. `build-jars.sh --clean` is not read as a java version
+java_version=""
+case "${1:-}" in
+  ""|-*) ;;
+  *)     java_version=$1; shift ;;
+esac
 
 # pre-conditions
 command -v docker >/dev/null 2>&1 || { echo >&2 "docker needs to be installed"; exit 1; }
@@ -114,8 +122,12 @@ fi
 
 # Run build script through docker
 random_string="$(LC_ALL=C tr -dc A-Za-z0-9 </dev/urandom | head -c 6 ; echo '')"
-run_script_name=$(echo ${run_script} | sed  's/.sh//' | sed 's/_//')
-container_name="cassandra_${dockerfile/.docker/}_${un_script_name}_jdk${java_version}__${random_string}"
+# a container name accepts [a-zA-Z0-9][a-zA-Z0-9_.-] only, so drop the directory of a
+# run_script such as docker/_build-redhat.sh, then its .sh suffix and its leading _
+run_script_name="${run_script##*/}"
+run_script_name="${run_script_name%.sh}"
+run_script_name="${run_script_name#_}"
+container_name="cassandra_${dockerfile/.docker/}_${run_script_name}_jdk${java_version}__${random_string}"
 
 [ $DEBUG ] && docker_envs="${docker_envs} --env DEBUG=1"
 
@@ -125,7 +137,7 @@ container_name="cassandra_${dockerfile/.docker/}_${un_script_name}_jdk${java_ver
 #  execute the run_script
 docker_command="export ANT_OPTS=\"-Dbuild.dir=\${DIST_DIR} ${CASSANDRA_DOCKER_ANT_OPTS}\" ; \
                 source \${CASSANDRA_DIR}/.build/docker/_set_java.sh ${java_version} ; \
-                \${CASSANDRA_DIR}/.build/${run_script} ${@:4} ; exit \$? "
+                \${CASSANDRA_DIR}/.build/${run_script} ${@} ; exit \$? "
 
 # run without the default seccomp profile
 # re-use the host's maven repository

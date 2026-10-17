@@ -19,7 +19,6 @@
 package org.apache.cassandra.io.sstable.format;
 
 import java.nio.file.Files;
-import java.util.Collections;
 
 import org.junit.After;
 import org.junit.Before;
@@ -158,7 +157,7 @@ public class DataComponentDirectWriteSelectionTest
     {
         Descriptor descriptor = new Descriptor(tmpDir, KS, CF, new SequenceBasedSSTableId(nextId++),
                                                DatabaseDescriptor.getSelectedSSTableFormat());
-        MetadataCollector collector = new MetadataCollector(new ClusteringComparator(Collections.singletonList(BytesType.instance)));
+        MetadataCollector collector = new MetadataCollector(new ClusteringComparator(BytesType.instance));
         // finishOnClose(false) routes try-with-resources close through abort, avoiding finish() side effects on an empty writer.
         SequentialWriterOption options = SequentialWriterOption.newBuilder().finishOnClose(false).build();
         return DataComponent.buildWriter(descriptor, metadata, options, collector, op, FlushCompression.fast, null);

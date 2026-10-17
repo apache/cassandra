@@ -49,7 +49,9 @@ public abstract class KeywordTestBase extends CQLTester
 
     public static Collection<Object[]> getKeywordsForSplit(int split, int totalSplits)
     {
-        return Sets.newHashSet(Lists.partition(KeywordTestBase.keywords, KeywordTestBase.keywords.size() / totalSplits)
+        // Since totalSplits is set to 2, we need to round up otherwise we won't cover a portion of the list
+        int partitionSize = (keywords.size() + totalSplits - 1) / totalSplits;
+        return Sets.newHashSet(Lists.partition(KeywordTestBase.keywords, partitionSize)
                                     .get(split - 1));
     }
 

@@ -56,7 +56,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import accord.local.CommandStore;
-import accord.local.PreLoadContext;
+import accord.local.ExecutionContext;
 import accord.local.SafeCommand;
 import accord.primitives.PartialDeps;
 import accord.primitives.TxnId;
@@ -115,6 +115,7 @@ public class AccordLoadTest extends AccordTestBase
                   .set("accord.shard_durability_target_splits", "8")
                   .set("accord.shard_durability_max_splits", "16")
                   .set("accord.shard_durability_cycle", "1m")
+                  .set("accord.durability_flush_interval", "10s")
                   .set("accord.queue_submission_model", "SIGNAL")
                   .set("accord.command_store_shard_count", "8")
                   .set("accord.queue_thread_count", "4")
@@ -353,6 +354,12 @@ public class AccordLoadTest extends AccordTestBase
     private static SettingsBuilder withArtificialLatencies(SettingsBuilder builder)
     {
         return builder.setArtificialLatencies(LATENCIES);
+    }
+
+    private static SettingsBuilder populate(SettingsBuilder builder, int keyCount)
+    {
+        return builder.setKeySelector(roundrobin(keyCount))
+                      .setReadRatio(0f);
     }
 
     private static SettingsBuilder ycsbA(SettingsBuilder builder, int keyCount)
@@ -832,8 +839,8 @@ public class AccordLoadTest extends AccordTestBase
                                 if (storeId.get() >= 0)
                                 {
                                     CommandStore commandStore = service.node().commandStores().forId(storeId.get());
-                                    List<List<String>> result = AccordService.getBlocking(commandStore.submit(PreLoadContext.contextFor(candidate, "LoadTest"), safeStore -> {
-                                        SafeCommand safeCommand = safeStore.unsafeGet(candidate);
+                                    List<List<String>> result = AccordService.getBlocking(commandStore.submit(ExecutionContext.unsequenced(candidate, "LoadTest"), safeStore -> {
+                                        SafeCommand safeCommand = safeStore.unsafeTryGet(candidate);
                                         PartialDeps deps = safeCommand.current().partialDeps();
                                         if (deps == null)
                                             return null;
@@ -855,8 +862,8 @@ public class AccordLoadTest extends AccordTestBase
                                         for (List<String> info : result)
                                         {
                                             TxnId txnId = TxnId.parse(info.get(0));
-                                            AccordService.getBlocking(commandStore.execute(PreLoadContext.contextFor(txnId, "LoadTest"), safeStore -> {
-                                                SafeCommand safeCommand = safeStore.unsafeGet(txnId);
+                                            AccordService.getBlocking(commandStore.execute(ExecutionContext.unsequenced(txnId, "LoadTest"), safeStore -> {
+                                                SafeCommand safeCommand = safeStore.unsafeTryGet(txnId);
                                                 if (safeCommand.current().executeAt != null)
                                                     info.add(safeCommand.current().executeAt.toString());
                                             }));
@@ -915,7 +922,7 @@ public class AccordLoadTest extends AccordTestBase
                 cluster.forEach(() -> {
                     refresh(AccordExecutorMetrics.INSTANCE.elapsedRunning);
                     refresh(AccordExecutorMetrics.INSTANCE.elapsed);
-                    System.out.printf("%tT.%tL (%d %d %d %d %d %d)ms (%d %d %d %d %d %d)ms (%d %d %d %d %.0f, %d %d %d)us %d %d %d\n", nowMillis, nowMillis,
+                    System.out.printf("%tT.%tL (%d %d %d %d %d %d)ms (%d %d %d %d %d %d)ms (%d %d %d)us %d %.0f (%d %d %d)us %d %d %d %d %d\n", nowMillis, nowMillis,
                                       getLatency(AccordCoordinatorMetrics.readMetrics.preacceptLatency, 0.5),
                                       getLatency(AccordCoordinatorMetrics.readMetrics.executeLatency, 0.5),
                                       getLatency(AccordCoordinatorMetrics.readMetrics.applyLatency, 0.5),
@@ -936,9 +943,11 @@ public class AccordLoadTest extends AccordTestBase
                                       getLatency(AccordExecutorMetrics.INSTANCE.elapsed, 0.5),
                                       getLatency(AccordExecutorMetrics.INSTANCE.elapsed, 0.9),
                                       getLatency(AccordExecutorMetrics.INSTANCE.elapsed, 0.999),
-                                      AccordExecutorMetrics.INSTANCE.running.getValue(),
                                       AccordExecutorMetrics.INSTANCE.waitingToRun.getValue(),
-                                      AccordExecutorMetrics.INSTANCE.preparingToRun.getValue()
+                                      AccordExecutorMetrics.INSTANCE.preparingToRun.getValue(),
+                                      AccordExecutorMetrics.INSTANCE.running.getValue(),
+                                      AccordCoordinatorMetrics.readMetrics.timeouts.getCount(),
+                                      AccordCoordinatorMetrics.writeMetrics.timeouts.getCount()
                     );
                     clear(AccordExecutorMetrics.INSTANCE.elapsedRunning);
                     clear(AccordExecutorMetrics.INSTANCE.elapsed);
@@ -1092,13 +1101,13 @@ public class AccordLoadTest extends AccordTestBase
         try
         {
             test.setup();
-            test.testLoad(withArtificialLatencies(ycsbA(new SettingsBuilder(), 100_000)
+            test.testLoad(populate(new SettingsBuilder(), 1_000_000)
 //                                                  .setRatePerSecond(400).setMinRatePerSecond(200)
 //                                                  .setRatePerSecond(800).setMinRatePerSecond(200)
                                                   .setRatePerSecond(1600).setMinRatePerSecond(200)
                                                   .setIncreaseRatePerSecondInterval(5000)
 //                                                  .setTraceLast(5000)
-            ).build());
+            .build());
         }
         finally
         {

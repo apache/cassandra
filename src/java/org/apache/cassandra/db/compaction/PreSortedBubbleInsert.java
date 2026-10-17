@@ -23,11 +23,10 @@ import java.util.Comparator;
  * Use bubble sort to insert the <code>sortedFrom - 1</code> element into a pre-sorted array, and
  * track element equality to next element to help in finding merge ranges.
  * <p>
- * The comparator is held as an instance field rather than passed per call so that this class can
- * be duplicated under a new name via the {@code gen-java-copy} build step (see {@code build.xml}):
- * each generated copy is a separately compiled class whose {@code comparator.compare(...)} call
- * site is only ever exercised with the one comparator it was constructed with, keeping that call
- * site monomorphic/inlinable instead of megamorphic across every comparator sharing this class.
+ * The comparator is an instance field rather than a per-call parameter so that the
+ * {@code gen-java-copy} build step (see {@code build.xml}) can duplicate this class under a new
+ * name. Each copy is compiled separately and sees one comparator, so its
+ * {@code comparator.compare} call site stays monomorphic.
  */
 public class PreSortedBubbleInsert<T>
 {

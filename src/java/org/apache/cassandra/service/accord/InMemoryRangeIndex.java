@@ -34,7 +34,7 @@ import accord.impl.cfr.LoadListener;
 import accord.local.Command;
 import accord.local.CommandSummaries.Summary;
 import accord.local.CommandSummaries.SummaryLoader;
-import accord.local.LoadKeysFor;
+import accord.local.FindKeys;
 import accord.local.MaxDecidedRX;
 import accord.local.RedundantBefore;
 import accord.primitives.Timestamp;
@@ -44,6 +44,7 @@ import accord.primitives.Unseekables;
 import accord.utils.async.Cancellable;
 
 import org.apache.cassandra.io.util.File;
+import org.apache.cassandra.service.accord.execution.AccordCacheEntry;
 import org.apache.cassandra.service.accord.serializers.CommandStoreSerializers;
 
 import static org.apache.cassandra.io.util.CompressedFrameDataInputPlus.readList;
@@ -56,22 +57,22 @@ public class InMemoryRangeIndex extends InMemoryRangeSummaryIndex implements Ran
         private final InMemoryRangeIndex owner;
         private Cancellable unregister;
 
-        public Loader(InMemoryRangeIndex owner, RedundantBefore redundantBefore, MaxDecidedRX maxDecidedRX, TxnId primaryTxnId, Unseekables<?> searchKeysOrRanges, Kinds testKinds, TxnId minTxnId, Timestamp maxTxnId, LoadKeysFor loadKeysFor)
+        public Loader(InMemoryRangeIndex owner, RedundantBefore redundantBefore, MaxDecidedRX maxDecidedRX, TxnId primaryTxnId, Unseekables<?> searchKeysOrRanges, Kinds testKinds, TxnId minTxnId, Timestamp maxTxnId, FindKeys findKeys)
         {
-            super(redundantBefore, maxDecidedRX, primaryTxnId, searchKeysOrRanges, testKinds, minTxnId, maxTxnId, loadKeysFor);
+            super(redundantBefore, maxDecidedRX, primaryTxnId, searchKeysOrRanges, testKinds, minTxnId, maxTxnId, findKeys);
             this.owner = owner;
         }
 
         @Override
         public void loadExclusive(Map<Timestamp, Summary> into, AccordCommandStore.Caches caches)
         {
-            if (loadKeysFor == LoadKeysFor.RECOVERY)
+            if (findKeys == FindKeys.SUPERSEDING)
                 unregister = owner.registerListener(new LoadListener(this, into));
         }
 
         public void load(Map<Timestamp, Summary> into, BooleanSupplier abort)
         {
-            if (loadKeysFor != LoadKeysFor.RECOVERY)
+            if (findKeys != FindKeys.SUPERSEDING)
                 return;
 
             if (abort.getAsBoolean())
@@ -88,7 +89,7 @@ public class InMemoryRangeIndex extends InMemoryRangeSummaryIndex implements Ran
             {
                 for (TxnId txnId : load)
                 {
-                    AccordCacheEntry<TxnId, Command> entry = caches.commands().getUnsafe(txnId);
+                    AccordCacheEntry<TxnId, Command, ?> entry = caches.commands().getUnsafe(txnId);
                     if (entry == null)
                     {
                         loadFromDisk.add(txnId);
@@ -115,7 +116,6 @@ public class InMemoryRangeIndex extends InMemoryRangeSummaryIndex implements Ran
 
         public void finish(Map<Timestamp, Summary> into)
         {
-            cleanupExclusive(null);
             owner.search(this, into::put, null);
         }
 
@@ -143,11 +143,11 @@ public class InMemoryRangeIndex extends InMemoryRangeSummaryIndex implements Ran
         this.commandStore = commandStore;
     }
 
-    public RangeIndex.Loader loader(TxnId primaryTxnId, Timestamp primaryExecuteAt, LoadKeysFor loadKeysFor, Unseekables<?> keysOrRanges)
+    public RangeIndex.Loader loader(TxnId primaryTxnId, Timestamp primaryExecuteAt, FindKeys findKeys, Unseekables<?> keysOrRanges)
     {
         RedundantBefore redundantBefore = commandStore.unsafeGetRedundantBefore();
         MaxDecidedRX maxDecidedRX = commandStore.unsafeGetMaxDecidedRX();
-        return SummaryLoader.loader(redundantBefore, maxDecidedRX, primaryTxnId, primaryExecuteAt, loadKeysFor, keysOrRanges, this::newLoader);
+        return SummaryLoader.loader(redundantBefore, maxDecidedRX, primaryTxnId, primaryExecuteAt, findKeys, keysOrRanges, this::newLoader);
     }
 
     @Override
@@ -156,9 +156,9 @@ public class InMemoryRangeIndex extends InMemoryRangeSummaryIndex implements Ran
         prune(commandStore);
     }
 
-    private RangeIndex.Loader newLoader(RedundantBefore redundantBefore, MaxDecidedRX maxDecidedRX, @Nullable TxnId primaryTxnId, Unseekables<?> searchKeysOrRanges, Kinds testKind, TxnId minTxnId, Timestamp maxTxnId, LoadKeysFor loadKeysFor)
+    private RangeIndex.Loader newLoader(RedundantBefore redundantBefore, MaxDecidedRX maxDecidedRX, @Nullable TxnId primaryTxnId, Unseekables<?> searchKeysOrRanges, Kinds testKind, TxnId minTxnId, Timestamp maxTxnId, FindKeys findKeys)
     {
-        return new Loader(this, redundantBefore, maxDecidedRX, primaryTxnId, searchKeysOrRanges, testKind, minTxnId, maxTxnId, loadKeysFor);
+        return new Loader(this, redundantBefore, maxDecidedRX, primaryTxnId, searchKeysOrRanges, testKind, minTxnId, maxTxnId, findKeys);
     }
 
     @Override

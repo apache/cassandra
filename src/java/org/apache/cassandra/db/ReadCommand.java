@@ -444,13 +444,26 @@ public abstract class ReadCommand extends AbstractReadQuery
 
     public ReadResponse createResponse(UnfilteredPartitionIterator iterator, RepairedDataInfo rdi)
     {
+        return createResponse(iterator, rdi, false, false);
+    }
+
+    private ReadResponse createResponse(UnfilteredPartitionIterator iterator, RepairedDataInfo rdi, boolean localRead, boolean localReplicaOnly)
+    {
         // validate that the sequence of RT markers is correct: open is followed by close, deletion times for both
         // ends equal, and there are no dangling RT bound in any partition.
         iterator = RTBoundValidator.validate(iterator, Stage.PROCESSED, true);
+        if (isDigestQuery())
+            return ReadResponse.createDigestResponse(iterator, this);
 
-        return isDigestQuery()
-               ? ReadResponse.createDigestResponse(iterator, this)
-               : ReadResponse.createDataResponse(iterator, this, rdi);
+        if (localRead && ReadResponse.inMemoryLocalResponseEnabled(localReplicaOnly))
+            return ReadResponse.createInMemoryDataResponse(iterator, this, rdi, localReplicaOnly);
+
+        return ReadResponse.createDataResponse(iterator, this, rdi);
+    }
+
+    public ReadResponse createLocalObjectResponse(UnfilteredPartitionIterator iterator, RepairedDataInfo rdi, boolean localReplicaOnly)
+    {
+        return createResponse(iterator, rdi, true, localReplicaOnly);
     }
 
     public ReadResponse createEmptyResponse()
@@ -1447,9 +1460,12 @@ public abstract class ReadCommand extends AbstractReadQuery
             if (hasIndex)
             {
                 IndexMetadata index = deserializeIndexMetadata(in, version, tableMetadata);
-                Index.Group indexGroup =  Keyspace.openAndGetStore(tableMetadata).indexManager.getIndexGroup(index);
-                if (indexGroup != null)
-                    indexQueryPlan = indexGroup.queryPlanFor(rowFilter);
+                if (index != null)
+                {
+                    Index.Group indexGroup = Keyspace.openAndGetStore(tableMetadata).indexManager.getIndexGroup(index);
+                    if (indexGroup != null)
+                        indexQueryPlan = indexGroup.queryPlanFor(rowFilter);
+                }
             }
 
             return deserializer.deserialize(in, version, schemaVersion, isDigest, digestVersion, acceptsTransient, potentialTxnConflicts, tableMetadata, nowInSec, columnFilter, rowFilter, limits, indexQueryPlan);
@@ -1505,6 +1521,10 @@ public abstract class ReadCommand extends AbstractReadQuery
             return deserialize(kind.accordSelectionDeserializer.apply(key), flags, tableMetadata.epoch, 0, 0, tableMetadata, in, version);
         }
 
+        /**
+         * @return the index the command was built with, or {@code null} if this node does not know that index yet
+         */
+        @Nullable
         private IndexMetadata deserializeIndexMetadata(DataInputPlus in, int version, TableMetadata metadata) throws IOException
         {
             try

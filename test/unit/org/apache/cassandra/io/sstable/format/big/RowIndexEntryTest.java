@@ -49,7 +49,6 @@ import org.apache.cassandra.db.Keyspace;
 import org.apache.cassandra.db.LivenessInfo;
 import org.apache.cassandra.db.SerializationHeader;
 import org.apache.cassandra.db.TypeSizes;
-import org.apache.cassandra.db.marshal.AbstractType;
 import org.apache.cassandra.db.marshal.LongType;
 import org.apache.cassandra.db.partitions.ImmutableBTreePartition;
 import org.apache.cassandra.db.rows.AbstractUnfilteredRowIterator;
@@ -89,8 +88,7 @@ import static org.junit.Assert.assertTrue;
 
 public class RowIndexEntryTest extends CQLTester
 {
-    private static final List<AbstractType<?>> clusterTypes = Collections.singletonList(LongType.instance);
-    private static final ClusteringComparator comp = new ClusteringComparator(clusterTypes);
+    private static final ClusteringComparator comp = new ClusteringComparator(LongType.instance);
 
     private static final byte[] dummy_100k = new byte[100000];
 

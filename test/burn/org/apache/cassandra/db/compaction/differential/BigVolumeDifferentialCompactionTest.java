@@ -30,25 +30,39 @@ import org.apache.cassandra.db.ColumnFamilyStore;
 import static org.junit.Assert.assertTrue;
 
 /**
- * Volume scenario: FORTY MILLION written rows across TWENTY input sstables — 20,000 partitions
- * x 100 rows per round x 20 flush rounds, with each round's clustering window overlapping the
- * previous round's by half so most output rows genuinely merge from 2-3 inputs, plus one
- * reserved single-row tie partition (see TIE_PK). The mutation mix runs at scale; at the
- * defaults: ~14% TTL'd rows, 6.7% of writes at the explicit tie timestamp — which the
- * overlapping windows turn into a cross-sstable same-timestamp tie at 50 of every bulk
- * partition's 1,012 distinct clusterings, 49 of them decided by the tie-break (the other one
- * also takes a wall-clock TTL write in a third covering round, which wins on timestamp), so
- * 980K rows table-wide whose tie the tie-break decides out of 1M carrying one — ~3%
- * null-overwrite cell tombstones, plus per-round row deletes, bounded and single-sided range
- * deletes, and cycling partition deletes with resurrection.
+ * Compacts 40 million written rows from 20 input sstables. The test writes 20,000 partitions of
+ * 100 rows in each of 20 rounds, and flushes after each round.
  *
- * Runs in scale-capture mode (see DifferentialCompactionTester.scaleCapture): the logical
- * dump streams into a SHA-256 digest and byte comparison streams, so harness memory stays
- * flat. Two generations as everywhere.
+ * Each round writes a window of clusterings that covers half of the window of the round before
+ * it, so most output rows really merge from two or three inputs. One partition is kept apart and
+ * holds a single row, for the timestamp tie: see TIE_PK.
  *
- * Lives in test/burn, not test/unit — this is a multi-minute, multi-GB compaction, not a unit
- * test. All scale parameters are still property-configurable (defaults reproduce the standard
- * 40M-row / 20-sstable run). Properties must reach the forked test JVM via -Dtest.jvm.args:
+ * With the default settings the writes are mixed as follows:
+ * <ul>
+ *   <li>about 5 percent multi-cell map cells;</li>
+ *   <li>about 14 percent rows with a TTL;</li>
+ *   <li>6.7 percent of writes at the tie timestamp;</li>
+ *   <li>about 3 percent cell tombstones, made by an overwrite with null;</li>
+ *   <li>row deletes in each round;</li>
+ *   <li>range deletes, both bounded and open at one end;</li>
+ *   <li>partition deletes that repeat, with data written again afterwards.</li>
+ * </ul>
+ *
+ * The tie timestamp and the covering windows together give a same-timestamp tie across sstables
+ * at 50 of the 1012 distinct clusterings of each bulk partition. The tie-break decides 49 of
+ * them. The other one also takes a TTL write in a third round, which wins on timestamp. Across
+ * the table that gives about 1 million rows with a tie, of which the tie-break decides 980,000.
+ *
+ * The test runs in scale-capture mode: see DifferentialCompactionTester.scaleCapture. The dump
+ * of each output goes into a SHA-256 digest, and the byte comparison reads a stream, so the
+ * memory the harness uses stays constant. It compacts twice, as the other tests do.
+ *
+ * This test is in test/burn, and not in test/unit, because it runs a compaction of several
+ * gigabytes that takes minutes. It is not a unit test.
+ *
+ * You can change every scale value with a system property. The defaults give the run of 40
+ * million rows and 20 sstables above. The properties must reach the forked test JVM through
+ * -Dtest.jvm.args:
  *
  *   ant test-burn -Dtest.name=...BigVolumeDifferentialCompactionTest \
  *       -Dtest.timeout=14400000 \
@@ -108,7 +122,7 @@ public class BigVolumeDifferentialCompactionTest extends DifferentialCompactionT
     @Test
     public void fortyMillionRowsTwentySSTables() throws Throwable
     {
-        createTable("CREATE TABLE %s (pk bigint, ck bigint, v1 bigint, v2 text, " +
+        createTable("CREATE TABLE %s (pk bigint, ck bigint, v1 bigint, v2 text, m map<text, bigint>, " +
                     "PRIMARY KEY (pk, ck)) WITH gc_grace_seconds = 864000");
         ColumnFamilyStore cfs = getCurrentColumnFamilyStore();
         cfs.disableAutoCompaction();
@@ -124,6 +138,7 @@ public class BigVolumeDifferentialCompactionTest extends DifferentialCompactionT
         String insert = "INSERT INTO %s (pk, ck, v1, v2) VALUES (?, ?, ?, ?)";
         String insertTtl = insert + " USING TTL 86400";
         String insertTs = insert + " USING TIMESTAMP 5000";
+        String insertMap = "INSERT INTO %s (pk, ck, v1, v2, m) VALUES (?, ?, ?, ?, ?)";
 
         // A clustering written at the explicit tie timestamp in two ADJACENT rounds is a genuine
         // cross-sstable same-timestamp tie (rounds are sstables here, one flush each). Counted from the
@@ -150,13 +165,16 @@ public class BigVolumeDifferentialCompactionTest extends DifferentialCompactionT
                     long ck = ckBase + j;
                     long v1 = ck * 31 + round;
                     String v2 = j % 31 == 30 ? null : "v" + round + "_" + ck + VALUE_PADDING;
-                    boolean ttlWrite = j % 7 == 3;
+                    boolean mapWrite = j % 20 == 5;
+                    boolean ttlWrite = !mapWrite && j % 7 == 3;
                     // ck, not j: the clustering window shifts by CK_STRIDE every round, so a predicate
                     // on the in-round offset j can never select the same clustering in two rounds and
                     // produces ZERO cross-sstable ties. A predicate on ck holds in every round whose
                     // window covers it.
-                    boolean tieWrite = !ttlWrite && ck % 13 == 7;
-                    if (ttlWrite)
+                    boolean tieWrite = !mapWrite && !ttlWrite && ck % 13 == 7;
+                    if (mapWrite)
+                        execute(insertMap, pk, ck, v1, v2, map("k" + (ck % 3), ck, "r", (long) round));
+                    else if (ttlWrite)
                         execute(insertTtl, pk, ck, v1, v2);
                     else if (tieWrite)
                     {

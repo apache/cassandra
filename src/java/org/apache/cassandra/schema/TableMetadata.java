@@ -91,7 +91,6 @@ import static accord.utils.Invariants.require;
 import static com.google.common.collect.Iterables.any;
 import static com.google.common.collect.Iterables.transform;
 import static java.lang.String.format;
-import static java.util.stream.Collectors.toList;
 import static java.util.stream.Collectors.toSet;
 import static org.apache.cassandra.db.Directories.SECONDARY_INDEX_NAME_SEPARATOR;
 import static org.apache.cassandra.db.Directories.TABLE_DIRECTORY_NAME_SEPARATOR;
@@ -255,8 +254,13 @@ public class TableMetadata implements SchemaElement
             columnsById[column.uniqueId] = column;
         for (ColumnMetadata column : partitionKeyColumns)
             columnsById[column.uniqueId] = column;
-        for (ColumnMetadata column : clusteringColumns)
+        AbstractType<?>[] clusteringTypes = new AbstractType<?>[clusteringColumns.size()];
+        for (int i = 0; i < clusteringColumns.size(); i++)
+        {
+            ColumnMetadata column = clusteringColumns.get(i);
             columnsById[column.uniqueId] = column;
+            clusteringTypes[i] = column.type;
+        }
         columns = ImmutableMap.copyOf(builder.columns);
 
         indexes = builder.indexes;
@@ -266,7 +270,7 @@ public class TableMetadata implements SchemaElement
                          ? partitionKeyColumns.get(0).type
                          : CompositeType.getInstance(transform(partitionKeyColumns, t -> t.type));
 
-        comparator = new ClusteringComparator(transform(clusteringColumns, c -> c.type));
+        comparator = new ClusteringComparator(clusteringTypes);
 
         resource = DataResource.table(keyspace, name);
         if (builder.isOffline)
@@ -750,7 +754,10 @@ public class TableMetadata implements SchemaElement
 
     public ClusteringComparator partitionKeyAsClusteringComparator()
     {
-        return new ClusteringComparator(partitionKeyColumns.stream().map(c -> c.type).collect(toList()));
+        AbstractType<?>[] clusteringTypes = new AbstractType<?>[partitionKeyColumns.size()];
+        for (int i = 0; i < clusteringTypes.length; i++)
+            clusteringTypes[i] = partitionKeyColumns.get(i).type;
+        return new ClusteringComparator(clusteringTypes);
     }
 
     /**

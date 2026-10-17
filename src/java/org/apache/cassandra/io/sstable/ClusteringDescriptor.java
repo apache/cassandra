@@ -20,7 +20,6 @@ package org.apache.cassandra.io.sstable;
 
 import java.io.IOException;
 import java.nio.ByteBuffer;
-import java.util.List;
 
 import org.apache.cassandra.db.Clustering;
 import org.apache.cassandra.db.ClusteringBound;
@@ -113,7 +112,6 @@ public class ClusteringDescriptor extends ResizableByteBuffer
         this.clusteringColumnsBound = clusteringColumnsBound;
     }
 
-    // Expose and rename parent data
     public final ByteBuffer clusteringBuffer() {
         return buffer();
     }
@@ -164,7 +162,7 @@ public class ClusteringDescriptor extends ResizableByteBuffer
         return (clusteringKindEncoded == EXCL_END_INCL_START_BOUNDARY_CLUSTERING_KIND || clusteringKindEncoded == INCL_END_EXCL_START_BOUNDARY_CLUSTERING_KIND);
     }
 
-    public final ClusteringPrefix<?> toClusteringPrefix(List<AbstractType<?>> clusteringTypesList) {
+    public final ClusteringPrefix<?> toClusteringPrefix(AbstractType<?>[] clusteringTypesList) {
         if (clusteringKindEncoded == ROW_CLUSTERING_KIND) {
             return Clustering.serializer.deserialize(clusteringBuffer(), 0, clusteringTypesList);
         }

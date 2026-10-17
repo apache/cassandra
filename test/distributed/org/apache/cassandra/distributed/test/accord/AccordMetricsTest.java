@@ -38,6 +38,7 @@ import accord.api.ProtocolModifiers;
 import accord.primitives.TxnId.FastPath;
 import accord.primitives.TxnId.FastPaths;
 
+import org.apache.cassandra.config.CassandraRelevantProperties;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.db.virtual.AccordDebugKeyspace;
 import org.apache.cassandra.distributed.api.ConsistencyLevel;
@@ -54,10 +55,10 @@ import org.apache.cassandra.metrics.DefaultNameFactory;
 import org.apache.cassandra.metrics.RatioGaugeSet;
 import org.apache.cassandra.net.Verb;
 import org.apache.cassandra.schema.SchemaConstants;
-import org.apache.cassandra.service.accord.AccordExecutor;
 import org.apache.cassandra.service.accord.AccordService;
 import org.apache.cassandra.service.accord.exceptions.AccordReadPreemptedException;
 import org.apache.cassandra.service.accord.exceptions.AccordWritePreemptedException;
+import org.apache.cassandra.service.accord.execution.AccordExecutor;
 import org.apache.cassandra.service.consensus.TransactionalMode;
 import org.apache.cassandra.utils.AssertionUtils;
 
@@ -78,6 +79,7 @@ public class AccordMetricsTest extends AccordTestBase
     @BeforeClass
     public static void setupClass() throws IOException
     {
+        CassandraRelevantProperties.VIRTUAL_KEYSPACE_SYSTEM_METRICS_ENABLED.setBoolean(true);
         AccordTestBase.setupCluster(builder -> builder.withInstanceInitializer((cl, num) -> {
             Instance.transferAdhoc((IIsolatedExecutor.SerializableRunnable)() -> {
                 ProtocolModifiers.Configure.setPermittedFastPaths(new FastPaths(FastPath.Unoptimised));

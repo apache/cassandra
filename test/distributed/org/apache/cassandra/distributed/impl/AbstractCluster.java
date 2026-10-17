@@ -241,6 +241,15 @@ public abstract class AbstractCluster<I extends IInstance> implements ICluster<I
             });
         }
 
+        public B addInstanceInitializer(IInstanceInitializer instanceInitializer)
+        {
+            IInstanceInitializer current = this.getInstanceInitializer2();
+            return withInstanceInitializer((classLoader, threadGroup, num, v) -> {
+                current.initialise(classLoader, threadGroup, num, v);
+                instanceInitializer.initialise(classLoader, threadGroup, num, v);
+            });
+        }
+
         public AbstractBuilder(Factory<I, C, B> factory)
         {
             super(factory);
@@ -953,8 +962,16 @@ public abstract class AbstractCluster<I extends IInstance> implements ICluster<I
                 if (reportFrom == reportTo || reportFrom.isShutdown())
                     continue;
 
-                int minVersion = Math.min(reportFrom.getMessagingVersion(), reportTo.getMessagingVersion());
-                reportTo.setMessagingVersion(reportFrom.broadcastAddress(), minVersion);
+                try
+                {
+                    int minVersion = Math.min(reportFrom.getMessagingVersion(), reportTo.getMessagingVersion());
+                    reportTo.setMessagingVersion(reportFrom.broadcastAddress(), minVersion);
+                }
+                catch (IllegalStateException e)
+                {
+                    if (!!e.getMessage().contains("Can't use shutdown node") && !reportFrom.isShutdown() && !reportTo.isShutdown())
+                        throw e;
+                }
             }
         }
     }

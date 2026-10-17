@@ -51,6 +51,7 @@ implements ISSTableScanner
 
     private final TableMetadata tableMetadata;
 
+    private final Collection<PartitionPositionBounds> boundsList;
     private final Iterator<PartitionPositionBounds> rangeIterator;
 
     private long bytesScannedInPreviousRanges;
@@ -82,6 +83,7 @@ implements ISSTableScanner
         this.tableMetadata = sstable.metadata();
         this.sizeInBytes = boundsList.stream().mapToLong(ppb -> ppb.upperPosition - ppb.lowerPosition).sum();
         this.compressedSizeInBytes = sstable.compression ? sstable.onDiskSizeForPartitionPositions(boundsList) : sizeInBytes;
+        this.boundsList = boundsList;
         this.rangeIterator = boundsList.iterator();
         this.currentEndPosition = 0;
         this.currentStartPosition = 0;
@@ -136,6 +138,12 @@ implements ISSTableScanner
     {
         // hasNext will init start and end
         return hasNext() && currentStartPosition == 0 && currentEndPosition == sstable.uncompressedLength();
+    }
+
+    /// The ranges of uncompressed positions this scanner was created over, whether or not it has read them.
+    public Collection<PartitionPositionBounds> positionBounds()
+    {
+        return boundsList;
     }
 
     public TableMetadata metadata()

@@ -81,8 +81,7 @@ import static org.junit.Assert.fail;
  * and asserts equivalence at two levels:
  *
  *  1. BYTE level: every output component must be byte-identical. There is deliberately NO
- *     exception mechanism — nothing is allowed to diverge; every divergence found to date
- *     has been a bug in one of the paths.
+ *     exception mechanism; nothing is allowed to diverge.
  *  2. LOGICAL level: a canonical JSON dump (sstabledump format) of every output sstable
  *     must match exactly, and key stats metadata must match.
  *
@@ -91,16 +90,13 @@ import static org.junit.Assert.fail;
  *    ({@code keepOriginals=true}) and the harness restores the live set from the original
  *    descriptors without rewriting anything.
  *  - the same gcBefore is passed to both runs, so purge decisions cannot flip between runs.
- *  - the cursor run asserts {@link CursorCompactor#isSupported} up front, and both runs assert
- *    afterwards that the compaction really selected the pipeline they asked for: supportability
- *    alone does not establish that, because pipeline selection also consults
- *    {@code cursorCompactionEnabled}. A run that silently fell back would compare a path with
- *    itself and pass.
+ *  - the cursor run asserts {@link CursorCompactor#isSupported} up front. Both runs then assert
+ *    that the compaction really selected the pipeline they asked for, because a run that
+ *    silently fell back would compare a path with itself and pass.
  *
- * nowInSec for TTL expiry evaluation is taken inside CompactionTask per run; scenarios that
- * need TTL expiry boundaries placed deterministically (rather than sleeping past them) should
- * use {@link #taskWithFixedNow} or the {@code LongSupplier}-taking overloads below instead of
- * relying on wall-clock timing.
+ * Each run takes its own nowInSec for TTL expiry inside CompactionTask. A scenario that needs a
+ * TTL expiry boundary placed deterministically uses {@link #taskWithFixedNow} or the
+ * {@code LongSupplier}-taking overloads below.
  */
 public abstract class DifferentialCompactionTester extends CQLTester
 {
@@ -109,16 +105,15 @@ public abstract class DifferentialCompactionTester extends CQLTester
 
     /**
      * Opt-in only: preserves a failed comparison's captured sstables under scratch instead of
-     * deleting them, for local post-mortem. Off by default deliberately — a scratch dir left
-     * behind on every failure is exactly the kind of thing that fills up a CI disk, especially
-     * for the multi-GB burn scenarios (BigVolume, LargePartition).
+     * deleting them, for local post-mortem. It defaults to off because a scratch directory kept
+     * on every failure fills a CI disk, especially for the multi-GB burn scenarios (BigVolume,
+     * LargePartition).
      */
     private static final boolean KEEP_SCRATCH_ON_FAILURE =
         CassandraRelevantProperties.TEST_DIFFERENTIAL_KEEP_SCRATCH_ON_FAILURE.getBoolean();
 
-    // sstabledump's "expired" fields come from WALL CLOCK, not the fixed nowInSec above
-    // (JsonTransformer), so the two paths' captures can render them differently; the flag is
-    // derived from expires_at, which is still compared.
+    // sstabledump renders "expired" from the WALL CLOCK, not from the fixed nowInSec above, so
+    // the two paths' captures can differ on it. Every capture normalizes it away; see capture().
     private static final Pattern EXPIRED_FLAG =
         Pattern.compile("\"expired\"\\s*:\\s*(true|false)");
 
@@ -209,11 +204,11 @@ public abstract class DifferentialCompactionTester extends CQLTester
      * scenarios that need a {@code gcBefore} placed relative to their own tombstones instead of relative
      * to the wall clock.
      * <p>
-     * The guard is the point: an sstable with no deletions — or one holding any live cell at all —
-     * reports {@link Cell#NO_DELETION_TIME} ({@code Long.MAX_VALUE}) as its max, so reading the field
-     * bare and adding one silently overflows to {@code Long.MIN_VALUE} — a {@code gcBefore} that makes
-     * nothing anywhere purgeable, which a scenario asserting that tombstones were RETAINED passes for
-     * entirely the wrong reason. Fails instead if the scenario produced no deletion at all.
+     * The guard is the point. An sstable with no deletions — or one holding any live cell at all —
+     * reports {@link Cell#NO_DELETION_TIME} ({@code Long.MAX_VALUE}) as its max. Reading the field
+     * bare and adding one therefore overflows to {@code Long.MIN_VALUE}, a {@code gcBefore} that
+     * makes nothing anywhere purgeable, which a scenario asserting that tombstones were RETAINED
+     * passes for entirely the wrong reason. Fails instead if the scenario produced no deletion.
      */
     protected static long maxTombstoneLocalDeletionTime(Iterable<SSTableReader> sstables)
     {
@@ -249,17 +244,18 @@ public abstract class DifferentialCompactionTester extends CQLTester
     /**
      * Pins the precondition of a fixed-now TTL scenario: at least one cell in the current live set
      * really has expired relative to nowInSeconds. A pinned "now" does not advance with the wall
-     * clock while the scenario writes, so a scenario that derived it before its write phase and
-     * then outran it would keep passing while comparing only unexpired cells — silently dropping
-     * the mechanism it exists to cover. Derive the pinned value after the last flush and call this.
+     * clock while the scenario writes. A scenario that derived the pin before its write phase and
+     * then outran it would keep passing while it compared only unexpired cells. Derive the pinned
+     * value after the last flush and call this.
      * <p>
-     * What it does NOT establish: that the specific cells a scenario's absolute assertions name are the
-     * expired ones. {@code minLocalDeletionTime} is fed by row, range and partition deletions as well as by
-     * TTL expiry, and a tombstone's local deletion time is always about its write second — hence always at
-     * or below a now pinned just past it. So a scenario carrying both a tombstone and a long TTL satisfies
-     * this while its expiring cells sit far above the pin. {@code StatsMetadata.minTTL} cannot close that:
-     * a plain cell contributes the no-TTL sentinel, so any sstable holding one reports the sentinel however
-     * many expiring cells it also holds. Keep the scenario's own absolute assertions doing that work.
+     * What it does NOT establish: that the specific cells a scenario's absolute assertions name are
+     * the expired ones. Row, range and partition deletions feed {@code minLocalDeletionTime} as well
+     * as TTL expiry, and a tombstone's local deletion time is its write second, hence always at or
+     * below a now pinned just past it. So a scenario carrying both a tombstone and a long TTL
+     * satisfies this while its expiring cells sit far above the pin. {@code StatsMetadata.minTTL}
+     * cannot close that gap: a plain cell contributes the no-TTL sentinel, so any sstable holding one
+     * reports the sentinel however many expiring cells it also holds. Keep the scenario's own
+     * absolute assertions doing that work.
      */
     protected void assertSomethingExpiredAt(ColumnFamilyStore cfs, long nowInSeconds)
     {
@@ -284,10 +280,11 @@ public abstract class DifferentialCompactionTester extends CQLTester
      * Variant for partial-set compactions (inputs is a subset of the live sstables; the rest
      * stay live and participate in purge-overlap decisions) and for custom CompactionTask
      * shapes (e.g. multi-output writers via an overridden getCompactionAwareWriter).
+     * <p>
+     * Returns the iterator-path capture so scenarios can assert structural expectations. A
+     * multi-output scenario MUST verify that more than one sstable was produced, because a
+     * scenario that does not exercise its mechanism passes vacuously.
      */
-    /** Returns the iterator-path capture so scenarios can assert structural expectations
-     *  (e.g. multi-output scenarios MUST verify more than one sstable was produced —
-     *  a scenario that does not exercise its mechanism passes vacuously). */
     protected CapturedOutput assertCursorMatchesIterator(ColumnFamilyStore cfs,
                                                          Set<SSTableReader> inputs,
                                                          TaskFactory taskFactory) throws Exception
@@ -309,25 +306,15 @@ public abstract class DifferentialCompactionTester extends CQLTester
     {
         Path scratch = Files.createTempDirectory("differential-compaction");
 
-        // Early open stays ENABLED here deliberately: keepOriginals=true with early open used
-        // to delete the originals (SSTableRewriter.moveStarts obsoleted fully-covered inputs
-        // unconditionally — now fixed and guarded by the flag), and this harness depends on
-        // the originals surviving, so every differential run doubles as the regression test.
+        // Early open stays ENABLED here deliberately: SSTableRewriter.moveStarts obsoletes a
+        // fully-covered input unless keepOriginals is set, and this harness depends on the
+        // originals surviving, so every differential run doubles as the regression test for
+        // that guard.
         //
-        // scratch holds byte-for-byte copies of every captured output sstable (both paths) — it is
-        // deleted as soon as the comparison that needs them is done, rather than accumulating for the
-        // lifetime of the test JVM: with hundreds of invocations per fork (e.g. the randomized soak),
-        // leaving cleanup to the temp-dir removal at JVM exit let disk usage grow unbounded over a
-        // single run.
-        //
-        // On FAILURE the copies are, by default, ALSO deleted: by then restoreAfterCompaction has
-        // already deleted the real output sstables, and a re-run writes fresh timestamps, so scratch
-        // would otherwise be the only reproducible evidence of what diverged — that matters most for a
-        // LOGICAL divergence, which fails before the byte loop and so carries no offsets or hex
-        // context in its message at all. But a scratch dir left behind on every failure is exactly the
-        // kind of thing that fills up a CI disk, especially for the multi-GB burn scenarios, so default
-        // to cleaning up regardless; KEEP_SCRATCH_ON_FAILURE opts a local debugging run into
-        // preserving it instead.
+        // scratch holds byte-for-byte copies of every captured output sstable, for both paths.
+        // The harness deletes it as soon as the comparison that needs it is done: one fork runs
+        // hundreds of invocations (e.g. the randomized soak), so leaving cleanup to the temp-dir
+        // removal at JVM exit grows disk usage without bound over a single run.
         boolean passed = false;
         try
         {
@@ -348,6 +335,11 @@ public abstract class DifferentialCompactionTester extends CQLTester
         }
         finally
         {
+            // A failed comparison deletes the copies too, by default. restoreAfterCompaction has
+            // already deleted the real output sstables and a re-run writes fresh timestamps, so
+            // scratch holds the only reproducible evidence of what diverged. That matters most for
+            // a LOGICAL divergence, which fails before the byte loop and so reports no offsets and
+            // no hex context. KEEP_SCRATCH_ON_FAILURE preserves scratch for a local debugging run.
             if (passed || !KEEP_SCRATCH_ON_FAILURE)
             {
                 // never rethrown: an IOException here would replace the AssertionError carrying the
@@ -372,16 +364,13 @@ public abstract class DifferentialCompactionTester extends CQLTester
      * Differential at TWO generations: the normal differential first (gen 1), then the inputs
      * are genuinely compacted through the CURSOR path and the differential runs again over the
      * cursor-produced outputs (gen 2). What gen 2 adds is INPUT SHAPES no flush in these
-     * scenarios produces: {@link org.apache.cassandra.db.SerializationHeader#make} gives its output
-     * the union of the inputs' column supersets — wider than any one of them wherever the
-     * scenario's flushes wrote different columns — and an EncodingStats base merged from their
-     * StatsMetadata minima, which timestamps, local deletion times and TTLs are delta-encoded
-     * against. That base is a minimum and the deltas are unsigned, so it sits at or below every
-     * value in the output, and purge or merge can leave it strictly below every surviving row by
-     * dropping the row that held it. A flush strands its own minimum the same way, so what differs
-     * is the width of the merge the base is taken over. The commit step in between also runs with
-     * keepOriginals=false, the real obsoletion path, which the differential runs themselves never
-     * take.
+     * scenarios produces. {@link org.apache.cassandra.db.SerializationHeader#make} gives its output
+     * the union of the inputs' column supersets, wider than any one of them wherever the scenario's
+     * flushes wrote different columns. It also gives that output an EncodingStats base merged from
+     * the inputs' StatsMetadata minima, over a wider set than any single flush covers, so purge or
+     * merge can leave the base strictly below every surviving row. The commit step in between also
+     * runs with keepOriginals=false, the real obsoletion path, which the differential runs
+     * themselves never take.
      *
      * Gen 2 is NOT a backstop for write-side corruption. Like gen 1, it hands the SAME input
      * bytes to both readers, so a defect the two interpret alike passes at either generation.
@@ -482,8 +471,7 @@ public abstract class DifferentialCompactionTester extends CQLTester
         // supportability, not execution: AbstractCompactionPipeline.create also gates on
         // DatabaseDescriptor.cursorCompactionEnabled(), which isSupported never reads. Without
         // this, a scenario that silently fell back to the iterator path would compare the
-        // iterator's output against itself and pass trivially, never having exercised the
-        // cursor path at all.
+        // iterator's output against itself and pass.
         CompactionPipelineCounts before = CompactionPipelineCounts.mark();
         taskFactory.create(cfs, txn, gcBefore).execute(ActiveCompactionsTracker.NOOP);
         CompactionPipelineCounts.assertPipelineRan(cursor, before);
@@ -579,7 +567,7 @@ public abstract class DifferentialCompactionTester extends CQLTester
     }
 
     /**
-     * Cursor compaction only supports BIG output (CursorCompactor.isSupported), so under a non-BIG
+     * Cursor compaction only supports BIG output (CursorCompactor.isSupported). Under a non-BIG
      * format — `ant test-latest` selects BTI — every scenario in this suite would fail for a reason
      * that is not a defect. Skip instead, and keep the supportability assertion for every other
      * unsupported-ness reason so the iterator-vs-iterator trap still fires.
@@ -627,12 +615,12 @@ public abstract class DifferentialCompactionTester extends CQLTester
         }
 
         // 2. canonical logical dump
-        // JsonTransformer's "expired" fields are computed from WALL CLOCK
-        // (currentTimeMillis), ignoring the fixed nowInSec passed below — so byte-identical
-        // outputs can render differently when a localExpirationTime falls between the two
-        // paths' captures, which run seconds apart (materialized-view expired-liveness rows
-        // sit permanently on that boundary: their expiration IS the write second). The flag
-        // is derived from expires_at, which is still compared, so normalize it out.
+        // JsonTransformer computes its "expired" fields from WALL CLOCK (currentTimeMillis),
+        // ignoring the fixed nowInSec passed below. Byte-identical outputs therefore render
+        // differently when a localExpirationTime falls between the two paths' captures, which run
+        // seconds apart. Materialized-view expired-liveness rows sit permanently on that boundary:
+        // their expiration IS the write second. The flag is derived from expires_at, which is still
+        // compared, so normalize it out.
         String json;
         if (scaleCapture())
         {
@@ -673,7 +661,10 @@ public abstract class DifferentialCompactionTester extends CQLTester
                               " estimatedKeys=" + sstable.estimatedKeys() +
                               " totalRows=" + stats.totalRows +
                               " totalColumnsSet=" + stats.totalColumnsSet +
-                              " encodingStats=" + sstable.header.stats();
+                              " encodingStats=" + sstable.header.stats() +
+                              " metaEncodingStats=" + stats.encodingStats.minTimestamp + "/" + stats.encodingStats.minLocalDeletionTime + "/" + stats.encodingStats.minTTL +
+                              " tombstoneHist=" + stats.estimatedTombstoneDropTime +
+                              " cellsPerPartition=" + stats.estimatedCellPerPartitionCount.mean() + "/" + stats.estimatedCellPerPartitionCount.count();
 
         // 4. copy components for byte comparison
         Files.createDirectories(dir);
@@ -816,12 +807,12 @@ public abstract class DifferentialCompactionTester extends CQLTester
      * fields. Buffers up to a line (toJsonLines emits one partition per line), but flushes
      * oversized lines in bounded chunks so memory stays flat even for multi-GB partitions.
      * The cut points are functions of CONTENT ONLY (buffer fill, not write() granularity), so
-     * two captures of identical bytes cut in identical places. The cut is NOT token-safe, though:
-     * a chunk boundary can fall inside an "expired":... token, and both halves then miss the
-     * pattern and go un-normalized — harmless while the two captures render that flag
-     * identically, a divergence if they do not (the two renderings differ in length, so it also
-     * shifts every later cut point). Only a line above FLUSH_THRESHOLD is cut at all, i.e. only
-     * the giant-partition scenario.
+     * two captures of identical bytes cut in identical places. The cut is NOT token-safe, though.
+     * A chunk boundary can fall inside an "expired" token, and both halves then miss the pattern
+     * and go un-normalized. That stays harmless while the two captures render the flag
+     * identically, and becomes a divergence if they do not: the two renderings differ in length,
+     * so a mismatch also shifts every later cut point. Only a line above FLUSH_THRESHOLD is cut
+     * at all, i.e. only the giant-partition scenario.
      */
     private static final class NormalizingDigestOutputStream extends java.io.OutputStream
     {

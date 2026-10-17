@@ -52,6 +52,7 @@ install: build
 	dh_testroot
 	dh_installdirs
 	dh_install
+	dh_install -pcassandra $(BUILD_DIR)/autocomplete/nodetool usr/share/bash-completion/completions
 
 	# Copy in the jar and symlink to something stable
 	dh_install $(BUILD_DIR)/apache-cassandra-$(VERSION).jar \
@@ -82,7 +83,6 @@ binary-indep: build install
 	dh_installinit -u'start 50 2 3 4 5 . stop 50 0 1 6 .'
 	dh_installdocs README.asc CHANGES.txt NEWS.txt doc/cql3/CQL.css doc/cql3/CQL.html CASSANDRA-14092.txt .snyk
 	dh_installexamples tools/*.yaml
-	dh_bash-completion
 	dh_compress
 	dh_fixperms
 	dh_installdeb

@@ -118,7 +118,8 @@ public final class SettingsTable extends AbstractVirtualTable
                 // this is done on best-effort basis as we do not have names in parameters
                 // inherently under control as this is what a user is responsible for
                 // when dealing with custom implementations
-                if (key.endsWith("_password") || key.equals("password"))
+                if (key.endsWith("_password") || key.equals("password") ||
+                    key.endsWith("_hash") || key.equals("hash"))
                     map.put(key, Redacted.REDACTED_STRING);
                 else
                     map.put(key, entry.getValue());

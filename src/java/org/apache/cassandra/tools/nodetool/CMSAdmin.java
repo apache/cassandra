@@ -123,6 +123,13 @@ public class CMSAdmin extends AbstractCommand
                 description = "Cancels any in progress CMS reconfiguration")
         private boolean cancel = false;
 
+        @Option(paramLabel = "ignored_endpoints",
+                names = { "-i", "--ignore" },
+                description = "Hosts to exclude from the new CMS, in addition to any which are currently down. Useful " +
+                              "before shrinking a cluster: excluding the nodes which are about to be decommissioned " +
+                              "keeps the CMS membership stable, avoiding a reconfiguration per decommissioned member.")
+        private List<String> ignoredEndpoints = new ArrayList<>();
+
         @CassandraUsage(usage = "[<replication factor>] or <datacenter>:<replication_factor> ... ", description = "Replication factor of new CMS")
         @Parameters(paramLabel = "replication_factor", description = "Replication factors of new CMS in format <replication factor> or <datacenter>:<replication_factor>")
         private List<String> args = new ArrayList<>();
@@ -148,6 +155,8 @@ public class CMSAdmin extends AbstractCommand
             {
                 if (!args.isEmpty())
                     throw new IllegalArgumentException("Replication factor should not be set if previous operation is resumed");
+                if (!ignoredEndpoints.isEmpty())
+                    throw new IllegalArgumentException("Ignored hosts should not be set if previous operation is resumed");
 
                 probe.getCMSOperationsProxy().resumeReconfigureCms();
                 return;
@@ -155,6 +164,9 @@ public class CMSAdmin extends AbstractCommand
 
             if (cancel)
             {
+                if (!ignoredEndpoints.isEmpty())
+                    throw new IllegalArgumentException("Ignored hosts should not be set when cancelling a reconfiguration");
+
                 probe.getCMSOperationsProxy().cancelReconfigureCms();
                 return;
             }
@@ -178,7 +190,7 @@ public class CMSAdmin extends AbstractCommand
                     {
                         throw new IllegalArgumentException(String.format("Can not parse replication factor from %s", args.get(0)));
                     }
-                    probe.getCMSOperationsProxy().reconfigureCMS(parsedRf);
+                    probe.getCMSOperationsProxy().reconfigureCMS(parsedRf, ignoredEndpoints);
                     return;
                 }
                 else
@@ -200,7 +212,7 @@ public class CMSAdmin extends AbstractCommand
                 }
             }
 
-            probe.getCMSOperationsProxy().reconfigureCMS(parsedRfs);
+            probe.getCMSOperationsProxy().reconfigureCMS(parsedRfs, ignoredEndpoints);
         }
     }
 

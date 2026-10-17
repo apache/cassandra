@@ -42,13 +42,20 @@ import static org.apache.cassandra.utils.LocalizeString.toUpperCaseLocalized;
 /** A class that extracts system properties for the cassandra node it runs within. */
 public enum CassandraRelevantProperties
 {
-    ACCORD_AGENT_CLASS("cassandra.test.accord.agent"),
-    ACCORD_ALLOW_TEST_MODES("cassandra.test.accord.allow_test_modes", "false"),
-    ACCORD_DEBUG_EXECUTION("accord.debug_execution"),
-    ACCORD_KEY_PARANOIA_COSTFACTOR(Invariants.KEY_PARANOIA_COSTFACTOR),
-    ACCORD_KEY_PARANOIA_CPU(Invariants.KEY_PARANOIA_CPU),
-    ACCORD_KEY_PARANOIA_MEMORY(Invariants.KEY_PARANOIA_MEMORY),
+    ACCORD_DEBUG("accord.debug"),
+    ACCORD_DEBUG_EXECUTION("accord.debug.execution"),
+    ACCORD_DEBUG_EXECUTION_REPORT("accord.debug.execution.report"),
+    ACCORD_DEBUG_PROGRESS_LOG("accord.debug.progresslog"),
+    ACCORD_PARANOIA_COSTFACTOR(Invariants.KEY_PARANOIA_COSTFACTOR),
+    ACCORD_PARANOIA_CPU(Invariants.KEY_PARANOIA_CPU),
+    ACCORD_PARANOIA_MEMORY(Invariants.KEY_PARANOIA_MEMORY),
+    ACCORD_PARANOIA_PERMIT_TEST_OVERRIDE("accord.paranoia_permit_test_override", "true"),
+    ACCORD_PARANOID(Invariants.KEY_PARANOID),
     ACCORD_REPAIR_RANGE_STEP_UPDATE_INTERVAL("cassandra.accord.repair.range_step_update_interval", "100"),
+    ACCORD_TESTING(Invariants.KEY_TESTING),
+    ACCORD_TEST_AGENT_CLASS("cassandra.test.accord.agent"),
+    ACCORD_TEST_ALLOW_MODES("cassandra.test.accord.allow_test_modes", "false"),
+    ACCORD_TEST_CHAOS_TIMEOUT("cassandra.accord.test.chaos_timeout_minutes"),
     ACQUIRE_RETRY_SECONDS("cassandra.acquire_retry_seconds", "60"),
     ACQUIRE_SLEEP_MS("cassandra.acquire_sleep_ms", "1000"),
     ALLOCATE_TOKENS_FOR_KEYSPACE("cassandra.allocate_tokens_for_keyspace"),
@@ -90,6 +97,8 @@ public enum CassandraRelevantProperties
      */
     BOOTSTRAP_SKIP_SCHEMA_CHECK("cassandra.skip_schema_check"),
     BROADCAST_INTERVAL_MS("cassandra.broadcast_interval_ms", "60000"),
+    /** Caps how much of a BTI partition index is preloaded, e.g. "16MiB". 0B disables preloading; negative (default) preloads it all. */
+    BTI_PARTITION_INDEX_PRELOAD_SIZE("cassandra.bti.partition_index_preload_size", "-1B"),
     BTREE_BRANCH_SHIFT("cassandra.btree.branchshift", "5"),
     BTREE_FAN_FACTOR("cassandra.btree.fanfactor"),
     BUILD_DATE("cassandra.buildDate"),
@@ -213,6 +222,14 @@ public enum CassandraRelevantProperties
     DATA_OUTPUT_STREAM_PLUS_TEMP_BUFFER_SIZE("cassandra.data_output_stream_plus_temp_buffer_size", "8192"),
     DATA_RESPONSE_BUFFER_INITIAL_SIZE_MAX("cassandra.data_response_buffer_initial_size_max", "4096"),
     DATA_RESPONSE_BUFFER_INITIAL_SIZE_MIN("cassandra.data_response_buffer_initial_size_min", "128"),
+    /**
+     *  Higher in-memory limits used for ONE/LOCAL_ONE reads, when local result is consumed directly without waiting for other replicas.
+     *  The limits are not enforced across a range tombstone span (for correctness reasons).
+     * **/
+    DATA_RESPONSE_IN_MEMORY_MAX_ROWS("cassandra.data_response_in_memory_max_rows", "128"),
+    DATA_RESPONSE_IN_MEMORY_MAX_ROWS_CL_ONE("cassandra.data_response_in_memory_max_rows_cl_one", "512"),
+    DATA_RESPONSE_IN_MEMORY_MAX_SIZE("cassandra.data_response_in_memory_max_size", "16KiB"),
+    DATA_RESPONSE_IN_MEMORY_MAX_SIZE_CL_ONE("cassandra.data_response_in_memory_max_size_cl_one", "64KiB"),
     DECAYING_ESTIMATED_HISTOGRAM_RESERVOIR_STRIPE_COUNT("cassandra.dehr_stripe_count", "2"),
     DEFAULT_PROVIDE_OVERLAPPING_TOMBSTONES("default.provide.overlapping.tombstones"),
     /** determinism properties for testing */
@@ -663,6 +680,9 @@ public enum CassandraRelevantProperties
     TEST_DIFFERENTIAL_LARGEPARTITION_VALUE_PADDING("cassandra.test.differential.largepartition.value_padding", "240"),
     /** Seed for the randomized differential soak; defaults to the wall clock, logged per example. */
     TEST_DIFFERENTIAL_SEED("cassandra.test.differential.seed"),
+    /** Column counts for the pathological wide-table differential test. */
+    TEST_DIFFERENTIAL_WIDE_REGULARS("cassandra.test.differential.wide.regulars", "1800"),
+    TEST_DIFFERENTIAL_WIDE_STATICS("cassandra.test.differential.wide.statics", "200"),
     TEST_DRIVER_CONNECTION_TIMEOUT_MS("cassandra.test.driver.connection_timeout_ms", "5000"),
     TEST_DRIVER_READ_TIMEOUT_MS("cassandra.test.driver.read_timeout_ms", "12000"),
     TEST_ENCRYPTION("cassandra.test.encryption", "false"),
@@ -739,6 +759,8 @@ public enum CassandraRelevantProperties
     USE_NIX_RECURSIVE_DELETE("cassandra.use_nix_recursive_delete"),
     /** Gossiper compute expiration timeout. Default value 3 days. */
     VERY_LONG_TIME_MS("cassandra.very_long_time_ms", "259200000"),
+    /** Controls whether system_metrics virtual keyspace will be visible or not, by default it is not **/
+    VIRTUAL_KEYSPACE_SYSTEM_METRICS_ENABLED("cassandra.virtual_keyspace_system_metrics_enabled", "false"),
     /** Controls output format for Collection-type settings in system_views.settings table */
     VIRTUAL_TABLE_COMPLEX_SETTINGS_FORMAT_JSON("cassandra.virtual_table_complex_settings_format_json", "true"),
     WAIT_FOR_TRACING_EVENTS_TIMEOUT_SECS("cassandra.wait_for_tracing_events_timeout_secs", "0"),

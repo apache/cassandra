@@ -62,21 +62,9 @@ public class ReusableLivenessInfo implements LivenessInfo
     }
 
     /**
-     * The ROW contract, matching the row references: empty liveness is not live
-     * ({@link LivenessInfo#EMPTY}, whose {@code isLive} is {@code !isEmpty()}), an
-     * {@link #EXPIRED_LIVENESS_TTL} marker is never live ({@link LivenessInfo.ExpiredLivenessInfo}), and
-     * otherwise an expiring liveness is live until its expiration second.
-     *
-     * It differs from the cell contract on three inputs, which is why cell liveness has its own type;
-     * {@code ReusableCellLivenessInfo} carries that reading.
-     *
-     * The old code here read the CELL contract instead, treating an {@code EXPIRED_LIVENESS_TTL} marker
-     * (view maintenance's PK-shadow tombstone) as live until its expiration second rather than never. The
-     * flip is inert on this branch: the marker's {@code localExpirationTime} is stamped with
-     * {@code nowInSec} when the view mutation is applied, and compaction only observes the row after that
-     * mutation has been applied and flushed, so compaction-time {@code nowInSec} is never less than the
-     * stamped one — the old read could never actually return {@code true} for it either. Exercised by
-     * {@code MaterializedViewDifferentialCompactionTest}.
+     * The ROW contract, matching the row references: empty liveness is not live, an
+     * {@link #EXPIRED_LIVENESS_TTL} marker is never live, and otherwise an expiring liveness is live
+     * until its expiration second. {@code ReusableCellLivenessInfo} carries the cell reading.
      */
     @Override
     public boolean isLive(long nowInSec)

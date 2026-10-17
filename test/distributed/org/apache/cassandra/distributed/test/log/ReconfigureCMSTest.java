@@ -241,6 +241,89 @@ public class ReconfigureCMSTest extends FuzzTestBase
     }
 
     @Test
+    public void testIgnoredNodesRemainExcludedWhileDecommissioning() throws Exception
+    {
+        try (Cluster cluster = init(Cluster.build(5)
+                                           .withConfig(conf -> conf.with(Feature.NETWORK, Feature.GOSSIP))
+                                           .start()))
+        {
+            // A single reconfiguration up front, excluding the nodes which are about to be decommissioned. Ignoring
+            // nodes 2 and 3 must produce the same placement as those nodes being down (see
+            // testReconfigurePickAliveNodesIfPossible), even though every node here is up.
+            cluster.get(1).nodetoolResult("cms", "reconfigure", "3",
+                                          "--ignore", broadcastAddress(cluster, 2),
+                                          "--ignore", broadcastAddress(cluster, 3))
+                   .asserts().success();
+
+            Set<String> expectedCMSMembers = expectedCMS(cluster, 1, 4, 5);
+            cluster.forEach(inst -> assertEquals(expectedCMSMembers, ClusterUtils.getCMSMembers(inst)));
+
+            // The ignore list is not persisted, so while the ignored nodes are still members of the cluster the CMS
+            // is legitimately reported as not matching the placement they imply.
+            cluster.get(1).runOnInstance(() -> assertTrue(PrepareCMSReconfiguration.needsReconfiguration(ClusterMetadata.current())));
+
+            // Decommissioning a node which is not a CMS member does not trigger a reconfiguration, so membership is
+            // stable for the duration of the shrink and no further reconfiguration is required per departing node.
+            cluster.get(2).nodetoolResult("decommission", "--force").asserts().success();
+            assertEquals(expectedCMSMembers, ClusterUtils.getCMSMembers(cluster.get(1)));
+
+            cluster.get(3).nodetoolResult("decommission", "--force").asserts().success();
+            assertEquals(expectedCMSMembers, ClusterUtils.getCMSMembers(cluster.get(1)));
+
+            // Once the ignored nodes have left, the CMS matches the placement implied by the remaining nodes again.
+            cluster.get(1).runOnInstance(() -> assertFalse(PrepareCMSReconfiguration.needsReconfiguration(ClusterMetadata.current())));
+        }
+    }
+
+    @Test
+    public void testReconfigureIgnoreRejectsUnknownAndExcessiveHosts() throws Exception
+    {
+        try (Cluster cluster = init(Cluster.build(3)
+                                           .withConfig(conf -> conf.with(Feature.NETWORK, Feature.GOSSIP))
+                                           .start()))
+        {
+            // Each case below fails for a different reason, so assert on the message rather than just the exit status.
+            // A bare failure() would pass even if the relevant check were removed.
+
+            // A host which is not part of the cluster is rejected rather than silently ignored.
+            cluster.get(1).nodetoolResult("cms", "reconfigure", "3", "--ignore", "127.0.0.99")
+                   .asserts().failure()
+                   .errorContains("don't exist in the cluster")
+                   .errorContains("127.0.0.99");
+
+            // A host which cannot be resolved at all is rejected rather than being silently dropped from the list.
+            cluster.get(1).nodetoolResult("cms", "reconfigure", "3", "--ignore", "999.999.999.999")
+                   .asserts().failure()
+                   .errorContains("Unknown host in ignore list: 999.999.999.999");
+
+            // Ignoring so many nodes that fewer than a quorum of the requested members can be placed is rejected.
+            cluster.get(1).nodetoolResult("cms", "reconfigure", "3",
+                                          "--ignore", broadcastAddress(cluster, 2),
+                                          "--ignore", broadcastAddress(cluster, 3))
+                   .asserts().failure()
+                   .errorContains("Too many nodes are currently DOWN or ignored to safely perform the reconfiguration");
+
+            // Ignoring every joined node leaves placement with no candidates at all. This is rejected up front, as
+            // the placement strategy would otherwise fail on an assertion rather than reporting anything useful.
+            cluster.get(1).nodetoolResult("cms", "reconfigure", "3",
+                                          "--ignore", broadcastAddress(cluster, 1),
+                                          "--ignore", broadcastAddress(cluster, 2),
+                                          "--ignore", broadcastAddress(cluster, 3))
+                   .asserts().failure()
+                   .errorContains("Cannot reconfigure CMS as all joined nodes are DOWN or ignored");
+
+            // Ignored hosts are meaningless when resuming or cancelling. Note that cancelling with nothing in flight
+            // fails on its own, so only the message distinguishes the guard from that unrelated failure.
+            cluster.get(1).nodetoolResult("cms", "reconfigure", "--resume", "--ignore", broadcastAddress(cluster, 2))
+                   .asserts().failure()
+                   .errorContains("Ignored hosts should not be set if previous operation is resumed");
+            cluster.get(1).nodetoolResult("cms", "reconfigure", "--cancel", "--ignore", broadcastAddress(cluster, 2))
+                   .asserts().failure()
+                   .errorContains("Ignored hosts should not be set when cancelling a reconfiguration");
+        }
+    }
+
+    @Test
     public void testReconfigurationViolatesRackDiversityIfNecessary() throws Exception
     {
         // rack1: node1, node3
@@ -344,5 +427,10 @@ public class ReconfigureCMSTest extends FuzzTestBase
         for (int id : instanceIds)
             expectedCMSMembers.add(cluster.get(id).config().broadcastAddress().getAddress().toString());
         return expectedCMSMembers;
+    }
+
+    private String broadcastAddress(Cluster cluster, int instanceId)
+    {
+        return cluster.get(instanceId).config().broadcastAddress().getAddress().getHostAddress();
     }
 }

@@ -39,7 +39,9 @@ import accord.local.SafeCommand;
 import accord.local.StoreParticipants;
 import accord.local.cfk.CommandsForKey;
 import accord.local.cfk.SafeCommandsForKey;
-import accord.local.durability.DurabilityService;
+import accord.local.durability.DurabilityService.SyncLocal;
+import accord.local.durability.DurabilityService.SyncReadable;
+import accord.local.durability.DurabilityService.SyncRemote;
 import accord.primitives.Keys;
 import accord.primitives.Ranges;
 import accord.primitives.RoutingKeys;
@@ -62,11 +64,11 @@ import org.apache.cassandra.harry.checker.ModelChecker;
 import org.apache.cassandra.locator.InetAddressAndPort;
 import org.apache.cassandra.schema.Schema;
 import org.apache.cassandra.schema.TableMetadata;
-import org.apache.cassandra.service.accord.AccordSafeCommandStore;
 import org.apache.cassandra.service.accord.AccordService;
 import org.apache.cassandra.service.accord.IAccordService;
 import org.apache.cassandra.service.accord.IAccordService.DelegatingAccordService;
 import org.apache.cassandra.service.accord.api.TokenKey;
+import org.apache.cassandra.service.accord.execution.SaferCommandStore;
 import org.apache.cassandra.service.consensus.TransactionalMode;
 import org.apache.cassandra.utils.ByteBufferUtil;
 import org.apache.cassandra.utils.Clock;
@@ -89,18 +91,18 @@ public class AccordIncrementalRepairTest extends TestBaseImpl
         }
 
         @Override
-        public AsyncResult<Void> sync(Object requestedBy, @Nullable TxnId onOrAfter, Ranges ranges, @Nullable Collection<Node.Id> include, DurabilityService.SyncLocal syncLocal, DurabilityService.SyncRemote syncRemote, long timeout, TimeUnit timeoutUnits)
+        public AsyncResult<?> sync(Object requestedBy, @Nullable TxnId onOrAfter, Ranges ranges, @Nullable Collection<Node.Id> include, Collection<Node.Id> exclude, SyncLocal syncLocal, SyncRemote syncRemote, SyncReadable readable, long timeout, TimeUnit timeoutUnits)
         {
-            return delegate.sync(requestedBy, onOrAfter, ranges, include, syncLocal, syncRemote, 10L, TimeUnit.MINUTES).map(v -> {
+            return delegate.sync(requestedBy, onOrAfter, ranges, include, exclude, syncLocal, syncRemote, readable, 10L, TimeUnit.MINUTES).map(v -> {
                 executedBarriers = true;
                 return v;
             });
         }
 
         @Override
-        public AsyncChain<Void> sync(@Nullable TxnId onOrAfter, Keys keys, DurabilityService.SyncLocal syncLocal, DurabilityService.SyncRemote syncRemote)
+        public AsyncChain<?> syncKeysForMigration(@Nullable TxnId onOrAfter, Keys keys, SyncLocal syncLocal, SyncRemote syncRemote)
         {
-            return delegate.sync(onOrAfter, keys, syncLocal, syncRemote).map(v -> {
+            return delegate.syncKeysForMigration(onOrAfter, keys, syncLocal, syncRemote).map(v -> {
                 executedBarriers = true;
                 return v;
             });
@@ -209,7 +211,7 @@ public class AccordIncrementalRepairTest extends TestBaseImpl
         Node node = accordService().node();
         AtomicReference<TxnId> waitFor = new AtomicReference<>(null);
         getBlocking(node.commandStores().forEach("Test", RoutingKeys.of(key), Long.MIN_VALUE, Long.MAX_VALUE, safeStore -> {
-            AccordSafeCommandStore store = (AccordSafeCommandStore) safeStore;
+            SaferCommandStore store = (SaferCommandStore) safeStore;
             SafeCommandsForKey safeCfk = store.ifLoadedAndInitialised(key);
             if (safeCfk == null)
                 return;

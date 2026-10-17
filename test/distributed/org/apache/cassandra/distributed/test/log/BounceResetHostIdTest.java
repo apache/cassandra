@@ -18,12 +18,14 @@
 
 package org.apache.cassandra.distributed.test.log;
 
+import java.io.IOException;
 import java.net.InetAddress;
+import java.nio.file.Files;
+import java.nio.file.Path;
 import java.util.Arrays;
 import java.util.Comparator;
 import java.util.concurrent.TimeUnit;
 
-import org.junit.Assert;
 import org.junit.Test;
 
 import org.apache.cassandra.distributed.Cluster;
@@ -31,12 +33,15 @@ import org.apache.cassandra.distributed.api.ConsistencyLevel;
 import org.apache.cassandra.distributed.api.Feature;
 import org.apache.cassandra.distributed.shared.AssertUtils;
 import org.apache.cassandra.distributed.shared.ClusterUtils;
+import org.apache.cassandra.distributed.shared.Uninterruptibles;
 import org.apache.cassandra.distributed.test.TestBaseImpl;
 import org.apache.cassandra.locator.NoOpProximity;
 import org.apache.cassandra.locator.SimpleLocationProvider;
 import org.apache.cassandra.tcm.membership.NodeId;
 
+import static org.apache.cassandra.distributed.Constants.KEY_DTEST_API_STARTUP_FAILURE_AS_SHUTDOWN;
 import static org.apache.cassandra.distributed.shared.AssertUtils.row;
+import static org.junit.Assert.assertTrue;
 import static org.junit.Assert.fail;
 
 public class BounceResetHostIdTest extends TestBaseImpl
@@ -120,7 +125,7 @@ public class BounceResetHostIdTest extends TestBaseImpl
             }
             catch (Throwable t)
             {
-                Assert.assertTrue(t.getMessage().contains("NodeId does not match locally set one"));
+                assertTrue(t.getMessage().contains("NodeId does not match locally set one"));
             }
             try
             {
@@ -129,7 +134,7 @@ public class BounceResetHostIdTest extends TestBaseImpl
             }
             catch (Throwable t)
             {
-                Assert.assertTrue(t.getMessage().contains("NodeId does not match locally set one"));
+                assertTrue(t.getMessage().contains("NodeId does not match locally set one"));
             }
         }
     }
@@ -137,5 +142,40 @@ public class BounceResetHostIdTest extends TestBaseImpl
     {
         Arrays.sort(rows, Comparator.comparing(r -> ((InetAddress)r[0]).getHostAddress()));
         return rows;
+    }
+
+    @Test
+    public void bounceWipedDatadirectoryTest() throws Exception
+    {
+        try (Cluster cluster = init(builder().withNodes(3)
+                                             .withDataDirCount(1)
+                                             .withConfig(c -> c.with(Feature.GOSSIP, Feature.NATIVE_PROTOCOL)
+                                                               .set(KEY_DTEST_API_STARTUP_FAILURE_AS_SHUTDOWN, false))
+                                             .start()))
+        {
+            cluster.get(3).shutdown().get();
+            wipeDir(((String[]) cluster.get(3).config().get("data_file_directories"))[0]);
+            wipeDir((String) cluster.get(3).config().get("commitlog_directory"));
+            for (int i = 0; i < 5; i++)
+            {
+                try
+                {
+                    cluster.get(3).startup();
+                    fail();
+                }
+                catch (Exception e)
+                {
+                    assertTrue(e.getMessage(), e.getMessage().contains("Use cassandra.replace_address if you want to replace this node"));
+                    cluster.get(3).shutdown().get();
+                }
+                Uninterruptibles.sleepUninterruptibly(5, TimeUnit.SECONDS);
+            }
+        }
+    }
+    private static void wipeDir(String dir) throws IOException
+    {
+        Path source = Path.of(dir);
+        Files.move(source, Path.of(source+"backup")); // remove potential trailing / from dir
+        Files.createDirectories(source);
     }
 }

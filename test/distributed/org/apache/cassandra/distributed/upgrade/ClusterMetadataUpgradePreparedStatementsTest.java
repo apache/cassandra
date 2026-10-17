@@ -42,7 +42,7 @@ public class ClusterMetadataUpgradePreparedStatementsTest extends UpgradeTestBas
         .nodesToUpgrade(1, 2, 3)
         .withConfig((cfg) -> cfg.with(Feature.NETWORK, Feature.GOSSIP, Feature.NATIVE_PROTOCOL)
                                               .set(Constants.KEY_DTEST_FULL_STARTUP, true))
-        .upgradesToCurrentFrom(v50)
+        .singleUpgradeToCurrentFrom(v50)
         .setup((cluster) -> {
             cluster.schemaChange(withKeyspace("CREATE TABLE %s.tbl (pk int, ck int, v int, PRIMARY KEY (pk, ck))"));
         })

@@ -52,7 +52,9 @@ public interface CMSOperationsMBean
     public void abortInitialization(String initiator);
     public void resumeReconfigureCms();
     public void reconfigureCMS(int rf);
+    public void reconfigureCMS(int rf, List<String> ignoredEndpoints);
     public void reconfigureCMS(Map<String, Integer> rf);
+    public void reconfigureCMS(Map<String, Integer> rf, List<String> ignoredEndpoints);
     public Map<String, List<String>> reconfigureCMSStatus();
     public void cancelReconfigureCms();
 

@@ -105,13 +105,8 @@ ALLOWED_DTEST_VARIANTS="large|latest|upgrade|novnode|latest"
 [[ "${DTEST_TARGET}" =~ ^dtest(-(${ALLOWED_DTEST_VARIANTS}))*$ ]] || { echo >&2 "Unknown dtest target: ${DTEST_TARGET}. Allowed variants are ${ALLOWED_DTEST_VARIANTS}"; exit 1; }
 
 java_version=$(java -version 2>&1 | awk -F '"' '/version/ {print $2}' | awk -F. '{print $1}')
-version=$(grep 'property\s*name=\"base.version\"' ${CASSANDRA_DIR}/build.xml |sed -ne 's/.*value=\"\([^"]*\)\".*/\1/p')
-java_version_default=`grep 'property\s*name="java.default"' ${CASSANDRA_DIR}/build.xml |sed -ne 's/.*value="\([^"]*\)".*/\1/p'`
 
-if [ "${java_version}" -eq 17 ] && [[ "${target}" == "dtest-upgrade" ]] ; then
-    echo "Invalid JDK${java_version}. Only overlapping supported JDKs can be used when upgrading, as the same jdk must be used over the upgrade path."
-    exit 1
-fi
+version=$(grep 'property\s*name=\"base.version\"' ${CASSANDRA_DIR}/build.xml |sed -ne 's/.*value=\"\([^"]*\)\".*/\1/p')
 
 python_version=$(python -V 2>&1 | awk '{print $2}' | awk -F'.' '{print $1"."$2}')
 python_regx_supported_versions="^(3.8|3.9|3.10|3.11)$"
@@ -175,6 +170,16 @@ touch ${DIST_DIR}/test_list.txt
 
 [[ $? -eq 0 ]] || { cat ${DIST_DIR}/test_stdout.txt ; exit 1; }
 
+# An empty test_list.txt is a failure
+if [[ ! -s "${DIST_DIR}/test_list.txt" ]] ; then
+    echo "No tests collected for ${DTEST_TARGET} on JDK${java_version}."
+    if [[ "${DTEST_TARGET}" == *"-upgrade"* ]] ; then
+        echo "  Every upgrade path was skipped: upgrade paths are only kept when the jdk is supported on both from/to."
+    fi
+    cat ${DIST_DIR}/test_stdout.txt
+    exit 1
+fi
+
 if [[ "${DTEST_SPLIT_CHUNK}" =~ ^[0-9]+/[0-9]+$ ]]; then
     split_cmd=split
     ( split --help 2>&1 ) | grep -q "r/K/N" || split_cmd=gsplit
@@ -196,7 +201,9 @@ fi
 SPLIT_TESTS="${SPLIT_TESTS//$'\n'/ }"
 
 pytest_results_file="${DIST_DIR}/test/output/nosetests.xml"
-pytest_opts="-vv --log-cli-level=DEBUG --junit-xml=${pytest_results_file} --junit-prefix=${DTEST_TARGET} -s"
+# INFO (not DEBUG): the driver's reconnect loop logs full tracebacks at DEBUG, which
+#  floods the Jenkins console (tens of MB per cell) and the controller's in-memory step log
+pytest_opts="-vv --log-cli-level=INFO --junit-xml=${pytest_results_file} --junit-prefix=${DTEST_TARGET} -s"
 
 echo ""
 echo "pytest ${pytest_opts} --cassandra-dir=${CASSANDRA_DIR} --keep-failed-test-dir ${DTEST_ARGS} ${SPLIT_TESTS}" 

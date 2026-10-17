@@ -17,6 +17,25 @@
 
 # temporary between CASSANDRA-18133 and CASSANDRA-18594
 
+print_help() {
+  echo "Usage: $0 [-c|--clean] [-s|--summary] [-h|--help]"
+  echo "   -c, --clean    Remove locally created artifacts (ant clean) before building"
+  echo "   -s, --summary  Print a summary of failures instead of the full ant output"
+  echo "   -h, --help     Print help"
+}
+
+# arguments, with defaults
+clean=false
+summary=false
+while [ "$#" -gt 0 ]; do
+  case "$1" in
+    -c|--clean)   clean=true; shift ;;
+    -s|--summary) summary=true; shift ;;
+    -h|--help)    print_help; exit 0 ;;
+    *)            echo >&2 "Unknown argument $1"; print_help >&2; exit 1 ;;
+  esac
+done
+
 # variables, with defaults
 [ "x${CASSANDRA_DIR}" != "x" ] || CASSANDRA_DIR="$(readlink -f $(dirname -- "$0")/..)"
 
@@ -24,7 +43,15 @@
 command -v ant >/dev/null 2>&1 || { echo >&2 "ant needs to be installed"; exit 1; }
 [ -d "${CASSANDRA_DIR}" ] || { echo >&2 "Directory ${CASSANDRA_DIR} must exist"; exit 1; }
 [ -f "${CASSANDRA_DIR}/build.xml" ] || { echo >&2 "${CASSANDRA_DIR}/build.xml must exist"; exit 1; }
+[ -f "${CASSANDRA_DIR}/.build/sh/_run-ant.sh" ] || { echo >&2 "${CASSANDRA_DIR}/.build/sh/_run-ant.sh must exist"; exit 1; }
+
+# defines run_ant(), which reads ${CASSANDRA_DIR} and ${summary}
+# shellcheck source=.build/sh/_run-ant.sh
+. "${CASSANDRA_DIR}/.build/sh/_run-ant.sh"
 
 # execute
-ant -f "${CASSANDRA_DIR}/build.xml" jar
+if ${clean}; then
+  run_ant clean
+fi
+run_ant jar
 exit $?

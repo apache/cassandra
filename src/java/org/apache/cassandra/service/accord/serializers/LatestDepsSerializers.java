@@ -22,8 +22,6 @@ import java.io.IOException;
 
 import accord.api.RoutingKey;
 import accord.messages.GetLatestDeps;
-import accord.messages.GetLatestDeps.GetLatestDepsNack;
-import accord.messages.GetLatestDeps.GetLatestDepsOk;
 import accord.messages.GetLatestDeps.GetLatestDepsReply;
 import accord.primitives.Ballot;
 import accord.primitives.Deps;
@@ -96,7 +94,7 @@ public class LatestDepsSerializers
         @Override
         public void serialize(GetLatestDepsReply reply, DataOutputPlus out) throws IOException
         {
-            if (reply.isOk()) latestDeps.serialize(((GetLatestDepsOk)reply).deps, out);
+            if (reply.isOk()) latestDeps.serialize(reply.deps, out);
             else out.writeUnsignedVInt(NACK);
         }
 
@@ -105,14 +103,14 @@ public class LatestDepsSerializers
         {
             long size = in.readUnsignedVInt();
             if (size == NACK)
-                return GetLatestDepsNack.INSTANCE;
-            return new GetLatestDepsOk(deserializeWithSize(Math.toIntExact(size), in));
+                return GetLatestDepsReply.NACK;
+            return new GetLatestDepsReply(deserializeWithSize(Math.toIntExact(size), in));
         }
 
         @Override
         public long serializedSize(GetLatestDepsReply reply)
         {
-            if (reply.isOk()) return latestDeps.serializedSize(((GetLatestDepsOk)reply).deps);
+            if (reply.isOk()) return latestDeps.serializedSize(reply.deps);
             else return TypeSizes.sizeofUnsignedVInt(NACK);
         }
     };

@@ -27,6 +27,7 @@ import java.util.Set;
 import java.util.concurrent.Callable;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.TimeoutException;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.stream.Collectors;
 
@@ -435,6 +436,21 @@ public class DecommissionTest extends TestBaseImpl
                     }
                 });
             }
+        }
+    }
+
+    @Test
+    public void testDontReplicateToLeftNodes() throws IOException, TimeoutException
+    {
+        try (Cluster cluster = init(builder().withNodes(3)
+                                        .withConfig(config -> config.with(NETWORK, GOSSIP))
+                                        .start()))
+        {
+            cluster.get(2).nodetoolResult("decommission", "--force").asserts().success();
+            long mark = cluster.get(1).logs().mark();
+            cluster.coordinator(1).execute(withKeyspace("create table %s.tbl (id int primary key)"), ConsistencyLevel.ONE);
+            cluster.get(3).logs().watchFor("Enacted.*CreateTableStatement.*tbl");
+            assertTrue(cluster.get(1).logs().grep(mark, "Replicating newly committed transformations up to.*127.0.0.2.*").getResult().isEmpty());
         }
     }
 

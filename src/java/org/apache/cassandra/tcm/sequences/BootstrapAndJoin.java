@@ -75,6 +75,7 @@ import org.apache.cassandra.utils.concurrent.Future;
 import org.apache.cassandra.utils.concurrent.FutureCombiner;
 import org.apache.cassandra.utils.vint.VIntCoding;
 
+import static accord.local.BootstrapReason.GAIN_OWNERSHIP;
 import static com.google.common.collect.ImmutableList.of;
 import static java.util.concurrent.TimeUnit.MILLISECONDS;
 import static org.apache.cassandra.tcm.MultiStepOperation.Kind.JOIN;
@@ -397,7 +398,7 @@ public class BootstrapAndJoin extends MultiStepOperation<Epoch>
 
             Node node = service.node();
             node.commandStores().forAllUnsafe(commandStore -> {
-                AsyncResult<EpochReady> ready = commandStore.resumeBootstrap(node);
+                AsyncResult<EpochReady> ready = commandStore.resumeBootstrap(node, GAIN_OWNERSHIP);
                 bootstraps.add(AccordService.toFuture(ready.flatMap(e -> e.reads)));
             });
         }

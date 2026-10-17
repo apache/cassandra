@@ -73,13 +73,13 @@ public class AccordTopologyService implements TopologyService, TopologyListener
     @GuardedBy("this")
     private State state = State.INITIALIZED;
 
-    public AccordTopologyService(Node.Id node, AccordEndpointMapper endpointMapper, MessageDelivery messagingService, ScheduledExecutorPlus scheduledTasks)
+    public AccordTopologyService(Node.Id node, AccordEndpointMap endpointMapper, MessageDelivery messagingService, ScheduledExecutorPlus scheduledTasks)
     {
         this.syncPropagator = new AccordSyncPropagator(node, endpointMapper, messagingService, scheduledTasks);
         this.watermarkCollector = new WatermarkCollector();
     }
 
-    public AccordTopologyService(Node.Id node, AccordEndpointMapper endpointMapper)
+    public AccordTopologyService(Node.Id node, AccordEndpointMap endpointMapper)
     {
         this(node, endpointMapper, MessagingService.instance(), ScheduledExecutors.scheduledTasks);
     }

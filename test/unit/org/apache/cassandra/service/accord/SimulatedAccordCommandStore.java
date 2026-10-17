@@ -35,12 +35,14 @@ import javax.annotation.Nullable;
 import org.assertj.core.api.Assertions;
 
 import accord.api.AsyncExecutor;
+import accord.api.ExclusiveAsyncExecutor;
 import accord.api.Journal;
 import accord.api.LocalListeners;
 import accord.api.ProgressLog;
 import accord.api.RemoteListeners;
 import accord.api.Result;
 import accord.api.RoutingKey;
+import accord.api.Scheduler;
 import accord.api.Timeouts;
 import accord.coordinate.Coordinations;
 import accord.impl.DefaultLocalListeners;
@@ -54,17 +56,18 @@ import accord.local.CommandStore;
 import accord.local.CommandStores;
 import accord.local.CommandStores.RangesForEpoch;
 import accord.local.DurableBefore;
+import accord.local.ExecutionContext;
 import accord.local.Node;
 import accord.local.NodeCommandStoreService;
-import accord.local.PreLoadContext;
 import accord.local.SafeCommand;
 import accord.local.SafeCommandStore;
-import accord.local.SequentialAsyncExecutor;
 import accord.local.TimeService;
 import accord.local.durability.DurabilityService;
 import accord.messages.BeginRecovery;
 import accord.messages.PreAccept;
-import accord.messages.Reply;
+import accord.messages.PreAccept.PreAcceptOk;
+import accord.messages.PreAccept.PreAcceptReply;
+import accord.messages.ReplyList;
 import accord.messages.RouteRequest;
 import accord.primitives.AbstractUnseekableKeys;
 import accord.primitives.Ballot;
@@ -84,8 +87,11 @@ import accord.topology.Topologies;
 import accord.topology.Topology;
 import accord.topology.TopologyManager;
 import accord.utils.Gens;
+import accord.utils.Invariants;
 import accord.utils.RandomSource;
 import accord.utils.async.AsyncResult;
+import accord.utils.async.AsyncResults;
+import accord.utils.async.CancellableAsyncResult;
 
 import org.apache.cassandra.concurrent.ExecutorFactory;
 import org.apache.cassandra.concurrent.ImmediateExecutor;
@@ -100,6 +106,10 @@ import org.apache.cassandra.db.filter.ColumnFilter;
 import org.apache.cassandra.db.memtable.Memtable;
 import org.apache.cassandra.schema.TableId;
 import org.apache.cassandra.service.accord.api.TokenKey;
+import org.apache.cassandra.service.accord.execution.AccordCache;
+import org.apache.cassandra.service.accord.execution.AccordCacheEntry;
+import org.apache.cassandra.service.accord.execution.AccordExecutor;
+import org.apache.cassandra.service.accord.execution.AccordExecutorSimple;
 import org.apache.cassandra.service.accord.journal.RangeSearcher;
 import org.apache.cassandra.service.accord.journal.SegmentRangeSearcher;
 import org.apache.cassandra.service.accord.topology.AccordTopology;
@@ -182,7 +192,7 @@ public class SimulatedAccordCommandStore implements AutoCloseable
             }
 
             @Override
-            public SequentialAsyncExecutor someSequentialExecutor()
+            public ExclusiveAsyncExecutor someExclusiveExecutor()
             {
                 return null;
             }
@@ -264,6 +274,12 @@ public class SimulatedAccordCommandStore implements AutoCloseable
             }
 
             @Override public Coordinations coordinations() { return new Coordinations(); }
+
+            @Override
+            public Scheduler scheduler()
+            {
+                return null;
+            }
         };
 
         TestAgent.RethrowAgent agent = new TestAgent.RethrowAgent()
@@ -443,38 +459,57 @@ public class SimulatedAccordCommandStore implements AutoCloseable
         throw error;
     }
 
-    public <T extends Reply> T process(RouteRequest<T> request) throws ExecutionException, InterruptedException
+    public <T> T process(RouteRequest<T> request) throws ExecutionException, InterruptedException
     {
         return process(request, request);
     }
 
-    public <T extends Reply> T process(PreLoadContext loadCtx, Function<? super SafeCommandStore, T> function) throws ExecutionException, InterruptedException
+    public <T> T process(ExecutionContext loadCtx, Function<? super SafeCommandStore, T> function) throws ExecutionException, InterruptedException
     {
         var result = processAsync(loadCtx, function);
         processAll();
         return getBlocking(result);
     }
 
-    public <T extends Reply> AsyncResult<T> processAsync(RouteRequest<T> request)
+    public <T> AsyncResult<T> processAsync(RouteRequest<T> request)
     {
         return processAsync(request, request);
     }
 
-    public <T extends Reply> AsyncResult<T> processAsync(PreLoadContext loadCtx, Function<? super SafeCommandStore, T> function)
+    public <T> AsyncResult<T> processAsync(ExecutionContext loadCtx, Function<? super SafeCommandStore, T> function)
     {
         return commandStore.submit(loadCtx, function);
     }
 
-    public Pair<TxnId, AsyncResult<PreAccept.PreAcceptOk>> enqueuePreAccept(Txn txn, FullRoute<?> route)
+    /**
+     * A reply is not necessarily complete when the task that computed it returns. Dependencies are computed
+     * incrementally ({@link accord.local.DepsCalculator}), so a request whose deps cannot be finished in one pass
+     * returns a reply that only completes once a continuation has run - concretely a
+     * {@code DepsCalculator.AsyncDepsReply}, which is a {@link ReplyList} but not yet a {@code Reply}. Everything
+     * that consumes a reply must therefore await it rather than cast it; for a reply that was computed in one pass
+     * this resolves immediately.
+     */
+    public static <R extends CancellableAsyncResult<R> & ReplyList<R>> AsyncResult<R> awaitReply(ReplyList<R> replies)
+    {
+        if (replies == null) // rejected, e.g. wholly redundant
+            return AsyncResults.success(null);
+        Invariants.require(replies.size() == 1, "expected a single reply, found %d", replies.size());
+        return replies.get(0);
+    }
+
+    public Pair<TxnId, AsyncResult<PreAcceptOk>> enqueuePreAccept(Txn txn, FullRoute<?> route)
     {
         TxnId txnId = nextTxnId(txn.kind(), txn.keys().domain());
         PreAccept preAccept = new PreAccept(nodeId, topologies, txnId, txn, null, false, route);
-        return Pair.create(txnId, processAsync(preAccept, safe -> {
+        AsyncResult<ReplyList<PreAcceptReply>> replies = processAsync(preAccept, safe -> {
             preAccept.unsafeSetNode(emptyNode());
-            var reply = preAccept.apply(safe);
-            Assertions.assertThat(reply.isOk()).isTrue();
-            return (PreAccept.PreAcceptOk) reply;
-        }));
+            return preAccept.apply(safe);
+        });
+        return Pair.create(txnId, replies.flatMap(SimulatedAccordCommandStore::awaitReply)
+                                         .map(reply -> {
+                                             Assertions.assertThat(reply).isInstanceOf(PreAcceptOk.class);
+                                             return (PreAcceptOk) reply;
+                                         }));
     }
 
     public Pair<TxnId, AsyncResult<BeginRecovery.RecoverOk>> enqueueBeginRecovery(Txn txn, FullRoute<?> route)

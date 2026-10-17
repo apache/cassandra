@@ -59,7 +59,7 @@ public abstract class AbstractLocalProcessor implements Processor
         String transformStr = transform.toString(); // convert once as idempotent and used in multiple logs
         logger.debug("Starting local commit of {} with policy {}", transformStr, retryPolicy);
         long commitStart = nanoTime();
-        while (!retryPolicy.hasExpired())
+        while (!retryPolicy.hasExpired() && !log.isClosed())
         {
             ClusterMetadata previous = log.waitForHighestConsecutive();
             if (!acceptCommit(previous))

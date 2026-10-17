@@ -138,7 +138,39 @@ public class TxnAuthTest extends CQLTester
         grantTo(clientState, Permission.SELECT);
         execute(update, clientState);
     }
-    
+
+    /**
+     * Every table updated by a transaction needs its own MODIFY check: the state retained for one table must not
+     * satisfy the next one.
+     */
+    @Test
+    public void updatesOnSeveralTablesInTxnRequireModifyOnEach()
+    {
+        String table1 = currentTable();
+        String table2 = createTable("CREATE TABLE %s (k int, v int, PRIMARY KEY(k)) WITH transactional_mode='full'");
+
+        ClientState clientState = createUserAndLogin();
+        TransactionStatement statement = prepare("BEGIN TRANSACTION\n" +
+                                                 insert(table1, 0) +
+                                                 insert(table1, 1) +
+                                                 insert(table2, 0) +
+                                                 "COMMIT TRANSACTION", clientState);
+
+        assertUnauthorized(statement, clientState, Permission.MODIFY, table1);
+
+        // MODIFY on table1 covers both of its statements, but must not carry over to table2
+        grantTo(clientState, Permission.MODIFY, table1);
+        assertUnauthorized(statement, clientState, Permission.MODIFY, table2);
+
+        grantTo(clientState, Permission.MODIFY, table2);
+        statement.authorize(clientState);
+    }
+
+    private static String insert(String table, int k)
+    {
+        return String.format("    INSERT INTO %s.%s (k, v) VALUES (%d, 0);\n", KEYSPACE, table, k);
+    }
+
     private void assertUnauthorized(String query, ClientState clientState)
     {
         Assertions.assertThatThrownBy(() -> execute(query, clientState))
@@ -146,9 +178,23 @@ public class TxnAuthTest extends CQLTester
                   .hasMessageContaining(clientState.getUser().getName());
     }
 
+    private void assertUnauthorized(TransactionStatement statement, ClientState clientState, Permission permission, String table)
+    {
+        Assertions.assertThatThrownBy(() -> statement.authorize(clientState))
+                  .isInstanceOf(UnauthorizedException.class)
+                  .hasMessage("User %s has no %s permission on <table %s.%s> or any of its parents",
+                              clientState.getUser().getName(), permission, KEYSPACE, table);
+    }
+
     private void grantTo(ClientState clientState, Permission permission)
     {
-        AuthTestUtils.authorize(formatQuery("GRANT " + permission + " ON TABLE %s TO " + clientState.getUser().getName()));
+        grantTo(clientState, permission, currentTable());
+    }
+
+    private void grantTo(ClientState clientState, Permission permission, String table)
+    {
+        AuthTestUtils.authorize("GRANT %s ON TABLE %s.%s TO %s",
+                                permission, KEYSPACE, table, clientState.getUser().getName());
     }
 
     private ClientState createUserAndLogin()
@@ -160,10 +206,15 @@ public class TxnAuthTest extends CQLTester
         return clientState;
     }
 
-    private ResultMessage execute(String query, ClientState clientState)
+    private TransactionStatement prepare(String query, ClientState clientState)
     {
         TransactionStatement.Parsed parsed = (TransactionStatement.Parsed) QueryProcessor.parseStatement(query);
-        TransactionStatement statement = (TransactionStatement) parsed.prepare(clientState);
+        return (TransactionStatement) parsed.prepare(clientState);
+    }
+
+    private ResultMessage execute(String query, ClientState clientState)
+    {
+        TransactionStatement statement = prepare(query, clientState);
         QueryOptions options = QueryOptions.forInternalCalls(QUORUM, Collections.emptyList());
         QueryState queryState = new QueryState(clientState);
         return QueryProcessor.instance.process(statement, queryState, options, Dispatcher.RequestTime.forImmediateExecution());

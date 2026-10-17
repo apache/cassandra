@@ -19,14 +19,12 @@
 package org.apache.cassandra.db.rows;
 
 /**
- * The liveness contract of a single cell, as defined by {@link Cell} and {@link Cells} — distinct from
- * {@link org.apache.cassandra.db.LivenessInfo}, which is a row's primary-key liveness. The two disagree on
- * enough of their shared vocabulary that holding both in one type leaves half of it valid in only one role:
- * a cell's expiration field is a local deletion time, which a tombstone carries with no TTL, and a cell has
- * no notion of being empty.
+ * The liveness contract of a single cell, as defined by {@link Cell} and {@link Cells}. It is distinct
+ * from {@link org.apache.cassandra.db.LivenessInfo}, which is a row's primary-key liveness: a cell's
+ * expiration field is a local deletion time, which a tombstone carries with no TTL, and a cell has no
+ * notion of being empty.
  *
- * It also houses the same-timestamp reconciliation tie-break, which two independent decision tables
- * previously carried by hand.
+ * It also houses the same-timestamp reconciliation tie-break.
  */
 public interface CellLivenessInfo
 {
@@ -37,9 +35,8 @@ public interface CellLivenessInfo
     int ttl();
 
     /**
-     * {@code Cell.NO_DELETION_TIME} unless this is a tombstone or an expiring cell. This is the member the
-     * two contracts differ on most sharply: the row contract's equivalent field is a TTL expiration time and
-     * exists only alongside a TTL, whereas a cell tombstone carries a deletion time with no TTL.
+     * {@code Cell.NO_DELETION_TIME} unless this is a tombstone or an expiring cell. A tombstone
+     * carries it with no TTL, which the row contract's expiration time cannot do.
      *
      * @see Cell#localDeletionTime()
      */
@@ -76,15 +73,10 @@ public interface CellLivenessInfo
 
     /**
      * The whole non-counter cell reconciliation decision: the newer timestamp outright, else the
-     * same-timestamp tie-break below. Reached by {@code Cells.resolveRegular} on the read path and by
-     * {@code CursorCompactor.mergeCells} on the cursor compaction path.
+     * same-timestamp tie-break below.
      *
-     * {@code ttl()} is read only inside the tie-break, so the ordinary live-versus-live tie costs the two
-     * {@code localDeletionTime()} reads it always cost and no more.
-     *
-     * <b>Callers holding a cell must narrow their arguments before calling.</b> The two callers hold
-     * unrelated types calling through this one interface method, which shares one receiver-type profile
-     * across both — see {@code Cells.resolveRegular} for why that pollutes without narrowing.
+     * <b>Callers holding a cell must narrow their arguments before calling</b>; see
+     * {@code Cells.resolveRegular}.
      */
     static Resolution resolve(CellLivenessInfo left, CellLivenessInfo right)
     {
@@ -102,11 +94,9 @@ public interface CellLivenessInfo
     }
 
     /**
-     * The same-timestamp tie-break, reached from {@link #resolve} once at least one side carries a deletion
-     * time. Primitive and timestamp-free, so it stays callable by anything already holding the four fields.
-     *
-     * The precondition is asserted rather than assumed, so a future caller that reaches it directly without
-     * establishing the guard fails loudly instead of receiving a plausible COMPARE.
+     * The same-timestamp tie-break, reached from {@link #resolve}. At least one side must
+     * carry a deletion time. A caller that reaches it with neither would get a plausible
+     * COMPARE, so the precondition is asserted.
      *
      * @param leftTtl                {@code Cell.NO_TTL} for a tombstone or a live cell
      * @param leftLocalDeletionTime  {@code Cell.NO_DELETION_TIME} for a live cell
@@ -131,8 +121,8 @@ public interface CellLivenessInfo
         // this inconsistency has no user-visible distinction, as at this point they are both logically tombstones
         // (the only possible difference is the time at which the cells become purgeable)
         //
-        // Both sides carry a deletion time here, so "no TTL" is exactly "is a tombstone" — the primitive form
-        // of the reference's !isExpiring(), which does not need to consider the deletion time either.
+        // Both sides carry a deletion time here, so "no TTL" is exactly "is a tombstone", the
+        // primitive form of the reference's !isExpiring().
         boolean leftIsTombstone = leftTtl == Cell.NO_TTL;
         boolean rightIsTombstone = rightTtl == Cell.NO_TTL;
         if (leftIsTombstone != rightIsTombstone)

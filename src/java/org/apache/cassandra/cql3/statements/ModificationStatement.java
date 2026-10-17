@@ -30,6 +30,7 @@ import java.util.Map;
 import java.util.NavigableSet;
 import java.util.Set;
 import java.util.function.BiFunction;
+import java.util.function.Predicate;
 
 import com.google.common.annotations.VisibleForTesting;
 import com.google.common.base.Preconditions;
@@ -114,6 +115,7 @@ import org.apache.cassandra.metrics.ClientRequestSizeMetrics;
 import org.apache.cassandra.schema.ColumnMetadata;
 import org.apache.cassandra.schema.Schema;
 import org.apache.cassandra.schema.SchemaConstants;
+import org.apache.cassandra.schema.TableId;
 import org.apache.cassandra.schema.TableMetadata;
 import org.apache.cassandra.schema.ViewMetadata;
 import org.apache.cassandra.service.ClientState;
@@ -380,26 +382,58 @@ public abstract class ModificationStatement implements CQLStatement.SingleKeyspa
     @Override
     public void authorize(ClientState state) throws InvalidRequestException, UnauthorizedException
     {
-        state.ensureTablePermission(metadata, Permission.MODIFY);
+        authorize(state, null);
+    }
+
+    void authorize(ClientState state, TableAuthorizationState tableAuthorizationState) throws InvalidRequestException, UnauthorizedException
+    {
+        boolean tableChanged = tableAuthorizationState == null || !metadata.id.equals(tableAuthorizationState.tableId);
+        if (tableChanged)
+        {
+            state.ensureTablePermission(metadata, Permission.MODIFY);
+
+            if (tableAuthorizationState != null)
+            {
+                tableAuthorizationState.tableId = metadata.id;
+                tableAuthorizationState.selectAuthorized = false;
+            }
+        }
 
         // CAS updates can be used to simulate a SELECT query, so should require Permission.SELECT as well.
         if (hasConditions())
-            state.ensureTablePermission(metadata, Permission.SELECT);
+            ensureSelectPermission(state, tableAuthorizationState);
 
-        // MV updates need to get the current state from the table, and might update the views
-        // Require Permission.SELECT on the base table, and Permission.MODIFY on the views
-        Iterator<ViewMetadata> views = View.findAll(keyspace(), table()).iterator();
-        if (views.hasNext())
+        if (tableChanged)
         {
-            state.ensureTablePermission(metadata, Permission.SELECT);
-            do
+            // MV updates need to get the current state from the table, and might update the views
+            // Require Permission.SELECT on the base table, and Permission.MODIFY on the views
+            Iterator<ViewMetadata> views = View.findAll(keyspace(), table()).iterator();
+            if (views.hasNext())
             {
-                state.ensureTablePermission(views.next().metadata, Permission.MODIFY);
-            } while (views.hasNext());
+                ensureSelectPermission(state, tableAuthorizationState);
+                do
+                {
+                    state.ensureTablePermission(views.next().metadata, Permission.MODIFY);
+                } while (views.hasNext());
+            }
         }
 
         for (Function function : getFunctions())
             state.ensurePermission(Permission.EXECUTE, function);
+    }
+
+    private void ensureSelectPermission(ClientState state, TableAuthorizationState tableAuthorizationState)
+    {
+        if (tableAuthorizationState == null || !tableAuthorizationState.selectAuthorized)
+            state.ensureTablePermission(metadata, Permission.SELECT);
+        if (tableAuthorizationState != null)
+            tableAuthorizationState.selectAuthorized = true;
+    }
+
+    static class TableAuthorizationState
+    {
+        private TableId tableId;
+        private boolean selectAuthorized;
     }
 
     public void validate(ClientState state) throws InvalidRequestException
@@ -528,9 +562,9 @@ public abstract class ModificationStatement implements CQLStatement.SingleKeyspa
         return operations.staticOperations();
     }
 
-    public Collection<ReferenceOperation> allReferenceOperations()
+    public boolean anyReferenceOperationMatches(Predicate<ReferenceOperation> test)
     {
-        return operations.allSubstitutions();
+        return operations.anySubstitutionMatches(test);
     }
 
     public Iterable<ColumnMetadata> getColumnsWithConditions()
@@ -1046,34 +1080,34 @@ public abstract class ModificationStatement implements CQLStatement.SingleKeyspa
         for (int i = 0, size = writeFragments.size() ; i < size ; i++)
         {
             TxnWrite.Fragment writeFragment = writeFragments.get(i);
-            DecoratedKey key = writeFragment.key.partitionKey();
+            PartitionKey key = writeFragment.key;
             for (Row row : writeFragment.baseUpdate)
                 map.merge(new RowKey(key, row.clustering()), param, merge);
         }
     }
 
-    public <V> void forEachPartitionKey(List<TxnWrite.Fragment> writeFragments, Map<? super DecoratedKey, V> map, V param, BiFunction<V, V, V> mergeFunction)
+    public <V> void forEachPartitionKey(List<TxnWrite.Fragment> writeFragments, Map<? super PartitionKey, V> map, V param, BiFunction<V, V, V> mergeFunction)
     {
         for (int i = 0, size = writeFragments.size(); i < size; i++)
         {
             TxnWrite.Fragment writeFragment = writeFragments.get(i);
-            DecoratedKey key = writeFragment.key.partitionKey();
+            PartitionKey key = writeFragment.key;
             map.merge(key, param, mergeFunction);
         }
     }
 
     public static class RowKey
     {
-        public final DecoratedKey key;
+        public final PartitionKey key;
         public final Clustering<?> clustering;
 
-        public RowKey(DecoratedKey key, Clustering<?> clustering)
+        public RowKey(PartitionKey key, Clustering<?> clustering)
         {
             this.key = key;
             this.clustering = clustering;
         }
 
-        public DecoratedKey partitionKey()
+        public PartitionKey partitionKey()
         {
             return key;
         }

@@ -32,6 +32,7 @@ import org.junit.BeforeClass;
 import org.junit.Test;
 
 import org.apache.cassandra.ServerTestUtils;
+import org.apache.cassandra.config.CassandraRelevantProperties;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.exceptions.ConfigurationException;
 import org.apache.cassandra.service.EmbeddedCassandraService;
@@ -64,6 +65,7 @@ public class ClientRequestMetricsTest
     @BeforeClass
     public static void setup() throws ConfigurationException, IOException
     {
+        CassandraRelevantProperties.VIRTUAL_KEYSPACE_SYSTEM_METRICS_ENABLED.setBoolean(true);
         cassandra = ServerTestUtils.startEmbeddedCassandraService();
 
         cluster = builder().addContactPoint("127.0.0.1").withPort(DatabaseDescriptor.getNativeTransportPort()).build();

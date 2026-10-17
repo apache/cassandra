@@ -42,6 +42,7 @@ import accord.impl.mock.MockCluster;
 import accord.local.Node;
 import accord.messages.BeginRecovery;
 import accord.messages.PreAccept;
+import accord.messages.PreAccept.PreAcceptOk;
 import accord.primitives.Ballot;
 import accord.primitives.Deps;
 import accord.primitives.FullRangeRoute;
@@ -293,14 +294,19 @@ public abstract class SimulatedAccordCommandStoreTestBase extends CQLTester
         TxnId txnId = instance.nextTxnId(txn.kind(), txn.keys().domain());
         PreAccept preAccept = new PreAccept(nodeId, new Topologies.Single(SizeOfIntersectionSorter.SUPPLIER, instance.topology), txnId, txn, null, false, route);
 
+        // the reply may not be complete when the task returns (incremental deps computation finishes in a
+        // continuation), so await it rather than casting what the task handed back: see awaitReply
         var preAcceptAsync = instance.processAsync(preAccept, safe -> {
-            preAccept.unsafeSetNode(emptyNode());
-            var reply = preAccept.apply(safe);
-            Assertions.assertThat(reply.isOk()).isTrue();
-            PreAccept.PreAcceptOk success = (PreAccept.PreAcceptOk) reply;
-            assertDeps(success.txnId, success.deps, cloneKeyConflicts, cloneRangeConflicts);
-            return success;
-        });
+                                         preAccept.unsafeSetNode(emptyNode());
+                                         return preAccept.apply(safe);
+                                     })
+                                     .flatMap(SimulatedAccordCommandStore::awaitReply)
+                                     .map(reply -> {
+                                         Assertions.assertThat(reply).isInstanceOf(PreAcceptOk.class);
+                                         PreAcceptOk success = (PreAcceptOk) reply;
+                                         assertDeps(success.txnId, success.deps, cloneKeyConflicts, cloneRangeConflicts);
+                                         return success;
+                                     });
         var delay = preAcceptAsync.flatMap(ignore -> AsyncChains.chain(instance.unorderedScheduled, () -> {
             Ballot ballot = Ballot.fromValues(instance.storeService.epoch(), instance.storeService.now(), nodeId);
             return new BeginRecovery(nodeId, new Topologies.Single(SizeOfIntersectionSorter.SUPPLIER, instance.topology), txnId, null, 0, txn, route, ballot);

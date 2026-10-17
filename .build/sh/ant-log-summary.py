@@ -105,12 +105,13 @@ def main():
         else:
             with open(args.log_file, "r") as f:
                 content = f.read()
+    # exit 2, not 1: 1 means the log says BUILD FAILED, which a log we cannot read does not
     except FileNotFoundError:
         print(f"Error: Log file '{args.log_file}' not found")
-        sys.exit(1)
+        sys.exit(2)
     except Exception as e:
         print(f"Error reading log file: {e}")
-        sys.exit(1)
+        sys.exit(2)
 
     is_failed, failed_target, failure_output = find_build_failures(content)
 

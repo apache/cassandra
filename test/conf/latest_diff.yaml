@@ -46,6 +46,8 @@ memtable_allocation_type: offheap_objects
 
 commitlog_disk_access_mode: auto
 
+cursor_compaction_enabled: true
+
 background_write_disk_access_mode: direct
 
 sstable:

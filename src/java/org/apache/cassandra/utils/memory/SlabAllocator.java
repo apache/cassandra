@@ -85,7 +85,7 @@ public class SlabAllocator extends MemtableBufferAllocator
         if (size == 0)
             return ByteBufferUtil.EMPTY_BYTE_BUFFER;
 
-        (allocateOnHeapOnly ? onHeap() : offHeap()).allocate(size, opGroup);
+        (allocateOnHeapOnly ? onHeap() : offHeap()).allocate(size);
         // satisfy large allocations directly from JVM since they don't cause fragmentation
         // as badly, and fill up our regions quickly
         if (size > MAX_CLONED_SIZE)

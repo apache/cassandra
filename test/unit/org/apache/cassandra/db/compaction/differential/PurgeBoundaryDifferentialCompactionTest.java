@@ -24,20 +24,21 @@ import org.junit.Test;
 import org.apache.cassandra.config.Config.DiskAccessMode;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.db.ColumnFamilyStore;
+import org.apache.cassandra.io.sstable.format.SSTableReader;
 
 import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertTrue;
 
 /**
- * Exact purge-boundary scenarios plus configuration-axis variants (compression algorithms,
- * compaction disk access mode). Purge requires localDeletionTime < gcBefore; instead of
- * freezing the clock, scenarios read the REAL deletion time from the flushed sstable's stats
- * and pass an explicit gcBefore placed exactly at, and one past, that boundary.
+ * Purge-boundary scenarios, plus variants for compression algorithms and for the disk access
+ * mode of compaction reads. Purge requires localDeletionTime < gcBefore. Each scenario reads
+ * the deletion time from the flushed sstable's stats, then passes gcBefore at, and one past,
+ * that boundary.
  */
 public class PurgeBoundaryDifferentialCompactionTest extends DifferentialCompactionTester
 {
 
-    /** gcBefore exactly AT the tombstone's deletion time: NOT purgeable (strict less-than). */
+    /** gcBefore at the tombstone's deletion time retains it; gcBefore one past purges it. */
     @Test
     public void boundaryExactlyAtDeletionTime() throws Exception
     {
@@ -55,20 +56,72 @@ public class PurgeBoundaryDifferentialCompactionTest extends DifferentialCompact
             execute("DELETE FROM %s USING TIMESTAMP 200 WHERE pk = 2 AND ck = ?", ck);
         flush();
 
-        // an sstable holding any live cell reports the NO_DELETION sentinel (Long.MAX_VALUE) as its
-        // max local deletion time, so the helper skips those and takes the max over the rest; here
-        // that is the deletes-only sstable's single deletion second
+        // an sstable holding any live cell reports the NO_DELETION sentinel as its max local
+        // deletion time
         long maxLdt = maxTombstoneLocalDeletionTime(cfs.getLiveSSTables());
 
-        // boundary: ldt == gcBefore -> NOT purgeable (purge requires ldt < gcBefore)
         CapturedOutput at = assertCursorMatchesIterator(cfs, cfs.getLiveSSTables(), DEFAULT_TASK, maxLdt);
         assertTrue("tombstones at exactly gcBefore must be retained",
                    allJson(at).contains("\"marked_deleted\":\"200\""));
 
-        // one past: ldt < gcBefore -> purgeable, shadowed data and tombstones both gone
         CapturedOutput past = assertCursorMatchesIterator(cfs, cfs.getLiveSSTables(), DEFAULT_TASK, maxLdt + 1);
         assertFalse("tombstones strictly before gcBefore must purge",
                     allJson(past).contains("\"marked_deleted\":\"200\""));
+    }
+
+    /**
+     * A purgeable complex deletion must still delete the cells below it.
+     *
+     * The iterator applies the deletion during the merge, in Row.Merger.ColumnDataReducer, and
+     * purges it afterwards, in ComplexColumnData.purge. Code that purges the merged deletion
+     * before it shadows the cells resurrects them.
+     *
+     * The cells and the deletion sit in separate sstables, so the merge applies the deletion, and
+     * not the memtable.
+     */
+    @Test
+    public void purgeableComplexDeletionShadowsCells() throws Exception
+    {
+        createTable("CREATE TABLE %s (pk bigint, ck bigint, m map<text, text>, v text, " +
+                    "PRIMARY KEY (pk, ck)) WITH gc_grace_seconds = 0");
+        ColumnFamilyStore cfs = getCurrentColumnFamilyStore();
+        cfs.disableAutoCompaction();
+
+        // Data that always survives, so the output is never empty.
+        for (long ck = 0; ck < 4; ck++)
+            execute("INSERT INTO %s (pk, ck, v) VALUES (?, ?, ?) USING TIMESTAMP 100", 0L, ck, "keep" + ck);
+        // UPDATE, not INSERT, so these rows hold complex cells and no row liveness.
+        for (long ck = 0; ck < 4; ck++)
+            execute("UPDATE %s USING TIMESTAMP 100 SET m['k1'] = ?, m['k2'] = ? WHERE pk = ? AND ck = ?",
+                    "doomedA" + ck, "doomedB" + ck, 1L, ck);
+        flush();
+
+        for (long ck = 0; ck < 4; ck++)
+            execute("DELETE m FROM %s USING TIMESTAMP 200 WHERE pk = ? AND ck = ?", 1L, ck);
+        flush();
+
+        long maxLdt = Long.MIN_VALUE;
+        for (SSTableReader sstable : cfs.getLiveSSTables())
+        {
+            long ldt = sstable.getSSTableMetadata().maxLocalDeletionTime;
+            if (ldt != Long.MAX_VALUE)
+                maxLdt = Math.max(maxLdt, ldt);
+        }
+        assertTrue("scenario produced no deletion times", maxLdt > 0 && maxLdt < Long.MAX_VALUE);
+
+        // gcBefore equals the deletion's ldt, so the deletion is not purgeable.
+        CapturedOutput at = assertCursorMatchesIterator(cfs, cfs.getLiveSSTables(), DEFAULT_TASK, maxLdt);
+        assertTrue("retained complex deletion must be in the output",
+                   allJson(at).contains("\"marked_deleted\":\"200\""));
+        assertFalse("shadowed cells must not survive a retained complex deletion",
+                    allJson(at).contains("doomed"));
+
+        // gcBefore is one past the deletion's ldt, so the deletion is purgeable.
+        CapturedOutput past = assertCursorMatchesIterator(cfs, cfs.getLiveSSTables(), DEFAULT_TASK, maxLdt + 1);
+        assertFalse("purged complex deletion must not be in the output",
+                    allJson(past).contains("\"marked_deleted\":\"200\""));
+        assertFalse("cells shadowed by a purged complex deletion must not be resurrected",
+                    allJson(past).contains("doomed"));
     }
 
     /** Same differential flow under direct I/O for the compaction read path. */

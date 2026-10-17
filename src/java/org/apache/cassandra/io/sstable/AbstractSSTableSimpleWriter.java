@@ -31,6 +31,8 @@ import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Consumer;
 import java.util.stream.Stream;
 
+import javax.annotation.Nullable;
+
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.db.DecoratedKey;
 import org.apache.cassandra.db.RegularAndStaticColumns;
@@ -63,6 +65,7 @@ public abstract class AbstractSSTableSimpleWriter implements Closeable
     protected final RegularAndStaticColumns columns;
     protected SSTableFormat<?, ?> format = DatabaseDescriptor.getSelectedSSTableFormat();
     protected static final AtomicReference<SSTableId> id = new AtomicReference<>(SSTableIdFactory.instance.defaultBuilder().generator(Stream.empty()).get());
+    protected final SSTableId.Builder<? extends SSTableId> idBuilder;
     protected boolean makeRangeAware = false;
     protected final Collection<Index.Group> indexGroups;
     protected Consumer<Collection<SSTableReader>> sstableProducedListener;
@@ -70,11 +73,15 @@ public abstract class AbstractSSTableSimpleWriter implements Closeable
     protected CompressionDictionary compressionDictionary;
     protected SSTable.Owner owner;
 
-    protected AbstractSSTableSimpleWriter(File directory, TableMetadataRef metadata, RegularAndStaticColumns columns)
+    /**
+     * @param idBuilder builder used to generate SSTable identifiers; if {@code null}, the default builder is used.
+     */
+    protected AbstractSSTableSimpleWriter(File directory, TableMetadataRef metadata, RegularAndStaticColumns columns, @Nullable SSTableId.Builder<? extends SSTableId> idBuilder)
     {
         this.metadata = metadata;
         this.directory = directory;
         this.columns = columns;
+        this.idBuilder = idBuilder != null ? idBuilder : SSTableIdFactory.instance.defaultBuilder();
         indexGroups = new ArrayList<>();
     }
 
@@ -203,13 +210,13 @@ public abstract class AbstractSSTableSimpleWriter implements Closeable
                                        effectiveOwner);
     }
 
-    private static Descriptor createDescriptor(File directory, final String keyspace, final String columnFamily, final SSTableFormat<?, ?> fmt) throws IOException
+    private Descriptor createDescriptor(File directory, final String keyspace, final String columnFamily, final SSTableFormat<?, ?> fmt) throws IOException
     {
         SSTableId nextGen = getNextId(directory, columnFamily);
         return new Descriptor(directory, keyspace, columnFamily, nextGen, fmt);
     }
 
-    private static SSTableId getNextId(File directory, final String columnFamily) throws IOException
+    private SSTableId getNextId(File directory, final String columnFamily) throws IOException
     {
         while (true)
         {
@@ -221,7 +228,7 @@ public abstract class AbstractSSTableSimpleWriter implements Closeable
                                                              .map(d -> d.id);
 
                 SSTableId lastId = id.get();
-                SSTableId newId = SSTableIdFactory.instance.defaultBuilder().generator(Stream.concat(existingIds, Stream.of(lastId))).get();
+                SSTableId newId = idBuilder.generator(Stream.concat(existingIds, Stream.of(lastId))).get();
                 if (id.compareAndSet(lastId, newId))
                     return newId;
             }

@@ -419,6 +419,7 @@ public class CQLSSTableWriter implements Closeable
         private Consumer<Collection<SSTableReader>> sstableProducedListener;
         private boolean openSSTableOnProduced = false;
         private CompressionDictionary compressionDictionary = null;
+        private SSTableId.Builder<? extends SSTableId> idBuilder = null;
 
         protected Builder()
         {
@@ -671,6 +672,12 @@ public class CQLSSTableWriter implements Closeable
             return this;
         }
 
+        public Builder withSSTableIdBuilder(SSTableId.Builder<? extends SSTableId> idBuilder)
+        {
+            this.idBuilder = idBuilder;
+            return this;
+        }
+
         /**
          * Use specific compression dictionary upon writing the data.
          *
@@ -800,8 +807,8 @@ public class CQLSSTableWriter implements Closeable
 
                 TableMetadataRef ref = tableMetadata.ref;
                 AbstractSSTableSimpleWriter writer = sorted
-                                                     ? new SSTableSimpleWriter(cfs, directory, ref, preparedModificationStatement.updatedColumns(), maxSSTableSizeInMiB)
-                                                     : new SSTableSimpleUnsortedWriter(cfs, directory, ref, preparedModificationStatement.updatedColumns(), maxSSTableSizeInMiB);
+                                                     ? new SSTableSimpleWriter(cfs, directory, ref, preparedModificationStatement.updatedColumns(), maxSSTableSizeInMiB, idBuilder)
+                                                     : new SSTableSimpleUnsortedWriter(cfs, directory, ref, preparedModificationStatement.updatedColumns(), maxSSTableSizeInMiB, idBuilder);
 
                 if (format != null)
                     writer.setSSTableFormatType(format);

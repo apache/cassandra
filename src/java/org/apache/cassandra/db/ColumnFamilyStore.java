@@ -537,6 +537,11 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean, Memtable.Owner
         data.subscribe(StorageService.instance.sstablesTracker);
         data.subscribe(SnapshotManager.instance);
 
+        // Created here, ahead of the `if (data.loadsstables)` block below, because the SSTableReader.openAll()
+        // call in it reads back owner.compressionDictionaryManager() for every dictionary-compressed sstable it
+        // opens. Were this still null by then, each such sstable would leak a dictionary reference (CASSANDRA-21047).
+        compressionDictionaryManager = new CompressionDictionaryManager(this, registerBookeeping);
+
         Collection<SSTableReader> sstables = null;
         // scan for sstables corresponding to this cf and load them
         if (data.loadsstables)
@@ -592,7 +597,6 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean, Memtable.Owner
         streamManager = new CassandraStreamManager(this);
         repairManager = new CassandraTableRepairManager(this);
         sstableImporter = new SSTableImporter(this);
-        compressionDictionaryManager = new CompressionDictionaryManager(this, registerBookeeping);
 
         if (DatabaseDescriptor.isClientOrToolInitialized() || SchemaConstants.isSystemKeyspace(getKeyspaceName()))
             topPartitions = null;
@@ -1523,7 +1527,23 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean, Memtable.Owner
         {
             Memtable mt = data.getMemtableFor(opGroup, commitLogPosition);
             UpdateTransaction indexer = newUpdateTransaction(update, context, updateIndexes, mt);
-            long timeDelta = mt.put(update, indexer, opGroup);
+            long timeDelta;
+            // Nesting is tracked on the context; updateIndexes cannot identify it, as index build and compaction cleanup also pass false. See Memtable#checkSpaceAndPut.
+            if (context.enterMemtableWrite())
+            {
+                try
+                {
+                    timeDelta = mt.checkSpaceAndPut(update, indexer, opGroup);
+                }
+                finally
+                {
+                    context.exitMemtableWrite();
+                }
+            }
+            else
+            {
+                timeDelta = mt.put(update, indexer, opGroup);
+            }
             DecoratedKey key = update.partitionKey();
             invalidateCachedPartition(key);
             metric.topWritePartitionFrequency.addSample(key.getKey(), 1);

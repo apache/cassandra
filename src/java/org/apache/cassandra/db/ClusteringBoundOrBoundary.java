@@ -22,7 +22,6 @@ package org.apache.cassandra.db;
 
 import java.io.IOException;
 import java.nio.ByteBuffer;
-import java.util.List;
 
 import org.apache.cassandra.db.marshal.AbstractType;
 import org.apache.cassandra.db.marshal.ByteArrayAccessor;
@@ -100,27 +99,27 @@ public interface ClusteringBoundOrBoundary<V> extends ClusteringPrefix<V>
 
     public static class Serializer
     {
-        public <T> void serialize(ClusteringBoundOrBoundary<T> bound, DataOutputPlus out, int version, List<AbstractType<?>> types) throws IOException
+        public <T> void serialize(ClusteringBoundOrBoundary<T> bound, DataOutputPlus out, int version, AbstractType<?>[] types) throws IOException
         {
             out.writeByte(bound.kind().ordinal());
             out.writeShort(bound.size());
             ClusteringPrefix.serializer.serializeValuesWithoutSize(bound, out, version, types);
         }
 
-        public <T> long serializedSize(ClusteringBoundOrBoundary<T> bound, int version, List<AbstractType<?>> types)
+        public <T> long serializedSize(ClusteringBoundOrBoundary<T> bound, int version, AbstractType<?>[] types)
         {
             return 1 // kind ordinal
                  + TypeSizes.sizeof((short)bound.size())
                  + ClusteringPrefix.serializer.valuesWithoutSizeSerializedSize(bound, version, types);
         }
 
-        public ClusteringBoundOrBoundary<byte[]> deserialize(DataInputPlus in, int version, List<AbstractType<?>> types) throws IOException
+        public ClusteringBoundOrBoundary<byte[]> deserialize(DataInputPlus in, int version, AbstractType<?>[] types) throws IOException
         {
             Kind kind = Kind.fromOrdinal(in.readByte());
             return deserializeValues(in, kind, version, types);
         }
 
-        public void skipValues(DataInputPlus in, Kind kind, int version, List<AbstractType<?>> types) throws IOException
+        public void skipValues(DataInputPlus in, Kind kind, int version, AbstractType<?>[] types) throws IOException
         {
             int size = in.readUnsignedShort();
             if (size == 0)
@@ -129,7 +128,7 @@ public interface ClusteringBoundOrBoundary<V> extends ClusteringPrefix<V>
             ClusteringPrefix.serializer.skipValuesWithoutSize(in, size, version, types);
         }
 
-        public ClusteringBoundOrBoundary<byte[]> deserializeValues(DataInputPlus in, Kind kind, int version, List<AbstractType<?>> types) throws IOException
+        public ClusteringBoundOrBoundary<byte[]> deserializeValues(DataInputPlus in, Kind kind, int version, AbstractType<?>[] types) throws IOException
         {
             int size = in.readUnsignedShort();
             if (size == 0)

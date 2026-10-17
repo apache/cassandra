@@ -38,10 +38,10 @@ import static org.apache.cassandra.service.TimeoutStrategy.LatencySourceFactory.
 
 public class AccordWaitStrategies
 {
-    static TimeoutStrategy slowTxnPreaccept, slowSyncPointPreaccept, slowRead;
+    static TimeoutStrategy slowTxnPreaccept, slowSyncPointPreaccept, slowRead, slowStatusCheck;
     static TimeoutStrategy expireTxn, expireSyncPoint, expireDurability, expireEpochWait;
     static TimeoutStrategy fetchTxn, fetchSyncPoint;
-    static RetryStrategy recoverTxn, recoverSyncPoint, retrySyncPoint, retryDurability, retryBootstrap, retryJoinBootstrap;
+    static RetryStrategy recoverTxn, recoverSyncPoint, retrySyncPoint, retryBackgroundSyncPoint, retryDurability, retryBootstrap, retryJoinBootstrap;
     static RetryStrategy retryFetchMinEpoch, retryFetchTopology;
 
     public static @Nullable TimeoutStrategy slowRead(@Nullable TxnId txnId)
@@ -53,9 +53,22 @@ public class AccordWaitStrategies
 
     public static TimeoutStrategy expire(@Nullable TxnId txnId, Verb verb)
     {
+        switch (verb)
+        {
+            case ACCORD_CHECK_STATUS_REQ:
+            case ACCORD_AWAIT_REQ:
+                // status checks are cheap, no reason to give sync points longer to timeout
+                return expireTxn;
+        }
+
         if (txnId == null || !txnId.isSyncPoint())
             return expireTxn;
         return verb == Verb.ACCORD_WAIT_UNTIL_APPLIED_REQ ? expireDurability : expireSyncPoint;
+    }
+
+    public static @Nullable TimeoutStrategy slowStatusCheck()
+    {
+        return slowRead;
     }
 
     public static TimeoutStrategy fetch(@Nullable TxnId txnId)
@@ -86,6 +99,7 @@ public class AccordWaitStrategies
     {
         AccordConfig config = DatabaseDescriptor.getAccord();
         setSlowRead(config.slow_read);
+        setSlowStatusCheck(config.slow_status_check);
         setSlowTxnPreaccept(config.slow_txn_preaccept);
         setSlowSyncPointPreaccept(config.slow_syncpoint_preaccept);
         setExpireTxn(config.expire_txn);
@@ -97,6 +111,7 @@ public class AccordWaitStrategies
         setRecoverTxn(config.recover_txn);
         setRecoverSyncPoint(config.recover_syncpoint);
         setRetrySyncPoint(config.retry_syncpoint);
+        setRetryBackgroundSyncPoint(config.retry_background_syncpoint);
         setRetryDurability(config.retry_durability);
         setRetryBootstrap(config.retry_bootstrap);
         setRetryJoinBootstrap(config.retry_join_bootstrap);
@@ -106,7 +121,13 @@ public class AccordWaitStrategies
 
     public static void setSlowRead(String spec)
     {
+        // TODO (expected): track raw inter-DC link latencies and use some simple offset from these by default
         slowRead = TimeoutStrategy.parse(spec, of(accordReadMetrics));
+    }
+
+    public static void setSlowStatusCheck(String spec)
+    {
+        slowStatusCheck = TimeoutStrategy.parse(spec, of(accordReadMetrics));
     }
 
     public static void setSlowTxnPreaccept(String spec)
@@ -162,6 +183,11 @@ public class AccordWaitStrategies
     public static void setRetrySyncPoint(StringRetryStrategy spec)
     {
         retrySyncPoint = spec.retry();
+    }
+
+    public static void setRetryBackgroundSyncPoint(StringRetryStrategy spec)
+    {
+        retryBackgroundSyncPoint = spec.retry();
     }
 
     public static void setRetryDurability(StringRetryStrategy spec)

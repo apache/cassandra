@@ -41,28 +41,30 @@ import static org.junit.Assert.assertNotNull;
 import static org.junit.Assert.assertTrue;
 
 /**
- * Regression gate for cursor compaction's GARBAGE-FREE property: steady-state heap
- * allocation must not scale with the number of rows/cells compacted.
+ * Regression gate for cursor compaction's GARBAGE-FREE property: steady-state heap allocation
+ * must not grow with the number of rows or cells compacted.
  *
- * Method: measure thread-allocated bytes (ThreadStats) around CompactionTask.execute for a
- * SMALL table and a 10x BIG table (same row shape, warmed by prior iterations, min over
- * several measured iterations to suppress transient noise), and assert the difference stays
- * under a fixed ceiling.
+ * The measurement takes thread-allocated bytes (ThreadStats) around CompactionTask.execute for
+ * a SMALL table and a 10x BIG table of the same row shape. Prior iterations warm the path, and
+ * the minimum over several measured iterations suppresses transient noise. The gate asserts
+ * that the difference stays under a fixed ceiling.
  *
  * The ceiling is NOT zero. JFR decomposition of the measured baseline delta (~450KB at these
- * sizes) shows it is entirely outside cursor-owned code:
- * Ref$Debug stack captures (-Dcassandra.debugrefcount=true in the ant test JVM, build.xml —
- * production default is false) scaling with buffer-chunk Ref churn, chunk-cache machinery
- * scaling with data volume, and per-key metadata (bloom/summary). The cursor reader/writer/
- * compactor hot loops contribute ZERO scaling allocation: ClusteringPrefix.Kind.values()'s
- * per-call array allocation on the cursor's hot read/write paths is already eliminated
- * upstream via Kind.fromOrdinal() (CASSANDRA-21528).
- * Ceiling 512KB = measured 450KB + margin; run-to-run variance of the min-of-3 measurement
- * is ~hundreds of bytes, so this trips at a regression of ~+60KB ≈ +6 bytes per row.
- * JMH gc.alloc.rate.norm remains the precision instrument; this is the always-on tripwire.
+ * sizes) attributes all of it outside cursor-owned code:
+ * - Ref$Debug stack captures, which scale with buffer-chunk Ref churn. The ant test JVM sets
+ *   -Dcassandra.debugrefcount=true (build.xml); the production default is false.
+ * - Chunk-cache machinery, which scales with data volume.
+ * - Per-key metadata (bloom filter, index summary).
+ * The cursor reader, writer and compactor hot loops contribute ZERO scaling allocation.
+ * Kind.fromOrdinal() (CASSANDRA-21528) took ClusteringPrefix.Kind.values()'s per-call array
+ * allocation off the cursor's hot read and write paths.
  *
- * The differential harness cannot catch allocation regressions — output bytes are identical
- * whether or not the path allocates — hence this separate gate.
+ * Ceiling 512KB = measured 450KB + margin. Run-to-run variance of the min-of-3 measurement is
+ * a few hundred bytes, so the gate trips at a regression of ~+60KB, about +6 bytes per row.
+ * JMH gc.alloc.rate.norm stays the precision instrument; this gate is the always-on tripwire.
+ *
+ * The differential harness cannot catch an allocation regression, because the output bytes are
+ * identical whether or not the path allocates. This gate covers that hole.
  */
 public class CursorCompactionAllocationGateTest extends DifferentialCompactionTester
 {
@@ -79,10 +81,10 @@ public class CursorCompactionAllocationGateTest extends DifferentialCompactionTe
     }
 
     /**
-     * Disables preemptive-open (so the gate sees a deterministic, stable sstable set) for the
-     * duration of {@code body}, restoring it and cursorCompactionEnabled to their original
-     * values afterward. Callers that need cursor compaction on set it themselves inside
-     * {@code body} (some measure both cursor and iterator paths within the same call).
+     * Disables preemptive open for the duration of {@code body}, so the gate sees a stable
+     * sstable set, then restores it and cursorCompactionEnabled to their original values.
+     * {@code body} sets cursorCompactionEnabled itself, because some callers measure both the
+     * cursor path and the iterator path in one call.
      */
     private void withMeasurementEnv(ThrowingRunnable body) throws Exception
     {
@@ -127,8 +129,8 @@ public class CursorCompactionAllocationGateTest extends DifferentialCompactionTe
         dumpAllocationProfile(dest, WARMUP_ITERATIONS, iterations, cfs, gcBefore);
     }
 
-    /** Warms up, then records a JFR allocation profile (with stacks) over `iterations` cursor
-     *  compactions of cfs, dumped to dest for offline attribution. */
+    /** Warms up, then records a JFR allocation profile with stacks over {@code iterations} cursor
+     *  compactions of {@code cfs}, and writes it to {@code dest} for offline attribution. */
     private void dumpAllocationProfile(java.nio.file.Path dest, int warmup, int iterations,
                                        ColumnFamilyStore cfs, long gcBefore) throws Exception
     {
@@ -208,15 +210,14 @@ public class CursorCompactionAllocationGateTest extends DifferentialCompactionTe
         return measureBest(cfs, gcBefore, warmup, measured);
     }
 
-    /** Total on-disk input bytes of the most recent measureSteadyStateAllocation call. */
+    /** Total on-disk input bytes recorded by the most recent {@link #captureLastInputBytes} call. */
     private long lastInputBytes;
 
     /**
-     * Measurement at realistic file sizes (4 input sstables of ~10MB each, uncompressed):
-     * 192 partitions x 100 rows x ~520B rows per file vs a 10x-smaller small run. The scaling
-     * assertion is per input BYTE, not an absolute delta, because the residual here grows with the
-     * workload instead of staying constant, so the small-file gate's fixed ceiling does not transfer.
-     * Its ceiling and the measurement it was calibrated from are stated at the assertion itself.
+     * Measurement at realistic file sizes: 4 input sstables of ~10MB each, uncompressed, from
+     * 192 partitions x 100 rows of ~520B, against a 10x-smaller run. The scaling assertion is
+     * per input BYTE, not an absolute delta, because the residual here grows with the workload
+     * instead of staying constant, so the small-file gate's fixed ceiling does not transfer.
      */
     @Test
     public void allocationAtLargeFileSizes() throws Exception
@@ -226,7 +227,7 @@ public class CursorCompactionAllocationGateTest extends DifferentialCompactionTe
 
         String padding = "v".repeat(500);
         withMeasurementEnv(() -> {
-            // 4 rounds = 4 input files; big: 192 partitions * 100 rows * ~520B = ~10MB/file
+            // each round flushes one input sstable
             long smallAlloc = measureSteadyStateAllocation(19, true, 4, padding, 2, 2);
             long smallBytes = lastInputBytes;
             long bigAlloc = measureSteadyStateAllocation(192, true, 4, padding, 2, 2);
@@ -242,19 +243,19 @@ public class CursorCompactionAllocationGateTest extends DifferentialCompactionTe
                         "iterator small={}B big={}B delta={}B",
                         smallAlloc, bigAlloc, delta, extraBytes, String.format("%.3f", perInputByte),
                         smallIter, bigIter, bigIter - smallIter);
-            // The residual scales with data VOLUME, not row count: JFR decomposition at this
-            // scale = 62% Ref$Debug stack captures (test-env only,
-            // -Dcassandra.debugrefcount=true), chunk-cache machinery, per-compaction
-            // constants — ZERO cursor-owned sites. Measured ~0.27 B allocated per extra
-            // input byte in the test env; ceiling 0.5 B/B trips on any real per-element
-            // regression while absorbing volume-proportional test-env noise.
+            // The residual scales with data VOLUME, not row count. JFR decomposition at this
+            // scale: 62% Ref$Debug stack captures (test env only,
+            // -Dcassandra.debugrefcount=true), then chunk-cache machinery and per-compaction
+            // constants. ZERO cursor-owned sites. Measured ~0.27 B allocated per extra input
+            // byte in the test env. Ceiling 0.5 B/B trips on any real per-element regression
+            // and absorbs the volume-proportional test-env noise.
             assertTrue(String.format("cursor allocation per input byte too high: %.3f B/B (delta %,dB over %,dB)",
                                      perInputByte, delta, extraBytes),
                        perInputByte <= 0.5);
         });
     }
 
-    /** Compacts all live sstables on the cursor path, measuring ONLY execute(); restores inputs. */
+    /** Compacts all live sstables on the configured path, measuring ONLY execute(); restores inputs. */
     private long compactOnceMeasured(ColumnFamilyStore cfs, long gcBefore) throws Exception
     {
         Set<SSTableReader> inputs = new HashSet<>(cfs.getLiveSSTables());
@@ -273,10 +274,10 @@ public class CursorCompactionAllocationGateTest extends DifferentialCompactionTe
         long before = ThreadStats.getCurrentThreadAllocatedBytes();
         task.execute(ActiveCompactionsTracker.NOOP);
         long after = ThreadStats.getCurrentThreadAllocatedBytes();
-        // -1 is what the JVM returns while thread allocation measurement is DISABLED, which
-        // isThreadAllocatedMemorySupported() — the condition every Assume in this class checks — reports
-        // as supported anyway. Two -1 readings subtract to a delta of 0, and 0 satisfies every scaling
-        // assertion in this class, so the whole gate would report green having measured nothing at all.
+        // The JVM returns -1 while thread allocation measurement is DISABLED, and
+        // isThreadAllocatedMemorySupported(), the condition every Assume in this class checks,
+        // still reports supported. Two -1 readings subtract to a delta of 0, and 0 satisfies
+        // every scaling assertion here, so the gate would report green having measured nothing.
         assertTrue("thread allocation measurement returned no reading (before=" + before +
                    " after=" + after + "); the allocation gate cannot measure and must not report a pass",
                    before >= 0 && after >= 0);
@@ -289,10 +290,10 @@ public class CursorCompactionAllocationGateTest extends DifferentialCompactionTe
     }
 
     /**
-     * Sparse rows: every other row omits a column, so the row carries a column-subset
-     * encoding instead of the all-columns flag. Exercises the per-row subset path in
+     * Sparse rows: every other row omits a column, so the row carries a column-subset encoding
+     * instead of the all-columns flag. This reaches the per-row subset path in
      * SSTableCursorReader (UnfilteredDescriptor.loadRow -> Columns.deserializeSubset ->
-     * CellCursor.init identity-cache miss), which the full-row scenario cannot see.
+     * CellCursor.init identity-cache miss), which the full-row scenario cannot reach.
      */
     @Test
     public void allocationDoesNotScaleWithSparseRows() throws Exception
@@ -339,17 +340,20 @@ public class CursorCompactionAllocationGateTest extends DifferentialCompactionTe
     }
 
     /**
-     * Sparse rows in a >= 64-column superset: the column subset uses the LARGE-subset wire
-     * format (index vints, present- or missing-mode), which the reader historically decoded
-     * by materializing a fresh Columns per row — cascading through CellCursor.init's
-     * identity cache into a per-row toArray + AbstractType[] rebuild + O(columns) getType
-     * lookups. The small-superset gate (allocationDoesNotScaleWithSparseRows) cannot see
-     * this: its mask fast path only covers < 64 columns. The schema declares 70 columns but
-     * only 69 ever carry a cell — the present-mode window's base is always even, so c69 is
-     * never written and the sstable header's superset (the union of the columns actually
-     * written) is 69, still comfortably over the 64-column boundary. Rows alternate
-     * present-mode (3 of 69 set) and missing-mode (67 of 69 set) so both wire modes are
-     * exercised.
+     * Sparse rows in a >= 64-column superset. The column subset then uses the LARGE-subset wire
+     * format, which encodes index vints in present-mode or missing-mode. This gate guards a
+     * regression that decode once carried: a fresh Columns materialized per row, cascading
+     * through CellCursor.init's identity cache into a per-row toArray, an AbstractType[]
+     * rebuild, and O(columns) getType lookups.
+     *
+     * The small-superset gate, allocationDoesNotScaleWithSparseRows, cannot reach this format:
+     * its mask fast path only covers fewer than 64 columns.
+     *
+     * The schema declares 70 columns, but only 69 ever carry a cell. The present-mode window's
+     * base is always even, so c69 is never written, and the sstable header's superset, the union
+     * of the columns actually written, is 69. That stays over the 64-column boundary. Rows
+     * alternate present-mode (3 of 69 set) and missing-mode (67 of 69 set), so both wire modes
+     * run.
      */
     @Test
     public void allocationDoesNotScaleWithWideSchemaSparseRows() throws Exception
@@ -369,13 +373,12 @@ public class CursorCompactionAllocationGateTest extends DifferentialCompactionTe
             logger.info("wide-schema sparse-row cursor compaction allocation: small={}B big={}B delta={}B " +
                         "over {}B extra input = {} B/B",
                         smallAlloc, bigAlloc, delta, extraBytes, String.format("%.3f", perInputByte));
-            // Per INPUT BYTE calibration: the mixed 3-of-69 and
-            // 67-of-69 rows make multi-MB inputs whose volume-proportional test-env residual
-            // (Ref$Debug, chunk cache) dwarfs any fixed ceiling. Measured post-fix: ~0.37 B/B
-            // (BIG). The pre-fix per-row cascade (fresh Columns + CellCursor rebuild per
-            // sparse row) measured ~3.8 B/B. A leak of one small object per row costs ~+0.2 B/B at
-            // this row size, landing at ~0.57 B/B, which still passes: this gate catches a
-            // whole-pipeline regression, not a single re-introduced per-row object.
+            // Calibrated per INPUT BYTE: the mixed 3-of-69 and 67-of-69 rows make multi-MB
+            // inputs whose volume-proportional test-env residual (Ref$Debug, chunk cache)
+            // dwarfs any fixed ceiling. Measured ~0.37 B/B on the BIG run. The per-row Columns
+            // cascade this gate guards measured ~3.8 B/B. One small object leaked per row costs
+            // about +0.2 B/B at this row size, lands at ~0.57 B/B, and still passes. The gate
+            // catches a whole-pipeline regression, not a single re-introduced per-row object.
             assertTrue(String.format("wide-schema (>=64 col) sparse-row cursor allocation per input byte too high: " +
                                      "%.3f B/B (delta %,dB over %,dB extra input)",
                                      perInputByte, delta, extraBytes),
@@ -436,18 +439,18 @@ public class CursorCompactionAllocationGateTest extends DifferentialCompactionTe
     }
 
     /**
-     * Garbage-free property for RANGE-TOMBSTONE-dense workloads: the marker
-     * read/merge/write path runs on the ReusableDeletionTime pool and open-marker tracking,
-     * which the row-centric gates barely touch. Each partition carries 300 bounded range
-     * tombstones per round, the second round's bounds shifted by one so every marker pair
-     * overlaps across sstables and forces real deletion reconciliation.
+     * Garbage-free property for RANGE-TOMBSTONE-dense workloads. The marker read, merge and
+     * write path runs on the ReusableDeletionTime pool and on open-marker tracking, which the
+     * row-centric gates barely touch. Each partition carries 300 bounded range tombstones per
+     * round, and the second round shifts its bounds by one, so every marker pair overlaps
+     * across sstables and forces real deletion reconciliation.
      *
      * Asserted per INPUT BYTE, not as a fixed delta: at marker-dense (sub-MB) scales the
-     * test-env residual (Ref$Debug stack captures, chunk-cache machinery) exceeds any fixed
-     * ceiling. JFR attribution of the first run (recordRangeTombstoneAllocationProfile): ZERO
-     * cursor-owned sites; the profile is Ref$Debug + buffer-pool + per-compaction constants.
-     * Markers are ~25-35B on disk, so a leak of one small object per marker costs >1.5 B/B and
-     * trips the 1.0 B/B ceiling with wide margin.
+     * test-env residual, Ref$Debug stack captures and chunk-cache machinery, exceeds any fixed
+     * ceiling. JFR attribution of recordRangeTombstoneAllocationProfile finds ZERO cursor-owned
+     * sites; the profile is Ref$Debug, buffer pool and per-compaction constants. Markers are
+     * ~25-35B on disk, so one small object leaked per marker costs >1.5 B/B and trips the
+     * 1.0 B/B ceiling with wide margin.
      */
     @Test
     public void allocationDoesNotScaleWithRangeTombstones() throws Exception
@@ -510,6 +513,94 @@ public class CursorCompactionAllocationGateTest extends DifferentialCompactionTe
         assertCursorPathWillRun(cfs, cfs.getLiveSSTables(), gcBefore);
         captureLastInputBytes(cfs);
         return measureBest(cfs, gcBefore, WARMUP_ITERATIONS, MEASURED_ITERATIONS);
+    }
+
+    /** Ceiling 0.5 B/B, the calibration {@link #allocationAtLargeFileSizes} uses at this input
+     *  scale. BTI needs a higher one: its trie and key snapshot cost ~2KB per partition. */
+    protected double complexPerInputByteCeiling()
+    {
+        return 0.5;
+    }
+
+    /**
+     * Garbage-free property for multi-cell (complex) columns: allocation must not grow per row.
+     *
+     * The whole cursor path runs — the read, the merge of each column and each cell path, and
+     * the write of the markers and the row. Every row holds a map and a set, and the INSERT of
+     * a collection literal adds a complex deletion. Several rounds of writes give the merge
+     * real work to do on cell paths.
+     */
+    @Test
+    public void allocationDoesNotScaleWithComplexColumns() throws Exception
+    {
+        Assume.assumeTrue("thread allocation measurement unsupported on this JVM",
+                          ThreadStats.isThreadAllocatedMemorySupported());
+
+        withMeasurementEnv(() -> {
+            DatabaseDescriptor.setCursorCompactionEnabled(true);
+            long smallAlloc = measureComplex(19);
+            long smallBytes = lastInputBytes;
+            long bigAlloc = measureComplex(192);
+            long bigBytes = lastInputBytes;
+            long delta = bigAlloc - smallAlloc;
+            long extraBytes = bigBytes - smallBytes;
+            double perInputByte = (double) delta / extraBytes;
+            logger.info("complex-column cursor compaction allocation: small={}B big={}B delta={}B " +
+                        "over {}B extra input = {} B/B",
+                        smallAlloc, bigAlloc, delta, extraBytes, String.format("%.3f", perInputByte));
+            // Same input scale as allocationAtLargeFileSizes, several megabytes, so the same
+            // ceiling applies. Below one megabyte the test environment's own allocation is above
+            // 1 B/B for every scenario, the simple ones included.
+            //
+            // A JFR profile of 30 warmed complex compactions (recordComplexAllocationProfile)
+            // shows no cursor method allocating in proportion to the input. Its only fixed cost
+            // is the histogram spool in maybeSwitchWriter, once per compaction, which the delta
+            // above subtracts out.
+            assertTrue(String.format("complex-column cursor allocation per input byte too high: " +
+                                     "%.3f B/B (delta %,dB over %,dB extra input, ceiling %.2f)",
+                                     perInputByte, delta, extraBytes, complexPerInputByteCeiling()),
+                       perInputByte <= complexPerInputByteCeiling());
+        });
+    }
+
+    /**
+     * Creates the table for the complex-column tests and fills it.
+     *
+     * It writes {@code rounds} rounds of rows that hold a map, a set and a text column, and
+     * flushes after each round. Every fourth row also takes a single-element map update, so the
+     * merge sees rows whose map holds a path the collection literal did not write.
+     * {@code valuePrefix} sets the row width.
+     */
+    private ColumnFamilyStore populateComplexTable(int partitions, int rounds, String valuePrefix) throws Exception
+    {
+        createTable("CREATE TABLE %s (pk bigint, ck bigint, m map<text, bigint>, s set<int>, v text, " +
+                    "PRIMARY KEY (pk, ck)) WITH compression = {'enabled': 'false'}");
+        ColumnFamilyStore cfs = getCurrentColumnFamilyStore();
+        cfs.disableAutoCompaction();
+        for (int round = 0; round < rounds; round++)
+        {
+            for (long pk = 0; pk < partitions; pk++)
+                for (long ck = 0; ck < SMALL_ROWS_PER_PARTITION; ck++)
+                {
+                    execute("INSERT INTO %s (pk, ck, m, s, v) VALUES (?, ?, ?, ?, ?)",
+                            pk, ck, map("k" + ck, ck, "r" + round, (long) round), set((int) ck, round), valuePrefix + ck);
+                    if (ck % 4 == 0)
+                        execute("UPDATE %s SET m[?] = ? WHERE pk = ? AND ck = ?", "extra", ck, pk, ck);
+                }
+            flush();
+        }
+        return cfs;
+    }
+
+    private long measureComplex(int partitions) throws Exception
+    {
+        DatabaseDescriptor.setCursorCompactionEnabled(true);
+        // multi-MB inputs, the scale complexPerInputByteCeiling is calibrated at
+        ColumnFamilyStore cfs = populateComplexTable(partitions, 4, "x".repeat(180));
+        captureLastInputBytes(cfs);
+        long gcBefore = cfs.getDefaultGcBefore(FBUtilities.nowInSeconds());
+        assertCursorPathWillRun(cfs, cfs.getLiveSSTables(), gcBefore);
+        return measureBest(cfs, gcBefore, 2, 2);
     }
 
     /**
@@ -577,6 +668,25 @@ public class CursorCompactionAllocationGateTest extends DifferentialCompactionTe
 
             dumpAllocationProfile(java.nio.file.Path.of("/tmp/cursor-alloc-rt.jfr"), 30, cfs, gcBefore);
             logger.info("allocation profile dumped to /tmp/cursor-alloc-rt.jfr");
+        });
+    }
+
+    /** Diagnostic, not a gate: JFR allocation profile over warmed cursor compactions of the big
+     *  multi-cell table; dumps /tmp/cursor-alloc-complex.jfr for attribution. */
+    @Test
+    public void recordComplexAllocationProfile() throws Exception
+    {
+        Assume.assumeTrue("thread allocation measurement unsupported on this JVM",
+                          ThreadStats.isThreadAllocatedMemorySupported());
+
+        withMeasurementEnv(() -> {
+            DatabaseDescriptor.setCursorCompactionEnabled(true);
+            ColumnFamilyStore cfs = populateComplexTable(SMALL_PARTITIONS * SCALE, 2, "v");
+            long gcBefore = cfs.getDefaultGcBefore(FBUtilities.nowInSeconds());
+            assertCursorPathWillRun(cfs, cfs.getLiveSSTables(), gcBefore);
+
+            dumpAllocationProfile(java.nio.file.Path.of("/tmp/cursor-alloc-complex.jfr"), 30, cfs, gcBefore);
+            logger.info("allocation profile dumped to /tmp/cursor-alloc-complex.jfr");
         });
     }
 

@@ -24,6 +24,7 @@ import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.stream.Collectors;
 
 import org.junit.Test;
@@ -83,6 +84,10 @@ public class RepairMetadataKeyspaceTest extends TestBaseImpl
             }
 
             toRepair.startup();
+            // Stopping and restarting a node commits further epochs (e.g. AccordChangeNodeInfo status updates),
+            // so the epoch captured before the bounce is no longer the tip of the log.
+            ClusterUtils.waitForCMSToQuiesce(cluster, cluster.get(1));
+            currentEpoch = getConsistentEpoch(cluster);
             assertFalse(canReadCompleteLog(toRepair, currentEpoch));
 
             toRepair.nodetoolResult("repair", "--full", "system_cluster_metadata").asserts().success();
@@ -93,14 +98,16 @@ public class RepairMetadataKeyspaceTest extends TestBaseImpl
 
     private boolean canReadCompleteLog(IInvokableInstance instance, Epoch currentEpoch)
     {
+        // The log is complete if it contains every epoch from Epoch.FIRST up to currentEpoch. Later epochs may
+        // legitimately have been committed in the meantime (e.g. node status updates), so don't require an exact size.
         Object[][] res = instance.executeInternal("SELECT epoch FROM system_cluster_metadata.distributed_metadata_log");
-        if (res.length != currentEpoch.getEpoch())
-            return false;
+        Set<Long> fromLog = new HashSet<>();
+        for (Object[] row : res)
+            fromLog.add((long) row[0]);
 
-        for (int i = res.length-1; i >= 0; i--)
+        for (long epoch = Epoch.FIRST.getEpoch(); epoch <= currentEpoch.getEpoch(); epoch++)
         {
-            long fromLog = (long)res[i][0];
-            if (currentEpoch.getEpoch() - i != fromLog)
+            if (!fromLog.contains(epoch))
                 return false;
         }
         return true;

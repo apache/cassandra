@@ -635,6 +635,7 @@ public class VectorMemoryIndexSimulationTest extends SimulationTestBase
                     if ("hashCode".equals(method.getName())) return System.identityHashCode(proxy);
                     if ("toString".equals(method.getName())) return "SimulatedMemtable";
                     if ("equals".equals(method.getName())) return proxy == args[0];
+                    if ("limitsConcurrentWritesTo".equals(method.getName())) return false;
                     return null;
                 }
             );

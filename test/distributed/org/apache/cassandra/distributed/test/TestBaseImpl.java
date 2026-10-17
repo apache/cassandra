@@ -83,7 +83,7 @@ import org.apache.cassandra.distributed.shared.DistributedTestBase;
 import org.apache.cassandra.io.util.DataInputBuffer;
 import org.apache.cassandra.net.Message;
 import org.apache.cassandra.net.Verb;
-import org.apache.cassandra.service.accord.AccordCache;
+import org.apache.cassandra.service.accord.execution.AccordCache;
 
 import static java.lang.System.currentTimeMillis;
 import static java.util.concurrent.TimeUnit.MILLISECONDS;

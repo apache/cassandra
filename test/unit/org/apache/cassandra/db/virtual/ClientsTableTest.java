@@ -70,7 +70,7 @@ public class ClientsTableTest extends CQLTester
         shouldUseEncryption(true);
         shouldUseClientCertificate(true);
         ResultSet result = executeNet("SELECT * FROM vts.clients");
-        assertThat(result.getColumnDefinitions().size()).isEqualTo(15);
+        assertThat(result.getColumnDefinitions().size()).isEqualTo(16);
         for (Row r : result)
         {
             Assert.assertEquals(InetAddress.getLoopbackAddress(), r.getInet("address"));
@@ -79,6 +79,7 @@ public class ClientsTableTest extends CQLTester
             Assert.assertNotNull(r.getMap("client_options", String.class, String.class));
             Assert.assertTrue(r.getLong("request_count") > 0 );
             // the following are questionable if they belong here
+            Assert.assertEquals(r.getInet("address").getHostAddress(), r.getString("hostname"));
             Assertions.assertThat(r.getMap("client_options", String.class, String.class))
                       .hasEntrySatisfying("DRIVER_VERSION", value -> assertThat(value.contains(r.getString("driver_name"))))
                       .hasEntrySatisfying("DRIVER_VERSION", value -> assertThat(value.contains(r.getString("driver_version"))));

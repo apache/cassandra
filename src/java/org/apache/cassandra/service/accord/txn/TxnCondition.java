@@ -117,7 +117,8 @@ public abstract class TxnCondition
         GREATER_THAN_OR_EQUAL(">=", Operator.GTE),
         LESS_THAN("<", Operator.LT),
         LESS_THAN_OR_EQUAL("<=", Operator.LTE),
-        COLUMN_CONDITIONS("COLUMN_CONDITIONS", null);
+        COLUMN_CONDITIONS("COLUMN_CONDITIONS", null),
+        ELSE("ELSE", null);
 
         @Nonnull
         private final String symbol;
@@ -152,6 +153,8 @@ public abstract class TxnCondition
                     return None.serializer;
                 case COLUMN_CONDITIONS:
                     return ColumnConditionsAdapter.serializer;
+                case ELSE:
+                    return Else.serializer;
                 default:
                     throw new IllegalArgumentException("No serializer exists for kind " + this);
             }
@@ -229,6 +232,43 @@ public abstract class TxnCondition
     public static TxnCondition none()
     {
         return None.instance;
+    }
+
+    public static class Else extends TxnCondition
+    {
+        public static final Else instance = new Else();
+
+        private Else()
+        {
+            super(Kind.ELSE);
+        }
+
+        @Override
+        public String toString()
+        {
+            return kind.toString();
+        }
+
+        @Override
+        public void collect(TableMetadatas.Collector collector)
+        {
+        }
+
+        @Override
+        public boolean applies(TxnData data)
+        {
+            return true;
+        }
+
+        private static final ConditionSerializer<Else> serializer = new ConditionSerializer<>()
+        {
+            @Override
+            public void serialize(Else condition, TableMetadatas tables, DataOutputPlus out) {}
+            @Override
+            public Else deserialize(TableMetadatas tables, DataInputPlus in, Kind kind) { return instance; }
+            @Override
+            public long serializedSize(Else condition, TableMetadatas tables) { return 0; }
+        };
     }
 
     public static class Exists extends TxnCondition

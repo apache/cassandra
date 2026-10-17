@@ -20,6 +20,7 @@ package org.apache.cassandra.cql3;
 import java.util.ArrayList;
 import java.util.Iterator;
 import java.util.List;
+import java.util.function.Predicate;
 
 import com.google.common.base.Preconditions;
 import com.google.common.collect.Iterators;
@@ -202,6 +203,21 @@ public final class Operations implements Iterable<Operation>
         list.addAll(staticSubstitutions);
         list.addAll(regularSubstitutions);
         return list;
+    }
+
+    public boolean anySubstitutionMatches(Predicate<ReferenceOperation> test)
+    {
+        for (int i = 0, mi = staticSubstitutions.size() ; i < mi ; ++i)
+        {
+            if (test.test(staticSubstitutions.get(i)))
+                return true;
+        }
+        for (int i = 0, mi = regularSubstitutions.size() ; i < mi ; ++i)
+        {
+            if (test.test(regularSubstitutions.get(i)))
+                return true;
+        }
+        return false;
     }
 
     public List<ReferenceOperation> regularSubstitutions()

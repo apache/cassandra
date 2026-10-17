@@ -34,7 +34,7 @@ import accord.impl.RangeIntervalComparators.InclusiveEndWithRangeComparators;
 import accord.local.Command;
 import accord.local.CommandSummaries.Summary;
 import accord.local.CommandSummaries.SummaryLoader;
-import accord.local.LoadKeysFor;
+import accord.local.FindKeys;
 import accord.local.MaxDecidedRX;
 import accord.local.RedundantBefore;
 import accord.primitives.AbstractRanges;
@@ -54,16 +54,16 @@ import accord.utils.UnhandledEnum;
 import accord.utils.btree.BTree;
 import accord.utils.btree.IntervalBTree;
 
-import org.apache.cassandra.service.accord.AccordCache;
-import org.apache.cassandra.service.accord.AccordCacheEntry;
 import org.apache.cassandra.service.accord.AccordCommandStore;
 import org.apache.cassandra.service.accord.AccordCommandStore.Caches;
 import org.apache.cassandra.service.accord.RangeIndex;
 import org.apache.cassandra.service.accord.TokenRange;
 import org.apache.cassandra.service.accord.api.TokenKey;
+import org.apache.cassandra.service.accord.execution.AccordCache;
+import org.apache.cassandra.service.accord.execution.AccordCacheEntry;
 
 import static accord.local.CommandSummaries.Relevance.IRRELEVANT;
-import static accord.local.LoadKeysFor.RECOVERY;
+import static accord.local.FindKeys.SUPERSEDING;
 
 public class JournalRangeIndex extends SemiSyncIntervalTree<Object[]> implements AccordCache.Listener<TxnId, Command>, Runnable, RangeIndex
 {
@@ -107,7 +107,7 @@ public class JournalRangeIndex extends SemiSyncIntervalTree<Object[]> implements
             }
 
             @Override
-            public void onUpdate(AccordCacheEntry<TxnId, Command> state)
+            public void onUpdate(AccordCacheEntry<TxnId, Command, ?> state)
             {
                 Summary summary = loader.ifRelevant(state);
                 if (summary != null)
@@ -118,9 +118,9 @@ public class JournalRangeIndex extends SemiSyncIntervalTree<Object[]> implements
         private final JournalRangeIndex owner;
         private CommandWatcher commandWatcher;
 
-        public Loader(JournalRangeIndex owner, RedundantBefore redundantBefore, MaxDecidedRX maxDecidedRX, TxnId primaryTxnId, Unseekables<?> searchKeysOrRanges, Kinds testKinds, TxnId minTxnId, Timestamp maxTxnId, LoadKeysFor loadKeysFor)
+        public Loader(JournalRangeIndex owner, RedundantBefore redundantBefore, MaxDecidedRX maxDecidedRX, TxnId primaryTxnId, Unseekables<?> searchKeysOrRanges, Kinds testKinds, TxnId minTxnId, Timestamp maxTxnId, FindKeys findKeys)
         {
-            super(redundantBefore, maxDecidedRX, primaryTxnId, searchKeysOrRanges, testKinds, minTxnId, maxTxnId, loadKeysFor);
+            super(redundantBefore, maxDecidedRX, primaryTxnId, searchKeysOrRanges, testKinds, minTxnId, maxTxnId, findKeys);
             this.owner = owner;
         }
 
@@ -162,7 +162,7 @@ public class JournalRangeIndex extends SemiSyncIntervalTree<Object[]> implements
                             if (isMaybeRelevant(i))
                             {
                                 TxnId txnId = i.txnId;
-                                AccordCacheEntry<TxnId, Command> entry = c.getUnsafe(txnId);
+                                AccordCacheEntry<TxnId, Command, ?> entry = c.getUnsafe(txnId);
                                 Invariants.expect(entry != null, "%s found interval %s but no matching transaction in cache", owner.commandStore, i);
                                 if (entry != null)
                                 {
@@ -199,13 +199,13 @@ public class JournalRangeIndex extends SemiSyncIntervalTree<Object[]> implements
         }
 
         @Override
-        protected void finish(Map<Timestamp, Summary> into)
+        public void finish(Map<Timestamp, Summary> into)
         {
         }
 
         private void forEachIntersectingOnDisk(Consumer<TxnId> forEach)
         {
-            Timestamp maxTxnId = loadKeysFor == RECOVERY || !primaryTxnId.isSyncPoint() ? Timestamp.MAX : primaryTxnId;
+            Timestamp maxTxnId = findKeys == SUPERSEDING || !primaryTxnId.isSyncPoint() ? Timestamp.MAX : primaryTxnId;
             switch (searchFor.domain())
             {
                 case Range:
@@ -233,7 +233,7 @@ public class JournalRangeIndex extends SemiSyncIntervalTree<Object[]> implements
         }
 
         @Override
-        protected void cleanupExclusive(Caches caches)
+        public void cleanupExclusive(Caches caches)
         {
             if (commandWatcher != null)
             {
@@ -267,7 +267,7 @@ public class JournalRangeIndex extends SemiSyncIntervalTree<Object[]> implements
     }
 
     @Override
-    public void onUpdate(AccordCacheEntry<TxnId, Command> state)
+    public void onUpdate(AccordCacheEntry<TxnId, Command, ?> state)
     {
         TxnId txnId = state.key();
         if (txnId.is(Routable.Domain.Range))
@@ -334,7 +334,7 @@ public class JournalRangeIndex extends SemiSyncIntervalTree<Object[]> implements
     }
 
     @Override
-    public void onEvict(AccordCacheEntry<TxnId, Command> state)
+    public void onEvict(AccordCacheEntry<TxnId, Command, ?> state)
     {
         TxnId txnId = state.key();
         if (txnId.is(Routable.Domain.Range))
@@ -364,16 +364,16 @@ public class JournalRangeIndex extends SemiSyncIntervalTree<Object[]> implements
         }
     }
 
-    public JournalRangeIndex.Loader loader(TxnId primaryTxnId, Timestamp primaryExecuteAt, LoadKeysFor loadKeysFor, Unseekables<?> keysOrRanges)
+    public JournalRangeIndex.Loader loader(TxnId primaryTxnId, Timestamp primaryExecuteAt, FindKeys findKeys, Unseekables<?> keysOrRanges)
     {
         RedundantBefore redundantBefore = commandStore.safeGetRedundantBefore();
         MaxDecidedRX maxDecidedRX = commandStore.unsafeGetMaxDecidedRX();
-        return SummaryLoader.loader(redundantBefore, maxDecidedRX, primaryTxnId, primaryExecuteAt, loadKeysFor, keysOrRanges, this::newLoader);
+        return SummaryLoader.loader(redundantBefore, maxDecidedRX, primaryTxnId, primaryExecuteAt, findKeys, keysOrRanges, this::newLoader);
     }
 
-    private Loader newLoader(RedundantBefore redundantBefore, MaxDecidedRX maxDecidedRX, @Nullable TxnId primaryTxnId, Unseekables<?> searchKeysOrRanges, Kinds testKind, TxnId minTxnId, Timestamp maxTxnId, LoadKeysFor loadKeysFor)
+    private Loader newLoader(RedundantBefore redundantBefore, MaxDecidedRX maxDecidedRX, @Nullable TxnId primaryTxnId, Unseekables<?> searchKeysOrRanges, Kinds testKind, TxnId minTxnId, Timestamp maxTxnId, FindKeys findKeys)
     {
-        return new Loader(this, redundantBefore, maxDecidedRX, primaryTxnId, searchKeysOrRanges, testKind, minTxnId, maxTxnId, loadKeysFor);
+        return new Loader(this, redundantBefore, maxDecidedRX, primaryTxnId, searchKeysOrRanges, testKind, minTxnId, maxTxnId, findKeys);
     }
 
     @Override

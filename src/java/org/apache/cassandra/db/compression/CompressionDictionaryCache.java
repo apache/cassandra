@@ -102,14 +102,13 @@ public class CompressionDictionaryCache implements ICompressionDictionaryCache
     }
 
     @Override
-    public void add(@Nullable CompressionDictionary compressionDictionary)
+    public CompressionDictionary add(@Nullable CompressionDictionary compressionDictionary)
     {
         if (compressionDictionary == null)
-            return;
+            return null;
 
-        // Only update cache if not already in the cache
         DictId newDictId = compressionDictionary.dictId();
-        cache.get(newDictId, id -> {
+        CompressionDictionary cached = cache.get(newDictId, id -> {
             Ref<?> ref = compressionDictionary.initRefLazily();
             if (ref == null)
             {
@@ -125,6 +124,8 @@ public class CompressionDictionaryCache implements ICompressionDictionaryCache
         {
             currentId = currentDictId.get();
         }
+
+        return cached;
     }
 
     @Override

@@ -136,6 +136,64 @@ public class SSTableChunkSamplerTest extends CQLTester
         }
     }
 
+    /**
+     * Regression: with many SSTables and a large chunk size, the per-SSTable proportional allocation
+     * {@code (targetChunkCount * chunkCount) / totalChunks} truncates to zero (integer division), so every
+     * SSTable below the rounding threshold was skipped and almost no samples were collected — failing training
+     * despite abundant data. The sampler must now contribute at least one chunk per SSTable, up to the target.
+     */
+    @Test
+    public void testManySSTablesWithLargeChunksAreNotStarvedByRounding() throws Exception
+    {
+        String table = createTable("CREATE TABLE %s (id int PRIMARY KEY, data text) WITH compression = " +
+                                   "{'class': 'LZ4Compressor', 'chunk_length_in_kb': '64'}");
+        ColumnFamilyStore cfs = Keyspace.open(keyspace()).getColumnFamilyStore(table);
+        cfs.disableAutoCompaction(); // keep each flush as its own SSTable so the many-SSTable scenario forms
+
+        // Create many SSTables (no compaction), each large enough for several full 64 KiB chunks.
+        int sstableCount = 40;
+        for (int s = 0; s < sstableCount; s++)
+        {
+            for (int i = 0; i < 128; i++)
+            {
+                int n = s * 128 + i;
+                execute("INSERT INTO %s (id, data) VALUES (?, ?)", n, ("payload-" + n + "-").repeat(160)); // ~2 KiB/row
+            }
+            flush();
+        }
+
+        // Budget covers >= the trainer's minimum samples (so training can succeed) but is far below the SSTable
+        // count, so the buggy proportional share (target * chunkCount / totalChunks) rounds to zero everywhere.
+        CompressionDictionaryTrainingConfig config = CompressionDictionaryTrainingConfig.builder()
+                                                                                        .maxTotalSampleSize(768 * 1024) // 768 KiB
+                                                                                        .chunkSize(64 * 1024)
+                                                                                        .build();
+
+        try (ColumnFamilyStore.RefViewFragment ref = cfs.selectAndReference(View.selectFunction(SSTableSet.CANONICAL)))
+        {
+            List<SSTableChunkInfo> infos = SSTableChunkSampler.buildSSTableInfos(ref.sstables, config);
+            long totalChunks = infos.stream().mapToLong(i -> i.chunkCount).sum();
+            long target = SSTableChunkSampler.calculateTargetChunkCount(infos, totalChunks, config);
+
+            // Precondition that triggers the rounding bug: many more SSTables than the target chunk count.
+            assertThat((long) infos.size()).isGreaterThan(target);
+
+            // Train for real: a fresh trainer starts out SAMPLING and collects the sampled chunks.
+            ICompressionDictionaryTrainer trainer = new ZstdDictionaryTrainer(keyspace(), table, 3);
+            trainer.start(config);
+            SSTableChunkSampler.sampleFromSSTables(ref.sstables, trainer, config);
+
+            // With the fix every SSTable contributes >= 1 chunk, so sampling only stops once the byte budget is
+            // spent.
+            long chunksToExhaustBudget = config.maxTotalSampleSize / (64 * 1024);
+            assertThat(trainer.getTrainingState().sampleCount)
+            .describedAs("every SSTable must contribute a chunk rather than its share rounding to zero")
+            .isGreaterThanOrEqualTo(chunksToExhaustBudget);
+
+            assertThat(trainer.trainDictionary(true)).isNotNull();
+        }
+    }
+
     @Test
     public void testSelectRandomChunkIndices()
     {

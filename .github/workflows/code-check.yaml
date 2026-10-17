@@ -32,4 +32,5 @@ jobs:
               java-version: '17'
               distribution: 'temurin'
           - name: Run Code Checks
-            run: .build/docker/check-code.sh 17
+            # --summary exercises run_ant's summary path against real ant output
+            run: .build/docker/check-code.sh 17 --summary

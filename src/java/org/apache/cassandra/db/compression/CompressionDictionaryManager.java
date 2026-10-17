@@ -148,9 +148,9 @@ public class CompressionDictionaryManager implements CompressionDictionaryManage
     }
 
     @Override
-    public void add(@Nullable CompressionDictionary compressionDictionary)
+    public CompressionDictionary add(@Nullable CompressionDictionary compressionDictionary)
     {
-        cache.add(compressionDictionary);
+        return cache.add(compressionDictionary);
     }
 
     @Override

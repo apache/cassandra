@@ -37,6 +37,7 @@ import com.google.common.collect.Lists;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.cql3.ColumnIdentifier;
 import org.apache.cassandra.db.SerializationHeader;
+import org.apache.cassandra.db.marshal.AbstractType;
 import org.apache.cassandra.db.marshal.UTF8Type;
 import org.apache.cassandra.dht.IPartitioner;
 import org.apache.cassandra.exceptions.ConfigurationException;
@@ -331,9 +332,10 @@ public final class Util
                     builder.addRegularColumn(ident, entry.getValue());
                 });
         builder.addPartitionKeyColumn("PartitionKey", header.getKeyType());
-        for (int i = 0; i < header.getClusteringTypes().size(); i++)
+        AbstractType<?>[] clusteringTypes = header.getClusteringTypes();
+        for (int i = 0; i < clusteringTypes.length; i++)
         {
-            builder.addClusteringColumn("clustering" + (i > 0 ? i : ""), header.getClusteringTypes().get(i));
+            builder.addClusteringColumn("clustering" + (i > 0 ? i : ""), clusteringTypes[i]);
         }
         if (SecondaryIndexManager.isIndexColumnFamily(desc.cfname))
         {

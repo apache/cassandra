@@ -868,12 +868,12 @@ public class ColumnFamilyStoreTest
             }
 
             @Override
-            public void markExtraOnHeapUsed(long additionalSpace, Group opGroup)
+            public void markExtraOnHeapUsed(long additionalSpace)
             {
             }
 
             @Override
-            public void markExtraOffHeapUsed(long additionalSpace, Group opGroup)
+            public void markExtraOffHeapUsed(long additionalSpace)
             {
             }
 

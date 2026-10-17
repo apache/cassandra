@@ -18,14 +18,26 @@
 
 package org.apache.cassandra.concurrent;
 
+import java.util.concurrent.atomic.AtomicReferenceFieldUpdater;
+
+import accord.utils.Invariants;
+
 import org.apache.cassandra.metrics.ThreadLocalMetrics;
+import org.apache.cassandra.service.accord.execution.AccordExecutor;
+import org.apache.cassandra.service.accord.execution.Task;
+import org.apache.cassandra.service.accord.execution.TaskRunner;
 
 import io.netty.util.concurrent.FastThreadLocalThread;
 
-public class CassandraThread extends FastThreadLocalThread
+public class CassandraThread extends FastThreadLocalThread implements TaskRunner
 {
     private ThreadLocalMetrics threadLocalMetrics;
     private ExecutorLocals executorLocals;
+    private AccordExecutor accordActiveExecutor;
+    private AccordExecutor accordLockedExecutor;
+    private int accordLockedExecutorDepth;
+    private volatile Task accordActiveTask;
+    private static final AtomicReferenceFieldUpdater<CassandraThread, Task> accordActiveTaskUpdater = AtomicReferenceFieldUpdater.newUpdater(CassandraThread.class, Task.class, "accordActiveTask");
 
     private final ImmediateTaskHolder immediateTaskHolder;
 
@@ -87,6 +99,66 @@ public class CassandraThread extends FastThreadLocalThread
         ExecutorLocals current = executorLocals;
         executorLocals = newExecutorLocals;
         return current != null ? current : ExecutorLocals.none();
+    }
+
+    public final AccordExecutor accordActiveExecutor()
+    {
+        return accordActiveExecutor;
+    }
+
+    public final void setAccordActiveExecutor(AccordExecutor newExecutor)
+    {
+        accordActiveExecutor = newExecutor;
+    }
+
+    @Override
+    public final AccordExecutor accordLockedExecutor()
+    {
+        return accordLockedExecutor;
+    }
+
+    @Override
+    public final boolean tryEnterAccordLockedExecutor(AccordExecutor newLockedExecutor)
+    {
+        if (accordLockedExecutor == null) accordLockedExecutor = newLockedExecutor;
+        else if (accordLockedExecutor != newLockedExecutor) return false;
+        ++accordLockedExecutorDepth;
+        return true;
+    }
+
+    @Override
+    public final void exitAccordLockedExecutor()
+    {
+        int depth = --accordLockedExecutorDepth;
+        if (depth <= 0)
+            accordLockedExecutor = null;
+        if (!Invariants.expect(depth >= 0))
+            accordLockedExecutorDepth = 0;
+    }
+
+    @Override
+    public final int resetAccordLockedExecutor()
+    {
+        int discarded = accordLockedExecutorDepth;
+        accordLockedExecutorDepth = 0;
+        accordLockedExecutor = null;
+        return discarded;
+    }
+
+    public final Task accordActiveTask()
+    {
+        return accordActiveTask;
+    }
+
+    public final Task accordActiveSelfTask()
+    {
+        // TODO (expected): with newer JDK use accordActiveTaskUpdater.getPlain
+        return accordActiveTask;
+    }
+
+    public final void setAccordActiveTask(Task newActiveTask)
+    {
+        accordActiveTaskUpdater.lazySet(this, newActiveTask);
     }
 
     // final to avoid skipping of the cleanup logic in child classes

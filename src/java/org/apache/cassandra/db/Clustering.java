@@ -20,7 +20,6 @@ package org.apache.cassandra.db;
 
 import java.io.IOException;
 import java.nio.ByteBuffer;
-import java.util.List;
 
 import org.apache.cassandra.cache.IMeasurableMemory;
 import org.apache.cassandra.db.marshal.AbstractType;
@@ -138,14 +137,14 @@ public interface Clustering<V> extends ClusteringPrefix<V>, IMeasurableMemory
      */
     public static class Serializer
     {
-        public void serialize(Clustering<?> clustering, DataOutputPlus out, int version, List<AbstractType<?>> types) throws IOException
+        public void serialize(Clustering<?> clustering, DataOutputPlus out, int version, AbstractType<?>[] types) throws IOException
         {
             assert clustering != STATIC_CLUSTERING : "We should never serialize a static clustering";
-            assert clustering.size() == types.size() : "Invalid clustering for the table: " + clustering;
+            assert clustering.size() == types.length : "Invalid clustering for the table: " + clustering;
             ClusteringPrefix.serializer.serializeValuesWithoutSize(clustering, out, version, types);
         }
 
-        public ByteBuffer serialize(Clustering<?> clustering, int version, List<AbstractType<?>> types)
+        public ByteBuffer serialize(Clustering<?> clustering, int version, AbstractType<?>[] types)
         {
             try (DataOutputBuffer buffer = new DataOutputBuffer((int)serializedSize(clustering, version, types)))
             {
@@ -158,27 +157,27 @@ public interface Clustering<V> extends ClusteringPrefix<V>, IMeasurableMemory
             }
         }
 
-        public long serializedSize(Clustering<?> clustering, int version, List<AbstractType<?>> types)
+        public long serializedSize(Clustering<?> clustering, int version, AbstractType<?>[] types)
         {
             return ClusteringPrefix.serializer.valuesWithoutSizeSerializedSize(clustering, version, types);
         }
 
-        public void skip(DataInputPlus in, int version, List<AbstractType<?>> types) throws IOException
+        public void skip(DataInputPlus in, int version, AbstractType<?>[] types) throws IOException
         {
-            if (!types.isEmpty())
-                ClusteringPrefix.serializer.skipValuesWithoutSize(in, types.size(), version, types);
+            if (types.length > 0)
+                ClusteringPrefix.serializer.skipValuesWithoutSize(in, types.length, version, types);
         }
 
-        public Clustering<byte[]> deserialize(DataInputPlus in, int version, List<AbstractType<?>> types) throws IOException
+        public Clustering<byte[]> deserialize(DataInputPlus in, int version, AbstractType<?>[] types) throws IOException
         {
-            if (types.isEmpty())
+            if (types.length == 0)
                 return ByteArrayAccessor.factory.clustering();
 
-            byte[][] values = ClusteringPrefix.serializer.deserializeValuesWithoutSize(in, types.size(), version, types);
+            byte[][] values = ClusteringPrefix.serializer.deserializeValuesWithoutSize(in, types.length, version, types);
             return ByteArrayAccessor.factory.clustering(values);
         }
 
-        public Clustering<byte[]> deserialize(ByteBuffer in, int version, List<AbstractType<?>> types)
+        public Clustering<byte[]> deserialize(ByteBuffer in, int version, AbstractType<?>[] types)
         {
             try (DataInputBuffer buffer = new DataInputBuffer(in, true))
             {

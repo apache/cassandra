@@ -19,7 +19,6 @@ package org.apache.cassandra.db;
 
 import java.io.IOException;
 import java.nio.ByteBuffer;
-import java.util.List;
 import java.util.Objects;
 import java.util.function.ToIntFunction;
 
@@ -431,7 +430,7 @@ public interface ClusteringPrefix<V> extends IMeasurableMemory, Clusterable<V>
      * Produce a human-readable representation of the clustering given the list of types.
      * Easier to access than metadata for debugging.
      */
-    public default String clusteringString(List<AbstractType<?>> types)
+    public default String clusteringString(AbstractType<?>[] types)
     {
         StringBuilder sb = new StringBuilder();
         sb.append(kind()).append('(');
@@ -439,7 +438,7 @@ public interface ClusteringPrefix<V> extends IMeasurableMemory, Clusterable<V>
         {
             if (i > 0)
                 sb.append(", ");
-            sb.append(types.get(i).getString(get(i), accessor()));
+            sb.append(types[i].getString(get(i), accessor()));
         }
         return sb.append(')').toString();
     }
@@ -466,7 +465,7 @@ public interface ClusteringPrefix<V> extends IMeasurableMemory, Clusterable<V>
 
     public static class Serializer
     {
-        public void serialize(ClusteringPrefix<?> clustering, DataOutputPlus out, int version, List<AbstractType<?>> types) throws IOException
+        public void serialize(ClusteringPrefix<?> clustering, DataOutputPlus out, int version, AbstractType<?>[] types) throws IOException
         {
             // We shouldn't serialize static clusterings
             assert clustering.kind() != Kind.STATIC_CLUSTERING;
@@ -481,7 +480,7 @@ public interface ClusteringPrefix<V> extends IMeasurableMemory, Clusterable<V>
             }
         }
 
-        public void skip(DataInputPlus in, int version, List<AbstractType<?>> types) throws IOException
+        public void skip(DataInputPlus in, int version, AbstractType<?>[] types) throws IOException
         {
             Kind kind = Kind.fromOrdinal(in.readByte());
             // We shouldn't serialize static clusterings
@@ -492,7 +491,7 @@ public interface ClusteringPrefix<V> extends IMeasurableMemory, Clusterable<V>
                 ClusteringBoundOrBoundary.serializer.skipValues(in, kind, version, types);
         }
 
-        public ClusteringPrefix<byte[]> deserialize(DataInputPlus in, int version, List<AbstractType<?>> types) throws IOException
+        public ClusteringPrefix<byte[]> deserialize(DataInputPlus in, int version, AbstractType<?>[] types) throws IOException
         {
             Kind kind = Kind.fromOrdinal(in.readByte());
             // We shouldn't serialize static clusterings
@@ -503,7 +502,7 @@ public interface ClusteringPrefix<V> extends IMeasurableMemory, Clusterable<V>
                 return ClusteringBoundOrBoundary.serializer.deserializeValues(in, kind, version, types);
         }
 
-        public long serializedSize(ClusteringPrefix<?> clustering, int version, List<AbstractType<?>> types)
+        public long serializedSize(ClusteringPrefix<?> clustering, int version, AbstractType<?>[] types)
         {
             // We shouldn't serialize static clusterings
             assert clustering.kind() != Kind.STATIC_CLUSTERING;
@@ -513,7 +512,7 @@ public interface ClusteringPrefix<V> extends IMeasurableMemory, Clusterable<V>
                 return ClusteringBoundOrBoundary.serializer.serializedSize((ClusteringBoundOrBoundary<?>)clustering, version, types);
         }
 
-        <V> void serializeValuesWithoutSize(ClusteringPrefix<V> clustering, DataOutputPlus out, int version, List<AbstractType<?>> types) throws IOException
+        <V> void serializeValuesWithoutSize(ClusteringPrefix<V> clustering, DataOutputPlus out, int version, AbstractType<?>[] types) throws IOException
         {
             int offset = 0;
             int clusteringSize = clustering.size();
@@ -528,13 +527,13 @@ public interface ClusteringPrefix<V> extends IMeasurableMemory, Clusterable<V>
                 out.writeUnsignedVInt(makeHeader(clustering, offset, limit));
                 while (offset < limit)
                 {
-                    clustering.writeValueSkippingNullAndEmpty(types.get(offset), offset, out);
+                    clustering.writeValueSkippingNullAndEmpty(types[offset], offset, out);
                     offset++;
                 }
             }
         }
 
-        <V> long valuesWithoutSizeSerializedSize(ClusteringPrefix<V> clustering, int version, List<AbstractType<?>> types)
+        <V> long valuesWithoutSizeSerializedSize(ClusteringPrefix<V> clustering, int version, AbstractType<?>[] types)
         {
             long result = 0;
             int offset = 0;
@@ -547,12 +546,12 @@ public interface ClusteringPrefix<V> extends IMeasurableMemory, Clusterable<V>
             }
             for (int i = 0; i < clusteringSize; i++)
             {
-                result += clustering.writtenLengthSkippingNullAndEmpty(types.get(i), i);
+                result += clustering.writtenLengthSkippingNullAndEmpty(types[i], i);
             }
             return result;
         }
 
-        public byte[][] deserializeValuesWithoutSize(DataInputPlus in, int size, int version, List<AbstractType<?>> types) throws IOException
+        public byte[][] deserializeValuesWithoutSize(DataInputPlus in, int size, int version, AbstractType<?>[] types) throws IOException
         {
             // Callers of this method should handle the case where size = 0 (in all case we want to return a special value anyway).
             assert size > 0;
@@ -567,14 +566,14 @@ public interface ClusteringPrefix<V> extends IMeasurableMemory, Clusterable<V>
                     values[offset] = isNull(header, offset)
                                      ? null
                                      : (isEmpty(header, offset) ? ByteArrayUtil.EMPTY_BYTE_ARRAY
-                                                                : types.get(offset).readArray(in, DatabaseDescriptor.getMaxValueSize()));
+                                                                : types[offset].readArray(in, DatabaseDescriptor.getMaxValueSize()));
                     offset++;
                 }
             }
             return values;
         }
 
-        void skipValuesWithoutSize(DataInputPlus in, int size, int version, List<AbstractType<?>> types) throws IOException
+        void skipValuesWithoutSize(DataInputPlus in, int size, int version, AbstractType<?>[] types) throws IOException
         {
             // Callers of this method should handle the case where size = 0 (in all case we want to return a special value anyway).
             assert size > 0;
@@ -586,7 +585,7 @@ public interface ClusteringPrefix<V> extends IMeasurableMemory, Clusterable<V>
                 while (offset < limit)
                 {
                     if (!isNull(header, offset) && !isEmpty(header, offset))
-                         types.get(offset).skipValue(in);
+                         types[offset].skipValue(in);
                     offset++;
                 }
             }
@@ -704,13 +703,14 @@ public interface ClusteringPrefix<V> extends IMeasurableMemory, Clusterable<V>
             if (i >= nextSize)
                 return false;
 
+            AbstractType<?>[] clusteringTypes = serializationHeader.clusteringTypes();
             while (deserializedSize <= i)
-                deserializeOne();
+                deserializeOne(clusteringTypes);
 
             return true;
         }
 
-        private boolean deserializeOne() throws IOException
+        private boolean deserializeOne(AbstractType<?>[] clusteringTypes) throws IOException
         {
             if (deserializedSize == nextSize)
                 return false;
@@ -722,13 +722,14 @@ public interface ClusteringPrefix<V> extends IMeasurableMemory, Clusterable<V>
             nextValues[i] = Serializer.isNull(nextHeader, i)
                           ? null
                           : (Serializer.isEmpty(nextHeader, i) ? ByteArrayUtil.EMPTY_BYTE_ARRAY
-                                                               : serializationHeader.clusteringTypes().get(i).readArray(in, DatabaseDescriptor.getMaxValueSize()));
+                                                               : clusteringTypes[i].readArray(in, DatabaseDescriptor.getMaxValueSize()));
             return true;
         }
 
         private void deserializeAll() throws IOException
         {
-            while (deserializeOne())
+            AbstractType<?>[] clusteringTypes = serializationHeader.clusteringTypes();
+            while (deserializeOne(clusteringTypes))
                 continue;
         }
 
@@ -752,12 +753,13 @@ public interface ClusteringPrefix<V> extends IMeasurableMemory, Clusterable<V>
 
         public ClusteringPrefix.Kind skipNext() throws IOException
         {
+            AbstractType<?>[] clusteringTypes = serializationHeader.clusteringTypes();
             for (int i = deserializedSize; i < nextSize; i++)
             {
                 if ((i % 32) == 0)
                     nextHeader = in.readUnsignedVInt();
                 if (!Serializer.isNull(nextHeader, i) && !Serializer.isEmpty(nextHeader, i))
-                    serializationHeader.clusteringTypes().get(i).skipValue(in);
+                    clusteringTypes[i].skipValue(in);
             }
             deserializedSize = nextSize;
             return nextKind;

@@ -94,7 +94,7 @@ abstract class Ec2MetadataServiceConnector extends AbstractCloudMetadataServiceC
         @Override
         public String toString()
         {
-            return String.format("%s{%s=%s}", V1Connector.class.getName(), METADATA_URL_PROPERTY, metadataServiceUrl);
+            return String.format("%s{%s=%s}", V1Connector.class.getName(), METADATA_URL_PROPERTY, serviceUrl);
         }
     }
 
@@ -184,7 +184,7 @@ abstract class Ec2MetadataServiceConnector extends AbstractCloudMetadataServiceC
         {
             return String.format("%s{%s=%s,%s=%s}",
                                  V2Connector.class.getName(),
-                                 METADATA_URL_PROPERTY, metadataServiceUrl,
+                                 METADATA_URL_PROPERTY, serviceUrl,
                                  AWS_EC2_METADATA_TOKEN_TTL_SECONDS_HEADER_PROPERTY,
                                  tokenTTL.getSeconds());
         }
@@ -198,7 +198,7 @@ abstract class Ec2MetadataServiceConnector extends AbstractCloudMetadataServiceC
         {
             try
             {
-                token = Pair.create(super.apiCall(metadataServiceUrl,
+                token = Pair.create(super.apiCall(serviceUrl,
                                                   TOKEN_QUERY,
                                                   "PUT",
                                                   ImmutableMap.of(AWS_EC2_METADATA_TOKEN_TTL_SECONDS_HEADER, String.valueOf(tokenTTL.getSeconds())),

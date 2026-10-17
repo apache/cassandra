@@ -642,13 +642,15 @@ public class CassandraDaemon
     {
         VirtualKeyspaceRegistry.instance.register(VirtualSchemaKeyspace.instance);
         VirtualKeyspaceRegistry.instance.register(SystemViewsKeyspace.instance);
-        VirtualKeyspaceRegistry.instance.register(new VirtualKeyspace(VIRTUAL_METRICS, createMetricsKeyspaceTables()));
 
         if (DatabaseDescriptor.getAccord().enable_virtual_debug_only_keyspace)
         {
             VirtualKeyspaceRegistry.instance.register(AccordDebugKeyspace.instance);
             VirtualKeyspaceRegistry.instance.register(AccordDebugRemoteKeyspace.instance);
         }
+
+        if (CassandraRelevantProperties.VIRTUAL_KEYSPACE_SYSTEM_METRICS_ENABLED.getBoolean())
+            VirtualKeyspaceRegistry.instance.register(new VirtualKeyspace(VIRTUAL_METRICS, createMetricsKeyspaceTables()));
 
         // Flush log messages to system_views.system_logs virtual table as there were messages already logged
         // before that virtual table was instantiated.

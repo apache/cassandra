@@ -25,19 +25,20 @@ import org.apache.cassandra.db.DeletionTime;
 import static org.junit.Assert.assertEquals;
 
 /**
- * Pins {@link CursorIndexWriter#indexBlockStartOffset} at 64 bits wide.
+ * Pins {@link CursorIndexWriter#indexBlockStartOffset} at 64 bits wide. The field's own
+ * declaration says why it needs 64 bits.
  *
- * Why 64 bits is at the field's own declaration. What it feeds, and therefore what a narrowing
- * would corrupt, is the index-block cut arithmetic ({@code BigCursorIndexWriter.java:100}) and the
- * offset written into every promoted index entry ({@code :147}).
+ * Two sites read the offset, and a narrowing corrupts both: the index-block cut arithmetic in
+ * {@code BigCursorIndexWriter#rowWritten}, and the offset written into every promoted index entry
+ * in {@code BigCursorIndexWriter#addIndexBlock}.
  *
- * The exercise is deliberately direct rather than a 2GiB partition: it drives
- * {@link CursorIndexWriter#startPartition} and {@code notePosition} on a stub subclass, which
- * is where the width lives, and needs no data file.
+ * The test drives {@link CursorIndexWriter#startPartition} and {@code notePosition} on a stub
+ * subclass instead of building a 2GiB partition. The width lives there, and a stub needs no data
+ * file.
  */
 public class CursorIndexWriterOffsetWidthTest
 {
-    /** Beyond Integer.MAX_VALUE, and beyond it by more than the block threshold. */
+    /** Past Integer.MAX_VALUE by more than one index-block threshold. */
     private static final long PAST_INT_MAX = 3_000_000_000L;
     /** What PAST_INT_MAX becomes when truncated to 32 bits. */
     private static final long TRUNCATED_TO_INT = -1_294_967_296L;
@@ -68,8 +69,8 @@ public class CursorIndexWriterOffsetWidthTest
     }
 
     /**
-     * The consequence of narrowing: a wrapped-negative block start makes the block size
-     * measured against it larger than the whole partition, cutting an index block per row.
+     * A narrowed offset wraps negative. The block size measured against it then exceeds the whole
+     * partition, and the writer cuts an index block for every row.
      */
     @Test
     public void blockSizeMeasuredPastIntMaxStaysSmall()

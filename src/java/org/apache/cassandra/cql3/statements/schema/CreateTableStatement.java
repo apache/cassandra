@@ -229,6 +229,7 @@ public final class CreateTableStatement extends AlterSchemaStatement
 
         TableParams paramsForValidation = attrs.asNewTableParams(keyspaceName);
         validateDefaultTimeToLive(paramsForValidation);
+        validateZstdCompressionLevel(paramsForValidation);
         validateMinimumTrainingFrequencyForDictionaryCompressor(paramsForValidation);
 
         rawColumns.forEach((name, raw) -> raw.validate(state, name));

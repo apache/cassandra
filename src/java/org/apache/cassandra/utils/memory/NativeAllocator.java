@@ -198,7 +198,7 @@ public class NativeAllocator extends MemtableAllocator implements AddressBasedAl
             int remaining = limit - offset;
             if (remaining > 0)
             {
-                allocator.offHeap().adjust(-remaining, opGroup);
+                allocator.offHeap().adjust(-remaining);
                 offset += remaining;
             }
         }
@@ -212,7 +212,7 @@ public class NativeAllocator extends MemtableAllocator implements AddressBasedAl
     public long allocate(int size, OpOrder.Group opGroup)
     {
         assert size >= 0;
-        offHeap().allocate(size, opGroup);
+        offHeap().allocate(size);
         // satisfy large allocations directly from JVM since they don't cause fragmentation
         // as badly, and fill up our regions quickly
         if (size > MAX_CLONED_SIZE)

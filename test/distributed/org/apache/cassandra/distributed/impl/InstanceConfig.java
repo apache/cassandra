@@ -122,6 +122,8 @@ public class InstanceConfig implements IInstanceConfig
                 .set("seed_provider", new ParameterizedClass(SimpleSeedProvider.class.getName(),
                         Collections.singletonMap("seeds", seedIp + ':' + seedPort)))
                 .set("discovery_timeout", "3s")
+                // commit can race with TCM log shutdown; small timeout prevents timeout of enclosing shutdown action
+                .set("cms_commit_retry_max_delay", "2s")
                 // required settings for dtest functionality
                 .set("diagnostic_events_enabled", true)
                 .set("auto_bootstrap", false)
@@ -150,6 +152,8 @@ public class InstanceConfig implements IInstanceConfig
                 .set("memtable_allocation_type", "offheap_objects")
 
                 .set("commitlog_disk_access_mode", "auto")
+
+                .set("cursor_compaction_enabled", "true")
 
                 .set("background_write_disk_access_mode", "direct")
 

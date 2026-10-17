@@ -20,8 +20,6 @@ package org.apache.cassandra.serializers;
 
 import java.io.IOException;
 import java.nio.ByteBuffer;
-import java.util.ArrayList;
-import java.util.List;
 
 import org.apache.cassandra.db.TypeSizes;
 import org.apache.cassandra.db.marshal.AbstractType;
@@ -38,11 +36,12 @@ public class AbstractTypeSerializer
         ByteBufferUtil.writeWithVIntLength(UTF8Type.instance.decompose(type.toString()), out);
     }
 
-    public void serializeList(List<AbstractType<?>> types, DataOutputPlus out) throws IOException
+    public void serializeArray(AbstractType<?>[] types, DataOutputPlus out) throws IOException
     {
-        out.writeUnsignedVInt32(types.size());
-        for (AbstractType<?> type : types)
-            serialize(type, out);
+        int size = types.length;
+        out.writeUnsignedVInt32(size);
+        for (int i = 0; i < size; i++)
+            serialize(types[i], out);
     }
 
     public AbstractType<?> deserialize(DataInputPlus in) throws IOException
@@ -51,12 +50,12 @@ public class AbstractTypeSerializer
         return TypeParser.parse(UTF8Type.instance.compose(raw));
     }
 
-    public List<AbstractType<?>> deserializeList(DataInputPlus in) throws IOException
+    public AbstractType<?>[] deserializeArray(DataInputPlus in) throws IOException
     {
         int size = (int) in.readUnsignedVInt();
-        List<AbstractType<?>> types = new ArrayList<>(size);
+        AbstractType<?>[] types = new AbstractType<?>[size];
         for (int i = 0; i < size; i++)
-            types.add(deserialize(in));
+            types[i] = deserialize(in);
         return types;
     }
 
@@ -65,11 +64,11 @@ public class AbstractTypeSerializer
         return ByteBufferUtil.serializedSizeWithVIntLength(UTF8Type.instance.decompose(type.toString()));
     }
 
-    public long serializedListSize(List<AbstractType<?>> types)
+    public long serializedArraySize(AbstractType<?>[] types)
     {
-        long size = TypeSizes.sizeofUnsignedVInt(types.size());
-        for (AbstractType<?> type : types)
-            size += serializedSize(type);
+        long size = TypeSizes.sizeofUnsignedVInt(types.length);
+        for (int i = 0; i < types.length; i++)
+            size += serializedSize(types[i]);
         return size;
     }
 }

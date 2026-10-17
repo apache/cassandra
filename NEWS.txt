@@ -93,8 +93,20 @@ New features
 
 Upgrading
 ---------
+    - memtable_offheap_space: 0 is now rejected at startup when memtable_allocation_type is 
+    offheap_buffers or offheap_objects. Set a positive memtable_offheap_space, or an allocation 
+    type that does not allocate off-heap. See CASSANDRA-21019.
 
     - trickle_fsync is by default set to "true" instead of "false" in cassandra.yaml (see CASSANDRA-21572)
+    - Authorizing a batch or an Accord transaction now performs the table permission checks once per run of
+      consecutive statements on the same table rather than once per statement. The permissions required are
+      unchanged, and the datacenter and CIDR checks that ride along with them still run at least once per
+      request. Auth cache request/hit/miss counts and the system_views.cidr_filtering_metrics_* counts and
+      latencies will therefore report fewer events than before. (see CASSANDRA-21606)
+    - The hostname column in system_views.clients will no longer perform a reverse DNS lookup and will instead
+      return the same value as the address column. This avoids the risk of client connections overwhelming
+      DNS. (CASSANDRA-21539)
+    - SAI Memtable-attached indexes are now split into `cassandra.memtable.shard.count` shards by default.
 
 Deprecation
 -----------
@@ -165,7 +177,16 @@ New features
     - New functions `format_bytes` and `format_time` were added. See CASSANDRA-19546.
     - It is possible to use Async-profiler for various profiling scenarios. See CASSANDRA-20854.
     - It is possible to provide custom startup check via Java SPI. See CASSANDRA-21093.
-
+    - Single partition data reads served by the coordinator's local replica no longer serialize and deserialize the
+      response when it is small enough. The rows are kept as an in-memory partition instead, which saves the CPU time
+      spent on serializing and deserializing them and avoids allocating the rows and cells twice.
+      A response that exceeds either per-request limit is serialized in full, as before.
+      The limits are set by the system properties cassandra.data_response_in_memory_max_rows and
+      cassandra.data_response_in_memory_max_size; reads at ONE/LOCAL_ONE use
+      cassandra.data_response_in_memory_max_rows_cl_one andcassandra.data_response_in_memory_max_size_cl_one.
+      A limit is disabled by setting it to 0, and setting both limits of a tier to 0 disables the in-memory path for that tier.
+      Note that the limits are not enforced in the middle of a range tombstone span, so a response may exceed them in that case.
+    - SAI Memtable-attached indexes now support sharding via WITH OPTIONS. See CQL documentation for details.
 Upgrading
 ---------
     [The following is a placeholder, to be revised asap]
@@ -229,6 +250,12 @@ Upgrading
     for more information.
     - system_views.settings virtual table output changed to json for collections, set system property
     `cassandra.virtual_table_complex_settings_format_json` to false to disable (defaults to true).
+    - Authorizing a batch or an Accord transaction now performs the table permission checks once per run of
+    consecutive statements on the same table rather than once per statement. The permissions required are
+    unchanged, and the datacenter and CIDR checks that ride along with them still run at least once per
+    request. Auth cache request/hit/miss counts and the system_views.cidr_filtering_metrics_* counts and
+    latencies will therefore report fewer events than before. (see CASSANDRA-21606)
+    - Guardrail configurations of zero are now treated as zero instead of unlimited. See CASSANDRA-21517.
 
 
 Deprecation

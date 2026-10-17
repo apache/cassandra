@@ -31,7 +31,6 @@ import java.nio.file.Files;
 import java.nio.file.StandardOpenOption;
 import java.util.ArrayList;
 import java.util.Arrays;
-import java.util.Collections;
 import java.util.List;
 import java.util.Random;
 import java.util.concurrent.atomic.AtomicBoolean;
@@ -102,7 +101,7 @@ public class DirectCompressedSequentialWriterTest
 
     private static MetadataCollector newCollector()
     {
-        return new MetadataCollector(new ClusteringComparator(Collections.singletonList(BytesType.instance)));
+        return new MetadataCollector(new ClusteringComparator(BytesType.instance));
     }
 
     @FunctionalInterface
@@ -436,7 +435,7 @@ public class DirectCompressedSequentialWriterTest
     @Test
     public void testDirectMemoryIsCleanedOnClose() throws Exception
     {
-        // Sized to dominate baseline allocator noise; matches DirectThreadLocalReadAheadBufferTest.
+        // Sized to dominate baseline allocator noise; matches DirectReadAheadBufferTest.
         int bufferSize = 64 * 1024 * 1024;
         withDirectWriteBufferSize(bufferSize / 1024, () ->
         withTempDataFile("direct_mem_clean", (dataFile, metadataFile) ->

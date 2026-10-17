@@ -38,14 +38,11 @@ import org.apache.cassandra.harry.op.Visit;
 import static org.apache.cassandra.harry.checker.TestHelper.withRandom;
 
 /**
- * Harry-driven differential soak: deep probabilistic tombstone/overwrite histories (the
- * workload shapes Harry's DSL is strongest at — interleaved row/column/range/partition
- * deletes against overlapping inserts) executed through plain CQL in this JVM, flushed into
- * several sstables, then both compaction paths compared byte-for-byte. The differential
- * harness is the oracle, so no Harry read-validation visits are issued.
+ * Runs Harry-generated delete and overwrite histories through the differential harness.
  *
- * Schema uses simple types only (the currently supported cursor surface; Harry cannot
- * generate multi-cell columns yet — ColumnSpec TODOs). Reversed clustering included.
+ * The differential harness is the oracle, so this test issues no Harry read-validation visits.
+ * The schema holds simple types only, because Harry cannot generate multi-cell columns. See the
+ * TODO list at the top of {@link ColumnSpec}.
  */
 public class HarryDifferentialCompactionTest extends DifferentialCompactionTester
 {
@@ -60,8 +57,8 @@ public class HarryDifferentialCompactionTest extends DifferentialCompactionTeste
     @Test
     public void harryTombstoneHistories() throws Throwable
     {
-        // Raised out here, not inside the callback: withRandom catches Throwable and rewraps it,
-        // so an assumption violated inside would reach JUnit as a failure instead of a skip.
+        // withRandom rewraps every Throwable as an AssertionError. An assumption that fails inside
+        // the callback therefore reaches JUnit as a failure, not as a skip. This check runs first.
         assumeBigFormatSelected();
 
         long seed = System.currentTimeMillis();

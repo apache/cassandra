@@ -35,20 +35,18 @@ import org.apache.cassandra.locator.DynamicEndpointSnitch;
 import org.apache.cassandra.locator.Endpoint;
 import org.apache.cassandra.locator.InetAddressAndPort;
 import org.apache.cassandra.locator.NodeProximity;
-import org.apache.cassandra.service.accord.topology.AccordEndpointMapper;
+import org.apache.cassandra.service.accord.topology.AccordEndpointMap;
 import org.apache.cassandra.utils.FBUtilities;
 import org.apache.cassandra.utils.Sortable;
-
-import static org.apache.cassandra.service.accord.topology.AccordEndpointMapper.NodeStatus.HEALTHY;
 
 public class AccordTopologySorter implements TopologySorter
 {
     public static class Supplier implements TopologySorter.Supplier
     {
-        private final AccordEndpointMapper mapper;
+        private final AccordEndpointMap mapper;
         private final NodeProximity proximity;
 
-        public Supplier(AccordEndpointMapper mapper, NodeProximity proximity)
+        public Supplier(AccordEndpointMap mapper, NodeProximity proximity)
         {
             checkSnitchSupported(proximity);
             this.mapper = mapper;
@@ -75,10 +73,10 @@ public class AccordTopologySorter implements TopologySorter
         }
     }
 
-    private final AccordEndpointMapper mapper;
+    private final AccordEndpointMap mapper;
     private final Comparator<Endpoint> comparator;
 
-    private AccordTopologySorter(AccordEndpointMapper mapper, Comparator<Endpoint> comparator)
+    private AccordTopologySorter(AccordEndpointMap mapper, Comparator<Endpoint> comparator)
     {
         this.mapper = mapper;
         this.comparator = comparator;
@@ -103,9 +101,9 @@ public class AccordTopologySorter implements TopologySorter
     }
 
     @Override
-    public boolean isFaulty(Node.Id node)
+    public NodeStatus status(Node.Id node)
     {
-        return mapper.nodeStatus(node) != HEALTHY;
+        return mapper.nodeStatus(node).accordStatus;
     }
 
     private static class SortableEndpoints extends ArrayList<InetAddressAndPort> implements Sortable<InetAddressAndPort, SortableEndpoints>
@@ -121,7 +119,7 @@ public class AccordTopologySorter implements TopologySorter
             return this;
         }
 
-        static SortableEndpoints from(Set<Node.Id> nodes, AccordEndpointMapper mapper)
+        static SortableEndpoints from(Set<Node.Id> nodes, AccordEndpointMap mapper)
         {
             SortableEndpoints result = new SortableEndpoints(nodes.size());
             nodes.forEach(id -> {

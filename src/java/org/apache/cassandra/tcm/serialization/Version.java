@@ -85,6 +85,7 @@ public enum Version
     V9(9),
     /**
      * - Encode deltas as nodeIds instead of endpoints
+     * - SchemaTransformation CQL serialized as raw bytes to avoid utf string limit
      */
     V10(10),
 
