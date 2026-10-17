@@ -54,7 +54,7 @@ public final class ClientMetrics
     private static final MetricNameFactory factory = new DefaultNameFactory(TYPE_NAME);
 
     private volatile boolean initialized = false;
-    private Server server = null;
+    private volatile Server server = null;
 
     @VisibleForTesting
     Meter authSuccess;
@@ -185,10 +185,11 @@ public final class ClientMetrics
 
     public synchronized void init(Server servers)
     {
+        if (servers != null)
+            this.server = servers;
+
         if (initialized)
             return;
-
-        this.server = servers;
 
         // deprecated the lower-cased initial letter metric names in 4.0
         connectedNativeClients = registerGauge(CONNECTED_NATIVE_CLIENTS, "connectedNativeClients", this::countConnectedClients);

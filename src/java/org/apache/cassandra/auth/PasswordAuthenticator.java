@@ -384,6 +384,12 @@ public class PasswordAuthenticator implements IAuthenticator, AuthCache.BulkLoad
         {
             invalidate(roleName);
         }
+
+        @Override
+        public void accept(MBeanVisitor visitor)
+        {
+            visitor.visitCredentials(this);
+        }
     }
 
     public static interface CredentialsCacheMBean extends AuthCacheMBean

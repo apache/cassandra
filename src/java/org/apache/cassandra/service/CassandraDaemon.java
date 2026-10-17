@@ -80,6 +80,7 @@ import org.apache.cassandra.io.util.File;
 import org.apache.cassandra.io.util.FileUtils;
 import org.apache.cassandra.locator.InetAddressAndPort;
 import org.apache.cassandra.locator.Locator;
+import org.apache.cassandra.management.CommandInvokerService;
 import org.apache.cassandra.metrics.CassandraMetricsRegistry;
 import org.apache.cassandra.metrics.DefaultNameFactory;
 import org.apache.cassandra.net.StartupClusterConnectivityChecker;
@@ -99,6 +100,7 @@ import org.apache.cassandra.tcm.RegistrationStatus;
 import org.apache.cassandra.tcm.Startup;
 import org.apache.cassandra.tcm.membership.NodeId;
 import org.apache.cassandra.tcm.membership.NodeState;
+import org.apache.cassandra.transport.Dispatcher;
 import org.apache.cassandra.utils.FBUtilities;
 import org.apache.cassandra.utils.JMXServerUtils;
 import org.apache.cassandra.utils.JVMStabilityInspector;
@@ -219,6 +221,7 @@ public class CassandraDaemon
 
     static final CassandraDaemon instance = new CassandraDaemon();
 
+    private volatile NativeTransportManagementService nativeTransportManagementService;
     private volatile NativeTransportService nativeTransportService;
     private JMXConnectorServer jmxServer;
 
@@ -259,6 +262,9 @@ public class CassandraDaemon
         }
 
         maybeInitJmx();
+
+        CommandInvokerService.instance.start();
+        startManagementTransport();
 
         Mx4jTool.maybeLoad();
 
@@ -758,6 +764,8 @@ public class CassandraDaemon
         Set<InetAddressAndPort> peers = new HashSet<>(ClusterMetadata.current().directory.allJoinedEndpoints());
         connectivityChecker.execute(peers, ep -> locator.location(ep).datacenter);
 
+        startManagementTransport();
+
         // check to see if transports may start else return without starting.  This is needed when in survey mode or
         // when bootstrap has not completed.
         try
@@ -786,6 +794,15 @@ public class CassandraDaemon
             logger.info("Not starting native transport as requested. Use JMX (StorageService->startNativeTransport()) or nodetool (enablebinary) to start it");
     }
 
+    private synchronized void startManagementTransport()
+    {
+        if (!NativeTransportManagementService.enabled())
+            return;
+        if (nativeTransportManagementService == null)
+            nativeTransportManagementService = new NativeTransportManagementService();
+        nativeTransportManagementService.start();
+    }
+
     /**
      * Stop the daemon, ideally in an idempotent manner.
      *
@@ -796,7 +813,7 @@ public class CassandraDaemon
         // On linux, this doesn't entirely shut down Cassandra, just the RPC server.
         // jsvc takes care of taking the rest down
         logger.info("Cassandra shutting down...");
-        destroyClientTransports();
+        destroyNativeTransport();
         StorageService.instance.setRpcReady(false);
 
         if (jmxServer != null)
@@ -815,9 +832,27 @@ public class CassandraDaemon
     @VisibleForTesting
     public void destroyClientTransports()
     {
+        destroyNativeTransport();
+        destroyManagementTransport();
+    }
+
+    private void destroyNativeTransport()
+    {
         stopNativeTransport();
         if (nativeTransportService != null)
             nativeTransportService.destroy();
+        Dispatcher.shutdown();
+    }
+
+    /**
+     * Called last, from the StorageService shutdown hook.
+     */
+    public void destroyManagementTransport()
+    {
+        if (nativeTransportManagementService != null)
+            nativeTransportManagementService.destroy(true);
+        CommandInvokerService.instance.stop();
+        Dispatcher.shutdownManagement();
     }
 
     /**
@@ -998,12 +1033,18 @@ public class CassandraDaemon
 
     public void clearConnectionHistory()
     {
-        nativeTransportService.clearConnectionHistory();
+        if (nativeTransportService != null)
+            nativeTransportService.clearConnectionHistory();
+        if (nativeTransportManagementService != null)
+            nativeTransportManagementService.clearConnectionHistory();
     }
 
     public void disconnectUser(Predicate<AuthenticatedUser> userPredicate)
     {
-        nativeTransportService.disconnect(userPredicate);
+        if (nativeTransportService != null)
+            nativeTransportService.disconnect(userPredicate);
+        if (nativeTransportManagementService != null)
+            nativeTransportManagementService.disconnect(userPredicate);
     }
 
     private void exitOrFail(int code, String message)

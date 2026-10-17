@@ -21,6 +21,7 @@ import java.net.InetAddress;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
+import java.util.UUID;
 
 import com.google.common.annotations.VisibleForTesting;
 import com.google.common.base.Predicate;
@@ -37,6 +38,7 @@ import org.apache.cassandra.exceptions.AuthenticationException;
 import org.apache.cassandra.exceptions.CDCWriteException;
 import org.apache.cassandra.exceptions.CasWriteTimeoutException;
 import org.apache.cassandra.exceptions.CasWriteUnknownResultException;
+import org.apache.cassandra.exceptions.CommandRequestExecutionException;
 import org.apache.cassandra.exceptions.ConfigurationException;
 import org.apache.cassandra.exceptions.ExceptionCode;
 import org.apache.cassandra.exceptions.FunctionExecutionException;
@@ -217,6 +219,18 @@ public class ErrorMessage extends Message.Response
                     int blockFor = body.readInt();
                     te = new CasWriteUnknownResultException(cl, received, blockFor);
                     break;
+                case COMMAND_FAILED:
+                    if (version.isSmallerThan(ProtocolVersion.V5))
+                    {
+                        // Fallback for older clients - they'll get SERVER_ERROR instead
+                        te = new ServerError(msg);
+                    }
+                    else
+                    {
+                        UUID executionId = CBUtil.readUUID(body);
+                        te = new CommandRequestExecutionException(executionId, msg, null);
+                    }
+                    break;
             }
             return new ErrorMessage(te);
         }
@@ -302,6 +316,11 @@ public class ErrorMessage extends Message.Response
                     CBUtil.writeConsistencyLevel(cwue.consistency, dest);
                     dest.writeInt(cwue.received);
                     dest.writeInt(cwue.blockFor);
+                    break;
+                case COMMAND_FAILED:
+                    CommandRequestExecutionException cree = (CommandRequestExecutionException)err;
+                    CBUtil.writeUUID(cree.getCommandExecutionId(), dest);
+                    break;
             }
         }
 
@@ -371,6 +390,10 @@ public class ErrorMessage extends Message.Response
                     CasWriteUnknownResultException cwue = (CasWriteUnknownResultException)err;
                     size += CBUtil.sizeOfConsistencyLevel(cwue.consistency) + 4 + 4; // receivedFor: 4, blockFor: 4
                     break;
+                case COMMAND_FAILED:
+                    CommandRequestExecutionException cree = (CommandRequestExecutionException)err;
+                    size += CBUtil.sizeOfUUID(cree.getCommandExecutionId()); // 16 bytes
+                    break;
             }
             return size;
         }
@@ -408,6 +431,13 @@ public class ErrorMessage extends Message.Response
                 case CAS_WRITE_UNKNOWN:
                     CasWriteUnknownResultException cwue = (CasWriteUnknownResultException) msg.error;
                     return new WriteTimeoutException(WriteType.CAS, cwue.consistency, cwue.received, cwue.blockFor);
+                case COMMAND_FAILED:
+                    // For older clients, the executionId is lost, but the message should contain it.
+                    CommandRequestExecutionException cree = (CommandRequestExecutionException) msg.error;
+                    String msgWithId = String.format("Command execution failed (executionId: %s): %s",
+                                                     cree.getCommandExecutionId(),
+                                                     cree.getMessage());
+                    return new ServerError(msgWithId);
             }
         }
 

@@ -31,19 +31,17 @@ import com.google.common.collect.Lists;
 
 import org.junit.BeforeClass;
 import org.junit.Test;
-import org.junit.runner.RunWith;
-import org.junit.runners.Parameterized;
 import org.junit.runners.Parameterized.Parameter;
 import org.junit.runners.Parameterized.Parameters;
 
-import org.apache.cassandra.cql3.CQLTester;
+import org.apache.cassandra.cql3.CQLNodetoolProtocolTester;
 import org.apache.cassandra.db.ColumnFamilyStore;
 import org.apache.cassandra.db.Keyspace;
 import org.apache.cassandra.db.SystemKeyspace;
 import org.apache.cassandra.db.compaction.OperationType;
 import org.apache.cassandra.tools.ToolRunner.ToolResult;
+import org.apache.cassandra.tools.nodetool.strategy.CommandExecutionStrategy;
 
-import static org.apache.cassandra.tools.ToolRunner.invokeNodetool;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.junit.Assert.assertTrue;
 
@@ -53,25 +51,27 @@ import static org.junit.Assert.assertTrue;
  * @see Compact
  * @see GarbageCollect
  */
-@RunWith(Parameterized.class)
-public class CompactionHistoryTest extends CQLTester
+public class CompactionHistoryTest extends CQLNodetoolProtocolTester
 {
-    @Parameter
+    @Parameter(1)
     public List<String> cmd;
 
-    @Parameter(1)
+    @Parameter(2)
     public String compactionType;
 
-    @Parameter(2)
+    @Parameter(3)
     public int systemTableRecord;
 
-    @Parameters(name = "{index}: cmd={0} compactionType={1} systemTableRecord={2}")
+    @Parameters(name = "{index}: strategy={0} cmd={1} compactionType={2} systemTableRecord={3}")
     public static Collection<Object[]> data()
     {
         List<Object[]> result = new ArrayList<>();
-        result.add(new Object[]{ Lists.newArrayList("compact"), OperationType.MAJOR_COMPACTION.type, 1 });
-        result.add(new Object[]{ Lists.newArrayList("garbagecollect"), OperationType.GARBAGE_COLLECT.type, 10 });
-        result.add(new Object[]{ Lists.newArrayList("upgradesstables", "-a"), OperationType.UPGRADE_SSTABLES.type, 10 });
+        for (CommandExecutionStrategy.Type strategy : CommandExecutionStrategy.Type.values())
+        {
+            result.add(new Object[]{ strategy, Lists.newArrayList("compact"), OperationType.MAJOR_COMPACTION.type, 1 });
+            result.add(new Object[]{ strategy, Lists.newArrayList("garbagecollect"), OperationType.GARBAGE_COLLECT.type, 10 });
+            result.add(new Object[]{ strategy, Lists.newArrayList("upgradesstables", "-a"), OperationType.UPGRADE_SSTABLES.type, 10 });
+        }
         return result;
     }
 
