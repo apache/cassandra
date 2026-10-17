@@ -41,11 +41,13 @@ import accord.primitives.Txn;
 import accord.primitives.TxnId;
 import accord.primitives.Writes;
 import accord.topology.Topologies;
+import accord.utils.Invariants;
 
 import org.apache.cassandra.db.ConsistencyLevel;
 import org.apache.cassandra.service.accord.topology.AccordEndpointMap;
 import org.apache.cassandra.service.accord.txn.AccordUpdate;
 import org.apache.cassandra.service.accord.txn.TxnRead;
+import org.apache.cassandra.service.accord.txn.TxnResult;
 
 import static accord.api.ProtocolModifiers.sendMinimal;
 import static accord.messages.Apply.Kind.Maximal;
@@ -94,6 +96,12 @@ public class AccordInteropAdapter extends TxnAdapter
     @Override
     public void persist(Node node, ExclusiveAsyncExecutor executor, Topologies any, Route<?> require, Route<?> sendTo, FullRoute<?> route, Ballot ballot, CoordinationFlags flags, TxnId txnId, Txn txn, Timestamp executeAt, Deps deps, Writes writes, Result result, boolean informDurableOnDone, BiConsumer<? super Result, Throwable> callback)
     {
+        if (result == null)
+        {
+            // Failed reads still persist their cleanup; local delivery must match ApplySerializers.
+            Invariants.require(txnId.isSomeRead() && writes == null && callback == null);
+            result = TxnResult.PERSISTABLE;
+        }
         if (isUserFacing && doInteropPersist(node, executor, any, require, sendTo, ballot, txnId, txn, executeAt, deps, writes, result, route, informDurableOnDone, callback))
             return;
 
