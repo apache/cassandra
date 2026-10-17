@@ -123,8 +123,8 @@ public class CompressionDictionaryIntegrationTest extends CQLTester
         manager.add(testDict);
 
         assertThat(testDict.selfRef().globalCount())
-        .as("Dictionary's reference count should be 1 after adding to cache")
-        .isOne();
+        .as("Dictionary's reference count should be 2 after adding to cache, one for the cached entry and one for the current dictionary")
+        .isEqualTo(2);
 
         assertThat(manager.getCurrent())
         .as("Should have current dictionary before close")

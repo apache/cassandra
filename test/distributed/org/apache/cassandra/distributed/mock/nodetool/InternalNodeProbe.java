@@ -18,17 +18,22 @@
 
 package org.apache.cassandra.distributed.mock.nodetool;
 
+import java.io.IOException;
 import java.lang.management.ManagementFactory;
 import java.util.Iterator;
 import java.util.Map;
+
+import javax.management.InstanceNotFoundException;
 
 import com.google.common.collect.Multimap;
 
 import org.apache.cassandra.batchlog.BatchlogManager;
 import org.apache.cassandra.config.DatabaseDescriptor;
+import org.apache.cassandra.db.ColumnFamilyStore;
 import org.apache.cassandra.db.ColumnFamilyStoreMBean;
 import org.apache.cassandra.db.Keyspace;
 import org.apache.cassandra.db.compaction.CompactionManager;
+import org.apache.cassandra.db.compression.CompressionDictionaryManagerMBean;
 import org.apache.cassandra.gms.FailureDetector;
 import org.apache.cassandra.gms.FailureDetectorMBean;
 import org.apache.cassandra.gms.Gossiper;
@@ -105,6 +110,16 @@ public class InternalNodeProbe extends NodeProbe
     public EndpointSnitchInfoMBean getEndpointSnitchInfoProxy()
     {
         return new EndpointSnitchInfo();
+    }
+
+    @Override
+    protected CompressionDictionaryManagerMBean getDictionaryManagerProxy(String keyspace, String table) throws IOException
+    {
+        ColumnFamilyStore cfs = ColumnFamilyStore.getIfExists(keyspace, table);
+        // the MBean exists only for tables with dictionary compression, NodeProbe recognizes its absence by this cause
+        if (cfs == null || !cfs.compressionDictionaryManager().isEnabled())
+            throw new IOException(new InstanceNotFoundException(keyspace + '.' + table));
+        return cfs.compressionDictionaryManager();
     }
 
 	@Override

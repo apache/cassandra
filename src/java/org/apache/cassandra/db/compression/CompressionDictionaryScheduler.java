@@ -18,11 +18,15 @@
 
 package org.apache.cassandra.db.compression;
 
+import java.util.List;
+import java.util.Objects;
 import java.util.concurrent.ScheduledFuture;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Consumer;
+
+import javax.annotation.Nullable;
 
 import com.google.common.annotations.VisibleForTesting;
 
@@ -32,8 +36,11 @@ import org.slf4j.LoggerFactory;
 import org.apache.cassandra.concurrent.ScheduledExecutors;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.db.ColumnFamilyStore;
+import org.apache.cassandra.db.compression.CompressionDictionary.DictId;
+import org.apache.cassandra.db.compression.CompressionDictionary.LightweightCompressionDictionary;
 import org.apache.cassandra.schema.CompressionParams;
 import org.apache.cassandra.schema.SystemDistributedKeyspace;
+import org.apache.cassandra.tcm.membership.NodeId;
 
 /**
  * Manages scheduled tasks for compression dictionary operations.
@@ -46,6 +53,10 @@ import org.apache.cassandra.schema.SystemDistributedKeyspace;
 public class CompressionDictionaryScheduler implements ICompressionDictionaryScheduler
 {
     private static final Logger logger = LoggerFactory.getLogger(CompressionDictionaryScheduler.class);
+
+    // number of dictionaries a refresh reads at once
+    @VisibleForTesting
+    public static final int REFRESH_PAGE_SIZE = 10;
 
     private final String keyspaceName;
     private final String tableName;
@@ -176,13 +187,74 @@ public class CompressionDictionaryScheduler implements ICompressionDictionarySch
                 return;
             }
 
-            CompressionDictionary dictionary = SystemDistributedKeyspace.retrieveLatestCompressionDictionary(keyspaceName, tableName, tableId);
-            cache.add(dictionary);
+            refreshCurrentDictionary();
         }
         catch (Exception e)
         {
             logger.warn("Failed to refresh compression dictionary for {}.{}",
                         keyspaceName, tableName, e);
+        }
+    }
+
+    /**
+     * Synchronized with itself and {@link #addStoredDictionary(CompressionDictionary)}: a refresh which read
+     * dictionaries before one was deleted or stored can not make an outdated one current after a later refresh or
+     * the stored dictionary made another one current.
+     */
+    @Override
+    public synchronized void refreshCurrentDictionary()
+    {
+        CompressionDictionary newest = newestUsableDictionary();
+        CompressionDictionary current = cache.getCurrent();
+        DictId newestId = newest == null ? null : newest.dictId();
+        DictId currentId = current == null ? null : current.dictId();
+        if (!Objects.equals(newestId, currentId))
+            cache.setCurrent(newest);
+    }
+
+    @Override
+    public synchronized void addStoredDictionary(CompressionDictionary dictionary)
+    {
+        cache.add(dictionary);
+    }
+
+    /**
+     * @return the newest dictionary which is either used by all nodes or local to this node, null if there is none
+     * @throws IllegalStateException if dictionaries could not be read
+     */
+    @Nullable
+    private CompressionDictionary newestUsableDictionary()
+    {
+        NodeId localNodeId = CompressionDictionary.localNodeId();
+        // newest first, page by page, there may be many dictionaries but the newest ones are usually usable
+        Long olderThan = null;
+        while (true)
+        {
+            List<LightweightCompressionDictionary> page = SystemDistributedKeyspace.retrieveLightweightCompressionDictionaries(keyspaceName, tableName, tableId,
+                                                                                                                              olderThan, REFRESH_PAGE_SIZE);
+            if (page == null)
+                throw new IllegalStateException(String.format("Could not read compression dictionaries of %s.%s", keyspaceName, tableName));
+
+            for (LightweightCompressionDictionary dictionary : page)
+            {
+                if (dictionary.nodeId != null && !dictionary.nodeId.equals(localNodeId))
+                    continue;
+
+                // a cached dictionary might be cached for reading sstables written with it only, the caller makes it current
+                CompressionDictionary cached = cache.get(dictionary.dictId);
+                if (cached != null)
+                    return cached;
+
+                CompressionDictionary retrieved = SystemDistributedKeyspace.retrieveCompressionDictionary(keyspaceName, tableName, tableId, dictionary.dictId.id);
+                if (retrieved == null)
+                    throw new IllegalStateException(String.format("Could not read compression dictionary %s of %s.%s", dictionary.dictId, keyspaceName, tableName));
+                return retrieved;
+            }
+
+            if (page.size() < REFRESH_PAGE_SIZE)
+                return null;
+
+            olderThan = page.get(page.size() - 1).dictId.id;
         }
     }
 

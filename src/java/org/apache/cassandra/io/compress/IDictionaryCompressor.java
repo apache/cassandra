@@ -42,6 +42,9 @@ public interface IDictionaryCompressor<T extends CompressionDictionary>
     // that once we train a dictionary for given table, then we can train again after at least 1 hour.
     String DEFAULT_TRAINING_MIN_FREQUENCY = "0m";
 
+    String TRAINING_GLOBAL_SCOPE_PARAMETER_NAME = "global";
+    String DEFAULT_TRAINING_GLOBAL_SCOPE_PARAMETER_VALUE = "true";
+
     /**
      * Returns a compressor instance configured with the specified compression dictionary.
      * <br>

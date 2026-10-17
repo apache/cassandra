@@ -141,6 +141,63 @@ nodetool compressiondictionary train --force <keyspace> <table>
 This can be useful for testing or when you want to train a dictionary from
 limited data during initial setup.
 
+==== Local Dictionary Training
+
+A dictionary trained or imported with the `--local` (`-l`) option is used
+only by the node it was trained or imported on. This makes it possible to
+try a dictionary on one node, for example by comparing its
+`SSTable Compression Ratio` in `nodetool tablestats` with other nodes, before
+all nodes start to use it:
+
+[source,bash]
+----
+nodetool compressiondictionary train --local <keyspace> <table>
+nodetool compressiondictionary import --local <dictionary.json>
+----
+
+A local dictionary is stored in `system_distributed.compression_dictionaries`
+together with the id of its node in the `node_id` column. It is not announced
+to other nodes and their dictionary refresh skips it, while the node itself
+loads it again after a restart. While a local dictionary is the latest
+dictionary of the table, training or importing another dictionary, on any node,
+fails until the local one is promoted or discarded, so a table has at most one
+local dictionary.
+
+SSTables written with a local dictionary contain it. A node which receives such
+SSTables as whole files, for example by entire SSTable streaming during repair
+or bootstrap, or by `nodetool import`, reads them with that dictionary but does
+not compress with it, so compaction rewrites their data with the dictionary the
+node uses.
+
+Once a local dictionary proves itself, promote it to be used by all nodes:
+
+[source,bash]
+----
+nodetool compressiondictionary promote <keyspace> <table>
+----
+
+The command can be run on any node and promotes the latest dictionary of the
+table. It sets `node_id` of the dictionary to null and announces the
+dictionary to all nodes, which start to compress new SSTables with it right
+away. A node which the announcement does not reach picks the dictionary up on
+its next refresh. The command fails when the table has no dictionary or when
+its latest dictionary is already used by all nodes.
+
+When a local dictionary does not prove itself, discard it:
+
+[source,bash]
+----
+nodetool compressiondictionary discard <keyspace> <table>
+----
+
+Like promotion, the command can be run on any node and applies to the latest
+dictionary of the table. It deletes the dictionary and notifies its node, which
+compresses new SSTables with the latest dictionary used by all nodes again, or
+without a dictionary when there is none. A node which the notification does not
+reach goes back on its next refresh. SSTables written with a discarded
+dictionary remain readable as they contain it, compaction rewrites them over
+time. The command fails when the latest dictionary of the table is not local.
+
 === Dictionary Storage and Distribution
 
 Compression dictionaries are stored cluster-wide in the
@@ -153,6 +210,19 @@ Dictionaries are identified by `dict_id`, with higher IDs representing
 newer dictionaries. Cassandra automatically refreshes dictionaries
 across the cluster based on configured intervals, and caches them
 locally to minimize lookup overhead.
+
+A dictionary trained or imported for all nodes is announced to them, and they
+start to use it right away. A node which misses the announcement picks the
+dictionary up on its next refresh (`compression_dictionary_refresh_interval`).
+The refresh makes the newest dictionary of a table which is either used by all
+nodes or local to the refreshing node the current one, also when it is older
+than the current one, e.g. after the current one was discarded. Dictionaries
+local to other nodes (see Local Dictionary Training) are skipped.
+
+A dictionary contained in an SSTable is used only to read that SSTable. After a
+restart, a node therefore compresses new SSTables with a dictionary again once
+its first refresh has run, `compression_dictionary_refresh_initial_delay` after
+the start.
 
 == Configuring Compression
 
@@ -397,24 +467,34 @@ detect degradation.
 
 === Available nodetool commands for compressiondictionary
 
-There are these four commands for now related to compression dictionaries:
+These commands are related to compression dictionaries:
 
 * train - training a dictionary, described above.
 * list - a user can list all dictionaries for given keyspace and table
 * export - a user can export a compression dictionary of a keyspace and a table, either the last one or
 by a specific id, to a file.
 * import - a user can import a compression dictionary, exported by above command, from a file to a cluster.
-* cleanup - removes orphaned dictionaries. These are the ones for which a table they were trained for does not exist anymore (it was dropped).
+* promote - promotes the latest dictionary of a table, trained or imported with `--local`, to be used by all nodes,
+described in Local Dictionary Training.
+* discard - discards the latest dictionary of a table, trained or imported with `--local`, its node compresses with
+the latest dictionary used by all nodes again, described in Local Dictionary Training.
+* cleanup - removes orphaned dictionaries. These are the ones for which a table they were trained for does not exist anymore (it was dropped),
+or which are local to a node which is not in the cluster anymore (it was decommissioned or removed).
 A user can inspect which dictionaries are orphaned by `-d / --dry` flag without deleting them.
 
 For `train` subcommand, it is possible to specify:
 
 * `--max-dict-size` - overrides `training_max_dictionary_size` in CQL `compression` configuration.
 * `--max-total-sample-size` - overrides `training_max_total_sample_size` in CQL `compression` configuration.
+* `--local` - the dictionary is used only by the node it was trained on, until it is promoted.
 
 Importing a dictionary to a table from a file should happen only against one node at a time as
 dictionary will be eventually stored in `system_distributed.compression_dictionaries` table and reused
 cluster-wide. When imports happen from multiple nodes, the highest-version dictionary will be used.
+Only a dictionary newer than the latest dictionary of the table can be imported, so an exported dictionary
+can not be imported again into the same table. With `--local`, the imported dictionary is used only by
+the node it was imported on, until it is promoted. An exported dictionary carries the id of the node it is
+local to, an import ignores it.
 
 == Advanced Use
 

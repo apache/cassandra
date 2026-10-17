@@ -40,9 +40,11 @@ import org.apache.cassandra.db.lifecycle.SSTableSet;
 import org.apache.cassandra.db.lifecycle.View;
 import org.apache.cassandra.schema.CompressionParams;
 import org.apache.cassandra.schema.SystemDistributedKeyspace;
+import org.apache.cassandra.tcm.membership.NodeId;
 import org.apache.cassandra.utils.FBUtilities;
 import org.apache.cassandra.utils.MBeanWrapper;
 import org.apache.cassandra.utils.MBeanWrapper.OnException;
+import org.apache.cassandra.utils.concurrent.Ref;
 
 import static java.lang.String.format;
 import static org.apache.cassandra.schema.SystemDistributedKeyspace.retrieveLightweightLatestCompressionDictionary;
@@ -79,8 +81,8 @@ public class CompressionDictionaryManager implements CompressionDictionaryManage
         this.isEnabled = this.compressionParams.isDictionaryCompressionEnabled();
         this.kind = columnFamilyStore.metadata().params.compression.getCompressionDictionaryKind();
         this.cache = new CompressionDictionaryCache();
-        this.eventHandler = new CompressionDictionaryEventHandler(columnFamilyStore, cache);
         this.scheduler = new CompressionDictionaryScheduler(keyspaceName, tableName, tableId, cache, isEnabled);
+        this.eventHandler = new CompressionDictionaryEventHandler(columnFamilyStore, scheduler::refreshCurrentDictionary);
         if (isEnabled)
         {
             scheduler.scheduleRefreshTask();
@@ -141,6 +143,13 @@ public class CompressionDictionaryManager implements CompressionDictionaryManage
         return cache.getCurrent();
     }
 
+    @Nullable
+    @Override
+    public Ref<? extends CompressionDictionary> refCurrent()
+    {
+        return cache.refCurrent();
+    }
+
     @Override
     public CompressionDictionary get(CompressionDictionary.DictId dictId)
     {
@@ -154,15 +163,39 @@ public class CompressionDictionaryManager implements CompressionDictionaryManage
     }
 
     @Override
+    public CompressionDictionary addForReading(@Nullable CompressionDictionary compressionDictionary)
+    {
+        return cache.addForReading(compressionDictionary);
+    }
+
+    @Override
+    public Ref<? extends CompressionDictionary> refForReading(CompressionDictionary compressionDictionary)
+    {
+        return cache.refForReading(compressionDictionary);
+    }
+
+    @Override
+    public void setCurrent(@Nullable CompressionDictionary compressionDictionary)
+    {
+        cache.setCurrent(compressionDictionary);
+    }
+
+    @Override
     public long cachedDictionariesMemoryUsed()
     {
         return cache.cachedDictionariesMemoryUsed();
     }
 
     @Override
-    public void onNewDictionaryTrained(CompressionDictionary.DictId dictionaryId)
+    public void onNewDictionaryTrained(CompressionDictionary.DictId dictionaryId, boolean global)
     {
-        eventHandler.onNewDictionaryTrained(dictionaryId);
+        eventHandler.onNewDictionaryTrained(dictionaryId, global);
+    }
+
+    @Override
+    public void onDictionaryDiscarded(CompressionDictionary.DictId dictionaryId, NodeId owner)
+    {
+        eventHandler.onDictionaryDiscarded(dictionaryId, owner);
     }
 
     @Override
@@ -187,6 +220,7 @@ public class CompressionDictionaryManager implements CompressionDictionaryManage
                                                                                                      columnFamilyStore.getTableName(),
                                                                                                      columnFamilyStore.metadata.id.toLongString());
 
+        checkLatestNotLocal(dictionary);
         checkTrainingFrequency(dictionary, trainingConfig);
 
         // SSTable-based training: sample from existing SSTables
@@ -212,7 +246,7 @@ public class CompressionDictionaryManager implements CompressionDictionaryManage
         scheduler.scheduleSSTableBasedTraining(refViewFragment,
                                                compressionParams,
                                                trainingConfig,
-                                               this::handleNewDictionary,
+                                               d -> handleNewDictionary(d, trainingConfig.global),
                                                force);
     }
 
@@ -262,7 +296,7 @@ public class CompressionDictionaryManager implements CompressionDictionaryManage
     }
 
     @Override
-    public synchronized void importCompressionDictionary(CompositeData compositeData)
+    public synchronized void importCompressionDictionary(CompositeData compositeData, boolean global)
     {
         if (!isEnabled || this.kind == null)
         {
@@ -291,16 +325,47 @@ public class CompressionDictionaryManager implements CompressionDictionaryManage
         LightweightCompressionDictionary latestCompressionDictionary = retrieveLightweightLatestCompressionDictionary(keyspaceName, tableName, tableId);
         if (latestCompressionDictionary != null)
         {
+            checkLatestNotLocal(latestCompressionDictionary);
+
             if (latestCompressionDictionary.dictId.id > dictId.id)
             {
                 throw new IllegalArgumentException(format("Dictionary to import has older dictionary id (%s) than the latest compression dictionary (%s) for table %s.%s",
                                                           dictId.id, latestCompressionDictionary.dictId.id, keyspaceName, tableName));
             }
 
+            // importing it again could overwrite its node id, turning a global dictionary into a local one or vice versa
+            if (latestCompressionDictionary.dictId.id == dictId.id)
+            {
+                throw new IllegalArgumentException(format("Dictionary to import (%s) is already stored for table %s.%s",
+                                                          dictId.id, keyspaceName, tableName));
+            }
+
             checkTrainingFrequency(latestCompressionDictionary, createTrainingConfig(Map.of()));
         }
 
-        handleNewDictionary(kind.createDictionary(dictId, dataObject.dict, dataObject.dictChecksum));
+        handleNewDictionary(kind.createDictionary(dictId, global ? null : CompressionDictionary.localNodeId(), dataObject.dict, dataObject.dictChecksum), global);
+    }
+
+    @Override
+    public void discardDictionary()
+    {
+        LightweightCompressionDictionary discarded = SystemDistributedKeyspace.discardCompressionDictionary(keyspaceName, tableName, tableId);
+        // only the node it is local to uses it, that node goes back to the newest dictionary used by all nodes, or to
+        // none, right away instead of on its next refresh: this node refreshes, another node is notified
+        if (discarded.nodeId.equals(CompressionDictionary.localNodeId()))
+            scheduler.refreshCurrentDictionary();
+        else
+            onDictionaryDiscarded(discarded.dictId, discarded.nodeId);
+    }
+
+    @Override
+    public void promoteDictionary()
+    {
+        CompressionDictionary.DictId promoted = SystemDistributedKeyspace.promoteCompressionDictionary(keyspaceName, tableName, tableId);
+        // this node and, by the announcement which skips this node, all other nodes use it right away instead of on
+        // their next refresh
+        onNewDictionaryAvailable(promoted);
+        onNewDictionaryTrained(promoted, true);
     }
 
     /**
@@ -314,11 +379,13 @@ public class CompressionDictionaryManager implements CompressionDictionaryManage
         closeQuitely(scheduler, "CompressionDictionaryScheduler");
     }
 
-    void handleNewDictionary(CompressionDictionary dictionary)
+    void handleNewDictionary(CompressionDictionary dictionary, boolean global)
     {
+        // checked again, training takes a while and a local dictionary could have been stored meanwhile
+        checkLatestNotLocal(retrieveLightweightLatestCompressionDictionary(keyspaceName, tableName, tableId));
         // sequence meatters; persist the new dictionary before broadcasting to others.
-        storeDictionary(dictionary);
-        onNewDictionaryTrained(dictionary.dictId());
+        storeDictionary(dictionary, global);
+        onNewDictionaryTrained(dictionary.dictId(), global);
     }
 
     /**
@@ -333,6 +400,7 @@ public class CompressionDictionaryManager implements CompressionDictionaryManage
     {
         return CompressionDictionaryTrainingConfig
                .builder()
+               .global(CompressionDictionaryTrainingConfig.getGlobal(parameters))
                .maxDictionarySize(CompressionDictionaryTrainingConfig.getMaxDictionarySizeWithUserSuppliedParams(compressionParams, parameters))
                .maxTotalSampleSize(CompressionDictionaryTrainingConfig.getMaxTotalSampleSizeWithUserSuppliedParams(compressionParams, parameters))
                .minTrainingFrequency(CompressionDictionaryTrainingConfig.getMinTrainingFrequency(compressionParams.getOtherOptions()))
@@ -340,6 +408,18 @@ public class CompressionDictionaryManager implements CompressionDictionaryManage
                .build();
     }
 
+
+    /**
+     * A dictionary local to a node has to be promoted or discarded before another dictionary is trained or imported,
+     * so a table has at most one local dictionary, its latest one, unless dictionaries are trained or imported
+     * concurrently.
+     */
+    private void checkLatestNotLocal(@Nullable LightweightCompressionDictionary latest)
+    {
+        if (latest != null && latest.nodeId != null)
+            throw new IllegalStateException(format("The latest dictionary %s of table %s.%s is local to node %s, promote or discard it first",
+                                                   latest.dictId.id, keyspaceName, tableName, latest.nodeId.id()));
+    }
 
     private void checkTrainingFrequency(LightweightCompressionDictionary lastDictionary, CompressionDictionaryTrainingConfig config)
     {
@@ -362,15 +442,16 @@ public class CompressionDictionaryManager implements CompressionDictionaryManage
         }
     }
 
-    private void storeDictionary(CompressionDictionary dictionary)
+    private void storeDictionary(CompressionDictionary dictionary, boolean global)
     {
         if (!isEnabled)
         {
             return;
         }
 
-        SystemDistributedKeyspace.storeCompressionDictionary(keyspaceName, tableName, tableId, dictionary);
-        cache.add(dictionary);
+        SystemDistributedKeyspace.storeCompressionDictionary(keyspaceName, tableName, tableId, global, dictionary);
+
+        scheduler.addStoredDictionary(dictionary);
     }
 
     private void registerMbean()

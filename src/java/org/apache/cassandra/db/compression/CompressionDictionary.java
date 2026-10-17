@@ -33,8 +33,11 @@ import com.google.common.hash.Hasher;
 import com.google.common.hash.Hashing;
 
 import org.apache.cassandra.cql3.UntypedResultSet;
+import org.apache.cassandra.db.TypeSizes;
 import org.apache.cassandra.io.compress.ICompressor;
 import org.apache.cassandra.io.compress.ZstdDictionaryCompressor;
+import org.apache.cassandra.tcm.ClusterMetadata;
+import org.apache.cassandra.tcm.membership.NodeId;
 import org.apache.cassandra.utils.FBUtilities;
 import org.apache.cassandra.utils.concurrent.Ref;
 
@@ -56,10 +59,14 @@ import org.apache.cassandra.utils.concurrent.Ref;
  *
  * <h3>Ownership and Usage in Cassandra</h3>
  * <ul>
- *   <li><b>CompressionDictionaryManager</b>: Holds the primary reference ({@link #selfRef()}) for cached dictionaries</li>
+ *   <li><b>CompressionDictionaryManager</b>: Holds the primary reference ({@link #selfRef()}) for cached dictionaries,
+ *       and one more for the current dictionary, so its eviction from the cache does not release it</li>
  *   <li><b>CompressionMetadata.Writer</b>: Acquires a reference during SSTable write, held for the writer's lifetime</li>
- *   <li><b>CompressionMetadata</b>: Acquires a reference when created (via {@link #tryRef()}), held for the SSTable reader's lifetime.
+ *   <li><b>CompressionMetadata</b>: Holds a reference for the SSTable reader's lifetime, which
+ *       {@link #deserialize(DataInput, CompressionDictionaryManager)} takes when the SSTable is opened.
  *       All copies created via sharedCopy() share this single reference through WrappedSharedCloseable</li>
+ *   <li><b>CassandraCompressedStreamReader</b>: Holds a reference while it decompresses the chunks of a streamed
+ *       SSTable written with the dictionary, which the stream carries</li>
  * </ul>
  *
  * <h3>Correctness Guarantee</h3>
@@ -87,6 +94,15 @@ public interface CompressionDictionary
      * @return dictionary id
      */
     DictId dictId();
+
+    /**
+     * Get the node id of this dictionary
+     *
+     * @return id of the node a local dictionary belongs to, null for a dictionary used by all nodes or loaded from
+     *         an sstable; an instance cached before the dictionary was promoted keeps the id
+     */
+    @Nullable
+    NodeId nodeId();
 
     /**
      * Get the raw bytes of the compression dictionary
@@ -205,15 +221,24 @@ public interface CompressionDictionary
     }
 
     /**
+     * @return number of bytes {@link #serialize(DataOutput)} writes
+     */
+    default int serializedSize()
+    {
+        return TypeSizes.BYTE_SIZE + TypeSizes.LONG_SIZE + TypeSizes.INT_SIZE + rawDictionary().length + TypeSizes.INT_SIZE;
+    }
+
+    /**
      * A factory method to create concrete CompressionDictionary from the file content
      *
      * @param input   file input stream
      * @param manager compression dictionary manager that caches the dictionaries
-     * @return compression dictionary; otherwise, null if there is no dictionary
+     * @return reference to the compression dictionary, which the caller owns and has to release; otherwise, null if
+     *         there is no dictionary
      * @throws IOException on any I/O exception when reading from the file
      */
     @Nullable
-    static CompressionDictionary deserialize(DataInput input, @Nullable CompressionDictionaryManager manager) throws IOException
+    static Ref<? extends CompressionDictionary> deserialize(DataInput input, @Nullable CompressionDictionaryManager manager) throws IOException
     {
         int kindOrdinal;
         try
@@ -226,42 +251,74 @@ public interface CompressionDictionary
             return null;
         }
 
-        if (kindOrdinal < 0 || kindOrdinal >= Kind.values().length)
-        {
-            throw new IOException("Invalid compression dictionary kind: " + kindOrdinal);
-        }
-        Kind kind = Kind.values()[kindOrdinal];
-        long id = input.readLong();
-        DictId dictId = new DictId(kind, id);
+        DictId dictId = new DictId(kind(kindOrdinal), input.readLong());
 
         if (manager != null)
         {
-            CompressionDictionary dictionary = manager.get(dictId);
-            if (dictionary != null)
+            CompressionDictionary cached = manager.get(dictId);
+            if (cached != null)
             {
-                return dictionary;
+                Ref<? extends CompressionDictionary> ref = cached.tryRef();
+                if (ref != null)
+                    return ref;
+                // released since it was looked up, e.g. evicted, it is read and cached again
             }
         }
 
+        return refForReading(read(dictId, input), manager);
+    }
+
+    /**
+     * Reads all of a dictionary written by {@link #serialize(DataOutput)}, unlike
+     * {@link #deserialize(DataInput, CompressionDictionaryManager)}, which stops after its id when it is cached.
+     *
+     * @param input input to read the dictionary from
+     * @return the dictionary, not referenced yet
+     * @throws IOException on any I/O exception when reading, or when the checksum of the dictionary does not match
+     */
+    static CompressionDictionary read(DataInput input) throws IOException
+    {
+        return read(new DictId(kind(input.readByte()), input.readLong()), input);
+    }
+
+    /**
+     * @param dictionary dictionary an sstable was written with, read from the sstable or from a stream
+     * @param manager compression dictionary manager that caches the dictionaries
+     * @return reference to the cached instance of the dictionary, which is cached for reading when it was not, or to
+     *         the dictionary itself without a manager; the caller owns the reference and has to release it
+     */
+    static Ref<? extends CompressionDictionary> refForReading(CompressionDictionary dictionary, @Nullable CompressionDictionaryManager manager)
+    {
+        // without a manager nothing caches it, its self-reference is the caller's
+        if (manager == null)
+            return dictionary.initRefLazily();
+
+        // cached for reading only, otherwise this node would compress with a dictionary local to another node
+        // once a sstable written with it is streamed or imported from there
+        return manager.refForReading(dictionary);
+    }
+
+    private static Kind kind(int ordinal) throws IOException
+    {
+        if (ordinal < 0 || ordinal >= Kind.values().length)
+            throw new IOException("Invalid compression dictionary kind: " + ordinal);
+
+        return Kind.values()[ordinal];
+    }
+
+    private static CompressionDictionary read(DictId dictId, DataInput input) throws IOException
+    {
         int length = input.readInt();
         byte[] dict = new byte[length];
         input.readFully(dict);
         int checksum = input.readInt();
-        int calculatedChecksum = calculateChecksum((byte) kindOrdinal, id, dict);
+        int calculatedChecksum = calculateChecksum((byte) dictId.kind.ordinal(), dictId.id, dict);
         if (checksum != calculatedChecksum)
             throw new IOException("Compression dictionary checksum does not match. " +
                                   "Expected: " + checksum + "; actual: " + calculatedChecksum);
 
-        CompressionDictionary dictionary = kind.createDictionary(dictId, dict, checksum);
-
-        if (manager != null)
-        {
-            CompressionDictionary canonical = manager.add(dictionary);
-            if (canonical != null)
-                dictionary = canonical;
-        }
-
-        return dictionary;
+        // neither an sstable nor a stream records whether its dictionary is local to some node
+        return dictId.kind.createDictionary(dictId, null, dict, checksum);
     }
 
     static LightweightCompressionDictionary createFromRowLightweight(UntypedResultSet.Row row)
@@ -274,6 +331,7 @@ public interface CompressionDictionary
         String tableName = row.getString("table_name");
         String tableId = row.getString("table_id");
         Instant createdAt = row.getTimestamp("created_at").toInstant();
+        NodeId nodeId = row.has("node_id") ? new NodeId(row.getInt("node_id")) : null;
 
         try
         {
@@ -283,7 +341,8 @@ public interface CompressionDictionary
                                                         new DictId(CompressionDictionary.Kind.valueOf(kindStr), dictId),
                                                         checksum,
                                                         size,
-                                                        createdAt);
+                                                        createdAt,
+                                                        nodeId);
         }
         catch (IllegalArgumentException ex)
         {
@@ -299,6 +358,7 @@ public interface CompressionDictionary
         int storedLength = row.getInt("dict_length");
         int storedChecksum = row.getInt("dict_checksum");
         Instant createdAt = row.getTimestamp("created_at").toInstant();
+        NodeId nodeId = row.has("node_id") ? new NodeId(row.getInt("node_id")) : null;
 
         try
         {
@@ -319,7 +379,11 @@ public interface CompressionDictionary
                                                               kindStr, dictId, storedChecksum, calculatedChecksum));
             }
 
-            return kind.createDictionary(new DictId(kind, dictId), row.getByteArray("dict"), storedChecksum, createdAt);
+            return kind.createDictionary(new DictId(kind, dictId),
+                                         nodeId,
+                                         row.getByteArray("dict"),
+                                         storedChecksum,
+                                         createdAt);
         }
         catch (IllegalArgumentException ex)
         {
@@ -337,6 +401,16 @@ public interface CompressionDictionary
         return hasher.hash().asInt();
     }
 
+    /**
+     * @return id of this node, null when there is no cluster metadata
+     */
+    @Nullable
+    static NodeId localNodeId()
+    {
+        ClusterMetadata metadata = ClusterMetadata.currentNullable();
+        return metadata == null ? null : metadata.myNodeId();
+    }
+
     // Defines the compression dictionary kind, as well as serves as a factory for creating components of dictionary compression
     enum Kind
     {
@@ -344,9 +418,9 @@ public interface CompressionDictionary
         ZSTD
         {
             @Override
-            public CompressionDictionary createDictionary(DictId dictId, byte[] dict, int checksum, Instant createdAt)
+            public CompressionDictionary createDictionary(DictId dictId, NodeId nodeId, byte[] dict, int checksum, Instant createdAt)
             {
-                return new ZstdCompressionDictionary(dictId, dict, checksum, createdAt);
+                return new ZstdCompressionDictionary(dictId, nodeId, dict, checksum, createdAt);
             }
 
             @Override
@@ -374,25 +448,33 @@ public interface CompressionDictionary
          * Creates a compression dictionary instance for this kind
          *
          * @param dictId the dictionary identifier
+         * @param nodeId id of the node a local dictionary belongs to, null for a dictionary used by all nodes
+         *               or loaded from an sstable
          * @param dict the raw dictionary bytes
          * @param checksum checksum of this dictionary
          * @return a compression dictionary instance
          */
-        public CompressionDictionary createDictionary(CompressionDictionary.DictId dictId, byte[] dict, int checksum)
+        public CompressionDictionary createDictionary(CompressionDictionary.DictId dictId, @Nullable NodeId nodeId, byte[] dict, int checksum)
         {
-            return createDictionary(dictId, dict, checksum, FBUtilities.now());
+            return createDictionary(dictId, nodeId, dict, checksum, FBUtilities.now());
         }
 
         /**
          * Creates a compression dictionary instance for this kind
          *
          * @param dictId the dictionary identifier
+         * @param nodeId id of the node a local dictionary belongs to, null for a dictionary used by all nodes
+         *               or loaded from an sstable
          * @param dict the raw dictionary bytes
          * @param checksum checksum of this dictionary
          * @param createdAt creation date of to-be-constructed dictionary
          * @return a compression dictionary instance
          */
-        public abstract CompressionDictionary createDictionary(CompressionDictionary.DictId dictId, byte[] dict, int checksum, Instant createdAt);
+        public abstract CompressionDictionary createDictionary(CompressionDictionary.DictId dictId,
+                                                               @Nullable NodeId nodeId,
+                                                               byte[] dict,
+                                                               int checksum,
+                                                               Instant createdAt);
 
         /**
          * Creates a dictionary compressor for this kind
@@ -465,6 +547,7 @@ public interface CompressionDictionary
         public final int checksum;
         public final int size;
         public final Instant createdAt;
+        public final NodeId nodeId;
 
         public LightweightCompressionDictionary(String keyspaceName,
                                                 String tableName,
@@ -472,7 +555,8 @@ public interface CompressionDictionary
                                                 DictId dictId,
                                                 int checksum,
                                                 int size,
-                                                Instant createdAt)
+                                                Instant createdAt,
+                                                NodeId nodeId)
         {
             this.keyspaceName = keyspaceName;
             this.tableName = tableName;
@@ -481,6 +565,7 @@ public interface CompressionDictionary
             this.checksum = checksum;
             this.size = size;
             this.createdAt = createdAt;
+            this.nodeId = nodeId;
         }
 
         @Override
@@ -491,6 +576,7 @@ public interface CompressionDictionary
                    ", tableName='" + tableName + '\'' +
                    ", tableId='" + tableId + '\'' +
                    ", dictId=" + dictId +
+                   ", nodeId=" + nodeId +
                    ", checksum=" + checksum +
                    ", size=" + size +
                    ", createdAt=" + createdAt +

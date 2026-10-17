@@ -99,7 +99,8 @@ public interface ICompressionDictionaryTrainer extends AutoCloseable
     CompressionDictionary.Kind kind();
 
     /**
-     * Sets the listener for dictionary training events.
+     * Sets the listener for dictionary training events. A training completes only once the listener returns, it fails
+     * when the listener throws.
      *
      * @param listener the listener to be notified when dictionaries are trained, null to remove listener
      */
@@ -109,8 +110,8 @@ public interface ICompressionDictionaryTrainer extends AutoCloseable
      * Factory method to create appropriate trainer based on compression parameters.
      *
      * @param keyspaceName the keyspace name for logging
-     * @param tableName the table name for logging
-     * @param params the compression parameters
+     * @param tableName    the table name for logging
+     * @param params       the compression parameters
      * @return a dictionary trainer for the specified compression algorithm
      * @throws IllegalArgumentException if no dictionary trainer is available for the compression algorithm
      */

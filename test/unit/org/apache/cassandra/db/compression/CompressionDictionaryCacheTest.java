@@ -183,6 +183,133 @@ public class CompressionDictionaryCacheTest
     }
 
     @Test
+    public void testAddForReadingDoesNotChangeCurrent()
+    {
+        assertThat(cache.addForReading(testDict2))
+        .as("Dictionary added for reading should be cached")
+        .isSameAs(testDict2);
+        assertThat(cache.getCurrent())
+        .as("Dictionary added for reading should not become current")
+        .isNull();
+
+        cache.add(testDict1);
+        cache.addForReading(testDict3);
+        assertThat(cache.getCurrent())
+        .as("Newer dictionary added for reading should not replace current")
+        .isSameAs(testDict1);
+        assertThat(cache.get(testDict3.dictId()))
+        .as("Newer dictionary added for reading should be cached")
+        .isSameAs(testDict3);
+    }
+
+    @Test
+    public void testAddForReadingReleasedDictionaryCachesFreshInstance()
+    {
+        cache.add(testDict1);
+        // releases the cached instance as an eviction does
+        cache.close();
+
+        CompressionDictionary cached = cache.addForReading(testDict1);
+        assertThat(cached)
+        .as("Released dictionary should not be cached again")
+        .isNotSameAs(testDict1);
+        assertThat(cached.dictId())
+        .as("Fresh instance should be the same dictionary")
+        .isEqualTo(testDict1.dictId());
+        Ref<? extends CompressionDictionary> ref = cached.tryRef();
+        assertThat(ref)
+        .as("Fresh instance should be usable")
+        .isNotNull();
+        ref.release();
+    }
+
+    @Test
+    public void testRefCurrent()
+    {
+        assertThat(cache.refCurrent()).as("No current dictionary").isNull();
+
+        cache.setCurrent(testDict1);
+        Ref<? extends CompressionDictionary> ref = cache.refCurrent();
+        assertThat(ref.get()).isSameAs(testDict1);
+        // neither current nor cached anymore
+        cache.close();
+        Ref<? extends CompressionDictionary> another = testDict1.tryRef();
+        assertThat(another).as("Referenced by the caller").isNotNull();
+        another.release();
+        ref.release();
+        assertThat(testDict1.tryRef()).as("Released with the caller's reference").isNull();
+    }
+
+    @Test
+    public void testRefForReading()
+    {
+        Ref<? extends CompressionDictionary> ref = cache.refForReading(testDict1);
+        assertThat(ref.get()).isSameAs(testDict1).isSameAs(cache.get(testDict1.dictId()));
+        assertThat(cache.getCurrent()).isNull();
+        assertThat(testDict1.selfRef().globalCount()).as("References of the cache and the caller").isEqualTo(2);
+        ref.release();
+        assertThat(testDict1.selfRef().globalCount()).isEqualTo(1);
+    }
+
+    @Test
+    public void testRefForReadingReleasedBeforeReferenced()
+    {
+        CompressionDictionaryCache releasing = releasingCache();
+        Ref<? extends CompressionDictionary> ref = releasing.refForReading(testDict1);
+        CompressionDictionary referenced = ref.get();
+        assertThat(testDict1.tryRef()).as("Released dictionary").isNull();
+        assertThat(referenced).isNotSameAs(testDict1);
+        assertThat(referenced.dictId()).isEqualTo(testDict1.dictId());
+        assertThat(releasing.get(testDict1.dictId())).as("Fresh instance is not cached").isNull();
+        ref.release();
+        assertThat(referenced.tryRef()).as("The caller held the only reference").isNull();
+    }
+
+    @Test
+    public void testSetCurrentReleasedBeforeReferenced()
+    {
+        CompressionDictionaryCache releasing = releasingCache();
+        releasing.setCurrent(testDict1);
+        assertThat(releasing.getCurrent()).isNotSameAs(testDict1);
+        assertThat(releasing.getCurrent().dictId()).isEqualTo(testDict1.dictId());
+        releasing.close();
+    }
+
+    @Test
+    public void testAddReleasedBeforeReferenced()
+    {
+        CompressionDictionaryCache releasing = releasingCache();
+        releasing.add(testDict1);
+        assertThat(releasing.getCurrent()).isNotSameAs(testDict1);
+        assertThat(releasing.getCurrent().dictId()).isEqualTo(testDict1.dictId());
+        releasing.close();
+    }
+
+    @Test
+    public void testSetCurrent()
+    {
+        cache.add(testDict2);
+        cache.setCurrent(testDict1);
+        assertThat(cache.getCurrent())
+        .as("Older dictionary set as current should replace the current one")
+        .isSameAs(testDict1);
+        assertThat(testDict2.selfRef().globalCount())
+        .as("Replaced dictionary should keep the reference of its cache entry only")
+        .isOne();
+        assertThat(testDict1.selfRef().globalCount())
+        .as("Current dictionary should be referenced by its cache entry and as current")
+        .isEqualTo(2);
+
+        cache.setCurrent(null);
+        assertThat(cache.getCurrent())
+        .as("No dictionary set as current should leave no current one")
+        .isNull();
+        assertThat(testDict1.selfRef().globalCount())
+        .as("Dictionary which is not current anymore should keep the reference of its cache entry only")
+        .isOne();
+    }
+
+    @Test
     public void testCacheClose()
     {
         cache.add(testDict1);
@@ -383,7 +510,7 @@ public class CompressionDictionaryCacheTest
     }
 
     @Test
-    public void testGetCurrentReturnsNullAfterExpiration() throws InterruptedException
+    public void testCurrentSurvivesExpiration() throws InterruptedException
     {
         int expireSeconds = 1;
         try (CompressionDictionaryCache shortLivedCache = new CompressionDictionaryCache(10, expireSeconds))
@@ -396,10 +523,18 @@ public class CompressionDictionaryCacheTest
             // Wait for expiration without accessing getCurrent()
             Thread.sleep((expireSeconds + 1) * 1000);
 
-            // Current should now return null since the entry expired and we only store the DictId
-            assertThat(shortLivedCache.getCurrent())
-            .as("Current dictionary should be null after expiration when not accessed")
+            assertThat(shortLivedCache.get(testDict1.dictId()))
+            .as("Dictionary should have expired from the cache")
             .isNull();
+            // the cache holds a reference of its own to the current dictionary
+            assertThat(shortLivedCache.getCurrent())
+            .as("Current dictionary should survive its expiration from the cache")
+            .isSameAs(testDict1);
+            Ref<ZstdCompressionDictionary> ref = testDict1.tryRef();
+            assertThat(ref)
+            .as("Current dictionary should not be released")
+            .isNotNull();
+            ref.release();
         }
     }
 
@@ -487,6 +622,21 @@ public class CompressionDictionaryCacheTest
         {
             pool.shutdownNow();
         }
+    }
+
+    /** cache which releases what it caches right after caching it, as an eviction does */
+    private static CompressionDictionaryCache releasingCache()
+    {
+        return new CompressionDictionaryCache()
+        {
+            @Override
+            public CompressionDictionary addForReading(CompressionDictionary dictionary)
+            {
+                CompressionDictionary cached = super.addForReading(dictionary);
+                close();
+                return cached;
+            }
+        };
     }
 
     private static ZstdCompressionDictionary createTestDictionary(long id)
