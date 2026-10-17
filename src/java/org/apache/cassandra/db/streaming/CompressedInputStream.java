@@ -24,10 +24,14 @@ import java.util.Iterator;
 import java.util.concurrent.ThreadLocalRandom;
 import java.util.function.DoubleSupplier;
 
+import javax.annotation.Nullable;
+
 import com.google.common.collect.Iterators;
 import com.google.common.primitives.Ints;
 
+import org.apache.cassandra.db.compression.CompressionDictionary;
 import org.apache.cassandra.io.compress.CompressionMetadata;
+import org.apache.cassandra.io.compress.ICompressor;
 import org.apache.cassandra.io.sstable.format.SSTableReader;
 import org.apache.cassandra.io.util.DataInputPlus;
 import org.apache.cassandra.io.util.RebufferingInputStream;
@@ -57,6 +61,7 @@ public class CompressedInputStream extends RebufferingInputStream implements Aut
 
     private final Iterator<CompressionMetadata.Chunk> compressedChunks;
     private final CompressionParams compressionParams;
+    private final ICompressor compressor;
 
     private final ChecksumType checksumType;
     private final DoubleSupplier validateChecksumChance;
@@ -69,9 +74,12 @@ public class CompressedInputStream extends RebufferingInputStream implements Aut
     /**
      * @param input Input input to read compressed data from
      * @param compressionInfo Compression info
+     * @param dictionary the dictionary of the compression info, an instance the caller references while this stream
+     *                   is in use; null when the chunks were compressed without one
      */
     public CompressedInputStream(DataInputPlus input,
                                  CompressionInfo compressionInfo,
+                                 @Nullable CompressionDictionary dictionary,
                                  ChecksumType checksumType,
                                  DoubleSupplier validateChecksumChance)
     {
@@ -83,6 +91,7 @@ public class CompressedInputStream extends RebufferingInputStream implements Aut
         this.validateChecksumChance = validateChecksumChance;
 
         compressionParams = compressionInfo.parameters();
+        compressor = CompressionMetadata.resolveCompressor(compressionParams.getSstableCompressor(), dictionary);
         compressedChunks = Iterators.forArray(compressionInfo.chunks());
         compressedChunk = ByteBuffer.allocateDirect(compressionParams.chunkLength());
     }
@@ -157,7 +166,7 @@ public class CompressedInputStream extends RebufferingInputStream implements Aut
             maybeValidateChecksum(compressedChunk, input.readInt());
 
             buffer.clear();
-            compressionParams.getSstableCompressor().uncompress(compressedChunk, buffer);
+            compressor.uncompress(compressedChunk, buffer);
             buffer.flip();
         }
         else

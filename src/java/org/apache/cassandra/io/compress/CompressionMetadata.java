@@ -218,7 +218,22 @@ public class CompressionMetadata extends WrappedSharedCloseable
         }
     }
 
-    static ICompressor resolveCompressor(ICompressor compressor, CompressionDictionary dictionary)
+    /**
+     * @return dictionary the data file was compressed with, null when it was written without one
+     */
+    @Nullable
+    public CompressionDictionary compressionDictionary()
+    {
+        return compressionDictionary;
+    }
+
+    /**
+     * @param compressor compressor of the compression parameters data was compressed with
+     * @param dictionary dictionary the data was compressed with, referenced while the returned compressor is in use;
+     *                   null when it was compressed without one
+     * @return compressor which decompresses the data
+     */
+    public static ICompressor resolveCompressor(ICompressor compressor, @Nullable CompressionDictionary dictionary)
     {
         if (dictionary == null)
             return compressor;
