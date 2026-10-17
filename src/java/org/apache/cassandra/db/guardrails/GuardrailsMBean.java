@@ -542,6 +542,28 @@ public interface GuardrailsMBean
     void setWriteConsistencyLevelsDisallowedCSV(String consistencyLevels);
 
     /**
+     * @return {@code true} warn if no serial consistency level is provided for CAS operations.
+     * {@code false} does not warn when no serial consistency is used on CAS operations.
+     */
+    boolean getWarnIfNoSerialConsistencyLevelProvidedForCASEnabled();
+
+    /**
+     * @param enabled {@code true} if when no serial consistency is provided a client warning is produced.
+     */
+    void setWarnIfNoSerialConsistencyLevelProvidedForCASEnabled(boolean enabled);
+
+    /**
+     * @return {@code true} fail if no serial consistency level is provided for CAS operations.
+     * {@code false} does not fail when no serial consistency is used on CAS operations.
+     */
+    boolean getFailIfNoSerialConsistencyLevelProvidedForCASEnabled();
+
+    /**
+     * @param enabled {@code true} if when no serial consistency is provided the query fails.
+     */
+    void setFailIfNoSerialConsistencyLevelProvidedForCASEnabled(boolean enabled);
+
+    /**
      * @return The threshold to warn when encountering partitions larger than threshold, as a string formatted as in,
      * for example, {@code 10GiB}, {@code 20MiB}, {@code 30KiB} or {@code 40B}. A {@code null} value means disabled.
      */
