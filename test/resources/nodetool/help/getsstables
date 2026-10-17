@@ -39,3 +39,10 @@ OPTIONS
 
         <keyspace> <cfname> <key>
             The keyspace, the column family, and the key
+
+EXAMPLES
+        Find SSTables of ks1.table1 for compound key with values pk1 and pk2:
+            nodetool getsstables ks1 table1 pk1:pk2
+
+        Find SSTables of ks1.table1 holding text key 'key1', given in hex:
+            nodetool getsstables -hf ks1 table1 6b657931

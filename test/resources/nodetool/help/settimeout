@@ -6,8 +6,8 @@ SYNOPSIS
         nodetool [(-h <host> | --host <host>)] [(-p <port> | --port <port>)]
                 [(-pw <password> | --password <password>)]
                 [(-pwf <passwordFilePath> | --password-file <passwordFilePath>)]
-                [(-u <username> | --username <username>)] settimeout [--]
-                <timeout_type> <timeout_in_ms>
+                [(-u <username> | --username <username>)] settimeout [--] <timeout_type>
+                <timeout_in_ms>
 
 OPTIONS
         -h <host>, --host <host>

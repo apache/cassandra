@@ -46,7 +46,14 @@ import static org.apache.cassandra.tools.nodetool.CommandUtils.parseOptionalKeys
 import static org.apache.cassandra.tools.nodetool.CommandUtils.parseOptionalTables;
 import static org.apache.commons.lang3.StringUtils.EMPTY;
 
-@Command(name = "repair", description = "Repair one or more tables")
+@Command(name = "repair", description = "Repair one or more tables",
+         footerHeading = "%n",
+         footer = { "EXAMPLES",
+                    "        Repair one token range of ks1:",
+                    "            nodetool repair -st <start_token> -et <end_token> ks1",
+                    "",
+                    "        Repair ks1 with two hosts only (one must be this node):",
+                    "            nodetool repair -hosts 127.0.0.1,127.0.0.2 ks1" })
 public class Repair extends AbstractCommand
 {
     public final static Set<String> ONLY_EXPLICITLY_REPAIRED = Sets.newHashSet(SchemaConstants.DISTRIBUTED_KEYSPACE_NAME);

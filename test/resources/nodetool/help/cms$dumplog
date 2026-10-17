@@ -5,8 +5,8 @@ SYNOPSIS
         nodetool [(-h <host> | --host <host>)] [(-p <port> | --port <port>)]
                 [(-pw <password> | --password <password>)]
                 [(-pwf <passwordFilePath> | --password-file <passwordFilePath>)]
-                [(-u <username> | --username <username>)] cms dumplog
-                [--end <endEpoch>] [--start <startEpoch>]
+                [(-u <username> | --username <username>)] cms dumplog [--end <endEpoch>]
+                [--start <startEpoch>]
 
 OPTIONS
         --end <endEpoch>

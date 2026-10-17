@@ -21,6 +21,7 @@ import java.util.ArrayList;
 import java.util.List;
 
 import org.apache.cassandra.tools.NodeProbe;
+import org.apache.cassandra.tools.nodetool.layout.CassandraUsage;
 
 import picocli.CommandLine.Command;
 import picocli.CommandLine.Parameters;
@@ -30,6 +31,7 @@ import static com.google.common.base.Preconditions.checkArgument;
 @Command(name = "disablehintsfordc", description = "Disable hints for a data center")
 public class DisableHintsForDC extends AbstractCommand
 {
+    @CassandraUsage(usage = "<datacenter>", description = "The data center to disable")
     @Parameters(paramLabel = "datacenter", description = "The data center to disable")
     private List<String> args = new ArrayList<>();
 

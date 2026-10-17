@@ -8,8 +8,8 @@ SYNOPSIS
                 [(-pwf <passwordFilePath> | --password-file <passwordFilePath>)]
                 [(-u <username> | --username <username>)] profileload [-a <samplers>]
                 [(-i <intervalMillis> | --interval <intervalMillis>)] [-k <topCount>]
-                [(-l | --list)] [-s <capacity>] [(-t | --stop)] [--] <keyspace>
-                <cfname> <duration>
+                [(-l | --list)] [-s <capacity>] [(-t | --stop)] [--] <keyspace> <cfname>
+                <duration>
 
 OPTIONS
         -a <samplers>
@@ -55,3 +55,7 @@ OPTIONS
         <keyspace> <cfname> <duration>
             The keyspace, column family name, and duration in milliseconds
             (Default: 10000)
+
+EXAMPLES
+        Sample reads and writes of all tables for 10 seconds:
+            nodetool profileload -a READS,WRITES 10000

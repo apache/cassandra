@@ -36,3 +36,7 @@ OPTIONS
 
         -u <username>, --username <username>
             Remote jmx agent username
+
+EXAMPLES
+        Dump cluster metadata at an epoch (give all three options or none):
+            nodetool cms dump -e <epoch> -te <transform_epoch> -sv <version>

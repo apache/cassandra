@@ -48,3 +48,10 @@ OPTIONS
         [<keyspace> <tables>...] or <SSTable file>...
             The keyspace followed by one or many tables, or a list of SSTable
             data files when using --user-defined
+
+EXAMPLES
+        Remove deleted cells, not only deleted rows, from ks1.table1:
+            nodetool garbagecollect -g CELL ks1 table1
+
+        Garbage collect two SSTables (paths separated by spaces or commas):
+            nodetool garbagecollect --user-defined <file1> <file2>

@@ -57,7 +57,11 @@ public class AccordAdmin extends AbstractCommand
         }
     }
 
-    @Command(name = "mark_stale", description = "Mark a replica as being stale and no longer able to participate in durability status coordination")
+    @Command(name = "mark_stale", description = "Mark a replica as being stale and no longer able to participate in durability status coordination",
+             footerHeading = "%n",
+             footer = { "EXAMPLES",
+                        "        Mark two nodes as stale (node id or host id):",
+                        "            nodetool accord mark_stale 2 3" })
     public static class MarkStale extends AbstractCommand
     {
         @Parameters(arity = "1..*", description = "One or more node IDs to mark stale")
