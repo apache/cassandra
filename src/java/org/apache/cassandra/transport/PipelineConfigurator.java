@@ -275,6 +275,11 @@ public class PipelineConfigurator
             });
         }
 
+        long authTimeout = DatabaseDescriptor.nativeTransportAuthTimeout();
+        if (authTimeout > 0)
+            pipeline.addLast("authenticationTimeout",
+                             new AuthenticationTimeoutHandler(authTimeout));
+
         if (DEBUG)
             pipeline.addLast(DEBUG_HANDLER, new LoggingHandler(LogLevel.INFO));
 

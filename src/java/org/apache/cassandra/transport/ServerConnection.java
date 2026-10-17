@@ -60,7 +60,9 @@ public class ServerConnection extends Connection
         return clientState;
     }
 
-    /** Must only be called on this connection's Netty event loop (single writer). */
+    /**
+     * Must only be called on this connection's Netty event loop (single writer).
+     */
     void incrementRequests()
     {
         requestsUpdater.lazySet(this, requests + 1);
@@ -100,6 +102,15 @@ public class ServerConnection extends Connection
         return new QueryState(clientState);
     }
 
+    private void authenticationComplete()
+    {
+        AuthenticationTimeoutHandler handler = channel().pipeline().get(AuthenticationTimeoutHandler.class);
+        if (handler == null)
+            return;
+        handler.markAuthenticationComplete();
+        channel().pipeline().remove(handler);
+    }
+
     void applyStateTransition(Message.Type requestType, Message.Type responseType)
     {
         switch (stage)
@@ -110,7 +121,10 @@ public class ServerConnection extends Connection
                     if (responseType == Message.Type.AUTHENTICATE)
                         stage = ConnectionStage.AUTHENTICATING;
                     else if (responseType == Message.Type.READY)
+                    {
+                        authenticationComplete();
                         stage = ConnectionStage.READY;
+                    }
                 }
                 break;
             case AUTHENTICATING:
@@ -119,6 +133,7 @@ public class ServerConnection extends Connection
 
                 if (responseType == Message.Type.READY || responseType == Message.Type.AUTH_SUCCESS)
                 {
+                    authenticationComplete();
                     stage = ConnectionStage.READY;
                     // we won't use the authenticator again, null it so that it can be GC'd
                     saslNegotiator = null;

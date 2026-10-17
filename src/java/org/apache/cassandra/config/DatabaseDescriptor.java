@@ -2700,6 +2700,17 @@ public class DatabaseDescriptor
         return SSL_STORAGE_PORT.getInt(conf.ssl_storage_port);
     }
 
+    public static long nativeTransportAuthTimeout()
+    {
+        return conf.native_transport_auth_timeout.toMilliseconds();
+    }
+
+    public static void setNativeTransportAuthTimeout(long nativeTransportAuthTimeout)
+    {
+        conf.native_transport_auth_timeout =
+        new DurationSpec.LongMillisecondsBound(nativeTransportAuthTimeout);
+    }
+
     public static long nativeTransportIdleTimeout()
     {
         return conf.native_transport_idle_timeout.toMilliseconds();
