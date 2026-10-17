@@ -124,7 +124,7 @@ public class IndexSearchResultIterator extends KeyRangeIterator
     {
         queryContext.sstablesHit += referencedIndexes
                                     .stream()
-                                    .map(SSTableIndex::getSSTable).collect(Collectors.toSet()).size();
+                                    .map(SSTableIndex::getSSTable).count();
         queryContext.checkpoint();
         KeyRangeIterator union = KeyRangeUnionIterator.builder(sstableIntersections.size() + 1, () -> {})
                                                       .add(sstableIntersections)
