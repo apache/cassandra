@@ -19,6 +19,7 @@ package org.apache.cassandra.transport;
 
 import java.net.InetSocketAddress;
 import java.util.Collections;
+import java.util.LinkedHashMap;
 import java.util.Map;
 import java.util.Optional;
 
@@ -160,13 +161,20 @@ public final class ConnectedClient
 
     public Map<String, String> asMap()
     {
+        Map<String, String> rawOptions = clientOptions().orElse(Collections.emptyMap());
+        Map<String, String> safeOptions = new LinkedHashMap<>();
+        for (Map.Entry<String, String> entry : rawOptions.entrySet())
+        {
+            safeOptions.put(escapeOptionString(entry.getKey()), escapeOptionString(entry.getValue()));
+        }
+
         return ImmutableMap.<String, String>builder()
                            .put(ADDRESS, remoteAddress().toString())
                            .put(USER, username().orElse(UNDEFINED))
                            .put(VERSION, String.valueOf(protocolVersion()))
                            .put(CLIENT_OPTIONS, Joiner.on(", ")
                                                       .withKeyValueSeparator("=")
-                                                      .join(clientOptions().orElse(Collections.emptyMap())))
+                                                      .join(safeOptions))
                            .put(DRIVER_NAME, driverName().orElse(UNDEFINED))
                            .put(DRIVER_VERSION, driverVersion().orElse(UNDEFINED))
                            .put(REQUESTS, String.valueOf(requestCount()))
@@ -179,5 +187,24 @@ public final class ConnectedClient
                                                                .withKeyValueSeparator("=")
                                                                .join(authenticationMetadata()))
                            .build();
+    }
+
+    /**
+     * Escapes backslashes first, then special delimiter characters (commas and equals signs)
+     * in client option keys and values to prevent format injection in operator-facing maps.
+     * <p>
+     * Example: {@code foo,bar=baz} becomes {@code foo\\,bar\\=baz}
+     *
+     * @param str the raw option string
+     * @return the safely escaped string
+     */
+    private static String escapeOptionString(String str)
+    {
+        if (str == null)
+            return "";
+        // Escape backslashes first to prevent ambiguity, then commas and equals
+        return str.replace("\\", "\\\\")
+                  .replace(",", "\\,")
+                  .replace("=", "\\=");
     }
 }
