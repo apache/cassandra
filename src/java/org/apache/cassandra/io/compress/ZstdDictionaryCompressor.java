@@ -92,22 +92,54 @@ public class ZstdDictionaryCompressor extends ZstdCompressorBase implements ICom
         return getOrCreate(DEFAULT_COMPRESSION_LEVEL, dictionary);
     }
 
-    private static ZstdDictionaryCompressor getOrCreate(int level, ZstdCompressionDictionary dictionary)
+    // Synchronized, so no other thread puts a compressor into instancePerDict between the check of the cached
+    // compressor and its replacement below; compressors are put only here. A compressor is created once per sstable
+    // reader, writer or stream, so the lock is not contended.
+    private static synchronized ZstdDictionaryCompressor getOrCreate(int level, ZstdCompressionDictionary dictionary)
     {
         if (dictionary == null)
         {
             return instancesPerLevel.computeIfAbsent(level, ZstdDictionaryCompressor::new);
         }
 
-        return instancePerDict.get(dictionary, dict -> {
-            // Get a reference to the dictionary when creating new compressor
-            Ref<ZstdCompressionDictionary> ref = dict.tryRef();
-            if (ref == null)
-            {
-                throw new IllegalStateException("Dictionary is released");
-            }
-            return new ZstdDictionaryCompressor(level, dictionary, ref);
-        });
+        // instancePerDict compares dictionaries by id, so the cached compressor can use another object of the same
+        // dictionary, not the one passed in. That happens when the dictionary cache evicted and closed that object,
+        // and the dictionary was loaded again as the object passed in here. Such a compressor must not be returned:
+        // the caller keeps alive only the object it passes in, so the old object is kept alive only by the cached
+        // compressor. Once instancePerDict evicts that compressor, the old object is freed while the caller still
+        // uses the compressor, and the caller's next compress or uncompress fails with "Dictionary is released".
+        ZstdDictionaryCompressor cached = instancePerDict.getIfPresent(dictionary);
+        if (cached != null && cached.dictionary == dictionary)
+            return cached;
+
+        // Get a reference to the dictionary when creating new compressor
+        Ref<ZstdCompressionDictionary> ref = dictionary.tryRef();
+        if (ref == null)
+        {
+            throw new IllegalStateException("Dictionary is released");
+        }
+
+        // The compressor which uses the old object is removed, so the removal listener releases its reference to the
+        // old object. It is removed before the put, so the new entry is keyed by the object passed in: a put over the
+        // old entry would keep the old object as the key.
+        instancePerDict.invalidate(dictionary);
+        ZstdDictionaryCompressor compressor = new ZstdDictionaryCompressor(level, dictionary, ref);
+        instancePerDict.put(dictionary, compressor);
+        return compressor;
+    }
+
+    /**
+     * Removes the cached compressor which uses this dictionary object, so the removal listener releases the reference
+     * of that compressor to the object. The dictionary cache of a table calls this when it drops the object, e.g. when
+     * the table is dropped, otherwise the compressor would keep the object alive until instancePerDict evicts it.
+     * A cached compressor which uses another object of the same dictionary, e.g. of another table, stays. A caller
+     * which still holds the removed compressor can keep using it, as the caller references that object itself.
+     *
+     * @param dictionary dictionary object its table no longer uses
+     */
+    public static void invalidate(ZstdCompressionDictionary dictionary)
+    {
+        instancePerDict.asMap().computeIfPresent(dictionary, (key, compressor) -> compressor.dictionary == dictionary ? null : compressor);
     }
 
     private ZstdDictionaryCompressor(int level)

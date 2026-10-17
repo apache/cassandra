@@ -143,6 +143,25 @@ public class CompressionDictionaryIntegrationTest extends CQLTester
         .isNotNull();
     }
 
+    /**
+     * Flushing caches a compressor which uses the dictionary of the table. Dropping the table must free the dictionary,
+     * the cached compressor must not keep it alive.
+     */
+    @Test
+    public void testDropTable()
+    {
+        createTable(getTableCql());
+        ZstdCompressionDictionary dictionary = createTestDictionary();
+        getCurrentColumnFamilyStore().compressionDictionaryManager().add(dictionary);
+        execute("INSERT INTO %s (pk, data) VALUES (?, ?)", "key", REPEATED_DATA);
+        flush();
+
+        dropTable("DROP TABLE %s");
+
+        // the sstable of the dropped table releases its reference in a separate thread
+        spinUntilTrue(() -> dictionary.selfRef().globalCount() == 0, 10, TimeUnit.SECONDS);
+    }
+
     private static ZstdCompressionDictionary createTestDictionary()
     {
         byte[] dictBytes = (REPEATED_DATA + " dictionary training data").getBytes();

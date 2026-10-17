@@ -405,6 +405,15 @@ public interface CompressionDictionary
             }
 
             @Override
+            public void invalidateCompressor(CompressionDictionary dictionary)
+            {
+                Preconditions.checkArgument(dictionary instanceof ZstdCompressionDictionary,
+                                            "Expected dictionary to be ZstdCompressionDictionary; actual: %s",
+                                            dictionary.getClass().getSimpleName());
+                ZstdDictionaryCompressor.invalidate((ZstdCompressionDictionary) dictionary);
+            }
+
+            @Override
             public ICompressionDictionaryTrainer createTrainer(String keyspaceName,
                                                                String tableName,
                                                                ICompressor compressor)
@@ -447,6 +456,13 @@ public interface CompressionDictionary
          * @return a dictionary compressor instance
          */
         public abstract ICompressor createCompressor(CompressionDictionary dictionary);
+
+        /**
+         * Removes the cached compressor which uses the given dictionary object, if there is one
+         *
+         * @param dictionary dictionary object its table no longer uses
+         */
+        public abstract void invalidateCompressor(CompressionDictionary dictionary);
 
         /**
          * Creates a dictionary trainer for this kind
