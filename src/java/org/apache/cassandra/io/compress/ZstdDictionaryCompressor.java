@@ -108,8 +108,14 @@ public class ZstdDictionaryCompressor extends ZstdCompressorBase implements ICom
         // the caller keeps alive only the object it passes in, so the old object is kept alive only by the cached
         // compressor. Once instancePerDict evicts that compressor, the old object is freed while the caller still
         // uses the compressor, and the caller's next compress or uncompress fails with "Dictionary is released".
+        //
+        // The cached compressor can also have another compression level than the caller asks for: the level of the
+        // caller it was created for, e.g. of a writer before ALTER TABLE changed compression_level, or of a reader of
+        // an sstable written at another level. A writer compresses with the level of its compressor, so it must get
+        // the level it asks for. Decompression does not depend on the level, so a reader holding a compressor which
+        // is replaced here keeps decompressing correctly.
         ZstdDictionaryCompressor cached = instancePerDict.getIfPresent(dictionary);
-        if (cached != null && cached.dictionary == dictionary)
+        if (cached != null && cached.dictionary == dictionary && cached.compressionLevel() == level)
             return cached;
 
         // Get a reference to the dictionary when creating new compressor
@@ -119,9 +125,10 @@ public class ZstdDictionaryCompressor extends ZstdCompressorBase implements ICom
             throw new IllegalStateException("Dictionary is released");
         }
 
-        // The compressor which uses the old object is removed, so the removal listener releases its reference to the
-        // old object. It is removed before the put, so the new entry is keyed by the object passed in: a put over the
-        // old entry would keep the old object as the key.
+        // The cached compressor, which uses another object or another level, is removed, so the removal listener
+        // releases its reference to its object. A caller which holds that compressor keeps using it, as the caller
+        // references that object itself. It is removed before the put, so the new entry is keyed by the object passed
+        // in: a put over the old entry would keep the old object as the key.
         instancePerDict.invalidate(dictionary);
         ZstdDictionaryCompressor compressor = new ZstdDictionaryCompressor(level, dictionary, ref);
         instancePerDict.put(dictionary, compressor);
