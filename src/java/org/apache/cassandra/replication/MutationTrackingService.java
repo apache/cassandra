@@ -300,6 +300,20 @@ public class MutationTrackingService implements MutationTrackingServiceMBean
         return config.background_reconciliation_interval.toMilliseconds();
     }
 
+    @Override
+    public void setClusterSafeVersion(int version)
+    {
+        logger.info("Setting mutation tracking cluster safe version from {} to {}",
+                    Version.getClusterSafeVersion().version(), version);
+        Version.setClusterSafeVersion(version);
+    }
+
+    @Override
+    public int getClusterSafeVersion()
+    {
+        return Version.getClusterSafeVersion().version();
+    }
+
     public void pauseOffsetBroadcast(boolean pause)
     {
         offsetsBroadcaster.pauseOffsetBroadcast(pause);

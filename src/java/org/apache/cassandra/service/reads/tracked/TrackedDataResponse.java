@@ -104,7 +104,7 @@ public class TrackedDataResponse implements IReadResponse
     {
         try (DataOutputBuffer buffer = new DataOutputBuffer())
         {
-            int version = Version.CLUSTER_SAFE_VERSION.messagingVersion();
+            int version = Version.getClusterSafeVersion().messagingVersion();
             PartitionIterators.Serializer.serialize(iter, selection, buffer, version);
             return new TrackedDataResponse(version, buffer.buffer(false));
         }

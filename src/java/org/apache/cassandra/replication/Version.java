@@ -76,16 +76,23 @@ public enum Version
         }
     }
 
-    /**
-     * Version that should be used for messaging serialization where mixed versions may be possible.
-     * As of this writing only 1 version exists, so this is the same as CURRENT.
-     * Once v2 comes into the picture we need this version to be the oldest version needed for downgrade
-     * If you upgrade from 7.0 to 8.0 (assuming this adds a v2) you need a version that works with 7.0 here.
-     */
-    public static final Version CLUSTER_SAFE_VERSION;
-    static
+    private static volatile Version clusterSafeVersion =
+        fromInt(CassandraRelevantProperties.MT_CLUSTER_SAFE_VERSION.getInt(CURRENT.version));
+
+    public static Version getClusterSafeVersion()
     {
-        CLUSTER_SAFE_VERSION = fromInt(CassandraRelevantProperties.MT_CLUSTER_SAFE_VERSION.getInt(CURRENT.version));
+        return clusterSafeVersion;
+    }
+
+    public static void setClusterSafeVersion(Version version)
+    {
+        Preconditions.checkNotNull(version);
+        clusterSafeVersion = version;
+    }
+
+    public static void setClusterSafeVersion(int versionInt)
+    {
+        setClusterSafeVersion(fromInt(versionInt));
     }
 
     private final int version;
@@ -95,6 +102,11 @@ public enum Version
     {
         this.version = version;
         this.messagingVersion = messagingVersion;
+    }
+
+    public int version()
+    {
+        return version;
     }
 
     public int messagingVersion()

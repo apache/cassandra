@@ -46,4 +46,16 @@ public interface MutationTrackingServiceMBean
      * @return the interval, in milliseconds, in which the background reconciliation runs when enabled
      */
     long getMutationTrackingBackgroundReconciliationIntervalMilliseconds();
+
+    /**
+     * Sets the cluster safe mutation tracking version
+     *
+     * @param version the version number
+     */
+    void setClusterSafeVersion(int version);
+
+    /**
+     * @return the cluster safe mutation tracking version
+     */
+    int getClusterSafeVersion();
 }
