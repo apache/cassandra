@@ -75,7 +75,6 @@ import org.apache.cassandra.schema.UserFunctions;
 import org.apache.cassandra.service.ClientState;
 import org.apache.cassandra.service.reads.repair.ReadRepairStrategy;
 import org.apache.cassandra.tcm.ClusterMetadata;
-import org.apache.cassandra.tcm.serialization.Version;
 import org.apache.cassandra.transport.Event.SchemaChange;
 import org.apache.cassandra.transport.Event.SchemaChange.Change;
 import org.apache.cassandra.transport.Event.SchemaChange.Target;
@@ -141,7 +140,7 @@ public final class CreateTableStatement extends AlterSchemaStatement
     @Override
     public boolean compatibleWith(ClusterMetadata metadata)
     {
-        return metadata.directory.commonSerializationVersion.isAtLeast(Version.V0);
+        return metadata.directory.commonSerializationVersion.isAtLeast(attrs.minimumSerializationVersion());
     }
 
     public Keyspaces apply(ClusterMetadata metadata)
@@ -168,7 +167,7 @@ public final class CreateTableStatement extends AlterSchemaStatement
         TableMetadata.Builder builder = builder(keyspace.types, ufBuilder.build()).epoch(metadata.nextEpoch());
 
         // We do not want to set table ID here just yet, since we are using CQL for serialising a fully expanded CREATE TABLE statement.
-        expandedCql = builder.build().toCqlString(false, attrs.hasProperty(TableAttributes.ID), ifNotExists);
+        expandedCql = builder.build().toExpandedCqlString(attrs.hasProperty(TableAttributes.ID), ifNotExists);
         verifyExpandedCql(expandedCql);
 
         if (!attrs.hasProperty(TableAttributes.ID))

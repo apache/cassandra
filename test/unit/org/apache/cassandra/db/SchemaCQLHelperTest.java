@@ -356,6 +356,7 @@ public class SchemaCQLHelperTest extends CQLTester
                             "    AND fast_path = 'simple'\n" +
                             "    AND default_time_to_live = 4\n" +
                             "    AND extensions = {'ext1': 0x76616c31}\n" +
+                            "    AND flush_compression = 'auto'\n" +
                             "    AND gc_grace_seconds = 5\n" +
                             "    AND incremental_backups = true\n" +
                             "    AND max_index_interval = 7\n" +
