@@ -17,10 +17,15 @@
  */
 package org.apache.cassandra.service;
 
+import java.nio.ByteBuffer;
+import java.nio.CharBuffer;
+import java.nio.charset.CodingErrorAction;
+import java.nio.charset.StandardCharsets;
 import java.util.List;
 import java.util.concurrent.CopyOnWriteArrayList;
 
 import org.apache.cassandra.concurrent.ExecutorLocals;
+import org.apache.cassandra.transport.CBUtil;
 import org.apache.cassandra.utils.FBUtilities;
 
 public class ClientWarn extends ExecutorLocals.Impl
@@ -108,9 +113,20 @@ public class ClientWarn extends ExecutorLocals.Impl
 
         private static String maybeTruncate(String warning)
         {
-            return warning.length() > FBUtilities.MAX_UNSIGNED_SHORT
-                   ? warning.substring(0, FBUtilities.MAX_UNSIGNED_SHORT - TRUNCATED.length()) + TRUNCATED
-                   : warning;
+            // A Java char encodes to at most 3 bytes in UTF-8 (a surrogate pair is 2 chars and 4 bytes), so a warning
+            // of at most MAX_UNSIGNED_SHORT / 3 chars always fits, and we can skip computing its encoded length
+            if (warning.length() <= FBUtilities.MAX_UNSIGNED_SHORT / 3
+                || CBUtil.encodedUTF8Length(warning) <= FBUtilities.MAX_UNSIGNED_SHORT)
+                return warning;
+
+            // The native protocol limits a [string] to MAX_UNSIGNED_SHORT bytes, so truncate by encoded length
+            // rather than by chars; the encoder stops before the first char that does not fit, so a char is never split
+            int budget = FBUtilities.MAX_UNSIGNED_SHORT - TRUNCATED.length(); // TRUNCATED is ASCII
+            CharBuffer in = CharBuffer.wrap(warning);
+            StandardCharsets.UTF_8.newEncoder()
+                                  .onMalformedInput(CodingErrorAction.REPLACE)
+                                  .encode(in, ByteBuffer.allocate(budget), true);
+            return warning.substring(0, in.position()) + TRUNCATED;
         }
     }
 }

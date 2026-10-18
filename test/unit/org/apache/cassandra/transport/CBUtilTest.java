@@ -25,6 +25,8 @@ import org.junit.Test;
 
 import accord.utils.Gens;
 
+import org.apache.cassandra.utils.FBUtilities;
+
 import io.netty.buffer.ByteBuf;
 import io.netty.buffer.ByteBufAllocator;
 import io.netty.buffer.PooledByteBufAllocator;
@@ -110,5 +112,55 @@ public class CBUtilTest
         Assert.assertNotEquals("Characters (> 0x007F) is considered as 2 bytes in sizeOfString, meanwhile writeAsciiString writes just 1 byte",
                                size,
                                buf.writerIndex());
+    }
+
+    @Test
+    public void writeAndReadStringLargerThanSignedShort()
+    {
+        final String text = "a".repeat(Short.MAX_VALUE + 1); // 32768 bytes, rejected before CASSANDRA-21763
+        int size = CBUtil.sizeOfString(text);
+
+        buf = allocator.heapBuffer(size);
+        CBUtil.writeString(text, buf);
+        Assert.assertEquals(size, buf.writerIndex());
+        Assert.assertEquals(text, CBUtil.readString(buf));
+        Assert.assertEquals(buf.writerIndex(), buf.readerIndex());
+    }
+
+    @Test
+    public void writeAndReadStringOfMaxLength()
+    {
+        final String text = "a".repeat(FBUtilities.MAX_UNSIGNED_SHORT); // the largest length a [short] can hold
+        int size = CBUtil.sizeOfString(text);
+
+        buf = allocator.heapBuffer(size);
+        CBUtil.writeString(text, buf);
+        Assert.assertEquals(size, buf.writerIndex());
+        Assert.assertEquals(text, CBUtil.readString(buf));
+        Assert.assertEquals(buf.writerIndex(), buf.readerIndex());
+    }
+
+    @Test
+    public void writeStringLargerThanUnsignedShortFails()
+    {
+        final String text = "a".repeat(FBUtilities.MAX_UNSIGNED_SHORT + 1);
+        int size = CBUtil.sizeOfString(text);
+
+        buf = allocator.heapBuffer(size);
+        Assertions.assertThatThrownBy(() -> CBUtil.writeString(text, buf)).isInstanceOf(IllegalArgumentException.class);
+        Assert.assertEquals(0, buf.writerIndex());
+    }
+
+    @Test
+    public void writeAndReadMultiByteString()
+    {
+        final String text = "\u00e9".repeat(30000); // 30000 chars but 60000 bytes in UTF-8
+        int size = CBUtil.sizeOfString(text);
+
+        buf = allocator.heapBuffer(size);
+        CBUtil.writeString(text, buf);
+        Assert.assertEquals(size, buf.writerIndex());
+        Assert.assertEquals(text, CBUtil.readString(buf));
+        Assert.assertEquals(buf.writerIndex(), buf.readerIndex());
     }
 }
