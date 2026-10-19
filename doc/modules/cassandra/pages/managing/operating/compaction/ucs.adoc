@@ -685,7 +685,7 @@ Default: none (although 32 is a good choice)
 When a level has no overlapping SSTables to compact and one of its shards holds more SSTables than this factor times the level's fanout, all SSTables in that shard are compacted together, along with any shard that shares an SSTable with it.
 This helps tables with slow writes, where SSTables stay small and rarely overlap enough to reach the compaction threshold.
 Many small SSTables add per-SSTable memory overhead, and they can still hold overlapping data that wastes disk space if they are never compacted.
-The value must be a number greater than or equal to 1. Set it to `Infinity` to turn this check off.
+The value must be a number greater than or equal to 1, or 0 to disable this check.
 
 Default: 10
 

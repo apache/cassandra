@@ -136,7 +136,7 @@ The default value is 0.333 meaning the sstable size grows with the square root o
 max_sstables_per_shard_factor::
 Limits the number of SSTables in each shard of a level.
 When a level has no overlapping SSTables to compact and one of its shards holds more SSTables than this factor times the level's fanout, all SSTables in that shard are compacted together.
-The value must be a number greater than or equal to 1. Set it to `Infinity` to turn this check off.
+The value must be a number greater than or equal to 1, or 0 to disable this check.
 +
 Default: `10`
 

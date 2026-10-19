@@ -154,6 +154,7 @@ public class Controller
      * bucket to compact and one of its shards holds more sstables than this, all sstables in that shard (and in any
      * shard sharing an sstable with it) are compacted together. Small sstables that never overlap with enough
      * others, e.g. those produced by frequent small flushes or repair streams, would otherwise never be compacted.
+     * A value of 0 disables the check.
      */
     static final String MAX_SSTABLES_PER_SHARD_FACTOR_OPTION = "max_sstables_per_shard_factor";
     static final double DEFAULT_MAX_SSTABLES_PER_SHARD_FACTOR =
@@ -466,7 +467,8 @@ public class Controller
 
         double maxSstablesPerShardFactor = options.containsKey(MAX_SSTABLES_PER_SHARD_FACTOR_OPTION)
                                            ? Double.parseDouble(options.get(MAX_SSTABLES_PER_SHARD_FACTOR_OPTION))
-                                           : DEFAULT_MAX_SSTABLES_PER_SHARD_FACTOR;
+                                           : validateMaxSstablesPerShardFactor(DEFAULT_MAX_SSTABLES_PER_SHARD_FACTOR,
+                                                                               CassandraRelevantProperties.UCS_MAX_SSTABLES_PER_SHARD_FACTOR.getKey());
 
         return new Controller(cfs,
                               MonotonicClock.Global.preciseTime,
@@ -676,12 +678,7 @@ public class Controller
         {
             try
             {
-                double maxSstablesPerShardFactor = Double.parseDouble(s);
-                // Written as a negated >= so that NaN (which compares false to everything) is rejected too
-                if (!(maxSstablesPerShardFactor >= 1))
-                    throw new ConfigurationException(String.format("%s %s must be a number greater than or equal to 1",
-                                                                   MAX_SSTABLES_PER_SHARD_FACTOR_OPTION,
-                                                                   s));
+                validateMaxSstablesPerShardFactor(Double.parseDouble(s), MAX_SSTABLES_PER_SHARD_FACTOR_OPTION);
             }
             catch (NumberFormatException e)
             {
@@ -693,6 +690,23 @@ public class Controller
         }
 
         return options;
+    }
+
+    /**
+     * Checks a max_sstables_per_shard_factor value: 0 (check disabled) or at least 1.
+     * @param value the factor to check
+     * @param name the table option or system property the value came from, for the error message
+     * @return value
+     * @throws ConfigurationException when the value is neither 0 nor at least 1, including NaN
+     */
+    static double validateMaxSstablesPerShardFactor(double value, String name)
+    {
+        // Written as a negated comparison so that NaN (which compares false to everything) is rejected too
+        if (!(value == 0 || value >= 1))
+            throw new ConfigurationException(String.format("%s %s must be 0 to disable or a number greater than or equal to 1",
+                                                           name,
+                                                           value));
+        return value;
     }
 
     // The methods below are implemented here (rather than directly in UCS) to aid testability.

@@ -732,7 +732,7 @@ public class AlterTest extends CQLTester
                     + " WITH compaction = { 'class' : 'UnifiedCompactionStrategy' };");
 
         assertAlterTableThrowsException(ConfigurationException.class,
-                                        "max_sstables_per_shard_factor 0.9 must be a number greater than or equal to 1",
+                                        "max_sstables_per_shard_factor 0.9 must be 0 to disable or a number greater than or equal to 1",
                                         "ALTER TABLE %s WITH compaction = { 'class' : 'UnifiedCompactionStrategy', 'max_sstables_per_shard_factor' : 0.9 };");
 
         assertAlterTableThrowsException(ConfigurationException.class,
