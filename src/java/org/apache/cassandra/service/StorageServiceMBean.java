@@ -286,6 +286,29 @@ public interface StorageServiceMBean extends NotificationEmitter
     public List<String> getNaturalReplicasWithPort(String keyspaceName, String cf, String key);
 
     /**
+     * Returns the replica peers of nodes. A node's replica peers are the other nodes that share at least one token
+     * range with it. Read and write peers are listed separately and grouped by datacenter. Nodes are shown by node id.
+     * The {@code endpoints} section gives the current address of each id. For a CMS member whose address change is
+     * not yet committed, this is the new address it was found at, which other nodes may not report yet.
+     *
+     * @param node The node to report on as a node id, host id or address. Null reports on every node. Cannot be
+     *             combined with {@code datacenters}.
+     * @param datacenters Report only on nodes in these datacenters. Null or empty means every datacenter. Cannot be
+     *                    combined with {@code node}.
+     * @param keyspaces Use only these keyspaces. Null or empty means every keyspace.
+     * @param excludedKeyspaces Leave out these keyspaces. Cannot be combined with {@code keyspaces}.
+     * @param catchUpWithCMS Fetch the latest metadata from the CMS first. Fails if that is not possible.
+     * @param format Output format: {@code YAML}, {@code JSON}, {@code MINIFIED-YAML}, or {@code MINIFIED-JSON}.
+     *               Case-insensitive.
+     */
+    String getReplicaPeers(@Nullable String node,
+                           @Nullable Set<String> datacenters,
+                           @Nullable Set<String> keyspaces,
+                           @Nullable Set<String> excludedKeyspaces,
+                           boolean catchUpWithCMS,
+                           @Nonnull String format);
+
+    /**
      * @deprecated use {@link #takeSnapshot(String tag, Map options, String... entities)} instead. See CASSANDRA-10907
      */
     @Deprecated(since = "3.4")

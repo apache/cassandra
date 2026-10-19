@@ -1,0 +1,64 @@
+NAME
+        nodetool placement - Inspect data placement and replica relationships
+
+SYNOPSIS
+        nodetool [(-h <host> | --host <host>)] [(-p <port> | --port <port>)]
+                [(-pw <password> | --password <password>)]
+                [(-pwf <passwordFilePath> | --password-file <passwordFilePath>)]
+                [(-u <username> | --username <username>)] placement <command> [<args>]
+
+        nodetool [(-h <host> | --host <host>)] [(-p <port> | --port <port>)]
+                [(-pw <password> | --password <password>)]
+                [(-pwf <passwordFilePath> | --password-file <passwordFilePath>)]
+                [(-u <username> | --username <username>)] placement peers [--catch-up]
+                [(-dc <specific_dc> | --in-dc <specific_dc>)...]
+                [(-f <format> | --format <format>)]
+                [(-k <keyspace> | --keyspaces <keyspace>)...]
+                [(-n <node> | --node <node>)]
+                [(-x <exclude_keyspace> | --exclude-keyspaces <exclude_keyspace>)...]
+
+OPTIONS
+        -h <host>, --host <host>
+            Node hostname or ip address
+
+        -p <port>, --port <port>
+            Remote jmx agent port number
+
+        -pw <password>, --password <password>
+            Remote jmx agent password
+
+        -pwf <passwordFilePath>, --password-file <passwordFilePath>
+            Path to the JMX password file
+
+        -u <username>, --username <username>
+            Remote jmx agent username
+
+COMMANDS
+        With no arguments, Display help information
+
+        peers
+            Display replica peers for a node. Replica peers are nodes that share
+            ownership of the same token ranges. This information helps avoid performing
+            concurrent operations on a node and its peers.
+
+            With --node option, The node to display peers for (accepts Node ID, Host
+            ID, or IP address). Includes all nodes when this option is not specified.
+            (Mutually exclusive with --in-dc)
+
+            With --in-dc option, Limits the report to nodes that belong to the
+            specified datacenters. This option can be repeated to include multiple
+            datacenters. Includes all datacenters when it is not specified. (Mutually
+            exclusive with --node)
+
+            With --keyspaces option, Include only these keyspaces (comma-separated).
+            Includes all keyspaces when this option is not specified. Providing a
+            single keyspace shows peers based on its specific replication factor.
+
+            With --exclude-keyspaces option, Exclude these keyspaces (comma-separated)
+            from the report.
+
+            With --catch-up option, Fetch the latest metadata from the CMS before
+            executing. Fails if synchronization is not possible.
+
+            With --format option, Output format: yaml, json, minified-yaml, or
+            minified-json. Case-insensitive. (Default: yaml)

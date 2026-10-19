@@ -66,6 +66,7 @@ public final class SystemViewsKeyspace extends VirtualKeyspace
                     .add(new SlowQueriesTable(VIRTUAL_VIEWS))
                     .add(new SnapshotsTable(VIRTUAL_VIEWS))
                     .add(new PeersTable(VIRTUAL_VIEWS))
+                    .add(new ReplicaPeersTable(VIRTUAL_VIEWS))
                     .add(new LocalTable(VIRTUAL_VIEWS))
                     .add(new ClusterMetadataLogTable(VIRTUAL_VIEWS))
                     .add(new ClusterMetadataDirectoryTable(VIRTUAL_VIEWS))

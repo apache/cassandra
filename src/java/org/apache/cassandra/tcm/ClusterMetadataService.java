@@ -24,6 +24,7 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.Collections;
 import java.util.HashSet;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -33,6 +34,8 @@ import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.Consumer;
 import java.util.function.Function;
 import java.util.function.Supplier;
+
+import javax.annotation.Nullable;
 
 import com.google.common.annotations.VisibleForTesting;
 import com.google.common.collect.Sets;
@@ -76,6 +79,7 @@ import org.apache.cassandra.tcm.migration.Election;
 import org.apache.cassandra.tcm.migration.GossipProcessor;
 import org.apache.cassandra.tcm.ownership.DataPlacements;
 import org.apache.cassandra.tcm.ownership.PlacementProvider;
+import org.apache.cassandra.tcm.ownership.ReplicaPeers;
 import org.apache.cassandra.tcm.ownership.TokenMap;
 import org.apache.cassandra.tcm.ownership.UniformRangePlacement;
 import org.apache.cassandra.tcm.sequences.InProgressSequences;
@@ -920,6 +924,64 @@ public class ClusterMetadataService
                                                           awaitAtLeast, ourEpoch));
         }
         return metadata;
+    }
+
+    /**
+     * Returns the replica peers as a map for {@link org.apache.cassandra.utils.PojoToString}, after catching up with
+     * the CMS if asked. Used by {@code StorageServiceMBean.getReplicaPeers}; see there for the arguments.
+     */
+    public Map<String, Object> replicaPeers(@Nullable String node,
+                                            @Nullable Set<String> datacenters,
+                                            @Nullable Set<String> keyspaces,
+                                            @Nullable Set<String> excludedKeyspaces,
+                                            boolean catchUpWithCMS)
+    {
+        if (catchUpWithCMS)
+        {
+            // Before the CMS is initialized the processor answers a fetch with local metadata, which would be
+            // indistinguishable from a successful catch-up.
+            if (state() == GOSSIP)
+                throw new IllegalStateException("The CMS has not been initialized, so there is nothing to catch up " +
+                                                "with. Initialize it (nodetool cms initialize), or skip the catch-up " +
+                                                "(omit nodetool --catch-up, or pass catchUpWithCMS=false over JMX) " +
+                                                "to answer from local metadata.");
+            // Fail fast if log is paused; will re-verify after fetch.
+            checkLogNotPausedForCatchUp();
+            try
+            {
+                processor.fetchLogAndWait();
+            }
+            catch (Throwable t)
+            {
+                JVMStabilityInspector.inspectThrowable(t);
+                throw new RuntimeException("Could not catch up with the CMS before computing replica peers; local " +
+                                           "metadata is at epoch " + ClusterMetadata.current().epoch.getEpoch() +
+                                           ". Retry, or skip the catch-up (omit nodetool --catch-up, or " +
+                                           "pass catchUpWithCMS=false over JMX) to answer from local metadata.", t);
+            }
+            // Ensure metadata is applied by re-checking log status after fetch.
+            checkLogNotPausedForCatchUp();
+        }
+
+        ClusterMetadata metadata = ClusterMetadata.current();
+        ReplicaPeers peers = ReplicaPeers.compute(metadata, ReplicaPeers.Options.resolve(metadata, node, datacenters,
+                                                                                        keyspaces, excludedKeyspaces));
+
+        Map<String, Object> result = new LinkedHashMap<>(peers.toMap());
+        result.put("catch_up", catchUpWithCMS ? "OK" : "SKIPPED");
+        result.put("cms", state(metadata) == GOSSIP ? "NOT_INITIALIZED" : "INITIALIZED");
+        result.put("queried_from", FBUtilities.getBroadcastAddressAndPort().getHostAddress(true));
+        return result;
+    }
+
+    private void checkLogNotPausedForCatchUp()
+    {
+        if (log.isPaused())
+            throw new IllegalStateException("Metadata log processing is paused on this node, so catching up with the " +
+                                            "CMS would not advance its metadata beyond epoch " +
+                                            ClusterMetadata.current().epoch.getEpoch() + ". Resume it, or skip the " +
+                                            "catch-up (omit nodetool --catch-up, or pass catchUpWithCMS=false over JMX) to " +
+                                            "answer from local metadata.");
     }
 
     /**
