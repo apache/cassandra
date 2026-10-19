@@ -18,7 +18,6 @@
 package org.apache.cassandra.transport.messages;
 
 import java.nio.charset.StandardCharsets;
-import java.util.Collections;
 import java.util.HashMap;
 import java.util.Map;
 
@@ -82,12 +81,13 @@ public class StartupMessage extends Message.Request
     public StartupMessage(Map<String, String> options)
     {
         super(Message.Type.STARTUP);
-        this.options = validateAndSanitizeOptions(options);
+        this.options = options;
     }
 
     @Override
     protected Message.Response execute(QueryState state, Dispatcher.RequestTime requestTime, boolean traceRequest)
     {
+        validateOptions(options);
         String cqlVersion = options.get(CQL_VERSION);
         if (cqlVersion == null)
             throw new ProtocolException("Missing value CQL_VERSION in STARTUP message");
@@ -225,18 +225,19 @@ public class StartupMessage extends Message.Request
         }
     }
 
-    private static Map<String, String> validateAndSanitizeOptions(Map<String, String> options)
+    private static void validateOptions(Map<String, String> options)
     {
         if (options == null || options.isEmpty())
-            return Collections.emptyMap();
+            return;
+
         if (options.size() > MAX_OPTION_COUNT)
             throw new ProtocolException(String.format("Too many startup options provided: %d (maximum allowed is %d)", options.size(), MAX_OPTION_COUNT));
+
         for (Map.Entry<String, String> entry : options.entrySet())
         {
             validateString(entry.getKey(), true);
             validateString(entry.getValue(), false);
         }
-        return options;
     }
 
     @Override
