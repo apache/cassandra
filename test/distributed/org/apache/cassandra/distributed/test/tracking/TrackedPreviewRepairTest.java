@@ -402,6 +402,7 @@ public class TrackedPreviewRepairTest extends TestBaseImpl
         result.asserts().success();
 
         assertNotificationContains(result, MutationTrackingPreviewRepairTask.INCONSISTENT_MESSAGE);
+        assertNotificationContains(result, table + " -");
 
         assertPreviewFailuresBumpedOnCoordinator(CLUSTER, previewFailuresBefore, 1);
 
@@ -437,6 +438,7 @@ public class TrackedPreviewRepairTest extends TestBaseImpl
         result.asserts().success();
 
         assertNotificationContains(result, MutationTrackingPreviewRepairTask.INCONSISTENT_MESSAGE);
+        assertNotificationContains(result, table + " -");
         assertPreviewFailuresBumpedOnCoordinator(CLUSTER, previewFailuresBefore, 1);
         assertDesyncRangesBumped(CLUSTER, 1, keyspace, table, desyncBefore);
         assertDiagnosticSnapshotExists(CLUSTER, keyspace, table, 1, 2, 3);
@@ -461,6 +463,7 @@ public class TrackedPreviewRepairTest extends TestBaseImpl
         result.asserts().success();
 
         assertNotificationContains(result, MutationTrackingPreviewRepairTask.INCONSISTENT_MESSAGE);
+        assertNotificationContains(result, table + " -");
         assertPreviewFailuresBumpedOnCoordinator(CLUSTER, previewFailuresBefore, 1);
         assertDesyncRangesBumped(CLUSTER, 1, keyspace, table, desyncBefore);
         assertDiagnosticSnapshotExists(CLUSTER, keyspace, table, 1, 2, 3);
@@ -494,6 +497,8 @@ public class TrackedPreviewRepairTest extends TestBaseImpl
         result.asserts().success();
 
         assertNotificationContains(result, MutationTrackingPreviewRepairTask.INCONSISTENT_MESSAGE);
+        assertNotificationContains(result, tableA + " -");
+        assertNotificationAbsent(result, tableB + " -");
         assertPreviewFailuresBumpedOnCoordinator(CLUSTER, previewFailuresBefore, 1);
 
         assertDesyncRangesBumped(CLUSTER, 1, keyspace, tableA, desyncBeforeA);
@@ -501,6 +506,36 @@ public class TrackedPreviewRepairTest extends TestBaseImpl
 
         assertDiagnosticSnapshotExists(CLUSTER, keyspace, tableA, 1, 2, 3);
         assertNoDiagnosticSnapshot(CLUSTER, keyspace, tableB);
+    }
+
+    @Test
+    public void notifiesWithEveryTableWhenMultipleTablesDiverge()
+    {
+        String tableA = table;
+        String tableB = table + "_b";
+
+        CLUSTER.schemaChange("CREATE KEYSPACE " + keyspace + " WITH replication = {'class': 'SimpleStrategy', 'replication_factor': " + NODES + "} AND replication_type='tracked'");
+        CLUSTER.schemaChange("CREATE TABLE " + keyspace + '.' + tableA + " (k int PRIMARY KEY, v int)");
+        CLUSTER.schemaChange("CREATE TABLE " + keyspace + '.' + tableB + " (k int PRIMARY KEY, v int)");
+
+        writeRows(CLUSTER, keyspace, tableA, 0, 10);
+        writeRows(CLUSTER, keyspace, tableB, 0, 10);
+
+        settleReconciliation(CLUSTER);
+        flushAll(CLUSTER, keyspace, tableA);
+        flushAll(CLUSTER, keyspace, tableB);
+
+        // Both tables diverge, so the notification must list both rather than only the first one found.
+        injectSSTableCellDivergence(CLUSTER.get(2), keyspace, tableA, 3, 999);
+        injectSSTableCellDivergence(CLUSTER.get(2), keyspace, tableB, 3, 999);
+
+        NodeToolResult result = CLUSTER.get(1).nodetoolResult(true, "repair", "--validate", keyspace);
+        result.asserts().success();
+
+        assertNotificationContains(result, MutationTrackingPreviewRepairTask.INCONSISTENT_MESSAGE);
+        assertNotificationContains(result, tableA + " -");
+        assertNotificationContains(result, MutationTrackingPreviewRepairTask.INCONSISTENT_MESSAGE);
+        assertNotificationContains(result, tableB + " -");
     }
 
     @Test
@@ -523,6 +558,7 @@ public class TrackedPreviewRepairTest extends TestBaseImpl
         result.asserts().success();
 
         assertNotificationContains(result, MutationTrackingPreviewRepairTask.INCONSISTENT_MESSAGE);
+        assertNotificationContains(result, table + " -");
         assertPreviewFailuresBumpedOnCoordinator(CLUSTER, previewFailuresBefore, 1);
         assertDesyncRangesBumped(CLUSTER, 1, keyspace, table, desyncBefore);
         assertDiagnosticSnapshotExists(CLUSTER, keyspace, table, 1, 2, 3);
@@ -552,6 +588,7 @@ public class TrackedPreviewRepairTest extends TestBaseImpl
         result.asserts().success();
 
         assertNotificationContains(result, MutationTrackingPreviewRepairTask.INCONSISTENT_MESSAGE);
+        assertNotificationContains(result, table + " -");
         assertPreviewFailuresBumpedOnCoordinator(CLUSTER, previewFailuresBefore, 1);
         assertDesyncRangesBumped(CLUSTER, 1, keyspace, table, desyncBefore);
         assertDiagnosticSnapshotExists(CLUSTER, keyspace, table, 1, 2, 3);

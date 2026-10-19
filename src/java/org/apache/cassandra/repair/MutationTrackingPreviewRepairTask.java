@@ -19,6 +19,7 @@ package org.apache.cassandra.repair;
 
 import java.util.ArrayList;
 import java.util.Collections;
+import java.util.Comparator;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
@@ -43,6 +44,7 @@ import org.apache.cassandra.service.snapshot.SnapshotManager;
 import org.apache.cassandra.tcm.ClusterMetadata;
 import org.apache.cassandra.tcm.Epoch;
 import org.apache.cassandra.utils.DiagnosticSnapshotService;
+import org.apache.cassandra.utils.FBUtilities;
 import org.apache.cassandra.utils.TimeUUID;
 import org.apache.cassandra.utils.concurrent.AsyncPromise;
 import org.apache.cassandra.utils.concurrent.Future;
@@ -219,6 +221,36 @@ public class MutationTrackingPreviewRepairTask extends AbstractRepairTask
         }
     }
 
+    private static final class MismatchSummary
+    {
+        final String table;
+        final int rawRangeCount;
+        final List<Range<Token>> normalizedRanges;
+        final long bytes;
+
+        MismatchSummary(String table, int rawRangeCount, List<Range<Token>> normalizedRanges, long bytes)
+        {
+            this.table = table;
+            this.rawRangeCount = rawRangeCount;
+            this.normalizedRanges = normalizedRanges;
+            this.bytes = bytes;
+        }
+
+        @Override
+        public String toString()
+        {
+            return table + " - " + rawRangeCount + " ranges, " + FBUtilities.prettyPrintMemory(bytes) + " bytes";
+        }
+
+        static String format(List<MismatchSummary> mismatches)
+        {
+            StringBuilder output = new StringBuilder();
+            for (MismatchSummary mismatch : mismatches)
+                output.append(mismatch).append('\n');
+            return output.toString();
+        }
+    }
+
     private void emitInSyncAndComplete(AsyncPromise<CoordinatedRepairResult> promise, ValidationOffsets offset)
     {
         emitValidationComplete(promise, Collections.emptyMap(), Collections.emptySet(), offset);
@@ -231,39 +263,55 @@ public class MutationTrackingPreviewRepairTask extends AbstractRepairTask
     {
         coordinator.notifyProgress(VALIDATION_COMPLETE);
 
-        boolean anyMismatch = mismatchesByTable.values().stream().anyMatch(s -> !s.isEmpty());
-        String message = anyMismatch ? INCONSISTENT_MESSAGE : IN_SYNC_MESSAGE;
+        List<MismatchSummary> mismatches = summarizeMismatches(mismatchesByTable, offset);
+        String message = mismatches.isEmpty() ? IN_SYNC_MESSAGE : INCONSISTENT_MESSAGE + '\n' + MismatchSummary.format(mismatches);
         coordinator.notification(message);
         successMessage = name() + " completed successfully; " + message;
 
-        if (anyMismatch)
+        if (!mismatches.isEmpty())
         {
-            emitMismatchMetrics(mismatchesByTable, offset);
-            maybeSnapshotReplicas(mismatchesByTable, allParticipants);
+            emitMismatchMetrics(mismatches);
+            maybeSnapshotReplicas(mismatches, allParticipants);
         }
 
         promise.trySuccess(CoordinatedRepairResult.success(List.of()));
     }
 
-    private void emitMismatchMetrics(Map<String, Set<Range<Token>>> mismatchesByTable, ValidationOffsets offset)
+    private List<MismatchSummary> summarizeMismatches(Map<String, Set<Range<Token>>> mismatchesByTable, ValidationOffsets offset)
+    {
+        List<MismatchSummary> mismatches = new ArrayList<>();
+        for (Map.Entry<String, Set<Range<Token>>> entry : mismatchesByTable.entrySet())
+        {
+            Set<Range<Token>> rawRanges = entry.getValue();
+            if (rawRanges.isEmpty())
+                continue;
+            List<Range<Token>> normalizedRanges = Range.normalize(rawRanges);
+            ColumnFamilyStore cfs = ColumnFamilyStore.getIfExists(keyspace, entry.getKey());
+            long bytes = cfs == null ? 0 : estimatedDesynchronizedBytes(cfs, normalizedRanges, offset);
+            mismatches.add(new MismatchSummary(entry.getKey(), rawRanges.size(), normalizedRanges, bytes));
+        }
+
+        // a multi-table mismatch notification should read the same way every time
+        mismatches.sort(Comparator.comparing(m -> m.table));
+        return mismatches;
+    }
+
+    private void emitMismatchMetrics(List<MismatchSummary> mismatches)
     {
         RepairMetrics.previewFailures.inc();
 
-        for (Map.Entry<String, Set<Range<Token>>> entry : mismatchesByTable.entrySet())
+        for (MismatchSummary mismatch : mismatches)
         {
-            if (entry.getValue().isEmpty())
-                continue;
-            ColumnFamilyStore cfs = ColumnFamilyStore.getIfExists(keyspace, entry.getKey());
+            ColumnFamilyStore cfs = ColumnFamilyStore.getIfExists(keyspace, mismatch.table);
             if (cfs == null)
                 continue;
-            cfs.metric.tokenRangesPreviewedDesynchronized.mark(entry.getValue().size());
-            cfs.metric.bytesPreviewedDesynchronized.mark(estimatedDesynchronizedBytes(cfs, entry.getValue(), offset));
+            cfs.metric.tokenRangesPreviewedDesynchronized.mark(mismatch.rawRangeCount);
+            cfs.metric.bytesPreviewedDesynchronized.mark(mismatch.bytes);
         }
     }
 
-    private long estimatedDesynchronizedBytes(ColumnFamilyStore cfs, Set<Range<Token>> mismatchingRanges, ValidationOffsets offset)
+    private long estimatedDesynchronizedBytes(ColumnFamilyStore cfs, List<Range<Token>> normalizedRanges, ValidationOffsets offset)
     {
-        List<Range<Token>> normalizedRanges = Range.normalize(mismatchingRanges);
         long bytes = 0;
         for (SSTableReader sstable : cfs.getLiveSSTables())
         {
@@ -275,17 +323,15 @@ public class MutationTrackingPreviewRepairTask extends AbstractRepairTask
         return bytes;
     }
 
-    private void maybeSnapshotReplicas(Map<String, Set<Range<Token>>> mismatchesByTable, Set<InetAddressAndPort> participants)
+    private void maybeSnapshotReplicas(List<MismatchSummary> mismatches, Set<InetAddressAndPort> participants)
     {
         if (!DatabaseDescriptor.snapshotOnRepairedDataMismatch())
             return;
 
         String snapshotName = DiagnosticSnapshotService.getSnapshotName(DiagnosticSnapshotService.REPAIRED_DATA_MISMATCH_SNAPSHOT_PREFIX);
-        for (Map.Entry<String, Set<Range<Token>>> entry : mismatchesByTable.entrySet())
+        for (MismatchSummary mismatch : mismatches)
         {
-            if (entry.getValue().isEmpty())
-                continue;
-            String table = entry.getKey();
+            String table = mismatch.table;
             try
             {
                 if (SnapshotManager.instance.exists(keyspace, table, snapshotName))
@@ -294,10 +340,9 @@ public class MutationTrackingPreviewRepairTask extends AbstractRepairTask
                     continue;
                 }
 
-                List<Range<Token>> normalizedRanges = Range.normalize(entry.getValue());
                 logger.info("Snapshotting {}.{} for REPAIRED preview mismatch for ranges {} with tag {} on instances {}",
-                            keyspace, table, normalizedRanges, snapshotName, participants);
-                DiagnosticSnapshotService.repairedDataMismatch(Keyspace.open(keyspace).getColumnFamilyStore(table).metadata(), participants, normalizedRanges);
+                            keyspace, table, mismatch.normalizedRanges, snapshotName, participants);
+                DiagnosticSnapshotService.repairedDataMismatch(Keyspace.open(keyspace).getColumnFamilyStore(table).metadata(), participants, mismatch.normalizedRanges);
             }
             catch (Exception e)
             {

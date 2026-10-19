@@ -57,8 +57,7 @@ import org.apache.cassandra.schema.TableMetadata;
  * Merges a {@link CassandraValidationIterator}'s SSTable-sourced partitions with
  * reconciled-but-unflushed mutations read from this node's mutation journal, both filtered
  * to the same {@link ValidationOffsets}. Used only on the tracked keyspace validation path, so
- * the journal fills in exactly the data the SSTable predicate can't see because it was never
- * flushed.
+ * the journal fills in exactly the data the SSTable predicate can't see because it was never flushed.
  */
 public class JournalMergingValidationIterator extends ValidationPartitionIterator
 {
