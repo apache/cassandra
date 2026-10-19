@@ -151,6 +151,11 @@ abstract class Flusher implements Runnable
 
     private void processUnframedResponse(FlushItem.Unframed flush)
     {
+        if (!flush.channel.isOpen())
+        {
+            flush.responseEnvelope.release();
+            return;
+        }
         flush.channel.write(flush.responseEnvelope, flush.channel.voidPromise());
         channels.add(flush.channel);
     }
