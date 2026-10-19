@@ -443,6 +443,21 @@ public class MutationTrackingServiceTest
         }
     }
 
+    @Test
+    public void testNextHostLogIdFailsBeforeLoaded()
+    {
+        MutationTrackingService service = MutationTrackingService.TestAccess.createUnloaded();
+        try
+        {
+            MutationTrackingService.TestAccess.nextHostLogId(service);
+            Assert.fail("Expected IllegalStateException when allocating log ID before counter is loaded");
+        }
+        catch (IllegalStateException e)
+        {
+            assertTrue(e.getMessage().contains("Host log id counter has not been loaded"));
+        }
+    }
+
     private static Token tk(String key)
     {
         return new ByteOrderedPartitioner.BytesToken(ByteBufferUtil.bytes(key));

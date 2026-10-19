@@ -225,6 +225,9 @@ public class MutationTrackingService implements MutationTrackingServiceMBean
 
     private final Map<String, Set<MutationTrackingSyncCoordinator>> syncCoordinatorsByKeyspace = new ConcurrentHashMap<>();
 
+    private final Object hostLogIdLock = new Object();
+    private volatile boolean hostLogIdLoaded = false;
+
     private volatile boolean started = false;
 
     private MutationTrackingService()
@@ -244,7 +247,11 @@ public class MutationTrackingService implements MutationTrackingServiceMBean
         if (started)
             return;
 
-        prevHostLogId = loadHostLogIdFromSystemTable();
+        synchronized (hostLogIdLock)
+        {
+            prevHostLogId = loadHostLogIdFromSystemTable();
+            hostLogIdLoaded = true;
+        }
 
         logger.info("Starting mutation tracking service. Previous host log id: {}", prevHostLogId);
 
@@ -943,9 +950,13 @@ public class MutationTrackingService implements MutationTrackingServiceMBean
      */
     private int nextHostLogId()
     {
-        int nextHostLogId = ++prevHostLogId;
-        persistHostLogIdToSystemTable(nextHostLogId);
-        return nextHostLogId;
+        synchronized (hostLogIdLock)
+        {
+            Preconditions.checkState(hostLogIdLoaded, "Host log id counter has not been loaded from system tables");
+            int nextHostLogId = ++prevHostLogId;
+            persistHostLogIdToSystemTable(nextHostLogId);
+            return nextHostLogId;
+        }
     }
     private int prevHostLogId;
 
@@ -1930,7 +1941,19 @@ public class MutationTrackingService implements MutationTrackingServiceMBean
     {
         public static MutationTrackingService create()
         {
+            MutationTrackingService service = new MutationTrackingService();
+            service.hostLogIdLoaded = true;
+            return service;
+        }
+
+        public static MutationTrackingService createUnloaded()
+        {
             return new MutationTrackingService();
+        }
+
+        public static int nextHostLogId(MutationTrackingService service)
+        {
+            return service.nextHostLogId();
         }
 
         public static KeyspaceShards getKeyspaceShards(MutationTrackingService service, String keyspace)
