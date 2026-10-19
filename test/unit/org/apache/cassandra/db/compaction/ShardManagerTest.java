@@ -43,6 +43,7 @@ import org.apache.cassandra.dht.Range;
 import org.apache.cassandra.dht.Splitter;
 import org.apache.cassandra.dht.Token;
 import org.apache.cassandra.io.sstable.format.SSTableReader;
+import org.apache.cassandra.utils.EstimatedHistogram;
 import org.mockito.Mockito;
 
 import static org.assertj.core.api.Assertions.assertThat;
@@ -288,6 +289,97 @@ public class ShardManagerTest
                                                                             (sstables, range) -> new ArrayList<>(sstables));
         assertEquals(1, shards.size());
         assertEquals(ImmutableSet.of(a, b, crossing, d), ImmutableSet.copyOf(shards.get(0)));
+    }
+
+    @Test
+    public void testSplitSSTablesInShardsDiskAware()
+    {
+        ColumnFamilyStore.VersionedLocalRanges ranges = localRangesFull();
+        List<Token> diskBoundaries = splitRanges(ranges, 2);
+        ShardManager shardManager = new ShardManagerDiskAware(ranges, diskBoundaries, 10000L);
+
+        SSTableReader a = mockedTable(0.1, 0.2, Double.NaN);
+        SSTableReader b = mockedTable(0.3, 0.4, Double.NaN);
+        SSTableReader wide = mockedTable(0.2, 0.8, Double.NaN); // crosses three shard boundaries
+        SSTableReader e = mockedTable(0.9, 0.95, Double.NaN);
+        // A single token sstable sitting exactly on the disk boundary belongs to the shard ending there, as shard
+        // ranges are end inclusive.
+        SSTableReader onBoundary = Mockito.mock(SSTableReader.class);
+        DecoratedKey boundaryKey = new BufferDecoratedKey(diskBoundaries.get(0), ByteBuffer.allocate(0));
+        Mockito.when(onBoundary.getFirst()).thenReturn(boundaryKey);
+        Mockito.when(onBoundary.getLast()).thenReturn(boundaryKey);
+
+        List<Range<Token>> shardRanges = new ArrayList<>();
+        List<List<SSTableReader>> shards = shardManager.splitSSTablesInShards(ImmutableList.of(e, onBoundary, wide, a, b),
+                                                                              2,
+                                                                              (sstables, range) -> {
+                                                                                  shardRanges.add(range);
+                                                                                  return new ArrayList<>(sstables);
+                                                                              });
+
+        assertEquals(4, shards.size());
+        assertEquals(ImmutableSet.of(a, wide), ImmutableSet.copyOf(shards.get(0)));
+        assertEquals(ImmutableSet.of(b, wide, onBoundary), ImmutableSet.copyOf(shards.get(1)));
+        assertEquals(ImmutableList.of(wide), shards.get(2));
+        assertEquals(ImmutableSet.of(wide, e), ImmutableSet.copyOf(shards.get(3)));
+        assertEquals(tokenAt(0.25), shardRanges.get(0).right);
+        assertEquals(diskBoundaries.get(0), shardRanges.get(1).right);
+        assertEquals(tokenAt(0.75), shardRanges.get(2).right);
+        assertEquals(minimumToken, shardRanges.get(3).right);
+
+        // Entering the second disk directly, without passing through the first.
+        shardRanges.clear();
+        shards = shardManager.splitSSTablesInShards(ImmutableList.of(e),
+                                                    2,
+                                                    (sstables, range) -> {
+                                                        shardRanges.add(range);
+                                                        return new ArrayList<>(sstables);
+                                                    });
+        assertEquals(ImmutableList.of(ImmutableList.of(e)), shards);
+        assertEquals(tokenAt(0.75), shardRanges.get(0).left);
+        assertEquals(minimumToken, shardRanges.get(0).right);
+    }
+
+    @Test
+    public void testRangeSpannedDiskAware()
+    {
+        ColumnFamilyStore.VersionedLocalRanges ranges = localRangesFull();
+        ShardManager shardManager = new ShardManagerDiskAware(ranges, splitRanges(ranges, 2), 10000L);
+
+        // DiskAware inherits the span floor from ShardManagerNoDisks
+        assertEquals(0.02, shardManager.rangeSpanned(mockedTable(0.3, 0.3, Double.NaN, 200)), delta);
+    }
+
+    @Test
+    public void testPartitionCountFromStatsMetadata()
+    {
+        weightedRanges.add(new Splitter.WeightedRange(1.0, new Range<>(minimumToken, minimumToken)));
+        ShardManager shardManager = new ShardManagerNoDisks(weightedRanges, 10000L);
+
+        // The stats histogram holds the exact count and wins over estimatedKeys.
+        EstimatedHistogram threePartitions = new EstimatedHistogram();
+        threePartitions.add(100);
+        threePartitions.add(200);
+        threePartitions.add(300);
+        SSTableReader withHistogram = mockedTable(0.3, 0.3, Double.NaN, 500);
+        Mockito.when(withHistogram.getEstimatedPartitionSize()).thenReturn(threePartitions);
+        assertEquals(3, ShardManager.partitionCount(withHistogram));
+        assertEquals(0.0003, shardManager.rangeSpanned(withHistogram), delta);
+
+        // An empty histogram falls back to estimatedKeys.
+        SSTableReader emptyHistogram = mockedTable(0.3, 0.3, Double.NaN, 7);
+        Mockito.when(emptyHistogram.getEstimatedPartitionSize()).thenReturn(new EstimatedHistogram());
+        assertEquals(7, ShardManager.partitionCount(emptyHistogram));
+        assertEquals(0.0007, shardManager.rangeSpanned(emptyHistogram), delta);
+
+        // No histogram and no keys still count as one partition, so the span floor is never zero.
+        SSTableReader noKeys = mockedTable(0.3, 0.3, Double.NaN, 0);
+        assertEquals(1, ShardManager.partitionCount(noKeys));
+        assertEquals(0.0001, shardManager.rangeSpanned(noKeys), delta);
+
+        // The floor applies below PER_PARTITION_SPAN_THRESHOLD partitions and the raw span from it.
+        assertEquals(0.0099, shardManager.rangeSpanned(mockedTable(0.3, 0.3 + 1e-6, Double.NaN, ShardManager.PER_PARTITION_SPAN_THRESHOLD - 1)), delta);
+        assertEquals(1e-6, shardManager.rangeSpanned(mockedTable(0.3, 0.3 + 1e-6, Double.NaN, ShardManager.PER_PARTITION_SPAN_THRESHOLD)), delta);
     }
 
     Token tokenAt(double pos)

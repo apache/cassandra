@@ -201,6 +201,30 @@ public class ControllerTest
         assertThatExceptionOfType(ConfigurationException.class).isThrownBy(() -> Controller.validateOptions(options));
     }
 
+    @Test
+    public void testMaxSstablesPerShardFactorValidationMessages()
+    {
+        Map<String, String> options = new HashMap<>();
+        options.put(Controller.MAX_SSTABLES_PER_SHARD_FACTOR_OPTION, "1");
+        Controller.validateOptions(options);
+        assertEquals(1.0, Controller.fromOptions(cfs, options).getMaxSstablesPerShardFactor(), epsilon);
+
+        testMaxSstablesPerShardFactorError("0.999", "max_sstables_per_shard_factor 0.999 must be a number greater than or equal to 1");
+        // NaN compares false to every number, so validation must reject it explicitly
+        testMaxSstablesPerShardFactorError("NaN", "max_sstables_per_shard_factor NaN must be a number greater than or equal to 1");
+        testMaxSstablesPerShardFactorError("abc", "abc is not a parsable number for max_sstables_per_shard_factor");
+    }
+
+    void testMaxSstablesPerShardFactorError(String input, String message)
+    {
+        Map<String, String> options = new HashMap<>();
+        options.put(Controller.MAX_SSTABLES_PER_SHARD_FACTOR_OPTION, input);
+        assertThatExceptionOfType(ConfigurationException.class)
+        .describedAs("Should have thrown a ConfigurationException for max_sstables_per_shard_factor " + input)
+        .isThrownBy(() -> Controller.validateOptions(options))
+        .withMessageContaining(message);
+    }
+
     void testValidateOptions(boolean useIntegers)
     {
         Map<String, String> options = new HashMap<>();
