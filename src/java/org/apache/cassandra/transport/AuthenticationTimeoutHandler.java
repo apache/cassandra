@@ -41,10 +41,12 @@ final class AuthenticationTimeoutHandler extends ChannelInboundHandlerAdapter
     // Ensures timeout expiry and authentication completion can only win once.
     private final AtomicBoolean finished = new AtomicBoolean();
     private ScheduledFuture<?> timeoutFuture;
+    private final Runnable removeHandler;
 
-    AuthenticationTimeoutHandler(long timeoutMillis)
+    AuthenticationTimeoutHandler(long timeoutMillis, Runnable removeHandler)
     {
         this.timeoutMillis = timeoutMillis;
+        this.removeHandler = removeHandler;
     }
 
     @Override
@@ -64,7 +66,10 @@ final class AuthenticationTimeoutHandler extends ChannelInboundHandlerAdapter
 
     void markAuthenticationComplete()
     {
-        finished.compareAndSet(false, true);
+        if (finished.compareAndSet(false, true))
+        {
+            removeHandler.run();
+        }
     }
 
     @Override

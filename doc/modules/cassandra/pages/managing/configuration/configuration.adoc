@@ -65,7 +65,6 @@ our parameters (incrementally, post https://issues.apache.org/jira/browse/CASSAN
 |credentials_update_interval_in_ms |credentials_update_interval |ms
 |max_hint_window_in_ms |max_hint_window |ms
 |native_transport_idle_timeout_in_ms |native_transport_idle_timeout |ms
-|native_transport_auth_timeout_in_ms |native_transport_auth_timeout |ms
 |request_timeout_in_ms |request_timeout |ms
 |read_request_timeout_in_ms |read_request_timeout |ms
 |range_request_timeout_in_ms |range_request_timeout |ms

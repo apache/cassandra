@@ -92,6 +92,7 @@ public class PipelineConfigurator
     // Names of handlers used regardless of protocol version
     private static final String CONNECTION_LIMIT_HANDLER    = "connectionLimitHandler";
     private static final String IDLE_STATE_HANDLER          = "idleStateHandler";
+    private static final String AUTH_TIMEOUT_HANDLER        = "authTimeoutHandler";
     private static final String INITIAL_HANDLER             = "initialHandler";
     private static final String EXCEPTION_HANDLER           = "exceptionHandler";
     private static final String DEBUG_HANDLER               = "debugHandler";
@@ -277,8 +278,8 @@ public class PipelineConfigurator
 
         long authTimeout = DatabaseDescriptor.nativeTransportAuthTimeout();
         if (authTimeout > 0)
-            pipeline.addLast("authenticationTimeout",
-                             new AuthenticationTimeoutHandler(authTimeout));
+            pipeline.addLast(AUTH_TIMEOUT_HANDLER,
+                             new AuthenticationTimeoutHandler(authTimeout, () -> pipeline.remove(AUTH_TIMEOUT_HANDLER)));
 
         if (DEBUG)
             pipeline.addLast(DEBUG_HANDLER, new LoggingHandler(LogLevel.INFO));

@@ -209,6 +209,8 @@ import org.apache.cassandra.utils.LazyToString;
 import org.apache.cassandra.utils.Pair;
 import org.apache.cassandra.utils.TimeUUID;
 
+import io.netty.channel.group.ChannelGroup;
+
 import static org.apache.cassandra.config.CassandraRelevantProperties.SYSTEM_DISTRIBUTED_DEFAULT_RF;
 import static org.apache.cassandra.config.CassandraRelevantProperties.TEST_DRIVER_CONNECTION_TIMEOUT_MS;
 import static org.apache.cassandra.config.CassandraRelevantProperties.TEST_DRIVER_READ_TIMEOUT_MS;
@@ -370,6 +372,16 @@ public abstract class CQLTester
     public void useSuperUser()
     {
         this.user = SUPER_USER;
+    }
+
+    /**
+     * Returns the channel for all active connections.
+     *
+     * @return the channel for all active connections
+     */
+    public static ChannelGroup allChannels()
+    {
+        return server.allChannels();
     }
 
     /**
@@ -1883,10 +1895,10 @@ public abstract class CQLTester
     }
 
     private UntypedResultSet executeFormattedQuery(String query, boolean useCoordinator, Object... values)
-    {        
+    {
         if (useCoordinator)
             requireNetworkWithoutDriver();
-        
+
         UntypedResultSet rs;
         if (usePrepared)
         {

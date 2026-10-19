@@ -36,8 +36,11 @@ import org.apache.cassandra.transport.messages.OptionsMessage;
 import org.apache.cassandra.transport.messages.StartupMessage;
 import org.apache.cassandra.transport.messages.SupportedMessage;
 
+import io.netty.channel.Channel;
+
 import static org.apache.cassandra.auth.AuthTestUtils.getToken;
 import static org.junit.Assert.assertFalse;
+import static org.junit.Assert.assertNotNull;
 import static org.junit.Assert.assertNull;
 import static org.junit.Assert.assertTrue;
 
@@ -143,7 +146,6 @@ public class AuthenticationTimeoutTest extends CQLTester
     }
 
 
-
     @Test
     public void testAuthenticationTimeoutDisabled() throws Exception
     {
@@ -191,17 +193,23 @@ public class AuthenticationTimeoutTest extends CQLTester
         }
     }
 
-    static void assertAuthenticationTimeoutHandlerRemoved(SimpleClient client) throws InterruptedException
+    public static void assertAuthenticationTimeoutHandlerRemoved(SimpleClient client)
     {
-        long deadline = System.nanoTime() + TimeUnit.SECONDS.toNanos(5);
+        Channel serverChannel = null;
 
-        while (client.channel.pipeline().get(AuthenticationTimeoutHandler.class) != null
-               && System.nanoTime() < deadline)
+        for (Channel channel : allChannels())
         {
-            Thread.sleep(10);
+            Connection connection = channel.attr(Connection.attributeKey).get();
+            if (connection instanceof ServerConnection
+                && client.channel.localAddress().equals(channel.remoteAddress()))
+        {
+            serverChannel = channel;
+            break;
+        }
         }
 
+        assertNotNull("Could not find the server-side channel for the client", serverChannel);
         assertNull("Authentication timeout handler should be removed after authentication",
-                   client.channel.pipeline().get(AuthenticationTimeoutHandler.class));
+                   serverChannel.pipeline().get(AuthenticationTimeoutHandler.class));
     }
 }
