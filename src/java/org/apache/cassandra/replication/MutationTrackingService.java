@@ -247,15 +247,11 @@ public class MutationTrackingService implements MutationTrackingServiceMBean
         if (started)
             return;
 
-        synchronized (hostLogIdLock)
-        {
-            prevHostLogId = loadHostLogIdFromSystemTable();
-            hostLogIdLoaded = true;
-        }
+        ClusterMetadata metadata = register.apply(tcmListener);
+
+        initHostLogId(metadata);
 
         logger.info("Starting mutation tracking service. Previous host log id: {}", prevHostLogId);
-
-        ClusterMetadata metadata = register.apply(tcmListener);
 
         if (metadata.myNodeId() != null)
             for (KeyspaceShards ks : KeyspaceShards.loadFromSystemTables(metadata, this::nextLogId, this::onNewLog))
@@ -1632,6 +1628,49 @@ public class MutationTrackingService implements MutationTrackingServiceMBean
         return rows.one().getInt("host_log_id");
     }
 
+    private static final String SELECT_COORDINATOR_LOGS_QUERY =
+        format("SELECT host_id, host_log_id FROM %s.%s",
+               SchemaConstants.SYSTEM_KEYSPACE_NAME, SystemKeyspace.COORDINATOR_LOGS);
+
+    static int loadMaxCoordinatorLogIdFromSystemTable(int localHostId)
+    {
+        UntypedResultSet rows = executeInternal(SELECT_COORDINATOR_LOGS_QUERY);
+        int max = 0;
+        for (UntypedResultSet.Row row : rows)
+        {
+            if (row.has("host_id") && row.getInt("host_id") == localHostId)
+            {
+                if (row.has("host_log_id"))
+                    max = Math.max(max, row.getInt("host_log_id"));
+            }
+        }
+        return max;
+    }
+
+    private void initHostLogId(ClusterMetadata metadata)
+    {
+        NodeId myNodeId = metadata.myNodeId();
+        synchronized (hostLogIdLock)
+        {
+            int storedHostLogId = loadHostLogIdFromSystemTable();
+            int maxCoordinatorLogId = myNodeId != null ? loadMaxCoordinatorLogIdFromSystemTable(myNodeId.id()) : 0;
+            if (maxCoordinatorLogId > storedHostLogId)
+            {
+                logger.error("Stored mutation tracking host log id {} in {}.{} has regressed; highest log id found in {}.{} for local node {} is {}",
+                             storedHostLogId, SchemaConstants.SYSTEM_KEYSPACE_NAME, SystemKeyspace.HOST_LOG_ID,
+                             SchemaConstants.SYSTEM_KEYSPACE_NAME, SystemKeyspace.COORDINATOR_LOGS,
+                             myNodeId, maxCoordinatorLogId);
+            }
+            prevHostLogId = Math.max(storedHostLogId, maxCoordinatorLogId);
+            if (prevHostLogId > storedHostLogId)
+            {
+                persistHostLogIdToSystemTable(prevHostLogId);
+                SystemKeyspace.forceBlockingFlush(SystemKeyspace.HOST_LOG_ID);
+            }
+            hostLogIdLoaded = true;
+        }
+    }
+
     private static class BackgroundReconciler
     {
         void start()
@@ -1955,6 +1994,16 @@ public class MutationTrackingService implements MutationTrackingServiceMBean
         public static int nextHostLogId(MutationTrackingService service)
         {
             return service.nextHostLogId();
+        }
+
+        public static void initHostLogId(MutationTrackingService service, ClusterMetadata metadata)
+        {
+            service.initHostLogId(metadata);
+        }
+
+        public static int getPrevHostLogId(MutationTrackingService service)
+        {
+            return service.prevHostLogId;
         }
 
         public static KeyspaceShards getKeyspaceShards(MutationTrackingService service, String keyspace)

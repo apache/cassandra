@@ -35,8 +35,10 @@ import org.junit.Test;
 
 import org.apache.cassandra.SchemaLoader;
 import org.apache.cassandra.config.DatabaseDescriptor;
+import org.apache.cassandra.cql3.QueryProcessor;
 import org.apache.cassandra.db.Keyspace;
 import org.apache.cassandra.db.PartitionPosition;
+import org.apache.cassandra.db.SystemKeyspace;
 import org.apache.cassandra.dht.AbstractBounds;
 import org.apache.cassandra.dht.ByteOrderedPartitioner;
 import org.apache.cassandra.dht.Range;
@@ -50,6 +52,7 @@ import org.apache.cassandra.repair.SyncTask;
 import org.apache.cassandra.repair.SyncTasks;
 import org.apache.cassandra.replication.MutationTrackingService.KeyspaceShards;
 import org.apache.cassandra.schema.KeyspaceParams;
+import org.apache.cassandra.schema.SchemaConstants;
 import org.apache.cassandra.schema.ReplicationType;
 import org.apache.cassandra.schema.SchemaTestUtil;
 import org.apache.cassandra.schema.TableId;
@@ -456,6 +459,39 @@ public class MutationTrackingServiceTest
         {
             assertTrue(e.getMessage().contains("Host log id counter has not been loaded"));
         }
+    }
+
+    @Test
+    public void testStartupGuardBumpsRegressedCounter()
+    {
+        QueryProcessor.executeInternal(String.format("INSERT INTO %s.%s (keyspace_name, range_start, range_end, host_id, host_log_id) VALUES (?, ?, ?, ?, ?)",
+                                                     SchemaConstants.SYSTEM_KEYSPACE_NAME, SystemKeyspace.COORDINATOR_LOGS),
+                                       "test_ks", "a", "z", 1, 56);
+        QueryProcessor.executeInternal(String.format("INSERT INTO %s.%s (keyspace_name, range_start, range_end, host_id, host_log_id) VALUES (?, ?, ?, ?, ?)",
+                                                     SchemaConstants.SYSTEM_KEYSPACE_NAME, SystemKeyspace.COORDINATOR_LOGS),
+                                       "test_ks", "a", "z", 2, 100);
+
+        assertEquals(56, MutationTrackingService.loadMaxCoordinatorLogIdFromSystemTable(1));
+        assertEquals(100, MutationTrackingService.loadMaxCoordinatorLogIdFromSystemTable(2));
+
+        // Stored counter is 6 (regressed compared to 56)
+        MutationTrackingService.persistHostLogIdToSystemTable(6);
+        assertEquals(6, MutationTrackingService.loadHostLogIdFromSystemTable());
+
+        MutationTrackingService service = MutationTrackingService.TestAccess.createUnloaded();
+        ClusterMetadata metadata = ClusterMetadata.current();
+        MutationTrackingService.TestAccess.initHostLogId(service, metadata);
+
+        // Counter bumped to 56 and persisted
+        assertEquals(56, MutationTrackingService.TestAccess.getPrevHostLogId(service));
+        assertEquals(56, MutationTrackingService.loadHostLogIdFromSystemTable());
+
+        // When stored is higher, counter does not regress
+        MutationTrackingService.persistHostLogIdToSystemTable(70);
+        MutationTrackingService service2 = MutationTrackingService.TestAccess.createUnloaded();
+        MutationTrackingService.TestAccess.initHostLogId(service2, metadata);
+        assertEquals(70, MutationTrackingService.TestAccess.getPrevHostLogId(service2));
+        assertEquals(70, MutationTrackingService.loadHostLogIdFromSystemTable());
     }
 
     private static Token tk(String key)
