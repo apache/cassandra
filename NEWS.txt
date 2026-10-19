@@ -72,8 +72,8 @@ New features
 ------------
     - UnifiedCompactionStrategy has a new table option max_sstables_per_shard_factor (default 10). When a level has
       no overlapping sstables to compact and one of its shards holds more than this factor times the level's fanout
-      sstables, all sstables in that shard are compacted together. Set it to a very large value to keep the
-      previous behaviour. (CASSANDRA-21615)
+      sstables, all sstables in that shard are compacted together. Set it to Infinity to keep the previous
+      behaviour. (CASSANDRA-21615)
 
 Upgrading
 ---------

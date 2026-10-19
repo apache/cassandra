@@ -194,6 +194,11 @@ public class ControllerTest
         controller = Controller.fromOptions(cfs, options);
         assertEquals(Double.POSITIVE_INFINITY, controller.getMaxSstablesPerShardFactor(), epsilon);
 
+        options.put(Controller.MAX_SSTABLES_PER_SHARD_FACTOR_OPTION, "Infinity");
+        Controller.validateOptions(options);
+        controller = Controller.fromOptions(cfs, options);
+        assertEquals(Double.POSITIVE_INFINITY, controller.getMaxSstablesPerShardFactor(), epsilon);
+
         options.put(Controller.MAX_SSTABLES_PER_SHARD_FACTOR_OPTION, "0.9");
         assertThatExceptionOfType(ConfigurationException.class).isThrownBy(() -> Controller.validateOptions(options));
 
