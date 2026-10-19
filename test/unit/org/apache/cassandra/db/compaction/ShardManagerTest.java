@@ -248,6 +248,48 @@ public class ShardManagerTest
         assertEquals(expected, shardManager.calculateCombinedDensity(ImmutableSet.of(narrowA, narrowB)), expected * 1e-6);
     }
 
+    @Test
+    public void testSplitSSTablesInShards()
+    {
+        weightedRanges.add(new Splitter.WeightedRange(1.0, new Range<>(minimumToken, minimumToken)));
+        ShardManager shardManager = new ShardManagerNoDisks(weightedRanges, 10000L);
+
+        SSTableReader a = mockedTable(0.1, 0.2, Double.NaN);
+        SSTableReader b = mockedTable(0.3, 0.4, Double.NaN);
+        SSTableReader crossing = mockedTable(0.45, 0.55, Double.NaN); // straddles the boundary at 0.5
+        SSTableReader d = mockedTable(0.9, 0.95, Double.NaN);
+
+        List<Range<Token>> shardRanges = new ArrayList<>();
+        List<List<SSTableReader>> shards = shardManager.splitSSTablesInShards(ImmutableList.of(d, crossing, a, b),
+                                                                              4,
+                                                                              (sstables, range) -> {
+                                                                                  shardRanges.add(range);
+                                                                                  return new ArrayList<>(sstables);
+                                                                              });
+
+        assertEquals(4, shards.size());
+        assertEquals(ImmutableList.of(a), shards.get(0));
+        assertEquals(ImmutableSet.of(b, crossing), ImmutableSet.copyOf(shards.get(1)));
+        assertEquals(ImmutableList.of(crossing), shards.get(2));
+        assertEquals(ImmutableList.of(d), shards.get(3));
+        assertEquals(tokenAt(0.25), shardRanges.get(0).right);
+        assertEquals(tokenAt(0.5), shardRanges.get(1).right);
+        assertEquals(tokenAt(0.75), shardRanges.get(2).right);
+
+        // A shard without sstables is skipped and a null result is dropped.
+        shards = shardManager.splitSSTablesInShards(ImmutableList.of(a, d),
+                                                    4,
+                                                    (sstables, range) -> sstables.contains(d) ? null : new ArrayList<>(sstables));
+        assertEquals(ImmutableList.of(ImmutableList.of(a)), shards);
+
+        // A shard manager without shard boundaries puts everything in one shard.
+        shards = new ShardManagerTrivial(partitioner).splitSSTablesInShards(ImmutableList.of(d, crossing, a, b),
+                                                                            4,
+                                                                            (sstables, range) -> new ArrayList<>(sstables));
+        assertEquals(1, shards.size());
+        assertEquals(ImmutableSet.of(a, b, crossing, d), ImmutableSet.copyOf(shards.get(0)));
+    }
+
     Token tokenAt(double pos)
     {
         return partitioner.split(minimumToken, minimumToken, pos);

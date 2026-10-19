@@ -18,7 +18,12 @@
 
 package org.apache.cassandra.db.compaction;
 
+import java.util.ArrayList;
+import java.util.Collection;
+import java.util.List;
+import java.util.PriorityQueue;
 import java.util.Set;
+import java.util.function.BiFunction;
 import java.util.stream.Collectors;
 
 import com.google.common.collect.ImmutableList;
@@ -120,6 +125,54 @@ public interface ShardManager
      * or which have fallen outside the local token ranges.
      */
     double minimumPerPartitionSpan();
+
+    /**
+     * Assign the given sstables to the shards of a shard set, and apply the maker to each shard that intersects at
+     * least one sstable. An sstable that crosses a shard boundary is passed to the maker for every shard it
+     * intersects. Shards without sstables are skipped.
+     *
+     * @param sstables the sstables to assign
+     * @param numShardsForDensity the number of shards to split the local space into
+     * @param maker called with the sstables intersecting a shard and the shard's token range. The collection passed
+     *              is reused between calls and must be copied if retained. A null result is not added.
+     * @return the non-null results of the maker, in shard order
+     */
+    default <T> List<T> splitSSTablesInShards(Collection<SSTableReader> sstables,
+                                              int numShardsForDensity,
+                                              BiFunction<Collection<SSTableReader>, Range<Token>, T> maker)
+    {
+        List<T> results = new ArrayList<>();
+        ShardTracker boundaries = boundaries(numShardsForDensity);
+        List<SSTableReader> sorted = new ArrayList<>(sstables);
+        sorted.sort(SSTableReader.firstKeyComparator);
+        PriorityQueue<SSTableReader> active = new PriorityQueue<>(SSTableReader.lastKeyComparator);
+        int next = 0;
+        while (next < sorted.size() || !active.isEmpty())
+        {
+            if (active.isEmpty())
+            {
+                boundaries.advanceTo(sorted.get(next).getFirst().getToken());
+                active.add(sorted.get(next++));
+            }
+            Token shardEnd = boundaries.shardEnd();
+            if (shardEnd != null && shardEnd.isMinimum())
+                shardEnd = null; // single unbounded shard, e.g. ShardManagerTrivial
+
+            while (next < sorted.size() && (shardEnd == null || sorted.get(next).getFirst().getToken().compareTo(shardEnd) <= 0))
+                active.add(sorted.get(next++));
+
+            T result = maker.apply(active, boundaries.shardSpan());
+            if (result != null)
+                results.add(result);
+
+            while (!active.isEmpty() && (shardEnd == null || active.peek().getLast().getToken().compareTo(shardEnd) <= 0))
+                active.poll();
+
+            if (!active.isEmpty()) // shardEnd must be non-null, otherwise the loop above empties the queue
+                boundaries.advanceTo(shardEnd.nextValidToken());
+        }
+        return results;
+    }
 
     /**
      * Construct a boundary/shard iterator for the given number of shards.
