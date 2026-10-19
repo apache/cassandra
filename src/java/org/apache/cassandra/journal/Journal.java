@@ -191,10 +191,12 @@ public class Journal<K, V> implements Shutdownable
     public static class Snapshot<K, V> implements AutoCloseable
     {
         private final Segments.ReferencedSegments<K, V> segments;
+        private final OpOrder readOrder;
 
-        private Snapshot(@Nonnull ReferencedSegments<K, V> segments)
+        private Snapshot(@Nonnull ReferencedSegments<K, V> segments, OpOrder readOrder)
         {
             this.segments = segments;
+            this.readOrder = readOrder;
         }
 
         /**
@@ -208,6 +210,18 @@ public class Journal<K, V> implements Shutdownable
             for (Segment<K, V> segment : segments.allSorted(false))
             {
                 segment.readAll(consumer);
+            }
+        }
+
+        /**
+         * Look up a specific record by id, from this snapshot's own pinned segments. This is safe
+         * to call as long as this snapshot is still open.
+         */
+        public boolean readLast(K id, RecordConsumer<K> consumer)
+        {
+            try (OpOrder.Group group = readOrder.start())
+            {
+                return Journal.readLast(id, consumer, group, segments);
             }
         }
 
@@ -552,7 +566,7 @@ public class Journal<K, V> implements Shutdownable
 
     public Snapshot<K, V> snapshot(Predicate<Segment<K, V>> predicate)
     {
-        return new Snapshot<>(selectAndReference(predicate));
+        return new Snapshot<>(selectAndReference(predicate), readOrder);
     }
 
     /**

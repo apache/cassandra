@@ -164,14 +164,7 @@ public class TrackedPreviewRepairTest extends TestBaseImpl
         NodeToolResult result = CLUSTER.get(1).nodetoolResult(true, "repair", "--validate", keyspace);
         result.asserts().success();
 
-        assertNotificationContains(result, MutationTrackingPreviewRepairTask.ESTABLISHING_OFFSETS);
-        assertNotificationContains(result, MutationTrackingPreviewRepairTask.VALIDATION_COMPLETE);
-
-        assertNotificationContains(result, MutationTrackingPreviewRepairTask.IN_SYNC_MESSAGE);
-
-        assertPreviewFailuresUnchanged(CLUSTER, previewFailuresBefore);
-
-        assertNoDiagnosticSnapshot(CLUSTER, keyspace, table);
+        assertInSyncValidation(result, CLUSTER, keyspace, table, previewFailuresBefore);
     }
 
     @Test
@@ -191,12 +184,7 @@ public class TrackedPreviewRepairTest extends TestBaseImpl
         NodeToolResult result = CLUSTER.get(1).nodetoolResult(true, "repair", "--validate", keyspace);
         result.asserts().success();
 
-        assertNotificationContains(result, MutationTrackingPreviewRepairTask.ESTABLISHING_OFFSETS);
-        assertNotificationContains(result, MutationTrackingPreviewRepairTask.VALIDATION_COMPLETE);
-        assertNotificationContains(result, MutationTrackingPreviewRepairTask.IN_SYNC_MESSAGE);
-
-        assertPreviewFailuresUnchanged(CLUSTER, previewFailuresBefore);
-        assertNoDiagnosticSnapshot(CLUSTER, keyspace, table);
+        assertInSyncValidation(result, CLUSTER, keyspace, table, previewFailuresBefore);
     }
 
     @Test
@@ -220,12 +208,40 @@ public class TrackedPreviewRepairTest extends TestBaseImpl
         NodeToolResult result = CLUSTER.get(1).nodetoolResult(true, "repair", "--validate", keyspace);
         result.asserts().success();
 
-        assertNotificationContains(result, MutationTrackingPreviewRepairTask.ESTABLISHING_OFFSETS);
-        assertNotificationContains(result, MutationTrackingPreviewRepairTask.VALIDATION_COMPLETE);
-        assertNotificationContains(result, MutationTrackingPreviewRepairTask.IN_SYNC_MESSAGE);
+        assertInSyncValidation(result, CLUSTER, keyspace, table, previewFailuresBefore);
+    }
 
+    @Test
+    public void validatesJournalOnlyBatchWhenMultipleSSTablesCoverEarlierOffsets()
+    {
+        createTrackedSchema(CLUSTER, keyspace, table);
+        disableAutocompaction(CLUSTER, keyspace, table);
+
+        // flushed to its own SSTable covering an earlier sub-range of this node's log
+        writeRows(CLUSTER, keyspace, table, 0, 10);
+        flushAll(CLUSTER, keyspace, table);
+        settleReconciliation(CLUSTER);
+
+        // flushed to a separate SSTable covering a later sub-range of the same log
+        writeRows(CLUSTER, keyspace, table, 10, 20);
+        flushAll(CLUSTER, keyspace, table);
+        settleReconciliation(CLUSTER);
+
+        // journal-resident batch not covered by either SSTable
+        writeRows(CLUSTER, keyspace, table, 20, 30);
+        settleReconciliation(CLUSTER);
+
+        long[] previewFailuresBefore = previewFailuresPerNode(CLUSTER);
+
+        NodeToolResult result = CLUSTER.get(1).nodetoolResult(true, "repair", "--validate", keyspace);
+        result.asserts().success();
+
+        assertNotificationContains(result, MutationTrackingPreviewRepairTask.IN_SYNC_MESSAGE);
         assertPreviewFailuresUnchanged(CLUSTER, previewFailuresBefore);
         assertNoDiagnosticSnapshot(CLUSTER, keyspace, table);
+
+        assertThat(totalValidatedSSTables(CLUSTER.get(1), keyspace, table)).isEqualTo(2);
+        assertThat(totalValidatedJournalPartitions(CLUSTER.get(1), keyspace, table)).isEqualTo(10);
     }
 
     @Test
@@ -241,6 +257,20 @@ public class TrackedPreviewRepairTest extends TestBaseImpl
 
         for (int k = 30; k < 40; k++)
             CLUSTER.coordinator(1).execute("INSERT INTO " + keyspace + '.' + table + " (k) VALUES (?)", ConsistencyLevel.ALL, k);
+
+        settleAndAssertInSyncWithCoordinatorFlushed(CLUSTER, keyspace, table);
+    }
+
+    @Test
+    public void reportsInSyncWhenPartitionHasMultipleUnflushedJournalEntries()
+    {
+        CLUSTER.schemaChange("CREATE KEYSPACE " + keyspace + " WITH replication = {'class': 'SimpleStrategy', 'replication_factor': " + NODES + "} AND replication_type='tracked'");
+        CLUSTER.schemaChange("CREATE TABLE " + keyspace + '.' + table + " (k int PRIMARY KEY, v int, w int)");
+
+        // Two separate mutations touch the same partition, each setting a different column, so a replica that hasn't 
+        // flushed must merge more than one journal entry for this key to produce the correct row.
+        CLUSTER.coordinator(1).execute("INSERT INTO " + keyspace + '.' + table + " (k, v) VALUES (?, ?)", ConsistencyLevel.ALL, 0, 0);
+        CLUSTER.coordinator(1).execute("INSERT INTO " + keyspace + '.' + table + " (k, w) VALUES (?, ?)", ConsistencyLevel.ALL, 0, 0);
 
         settleAndAssertInSyncWithCoordinatorFlushed(CLUSTER, keyspace, table);
     }
@@ -289,11 +319,7 @@ public class TrackedPreviewRepairTest extends TestBaseImpl
         NodeToolResult result = coordinator.nodetoolResult(true, "repair", "--validate", keyspace);
         result.asserts().success();
 
-        assertNotificationContains(result, MutationTrackingPreviewRepairTask.ESTABLISHING_OFFSETS);
-        assertNotificationContains(result, MutationTrackingPreviewRepairTask.VALIDATION_COMPLETE);
-        assertNotificationContains(result, MutationTrackingPreviewRepairTask.IN_SYNC_MESSAGE);
-        assertPreviewFailuresUnchanged(CLUSTER, previewFailuresBefore);
-        assertNoDiagnosticSnapshot(CLUSTER, keyspace, table);
+        assertInSyncValidation(result, CLUSTER, keyspace, table, previewFailuresBefore);
 
         assertThat(totalValidatedSSTables(coordinator, keyspace, table)).as("there are no SSTables in this scenario, so none should have been validated").isZero();
         assertThat(totalValidatedJournalPartitions(coordinator, keyspace, table)).as("the journal stream should have validated the reconciled batch").isGreaterThan(0);
@@ -333,12 +359,7 @@ public class TrackedPreviewRepairTest extends TestBaseImpl
             NodeToolResult result = resultFuture.get(120, TimeUnit.SECONDS);
             result.asserts().success();
 
-            assertNotificationContains(result, MutationTrackingPreviewRepairTask.OFFSETS_ESTABLISHED);
-            assertNotificationContains(result, MutationTrackingPreviewRepairTask.VALIDATION_COMPLETE);
-            assertNotificationContains(result, MutationTrackingPreviewRepairTask.IN_SYNC_MESSAGE);
-
-            assertPreviewFailuresUnchanged(CLUSTER, previewFailuresBefore);
-            assertNoDiagnosticSnapshot(CLUSTER, keyspace, table);
+            assertInSyncValidation(result, CLUSTER, keyspace, table, previewFailuresBefore);
 
             // Node 2's journal has both batches by the time it reads (release happened
             // after the second batch was written), but only batch1's 10 partitions should have
@@ -589,12 +610,7 @@ public class TrackedPreviewRepairTest extends TestBaseImpl
             NodeToolResult result = resultFuture.get(120, TimeUnit.SECONDS);
             result.asserts().success();
 
-            assertNotificationContains(result, MutationTrackingPreviewRepairTask.OFFSETS_ESTABLISHED);
-            assertNotificationContains(result, MutationTrackingPreviewRepairTask.VALIDATION_COMPLETE);
-            assertNotificationContains(result, MutationTrackingPreviewRepairTask.IN_SYNC_MESSAGE);
-
-            assertPreviewFailuresUnchanged(CLUSTER, previewFailuresBefore);
-            assertNoDiagnosticSnapshot(CLUSTER, keyspace, table);
+            assertInSyncValidation(result, CLUSTER, keyspace, table, previewFailuresBefore);
 
             // Directly verify what the validation actually validated on node 2, not just its
             // final verdict. If the offset filter were broken in a way that excludes
@@ -648,11 +664,7 @@ public class TrackedPreviewRepairTest extends TestBaseImpl
             NodeToolResult result = resultFuture.get(120, TimeUnit.SECONDS);
             result.asserts().success();
 
-            assertNotificationContains(result, MutationTrackingPreviewRepairTask.OFFSETS_ESTABLISHED);
-            assertNotificationContains(result, MutationTrackingPreviewRepairTask.VALIDATION_COMPLETE);
-            assertNotificationContains(result, MutationTrackingPreviewRepairTask.IN_SYNC_MESSAGE);
-            assertPreviewFailuresUnchanged(CLUSTER, previewFailuresBefore);
-            assertNoDiagnosticSnapshot(CLUSTER, keyspace, table);
+            assertInSyncValidation(result, CLUSTER, keyspace, table, previewFailuresBefore);
 
             // The straddling SSTable is live on disk but excluded wholesale from the
             // SSTable stream; the reconciled first batch portion is still validated, via the
@@ -839,12 +851,7 @@ public class TrackedPreviewRepairTest extends TestBaseImpl
             NodeToolResult result = resultFuture.get(120, TimeUnit.SECONDS);
             result.asserts().success();
 
-            assertNotificationContains(result, MutationTrackingPreviewRepairTask.OFFSETS_ESTABLISHED);
-            assertNotificationContains(result, MutationTrackingPreviewRepairTask.VALIDATION_COMPLETE);
-            assertNotificationContains(result, MutationTrackingPreviewRepairTask.IN_SYNC_MESSAGE);
-
-            assertPreviewFailuresUnchanged(CLUSTER, previewFailuresBefore);
-            assertNoDiagnosticSnapshot(CLUSTER, keyspace, table);
+            assertInSyncValidation(result, CLUSTER, keyspace, table, previewFailuresBefore);
 
             assertThat(totalValidatedJournalPartitions(node2, keyspace, table)).as("the corrupted entry written after the offset must be excluded despite existing at read time").isEqualTo(10);
         }
@@ -1178,6 +1185,15 @@ public class TrackedPreviewRepairTest extends TestBaseImpl
         NodeToolResult result = cluster.get(1).nodetoolResult(true, "repair", "--validate", keyspace);
         result.asserts().success();
 
+        assertNotificationContains(result, MutationTrackingPreviewRepairTask.IN_SYNC_MESSAGE);
+        assertPreviewFailuresUnchanged(cluster, previewFailuresBefore);
+        assertNoDiagnosticSnapshot(cluster, keyspace, table);
+    }
+
+    private static void assertInSyncValidation(NodeToolResult result, Cluster cluster, String keyspace, String table, long[] previewFailuresBefore)
+    {
+        assertNotificationContains(result, MutationTrackingPreviewRepairTask.OFFSETS_ESTABLISHED);
+        assertNotificationContains(result, MutationTrackingPreviewRepairTask.VALIDATION_COMPLETE);
         assertNotificationContains(result, MutationTrackingPreviewRepairTask.IN_SYNC_MESSAGE);
         assertPreviewFailuresUnchanged(cluster, previewFailuresBefore);
         assertNoDiagnosticSnapshot(cluster, keyspace, table);

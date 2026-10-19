@@ -48,6 +48,7 @@ import org.apache.cassandra.dht.Token;
 import org.apache.cassandra.io.util.DataInputBuffer;
 import org.apache.cassandra.repair.ValidationPartitionIterator;
 import org.apache.cassandra.replication.MutationJournal;
+import org.apache.cassandra.replication.ShortMutationId;
 import org.apache.cassandra.replication.ValidationOffsets;
 import org.apache.cassandra.schema.TableId;
 import org.apache.cassandra.schema.TableMetadata;
@@ -78,87 +79,24 @@ public class JournalMergingValidationIterator extends ValidationPartitionIterato
         // Narrow the offsets for the journal to exclude anything the selected SSTables already cover.
         // The journal isn't pruned on flush, so without this, we could merge the same data from both sources.
         ValidationOffsets journalOffsets = validationOffsets.without(sstableIterator.sstableCoordinatorLogOffsets());
-        JournalPartitions journalPartitions = readJournalPartitions(cfs, ranges, journalOffsets);
-        this.estimatedBytes = sstableIterator.getEstimatedBytes() + journalPartitions.estimatedBytes;
-        this.estimatedPartitions = sstableIterator.estimatedPartitions() + journalPartitions.byKey.size();
-        this.rangePartitionCounts = new HashMap<>(sstableIterator.getRangePartitionCounts());
-        for (Map.Entry<Range<Token>, Long> entry : journalPartitions.rangeCounts.entrySet())
-            rangePartitionCounts.merge(entry.getKey(), entry.getValue(), Long::sum);
-        UnfilteredPartitionIterator journalIterator = new JournalPartitionIterator(cfs.metadata(), journalPartitions.byKey);
-        this.merged = UnfilteredPartitionIterators.merge(List.of(sstableIterator, journalIterator), UnfilteredPartitionIterators.MergeListener.NOOP);
-    }
 
-    private static final class JournalPartitions
-    {
-        final NavigableMap<DecoratedKey, List<PartitionUpdate>> byKey;
-        final long estimatedBytes;
-        final Map<Range<Token>, Long> rangeCounts;
-
-        JournalPartitions(NavigableMap<DecoratedKey, List<PartitionUpdate>> byKey, long estimatedBytes, Map<Range<Token>, Long> rangeCounts)
+        JournalPartitionAccessor journalAccessor = JournalPartitionAccessor.build(cfs, ranges, journalOffsets);
+        try
         {
-            this.byKey = byKey;
-            this.estimatedBytes = estimatedBytes;
-            this.rangeCounts = rangeCounts;
+            JournalPartitionIterator journalIterator = new JournalPartitionIterator(journalAccessor);
+
+            this.estimatedBytes = sstableIterator.getEstimatedBytes() + journalAccessor.estimatedBytes;
+            this.estimatedPartitions = sstableIterator.estimatedPartitions() + journalAccessor.byKey.size();
+            this.rangePartitionCounts = new HashMap<>(sstableIterator.getRangePartitionCounts());
+            for (Map.Entry<Range<Token>, Long> entry : journalAccessor.rangeCounts.entrySet())
+                rangePartitionCounts.merge(entry.getKey(), entry.getValue(), Long::sum);
+            this.merged = UnfilteredPartitionIterators.merge(List.of(sstableIterator, journalIterator), UnfilteredPartitionIterators.MergeListener.NOOP);
         }
-    }
-
-    private static JournalPartitions readJournalPartitions(ColumnFamilyStore cfs, Collection<Range<Token>> ranges, ValidationOffsets validationOffsets)
-    {
-        TableMetadata metadata = cfs.metadata();
-        TableId tableId = metadata.id;
-        NavigableMap<DecoratedKey, List<PartitionUpdate>> byKey = new TreeMap<>(DecoratedKey.comparator);
-        Map<Range<Token>, Long> rangeCounts = new HashMap<>();
-        long[] estimatedBytes = {0};
-
-        try (MutationJournal.Snapshot snapshot = MutationJournal.instance().snapshot())
+        catch (Throwable t)
         {
-            snapshot.readAll((segment, position, key, buffer, userVersion) ->
-            {
-                // Check the offset before we actually deserialize a mutation:
-                if (!validationOffsets.containsMutation(key))
-                    return;
-
-                Mutation mutation;
-                try (DataInputBuffer in = new DataInputBuffer(buffer, false))
-                {
-                    mutation = MutationJournal.MutationSerializer.INSTANCE.deserialize(key, in, userVersion);
-                }
-                catch (IOException e)
-                {
-                    throw new UncheckedIOException(e);
-                }
-
-                // Ignore the mutation if it doesn't belong to this table:
-                PartitionUpdate update = mutation.modifications().get(tableId);
-                if (update == null)
-                    return;
-
-                // Ignore the mutation if it doesn't belong to a validating range:
-                DecoratedKey partitionKey = update.partitionKey();
-                Range<Token> range = findRange(partitionKey.getToken(), ranges);
-                if (range == null)
-                    return;
-                
-                List<PartitionUpdate> updatesForKey = byKey.computeIfAbsent(partitionKey, k -> new ArrayList<>());
-                if (updatesForKey.isEmpty())
-                    rangeCounts.merge(range, 1L, Long::sum);
-                updatesForKey.add(update);
-                estimatedBytes[0] += update.dataSize();
-            });
+            journalAccessor.close();
+            throw t;
         }
-
-        logger.info("Performing journal validation on {} partitions ({} bytes) in {}.{}", byKey.size(), estimatedBytes[0], metadata.keyspace, metadata.name);
-        return new JournalPartitions(byKey, estimatedBytes[0], rangeCounts);
-    }
-
-    private static Range<Token> findRange(Token token, Collection<Range<Token>> ranges)
-    {
-        for (Range<Token> range : ranges)
-        {
-            if (range.contains(token))
-                return range;
-        }
-        return null;
     }
 
     @Override
@@ -209,29 +147,149 @@ public class JournalMergingValidationIterator extends ValidationPartitionIterato
         return rangePartitionCounts;
     }
 
-    /**
-     * Adapts the per-key journal partitions collected by {@link #readJournalPartitions} into an
-     * {@link UnfilteredPartitionIterator}, so they can be merged against the SSTable stream via
-     * {@link UnfilteredPartitionIterators#merge} instead of a hand-written two-way merge. A key
-     * with more than one journal-resident update (multiple reconciled mutations touching the
-     * same partition before either was flushed) is itself merged via
-     * {@link UnfilteredRowIterators#merge}.
-     */
-    private static class JournalPartitionIterator extends AbstractUnfilteredPartitionIterator
+    private static final class JournalPartitionAccessor implements AutoCloseable
     {
-        private final TableMetadata metadata;
-        private final Iterator<Map.Entry<DecoratedKey, List<PartitionUpdate>>> iterator;
+        final TableMetadata metadata;
+        final TableId tableId;
+        final NavigableMap<DecoratedKey, List<ShortMutationId>> byKey;
+        final long estimatedBytes;
+        final Map<Range<Token>, Long> rangeCounts;
+        final MutationJournal.Snapshot snapshot;
 
-        JournalPartitionIterator(TableMetadata metadata, NavigableMap<DecoratedKey, List<PartitionUpdate>> byKey)
+        private JournalPartitionAccessor(TableMetadata metadata,
+                                         NavigableMap<DecoratedKey, List<ShortMutationId>> byKey,
+                                         long estimatedBytes,
+                                         Map<Range<Token>, Long> rangeCounts,
+                                         MutationJournal.Snapshot snapshot)
         {
             this.metadata = metadata;
-            this.iterator = byKey.entrySet().iterator();
+            this.tableId = metadata.id;
+            this.byKey = byKey;
+            this.estimatedBytes = estimatedBytes;
+            this.rangeCounts = rangeCounts;
+            this.snapshot = snapshot;
+        }
+
+        static JournalPartitionAccessor build(ColumnFamilyStore cfs, Collection<Range<Token>> ranges, ValidationOffsets validationOffsets)
+        {
+            MutationJournal.Snapshot snapshot = MutationJournal.instance().snapshot();
+            try
+            {
+                return buildFromSnapshot(snapshot, cfs, ranges, validationOffsets);
+            }
+            catch (Throwable t)
+            {
+                snapshot.close();
+                throw t;
+            }
+        }
+
+        private static JournalPartitionAccessor buildFromSnapshot(MutationJournal.Snapshot snapshot, ColumnFamilyStore cfs, Collection<Range<Token>> ranges, ValidationOffsets validationOffsets)
+        {
+            TableMetadata metadata = cfs.metadata();
+            TableId tableId = metadata.id;
+            NavigableMap<DecoratedKey, List<ShortMutationId>> byKey = new TreeMap<>(DecoratedKey.comparator);
+            Map<Range<Token>, Long> rangeCounts = new HashMap<>();
+            long[] estimatedBytes = {0};
+
+            snapshot.readAll((segment, position, key, buffer, userVersion) ->
+            {
+                // Check the offset before we actually deserialize a mutation:
+                if (!validationOffsets.containsMutation(key))
+                    return;
+
+                Mutation mutation;
+                try (DataInputBuffer in = new DataInputBuffer(buffer, false))
+                {
+                    mutation = MutationJournal.MutationSerializer.INSTANCE.deserialize(key, in, userVersion);
+                }
+                catch (IOException e)
+                {
+                    throw new UncheckedIOException(e);
+                }
+
+                // Ignore the mutation if it doesn't belong to this table:
+                PartitionUpdate update = mutation.modifications().get(tableId);
+                if (update == null)
+                    return;
+
+                // Ignore the mutation if it doesn't belong to a validating range:
+                DecoratedKey partitionKey = update.partitionKey();
+                Range<Token> range = findRange(partitionKey.getToken(), ranges);
+                if (range == null)
+                    return;
+
+                List<ShortMutationId> idsForKey = byKey.computeIfAbsent(partitionKey, k -> new ArrayList<>());
+                if (idsForKey.isEmpty())
+                    rangeCounts.merge(range, 1L, Long::sum);
+
+                // A rewritten id is one logical entry. Don't read and merge it with itself.
+                if (!idsForKey.contains(key))
+                {
+                    idsForKey.add(key);
+                    estimatedBytes[0] += update.dataSize();
+                }
+            });
+
+            logger.info("Performing journal validation on {} partitions ({} bytes) in {}.{}", byKey.size(), estimatedBytes[0], metadata.keyspace, metadata.name);
+            return new JournalPartitionAccessor(metadata, byKey, estimatedBytes[0], rangeCounts, snapshot);
+        }
+
+        private static Range<Token> findRange(Token token, Collection<Range<Token>> ranges)
+        {
+            for (Range<Token> range : ranges)
+            {
+                if (range.contains(token))
+                    return range;
+            }
+            return null;
+        }
+
+        PartitionUpdate readUpdate(ShortMutationId id)
+        {
+            PartitionUpdate[] holder = new PartitionUpdate[1];
+            boolean found = snapshot.read(id, (segment, position, key, buffer, userVersion) ->
+            {
+                try (DataInputBuffer in = new DataInputBuffer(buffer, false))
+                {
+                    Mutation mutation = MutationJournal.MutationSerializer.INSTANCE.deserialize(key, in, userVersion);
+                    holder[0] = mutation.modifications().get(tableId);
+                }
+                catch (IOException e)
+                {
+                    throw new UncheckedIOException(e);
+                }
+            });
+
+            // Already confirmed to exist and belong to this table during the initial scan, so this
+            // should be unreachable while the snapshot is still open.
+            if (!found || holder[0] == null)
+                throw new IllegalStateException("Journal record " + id + " for " + metadata + " vanished while its validation snapshot was still open");
+            return holder[0];
+        }
+
+        @Override
+        public void close()
+        {
+            snapshot.close();
+        }
+    }
+
+    private static class JournalPartitionIterator extends AbstractUnfilteredPartitionIterator
+    {
+        private final JournalPartitionAccessor accessor;
+        private final Iterator<Map.Entry<DecoratedKey, List<ShortMutationId>>> iterator;
+
+        JournalPartitionIterator(JournalPartitionAccessor accessor)
+        {
+            this.accessor = accessor;
+            this.iterator = accessor.byKey.entrySet().iterator();
         }
 
         @Override
         public TableMetadata metadata()
         {
-            return metadata;
+            return accessor.metadata;
         }
 
         @Override
@@ -243,24 +301,29 @@ public class JournalMergingValidationIterator extends ValidationPartitionIterato
         @Override
         public UnfilteredRowIterator next()
         {
-            List<PartitionUpdate> updates = iterator.next().getValue();
-            UnfilteredRowIterator update = rowIteratorFromUpdates(updates);
+            List<ShortMutationId> ids = iterator.next().getValue();
+            UnfilteredRowIterator update = rowIteratorFromIds(ids);
 
             // PartitionUpdate only reflects columns that are part of a mutation, but the SSTable iterator reflects all
             // columns in the schema. Expand the columns here to avoid digest mismatches on identical rows.
-            return withFullSchemaColumns(update, metadata.regularAndStaticColumns());
+            return withFullSchemaColumns(update, accessor.metadata.regularAndStaticColumns());
         }
 
-        private static UnfilteredRowIterator rowIteratorFromUpdates(List<PartitionUpdate> updates)
+        private UnfilteredRowIterator rowIteratorFromIds(List<ShortMutationId> ids)
         {
-            if (updates.size() == 1)
-                return updates.get(0).unfilteredIterator();
+            if (ids.size() == 1)
+                return accessor.readUpdate(ids.get(0)).unfilteredIterator();
 
-            List<UnfilteredRowIterator> toMerge = new ArrayList<>(updates.size());
-            for (PartitionUpdate update : updates)
-                toMerge.add(update.unfilteredIterator());
-
+            List<UnfilteredRowIterator> toMerge = new ArrayList<>(ids.size());
+            for (ShortMutationId id : ids)
+                toMerge.add(accessor.readUpdate(id).unfilteredIterator());
             return UnfilteredRowIterators.merge(toMerge);
+        }
+
+        @Override
+        public void close()
+        {
+            accessor.close();
         }
 
         private static UnfilteredRowIterator withFullSchemaColumns(UnfilteredRowIterator wrapped, RegularAndStaticColumns columns)

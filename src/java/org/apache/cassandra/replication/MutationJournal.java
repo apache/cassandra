@@ -137,6 +137,11 @@ public class MutationJournal
             wrapped.readAll(consumer);
         }
 
+        public boolean read(ShortMutationId id, RecordConsumer<ShortMutationId> consumer)
+        {
+            return wrapped.readLast(id, consumer);
+        }
+
         @Override
         public void close()
         {
