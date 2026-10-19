@@ -105,7 +105,8 @@ public class ServerConnection extends Connection
     private void authenticationComplete()
     {
         AuthenticationTimeoutHandler handler = channel().pipeline().get(AuthenticationTimeoutHandler.class);
-        handler.markAuthenticationComplete();
+        if (handler != null)
+            handler.markAuthenticationComplete();
     }
 
     void applyStateTransition(Message.Type requestType, Message.Type responseType)
