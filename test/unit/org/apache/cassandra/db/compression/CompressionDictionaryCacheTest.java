@@ -268,6 +268,35 @@ public class CompressionDictionaryCacheTest
     }
 
     @Test
+    public void testAddAfterClose()
+    {
+        cache.close();
+        // e.g. a refresh which read the dictionary before the table was dropped
+        assertThat(cache.add(testDict1).tryRef()).as("Released right away").isNull();
+        assertThat(cache.get(testDict1.dictId())).as("Not cached").isNull();
+        assertThat(cache.getCurrent()).as("Not current").isNull();
+
+        Ref<? extends CompressionDictionary> ref = cache.refForReading(testDict2);
+        CompressionDictionary referenced = ref.get();
+        assertThat(referenced.dictId()).isEqualTo(testDict2.dictId());
+        assertThat(cache.get(testDict2.dictId())).as("Not cached").isNull();
+        ref.release();
+        assertThat(referenced.tryRef()).as("The caller held the only reference").isNull();
+    }
+
+    @Test
+    public void testAddAfterClear()
+    {
+        cache.add(testDict1);
+        // e.g. dictionary compression was disabled and is enabled again
+        cache.clear();
+        assertThat(cache.get(testDict1.dictId())).isNull();
+        cache.add(testDict2);
+        assertThat(cache.get(testDict2.dictId())).isSameAs(testDict2);
+        assertThat(cache.getCurrent()).isSameAs(testDict2);
+    }
+
+    @Test
     public void testConcurrentAccess() throws InterruptedException
     {
         int threadCount = 10;
