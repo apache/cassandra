@@ -154,7 +154,8 @@ public class ActivationRequest
             NodeId.messagingSerializer.serialize(request.coordinatorId, out, version.messagingVersion());
             out.writeByte(request.phase.id);
             out.writeUTF(request.keyspace);
-            out.writeLong(request.sinceEpoch);
+            if (version.isAtLeast(Version.V2))
+                out.writeLong(request.sinceEpoch);
             Range.serializer.serialize(request.range, out, null);
             TimeUUID.Serializer.nullable.serialize(request.planId, out);
         }
@@ -171,7 +172,7 @@ public class ActivationRequest
             NodeId coordinatorId = NodeId.messagingSerializer.deserialize(in, version.messagingVersion());
             Phase phase = Phase.from(in.readByte());
             String keyspace = in.readUTF();
-            long sinceEpoch = in.readLong();
+            long sinceEpoch = version.isAtLeast(Version.V2) ? in.readLong() : 0L;
             Range<Token> range = Range.serializer.deserialize(in, null);
             TimeUUID planId = TimeUUID.Serializer.nullable.deserialize(in);
 
@@ -192,7 +193,8 @@ public class ActivationRequest
             size += NodeId.messagingSerializer.serializedSize(request.coordinatorId, version.messagingVersion());
             size += TypeSizes.BYTE_SIZE; // Enum ordinal
             size += TypeSizes.sizeof(request.keyspace);
-            size += TypeSizes.sizeof(request.sinceEpoch);
+            if (version.isAtLeast(Version.V2))
+                size += TypeSizes.sizeof(request.sinceEpoch);
             size += Range.serializer.serializedSize(request.range, null);
             size += TimeUUID.Serializer.nullable.serializedSize(request.planId);
 

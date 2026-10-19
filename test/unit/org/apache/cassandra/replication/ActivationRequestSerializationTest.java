@@ -85,4 +85,28 @@ public class ActivationRequestSerializationTest extends CassandraTestBase
             Serializers.testSerde(output, ActivationRequest.serializer, activation, Version.CURRENT);
         }
     }
+
+    @Test
+    public void testRoundtripV1Compatibility() throws IOException
+    {
+        Pair<InetAddressAndPort, InetAddressAndPort> pair = Pair.create(InetAddressAndPort.getLocalHost(), InetAddressAndPort.getLocalHost());
+        TimeUUID planId = nextTimeUUID();
+        ShortMutationId transferId = new ShortMutationId(3L, 400);
+        NodeId coordinatorId = new NodeId(3);
+        ActivationRequest.Phase phase = ActivationRequest.Phase.PREPARE;
+        String keyspace = "test_ks";
+        Range<Token> range = new Range<>(new ByteOrderedPartitioner.BytesToken("key1".getBytes()), new ByteOrderedPartitioner.BytesToken("key100".getBytes()));
+
+        ActivationRequest activation = new ActivationRequest(StreamOperation.IMPORT, pair, phase, transferId, coordinatorId, range, 42L, keyspace, planId);
+
+        try (DataOutputBuffer output = new DataOutputBuffer())
+        {
+            ActivationRequest.serializer.serialize(activation, output, Version.V1);
+            org.apache.cassandra.io.util.DataInputBuffer in = new org.apache.cassandra.io.util.DataInputBuffer(output.buffer(), false);
+            ActivationRequest deserialized = ActivationRequest.serializer.deserialize(in, Version.V1);
+            org.junit.Assert.assertEquals(0L, deserialized.sinceEpoch);
+            org.junit.Assert.assertEquals(activation.keyspace, deserialized.keyspace);
+            org.junit.Assert.assertEquals(activation.range, deserialized.range);
+        }
+    }
 }

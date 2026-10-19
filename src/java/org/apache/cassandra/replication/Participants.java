@@ -20,6 +20,7 @@ package org.apache.cassandra.replication;
 import java.io.IOException;
 import java.util.Arrays;
 import java.util.Collection;
+import java.util.HashSet;
 import java.util.Set;
 
 import org.agrona.collections.IntHashSet;
@@ -30,10 +31,13 @@ import org.apache.cassandra.io.util.DataOutputPlus;
 import org.apache.cassandra.locator.EndpointsForToken;
 import org.apache.cassandra.locator.Replica;
 import org.apache.cassandra.tcm.ClusterMetadata;
+import org.apache.cassandra.tcm.membership.NodeId;
 import org.apache.cassandra.utils.ArraySerializers;
 
 public class Participants
 {
+    public static final Participants EMPTY = new Participants(new int[0]);
+
     private final int[] hosts;
 
     Participants(Collection<Integer> participants)
@@ -45,7 +49,7 @@ public class Participants
         this.hosts = hosts;
     }
 
-    private Participants(int[] hosts)
+    Participants(int[] hosts)
     {
         Arrays.sort(hosts);
         this.hosts = hosts;
@@ -105,6 +109,22 @@ public class Participants
         return set;
     }
 
+    public Set<NodeId> asNodeIds()
+    {
+        Set<NodeId> set = new HashSet<>(hosts.length);
+        for (int host : hosts)
+            set.add(new NodeId(host));
+        return set;
+    }
+
+    static Participants fromNodeIds(Collection<NodeId> nodeIds)
+    {
+        IntHashSet set = new IntHashSet(nodeIds.size());
+        for (NodeId nodeId : nodeIds)
+            set.add(nodeId.id());
+        return new Participants(set);
+    }
+
     void addTo(IntHashSet set)
     {
         for (int i = 0; i < size(); i++)
@@ -119,13 +139,12 @@ public class Participants
         return new Participants(merged);
     }
 
-    static Participants fromReplicas(Set<Replica> replicas, ClusterMetadata cm)
+    static Participants fromReplicas(Iterable<Replica> replicas, ClusterMetadata cm)
     {
-        int i = 0;
-        int[] hosts = new int[replicas.size()];
+        IntHashSet set = new IntHashSet();
         for (Replica r : replicas)
-            hosts[i++] = cm.directory.peerId(r.endpoint()).id();
-        return new Participants(hosts);
+            set.add(cm.directory.peerId(r.endpoint()).id());
+        return new Participants(set);
     }
 
     boolean matches(EndpointsForToken expected, ClusterMetadata cm)

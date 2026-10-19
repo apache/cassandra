@@ -24,6 +24,7 @@ import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.function.Consumer;
 
 import com.google.common.base.Preconditions;
@@ -69,9 +70,11 @@ import org.apache.cassandra.service.StorageService;
 import org.apache.cassandra.tcm.ClusterMetadata;
 import org.apache.cassandra.tcm.ClusterMetadataService;
 import org.apache.cassandra.tcm.Epoch;
+import org.apache.cassandra.tcm.membership.NodeId;
 import org.apache.cassandra.tcm.ownership.VersionedEndpoints;
 import org.apache.cassandra.tracing.Tracing;
 import org.apache.cassandra.transport.Dispatcher;
+import org.apache.cassandra.utils.CollectionSerializers;
 import org.apache.cassandra.utils.FBUtilities;
 
 import static java.lang.String.format;
@@ -566,36 +569,61 @@ public class ForwardedWrite
         logger.trace("Tracked counter mutation {} processed, local application and replication initiated", id);
     }
 
-    // TODO (expected): depending on when topology change support lands, bump MT version,
-    //      and add support for the old one
     public static final VersionedSerializer<MutationRequest> serializer = new VersionedSerializer<>()
     {
         @Override
         public void serialize(MutationRequest request, DataOutputPlus out, Version version) throws IOException
         {
             Mutation.serializer.serialize(request.mutation, out, version.messagingVersion());
-            Participants.serializer.serialize(request.liveReplicas, out);
-            Participants.serializer.serialize(request.downReplicas, out);
-            Epoch.serializer.serialize(request.planEpoch, out);
+            if (version.isAtLeast(Version.V2))
+            {
+                Participants.serializer.serialize(request.liveReplicas, out);
+                Participants.serializer.serialize(request.downReplicas, out);
+                Epoch.serializer.serialize(request.planEpoch, out);
+            }
+            else
+            {
+                Set<NodeId> recipients = request.liveReplicas.asNodeIds();
+                recipients.addAll(request.downReplicas.asNodeIds());
+                CollectionSerializers.serializeCollection(recipients, out, version.messagingVersion(), NodeId.messagingSerializer);
+            }
         }
 
         @Override
         public MutationRequest deserialize(DataInputPlus in, Version version) throws IOException
         {
             Mutation mutation = Mutation.serializer.deserialize(in, version.messagingVersion());
-            Participants liveReplicas = Participants.serializer.deserialize(in);
-            Participants downReplicas = Participants.serializer.deserialize(in);
-            Epoch planEpoch = Epoch.serializer.deserialize(in);
-            return new MutationRequest(mutation, liveReplicas, downReplicas, planEpoch);
+            if (version.isAtLeast(Version.V2))
+            {
+                Participants liveReplicas = Participants.serializer.deserialize(in);
+                Participants downReplicas = Participants.serializer.deserialize(in);
+                Epoch planEpoch = Epoch.serializer.deserialize(in);
+                return new MutationRequest(mutation, liveReplicas, downReplicas, planEpoch);
+            }
+            else
+            {
+                Set<NodeId> recipients = CollectionSerializers.deserializeSet(in, version.messagingVersion(), NodeId.messagingSerializer);
+                Participants liveReplicas = Participants.fromNodeIds(recipients);
+                return new MutationRequest(mutation, liveReplicas, Participants.EMPTY, Epoch.EMPTY);
+            }
         }
 
         @Override
         public long serializedSize(MutationRequest request, Version version)
         {
             long size = Mutation.serializer.serializedSize(request.mutation, version.messagingVersion());
-            size += Participants.serializer.serializedSize(request.liveReplicas);
-            size += Participants.serializer.serializedSize(request.downReplicas);
-            size += Epoch.serializer.serializedSize(request.planEpoch);
+            if (version.isAtLeast(Version.V2))
+            {
+                size += Participants.serializer.serializedSize(request.liveReplicas);
+                size += Participants.serializer.serializedSize(request.downReplicas);
+                size += Epoch.serializer.serializedSize(request.planEpoch);
+            }
+            else
+            {
+                Set<NodeId> recipients = request.liveReplicas.asNodeIds();
+                recipients.addAll(request.downReplicas.asNodeIds());
+                size += CollectionSerializers.serializedCollectionSize(recipients, version.messagingVersion(), NodeId.messagingSerializer);
+            }
             return size;
         }
     };
@@ -633,44 +661,56 @@ public class ForwardedWrite
          * set of participants that the recepients the coordinator has calculated.
          */
 
-        if (planEpoch.isAfter(metadata.epoch))
+        if (!planEpoch.is(Epoch.EMPTY))
+        {
+            if (planEpoch.isAfter(metadata.epoch))
+            {
+                if (!writePlacements.get().containsSelf())
+                {
+                    metadata = ClusterMetadataService.instance().fetchLogFromPeerOrCMS(metadata, incoming.from(), planEpoch);
+                    writePlacements = writePlacements(metadata, keyspace, key);
+                }
+                else
+                {
+                    ClusterMetadataService.instance().fetchLogFromPeerOrCMSAsync(metadata, incoming.from(), planEpoch); // async
+                }
+            }
+
+            if (!writePlacements.get().containsSelf())
+            {
+                StorageService.instance.incOutOfRangeOperationCount();
+                Keyspace.open(keyspace).metric.outOfRangeTokenWrites.inc();
+                throw InvalidRoutingException.forWrite(incoming.from(), key.getToken(), metadata.epoch, request.mutation);
+            }
+
+            if (writePlacements.lastModified().isAfter(planEpoch))
+            {
+                TCMMetrics.instance.coordinatorBehindPlacements.mark();
+                String msg =
+                    format("Routing is correct, but coordinator needs to catch-up at least to epoch %s to maintain consistency. " +
+                           "Current coordinator epoch is %s", writePlacements.lastModified(), planEpoch);
+                throw new CoordinatorBehindException(msg);
+            }
+
+            // at this stage it's possible that local (leader) writePlacements.lastModified() is *before* coordinator's
+            // planEpoch and this may be completely fine, or not, so we must compare actual replica sets.
+            Participants liveAndDownParticipants = Participants.merge(request.liveReplicas, request.downReplicas);
+            if (!liveAndDownParticipants.matches(writePlacements.get(), metadata))
+            {
+                String msg =
+                    format("Leader is possibly behind coordinator for tracked write; live: %s, down: %s, placements: %s",
+                           request.liveReplicas, request.downReplicas, writePlacements.get());
+                throw new CoordinatorBehindException(msg);
+            }
+        }
+        else
         {
             if (!writePlacements.get().containsSelf())
             {
-                metadata = ClusterMetadataService.instance().fetchLogFromPeerOrCMS(metadata, incoming.from(), planEpoch);
-                writePlacements = writePlacements(metadata, keyspace, key);
+                StorageService.instance.incOutOfRangeOperationCount();
+                Keyspace.open(keyspace).metric.outOfRangeTokenWrites.inc();
+                throw InvalidRoutingException.forWrite(incoming.from(), key.getToken(), metadata.epoch, request.mutation);
             }
-            else
-            {
-                ClusterMetadataService.instance().fetchLogFromPeerOrCMSAsync(metadata, incoming.from(), planEpoch); // async
-            }
-        }
-
-        if (!writePlacements.get().containsSelf())
-        {
-            StorageService.instance.incOutOfRangeOperationCount();
-            Keyspace.open(keyspace).metric.outOfRangeTokenWrites.inc();
-            throw InvalidRoutingException.forWrite(incoming.from(), key.getToken(), metadata.epoch, request.mutation);
-        }
-
-        if (writePlacements.lastModified().isAfter(planEpoch))
-        {
-            TCMMetrics.instance.coordinatorBehindPlacements.mark();
-            String msg =
-                format("Routing is correct, but coordinator needs to catch-up at least to epoch %s to maintain consistency. " +
-                       "Current coordinator epoch is %s", writePlacements.lastModified(), planEpoch);
-            throw new CoordinatorBehindException(msg);
-        }
-
-        // at this stage it's possible that local (leader) writePlacements.lastModified() is *before* coordinator's
-        // planEpoch and this may be completely fine, or not, so we must compare actual replica sets.
-        Participants liveAndDownParticipants = Participants.merge(request.liveReplicas, request.downReplicas);
-        if (!liveAndDownParticipants.matches(writePlacements.get(), metadata))
-        {
-            String msg =
-                format("Leader is possibly behind coordinator for tracked write; live: %s, down: %s, placements: %s",
-                       request.liveReplicas, request.downReplicas, writePlacements.get());
-            throw new CoordinatorBehindException(msg);
         }
 
         CoordinatorAckInfo ackTo = CoordinatorAckInfo.toCoordinator(incoming.from(), incoming.id());

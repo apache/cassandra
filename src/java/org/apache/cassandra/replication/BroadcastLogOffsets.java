@@ -19,13 +19,19 @@ package org.apache.cassandra.replication;
 
 import java.io.IOException;
 import java.util.List;
+import java.util.Objects;
 
 import org.apache.cassandra.db.TypeSizes;
+import org.apache.cassandra.dht.AbstractBounds;
+import org.apache.cassandra.dht.IPartitioner;
 import org.apache.cassandra.dht.Range;
 import org.apache.cassandra.dht.Token;
 import org.apache.cassandra.io.util.DataInputPlus;
 import org.apache.cassandra.io.util.DataOutputPlus;
 import org.apache.cassandra.net.IVerbHandler;
+import org.apache.cassandra.tcm.ClusterMetadata;
+import org.apache.cassandra.tcm.Epoch;
+import org.apache.cassandra.tcm.ownership.VersionedEndpoints;
 import org.apache.cassandra.utils.CollectionSerializers;
 
 public class BroadcastLogOffsets
@@ -68,6 +74,23 @@ public class BroadcastLogOffsets
         return "ShardReplicatedOffsets{" + shardMetadata + ", " + sb + ", " + durable + '}';
     }
 
+    @Override
+    public boolean equals(Object o)
+    {
+        if (this == o) return true;
+        if (!(o instanceof BroadcastLogOffsets)) return false;
+        BroadcastLogOffsets that = (BroadcastLogOffsets) o;
+        return durable == that.durable
+            && Objects.equals(shardMetadata, that.shardMetadata)
+            && Objects.equals(replicatedOffsets, that.replicatedOffsets);
+    }
+
+    @Override
+    public int hashCode()
+    {
+        return Objects.hash(shardMetadata, replicatedOffsets, durable);
+    }
+
     public static final IVerbHandler<BroadcastLogOffsets> verbHandler = message -> {
         MutationTrackingService.ensureEnabled();
         BroadcastLogOffsets replicatedOffsets = message.payload;
@@ -85,7 +108,15 @@ public class BroadcastLogOffsets
         @Override
         public void serialize(BroadcastLogOffsets status, DataOutputPlus out, Version version) throws IOException
         {
-            ShardMetadata.serializer.serialize(status.shardMetadata, out, version);
+            if (version.isAtLeast(Version.V2))
+            {
+                ShardMetadata.serializer.serialize(status.shardMetadata, out, version);
+            }
+            else
+            {
+                out.writeUTF(status.shardMetadata.keyspace);
+                AbstractBounds.tokenSerializer.serialize(status.shardMetadata.range, out, version.messagingVersion());
+            }
             CollectionSerializers.serializeList(status.replicatedOffsets, out, Offsets.serializer);
             out.writeBoolean(status.durable);
         }
@@ -93,7 +124,28 @@ public class BroadcastLogOffsets
         @Override
         public BroadcastLogOffsets deserialize(DataInputPlus in, Version version) throws IOException
         {
-            ShardMetadata shardMetadata = ShardMetadata.serializer.deserialize(in, version);
+            ShardMetadata shardMetadata;
+            if (version.isAtLeast(Version.V2))
+            {
+                shardMetadata = ShardMetadata.serializer.deserialize(in, version);
+            }
+            else
+            {
+                String keyspace = in.readUTF();
+                Range<Token> range = (Range<Token>) AbstractBounds.tokenSerializer.deserialize(in, IPartitioner.global(), version.messagingVersion());
+                ClusterMetadata cm = ClusterMetadata.current();
+                Participants participants;
+                try
+                {
+                    VersionedEndpoints.ForRange forRange = cm.placements.get(cm.schema.getKeyspace(keyspace).getMetadata().params.replication).writes.forRange(range);
+                    participants = Participants.fromReplicas(forRange.get(), cm);
+                }
+                catch (Throwable t)
+                {
+                    participants = Participants.EMPTY;
+                }
+                shardMetadata = new ShardMetadata(keyspace, Epoch.EMPTY.getEpoch(), range, participants);
+            }
             List<Offsets.Immutable> replicatedOffsets = CollectionSerializers.deserializeList(in, Offsets.serializer);
             boolean durable = in.readBoolean();
             return new BroadcastLogOffsets(shardMetadata, replicatedOffsets, durable);
@@ -103,7 +155,15 @@ public class BroadcastLogOffsets
         public long serializedSize(BroadcastLogOffsets replicatedOffsets, Version version)
         {
             long size = 0;
-            size += ShardMetadata.serializer.serializedSize(replicatedOffsets.shardMetadata, version);
+            if (version.isAtLeast(Version.V2))
+            {
+                size += ShardMetadata.serializer.serializedSize(replicatedOffsets.shardMetadata, version);
+            }
+            else
+            {
+                size += TypeSizes.sizeof(replicatedOffsets.shardMetadata.keyspace);
+                size += AbstractBounds.tokenSerializer.serializedSize(replicatedOffsets.shardMetadata.range, version.messagingVersion());
+            }
             size += CollectionSerializers.serializedListSize(replicatedOffsets.replicatedOffsets, Offsets.serializer);
             size += TypeSizes.sizeof(replicatedOffsets.durable);
             return size;
