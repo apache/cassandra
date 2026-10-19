@@ -19,6 +19,7 @@
 package org.apache.cassandra.distributed.test;
 
 import java.io.IOException;
+import java.lang.reflect.Field;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
@@ -41,6 +42,7 @@ import org.apache.cassandra.dht.Murmur3Partitioner;
 import org.apache.cassandra.distributed.Cluster;
 import org.apache.cassandra.distributed.api.ConsistencyLevel;
 import org.apache.cassandra.io.sstable.format.SSTableReader;
+import org.apache.cassandra.metrics.TableMetrics;
 import org.apache.cassandra.service.StorageService;
 import org.apache.cassandra.utils.FBUtilities;
 import org.apache.cassandra.utils.concurrent.Condition;
@@ -125,6 +127,20 @@ public class UnifiedCompactionDensitiesTest extends TestBaseImpl
         }
     }
 
+    private static void shortenEstimatedPartitionCountCache()
+    {
+        try
+        {
+            Field period = TableMetrics.class.getDeclaredField("ESTIMATED_PARTITION_COUNT_CACHE_PERIOD_SECONDS");
+            period.setAccessible(true);
+            period.setLong(null, 1);
+        }
+        catch (ReflectiveOperationException e)
+        {
+            throw new RuntimeException(e);
+        }
+    }
+
     private static void writeData(Cluster cluster, long offset, long toWrite, int payloadSize)
     {
         for (int i = 0; i < toWrite; i += payloadSize)
@@ -163,6 +179,11 @@ public class UnifiedCompactionDensitiesTest extends TestBaseImpl
                                                                    .with(GOSSIP))
                                              .start()))
         {
+            // TableMetrics caches the sstable partition count for five minutes. The first read happens at the first
+            // flush, before any sstable exists, so the per-partition span floor would stay unavailable for longer than
+            // this test runs. Shorten the period to one second before the table is created.
+            cluster.forEach(x -> x.runOnInstance(UnifiedCompactionDensitiesTest::shortenEstimatedPartitionCountCache));
+
             cluster.schemaChange(withKeyspace("create table %s.tbl (id bigint primary key, value text) with compaction = " +
                                               "{'class':'UnifiedCompactionStrategy', 'scaling_parameters':'T4'}"));
 
