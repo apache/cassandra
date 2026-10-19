@@ -18,105 +18,106 @@
 
 package org.apache.cassandra.transport;
 
-import ch.qos.logback.classic.Logger;
-import ch.qos.logback.classic.spi.ILoggingEvent;
-import ch.qos.logback.core.read.ListAppender;
-import com.datastax.driver.core.Cluster;
-import com.datastax.driver.core.ResultSetFuture;
-import com.datastax.driver.core.Session;
-import io.netty.util.ResourceLeakDetector;
-import org.apache.cassandra.cql3.CQLTester;
-import org.junit.After;
-import org.junit.Before;
-import org.junit.Test;
-import org.slf4j.LoggerFactory;
-
-import java.nio.ByteBuffer;
-import java.time.Duration;
-import java.util.ArrayList;
-import java.util.List;
+import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 
-import static org.junit.Assert.assertEquals;
+import org.junit.Test;
+import org.junit.runner.RunWith;
 
+import com.datastax.driver.core.Session;
+import io.netty.channel.Channel;
+import org.apache.cassandra.cql3.CQLTester;
+import org.apache.cassandra.transport.messages.QueryMessage;
+import org.jboss.byteman.contrib.bmunit.BMRule;
+import org.jboss.byteman.contrib.bmunit.BMRules;
+import org.jboss.byteman.contrib.bmunit.BMUnitRunner;
+
+import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertNotNull;
+import static org.junit.Assert.assertNull;
+import static org.junit.Assert.assertTrue;
+
+@RunWith(BMUnitRunner.class)
 public class PreV5HandlersTest extends CQLTester
 {
     private static final ProtocolVersion VERSION = ProtocolVersion.V4;
-    private ResourceLeakDetector.Level originalLeakLevel;
-    private ListAppender<ILoggingEvent> leakReports;
-    private Logger leakLogger;
 
-    @Before
-    public void setUp()
-    {
-        originalLeakLevel = ResourceLeakDetector.getLevel();
-        ResourceLeakDetector.setLevel(ResourceLeakDetector.Level.PARANOID);
-
-        leakLogger = (Logger) LoggerFactory.getLogger(ResourceLeakDetector.class);
-        leakReports = new ListAppender<>();
-        leakReports.start();
-        leakLogger.addAppender(leakReports);
-
-        requireNetwork();
-    }
-
-    @After
-    public void tearDown()
-    {
-        ResourceLeakDetector.setLevel(originalLeakLevel);
-        leakLogger.detachAppender(leakReports);
-    }
+    // state shared with the Byteman rules below, which run on the request worker and the channel's event loop
+    private static volatile String heldQuery;
+    private static volatile Channel serverChannel;
+    private static volatile Object writtenResponse;
+    private static final CountDownLatch processing = new CountDownLatch(1);
+    private static final CountDownLatch proceed = new CountDownLatch(1);
+    private static final CountDownLatch written = new CountDownLatch(1);
 
     /**
-     * Regression test for CASSANDRA-21766 to ensure that pre-V5 clients can disconnect while requests are in flight
-     * without causing resource leaks. This test will create a pre-V5 connection, send multiple requests, and then
-     * close the connection while requests are still being processed. The test will monitor for any resource leaks
-     * that may occur due to the disconnection.
+     * Regression test for CASSANDRA-21766 to ensure that a pre-V5 client can disconnect while a request is in flight
+     * without leaking the response. The query is held on the request worker before it is executed until the client
+     * has disconnected and the server has torn the connection's pipeline down, then released, so the Flusher always
+     * writes the response to a dead channel. Whatever the Flusher wrote must not hold an unreleased buffer.
      */
     @Test
+    @BMRules(rules = {
+    @BMRule(name = "Hold the request until the connection is gone",
+            targetClass = "org.apache.cassandra.transport.Dispatcher",
+            targetMethod = "processRequest(io.netty.channel.Channel, org.apache.cassandra.transport.Message$Request, " +
+                           "org.apache.cassandra.transport.ClientResourceLimits$Overload, " +
+                           "org.apache.cassandra.transport.Dispatcher$RequestTime)",
+            targetLocation = "AT ENTRY",
+            action = "org.apache.cassandra.transport.PreV5HandlersTest.beforeProcess($1, $2)"),
+    @BMRule(name = "Capture what the Flusher wrote",
+            targetClass = "org.apache.cassandra.transport.Flusher",
+            targetMethod = "processUnframedResponse",
+            targetLocation = "AT EXIT",
+            action = "org.apache.cassandra.transport.PreV5HandlersTest.afterWrite($1)") })
     public void testPreV5ClientDisconnectWithRequestsInFlight() throws Throwable
     {
-        // ~8 x 16KiB rows per response, so each response body is a "normal" (> 32KiB) pooled allocation, which
-        // Netty never puts in a thread-local cache
-        createTable("CREATE TABLE %s (k int, c int, v blob, PRIMARY KEY (k, c))");
-        ByteBuffer blob = ByteBuffer.wrap(new byte[16 * 1024]);
-        for (int c = 0; c < 8; c++)
-            execute("INSERT INTO %s (k, c, v) VALUES (0, ?, ?)", c, blob);
-        String select = String.format("SELECT * FROM %s.%s WHERE k = 0", KEYSPACE, currentTable());
+        requireNetwork();
+        createTable("CREATE TABLE %s (k int PRIMARY KEY, v int)");
+        execute("INSERT INTO %s (k, v) VALUES (0, 0)");
+        heldQuery = String.format("SELECT * FROM %s.%s WHERE k = 0", KEYSPACE, currentTable());
 
-        Cluster cluster = sessionNet(VERSION).getCluster();
-        int cycles = 50;
-        int queriesPerCycle = 200;
-        // Run multiple cycles of queries and enqueue bunch of queries per cycle, then close the session while
-        // queries are still in flight to simulate a client disconnecting with requests in flight.
-        for (int i = 0; i < cycles; i++)
+        try
         {
-            Session session = cluster.connect();
-            List<ResultSetFuture> inFlight = new ArrayList<>(queriesPerCycle);
-            for (int j = 0; j < queriesPerCycle; j++)
-                inFlight.add(session.executeAsync(select));
+            Session session = sessionNet(VERSION).getCluster().connect();
+            session.executeAsync(heldQuery);
+            assertTrue("query should reach the request worker", processing.await(5, TimeUnit.SECONDS));
+
             session.closeAsync().force().get(10, TimeUnit.SECONDS);
-            inFlight.forEach(f -> f.cancel(true));
+            assertTrue("server should see the disconnect", serverChannel.closeFuture().await(5, TimeUnit.SECONDS));
+            // deregistration, and with it the pipeline teardown, runs as a separate task after close completes
+            long deadline = System.nanoTime() + TimeUnit.SECONDS.toNanos(10);
+            while (serverChannel.pipeline().firstContext() != null && System.nanoTime() < deadline)
+                Thread.sleep(10);
+            assertNull("server pipeline should have been destroyed", serverChannel.pipeline().first());
         }
-
-        // let the server finish the requests queued by the disconnected sessions
-        Thread.sleep(Duration.ofSeconds(10).toMillis());
-
-        // Netty reports a leak on a later allocation, once the leaked ByteBuf wrapper has been garbage collected
-        for (int i = 0; i < 20 && leakReports.list.isEmpty(); i++)
+        finally
         {
-            System.gc();
-            Thread.sleep(100);
-            for (int j = 0; j < 100; j++)
-                CBUtil.allocator.directBuffer(64 * 1024).release();
+            proceed.countDown();
         }
 
-        List<String> leaks = new ArrayList<>();
-        leakReports.list.stream()
-                .filter(l -> l.getFormattedMessage().startsWith("LEAK:"))
-                .forEach(l -> leaks.add(l.getFormattedMessage()));
-        if (!leaks.isEmpty())
-            logger.error("First of {} leak reports:\n{}", leaks.size(), leaks.get(0));
-        assertEquals("Netty LEAK reports", 0, leaks.size());
+        assertTrue("Flusher should write the response", written.await(5, TimeUnit.SECONDS));
+        assertNotNull(writtenResponse);
+        // Before CASSANDRA-21508 the Flusher writes a Message.Response, which holds no buffer until the (now gone)
+        // pipeline encodes it. Since then it writes an Envelope whose body was allocated on the request worker.
+        if (writtenResponse instanceof Envelope)
+            assertEquals("response envelope body leaked", 0, ((Envelope) writtenResponse).body.refCnt());
+    }
+
+    public static void beforeProcess(Channel channel, Message.Request request) throws InterruptedException
+    {
+        if (!(request instanceof QueryMessage) || !((QueryMessage) request).query.equals(heldQuery))
+            return;
+        serverChannel = channel;
+        processing.countDown();
+        proceed.await(5, TimeUnit.SECONDS);
+    }
+
+    public static void afterWrite(Flusher.FlushItem<?> item)
+    {
+        if (item.channel != serverChannel || proceed.getCount() > 0)
+            return;
+        writtenResponse = item.responseEnvelope;
+        written.countDown();
     }
 }
