@@ -81,6 +81,7 @@ import org.apache.cassandra.schema.ReplicationParams;
 import org.apache.cassandra.schema.Schema;
 import org.apache.cassandra.schema.SchemaConstants;
 import org.apache.cassandra.schema.TableId;
+import org.apache.cassandra.schema.TableMetadata;
 import org.apache.cassandra.service.reads.tracked.TrackedLocalReads;
 import org.apache.cassandra.streaming.StreamOperation;
 import org.apache.cassandra.tcm.ClusterMetadata;
@@ -371,7 +372,7 @@ public class MutationTrackingService implements MutationTrackingServiceMBean
         shardLock.readLock().lock();
         try
         {
-            MutationId id = getOrCreateShards(keyspace).nextMutationId(token);
+            MutationId id = getShards(keyspace).nextMutationId(token);
             logger.trace("Created new mutation id {}", id);
             return id;
         }
@@ -387,13 +388,13 @@ public class MutationTrackingService implements MutationTrackingServiceMBean
         shardLock.readLock().lock();
         try
         {
-            KeyspaceShards shards = getOrCreateShards(keyspace);
+            KeyspaceShards shards = getShards(keyspace);
             Shard shard = null;
             for (Range<Token> range : ranges)
             {
                 Shard curShard = shards.lookUp(range);
                 if (curShard == null)
-                    throw new UnknownShardException(range, shards.groups);
+                    throw new IllegalStateException(String.format("No mutation tracking shard covers range %s in keyspace %s", range, keyspace));
                 if (shard == null)
                     shard = curShard;
                 else if (shard != curShard)
@@ -477,7 +478,7 @@ public class MutationTrackingService implements MutationTrackingServiceMBean
         shardLock.readLock().lock();
         try
         {
-            KeyspaceShards shards = maybeGetOrCreateShards(keyspace);
+            KeyspaceShards shards = keyspaceShards.get(keyspace);
             if (shards != null)
                 shards.updateReplicatedOffsets(range, offsets, durable, onHost);
             else
@@ -508,7 +509,7 @@ public class MutationTrackingService implements MutationTrackingServiceMBean
         try
         {
             reconciledSnapshot.forEach((keyspace, keyspaceOffsets) -> {
-                KeyspaceShards ksShards = maybeGetOrCreateShards(keyspace);
+                KeyspaceShards ksShards = keyspaceShards.get(keyspace);
                 if (ksShards != null)
                     ksShards.recordFullyReconciledOffsets(keyspaceOffsets);
                 else
@@ -527,7 +528,7 @@ public class MutationTrackingService implements MutationTrackingServiceMBean
         try
         {
             Preconditions.checkArgument(!mutation.id().isNone());
-            boolean started = getOrCreateShards(mutation.getKeyspaceName()).startWriting(mutation);
+            boolean started = getShards(mutation.getKeyspaceName()).startWriting(mutation);
             // we've already received this mutation, so we reject the write. There may still be reconciliation
             // listening for it though, so notify them that it's received
             if (!started)
@@ -582,7 +583,7 @@ public class MutationTrackingService implements MutationTrackingServiceMBean
         try
         {
             Preconditions.checkArgument(!mutation.id().isNone());
-            getOrCreateShards(mutation.getKeyspaceName()).finishWriting(mutation);
+            getShards(mutation.getKeyspaceName()).finishWriting(mutation);
             incomingMutations.invokeListeners(mutation.id());
         }
         finally
@@ -713,7 +714,7 @@ public class MutationTrackingService implements MutationTrackingServiceMBean
         shardLock.readLock().lock();
         try
         {
-            MutationSummary summary = getOrCreateShards(tableId).createSummaryForKey(key, tableId, includePending);
+            MutationSummary summary = getShards(tableId).createSummaryForKey(key, tableId, includePending);
             MutationTrackingMetrics.instance().readSummarySize.update(summary.size());
             return summary;
         }
@@ -728,7 +729,7 @@ public class MutationTrackingService implements MutationTrackingServiceMBean
         shardLock.readLock().lock();
         try
         {
-            MutationSummary summary = getOrCreateShards(tableId).createSummaryForRange(range, tableId, includePending);
+            MutationSummary summary = getShards(tableId).createSummaryForRange(range, tableId, includePending);
             MutationTrackingMetrics.instance().readSummarySize.update(summary.size());
             return summary;
         }
@@ -913,31 +914,20 @@ public class MutationTrackingService implements MutationTrackingServiceMBean
         return Preconditions.checkNotNull(log2ShardMap.get(logId));
     }
 
-    private KeyspaceShards getOrCreateShards(TableId tableId)
+    private KeyspaceShards getShards(TableId tableId)
     {
-        //noinspection DataFlowIssue
-        return getOrCreateShards(Schema.instance.getTableMetadata(tableId).keyspace);
+        TableMetadata metadata = Schema.instance.getTableMetadata(tableId);
+        if (metadata == null)
+            throw new IllegalStateException(String.format("Unknown table %s", tableId));
+        return getShards(metadata.keyspace);
     }
 
-    private KeyspaceShards getOrCreateShards(String keyspace)
+    private KeyspaceShards getShards(String keyspace)
     {
-        KeyspaceShards shards = maybeGetOrCreateShards(keyspace);
-        Preconditions.checkArgument(shards != null, "Unknown keyspace %s", keyspace);
+        KeyspaceShards shards = keyspaceShards.get(keyspace);
+        if (shards == null)
+            throw new IllegalStateException(String.format("No mutation tracking shards found for keyspace %s", keyspace));
         return shards;
-    }
-
-    private KeyspaceShards maybeGetOrCreateShards(String keyspace)
-    {
-        KeyspaceShards ks = keyspaceShards.get(keyspace);
-        if (ks != null)
-            return ks;
-
-        ClusterMetadata csm = ClusterMetadata.current();
-        KeyspaceMetadata ksm = csm.schema.maybeGetKeyspaceMetadata(keyspace).orElse(null);
-        if (ksm == null)
-            return null;
-
-        return keyspaceShards.computeIfAbsent(keyspace, ignore -> KeyspaceShards.make(ksm, csm, this::nextLogId, this::onNewLog));
     }
 
     private long nextLogId()
@@ -1199,7 +1189,7 @@ public class MutationTrackingService implements MutationTrackingServiceMBean
     {
         Preconditions.checkArgument(keyspace.getMetadata().replicationStrategy.replicationType.isTracked(), "Keyspace " + keyspace.getName() + " is not tracked");
 
-        KeyspaceShards shards = keyspaceShards.get(keyspace.getName());
+        KeyspaceShards shards = getShards(keyspace.getName());
         Map<Shard, List<SyncTask>> tasksByShard = new HashMap<>();
 
         // Shard ranges do not wrap, so unwrap the task ranges before we start comparing them.
@@ -1446,7 +1436,10 @@ public class MutationTrackingService implements MutationTrackingServiceMBean
 
         MutationId nextMutationId(Token token)
         {
-            return lookUp(token).nextId();
+            Shard shard = lookUp(token);
+            if (shard == null)
+                throw new IllegalStateException(String.format("No mutation tracking shard covers token %s in keyspace %s", token, keyspace));
+            return shard.nextId();
         }
 
         void updateReplicatedOffsets(Range<Token> range, List<? extends Offsets> offsets, boolean durable, InetAddressAndPort onHost)
@@ -1459,7 +1452,10 @@ public class MutationTrackingService implements MutationTrackingServiceMBean
 
         boolean startWriting(Mutation mutation)
         {
-            return lookUp(mutation).startWriting(mutation);
+            Shard shard = lookUp(mutation);
+            if (shard == null)
+                throw new IllegalStateException(String.format("No mutation tracking shard covers mutation %s in keyspace %s", mutation.key(), keyspace));
+            return shard.startWriting(mutation);
         }
 
         /**
@@ -1481,13 +1477,19 @@ public class MutationTrackingService implements MutationTrackingServiceMBean
 
         void finishWriting(Mutation mutation)
         {
-            lookUp(mutation).finishWriting(mutation);
+            Shard shard = lookUp(mutation);
+            if (shard == null)
+                throw new IllegalStateException(String.format("No mutation tracking shard covers mutation %s in keyspace %s", mutation.key(), keyspace));
+            shard.finishWriting(mutation);
         }
 
         MutationSummary createSummaryForKey(DecoratedKey key, TableId tableId, boolean includePending)
         {
             MutationSummary.Builder builder = new MutationSummary.Builder(tableId);
-            lookUp(key.getToken()).addSummaryForKey(key.getToken(), includePending, builder);
+            Shard shard = lookUp(key.getToken());
+            if (shard == null)
+                throw new IllegalStateException(String.format("No mutation tracking shard covers key %s in keyspace %s", key.getToken(), keyspace));
+            shard.addSummaryForKey(key.getToken(), includePending, builder);
             return builder.build();
         }
 
