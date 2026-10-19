@@ -27,8 +27,11 @@ import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.concurrent.locks.LockSupport;
 
+import org.junit.AfterClass;
+import org.junit.BeforeClass;
 import org.junit.Test;
 
+import org.apache.cassandra.config.CassandraRelevantProperties;
 import org.apache.cassandra.distributed.Cluster;
 import org.apache.cassandra.distributed.api.ConsistencyLevel;
 import org.apache.cassandra.distributed.api.ICoordinator;
@@ -37,6 +40,7 @@ import org.apache.cassandra.distributed.shared.ClusterUtils;
 import org.apache.cassandra.distributed.shared.NetworkTopology;
 import org.apache.cassandra.replication.MutationTrackingService;
 import org.apache.cassandra.replication.Shard;
+import org.apache.cassandra.replication.Version;
 import org.apache.cassandra.tcm.ClusterMetadata;
 import org.apache.cassandra.tcm.membership.NodeId;
 import org.apache.cassandra.tcm.membership.NodeState;
@@ -68,6 +72,18 @@ public class TrackedUnbootstrapTest extends TestBaseImpl
     private static final int NODES               = 7;
     private static final int RF                  = 3;
     private static final int DECOMMISSION_TARGET = 4; // a node in the middle of the ring
+
+    @BeforeClass
+    public static void setupClusterSafeVersion()
+    {
+        CassandraRelevantProperties.MT_CLUSTER_SAFE_VERSION.setInt(Version.V2.version());
+    }
+
+    @AfterClass
+    public static void tearDownClusterSafeVersion()
+    {
+        CassandraRelevantProperties.MT_CLUSTER_SAFE_VERSION.reset();
+    }
 
     @Test
     public void decommissionSealsObsoletedShards() throws Throwable

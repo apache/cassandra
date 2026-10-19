@@ -25,8 +25,11 @@ import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.concurrent.locks.LockSupport;
 
+import org.junit.AfterClass;
+import org.junit.BeforeClass;
 import org.junit.Test;
 
+import org.apache.cassandra.config.CassandraRelevantProperties;
 import org.apache.cassandra.distributed.Cluster;
 import org.apache.cassandra.distributed.Constants;
 import org.apache.cassandra.distributed.api.ConsistencyLevel;
@@ -37,6 +40,7 @@ import org.apache.cassandra.distributed.api.TokenSupplier;
 import org.apache.cassandra.distributed.shared.ClusterUtils;
 import org.apache.cassandra.distributed.shared.NetworkTopology;
 import org.apache.cassandra.net.Verb;
+import org.apache.cassandra.replication.Version;
 
 import static java.lang.String.format;
 import static org.apache.cassandra.distributed.api.Feature.GOSSIP;
@@ -64,6 +68,18 @@ public class TrackedBootstrapTest extends TestBaseImpl
      */
     private static final String KEYSPACE = "tracked_bootstrap_ks";
     private static final String TABLE    = "tbl";
+
+    @BeforeClass
+    public static void setupClusterSafeVersion()
+    {
+        CassandraRelevantProperties.MT_CLUSTER_SAFE_VERSION.setInt(Version.V2.version());
+    }
+
+    @AfterClass
+    public static void tearDownClusterSafeVersion()
+    {
+        CassandraRelevantProperties.MT_CLUSTER_SAFE_VERSION.reset();
+    }
 
     @Test
     public void bootstrapSealsObsoletedShards() throws Throwable
