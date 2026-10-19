@@ -51,7 +51,7 @@ public interface ShardManager
 
     static ShardManager create(ColumnFamilyStore cfs)
     {
-        return create(cfs, estimatedPartitionCount(cfs));
+        return create(cfs, estimatedPartitionCountInSSTables(cfs));
     }
 
     static ShardManager create(ColumnFamilyStore cfs, long estimatedPartitionCount)
@@ -72,15 +72,15 @@ public interface ShardManager
     }
 
     /**
-     * Return the estimated partition count, used when the number of partitions in an sstable is not sufficient to give
-     * a sensible range estimation.
+     * Return the estimated partition count in sstables, used when the number of partitions in an sstable is not
+     * sufficient to give a sensible range estimation.
      */
-    static long estimatedPartitionCount(ColumnFamilyStore cfs)
+    static long estimatedPartitionCountInSSTables(ColumnFamilyStore cfs)
     {
         final long INITIAL_ESTIMATED_PARTITION_COUNT = 1 << 16; // If we don't yet have a count, use a sensible default.
         if (cfs.metric == null)
             return INITIAL_ESTIMATED_PARTITION_COUNT;
-        final Long estimation = cfs.metric.estimatedPartitionCount.getValue();
+        final Long estimation = cfs.metric.estimatedPartitionCountInSSTablesCached.getValue();
         if (estimation == null || estimation <= 0)
             return INITIAL_ESTIMATED_PARTITION_COUNT;
         return estimation;
