@@ -330,7 +330,7 @@ public class BtiTableWriter extends SortedTableWriter<BtiFormatPartitionWriter, 
             checkState(!dataWriterOpened, "Data writer has been already opened.");
 
             SequentialWriter sequentialWriter = DataComponent.buildWriter(descriptor,
-                    getTableMetadataRef().getLocal(),
+                    getCompressionParams(),
                     getIOOptions().writerOptions,
                     getMetadataCollector(),
                     ensuringInBuildInternalContext(operationType),
