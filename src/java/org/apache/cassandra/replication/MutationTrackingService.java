@@ -2006,6 +2006,31 @@ public class MutationTrackingService implements MutationTrackingServiceMBean
             return service.prevHostLogId;
         }
 
+        public static List<Long> getPrimaryHostLogIds(MutationTrackingService service, String keyspace)
+        {
+            KeyspaceShards shards = service.keyspaceShards.get(keyspace);
+            List<Long> ids = new ArrayList<>();
+            if (shards != null)
+                shards.forEachShard(s -> ids.add((long) s.currentLocalLog().logId.hostLogId));
+            return ids;
+        }
+
+        public static void broadcastOffsetsTo(MutationTrackingService service, String keyspace, InetAddressAndPort target)
+        {
+            KeyspaceShards shards = service.keyspaceShards.get(keyspace);
+            if (shards != null)
+            {
+                shards.forEachShard(shard -> {
+                    BroadcastLogOffsets transientOffsets = shard.collectReplicatedOffsets(false);
+                    if (!transientOffsets.isEmpty())
+                        MessagingService.instance().send(Message.out(Verb.MT_BROADCAST_LOG_OFFSETS, transientOffsets), target);
+                    BroadcastLogOffsets durableOffsets = shard.collectReplicatedOffsets(true);
+                    if (!durableOffsets.isEmpty())
+                        MessagingService.instance().send(Message.out(Verb.MT_BROADCAST_LOG_OFFSETS, durableOffsets), target);
+                });
+            }
+        }
+
         public static KeyspaceShards getKeyspaceShards(MutationTrackingService service, String keyspace)
         {
             return service.keyspaceShards.get(keyspace);
