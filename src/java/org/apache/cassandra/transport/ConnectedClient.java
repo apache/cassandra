@@ -19,7 +19,6 @@ package org.apache.cassandra.transport;
 
 import java.net.InetSocketAddress;
 import java.util.Collections;
-import java.util.LinkedHashMap;
 import java.util.Map;
 import java.util.Optional;
 
@@ -162,19 +161,25 @@ public final class ConnectedClient
     public Map<String, String> asMap()
     {
         Map<String, String> rawOptions = clientOptions().orElse(Collections.emptyMap());
-        Map<String, String> safeOptions = new LinkedHashMap<>();
+        StringBuilder optionsBuilder = new StringBuilder();
+        boolean first = true;
         for (Map.Entry<String, String> entry : rawOptions.entrySet())
         {
-            safeOptions.put(escapeOptionString(entry.getKey()), escapeOptionString(entry.getValue()));
+            if (!first)
+            {
+                optionsBuilder.append(", ");
+            }
+            optionsBuilder.append(escapeOptionString(entry.getKey()))
+                          .append('=')
+                          .append(escapeOptionString(entry.getValue()));
+            first = false;
         }
 
         return ImmutableMap.<String, String>builder()
                            .put(ADDRESS, remoteAddress().toString())
                            .put(USER, username().orElse(UNDEFINED))
                            .put(VERSION, String.valueOf(protocolVersion()))
-                           .put(CLIENT_OPTIONS, Joiner.on(", ")
-                                                      .withKeyValueSeparator("=")
-                                                      .join(safeOptions))
+                           .put(CLIENT_OPTIONS, optionsBuilder.toString())
                            .put(DRIVER_NAME, driverName().orElse(UNDEFINED))
                            .put(DRIVER_VERSION, driverVersion().orElse(UNDEFINED))
                            .put(REQUESTS, String.valueOf(requestCount()))
@@ -198,7 +203,7 @@ public final class ConnectedClient
      * @param str the raw option string
      * @return the safely escaped string
      */
-    private static String escapeOptionString(String str)
+    static String escapeOptionString(String str)
     {
         if (str == null)
             return "";

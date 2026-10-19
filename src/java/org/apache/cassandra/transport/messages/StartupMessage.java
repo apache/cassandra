@@ -55,7 +55,7 @@ public class StartupMessage extends Message.Request
     public static final String THROW_ON_OVERLOAD = "THROW_ON_OVERLOAD";
     public static final int MAX_OPTION_KEY_LENGTH = 256;
     public static final int MAX_OPTION_VALUE_LENGTH = 1024;
-    public static final int MAX_OPTIONS_ENTRIES = 64;
+    public static final int MAX_OPTION_COUNT = 64;
 
     public static final Message.Codec<StartupMessage> codec = new Message.Codec<StartupMessage>()
     {
@@ -199,33 +199,29 @@ public class StartupMessage extends Message.Request
         }
 
         int maxLength = isKey ? MAX_OPTION_KEY_LENGTH : MAX_OPTION_VALUE_LENGTH;
-
         byte[] utf8Bytes = str.getBytes(StandardCharsets.UTF_8);
         if (utf8Bytes.length > maxLength)
         {
+            String target = isKey ? String.format("key '%s'", str.length() > 20 ? str.substring(0, 20) + "..." : str)
+                                  : String.format("value for key", str);
             throw new ProtocolException(String.format("Startup option %s exceeds maximum byte length: %d (maximum allowed is %d)",
-                                                      isKey ? "key" : "value", utf8Bytes.length, maxLength));
+                                                      target, utf8Bytes.length, maxLength));
         }
-
-        for (int i = 0; i < str.length(); i++)
+        for (int i = 0; i < str.length(); )
         {
-            char c = str.charAt(i);
-
-            // Disallow newlines and carriage returns explicitly
+            int cp = str.codePointAt(i);
+            char c = (char) cp;
             if (c == '\n' || c == '\r')
+                throw new ProtocolException(String.format("Startup option %s contains a newline character at index %d", isKey ? "key" : "value", i));
+            if ((Character.isISOControl(cp) && cp != '\t') ||
+                Character.getType(cp) == Character.FORMAT ||
+                Character.getType(cp) == Character.SURROGATE ||
+                Character.getType(cp) == Character.LINE_SEPARATOR ||
+                Character.getType(cp) == Character.PARAGRAPH_SEPARATOR)
             {
-                throw new ProtocolException(String.format("Startup option %s cannot contain newline characters", isKey ? "key" : "value"));
+                throw new ProtocolException(String.format("Startup option %s contains a forbidden control or formatting character at index %d", isKey ? "key" : "value", i));
             }
-
-            // Block ISO controls (allow tab), and block unsafe Unicode categories (Format, Bidi overrides, Surrogates, Separators)
-            if ((Character.isISOControl(c) && c != '\t') ||
-                Character.getType(c) == Character.FORMAT ||
-                Character.getType(c) == Character.SURROGATE ||
-                Character.getType(c) == Character.LINE_SEPARATOR ||
-                Character.getType(c) == Character.PARAGRAPH_SEPARATOR)
-            {
-                throw new ProtocolException(String.format("Startup option %s contains forbidden control or formatting characters", isKey ? "key" : "value"));
-            }
+            i += Character.charCount(cp);
         }
     }
 
@@ -233,22 +229,14 @@ public class StartupMessage extends Message.Request
     {
         if (options == null || options.isEmpty())
             return Collections.emptyMap();
-
-        if (options.size() > MAX_OPTIONS_ENTRIES)
-            throw new ProtocolException(String.format("Too many startup options provided: %d (maximum allowed is %d)", options.size(), MAX_OPTIONS_ENTRIES));
-
-        Map<String, String> sanitized = new HashMap<>(options.size());
+        if (options.size() > MAX_OPTION_COUNT)
+            throw new ProtocolException(String.format("Too many startup options provided: %d (maximum allowed is %d)", options.size(), MAX_OPTION_COUNT));
         for (Map.Entry<String, String> entry : options.entrySet())
         {
-            String key = entry.getKey();
-            String value = entry.getValue();
-
-            validateString(key, true);
-            validateString(value, false);
-
-            sanitized.put(key, value);
+            validateString(entry.getKey(), true);
+            validateString(entry.getValue(), false);
         }
-        return sanitized;
+        return options;
     }
 
     @Override
