@@ -69,6 +69,9 @@ public interface ICompressionDictionaryCache extends AutoCloseable
      * than their argument — referencing a redundant "loser" instance would lazily create a selfRef the cache
      * never owns and therefore never releases, leaking it (CASSANDRA-21047).
      *
+     * <p>
+     * After {@link #close()} the dictionary is not cached: the returned instance is released.
+     *
      * @param compressionDictionary the compression dictionary to cache, may be null
      * @return the canonical cached dictionary for this id, or null if the argument was null
      */

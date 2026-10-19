@@ -211,9 +211,10 @@ public class CompressionDictionaryManagerTest
             public CompressionDictionary get(CompressionDictionary.DictId dictId)
             {
                 CompressionDictionary cached = super.get(dictId);
-                // released before it is referenced, as an eviction right after the lookup does
+                // released before it is referenced, as an eviction right after the lookup does; disabling dictionary
+                // compression releases the cached dictionaries, sstables written with them are still read
                 if (released.compareAndSet(false, true))
-                    close();
+                    maybeReloadFromSchema(CompressionParams.lz4());
                 return cached;
             }
         })

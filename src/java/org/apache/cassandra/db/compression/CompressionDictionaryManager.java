@@ -66,7 +66,7 @@ public class CompressionDictionaryManager implements CompressionDictionaryManage
 
     // Components
     private final ICompressionDictionaryEventHandler eventHandler;
-    private final ICompressionDictionaryCache cache;
+    private final CompressionDictionaryCache cache;
     private final ICompressionDictionaryScheduler scheduler;
 
     public CompressionDictionaryManager(ColumnFamilyStore columnFamilyStore, boolean registerBookkeeping)
@@ -123,16 +123,11 @@ public class CompressionDictionaryManager implements CompressionDictionaryManage
             return;
         }
 
-        // Clean up when dictionary compression is disabled
-        try
-        {
-            close();
-        }
-        catch (Exception e)
-        {
-            logger.warn("Failed to close CompressionDictionaryManager on disabling " +
-                        "dictionary-based compression for table {}.{}", keyspaceName, tableName);
-        }
+        // Clean up when dictionary compression is disabled. Unlike close(), on drop of the table, this keeps the
+        // cache usable for when dictionary compression is enabled again.
+        unregisterMbean();
+        cache.clear();
+        closeQuitely(scheduler, "CompressionDictionaryScheduler");
     }
 
     @Nullable
@@ -318,7 +313,8 @@ public class CompressionDictionaryManager implements CompressionDictionaryManage
     }
 
     /**
-     * Close all the resources. The method can be called multiple times.
+     * Close all the resources when the table is dropped. The method can be called multiple times. A dictionary added
+     * afterwards, e.g. by a refresh or training which was running, is released right away.
      */
     @Override
     public synchronized void close()
