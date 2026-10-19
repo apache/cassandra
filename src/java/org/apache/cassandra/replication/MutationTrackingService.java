@@ -955,10 +955,11 @@ public class MutationTrackingService implements MutationTrackingServiceMBean
             Preconditions.checkState(hostLogIdLoaded, "Host log id counter has not been loaded from system tables");
             int nextHostLogId = ++prevHostLogId;
             persistHostLogIdToSystemTable(nextHostLogId);
+            SystemKeyspace.forceBlockingFlush(SystemKeyspace.HOST_LOG_ID);
             return nextHostLogId;
         }
     }
-    private int prevHostLogId;
+    private volatile int prevHostLogId;
 
     public boolean isDurablyReconciled(ShortMutationId id)
     {
