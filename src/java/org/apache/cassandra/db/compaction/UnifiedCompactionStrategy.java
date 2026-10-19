@@ -698,11 +698,15 @@ public class UnifiedCompactionStrategy extends AbstractCompactionStrategy
          * sstables of the smallest group of shards that contains one of them. Sstables that cross a shard boundary
          * join their shards into one group so that the pick is a valid independent transaction. If several groups
          * qualify, one is chosen uniformly at random. Only called when the level has no overlap bucket to compact.
+         * Returns null when max_sstables_per_shard_factor is 0.
          */
         private CompactionPick getOversizeShardPick(SelectionContext context)
         {
             Controller controller = context.controller;
-            double shardThreshold = fanout * controller.getMaxSstablesPerShardFactor();
+            double maxSstablesPerShardFactor = controller.getMaxSstablesPerShardFactor();
+            if (maxSstablesPerShardFactor == 0)
+                return null; // check disabled
+            double shardThreshold = fanout * maxSstablesPerShardFactor;
             if (sstables.size() <= shardThreshold)
                 return null;
 

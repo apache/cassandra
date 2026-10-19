@@ -920,6 +920,8 @@ public class UnifiedCompactionStrategyTest
         testOversizeShardPickThreshold(2.0, 9, true);
         testOversizeShardPickThreshold(2.25, 9, false);
         testOversizeShardPickThreshold(2.25, 10, true);
+        // 0 disables the check whatever the count
+        testOversizeShardPickThreshold(0, 50, false);
     }
 
     private void testOversizeShardPickThreshold(double maxSstablesPerShardFactor, int numSSTables, boolean expectPick)

@@ -732,7 +732,7 @@ public class CreateTest extends CQLTester
     @Test
     public void testCreateTableWithInvalidUnifiedCompactionOptions() throws Throwable
     {
-        assertThrowsConfigurationException("max_sstables_per_shard_factor 0.9 must be a number greater than or equal to 1",
+        assertThrowsConfigurationException("max_sstables_per_shard_factor 0.9 must be 0 to disable or a number greater than or equal to 1",
                                            "CREATE TABLE %s (a text, b int, c int, primary key (a, b))"
                                            + " WITH compaction = { 'class' : 'UnifiedCompactionStrategy', 'max_sstables_per_shard_factor' : 0.9 };");
 
