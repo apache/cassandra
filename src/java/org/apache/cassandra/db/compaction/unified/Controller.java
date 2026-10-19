@@ -149,6 +149,16 @@ public class Controller
     static final Overlaps.InclusionMethod DEFAULT_OVERLAP_INCLUSION_METHOD =
         CassandraRelevantProperties.UCS_OVERLAP_INCLUSION_METHOD.getEnum(Overlaps.InclusionMethod.TRANSITIVE);
 
+    /**
+     * Limit on the number of sstables per shard, as a multiple of the level's fanout. When a level has no overlap
+     * bucket to compact and one of its shards holds more sstables than this, all sstables in that shard (and in any
+     * shard sharing an sstable with it) are compacted together. Small sstables that never overlap with enough
+     * others, e.g. those produced by frequent small flushes or repair streams, would otherwise never be compacted.
+     */
+    static final String MAX_SSTABLES_PER_SHARD_FACTOR_OPTION = "max_sstables_per_shard_factor";
+    static final double DEFAULT_MAX_SSTABLES_PER_SHARD_FACTOR =
+        CassandraRelevantProperties.UCS_MAX_SSTABLES_PER_SHARD_FACTOR.getDouble();
+
     protected final ColumnFamilyStore cfs;
     protected final MonotonicClock clock;
     private final int[] scalingParameters;
@@ -172,6 +182,8 @@ public class Controller
 
     protected final Overlaps.InclusionMethod overlapInclusionMethod;
 
+    protected final double maxSstablesPerShardFactor;
+
     Controller(ColumnFamilyStore cfs,
                MonotonicClock clock,
                int[] scalingParameters,
@@ -184,7 +196,8 @@ public class Controller
                int baseShardCount,
                double targetSStableSize,
                double sstableGrowthModifier,
-               Overlaps.InclusionMethod overlapInclusionMethod)
+               Overlaps.InclusionMethod overlapInclusionMethod,
+               double maxSstablesPerShardFactor)
     {
         this.cfs = cfs;
         this.clock = clock;
@@ -198,6 +211,7 @@ public class Controller
         this.targetSSTableSize = targetSStableSize;
         this.overlapInclusionMethod = overlapInclusionMethod;
         this.sstableGrowthModifier = sstableGrowthModifier;
+        this.maxSstablesPerShardFactor = maxSstablesPerShardFactor;
 
         if (maxSSTablesToCompact <= 0)
             maxSSTablesToCompact = Integer.MAX_VALUE;
@@ -405,6 +419,11 @@ public class Controller
         return expiredSSTableCheckFrequency;
     }
 
+    public double getMaxSstablesPerShardFactor()
+    {
+        return maxSstablesPerShardFactor;
+    }
+
     public static Controller fromOptions(ColumnFamilyStore cfs, Map<String, String> options)
     {
         int[] Ws = parseScalingParameters(options.getOrDefault(SCALING_PARAMETERS_OPTION, DEFAULT_SCALING_PARAMETERS));
@@ -445,6 +464,10 @@ public class Controller
                 ? Overlaps.InclusionMethod.valueOf(options.get(OVERLAP_INCLUSION_METHOD_OPTION).toUpperCase())
                 : DEFAULT_OVERLAP_INCLUSION_METHOD;
 
+        double maxSstablesPerShardFactor = options.containsKey(MAX_SSTABLES_PER_SHARD_FACTOR_OPTION)
+                                           ? Double.parseDouble(options.get(MAX_SSTABLES_PER_SHARD_FACTOR_OPTION))
+                                           : DEFAULT_MAX_SSTABLES_PER_SHARD_FACTOR;
+
         return new Controller(cfs,
                               MonotonicClock.Global.preciseTime,
                               Ws,
@@ -457,7 +480,8 @@ public class Controller
                               baseShardCount,
                               targetSStableSize,
                               sstableGrowthModifier,
-                              inclusionMethod);
+                              inclusionMethod,
+                              maxSstablesPerShardFactor);
     }
 
     public static Map<String, String> validateOptions(Map<String, String> options) throws ConfigurationException
@@ -643,6 +667,26 @@ public class Controller
                 throw new ConfigurationException(String.format("%s is not a valid number between 0 and 1: %s",
                                                                SSTABLE_GROWTH_OPTION,
                                                                e.getMessage()),
+                                                 e);
+            }
+        }
+
+        s = options.remove(MAX_SSTABLES_PER_SHARD_FACTOR_OPTION);
+        if (s != null)
+        {
+            try
+            {
+                double maxSstablesPerShardFactor = Double.parseDouble(s);
+                if (maxSstablesPerShardFactor < 1)
+                    throw new ConfigurationException(String.format("%s %s must be a number greater than or equal to 1",
+                                                                   MAX_SSTABLES_PER_SHARD_FACTOR_OPTION,
+                                                                   s));
+            }
+            catch (NumberFormatException e)
+            {
+                throw new ConfigurationException(String.format("%s is not a parsable number for %s",
+                                                               s,
+                                                               MAX_SSTABLES_PER_SHARD_FACTOR_OPTION),
                                                  e);
             }
         }
