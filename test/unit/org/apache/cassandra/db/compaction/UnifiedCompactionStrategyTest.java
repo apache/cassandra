@@ -30,6 +30,7 @@ import java.util.Set;
 import java.util.TreeMap;
 import java.util.concurrent.TimeUnit;
 
+import com.google.common.collect.ImmutableSet;
 import com.google.common.collect.Iterables;
 import org.apache.commons.math3.random.JDKRandomGenerator;
 import org.junit.Before;
@@ -784,6 +785,245 @@ public class UnifiedCompactionStrategyTest
                             Double.POSITIVE_INFINITY,
                             numShards * sstablesPerShard - 1,
                             sstablesPerShard, sstablesPerShard * 2);
+    }
+
+    // Same layout as testBucketSelectionNonOverlapping, with the random mock choosing the first oversize group
+    // instead of the last: nextInt(1) is 0 for the first group, nextInt(2) is 1 so the last group does not replace it.
+    @Test
+    public void testOversizeShardPickRandomGroupChoice()
+    {
+        int numShards = 16;
+        int perShardThreshold = 3 * 10;
+        int sstablesPerShard = perShardThreshold + 1;
+        List<SSTableReader> list = mockNonOverlappingSSTables(numShards * sstablesPerShard + 1, 0, (100 << 20) / (numShards * sstablesPerShard + 1));
+        list.remove(sstablesPerShard * 2);
+        list.remove(sstablesPerShard);
+
+        Controller controller = mockOversizeShardController(-1, numShards, 10.0); // F=3, T=2
+        Random randomMock = Mockito.mock(Random.class);
+        when(randomMock.nextInt(anyInt())).thenReturn(0);
+        when(randomMock.nextInt(2)).thenReturn(1);
+        when(controller.random()).thenReturn(randomMock);
+        UnifiedCompactionStrategy strategy = new UnifiedCompactionStrategy(cfs, new HashMap<>(), controller);
+        strategy.addSSTables(list);
+        dataTracker.addInitialSSTables(list);
+
+        UnifiedCompactionStrategy.CompactionPick pick = strategy.getNextCompactionPick(0);
+        assertNotNull(pick);
+        assertEquals(sstablesPerShard, pick.size());
+        assertEquals(ImmutableSet.copyOf(list.subList(0, sstablesPerShard)), ImmutableSet.copyOf(pick));
+        strategy.removeSSTables(pick);
+
+        pick = strategy.getNextCompactionPick(0);
+        assertNotNull(pick);
+        assertEquals(sstablesPerShard * (numShards - 2), pick.size());
+        strategy.removeSSTables(pick);
+
+        assertNull(strategy.getNextCompactionPick(0));
+        assertEquals(perShardThreshold, strategy.getSSTables().size());
+    }
+
+    // Overlapping sstables below the level threshold still count toward the per-shard limit, and the pick reports
+    // the level's overlap and one remaining task.
+    @Test
+    public void testOversizeShardPickWithOverlapsBelowThreshold()
+    {
+        Controller controller = mockOversizeShardController(2, 1, 2.0); // F=T=4, per-shard threshold 8
+        UnifiedCompactionStrategy strategy = new UnifiedCompactionStrategy(cfs, new HashMap<>(), controller);
+
+        // Five disjoint sstables over the first half of the ring plus four that each overlap exactly one of them,
+        // all with the same density so they form a single level with max overlap 2.
+        ByteBuffer emptyBuffer = ByteBuffer.allocate(0);
+        long timestamp = System.currentTimeMillis();
+        List<SSTableReader> sstables = new ArrayList<>();
+        for (int i = 0; i < 5; i++)
+        {
+            DecoratedKey first = new BufferDecoratedKey(boundary(100, i * 10).nextValidToken(), emptyBuffer);
+            DecoratedKey last = new BufferDecoratedKey(boundary(100, i * 10 + 10), emptyBuffer);
+            sstables.add(mockSSTable(0, 10 * ONE_MB, timestamp + i, 0.0, first, last));
+        }
+        for (int i = 0; i < 4; i++)
+        {
+            DecoratedKey first = new BufferDecoratedKey(boundary(100, i * 10 + 5), emptyBuffer);
+            DecoratedKey last = new BufferDecoratedKey(boundary(100, i * 10 + 8), emptyBuffer);
+            sstables.add(mockSSTable(0, 3 * ONE_MB, timestamp + 10 + i, 0.0, first, last));
+        }
+        strategy.addSSTables(sstables);
+        dataTracker.addInitialSSTables(sstables);
+
+        UnifiedCompactionStrategy.CompactionPick pick = strategy.getNextCompactionPick(0);
+        assertNotNull(pick);
+        assertEquals(ImmutableSet.copyOf(sstables), ImmutableSet.copyOf(pick));
+        assertEquals(0, pick.level);
+        assertEquals(2, pick.overlap);
+        assertEquals(1, strategy.getEstimatedRemainingTasks());
+
+        strategy.removeSSTables(pick);
+        assertNull(strategy.getNextCompactionPick(0));
+        assertEquals(0, strategy.getEstimatedRemainingTasks());
+    }
+
+    // An oversize shard pick carries the level's overlap, so a level whose overlap reaches its threshold is
+    // compacted first, whichever of the two is lower.
+    @Test
+    public void testOversizeShardPickYieldsToHigherOverlapLevel()
+    {
+        // Level 0 holds nine disjoint sstables (over the per-shard limit of 8), level 1 holds four overlapping ones.
+        Controller controller = mockOversizeShardController(2, 1, 2.0); // F=T=4, per-shard threshold 8
+        UnifiedCompactionStrategy strategy = new UnifiedCompactionStrategy(cfs, new HashMap<>(), controller);
+        List<SSTableReader> disjoint = mockNonOverlappingSSTables(9, 0, (100 << 20) / 9);
+        List<SSTableReader> overlapping = createSStables(partitioner, mapFromPair(Pair.create(700 * ONE_MB, 4)));
+        strategy.addSSTables(disjoint);
+        strategy.addSSTables(overlapping);
+        dataTracker.addInitialSSTables(disjoint);
+        dataTracker.addInitialSSTables(overlapping);
+
+        UnifiedCompactionStrategy.CompactionPick pick = strategy.getNextCompactionPick(0);
+        assertNotNull(pick);
+        assertEquals(1, pick.level);
+        assertEquals(ImmutableSet.copyOf(overlapping), ImmutableSet.copyOf(pick));
+        strategy.removeSSTables(pick);
+
+        pick = strategy.getNextCompactionPick(0);
+        assertNotNull(pick);
+        assertEquals(0, pick.level);
+        assertEquals(ImmutableSet.copyOf(disjoint), ImmutableSet.copyOf(pick));
+        strategy.removeSSTables(pick);
+        assertNull(strategy.getNextCompactionPick(0));
+
+        // The mirror: four overlapping sstables on level 0, nine disjoint ones on level 1.
+        strategy = new UnifiedCompactionStrategy(cfs, new HashMap<>(), controller);
+        overlapping = createSStables(partitioner, mapFromPair(Pair.create(99 * ONE_MB, 4)));
+        disjoint = mockNonOverlappingSSTables(9, 1, (700 << 20) / 9);
+        strategy.addSSTables(overlapping);
+        strategy.addSSTables(disjoint);
+        dataTracker.addInitialSSTables(overlapping);
+        dataTracker.addInitialSSTables(disjoint);
+
+        pick = strategy.getNextCompactionPick(0);
+        assertNotNull(pick);
+        assertEquals(0, pick.level);
+        assertEquals(ImmutableSet.copyOf(overlapping), ImmutableSet.copyOf(pick));
+        strategy.removeSSTables(pick);
+
+        pick = strategy.getNextCompactionPick(0);
+        assertNotNull(pick);
+        assertEquals(1, pick.level);
+        assertEquals(ImmutableSet.copyOf(disjoint), ImmutableSet.copyOf(pick));
+    }
+
+    @Test
+    public void testOversizeShardPickThresholdBoundary()
+    {
+        // F=4: factor 2 gives a per-shard threshold of 8, factor 2.25 one of 9. A shard at the threshold is left alone.
+        testOversizeShardPickThreshold(2.0, 8, false);
+        testOversizeShardPickThreshold(2.0, 9, true);
+        testOversizeShardPickThreshold(2.25, 9, false);
+        testOversizeShardPickThreshold(2.25, 10, true);
+    }
+
+    private void testOversizeShardPickThreshold(double maxSstablesPerShardFactor, int numSSTables, boolean expectPick)
+    {
+        Controller controller = mockOversizeShardController(2, 1, maxSstablesPerShardFactor); // F=T=4
+        UnifiedCompactionStrategy strategy = new UnifiedCompactionStrategy(cfs, new HashMap<>(), controller);
+        List<SSTableReader> sstables = mockNonOverlappingSSTables(numSSTables, 0, (100 << 20) / numSSTables);
+        strategy.addSSTables(sstables);
+        dataTracker.addInitialSSTables(sstables);
+
+        UnifiedCompactionStrategy.CompactionPick pick = strategy.getNextCompactionPick(0);
+        assertEquals("factor " + maxSstablesPerShardFactor + " with " + numSSTables + " sstables", expectPick, pick != null);
+        if (expectPick)
+            assertEquals(numSSTables, pick.size());
+    }
+
+    // Expired sstables leave the candidate set before levels form, so they do not count toward the per-shard limit,
+    // and they are added to the oversize shard pick like to any other pick.
+    @Test
+    public void testExpiredSSTablesJoinOversizeShardPick()
+    {
+        Controller controller = mockOversizeShardController(2, 1, 2.0); // F=T=4, per-shard threshold 8
+        when(controller.getExpiredSSTableCheckFrequency()).thenReturn(-1L); // check on every call
+        when(controller.random()).thenCallRealMethod();
+        UnifiedCompactionStrategy strategy = new UnifiedCompactionStrategy(cfs, new HashMap<>(), controller);
+        strategy.startup();
+
+        List<SSTableReader> nonExpired = mockNonOverlappingSSTables(9, 0, (100 << 20) / 9);
+        // The expired sstables must be older than every live one, or the overlap check keeps them.
+        List<SSTableReader> expired = expiredSSTables(2, nonExpired.get(0).getMinTimestamp() - 1000);
+        strategy.addSSTables(nonExpired);
+        strategy.addSSTables(expired);
+        dataTracker.addInitialSSTables(nonExpired);
+        dataTracker.addInitialSSTables(expired);
+        long expirationPoint = expired.get(expired.size() - 1).getMaxLocalDeletionTime() + 1;
+
+        try
+        {
+            UnifiedCompactionStrategy.CompactionPick pick = strategy.getNextCompactionPick(expirationPoint);
+            assertNotNull(pick);
+            assertEquals(0, pick.level);
+            assertEquals(ImmutableSet.copyOf(Iterables.concat(nonExpired, expired)), ImmutableSet.copyOf(pick));
+        }
+        finally
+        {
+            strategy.shutdown();
+        }
+
+        // Eight live sstables plus one expired do not exceed the per-shard limit: only the expired one is picked.
+        strategy = new UnifiedCompactionStrategy(cfs, new HashMap<>(), controller);
+        strategy.startup();
+        nonExpired = mockNonOverlappingSSTables(8, 0, (100 << 20) / 8);
+        expired = expiredSSTables(1, nonExpired.get(0).getMinTimestamp() - 1000);
+        strategy.addSSTables(nonExpired);
+        strategy.addSSTables(expired);
+        dataTracker.addInitialSSTables(nonExpired);
+        dataTracker.addInitialSSTables(expired);
+        expirationPoint = expired.get(0).getMaxLocalDeletionTime() + 1;
+
+        try
+        {
+            UnifiedCompactionStrategy.CompactionPick pick = strategy.getNextCompactionPick(expirationPoint);
+            assertNotNull(pick);
+            assertEquals(-1, pick.level);
+            assertEquals(ImmutableSet.copyOf(expired), ImmutableSet.copyOf(pick));
+        }
+        finally
+        {
+            strategy.shutdown();
+        }
+    }
+
+    private List<SSTableReader> expiredSSTables(int count, long timestamp)
+    {
+        ByteBuffer emptyBuffer = ByteBuffer.allocate(0);
+        DecoratedKey first = new BufferDecoratedKey(partitioner.split(partitioner.getMinimumToken(), partitioner.getMaximumToken(), 0.01), emptyBuffer);
+        DecoratedKey last = new BufferDecoratedKey(partitioner.getMaximumToken(), emptyBuffer);
+        List<SSTableReader> sstables = new ArrayList<>(count);
+        for (int i = 0; i < count; i++)
+            sstables.add(mockSSTable(0, 4 * ONE_MB, timestamp + i, 0.0, first, last, 1000));
+        return sstables;
+    }
+
+    // The controller stubs shared by the oversize shard tests, matching testBucketSelection: the base sstable size
+    // of 90 MiB puts sstables of density 100 MiB on level 0 and the random mock picks the last matching group.
+    private Controller mockOversizeShardController(int scalingParameter, int numShards, double maxSstablesPerShardFactor)
+    {
+        Controller controller = Mockito.mock(Controller.class);
+        when(controller.getScalingParameter(anyInt())).thenReturn(scalingParameter);
+        when(controller.getFanout(anyInt())).thenCallRealMethod();
+        when(controller.getThreshold(anyInt())).thenCallRealMethod();
+        when(controller.getMaxLevelDensity(anyInt(), anyDouble())).thenCallRealMethod();
+        when(controller.getSurvivalFactor(anyInt())).thenReturn(1.0);
+        when(controller.getNumShards(anyDouble())).thenReturn(numShards);
+        when(controller.getMaxSstablesPerShardFactor()).thenReturn(maxSstablesPerShardFactor);
+        when(controller.getBaseSstableSize(anyInt())).thenReturn((double) (90 << 20));
+        when(controller.maxConcurrentCompactions()).thenReturn(1000); // let it generate as many candidates as it can
+        when(controller.maxThroughput()).thenReturn(Double.MAX_VALUE);
+        when(controller.getIgnoreOverlapsInExpirationCheck()).thenReturn(false);
+        when(controller.overlapInclusionMethod()).thenReturn(Overlaps.InclusionMethod.TRANSITIVE);
+        Random randomMock = Mockito.mock(Random.class);
+        when(randomMock.nextInt(anyInt())).thenReturn(0);
+        when(controller.random()).thenReturn(randomMock);
+        return controller;
     }
 
 

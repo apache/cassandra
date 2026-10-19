@@ -20,6 +20,7 @@ package org.apache.cassandra.distributed.test;
 
 import java.io.IOException;
 import java.lang.reflect.Field;
+import java.lang.reflect.Method;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
@@ -37,6 +38,8 @@ import org.slf4j.LoggerFactory;
 
 import org.apache.cassandra.db.ColumnFamilyStore;
 import org.apache.cassandra.db.Keyspace;
+import org.apache.cassandra.db.compaction.ShardManager;
+import org.apache.cassandra.db.compaction.UnifiedCompactionStrategy;
 import org.apache.cassandra.db.marshal.LongType;
 import org.apache.cassandra.dht.Murmur3Partitioner;
 import org.apache.cassandra.distributed.Cluster;
@@ -47,6 +50,7 @@ import org.apache.cassandra.service.StorageService;
 import org.apache.cassandra.utils.FBUtilities;
 import org.apache.cassandra.utils.concurrent.Condition;
 import org.apache.cassandra.utils.progress.ProgressEventType;
+import org.awaitility.Awaitility;
 import org.hamcrest.Matchers;
 
 import static org.apache.cassandra.cql3.TombstonesWithIndexedSSTableTest.makeRandomString;
@@ -54,6 +58,7 @@ import static org.apache.cassandra.distributed.api.Feature.GOSSIP;
 import static org.apache.cassandra.distributed.api.Feature.NETWORK;
 import static org.apache.cassandra.utils.concurrent.Condition.newOneTimeCondition;
 import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertNotEquals;
 import static org.junit.Assert.assertThat;
 import static org.junit.Assert.assertTrue;
 
@@ -145,6 +150,63 @@ public class UnifiedCompactionDensitiesTest extends TestBaseImpl
     {
         for (int i = 0; i < toWrite; i += payloadSize)
             cluster.coordinator(1).execute(withKeyspace("insert into %s.tbl (id, value) values (?, ?)"), ConsistencyLevel.ONE, i + offset, makeRandomString(payloadSize));
+    }
+
+    /**
+     * The per-partition span floor is derived from the table's estimated partition count, so the strategy must
+     * rebuild its shard manager when the cached estimate changes, and keep it while the estimate is stable.
+     */
+    @Test
+    public void testShardManagerRebuiltWhenPartitionCountEstimateChanges() throws IOException
+    {
+        try (Cluster cluster = init(builder().withNodes(1).start()))
+        {
+            cluster.get(1).runOnInstance(UnifiedCompactionDensitiesTest::shortenEstimatedPartitionCountCache);
+            cluster.schemaChange(withKeyspace("create table %s.tbl (id bigint primary key, value text) with compaction = " +
+                                              "{'class':'UnifiedCompactionStrategy'}"));
+
+            // Without sstables the estimate is the 65536 default and the shard manager is built with it.
+            long[] initial = cluster.get(1).callOnInstance(UnifiedCompactionDensitiesTest::shardManagerIdentityAndEstimate);
+            assertEquals(1 << 16, initial[1]);
+
+            for (long id = 0; id < 2000; id++)
+                cluster.coordinator(1).execute(withKeyspace("insert into %s.tbl (id, value) values (?, ?)"),
+                                               ConsistencyLevel.ONE, id, makeRandomString(100));
+            cluster.get(1).flush(KEYSPACE);
+
+            // The gauge recomputes one second after it was last loaded, now from the flushed sstable.
+            Awaitility.await().atMost(30, TimeUnit.SECONDS).until(() -> cluster.get(1).callOnInstance(() -> {
+                ColumnFamilyStore cfs = Keyspace.open(KEYSPACE).getColumnFamilyStore("tbl");
+                return ShardManager.estimatedPartitionCountInSSTables(cfs) != 1 << 16;
+            }));
+
+            long[] rebuilt = cluster.get(1).callOnInstance(UnifiedCompactionDensitiesTest::shardManagerIdentityAndEstimate);
+            // The sstable key count is a cardinality estimate, so allow it some slack around the 2000 partitions.
+            assertTrue("Estimated partition count " + rebuilt[1], rebuilt[1] > 1500 && rebuilt[1] < 2500);
+            assertNotEquals("Shard manager was not rebuilt after the estimate changed", initial[0], rebuilt[0]);
+
+            long[] unchanged = cluster.get(1).callOnInstance(UnifiedCompactionDensitiesTest::shardManagerIdentityAndEstimate);
+            assertEquals(rebuilt[1], unchanged[1]);
+            assertEquals("Shard manager was rebuilt although the estimate did not change", rebuilt[0], unchanged[0]);
+        }
+    }
+
+    private static long[] shardManagerIdentityAndEstimate()
+    {
+        ColumnFamilyStore cfs = Keyspace.open(KEYSPACE).getColumnFamilyStore("tbl");
+        UnifiedCompactionStrategy strategy = (UnifiedCompactionStrategy) cfs.getCompactionStrategyManager().getStrategies().get(1).get(0);
+        try
+        {
+            // getShardManager is package private and rebuilds the manager when the estimate has changed.
+            Method getShardManager = UnifiedCompactionStrategy.class.getDeclaredMethod("getShardManager");
+            getShardManager.setAccessible(true);
+            return new long[]{ System.identityHashCode(getShardManager.invoke(strategy)),
+                               ShardManager.estimatedPartitionCountInSSTables(cfs) };
+        }
+        catch (ReflectiveOperationException e)
+        {
+            throw new RuntimeException(e);
+        }
     }
 
     @Test

@@ -677,7 +677,8 @@ public class Controller
             try
             {
                 double maxSstablesPerShardFactor = Double.parseDouble(s);
-                if (maxSstablesPerShardFactor < 1)
+                // Written as a negated >= so that NaN (which compares false to everything) is rejected too
+                if (!(maxSstablesPerShardFactor >= 1))
                     throw new ConfigurationException(String.format("%s %s must be a number greater than or equal to 1",
                                                                    MAX_SSTABLES_PER_SHARD_FACTOR_OPTION,
                                                                    s));
