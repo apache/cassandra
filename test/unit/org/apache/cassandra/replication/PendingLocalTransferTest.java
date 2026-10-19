@@ -78,6 +78,8 @@ public class PendingLocalTransferTest
     public static void setUpClass()
     {
         SchemaLoader.prepareServer();
+        MutationJournal.start();
+        MutationTrackingService.start();
         TableMetadata metadata = CreateTableStatement.parse(format("CREATE TABLE %s.%s (k int PRIMARY KEY, v int)", KS, TBL), KS).build();
         SchemaLoader.createKeyspace(KS, KeyspaceParams.simple(1, ReplicationType.tracked), metadata);
         cfs = Schema.instance.getColumnFamilyStoreInstance(metadata.id);

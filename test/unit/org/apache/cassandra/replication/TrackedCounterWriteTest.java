@@ -59,6 +59,8 @@ public class TrackedCounterWriteTest
     public static void defineSchema() throws ConfigurationException
     {
         SchemaLoader.prepareServer();
+        MutationJournal.start();
+        MutationTrackingService.start();
 
         SchemaLoader.createKeyspace(KEYSPACE_TRACKED,
                                     KeyspaceParams.simple(3, ReplicationType.tracked),

@@ -278,7 +278,7 @@ public class CoordinatorLogOffsetsTest
         Keyspace.setInitialized();
         ClusterMetadata.current().schema.initializeKeyspaceInstances(DistributedSchema.empty(), false);
 
-        MutationTrackingService.start(unused -> metadata);
+        MutationTrackingService.start(unused -> ClusterMetadata.current());
 
         // Eventually, will also run perturbations before checking isReconciled (like log truncation, durability, etc.)
         // to ensure that we don't prune data required to check what's been reconciled

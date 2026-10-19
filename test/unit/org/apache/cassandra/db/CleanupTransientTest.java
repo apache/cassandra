@@ -89,6 +89,7 @@ public class CleanupTransientTest extends CassandraTestBase
 
         Util.createInitialRing(endpointTokens, keyTokens, hosts, hostIds, RING_SIZE);
         MutationJournal.start();
+        MutationTrackingService.start();
         SchemaLoader.createKeyspace(KEYSPACE1,
                                     KeyspaceParams.simpleWitness("2/1"),
                                     SchemaLoader.standardCFMD(KEYSPACE1, CF_STANDARD1),

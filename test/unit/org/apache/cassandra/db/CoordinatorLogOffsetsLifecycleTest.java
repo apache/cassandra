@@ -45,6 +45,7 @@ import org.apache.cassandra.exceptions.ConfigurationException;
 import org.apache.cassandra.io.sstable.format.SSTableReader;
 import org.apache.cassandra.replication.ImmutableCoordinatorLogOffsets;
 import org.apache.cassandra.replication.MutationId;
+import org.apache.cassandra.replication.MutationJournal;
 import org.apache.cassandra.replication.MutationTrackingService;
 import org.apache.cassandra.schema.KeyspaceParams;
 import org.apache.cassandra.schema.MemtableParams;
@@ -68,6 +69,8 @@ public class CoordinatorLogOffsetsLifecycleTest
     public static void setupClass()
     {
         SchemaLoader.prepareServer();
+        MutationJournal.start();
+        MutationTrackingService.start();
     }
 
     @Parameter

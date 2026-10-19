@@ -319,12 +319,12 @@ public abstract class AbstractCommitLogService
         do
         {
             WaitQueue.Signal signal = context != null ? syncComplete.register(context, Context::stop) : syncComplete.register();
-            if (lastSyncedAt < syncTime)
+            if (lastSyncedAt - syncTime < 0)
                 signal.awaitUninterruptibly();
             else
                 signal.cancel();
         }
-        while (lastSyncedAt < syncTime);
+        while (lastSyncedAt - syncTime < 0);
     }
 
     public void awaitTermination() throws InterruptedException

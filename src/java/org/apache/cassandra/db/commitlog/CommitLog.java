@@ -293,6 +293,14 @@ public class CommitLog implements CommitLogMBean
     }
 
     /**
+     * Request sync and wait until the current state is synced.
+     */
+    public void syncBlocking()
+    {
+        executor.syncBlocking();
+    }
+
+    /**
      * Add a Mutation to the commit log. If CDC is enabled, this can fail.
      *
      * @param mutation the Mutation to add to the log
