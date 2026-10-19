@@ -304,7 +304,7 @@ public abstract class SSTableReader extends SSTable implements UnfilteredSource,
         long count = -1;
 
         if (Iterables.isEmpty(sstables))
-            return count;
+            return 0;
 
         boolean failed = false;
         ICardinality cardinality = null;

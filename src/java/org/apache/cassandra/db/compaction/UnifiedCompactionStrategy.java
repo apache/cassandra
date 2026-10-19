@@ -298,7 +298,7 @@ public class UnifiedCompactionStrategy extends AbstractCompactionStrategy
 
     private void maybeUpdateShardManager()
     {
-        long estimatedPartitionCount = ShardManager.estimatedPartitionCount(cfs);
+        long estimatedPartitionCount = ShardManager.estimatedPartitionCountInSSTables(cfs);
         if (shardManager != null && !shardManager.isOutOfDate(StorageService.instance.getTokenMetadata().getRingVersion(),
                                                               estimatedPartitionCount))
             return; // the disk boundaries, local ranges and partition count estimate have not changed since the last time we calculated
