@@ -17,11 +17,12 @@
  */
 package org.apache.cassandra.service.reads.tracked;
 
+import java.util.HashMap;
+import java.util.HashSet;
 import java.util.Iterator;
 import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.TimeUnit;
-import java.util.concurrent.atomic.AtomicLongFieldUpdater;
 
 import org.agrona.collections.IntArrayList;
 import org.jctools.maps.NonBlockingHashMap;
@@ -49,8 +50,6 @@ import org.apache.cassandra.replication.ShortMutationId;
 import org.apache.cassandra.tcm.ClusterMetadata;
 import org.apache.cassandra.tcm.membership.NodeId;
 import org.apache.cassandra.utils.Clock;
-import org.apache.cassandra.utils.Pair;
-import org.apache.cassandra.utils.concurrent.Accumulator;
 
 /**
  * On the initial coordinator (replica or not):
@@ -168,22 +167,34 @@ public class ReadReconciliations implements ExpiredStatePurger.Expireable
         return n;
     }
 
-    private static final class Coordinator
+    static final class Coordinator
     {
         private static final Logger logger = LoggerFactory.getLogger(Coordinator.class);
 
-        private static final AtomicLongFieldUpdater<Coordinator> remainingUpdater =
-            AtomicLongFieldUpdater.newUpdater(Coordinator.class, "remaining");
-        private volatile long remaining; // three values packed into one atomic long
+        static final class PeerState
+        {
+            final int nodeId;
+            MutationSummary summary;
+            boolean supportsPerPeerAck;
+            final Log2OffsetsMap.Mutable pendingLocalMutations = new Log2OffsetsMap.Mutable();
+
+            PeerState(int nodeId)
+            {
+                this.nodeId = nodeId;
+            }
+        }
 
         private final TrackedRead.Id id;
         private final int dataNode;
         private final int[] summaryNodes;
         private final long expiresAtNanos;
 
-        private final Accumulator<Pair<Integer, MutationSummary>> summaries;
-
+        private MutationSummary localSummary;
+        private final Map<Integer, PeerState> remotePeers = new HashMap<>();
+        private final Set<Integer> receivedSyncAcks = new HashSet<>();
+        private final Set<ShortMutationId> completedMutations = new HashSet<>();
         private final Set<ShortMutationId> requested = new NonBlockingHashSet<>();
+        private boolean completed = false;
 
         Coordinator(TrackedRead.Id id, int dataNode, int[] summaryNodes)
         {
@@ -193,12 +204,16 @@ public class ReadReconciliations implements ExpiredStatePurger.Expireable
             this.expiresAtNanos =
                 Clock.Global.nanoTime() + Math.max(DatabaseDescriptor.getReadRpcTimeout(TimeUnit.NANOSECONDS),
                                                    DatabaseDescriptor.getRangeRpcTimeout(TimeUnit.NANOSECONDS));
-            int remainingSummaries = 1 + summaryNodes.length;
-            int remainingMutations = 0;
-            int remainingSyncAcks = dataNode == LOCAL_NODE ? summaryNodes.length : 0;
-            remaining = remaining(remainingMutations, remainingSummaries, remainingSyncAcks);
+            if (dataNode != LOCAL_NODE)
+                remotePeers.put(dataNode, new PeerState(dataNode));
+            for (int node : summaryNodes)
+                if (node != LOCAL_NODE)
+                    remotePeers.put(node, new PeerState(node));
+        }
 
-            summaries = new Accumulator<>(remainingSummaries);
+        PeerState getPeerState(int nodeId)
+        {
+            return remotePeers.get(nodeId);
         }
 
         /**
@@ -206,8 +221,9 @@ public class ReadReconciliations implements ExpiredStatePurger.Expireable
          * any mutations that are absent from other participating nodes according to our primary coordinator
          * log knowledge. This is an optimisation, and it can be omitted without affecting correctness.
          */
-        boolean acceptLocalSummary(MutationSummary summary)
+        synchronized boolean acceptLocalSummary(MutationSummary summary)
         {
+            this.localSummary = summary;
             IntArrayList remoteNodes = new IntArrayList(summaryNodes.length, Integer.MIN_VALUE);
             if (dataNode != LOCAL_NODE)
                 remoteNodes.addInt(dataNode);
@@ -240,8 +256,7 @@ public class ReadReconciliations implements ExpiredStatePurger.Expireable
                 missingOffsets.clear();
             });
 
-            summaries.add(Pair.create(LOCAL_NODE, summary));
-            return updateRemainingAndMaybeComplete(0, -1, 0);
+            return maybeComplete();
         }
 
         /**
@@ -253,40 +268,119 @@ public class ReadReconciliations implements ExpiredStatePurger.Expireable
             return acceptRemoteSummary(summary, remoteNode, false);
         }
 
-        boolean acceptRemoteSummary(MutationSummary summary, int remoteNode, boolean supportsPerPeerAck)
+        synchronized boolean acceptRemoteSummary(MutationSummary summary, int remoteNode, boolean supportsPerPeerAck)
         {
-            Log2OffsetsMap.Mutable missingMutations = new Log2OffsetsMap.Mutable();
-            MutationTrackingService.instance().collectLocallyMissingMutations(summary, missingMutations);
+            PeerState peerState = remotePeers.computeIfAbsent(remoteNode, PeerState::new);
+            peerState.summary = summary;
+            peerState.supportsPerPeerAck = supportsPerPeerAck;
 
+            Log2OffsetsMap.Mutable locallyMissing = new Log2OffsetsMap.Mutable();
+            MutationTrackingService.instance().collectLocallyMissingMutations(summary, locallyMissing);
+
+            // Record pending local mutations before network pull deduplication, excluding mutations
+            // that were already received during this read.
+            peerState.pendingLocalMutations.addAll(locallyMissing);
+            peerState.pendingLocalMutations.removeAll(completedMutations);
+
+            // Deduplicate network pull requests
             // don't request what's already been requested for other remote summaries
             // TODO (consider): rely entirely on IncomingMutations deduplication instead
-            missingMutations.removeAll(requested);
-            missingMutations.forEach(requested::add);
-            int missingCount = missingMutations.idCount();
+            Log2OffsetsMap.Mutable toRequest = new Log2OffsetsMap.Mutable();
+            toRequest.addAll(locallyMissing);
+            toRequest.removeAll(requested);
+            toRequest.forEach(requested::add);
 
             // TODO (expected, low priority): handle timeouts here to stop earlier
             IncomingMutations.Callback callback =
                 (mutationId) -> ReadReconciliations.instance.acceptMutation(id, mutationId);
-            for (Offsets offsets : missingMutations.offsets())
+            for (Offsets offsets : toRequest.offsets())
                 pull(remoteNode, offsets, callback);
 
-            summaries.add(Pair.create(remoteNode, summary));
-            return updateRemainingAndMaybeComplete(missingCount, -1, 0);
+            // Check if any mutations arrived locally while registering callbacks
+            if (!peerState.pendingLocalMutations.isEmpty())
+            {
+                Log2OffsetsMap.Mutable stillMissing = new Log2OffsetsMap.Mutable();
+                MutationTrackingService.instance().collectLocallyMissingMutations(summary, stillMissing);
+                Log2OffsetsMap.Mutable nowWitnessed = new Log2OffsetsMap.Mutable();
+                nowWitnessed.addAll(peerState.pendingLocalMutations);
+                nowWitnessed.removeAll(stillMissing);
+                for (ShortMutationId id : nowWitnessed)
+                    completedMutations.add(id);
+                peerState.pendingLocalMutations.removeAll(nowWitnessed);
+            }
+
+            return maybeComplete();
         }
 
-        boolean acceptSyncAck(int ignoredSyncId)
+        boolean acceptSyncAck(int syncId)
         {
-            return acceptSyncAck(ignoredSyncId, null);
+            return acceptSyncAck(syncId, null);
         }
 
-        boolean acceptSyncAck(int ignoredSyncId, Integer peerNode)
+        synchronized boolean acceptSyncAck(int syncId, Integer peerNode)
         {
-            return updateRemainingAndMaybeComplete(0, 0, -1);
+            receivedSyncAcks.add(syncId);
+            return maybeComplete();
         }
 
-        boolean acceptMutation(ShortMutationId ignoredMutationId)
+        synchronized boolean acceptMutation(ShortMutationId mutationId)
         {
-            return updateRemainingAndMaybeComplete(-1, 0, 0);
+            completedMutations.add(mutationId);
+            for (PeerState peer : remotePeers.values())
+                peer.pendingLocalMutations.remove(mutationId);
+            return maybeComplete();
+        }
+
+        private boolean isDataNode()
+        {
+            return LOCAL_NODE == dataNode;
+        }
+
+        private boolean allSummariesReceived()
+        {
+            if (localSummary == null)
+                return false;
+            for (PeerState peer : remotePeers.values())
+            {
+                if (peer.summary == null)
+                    return false;
+            }
+            return true;
+        }
+
+        private boolean allPendingLocalMutationsEmpty()
+        {
+            for (PeerState peer : remotePeers.values())
+            {
+                if (!peer.pendingLocalMutations.isEmpty())
+                    return false;
+            }
+            return true;
+        }
+
+        private boolean allSyncAcksReceived()
+        {
+            if (!isDataNode())
+                return true;
+            for (int node : summaryNodes)
+            {
+                if (node != LOCAL_NODE && !receivedSyncAcks.contains(node))
+                    return false;
+            }
+            return true;
+        }
+
+        private boolean maybeComplete()
+        {
+            if (completed)
+                return false;
+
+            if (allSummariesReceived() && allPendingLocalMutationsEmpty() && allSyncAcksReceived())
+            {
+                completed = true;
+                return complete();
+            }
+            return false;
         }
 
         /**
@@ -311,75 +405,17 @@ public class ReadReconciliations implements ExpiredStatePurger.Expireable
             Log2OffsetsMap.Mutable offsets = new Log2OffsetsMap.Mutable();
 
             // add up all remote summaries
-            for (int i = 0, size = summaries.size(); i < size; i++)
+            for (PeerState peer : remotePeers.values())
             {
-                Pair<Integer, MutationSummary> summary = summaries.get(i);
-                if (summary.left != LOCAL_NODE)
-                    offsets.addAll(summary.right);
+                if (peer.summary != null)
+                    offsets.addAll(peer.summary);
             }
 
             // subtract the local summary
-            for (int i = 0, size = summaries.size(); i < size; i++)
-            {
-                Pair<Integer, MutationSummary> summary = summaries.get(i);
-                if (summary.left == LOCAL_NODE)
-                {
-                    offsets.removeAll(summary.right);
-                    break;
-                }
-            }
+            if (localSummary != null)
+                offsets.removeAll(localSummary);
 
             return offsets;
-        }
-
-        private boolean isDataNode()
-        {
-            return LOCAL_NODE == dataNode;
-        }
-
-        /*
-         * Logic to deal with remaining mutations/summaries/syncAcks counters atomically.
-         */
-
-        private static int remainingMutations(long remaining)
-        {
-            return (int) ((remaining >>> 32) & 0xFFFFFFFFL);
-        }
-
-        private static int remainingSummaries(long remaining)
-        {
-            return (int) ((remaining >>> 16) & 0xFFFFL);
-        }
-
-        private static int remainingSyncAcks(long remaining)
-        {
-            return (int) (remaining & 0xFFFFL);
-        }
-
-        // 32 bits for mutations, 16 bits for summaries, 16 bits for syncAcks
-        private static long remaining(int mutations, int summaries, int syncAcks)
-        {
-            return ((long) mutations << 32) | (((long) summaries << 16) | syncAcks);
-        }
-
-        private long updateRemaining(int mutationsDelta, int summariesDelta, int syncAcksDelta)
-        {
-            long prev, next;
-            do
-            {
-                prev = remaining;
-                int mutations = remainingMutations(prev) + mutationsDelta;
-                int summaries = remainingSummaries(prev) + summariesDelta;
-                int syncAcks = remainingSyncAcks(prev) + syncAcksDelta;
-                logger.trace("[Read {}] Still waiting for {} mutations, {} summaries, {} syncAcks", id, mutations, summaries, syncAcks);
-                next = remaining(mutations, summaries, syncAcks);
-            } while (!remainingUpdater.compareAndSet(this, prev, next));
-            return next;
-        }
-
-        private boolean updateRemainingAndMaybeComplete(int mutationsDelta, int summariesDelta, int syncAcksDelta)
-        {
-            return updateRemaining(mutationsDelta, summariesDelta, syncAcksDelta) == 0 && complete();
         }
 
         private boolean complete()
