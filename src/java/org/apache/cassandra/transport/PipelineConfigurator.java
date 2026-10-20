@@ -279,7 +279,7 @@ public class PipelineConfigurator
         long authTimeout = DatabaseDescriptor.nativeTransportAuthTimeout();
         if (authTimeout > 0)
             pipeline.addLast(AUTH_TIMEOUT_HANDLER,
-                             new AuthenticationTimeoutHandler(authTimeout, () -> pipeline.remove(AUTH_TIMEOUT_HANDLER)));
+                             new AuthenticationTimeoutHandler(authTimeout));
 
         if (DEBUG)
             pipeline.addLast(DEBUG_HANDLER, new LoggingHandler(LogLevel.INFO));

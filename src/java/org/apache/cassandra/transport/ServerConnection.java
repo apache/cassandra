@@ -104,9 +104,19 @@ public class ServerConnection extends Connection
 
     private void authenticationComplete()
     {
-        AuthenticationTimeoutHandler handler = channel().pipeline().get(AuthenticationTimeoutHandler.class);
+        Channel channel = channel();
+        Runnable completion = () -> {
+            AuthenticationTimeoutHandler handler =
+            channel.pipeline().get(AuthenticationTimeoutHandler.class);
+
         if (handler != null)
-            handler.markAuthenticationComplete();
+            handler.markAuthenticationComplete(channel.pipeline().context(handler));
+        };
+
+        if (channel.eventLoop().inEventLoop())
+            completion.run();
+        else
+            channel.eventLoop().execute(completion);
     }
 
     void applyStateTransition(Message.Type requestType, Message.Type responseType)

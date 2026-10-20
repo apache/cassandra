@@ -19,7 +19,6 @@ package org.apache.cassandra.transport;
 
 import java.util.concurrent.ScheduledFuture;
 import java.util.concurrent.TimeUnit;
-import java.util.concurrent.atomic.AtomicBoolean;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -38,38 +37,35 @@ final class AuthenticationTimeoutHandler extends ChannelInboundHandlerAdapter
     private static final Logger logger = LoggerFactory.getLogger(AuthenticationTimeoutHandler.class);
 
     private final long timeoutMillis;
-    // Ensures timeout expiry and authentication completion can only win once.
-    private final AtomicBoolean finished = new AtomicBoolean();
     private ScheduledFuture<?> timeoutFuture;
-    private final Runnable removeHandler;
 
-    AuthenticationTimeoutHandler(long timeoutMillis, Runnable removeHandler)
+    AuthenticationTimeoutHandler(long timeoutMillis)
     {
         this.timeoutMillis = timeoutMillis;
-        this.removeHandler = removeHandler;
     }
 
     @Override
     public void channelActive(ChannelHandlerContext ctx) throws Exception
     {
         timeoutFuture = ctx.executor().schedule(() -> {
-            if (finished.compareAndSet(false, true))
-            {
-                logger.warn("Closing unauthenticated client connection {} because it did not complete "
-                            + "authentication within {}ms (native_transport_auth_timeout)",
+            logger.warn("Closing unauthenticated client connection {} because it did not complete "
+                        + "authentication within {}ms (native_transport_auth_timeout)",
                         ctx.channel().remoteAddress(), timeoutMillis);
-                ctx.close();
-            }
+            ctx.close();
         }, timeoutMillis, TimeUnit.MILLISECONDS);
+
         super.channelActive(ctx);
     }
 
-    void markAuthenticationComplete()
+    void markAuthenticationComplete(ChannelHandlerContext ctx)
     {
-        if (finished.compareAndSet(false, true))
+        if (timeoutFuture != null)
         {
-            removeHandler.run();
+            timeoutFuture.cancel(false);
+            timeoutFuture = null;
         }
+
+        ctx.pipeline().remove(this);
     }
 
     @Override
