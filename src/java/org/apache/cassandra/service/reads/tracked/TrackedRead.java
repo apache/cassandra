@@ -27,6 +27,7 @@ import java.util.concurrent.TimeoutException;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.Consumer;
 
+import com.google.common.annotations.VisibleForTesting;
 import com.google.common.base.Preconditions;
 import com.google.common.collect.Iterables;
 
@@ -107,7 +108,8 @@ public abstract class TrackedRead<E extends Endpoints<E>, P extends ReplicaPlan.
         private final int node;
         private final long hlc;
 
-        public Id(int node, long hlc)
+        @VisibleForTesting
+        Id(int node, long hlc)
         {
             this.node = node;
             this.hlc = hlc;

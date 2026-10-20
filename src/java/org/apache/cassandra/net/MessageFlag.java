@@ -33,7 +33,9 @@ public enum MessageFlag
     /** whether this message should be sent on an URGENT channel despite its Verb default priority */
     URGENT(3),
     /** Allow a single callback to receive multiple responses until a final response is received **/
-    NOT_FINAL(4)
+    NOT_FINAL(4),
+    /** Whether tracked read reconciliation supports per-peer acks **/
+    MT_PER_PEER_RECONCILE_ACK(5)
     ;
 
     private final int id;

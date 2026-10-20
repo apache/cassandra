@@ -60,7 +60,9 @@ public enum ParamType
     WRITE_SIZE_WARN                  (18, WriteThresholdMapSerializer.serializer),
     WRITE_TOMBSTONE_WARN             (19, WriteThresholdMapSerializer.serializer),
     // Different from RESPOND_TO because it's an additional recipient of the acknowledgement
-    COORDINATOR_ACK_INFO             (20, ForwardedWrite.CoordinatorAckInfo.serializer);
+    COORDINATOR_ACK_INFO             (20, ForwardedWrite.CoordinatorAckInfo.serializer),
+    // Target peer host ID for per-peer tracked read reconciliation acks
+    MT_RECONCILE_PEER                (21, Int32Serializer.serializer);
 
     final int id;
     final IVersionedSerializer serializer;

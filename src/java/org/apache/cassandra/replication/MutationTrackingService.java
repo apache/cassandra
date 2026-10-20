@@ -22,7 +22,6 @@ import java.util.Collection;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
-import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
@@ -528,21 +527,24 @@ public class MutationTrackingService implements MutationTrackingServiceMBean
 
     public boolean startWriting(Mutation mutation)
     {
+        boolean started;
         shardLock.readLock().lock();
         try
         {
             Preconditions.checkArgument(!mutation.id().isNone());
-            boolean started = getShards(mutation.getKeyspaceName()).startWriting(mutation);
-            // we've already received this mutation, so we reject the write. There may still be reconciliation
-            // listening for it though, so notify them that it's received
-            if (!started)
-                incomingMutations.invokeListeners(mutation.id());
-            return started;
+            started = getShards(mutation.getKeyspaceName()).startWriting(mutation);
         }
         finally
         {
             shardLock.readLock().unlock();
         }
+
+        // we've already received this mutation, so we reject the write. There may still be reconciliation
+        // listening for it though, so notify them that it's received
+        // called outside of lock to prevent deadlocks
+        if (!started)
+            incomingMutations.invokeListeners(mutation.id());
+        return started;
     }
 
     /**
@@ -588,12 +590,12 @@ public class MutationTrackingService implements MutationTrackingServiceMBean
         {
             Preconditions.checkArgument(!mutation.id().isNone());
             getShards(mutation.getKeyspaceName()).finishWriting(mutation);
-            incomingMutations.invokeListeners(mutation.id());
         }
         finally
         {
             shardLock.readLock().unlock();
         }
+        incomingMutations.invokeListeners(mutation.id());
     }
 
     /**
@@ -702,15 +704,15 @@ public class MutationTrackingService implements MutationTrackingServiceMBean
         try
         {
             if (committed)
-            {
                 keyspaceShards.get(keyspace).lookUp(request.range).finishActivation(bounds, request);
-                incomingMutations.invokeListeners(request.transferId);
-            }
         }
         finally
         {
             shardLock.readLock().unlock();
         }
+
+        if (committed)
+            incomingMutations.invokeListeners(request.transferId);
     }
 
     public MutationSummary createSummaryForKey(DecoratedKey key, TableId tableId, boolean includePending)
@@ -870,16 +872,13 @@ public class MutationTrackingService implements MutationTrackingServiceMBean
         shardLock.readLock().lock();
         try
         {
-            Iterator<Offsets> iterator = remoteSummary.onlyUnreconciled();
-            while (iterator.hasNext())
-            {
-                Offsets offsets = iterator.next();
+            remoteSummary.forEachUnreconciled(offsets -> {
                 Shard shard = getShardNullable(offsets.logId);
                 if (shard == null)
                     into.add(offsets); // if the log/shard are unknown, then all the offsets are also unknown/missing
                 else
                     shard.collectLocallyMissingMutations(offsets, into);
-            }
+            });
         }
         finally
         {

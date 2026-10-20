@@ -86,7 +86,16 @@ public abstract class Log2OffsetsMap<T extends Offsets> implements Iterable<Shor
 
     public boolean isEmpty()
     {
-        return Iterables.all(offsets(), Offsets::isEmpty);
+        Long2ObjectHashMap<T> map = asMap();
+        if (map.isEmpty())
+            return true;
+
+        for (T value : map.values())
+        {
+            if (!value.isEmpty())
+                return false;
+        }
+        return true;
     }
 
     private static abstract class AbstractMutable<T extends Offsets.AbstractMutable<T>> extends Log2OffsetsMap<T>

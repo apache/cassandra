@@ -21,9 +21,9 @@ import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Comparator;
-import java.util.Iterator;
 import java.util.List;
 import java.util.Objects;
+import java.util.function.Consumer;
 
 import com.google.common.annotations.VisibleForTesting;
 import com.google.common.base.Preconditions;
@@ -35,7 +35,6 @@ import org.apache.cassandra.io.UnversionedSerializer;
 import org.apache.cassandra.io.util.DataInputPlus;
 import org.apache.cassandra.io.util.DataOutputPlus;
 import org.apache.cassandra.schema.TableId;
-import org.apache.cassandra.utils.AbstractIterator;
 import org.apache.cassandra.utils.CollectionSerializers;
 
 public class MutationSummary
@@ -89,15 +88,101 @@ public class MutationSummary
             return reconciled.contains(offset) || unreconciled.contains(offset);
         }
 
+        Offsets.RangeIterator rangeIterator()
+        {
+            return Offsets.union(reconciled.rangeIterator(), unreconciled.rangeIterator());
+        }
+
+        private static Offsets.RangeIterator unreconciledDifferenceIterator(CoordinatorSummary source, CoordinatorSummary target)
+        {
+            if (source.unreconciled.isEmpty())
+                return null;
+            return Offsets.difference(source.unreconciled.rangeIterator(), target.rangeIterator());
+        }
+
         /**
          * Finds all elements that are contained by {@code left} and not contained by {@code right}
          */
         static void difference(CoordinatorSummary left, CoordinatorSummary right, Collection<ShortMutationId> into)
         {
-            Offsets.RangeIterator leftIds = Offsets.union(left.reconciled.rangeIterator(), left.unreconciled.rangeIterator());
-            Offsets.RangeIterator rightIds = Offsets.union(right.reconciled.rangeIterator(), right.unreconciled.rangeIterator());
-            Offsets.RangeIterator missing = Offsets.difference(leftIds, rightIds);
+            Offsets.RangeIterator missing = Offsets.difference(left.rangeIterator(), right.rangeIterator());
             Offsets.forEachOffset(missing, (logId, offset) -> into.add(new ShortMutationId(logId, offset)));
+        }
+
+        static void unreconciledDifference(CoordinatorSummary source, CoordinatorSummary target, Collection<ShortMutationId> into)
+        {
+            Offsets.Immutable diff = unreconciledDifference(source, target);
+            if (diff != null)
+                diff.collectIds(into);
+        }
+
+        static Offsets.Immutable unreconciledDifference(CoordinatorSummary source, CoordinatorSummary target)
+        {
+            Offsets.RangeIterator missing = unreconciledDifferenceIterator(source, target);
+            if (missing == null)
+                return null;
+            Offsets.Immutable.Builder builder = Offsets.Immutable.Builder.createOrNull(missing);
+            return builder != null ? builder.build() : null;
+        }
+
+        private static int minOffset(Offsets offsets)
+        {
+            return offsets.bounds[0];
+        }
+
+        private static int maxOffset(Offsets offsets)
+        {
+            return offsets.bounds[offsets.size - 1];
+        }
+
+        private static boolean hasMissingOffsets(Offsets source, Offsets target)
+        {
+            if (minOffset(source) < minOffset(target) || maxOffset(source) > maxOffset(target))
+                return true;
+
+            for (int i = 0; i < source.size; i += 2)
+            {
+                if (!target.containsRange(source.bounds[i], source.bounds[i + 1]))
+                    return true;
+            }
+            return false;
+        }
+
+        private static boolean allRangesContainedInEither(Offsets source, Offsets a, Offsets b)
+        {
+            for (int i = 0; i < source.size; i += 2)
+            {
+                int start = source.bounds[i];
+                int end = source.bounds[i + 1];
+                if (!a.containsRange(start, end) && !b.containsRange(start, end))
+                    return false;
+            }
+            return true;
+        }
+
+        static boolean hasMissingUnreconciled(CoordinatorSummary source, CoordinatorSummary target)
+        {
+            if (source == target || source.unreconciled.isEmpty())
+                return false;
+            if (target.reconciled.isEmpty() && target.unreconciled.isEmpty())
+                return true;
+
+            if (target.reconciled.isEmpty())
+                return hasMissingOffsets(source.unreconciled, target.unreconciled);
+
+            if (target.unreconciled.isEmpty())
+                return hasMissingOffsets(source.unreconciled, target.reconciled);
+
+            int tMin = Math.min(minOffset(target.reconciled), minOffset(target.unreconciled));
+            int tMax = Math.max(maxOffset(target.reconciled), maxOffset(target.unreconciled));
+            if (minOffset(source.unreconciled) < tMin || maxOffset(source.unreconciled) > tMax)
+                return true;
+
+            if (allRangesContainedInEither(source.unreconciled, target.reconciled, target.unreconciled))
+                return false;
+
+            Offsets.RangeIterator missing = unreconciledDifferenceIterator(source, target);
+            return missing != null && missing.tryAdvance();
         }
 
         void digest(Digest digest)
@@ -332,20 +417,120 @@ public class MutationSummary
         }
     }
 
-    public Iterator<Offsets> onlyUnreconciled()
+    /**
+     * Finds offsets in {@code source.unreconciled} that are absent from {@code target},
+     * returning them as a {@link Log2OffsetsMap}.
+     */
+    private static void unreconciledDifference(MutationSummary source, MutationSummary target, Consumer<Offsets.Immutable> into)
     {
-        return new AbstractIterator<>()
-        {
-            int i = 0;
+        int i = 0, j = 0, ssize = source.size(), tsize = target.size();
 
-            @Override
-            protected Offsets computeNext()
+        while (i < ssize && j < tsize)
+        {
+            CoordinatorSummary s = source.get(i);
+            CoordinatorSummary t = target.get(j);
+
+            int cmp = CoordinatorSummary.idComparator.compare(s, t);
+
+            if (cmp == 0)
             {
-                if (i >= summaries.size()) return endOfData();
-                Offsets offsets = summaries.get(i++).unreconciled;
-                return offsets.isEmpty() ? computeNext() : offsets;
+                Offsets.Immutable diff = CoordinatorSummary.unreconciledDifference(s, t);
+                if (diff != null && !diff.isEmpty())
+                    into.accept(diff);
+                ++i;
+                ++j;
             }
-        };
+            else if (cmp < 0)
+            {
+                if (!s.unreconciled.isEmpty())
+                    into.accept(s.unreconciled);
+                ++i;
+            }
+            else
+            {
+                ++j;
+            }
+        }
+
+        while (i < ssize)
+        {
+            CoordinatorSummary s = source.get(i);
+            if (!s.unreconciled.isEmpty())
+                into.accept(s.unreconciled);
+            ++i;
+        }
+    }
+
+    /**
+     * Finds offsets in {@code source.unreconciled} that are absent from {@code target}.
+     */
+    public static void unreconciledDifference(MutationSummary source, MutationSummary target, Collection<ShortMutationId> into)
+    {
+        unreconciledDifference(source, target, offsets -> offsets.collectIds(into));
+    }
+
+    /**
+     * Finds offsets in {@code source.unreconciled} that are absent from {@code target}.
+     */
+    public static void unreconciledDifference(MutationSummary source, MutationSummary target, Log2OffsetsMap.Mutable into)
+    {
+        unreconciledDifference(source, target, into::add);
+    }
+
+    /**
+     * Returns true if {@code source} contains any unreconciled offset absent from {@code target}.
+     */
+    public static boolean hasMissingUnreconciled(MutationSummary source, MutationSummary target)
+    {
+        if (source == target)
+            return false;
+
+        int i = 0, j = 0, ssize = source.size(), tsize = target.size();
+
+        while (i < ssize && j < tsize)
+        {
+            CoordinatorSummary s = source.get(i);
+            CoordinatorSummary t = target.get(j);
+
+            int cmp = CoordinatorSummary.idComparator.compare(s, t);
+
+            if (cmp == 0)
+            {
+                if (!s.unreconciled.isEmpty() && CoordinatorSummary.hasMissingUnreconciled(s, t))
+                    return true;
+                ++i;
+                ++j;
+            }
+            else if (cmp < 0)
+            {
+                if (!s.unreconciled.isEmpty())
+                    return true;
+                ++i;
+            }
+            else
+            {
+                ++j;
+            }
+        }
+
+        while (i < ssize)
+        {
+            if (!source.get(i).unreconciled.isEmpty())
+                return true;
+            ++i;
+        }
+
+        return false;
+    }
+
+    public void forEachUnreconciled(Consumer<Offsets> action)
+    {
+        for (int i = 0; i < summaries.size(); i++)
+        {
+            Offsets offsets = summaries.get(i).unreconciled;
+            if (!offsets.isEmpty())
+                action.accept(offsets);
+        }
     }
 
     public static final UnversionedSerializer<MutationSummary> serializer = new UnversionedSerializer<>()

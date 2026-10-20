@@ -187,7 +187,8 @@ public class TrackedLocalReads implements ExpiredStatePurger.Expireable
         //                  no node needs anything from anyone?
 
         // pass the final summary to the reconcile service
-        ReadReconciliations.instance.acceptLocalSummary(readId, secondarySummary, summaryNodes);
+        ReadReconciliations.QuorumChecker quorumChecker = ReadReconciliations.QuorumChecker.forRead(replicaPlan);
+        ReadReconciliations.instance.acceptLocalSummary(readId, secondarySummary, summaryNodes, quorumChecker);
     }
 
     private static MutationSummary merge(Iterator<ShortMutationId> transferIds, MutationSummary summary)

@@ -611,6 +611,25 @@ public class OffsetsTest
                   offsets(0, 3, 7, 10, 15, 17),
                   offsets(2, 8, 12, 13));
 
+        // overlaps
+        testUnion(offsets(1, 14),
+                  offsets(1, 8, 12, 14),
+                  offsets(3, 5, 7, 13));
+
+        // overlaps
+        testUnion(offsets(1, 25),
+                  offsets(1, 8, 10, 12, 21, 25),
+                  offsets(3, 5, 7, 20));
+
+        // overlaps
+        testUnion(offsets(3, 23),
+                  offsets(3, 7, 11, 16, 21, 21),
+                  offsets(5, 10, 14, 23));
+
+        // overlaps
+        testUnion(offsets(3, 23, 33, 33),
+                  offsets(3, 7, 11, 16, 21, 21),
+                  offsets(5, 10, 14, 23, 33, 33));
     }
 
     private static void testDifference(Offsets expected, Offsets a, Offsets b)

@@ -971,7 +971,7 @@ public abstract class Offsets implements Iterable<ShortMutationId>
                 // extend last range if possible
                 if (dstRange > 0 && addStart <= dst[rangeEnd(dstRange - 1)] + 1)
                 {
-                    dst[rangeEnd(dstRange - 1)] = addEnd;
+                    dst[rangeEnd(dstRange - 1)] = Math.max(dst[rangeEnd(dstRange - 1)], addEnd);
                 }
                 else
                 {
@@ -1054,7 +1054,7 @@ public abstract class Offsets implements Iterable<ShortMutationId>
             // extend the tail if we can
             if (cRange > 0 && addStart <= c[rangeEnd(cRange-1)] + 1)
             {
-                c[rangeEnd(cRange - 1)] = addEnd;
+                c[rangeEnd(cRange - 1)] = Math.max(c[rangeEnd(cRange - 1)], addEnd);
             }
             else
             {
@@ -1168,25 +1168,28 @@ public abstract class Offsets implements Iterable<ShortMutationId>
             super(a, b);
         }
 
-        void extendEnd(RangeIterator iter)
+        boolean tryExtendEnd(RangeIterator iter)
         {
-            while (iter.tryAdvance())
+            if (iter.isFinished())
+                return false;
+
+            int iterStart = iter.start();
+            int iterEnd = iter.end();
+            SetSupport.RangeOverlap rangeOverlap = SetSupport.calculateRangeOverlap(iterStart, iterEnd, start, end);
+            switch (rangeOverlap)
             {
-                SetSupport.RangeOverlap rangeOverlap = SetSupport.calculateRangeOverlap(iter.start(), iter.end(), start, end);
-                switch (rangeOverlap)
-                {
-                    case BEFORE:
-                    case BEFORE_ADJACENT:
-                        throw new IllegalStateException();
-                    case AFTER:
-                        return;
-                    case INTERSECTING:
-                    case AFTER_ADJACENT:
-                        end = Math.max(end, iter.end());
-                        continue;
-                    default:
-                        throw new IllegalStateException("Unhandled union op: " + rangeOverlap);
-                }
+                case BEFORE:
+                case BEFORE_ADJACENT:
+                    throw new IllegalStateException();
+                case AFTER:
+                    return false;
+                case INTERSECTING:
+                case AFTER_ADJACENT:
+                    end = Math.max(end, iterEnd);
+                    iter.tryAdvance();
+                    return true;
+                default:
+                    throw new IllegalStateException("Unhandled union op: " + rangeOverlap);
             }
         }
 
@@ -1231,8 +1234,10 @@ public abstract class Offsets implements Iterable<ShortMutationId>
                 case INTERSECTING:
                     start = Math.min(a.start(), b.start());
                     end = Math.max(a.end(), b.end());
-                    extendEnd(a);
-                    extendEnd(b);
+                    a.tryAdvance();
+                    b.tryAdvance();
+                    //noinspection StatementWithEmptyBody
+                    while (tryExtendEnd(a) || tryExtendEnd(b)) /* keep extending end while intersecting */;
                     break;
                 default:
                     throw new IllegalStateException("Unhandled union op: " + rangeOverlap);
