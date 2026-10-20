@@ -203,7 +203,7 @@ public class StartupMessage extends Message.Request
         if (utf8Bytes.length > maxLength)
         {
             String target = isKey ? String.format("key '%s'", str.length() > 20 ? str.substring(0, 20) + "..." : str)
-                                  : String.format("value for key", str);
+                                  : "value";
             throw new ProtocolException(String.format("Startup option %s exceeds maximum byte length: %d (maximum allowed is %d)",
                                                       target, utf8Bytes.length, maxLength));
         }
