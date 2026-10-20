@@ -25,7 +25,7 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.TimeUnit;
-import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.atomic.AtomicInteger;
 
 import com.google.common.annotations.VisibleForTesting;
 
@@ -118,14 +118,15 @@ abstract class Flusher implements Runnable
     protected final EventLoop eventLoop;
     // Many request threads produce, but only the event loop this flusher belongs to consumes, so an MPSC queue is enough.
     private final MpscUnboundedArrayQueue<FlushItem<?>> queued = new MpscUnboundedArrayQueue<>(queuedChunkSize());
-    protected final AtomicBoolean scheduled = new AtomicBoolean(false);
+    // we use it to establish a happens-before relation between an MPSC queue element submission and a subsequent Flusher process queue consumption
+    protected final AtomicInteger scheduledCount = new AtomicInteger();
     protected final List<FlushItem<?>> processed = new ArrayList<>();
     private final HashSet<Channel> channels = new HashSet<>();
     private final Map<Channel, FlushBuffer> payloads = new HashMap<>();
 
     void start()
     {
-        if (!scheduled.get() && scheduled.compareAndSet(false, true))
+        if (scheduledCount.getAndIncrement() == 0)
         {
             this.eventLoop.execute(this);
         }
@@ -375,8 +376,8 @@ abstract class Flusher implements Runnable
                 // either reschedule or cancel
                 if (++runsWithNoWork > 5)
                 {
-                    scheduled.set(false);
-                    if (isEmpty() || !scheduled.compareAndSet(false, true))
+                    scheduledCount.getAndSet(0);
+                    if (isEmpty() || scheduledCount.getAndIncrement() != 0)
                         return;
                 }
             }
@@ -394,15 +395,11 @@ abstract class Flusher implements Runnable
 
         public void run()
         {
-            scheduled.set(false);
+            // reading the counter makes every element offered before a producer's increment visible to relaxedPoll()
+            scheduledCount.getAndSet(0);
             try
             {
                 processQueue();
-                // relaxedPoll() may miss a slot that a producer has claimed but not yet written
-                // and that producer may have seen scheduled == true (so, we have a risk to miss a flush)
-                // Retry shortly instead of spinning on the event loop until the element becomes visible.
-                if (!isEmpty() && !scheduled.get() && scheduled.compareAndSet(false, true))
-                    eventLoop.schedule(this, 10000, TimeUnit.NANOSECONDS);
             }
             finally
             {
