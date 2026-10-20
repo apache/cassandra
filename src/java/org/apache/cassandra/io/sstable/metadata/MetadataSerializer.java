@@ -47,6 +47,7 @@ import org.apache.cassandra.io.util.File;
 import org.apache.cassandra.io.util.FileDataInput;
 import org.apache.cassandra.io.util.RandomAccessReader;
 import org.apache.cassandra.replication.ImmutableCoordinatorLogOffsets;
+import org.apache.cassandra.utils.SyncUtil;
 import org.apache.cassandra.utils.TimeUUID;
 
 import static org.apache.cassandra.utils.FBUtilities.updateChecksumInt;
@@ -282,5 +283,6 @@ public class MetadataSerializer implements IMetadataSerializer
             throw new FSWriteError(e, file);
         }
         file.move(descriptor.fileFor(Components.STATS));
+        SyncUtil.trySyncDir(descriptor.directory);
     }
 }
