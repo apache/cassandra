@@ -426,7 +426,7 @@ public class ReplicaFilteringProtection<E extends Endpoints<E>>
 
                         if (currentRowIterator != null)
                         {
-                            // Bound each batch by rows and bytes before short-read protection fetches more data.
+                            // Bound each page by rows and bytes before short-read protection fetches more data.
                             DataLimits.Counter counter = DataLimits.cqlLimits(command.limits().count())
                                                                    .withBytesLimit(command.limits().bytes())
                                                                    .newCounter(command.nowInSec(), true, false, command.metadata().enforceStrictLiveness());
