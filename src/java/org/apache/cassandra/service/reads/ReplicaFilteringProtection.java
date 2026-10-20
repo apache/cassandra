@@ -526,6 +526,8 @@ public class ReplicaFilteringProtection<E extends Endpoints<E>>
             if (null == openDeletion)
                 return;
 
+            assert null != lastClustering : "open deletion with no merged row to anchor the close bound at";
+
             // A replica with nothing since the previous page still needs the range, to shadow other replicas' rows.
             addReopenMarker();
             boolean reversed = command.isReversed();
