@@ -1368,36 +1368,13 @@ public class StorageProxy implements StorageProxyMBean
             }
             else
             {
-                if (ex instanceof WriteFailureException)
-                {
-                    writeMetrics.failures.mark();
-                    writeMetricsForLevel(consistencyLevel).failures.mark();
-                    WriteFailureException fe = (WriteFailureException)ex;
-                    Tracing.trace("Write failure; received {} of {} required replies, failed {} requests",
-                                  fe.received, fe.blockFor, fe.failureReasonByEndpoint.size());
-                }
-                else
-                {
-                    writeMetrics.timeouts.mark();
-                    writeMetricsForLevel(consistencyLevel).timeouts.mark();
-                    WriteTimeoutException te = (WriteTimeoutException)ex;
-                    Tracing.trace("Write timeout; received {} of {} required replies", te.received, te.blockFor);
-                }
+                markWriteError(ex, consistencyLevel);
                 throw ex;
             }
         }
-        catch (UnavailableException e)
+        catch (UnavailableException | OverloadedException e)
         {
-            writeMetrics.unavailables.mark();
-            writeMetricsForLevel(consistencyLevel).unavailables.mark();
-            Tracing.trace("Unavailable");
-            throw e;
-        }
-        catch (OverloadedException e)
-        {
-            writeMetrics.unavailables.mark();
-            writeMetricsForLevel(consistencyLevel).unavailables.mark();
-            Tracing.trace("Overloaded");
+            markWriteError(e, consistencyLevel);
             throw e;
         }
         finally
@@ -1460,36 +1437,13 @@ public class StorageProxy implements StorageProxyMBean
             }
             else
             {
-                if (ex instanceof WriteFailureException)
-                {
-                    writeMetrics.failures.mark();
-                    writeMetricsForLevel(consistencyLevel).failures.mark();
-                    WriteFailureException fe = (WriteFailureException)ex;
-                    Tracing.trace("Write failure; received {} of {} required replies, failed {} requests",
-                                  fe.received, fe.blockFor, fe.failureReasonByEndpoint.size());
-                }
-                else
-                {
-                    writeMetrics.timeouts.mark();
-                    writeMetricsForLevel(consistencyLevel).timeouts.mark();
-                    WriteTimeoutException te = (WriteTimeoutException)ex;
-                    Tracing.trace("Write timeout; received {} of {} required replies", te.received, te.blockFor);
-                }
+                markWriteError(ex, consistencyLevel);
                 throw ex;
             }
         }
-        catch (UnavailableException e)
+        catch (UnavailableException | OverloadedException e)
         {
-            writeMetrics.unavailables.mark();
-            writeMetricsForLevel(consistencyLevel).unavailables.mark();
-            Tracing.trace("Unavailable");
-            throw e;
-        }
-        catch (OverloadedException e)
-        {
-            writeMetrics.unavailables.mark();
-            writeMetricsForLevel(consistencyLevel).unavailables.mark();
-            Tracing.trace("Overloaded");
+            markWriteError(e, consistencyLevel);
             throw e;
         }
         finally
@@ -1885,26 +1839,38 @@ public class StorageProxy implements StorageProxyMBean
         {
             r.run();
         }
-        catch (UnavailableException e)
+        catch (UnavailableException | WriteTimeoutException | WriteFailureException e)
         {
-            writeMetrics.unavailables.mark();
-            writeMetricsForLevel(consistencyLevel).unavailables.mark();
-            Tracing.trace("Unavailable");
+            markWriteError(e, consistencyLevel);
             throw e;
         }
-        catch (WriteTimeoutException e)
-        {
-            writeMetrics.timeouts.mark();
-            writeMetricsForLevel(consistencyLevel).timeouts.mark();
-            Tracing.trace("Write timeout; received {} of {} required replies", e.received, e.blockFor);
-            throw e;
-        }
-        catch (WriteFailureException e)
+    }
+
+    /**
+     * Marks the write error metric that matches {@code e} and traces it. Callers decide whether to rethrow.
+     */
+    private static void markWriteError(RuntimeException e, ConsistencyLevel consistencyLevel)
+    {
+        if (e instanceof WriteFailureException)
         {
             writeMetrics.failures.mark();
             writeMetricsForLevel(consistencyLevel).failures.mark();
-            Tracing.trace("Write failure; received {} of {} required replies", e.received, e.blockFor);
-            throw e;
+            WriteFailureException fe = (WriteFailureException) e;
+            Tracing.trace("Write failure; received {} of {} required replies, failed {} requests",
+                          fe.received, fe.blockFor, fe.failureReasonByEndpoint.size());
+        }
+        else if (e instanceof WriteTimeoutException)
+        {
+            writeMetrics.timeouts.mark();
+            writeMetricsForLevel(consistencyLevel).timeouts.mark();
+            WriteTimeoutException te = (WriteTimeoutException) e;
+            Tracing.trace("Write timeout; received {} of {} required replies", te.received, te.blockFor);
+        }
+        else if (e instanceof UnavailableException || e instanceof OverloadedException)
+        {
+            writeMetrics.unavailables.mark();
+            writeMetricsForLevel(consistencyLevel).unavailables.mark();
+            Tracing.trace(e instanceof OverloadedException ? "Overloaded" : "Unavailable");
         }
     }
 
