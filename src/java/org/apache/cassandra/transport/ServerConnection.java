@@ -113,6 +113,7 @@ public class ServerConnection extends Connection
             handler.markAuthenticationComplete(channel.pipeline().context(handler));
         };
 
+        // keep handler removing strictly on event loop to avoid race with timeout task
         if (channel.eventLoop().inEventLoop())
             completion.run();
         else
