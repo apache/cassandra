@@ -691,28 +691,7 @@ public abstract class QueryOptions implements RealTimeFunctionContext
             KEYSPACE,
             NOW_IN_SECONDS,
             ELIGIBLE_FOR_ARTIFICIAL_LATENCY,
-            UNUSED_10,
-            UNUSED_11,
-            UNUSED_12,
-            UNUSED_13,
-            UNUSED_14,
-            UNUSED_15,
-            UNUSED_16,
-            UNUSED_17,
-            UNUSED_18,
-            UNUSED_19,
-            UNUSED_20,
-            UNUSED_21,
-            UNUSED_22,
-            UNUSED_23,
-            UNUSED_24,
-            UNUSED_25,
-            UNUSED_26,
-            UNUSED_27,
-            UNUSED_28,
-            UNUSED_29,
-            PAGE_SIZE_IN_BYTES,
-            UNUSED_31;
+            PAGE_SIZE_IN_BYTES;
 
             private final int mask;
 

@@ -574,7 +574,7 @@ Table of Contents
                 the query. Affects TTL cell liveness in read queries and local deletion
                 time for tombstones and TTL cells in update requests. It's intended
                 for testing purposes and is optional.
-        0x40000000: Page_size_in_bytes. If set together with Page_size (0x0004),
+        0x00000400: Page_size_in_bytes. If set together with Page_size (0x0004),
                 <result_page_size> specifies a byte budget instead of a row count.
                 This flag adds no fields to <query_parameters>. It is an extension
                 introduced in Cassandra 6.0. Clients must first check that the
@@ -1253,7 +1253,7 @@ Table of Contents
   the Has_more_pages flag is not set.
 
   Cassandra 6.0 adds byte paging through the Page_size_in_bytes flag. Set both
-  Page_size and Page_size_in_bytes (mask 0x40000004) and supply a positive
+  Page_size and Page_size_in_bytes (mask 0x00000404) and supply a positive
   <result_page_size> in bytes. For example, 1048576 requests a 1 MiB budget.
   The budget uses Cassandra's internal row-data size. A page can exceed it
   when the last row is included, so a row larger than the budget can still be

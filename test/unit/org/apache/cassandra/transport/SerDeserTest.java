@@ -440,8 +440,8 @@ public class SerDeserTest
                     try
                     {
                         CBUtil.writeConsistencyLevel(ConsistencyLevel.ONE, buf);
-                        // Wire flag positions: PAGE_SIZE=2, ELIGIBLE_FOR_ARTIFICIAL_LATENCY=9, PAGE_SIZE_IN_BYTES=30.
-                        buf.writeInt((1 << 2) | (artificialLatency ? 1 << 9 : 0) | (inBytes ? 1 << 30 : 0));
+                        // Wire flag positions: PAGE_SIZE=2, ELIGIBLE_FOR_ARTIFICIAL_LATENCY=9, PAGE_SIZE_IN_BYTES=10.
+                        buf.writeInt((1 << 2) | (artificialLatency ? 1 << 9 : 0) | (inBytes ? 1 << 10 : 0));
                         buf.writeInt(13);
 
                         QueryOptions options = QueryOptions.codec.decode(buf, version);
