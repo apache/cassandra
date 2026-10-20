@@ -1197,39 +1197,47 @@ public class MutationTrackingService implements MutationTrackingServiceMBean
     {
         Preconditions.checkArgument(keyspace.getMetadata().replicationStrategy.replicationType.isTracked(), "Keyspace " + keyspace.getName() + " is not tracked");
 
-        KeyspaceShards shards = getShards(keyspace.getName());
-        Map<Shard, List<SyncTask>> tasksByShard = new HashMap<>();
-
-        // Shard ranges do not wrap, so unwrap the task ranges before we start comparing them.
-        for (SyncTask task : unwrapped(tasks))
+        shardLock.readLock().lock();
+        try
         {
-            Set<Shard> intersectingShards = new HashSet<>();
-            shards.forEachIntersectingShard(task.rangesToSync, intersectingShards::add);
-            for (Shard shard : intersectingShards)
+            KeyspaceShards shards = getShards(keyspace.getName());
+            Map<Shard, List<SyncTask>> tasksByShard = new HashMap<>();
+
+            // Shard ranges do not wrap, so unwrap the task ranges before we start comparing them.
+            for (SyncTask task : unwrapped(tasks))
             {
-                // Ensure that we don't expand outside the ranges of the original sync tasks.
-                Set<Range<Token>> intersectingSyncRanges = new HashSet<>();
-                for (Range<Token> syncRange : task.rangesToSync)
-                    intersectingSyncRanges.addAll(syncRange.intersectionWith(shard.range));
+                Set<Shard> intersectingShards = new HashSet<>();
+                shards.forEachIntersectingShard(task.rangesToSync, intersectingShards::add);
+                for (Shard shard : intersectingShards)
+                {
+                    // Ensure that we don't expand outside the ranges of the original sync tasks.
+                    Set<Range<Token>> intersectingSyncRanges = new HashSet<>();
+                    for (Range<Token> syncRange : task.rangesToSync)
+                        intersectingSyncRanges.addAll(syncRange.intersectionWith(shard.range));
 
-                if (!intersectingSyncRanges.isEmpty())
-                    tasksByShard.computeIfAbsent(shard, key -> new ArrayList<>()).add(task.withRanges(intersectingSyncRanges));
+                    if (!intersectingSyncRanges.isEmpty())
+                        tasksByShard.computeIfAbsent(shard, key -> new ArrayList<>()).add(task.withRanges(intersectingSyncRanges));
+                }
             }
+
+            SyncTasks into = new SyncTasks();
+
+            for (Map.Entry<Shard, List<SyncTask>> entry : tasksByShard.entrySet())
+            {
+                Shard shard = entry.getKey();
+                Collection<SyncTask> syncTasks = entry.getValue();
+
+                // Assign a new transfer ID to each sync task and add to the tasks container
+                for (SyncTask task : syncTasks)
+                    into.add(shard, task.withTransferId(shard.nextId()));
+            }
+
+            return into;
         }
-
-        SyncTasks into = new SyncTasks();
-
-        for (Map.Entry<Shard, List<SyncTask>> entry : tasksByShard.entrySet())
+        finally
         {
-            Shard shard = entry.getKey();
-            Collection<SyncTask> syncTasks = entry.getValue();
-
-            // Assign a new transfer ID to each sync task and add to the tasks container
-            for (SyncTask task : syncTasks)
-                into.add(shard, task.withTransferId(shard.nextId()));
+            shardLock.readLock().unlock();
         }
-
-        return into;
     }
 
     private static List<SyncTask> unwrapped(Collection<SyncTask> tasks)
