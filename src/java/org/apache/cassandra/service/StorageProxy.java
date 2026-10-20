@@ -1700,15 +1700,7 @@ public class StorageProxy implements StorageProxyMBean
                 if (accordMutations != null && preserveTimestamps == PreserveTimestamp.mixedTimeSource)
                     checkMixedTimeSourceHandling();
 
-                // Supports batches with multiple tracked mutations (previously limited to one).
-                List<AbstractWriteResponseHandler<?>> trackedHandlers = trackedMutations != null ? new ArrayList<>(trackedMutations.size()) : null;
-                if (trackedMutations != null)
-                {
-                    for (IMutation trackedMutation : trackedMutations)
-                    {
-                        trackedHandlers.add(TrackedWriteRequest.perform(trackedMutation, consistencyLevel, requestTime));
-                    }
-                }
+                List<AbstractWriteResponseHandler<?>> trackedHandlers = startTrackedWrites(trackedMutations, consistencyLevel, requestTime);
 
                 IAccordResult<TxnResult> accordResult = accordMutations != null ? mutateWithAccordAsync(cm, accordMutations, consistencyLevel, requestTime, preserveTimestamps) : null;
                 Tracing.trace("Split mutations into tracked {}, Accord {}, and untracked {}", trackedMutations, accordMutations, untrackedMutations);
@@ -1734,14 +1726,7 @@ public class StorageProxy implements StorageProxyMBean
 
                 try
                 {
-                    if (trackedHandlers != null)
-                    {
-                        for (AbstractWriteResponseHandler<?> handler : trackedHandlers)
-                        {
-                            handler.get();
-                        }
-                        Tracing.trace("Successfully wrote tracked mutations");
-                    }
+                    awaitTrackedWrites(trackedHandlers);
                 }
                 catch (Exception e)
                 {
@@ -1782,6 +1767,33 @@ public class StorageProxy implements StorageProxyMBean
             }
             break;
         }
+    }
+
+    /**
+     * Starts the tracked writes without waiting for them. Supports batches with multiple tracked mutations.
+     *
+     * @return the handlers to pass to {@link #awaitTrackedWrites}, or null if there are no tracked mutations
+     */
+    @Nullable
+    private static List<AbstractWriteResponseHandler<?>> startTrackedWrites(@Nullable List<? extends IMutation> trackedMutations, ConsistencyLevel consistencyLevel, Dispatcher.RequestTime requestTime)
+    {
+        if (trackedMutations == null)
+            return null;
+
+        List<AbstractWriteResponseHandler<?>> handlers = new ArrayList<>(trackedMutations.size());
+        for (IMutation trackedMutation : trackedMutations)
+            handlers.add(TrackedWriteRequest.perform(trackedMutation, consistencyLevel, requestTime));
+        return handlers;
+    }
+
+    private static void awaitTrackedWrites(@Nullable List<AbstractWriteResponseHandler<?>> trackedHandlers)
+    {
+        if (trackedHandlers == null)
+            return;
+
+        for (AbstractWriteResponseHandler<?> handler : trackedHandlers)
+            handler.get();
+        Tracing.trace("Successfully wrote tracked mutations");
     }
 
     private static void checkMixedTimeSourceHandling()
