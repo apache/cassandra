@@ -193,6 +193,30 @@ public class ReplicaFilteringProtectionTest extends TestBaseImpl
                    row(1), row(7));
     }
 
+    @Test
+    public void testRangeTombstoneBoundaryOpensRangeThatSpansPageEnd()
+    {
+        String table = createRangeTombstoneTable("rt_boundary_opens_range_across_pages");
+
+        // Node 2 has a stale match at c = 5. Node 1 has two adjacent ranges meeting at a boundary at c = 1: the
+        // first closes there, the second opens there and extends to cover the newer live match at c = 7. The
+        // boundary itself is consumed within the first page (to reach c = 2), but the range it opens must still
+        // be remembered in the second page, where node 1 contributes nothing until c = 7, to shadow node 2's c = 5.
+        write(2, "INSERT INTO %s (k, c, v) VALUES (0, 0, 1) USING TIMESTAMP 1", table);
+        write(2, "INSERT INTO %s (k, c, v) VALUES (0, 5, 1) USING TIMESTAMP 1", table);
+        write(1, "INSERT INTO %s (k, c, v) VALUES (0, 0, 0) USING TIMESTAMP 2", table);
+        write(1, "DELETE FROM %s USING TIMESTAMP 2 WHERE k = 0 AND c > 0 AND c <= 1", table);
+        write(1, "DELETE FROM %s USING TIMESTAMP 4 WHERE k = 0 AND c > 1 AND c <= 10", table);
+        write(1, "INSERT INTO %s (k, c, v) VALUES (0, 1, 1) USING TIMESTAMP 3", table);
+        write(1, "INSERT INTO %s (k, c, v) VALUES (0, 2, 1) USING TIMESTAMP 6", table);
+        write(1, "INSERT INTO %s (k, c, v) VALUES (0, 7, 1) USING TIMESTAMP 5", table);
+
+        // The first page ends at c = 2, after the boundary at c = 1 opened the range that must shadow c = 5 in
+        // the second page.
+        assertRows(cluster.coordinator(1).execute("SELECT c FROM " + table + " WHERE k = 0 AND v = 1 LIMIT 3 ALLOW FILTERING", ALL),
+                   row(1), row(2), row(7));
+    }
+
     private String createRangeTombstoneTable(String name)
     {
         cluster.get(1).runOnInstance(() -> StorageService.instance.setCachedReplicaRowsWarnThreshold(DEFAULT_WARN_THRESHOLD));
