@@ -21,6 +21,8 @@ import java.nio.charset.StandardCharsets;
 import java.util.HashMap;
 import java.util.Map;
 
+import com.google.common.annotations.VisibleForTesting;
+
 import org.apache.cassandra.auth.IAuthenticator;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.db.guardrails.Guardrails;
@@ -225,7 +227,8 @@ public class StartupMessage extends Message.Request
         }
     }
 
-    private static void validateOptions(Map<String, String> options)
+    @VisibleForTesting
+    static void validateOptions(Map<String, String> options)
     {
         if (options == null || options.isEmpty())
             return;

@@ -51,7 +51,7 @@ public class StartupMessageTest extends EncodeAndDecodeTestBase<StartupMessage>
         {
             options.put("KEY_" + i, "value");
         }
-        new StartupMessage(options);
+        StartupMessage.validateOptions(options);
     }
 
     @Test(expected = ProtocolException.class)
@@ -59,7 +59,7 @@ public class StartupMessageTest extends EncodeAndDecodeTestBase<StartupMessage>
     {
         Map<String, String> options = new HashMap<>();
         options.put("a".repeat(257), "value");
-        new StartupMessage(options);
+        StartupMessage.validateOptions(options);
     }
 
     @Test(expected = ProtocolException.class)
@@ -67,7 +67,7 @@ public class StartupMessageTest extends EncodeAndDecodeTestBase<StartupMessage>
     {
         Map<String, String> options = new HashMap<>();
         options.put("KEY", "b".repeat(1025));
-        new StartupMessage(options);
+        StartupMessage.validateOptions(options);
     }
 
     @Test(expected = ProtocolException.class)
@@ -75,7 +75,7 @@ public class StartupMessageTest extends EncodeAndDecodeTestBase<StartupMessage>
     {
         Map<String, String> options = new HashMap<>();
         options.put("KEY", "value\u0001withcontrol");
-        new StartupMessage(options);
+        StartupMessage.validateOptions(options);
     }
 
     @Test(expected = ProtocolException.class)
@@ -83,7 +83,7 @@ public class StartupMessageTest extends EncodeAndDecodeTestBase<StartupMessage>
     {
         Map<String, String> options = new HashMap<>();
         options.put("KEY", "value\nwithnewline");
-        new StartupMessage(options);
+        StartupMessage.validateOptions(options);
     }
 
     @Test
@@ -92,8 +92,33 @@ public class StartupMessageTest extends EncodeAndDecodeTestBase<StartupMessage>
         Map<String, String> options = new HashMap<>();
         options.put(StartupMessage.CQL_VERSION, "3.0.0");
         options.put("KEY", "value\twith\ttab");
-        StartupMessage msg = new StartupMessage(options);
-        Assert.assertNotNull(msg);
+        StartupMessage.validateOptions(options);
+    }
+
+    @Test(expected = ProtocolException.class)
+    public void testNullKeyThrowsException()
+    {
+        Map<String, String> options = new HashMap<>();
+        options.put(null, "value");
+        StartupMessage.validateOptions(options);
+    }
+
+    @Test
+    public void testMultiByteUtf8Allowed()
+    {
+        Map<String, String> options = new HashMap<>();
+        options.put(StartupMessage.CQL_VERSION, "3.0.0");
+        options.put("DRIVER_NAME", "🚀-Cassandra-Driver-é");
+        StartupMessage.validateOptions(options);
+    }
+
+    @Test(expected = ProtocolException.class)
+    public void testBidiOverrideFormatCharRejected()
+    {
+        Map<String, String> options = new HashMap<>();
+        // U+202E is a bidirectional text override formatting character (Right-to-Left Override)
+        options.put("KEY", "value\u202Espoofed");
+        StartupMessage.validateOptions(options);
     }
 
     protected Message.Codec<StartupMessage> getCodec()
