@@ -21,6 +21,7 @@ package org.apache.cassandra.service.reads.tracked;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Set;
 
 import org.junit.BeforeClass;
 import org.junit.Test;
@@ -29,14 +30,24 @@ import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.db.marshal.Int32Type;
 import org.apache.cassandra.dht.Murmur3Partitioner;
 import org.apache.cassandra.distributed.test.log.ClusterMetadataTestHelper;
+import org.apache.cassandra.dht.Range;
+import org.apache.cassandra.dht.Token;
+import org.apache.cassandra.locator.EndpointsForRange;
 import org.apache.cassandra.locator.InetAddressAndPort;
+import org.apache.cassandra.replication.CoordinatorLog;
 import org.apache.cassandra.replication.CoordinatorLogId;
 import org.apache.cassandra.replication.MutationSummary;
+import org.apache.cassandra.replication.MutationTrackingService;
 import org.apache.cassandra.replication.Offsets;
+import org.apache.cassandra.replication.Participants;
+import org.apache.cassandra.replication.Shard;
 import org.apache.cassandra.replication.ShortMutationId;
 import org.apache.cassandra.schema.TableId;
 import org.apache.cassandra.schema.TableMetadata;
 import org.apache.cassandra.tcm.ClusterMetadata;
+import org.apache.cassandra.tcm.Epoch;
+import org.apache.cassandra.tcm.ownership.ReplicaGroups;
+import org.apache.cassandra.tcm.ownership.VersionedEndpoints;
 import org.apache.cassandra.utils.FBUtilities;
 
 import static org.junit.Assert.assertEquals;
@@ -173,5 +184,65 @@ public class ReadReconciliationsTest
         // Once the mutation arrives, pendingLocalMutations is immediately updated
         coordinator.acceptMutation(new ShortMutationId(LOG_2, 50));
         assertTrue(peer2.pendingLocalMutations.isEmpty());
+    }
+
+    @Test
+    public void testSummaryNodeSkipsAckWhenAlreadyInSync()
+    {
+        // On a summary node (LOCAL_NODE_ID != dataNode)
+        int dataNode = 2;
+        int[] summaryNodes = new int[]{ LOCAL_NODE_ID, 3 };
+        TrackedRead.Id readId = new TrackedRead.Id(dataNode, 2001L);
+
+        ReadReconciliations.Coordinator coordinator =
+            new ReadReconciliations.Coordinator(readId, dataNode, summaryNodes);
+
+        // Local summary has offsets 1..10
+        MutationSummary localSummary = summary(LOG_1, new int[]{ 1, 10 }, new int[]{});
+        // Data node summary has offsets 1..5
+        MutationSummary dataSummary = summary(LOG_1, new int[]{ 1, 5 }, new int[]{});
+
+        coordinator.acceptRemoteSummary(dataSummary, dataNode, true);
+        coordinator.maybeSendPerPeerAcksOnSummaryNode();
+
+        ReadReconciliations.Coordinator.PeerState dataPeer = coordinator.getPeerState(dataNode);
+        assertNotNull(dataPeer);
+        // Set local summary directly to avoid network send in acceptLocalSummary
+        coordinator.setLocalSummaryForTesting(localSummary);
+        coordinator.maybeSendPerPeerAcksOnSummaryNode();
+
+        // Because localSummary already has all unreconciled offsets from dataSummary (0 missing),
+        // ackSent should be marked true without sending any message
+        assertTrue(dataPeer.ackSent);
+    }
+
+    @Test
+    public void testSummaryNodeSendsPerPeerAckWhenMissingPullsComplete()
+    {
+        int dataNode = 2;
+        int[] summaryNodes = new int[]{ LOCAL_NODE_ID, 3 };
+        TrackedRead.Id readId = new TrackedRead.Id(dataNode, 2002L);
+
+        ReadReconciliations.Coordinator coordinator =
+            new ReadReconciliations.Coordinator(readId, dataNode, summaryNodes);
+
+        // Local summary has offset 1..5
+        MutationSummary localSummary = summary(LOG_1, new int[]{ 1, 5 }, new int[]{});
+        // Data node summary has unreconciled offset 10..10 (missing locally)
+        MutationSummary dataSummary = summary(LOG_1, new int[]{ 1, 5 }, new int[]{ 10, 10 });
+
+        coordinator.setLocalSummaryForTesting(localSummary);
+        coordinator.acceptRemoteSummary(dataSummary, dataNode, true);
+
+        ReadReconciliations.Coordinator.PeerState dataPeer = coordinator.getPeerState(dataNode);
+        assertNotNull(dataPeer);
+        // Mutation 10 is missing, so ackSent should be false until mutation arrives
+        assertFalse(dataPeer.ackSent);
+        assertTrue(dataPeer.pendingLocalMutations.contains(new ShortMutationId(LOG_1, 10)));
+
+        // Once mutation 10 arrives, the ack is sent
+        coordinator.acceptMutation(new ShortMutationId(LOG_1, 10));
+        assertTrue(dataPeer.ackSent);
+        assertTrue(dataPeer.pendingLocalMutations.isEmpty());
     }
 }

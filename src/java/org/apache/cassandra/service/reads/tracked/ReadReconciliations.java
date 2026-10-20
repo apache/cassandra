@@ -24,6 +24,8 @@ import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.TimeUnit;
 
+import com.google.common.annotations.VisibleForTesting;
+
 import org.agrona.collections.IntArrayList;
 import org.jctools.maps.NonBlockingHashMap;
 import org.jctools.maps.NonBlockingHashSet;
@@ -177,6 +179,7 @@ public class ReadReconciliations implements ExpiredStatePurger.Expireable
             MutationSummary summary;
             boolean supportsPerPeerAck;
             final Log2OffsetsMap.Mutable pendingLocalMutations = new Log2OffsetsMap.Mutable();
+            boolean ackSent = false;
 
             PeerState(int nodeId)
             {
@@ -216,6 +219,12 @@ public class ReadReconciliations implements ExpiredStatePurger.Expireable
             return remotePeers.get(nodeId);
         }
 
+        @VisibleForTesting
+        void setLocalSummaryForTesting(MutationSummary summary)
+        {
+            this.localSummary = summary;
+        }
+
         /**
          * For all the logs in the summary that are owned by us, preemptively prioritise delivery of
          * any mutations that are absent from other participating nodes according to our primary coordinator
@@ -239,7 +248,9 @@ public class ReadReconciliations implements ExpiredStatePurger.Expireable
                     int node = remoteNodes.getInt(i);
                     MutationTrackingService.instance().validateSummaryForParticipant(summary, node);
                     TrackedSummaryResponse response = new TrackedSummaryResponse(id, summary, dataNode, summaryNodes);
-                    Message<TrackedSummaryResponse> message = Message.out(Verb.MT_SUMMARY_RSP, response);
+                    Message<TrackedSummaryResponse> message = Message.builder(Verb.MT_SUMMARY_RSP, response)
+                                                                     .withFlag(org.apache.cassandra.net.MessageFlag.MT_PER_PEER_RECONCILE_ACK)
+                                                                     .build();
                     MessagingService.instance().send(message, host(node));
                 }
             }
@@ -358,6 +369,64 @@ public class ReadReconciliations implements ExpiredStatePurger.Expireable
             return true;
         }
 
+        void maybeSendPerPeerAcksOnSummaryNode()
+        {
+            if (isDataNode() || localSummary == null)
+                return;
+
+            PeerState dataNodePeer = remotePeers.get(dataNode);
+            if (dataNodePeer == null || dataNodePeer.summary == null || !dataNodePeer.supportsPerPeerAck)
+                return;
+
+            for (PeerState peer : remotePeers.values())
+            {
+                if (peer.ackSent || peer.summary == null)
+                    continue;
+
+                // If local summary already had all of peer's unreconciled offsets, no ack is needed
+                if (!MutationSummary.hasMissingUnreconciled(peer.summary, localSummary))
+                {
+                    peer.ackSent = true;
+                    continue;
+                }
+
+                // If missing offsets existed, send ack once pending local mutations for this peer are empty
+                if (peer.pendingLocalMutations.isEmpty())
+                {
+                    peer.ackSent = true;
+                    Message<ReadReconcileAck> ackMsg =
+                        Message.builder(Verb.MT_READ_RECONCILE_ACK, new ReadReconcileAck(id))
+                               .withParam(org.apache.cassandra.net.ParamType.MT_RECONCILE_PEER, peer.nodeId)
+                               .build();
+                    MessagingService.instance().send(ackMsg, host(dataNode));
+                }
+            }
+        }
+
+        private boolean allAcksSentOrNotNeededOnSummaryNode()
+        {
+            if (isDataNode())
+                return true;
+
+            PeerState dataNodePeer = remotePeers.get(dataNode);
+            boolean dataNodeSupportsPerPeer = dataNodePeer != null && dataNodePeer.summary != null && dataNodePeer.supportsPerPeerAck;
+
+            if (dataNodeSupportsPerPeer)
+            {
+                for (PeerState peer : remotePeers.values())
+                {
+                    if (!peer.ackSent)
+                        return false;
+                }
+                return true;
+            }
+            else
+            {
+                // Legacy mode: single ack is sent in complete()
+                return true;
+            }
+        }
+
         private boolean allSyncAcksReceived()
         {
             if (!isDataNode())
@@ -375,7 +444,10 @@ public class ReadReconciliations implements ExpiredStatePurger.Expireable
             if (completed)
                 return false;
 
-            if (allSummariesReceived() && allPendingLocalMutationsEmpty() && allSyncAcksReceived())
+            if (!isDataNode())
+                maybeSendPerPeerAcksOnSummaryNode();
+
+            if (allSummariesReceived() && allPendingLocalMutationsEmpty() && allSyncAcksReceived() && allAcksSentOrNotNeededOnSummaryNode())
             {
                 completed = true;
                 return complete();
@@ -421,9 +493,19 @@ public class ReadReconciliations implements ExpiredStatePurger.Expireable
         private boolean complete()
         {
             if (isDataNode())
+            {
                 MutationTrackingService.instance().localReads().acknowledgeReconcile(id, augmentingOffsets());
+            }
             else
-                MessagingService.instance().send(Message.out(Verb.MT_READ_RECONCILE_ACK, new ReadReconcileAck(id)), host(dataNode));
+            {
+                PeerState dataNodePeer = remotePeers.get(dataNode);
+                boolean dataNodeSupportsPerPeer = dataNodePeer != null && dataNodePeer.summary != null && dataNodePeer.supportsPerPeerAck;
+                if (!dataNodeSupportsPerPeer)
+                {
+                    // Legacy mode fallback: send a single ack without peer param
+                    MessagingService.instance().send(Message.out(Verb.MT_READ_RECONCILE_ACK, new ReadReconcileAck(id)), host(dataNode));
+                }
+            }
 
             return true;
         }
