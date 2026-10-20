@@ -23,6 +23,7 @@ import java.time.Duration;
 import org.awaitility.Awaitility;
 import org.junit.Test;
 
+import org.apache.cassandra.db.Keyspace;
 import org.apache.cassandra.distributed.Cluster;
 import org.apache.cassandra.distributed.api.ConsistencyLevel;
 import org.apache.cassandra.distributed.api.Feature;
@@ -352,6 +353,33 @@ public class MutationTrackingMetricsTest extends TestBaseImpl
             assertThat(afterWrites)
                 .as("Disk space should increase after writes: before=%d", initialSpace)
                 .isGreaterThan(initialSpace);
+        }
+    }
+
+    @Test(timeout = 60000)
+    public void testLocalReadLatencyMetric() throws Throwable
+    {
+        try (Cluster cluster = Cluster.build(1)
+                .withConfig(cfg -> cfg.with(Feature.NETWORK))
+                .start())
+        {
+            cluster.schemaChange(withKeyspace(CREATE_KEYSPACE));
+            cluster.schemaChange(String.format(CREATE_TABLE, KEYSPACE));
+
+            long initialReadLatencyCount = cluster.get(1).callOnInstance(() ->
+                Keyspace.open(KEYSPACE).getColumnFamilyStore("tbl").metric.readLatency.latency.getCount());
+
+            cluster.coordinator(1).execute(withKeyspace("INSERT INTO %s.tbl (pk, val) VALUES (?, ?)"),
+                                           ConsistencyLevel.ONE, 1, "test1");
+
+            cluster.coordinator(1).execute(withKeyspace("SELECT * FROM %s.tbl WHERE pk = ?"),
+                                           ConsistencyLevel.ONE, 1);
+
+            long afterReadLatencyCount = cluster.get(1).callOnInstance(() ->
+                Keyspace.open(KEYSPACE).getColumnFamilyStore("tbl").metric.readLatency.latency.getCount());
+            assertThat(afterReadLatencyCount)
+                .as("Local read latency metric should count tracked reads")
+                .isEqualTo(initialReadLatencyCount + 1);
         }
     }
 }
