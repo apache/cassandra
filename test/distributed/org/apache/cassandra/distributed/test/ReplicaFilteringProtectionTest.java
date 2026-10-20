@@ -118,6 +118,95 @@ public class ReplicaFilteringProtectionTest extends TestBaseImpl
         }
     }
 
+    @Test
+    public void testRangeTombstoneAcrossPages()
+    {
+        String table = createRangeTombstoneTable("rt_across_pages");
+
+        // Node 2 has stale matches at c = 0 and c = 5. Node 1 overwrites c = 0 and deletes c = 5 with a range
+        // tombstone that also covers newer live matches at c = 1 and c = 7.
+        write(2, "INSERT INTO %s (k, c, v) VALUES (0, 0, 1) USING TIMESTAMP 1", table);
+        write(2, "INSERT INTO %s (k, c, v) VALUES (0, 5, 1) USING TIMESTAMP 1", table);
+        write(1, "INSERT INTO %s (k, c, v) VALUES (0, 0, 0) USING TIMESTAMP 2", table);
+        write(1, "DELETE FROM %s USING TIMESTAMP 2 WHERE k = 0 AND c > 0 AND c <= 10", table);
+        write(1, "INSERT INTO %s (k, c, v) VALUES (0, 1, 1) USING TIMESTAMP 3", table);
+        write(1, "INSERT INTO %s (k, c, v) VALUES (0, 7, 1) USING TIMESTAMP 3", table);
+
+        // Replica filtering protection's first page of LIMIT rows ends at c = 1, inside the range tombstone, then drops
+        // c = 0. The next page, ending at c = 7, must still see the range tombstone that deletes c = 5.
+        assertRows(cluster.coordinator(1).execute("SELECT c FROM " + table + " WHERE k = 0 AND v = 1 LIMIT 2 ALLOW FILTERING", ALL),
+                   row(1), row(7));
+    }
+
+    @Test
+    public void testRangeTombstoneAcrossPagesReversed()
+    {
+        String table = createRangeTombstoneTable("rt_across_pages_reversed");
+
+        write(2, "INSERT INTO %s (k, c, v) VALUES (0, 10, 1) USING TIMESTAMP 1", table);
+        write(2, "INSERT INTO %s (k, c, v) VALUES (0, 5, 1) USING TIMESTAMP 1", table);
+        write(1, "INSERT INTO %s (k, c, v) VALUES (0, 10, 0) USING TIMESTAMP 2", table);
+        write(1, "DELETE FROM %s USING TIMESTAMP 2 WHERE k = 0 AND c > 0 AND c <= 9", table);
+        write(1, "INSERT INTO %s (k, c, v) VALUES (0, 8, 1) USING TIMESTAMP 3", table);
+        write(1, "INSERT INTO %s (k, c, v) VALUES (0, 2, 1) USING TIMESTAMP 3", table);
+
+        // In descending order the first page ends at c = 8, inside the range tombstone that deletes c = 5.
+        assertRows(cluster.coordinator(1).execute("SELECT c FROM " + table + " WHERE k = 0 AND v = 1 ORDER BY c DESC LIMIT 2 ALLOW FILTERING", ALL),
+                   row(8), row(2));
+    }
+
+    @Test
+    public void testRangeTombstoneAcrossPagesWithoutRowsFromDeletingReplica()
+    {
+        String table = createRangeTombstoneTable("rt_across_pages_without_rows");
+
+        write(2, "INSERT INTO %s (k, c, v) VALUES (0, 0, 1) USING TIMESTAMP 1", table);
+        write(2, "INSERT INTO %s (k, c, v) VALUES (0, 4, 1) USING TIMESTAMP 1", table);
+        write(1, "INSERT INTO %s (k, c, v) VALUES (0, 0, 0) USING TIMESTAMP 2", table);
+        write(1, "DELETE FROM %s USING TIMESTAMP 2 WHERE k = 0 AND c > 0 AND c <= 10", table);
+        write(1, "INSERT INTO %s (k, c, v) VALUES (0, 1, 1) USING TIMESTAMP 3", table);
+        write(2, "INSERT INTO %s (k, c, v) VALUES (0, 5, 1) USING TIMESTAMP 4", table);
+        write(2, "INSERT INTO %s (k, c, v) VALUES (0, 6, 1) USING TIMESTAMP 4", table);
+
+        // The second page holds nothing from node 1, which must still delete c = 4 there.
+        assertRows(cluster.coordinator(1).execute("SELECT c FROM " + table + " WHERE k = 0 AND v = 1 LIMIT 2 ALLOW FILTERING", ALL),
+                   row(1), row(5));
+    }
+
+    @Test
+    public void testRangeTombstoneBoundaryAtPageEnd()
+    {
+        String table = createRangeTombstoneTable("rt_boundary_at_page_end");
+        // Blocking read repair also merges the replicas' protected partitions, including the markers closed at page ends.
+        cluster.schemaChange("ALTER TABLE " + table + " WITH read_repair = 'BLOCKING'");
+
+        write(2, "INSERT INTO %s (k, c, v) VALUES (0, 0, 1) USING TIMESTAMP 1", table);
+        write(2, "INSERT INTO %s (k, c, v) VALUES (0, 5, 1) USING TIMESTAMP 1", table);
+        write(1, "INSERT INTO %s (k, c, v) VALUES (0, 0, 0) USING TIMESTAMP 2", table);
+        write(1, "DELETE FROM %s USING TIMESTAMP 2 WHERE k = 0 AND c > 0 AND c <= 1", table);
+        write(1, "DELETE FROM %s USING TIMESTAMP 4 WHERE k = 0 AND c > 1 AND c <= 10", table);
+        write(1, "INSERT INTO %s (k, c, v) VALUES (0, 1, 1) USING TIMESTAMP 3", table);
+        write(1, "INSERT INTO %s (k, c, v) VALUES (0, 7, 1) USING TIMESTAMP 5", table);
+
+        // The first page ends at c = 1, where node 1 has a boundary between two range tombstones.
+        assertRows(cluster.coordinator(1).execute("SELECT c FROM " + table + " WHERE k = 0 AND v = 1 LIMIT 2 ALLOW FILTERING", ALL),
+                   row(1), row(7));
+    }
+
+    private String createRangeTombstoneTable(String name)
+    {
+        cluster.get(1).runOnInstance(() -> StorageService.instance.setCachedReplicaRowsWarnThreshold(DEFAULT_WARN_THRESHOLD));
+        cluster.get(1).runOnInstance(() -> StorageService.instance.setCachedReplicaRowsFailThreshold(DEFAULT_FAIL_THRESHOLD));
+        String table = KEYSPACE + '.' + name;
+        cluster.schemaChange("CREATE TABLE " + table + " (k int, c int, v int, PRIMARY KEY (k, c)) WITH read_repair = 'NONE'");
+        return table;
+    }
+
+    private void write(int node, String cql, String table)
+    {
+        cluster.get(node).executeInternal(String.format(cql, table));
+    }
+
     private void testMissedUpdates(String tableName, int warnThreshold, int failThreshold, boolean shouldWarn)
     {
         cluster.get(1).runOnInstance(() -> StorageService.instance.setCachedReplicaRowsWarnThreshold(warnThreshold));
