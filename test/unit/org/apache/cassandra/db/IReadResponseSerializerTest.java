@@ -35,9 +35,14 @@ import org.apache.cassandra.dht.Murmur3Partitioner;
 import org.apache.cassandra.distributed.test.log.ClusterMetadataTestHelper;
 import org.apache.cassandra.io.util.DataInputBuffer;
 import org.apache.cassandra.io.util.DataOutputBuffer;
+import org.apache.cassandra.net.Message;
+import org.apache.cassandra.net.MessageFlag;
 import org.apache.cassandra.net.MessagingService;
+import org.apache.cassandra.net.ParamType;
+import org.apache.cassandra.net.Verb;
 import org.apache.cassandra.replication.MutationSummary;
 import org.apache.cassandra.schema.TableMetadata;
+import org.apache.cassandra.service.reads.tracked.ReadReconcileAck;
 import org.apache.cassandra.service.reads.tracked.TrackedDataResponse;
 import org.apache.cassandra.service.reads.tracked.TrackedRead;
 import org.apache.cassandra.service.reads.tracked.TrackedSummaryResponse;
@@ -45,7 +50,9 @@ import org.apache.cassandra.utils.ByteBufferUtil;
 import org.apache.cassandra.utils.FBUtilities;
 
 import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertNotNull;
+import static org.junit.Assert.assertTrue;
 import static org.junit.Assert.fail;
 
 /**
@@ -253,6 +260,63 @@ public class IReadResponseSerializerTest
         assertEquals("UNTRACKED.isTracked() should be false", false, ReadKind.UNTRACKED.isTracked());
         assertEquals("TRACKED_DATA.isTracked() should be true", true, ReadKind.TRACKED_DATA.isTracked());
         assertEquals("TRACKED_SUMMARY.isTracked() should be true", true, ReadKind.TRACKED_SUMMARY.isTracked());
+    }
+
+    // ==================== Message Flag & Param Tests ====================
+
+    @Test
+    public void testSummaryResponseWithPerPeerAckFlag() throws IOException
+    {
+        TrackedSummaryResponse response = createTrackedSummaryResponse();
+        Message<TrackedSummaryResponse> msg = Message.builder(Verb.MT_SUMMARY_RSP, response)
+                                                     .withFlag(MessageFlag.MT_PER_PEER_RECONCILE_ACK)
+                                                     .build();
+
+        DataOutputBuffer out = new DataOutputBuffer();
+        Message.serializer.serialize(msg, out, MessagingService.current_version);
+
+        DataInputBuffer in = new DataInputBuffer(out.buffer(), false);
+        Message<TrackedSummaryResponse> deserialized = Message.serializer.deserialize(in, FBUtilities.getBroadcastAddressAndPort(), MessagingService.current_version);
+
+        assertTrue(deserialized.header.hasFlag(MessageFlag.MT_PER_PEER_RECONCILE_ACK));
+        assertEquals(response.readId, deserialized.payload.readId);
+    }
+
+    @Test
+    public void testReadReconcileAckWithPeerParam() throws IOException
+    {
+        TrackedRead.Id readId = new TrackedRead.Id(1, 99999L);
+        ReadReconcileAck ack = new ReadReconcileAck(readId);
+        int peerId = 42;
+        Message<ReadReconcileAck> msg = Message.builder(Verb.MT_READ_RECONCILE_ACK, ack)
+                                               .withParam(ParamType.MT_RECONCILE_PEER, peerId)
+                                               .build();
+
+        DataOutputBuffer out = new DataOutputBuffer();
+        Message.serializer.serialize(msg, out, MessagingService.current_version);
+
+        DataInputBuffer in = new DataInputBuffer(out.buffer(), false);
+        Message<ReadReconcileAck> deserialized = Message.serializer.deserialize(in, FBUtilities.getBroadcastAddressAndPort(), MessagingService.current_version);
+
+        assertEquals(Integer.valueOf(peerId), deserialized.header.params().get(ParamType.MT_RECONCILE_PEER));
+        assertEquals(readId, deserialized.payload.readId);
+    }
+
+    @Test
+    public void testReadReconcileAckWithoutPeerParam() throws IOException
+    {
+        TrackedRead.Id readId = new TrackedRead.Id(1, 99999L);
+        ReadReconcileAck ack = new ReadReconcileAck(readId);
+        Message<ReadReconcileAck> msg = Message.out(Verb.MT_READ_RECONCILE_ACK, ack);
+
+        DataOutputBuffer out = new DataOutputBuffer();
+        Message.serializer.serialize(msg, out, MessagingService.current_version);
+
+        DataInputBuffer in = new DataInputBuffer(out.buffer(), false);
+        Message<ReadReconcileAck> deserialized = Message.serializer.deserialize(in, FBUtilities.getBroadcastAddressAndPort(), MessagingService.current_version);
+
+        assertFalse(deserialized.header.params().containsKey(ParamType.MT_RECONCILE_PEER));
+        assertEquals(readId, deserialized.payload.readId);
     }
 
     // ==================== Helper Methods ====================

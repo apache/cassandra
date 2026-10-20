@@ -26,6 +26,7 @@ import org.apache.cassandra.io.UnversionedSerializer;
 import org.apache.cassandra.io.util.DataInputPlus;
 import org.apache.cassandra.io.util.DataOutputPlus;
 import org.apache.cassandra.net.IVerbHandler;
+import org.apache.cassandra.net.ParamType;
 import org.apache.cassandra.replication.MutationTrackingService;
 
 /**
@@ -54,7 +55,8 @@ public class ReadReconcileAck
         MutationTrackingService.ensureEnabled();
         ReadReconcileAck notify = message.payload;
         logger.trace("Received reconcile ack from {}, for {}", message.from(), notify.readId);
-        ReadReconciliations.instance.acceptSyncAck(message.from(), notify.readId);
+        Integer peerNode = (Integer) message.header.params().get(ParamType.MT_RECONCILE_PEER);
+        ReadReconciliations.instance.acceptSyncAck(message.from(), notify.readId, peerNode);
     };
 
     public static final UnversionedSerializer<ReadReconcileAck> serializer = new UnversionedSerializer<>()

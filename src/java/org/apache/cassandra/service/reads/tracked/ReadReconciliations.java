@@ -116,15 +116,25 @@ public class ReadReconciliations implements ExpiredStatePurger.Expireable
      */
     public void acceptRemoteSummary(InetAddressAndPort from, TrackedSummaryResponse summary)
     {
+        acceptRemoteSummary(from, summary, false);
+    }
+
+    public void acceptRemoteSummary(InetAddressAndPort from, TrackedSummaryResponse summary, boolean supportsPerPeerAck)
+    {
         Coordinator reconcile = getOrCreateCoordinator(summary.readId, summary.dataNode, summary.summaryNodes);
-        if (reconcile.acceptRemoteSummary(summary.summary, node(from)))
+        if (reconcile.acceptRemoteSummary(summary.summary, node(from), supportsPerPeerAck))
             coordinators.remove(summary.readId);
     }
 
     public void acceptSyncAck(InetAddressAndPort from, TrackedRead.Id id)
     {
+        acceptSyncAck(from, id, null);
+    }
+
+    public void acceptSyncAck(InetAddressAndPort from, TrackedRead.Id id, Integer peerNode)
+    {
         Coordinator reconcile = coordinators.get(id);
-        if (reconcile != null && reconcile.acceptSyncAck(node(from))) // could be already timed out / expired
+        if (reconcile != null && reconcile.acceptSyncAck(node(from), peerNode)) // could be already timed out / expired
             coordinators.remove(id);
     }
 
@@ -218,20 +228,17 @@ public class ReadReconciliations implements ExpiredStatePurger.Expireable
                 }
             }
 
-            Iterator<Offsets> iter = summary.onlyUnreconciled();
             Node2OffsetsMap missingOffsets = new Node2OffsetsMap();
-            while (iter.hasNext())
-            {
-                Offsets ourOffsets = iter.next();
+            summary.forEachUnreconciled(ourOffsets -> {
                 CoordinatorLogId logId = ourOffsets.logId();
                 if (logId.hostId() != LOCAL_NODE)
-                    continue;
+                    return;
 
                 MutationTrackingService.instance().collectRemotelyMissingMutations(ourOffsets, remoteNodes, missingOffsets);
                 // we don't listen to or block on delivery of these mutations, intentionally
                 missingOffsets.forEach(ReadReconciliations::push);
                 missingOffsets.clear();
-            }
+            });
 
             summaries.add(Pair.create(LOCAL_NODE, summary));
             return updateRemainingAndMaybeComplete(0, -1, 0);
@@ -242,6 +249,11 @@ public class ReadReconciliations implements ExpiredStatePurger.Expireable
          * and pull them - from the primary coordinator, if it's alive, or the remote replica, if it's not.
          */
         boolean acceptRemoteSummary(MutationSummary summary, int remoteNode)
+        {
+            return acceptRemoteSummary(summary, remoteNode, false);
+        }
+
+        boolean acceptRemoteSummary(MutationSummary summary, int remoteNode, boolean supportsPerPeerAck)
         {
             Log2OffsetsMap.Mutable missingMutations = new Log2OffsetsMap.Mutable();
             MutationTrackingService.instance().collectLocallyMissingMutations(summary, missingMutations);
@@ -263,6 +275,11 @@ public class ReadReconciliations implements ExpiredStatePurger.Expireable
         }
 
         boolean acceptSyncAck(int ignoredSyncId)
+        {
+            return acceptSyncAck(ignoredSyncId, null);
+        }
+
+        boolean acceptSyncAck(int ignoredSyncId, Integer peerNode)
         {
             return updateRemainingAndMaybeComplete(0, 0, -1);
         }

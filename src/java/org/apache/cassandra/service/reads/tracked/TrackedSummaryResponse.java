@@ -30,6 +30,7 @@ import org.apache.cassandra.io.UnversionedSerializer;
 import org.apache.cassandra.io.util.DataInputPlus;
 import org.apache.cassandra.io.util.DataOutputPlus;
 import org.apache.cassandra.net.IVerbHandler;
+import org.apache.cassandra.net.MessageFlag;
 import org.apache.cassandra.replication.MutationSummary;
 import org.apache.cassandra.replication.MutationTrackingService;
 import org.apache.cassandra.utils.ArraySerializers;
@@ -60,7 +61,8 @@ public class TrackedSummaryResponse implements IReadResponse
         TrackedSummaryResponse response = message.payload;
         if (logger.isTraceEnabled())
             logger.trace("Received summary {} from {}, for {}", response.summary, message.from(), response.readId);
-        ReadReconciliations.instance.acceptRemoteSummary(message.from(), message.payload);
+        boolean supportsPerPeerAck = message.header.hasFlag(MessageFlag.MT_PER_PEER_RECONCILE_ACK);
+        ReadReconciliations.instance.acceptRemoteSummary(message.from(), message.payload, supportsPerPeerAck);
     };
 
     public static final UnversionedSerializer<TrackedSummaryResponse> serializer = new UnversionedSerializer<>()

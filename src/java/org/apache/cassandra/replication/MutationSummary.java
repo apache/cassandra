@@ -418,21 +418,10 @@ public class MutationSummary
     }
 
     /**
-     * Finds offsets in {@code source.unreconciled} that are absent from {@code target}.
-     */
-    public static void unreconciledDifference(MutationSummary source, MutationSummary target, Collection<ShortMutationId> into)
-    {
-        Log2OffsetsMap.Mutable offsets = new Log2OffsetsMap.Mutable();
-        unreconciledDifference(source, target, offsets);
-        for (Offsets diff : offsets.offsets())
-            diff.collectIds(into);
-    }
-
-    /**
      * Finds offsets in {@code source.unreconciled} that are absent from {@code target},
      * returning them as a {@link Log2OffsetsMap}.
      */
-    public static void unreconciledDifference(MutationSummary source, MutationSummary target, Log2OffsetsMap.Mutable into)
+    private static void unreconciledDifference(MutationSummary source, MutationSummary target, Consumer<Offsets.Immutable> into)
     {
         int i = 0, j = 0, ssize = source.size(), tsize = target.size();
 
@@ -447,14 +436,14 @@ public class MutationSummary
             {
                 Offsets.Immutable diff = CoordinatorSummary.unreconciledDifference(s, t);
                 if (diff != null && !diff.isEmpty())
-                    into.add(diff);
+                    into.accept(diff);
                 ++i;
                 ++j;
             }
             else if (cmp < 0)
             {
                 if (!s.unreconciled.isEmpty())
-                    into.add(s.unreconciled);
+                    into.accept(s.unreconciled);
                 ++i;
             }
             else
@@ -467,9 +456,25 @@ public class MutationSummary
         {
             CoordinatorSummary s = source.get(i);
             if (!s.unreconciled.isEmpty())
-                into.add(s.unreconciled);
+                into.accept(s.unreconciled);
             ++i;
         }
+    }
+
+    /**
+     * Finds offsets in {@code source.unreconciled} that are absent from {@code target}.
+     */
+    public static void unreconciledDifference(MutationSummary source, MutationSummary target, Collection<ShortMutationId> into)
+    {
+        unreconciledDifference(source, target, offsets -> offsets.collectIds(into));
+    }
+
+    /**
+     * Finds offsets in {@code source.unreconciled} that are absent from {@code target}.
+     */
+    public static void unreconciledDifference(MutationSummary source, MutationSummary target, Log2OffsetsMap.Mutable into)
+    {
+        unreconciledDifference(source, target, into::add);
     }
 
     /**
