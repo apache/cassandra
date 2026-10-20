@@ -1430,6 +1430,7 @@
         <formatter classname="org.apache.cassandra.CassandraXMLJUnitResultFormatter" extension=".xml" usefile="true"/>
         <formatter classname="org.apache.cassandra.CassandraBriefJUnitResultFormatter" usefile="false"/>
         <jvmarg value="-Dstorage-config=${test.conf}"/>
+        <jvmarg value="-Dfile.encoding=UTF-8"/>
         <jvmarg value="-Djava.awt.headless=true"/>
         <!-- Cassandra 3.0+ needs <jvmarg line="... ${additionalagent}" /> here! (not value=) -->
         <jvmarg line="-javaagent:${build.dir.lib}/jars/jamm-${jamm.version}.jar ${additionalagent}" />
