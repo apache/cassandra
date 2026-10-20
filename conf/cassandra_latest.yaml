@@ -1100,11 +1100,11 @@ native_transport_allow_older_protocols: true
 # if enabled, protocol startup, and authentication. Connections that do not reach READY
 # within this period are closed, regardless of connection activity.
 #
-# Authentication timeouts are enabled by default (10000ms). Set to 0ms to disable.
+# Authentication timeouts are enabled by default (12000ms). Set to 0ms to disable.
 # When tuning this value, allow sufficient time for connection establishment and
 # authentication under expected server load.
 # Min unit: ms
-# native_transport_auth_timeout: 10000ms
+# native_transport_auth_timeout: 12000ms
 
 # Controls when idle client connections are closed. Idle connections are ones that had neither reads
 # nor writes for a time period.
