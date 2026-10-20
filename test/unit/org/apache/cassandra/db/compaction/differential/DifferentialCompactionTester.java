@@ -65,6 +65,7 @@ import org.apache.cassandra.tools.JsonTransformer;
 import org.apache.cassandra.tools.Util;
 import org.apache.cassandra.utils.FBUtilities;
 import org.apache.cassandra.utils.OutputHandler;
+import org.apache.cassandra.utils.streamhist.TombstoneHistogram;
 
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
@@ -663,7 +664,7 @@ public abstract class DifferentialCompactionTester extends CQLTester
                               " totalColumnsSet=" + stats.totalColumnsSet +
                               " encodingStats=" + sstable.header.stats() +
                               " metaEncodingStats=" + stats.encodingStats.minTimestamp + "/" + stats.encodingStats.minLocalDeletionTime + "/" + stats.encodingStats.minTTL +
-                              " tombstoneHist=" + stats.estimatedTombstoneDropTime +
+                              " tombstoneHist=" + tombstoneHistogramSummary(stats.estimatedTombstoneDropTime) +
                               " cellsPerPartition=" + stats.estimatedCellPerPartitionCount.mean() + "/" + stats.estimatedCellPerPartitionCount.count();
 
         // 4. copy components for byte comparison
@@ -677,6 +678,18 @@ public abstract class DifferentialCompactionTester extends CQLTester
             captured.componentSizes.put(c.name(), Files.size(target));
         }
         return captured;
+    }
+
+    /**
+     * TombstoneHistogram has no toString(), so concatenating it prints Object.toString(). That is hashCode()-based on a
+     * plain JVM but identityHashCode-based under the simulator agent (InterceptAgent rewrites Object.toString), which
+     * made the summaries of equal histograms differ when run from the IDE. Render the bins instead.
+     */
+    private static String tombstoneHistogramSummary(TombstoneHistogram histogram)
+    {
+        StringBuilder sb = new StringBuilder("[");
+        histogram.forEach((point, count) -> sb.append(point).append('=').append(count).append(','));
+        return sb.append(']').toString();
     }
 
     protected void assertEquivalentOutputs(CapturedOutput iterator, CapturedOutput cursor)
