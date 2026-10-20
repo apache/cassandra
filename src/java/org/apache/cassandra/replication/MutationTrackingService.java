@@ -397,7 +397,7 @@ public class MutationTrackingService implements MutationTrackingServiceMBean
             {
                 Shard curShard = shards.lookUp(range);
                 if (curShard == null)
-                    throw new IllegalStateException(String.format("No mutation tracking shard covers range %s in keyspace %s", range, keyspace));
+                    throw new UnknownShardException(range, shards.groups);
                 if (shard == null)
                     shard = curShard;
                 else if (shard != curShard)
