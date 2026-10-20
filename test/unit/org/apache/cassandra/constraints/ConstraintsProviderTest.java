@@ -37,6 +37,7 @@ import org.apache.cassandra.cql3.constraints.LengthConstraint;
 import org.apache.cassandra.cql3.constraints.SatisfiabilityChecker;
 import org.apache.cassandra.cql3.constraints.UnaryConstraintFunction;
 import org.apache.cassandra.db.marshal.UTF8Type;
+import org.apache.cassandra.schema.ColumnMetadata;
 
 import static org.apache.cassandra.cql3.constraints.AbstractFunctionSatisfiabilityChecker.FUNCTION_SATISFIABILITY_CHECKER;
 import static org.apache.cassandra.cql3.constraints.ConstraintResolver.customConstraintProvider;
@@ -45,6 +46,7 @@ import static org.apache.cassandra.cql3.constraints.ConstraintResolver.getUnaryC
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertNotNull;
+import static org.mockito.Mockito.mock;
 
 public class ConstraintsProviderTest
 {
@@ -54,6 +56,7 @@ public class ConstraintsProviderTest
         customConstraintProvider = new CustomConstraintProvider();
 
         ConstraintFunction constraintFunction = getConstraintFunction(MyCustomConstraint.NAME, List.of());
+        constraintFunction.validate(mock(ColumnMetadata.class), "20");
         assertNotNull(constraintFunction);
         constraintFunction.evaluate(UTF8Type.instance,
                                     Operator.EQ,

@@ -27,12 +27,16 @@ import org.apache.cassandra.db.marshal.AsciiType;
 import org.apache.cassandra.db.marshal.BytesType;
 import org.apache.cassandra.db.marshal.Int32Type;
 import org.apache.cassandra.db.marshal.UTF8Type;
+import org.apache.cassandra.schema.ColumnMetadata;
 import org.apache.cassandra.utils.ByteBufferUtil;
+
+import static java.lang.String.format;
 
 public class LengthConstraint extends ConstraintFunction
 {
     private static final String NAME = "LENGTH";
     private static final List<AbstractType<?>> SUPPORTED_TYPES = List.of(BytesType.instance, UTF8Type.instance, AsciiType.instance);
+    private int sizeConstraint;
 
     public LengthConstraint(String name, List<String> args)
     {
@@ -48,7 +52,6 @@ public class LengthConstraint extends ConstraintFunction
     public void internalEvaluate(AbstractType<?> valueType, Operator relationType, String term, ByteBuffer columnValue)
     {
         int valueLength = getValueLength(columnValue, valueType);
-        int sizeConstraint = Integer.parseInt(term);
 
         ByteBuffer leftOperand = ByteBufferUtil.bytes(valueLength);
         ByteBuffer rightOperand = ByteBufferUtil.bytes(sizeConstraint);
@@ -77,6 +80,22 @@ public class LengthConstraint extends ConstraintFunction
             return value.remaining();
         else
             return ((String) valueType.compose(value)).length();
+    }
+
+    @Override
+    public void validate(ColumnMetadata columnMetadata, String term) throws InvalidConstraintDefinitionException
+    {
+        super.validate(columnMetadata, term);
+        try
+        {
+            // parsint the int every single time upon evaluation is not performance friendly
+            // so we "cache" the compiled int for further reuse upon actual validation
+            sizeConstraint = Integer.parseInt(term);
+        }
+        catch (Exception e)
+        {
+            throw new InvalidConstraintDefinitionException(format("String '%s' is not a valid int", Integer.parseInt(term)));
+        }
     }
 
     @Override
