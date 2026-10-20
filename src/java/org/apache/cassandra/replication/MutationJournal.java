@@ -137,6 +137,11 @@ public class MutationJournal
             wrapped.readAll(consumer);
         }
 
+        public boolean read(ShortMutationId id, RecordConsumer<ShortMutationId> consumer)
+        {
+            return wrapped.readLast(id, consumer);
+        }
+
         @Override
         public void close()
         {
@@ -320,6 +325,12 @@ public class MutationJournal
     public RecordPointer write(ShortMutationId id, Mutation mutation)
     {
         return write(id, mutation, true);
+    }
+
+    @VisibleForTesting
+    public void writeUnsafe(ShortMutationId id, byte[] bytes)
+    {
+        journal.blockingWrite(id, (out, userVersion) -> out.write(bytes));
     }
 
     /**
@@ -1021,7 +1032,7 @@ public class MutationJournal
      */
 
     @VisibleForTesting
-    void truncateForTesting()
+    public void truncateForTesting()
     {
         journal.truncateForTesting();
         segmentStateTrackers.clear();

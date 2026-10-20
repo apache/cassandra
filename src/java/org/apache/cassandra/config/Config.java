@@ -175,6 +175,8 @@ public class Config
 
     public volatile DurationSpec.LongMillisecondsBound mutation_tracking_sync_timeout = new DurationSpec.LongMillisecondsBound("2m");
 
+    public volatile DurationSpec.LongMillisecondsBound mutation_tracking_validation_timeout = new DurationSpec.LongMillisecondsBound("2m");
+
     public Integer streaming_connections_per_host = 1;
     @Replaces(oldName = "streaming_keep_alive_period_in_secs", converter = Converters.SECONDS_DURATION, deprecated = true)
     public DurationSpec.IntSecondsBound streaming_keep_alive_period = new DurationSpec.IntSecondsBound("300s");
