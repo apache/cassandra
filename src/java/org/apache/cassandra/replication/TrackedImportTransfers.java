@@ -30,10 +30,10 @@ import java.util.Map;
 
 import org.apache.cassandra.db.ConsistencyLevel;
 import org.apache.cassandra.db.lifecycle.SSTableIntervalTree;
+import org.apache.cassandra.db.lifecycle.View;
 import org.apache.cassandra.dht.Range;
 import org.apache.cassandra.dht.Token;
 import org.apache.cassandra.io.sstable.format.SSTableReader;
-import org.apache.cassandra.utils.Interval;
 
 /**
  * Factory and container for creating multiple {@link TrackedImportTransfer} instances from a collection
@@ -69,7 +69,7 @@ public class TrackedImportTransfers implements Iterable<TrackedImportTransfer>
 
         shards.forEachShard(shard -> {
             Range<Token> range = shard.tokenRange();
-            Collection<SSTableReader> sstablesForRange = intervals.search(Interval.create(range.left.minKeyBound(), range.right.maxKeyBound()));
+            Collection<SSTableReader> sstablesForRange = View.sstablesInBounds(range.left.minKeyBound(), range.right.maxKeyBound(), intervals);
             List<Range<Token>> ranges = Collections.singletonList(range);
             Map<SSTableReader, List<SSTableReader.PartitionPositionBounds>> positionForSSTables = new HashMap<>();
             sstablesForRange.removeIf(sstable -> {

@@ -19,8 +19,10 @@
 package org.apache.cassandra.distributed.test.tracking;
 
 import java.io.IOException;
+import java.nio.ByteBuffer;
 import java.nio.file.Files;
 import java.time.Duration;
+import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashSet;
 import java.util.List;
@@ -38,6 +40,9 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import org.apache.cassandra.db.ColumnFamilyStore;
+import org.apache.cassandra.dht.Murmur3Partitioner;
+import org.apache.cassandra.dht.Range;
+import org.apache.cassandra.dht.Token;
 import org.apache.cassandra.distributed.Cluster;
 import org.apache.cassandra.distributed.api.ConsistencyLevel;
 import org.apache.cassandra.distributed.api.IInvokableInstance;
@@ -45,6 +50,7 @@ import org.apache.cassandra.distributed.shared.AssertUtils;
 import org.apache.cassandra.distributed.test.sai.SAIUtil;
 import org.apache.cassandra.io.sstable.CQLSSTableWriter;
 import org.apache.cassandra.io.util.File;
+import org.apache.cassandra.replication.MutationTrackingService;
 import org.apache.cassandra.tcm.ClusterMetadata;
 import org.apache.cassandra.tcm.ownership.DataPlacement;
 
@@ -245,6 +251,58 @@ public class TrackedImportTransferTest extends TrackedTransferTestBase
 
         Assertions.assertThat(failed).isEmpty();
         assertLocalSelect(cluster, keyspace, rows -> assertRows(rows, row(KEY_100, 1), row(KEY_300, 1)));
+    }
+
+    @Test
+    public void importWrapAroundShard() throws IOException
+    {
+        // See CASSANDRA-21723
+        String keyspace = "wrap_around_shard";
+        cluster.schemaChange("CREATE KEYSPACE " + keyspace + " WITH replication = {'class': 'SimpleStrategy', 'replication_factor': 3} AND replication_type='tracked';");
+        String createTableQuery = "CREATE TABLE " + tableWithKeyspace(keyspace) + " (k BLOB PRIMARY KEY, v INT)";
+        cluster.schemaChange(createTableQuery);
+
+        // find wrap around key for write
+        long wrapAroundLeft = cluster.get(1).callOnInstance(() -> {
+            List<Range<Token>> wrapping = new ArrayList<>();
+            MutationTrackingService.instance().forEachShardInKeyspace(keyspace, shard -> {
+                Range<Token> range = shard.tokenRange();
+                if (range.right.isMinimum())
+                    wrapping.add(range);
+            });
+            assertThat(wrapping).hasSize(1);
+            return wrapping.get(0).left.getLongValue();
+        });
+        ByteBuffer wrapAroundKey = Murmur3Partitioner.LongToken.keyForToken(wrapAroundLeft + 1);
+
+        String file = Files.createTempDirectory(TrackedTransferTestBase.class.getSimpleName()).toString();
+        CQLSSTableWriter.Builder builder = CQLSSTableWriter.builder()
+                                                           .forTable(createTableQuery)
+                                                           .inDirectory(file)
+                                                           .using("INSERT INTO " + tableWithKeyspace(keyspace) + " (k, v) " + "VALUES (?, ?)");
+
+        // One row per shard
+        try (CQLSSTableWriter writer = builder.build())
+        {
+            writer.addRow(KEY_100, 1);        // -4074457345618258601L
+            writer.addRow(KEY_200, 1);        // 1L
+            writer.addRow(KEY_300, 1);        // 3074457345618258602L
+            writer.addRow(wrapAroundKey, 1);  // wrapAroundLeft + 1
+        }
+
+        assertLocalSelect(cluster, keyspace, AssertUtils::assertRows);
+        List<String> failed = cluster.get(1).callOnInstance(() -> {
+            ColumnFamilyStore cfs = ColumnFamilyStore.getIfExists(keyspace, TABLE);
+            Set<String> paths = Set.of(file);
+            logger.info("Importing SSTables {}", paths);
+            return cfs.importNewSSTables(paths, true, true, true, true, true, true, true);
+        });
+
+        // Sleep for import
+        Uninterruptibles.sleepUninterruptibly(3, TimeUnit.SECONDS);
+
+        Assertions.assertThat(failed).isEmpty();
+        assertLocalSelect(cluster, keyspace, rows -> assertRows(rows, row(KEY_100, 1), row(KEY_200, 1), row(KEY_300, 1), row(wrapAroundKey, 1)));
     }
 
     @Test
