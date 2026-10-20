@@ -24,6 +24,7 @@ import java.util.Collection;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.Set;
+import java.util.concurrent.TimeUnit;
 
 import com.google.common.primitives.Ints;
 
@@ -39,6 +40,7 @@ import org.apache.cassandra.db.partitions.PartitionUpdate;
 import org.apache.cassandra.dht.Murmur3Partitioner;
 import org.apache.cassandra.dht.Range;
 import org.apache.cassandra.dht.Token;
+import org.apache.cassandra.distributed.Cluster;
 import org.apache.cassandra.distributed.api.IInvokableInstance;
 import org.apache.cassandra.io.util.DataInputBuffer;
 import org.apache.cassandra.io.util.DataOutputBuffer;
@@ -53,6 +55,8 @@ import org.apache.cassandra.schema.ReplicationType;
 import org.apache.cassandra.schema.Schema;
 import org.apache.cassandra.schema.TableMetadata;
 import org.apache.cassandra.utils.ByteBufferUtil;
+
+import static org.awaitility.Awaitility.await;
 
 public class MutationTrackingUtils
 {
@@ -277,5 +281,20 @@ public class MutationTrackingUtils
         mutation.apply();
         logger.debug("Applied mutation {}", mutation.id());
         return mutation.id();
+    }
+
+    public static void settleReconciliation(Cluster cluster)
+    {
+        cluster.forEach(i -> i.runOnInstance(() -> {
+            MutationTrackingService.instance().persistLogStateForTesting();
+            MutationTrackingService.instance().broadcastOffsetsForTesting();
+        }));
+
+        // Each replica's own unreconciled-mutation count only drops to zero once it has
+        // received confirmation that every other live participant has also witnessed everything it wrote.
+        for (IInvokableInstance instance : cluster)
+            await().atMost(30, TimeUnit.SECONDS)
+                   .pollInterval(100, TimeUnit.MILLISECONDS)
+                   .until(() -> instance.callOnInstance(() -> MutationTrackingService.instance().getUnreconciledMutationCount()) == 0);
     }
 }

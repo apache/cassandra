@@ -112,10 +112,8 @@ public class MutationTrackingPreviewRepairTask extends AbstractRepairTask
                     return;
                 }
 
-                // The participant set and the offset itself are only meaningful for the topology
-                // they were computed against. Rather than dispatch against a possibly-stale
-                // participant list, fail outright and let the operator retry -- matching the
-                // "no partial results on topology change" stance for this feature.
+                // The participant set and the offset itself are only meaningful for the topology they were computed 
+                // against. Rather than dispatch against a stale participant list, fail and let the operator retry.
                 if (epochChanged(epochAtStart))
                 {
                     promise.tryFailure(new RuntimeException("topology changed during REPAIRED preview; retry"));
@@ -132,7 +130,7 @@ public class MutationTrackingPreviewRepairTask extends AbstractRepairTask
                     targetsList.add(syncCoordinator.getCapturedTargets());
                 ValidationOffsets validationOffsets = ValidationOffsets.flatten(targetsList);
 
-                runValidation(promise, validationOffsets);
+                runValidation(promise, validationOffsets, executor, validationScheduler);
             },
             failure -> promise.tryFailure(new RuntimeException("unable to capture offset: " + failure.getMessage(), failure))
         );
@@ -145,7 +143,7 @@ public class MutationTrackingPreviewRepairTask extends AbstractRepairTask
         return !ClusterMetadata.current().epoch.equals(epochAtStart);
     }
 
-    private void runValidation(AsyncPromise<CoordinatedRepairResult> promise, ValidationOffsets offset)
+    private void runValidation(AsyncPromise<CoordinatedRepairResult> promise, ValidationOffsets offset, ExecutorPlus executor, Scheduler validationScheduler)
     {
         List<CommonRange> allRanges = neighborsAndRanges.filterCommonRanges(keyspace, tableNames).commonRanges;
         if (allRanges.isEmpty())
@@ -164,20 +162,29 @@ public class MutationTrackingPreviewRepairTask extends AbstractRepairTask
 
         // Per-table tuple so per-table mismatching ranges are retained for metric emission.
         List<ValidationHandle> handles = new ArrayList<>();
-        for (CommonRange commonRange : allRanges)
+        try
         {
-            // Common range only holds remote replicas. Include the coordinator
-            // so its own tree is built and enters the pairwise diff. MessagingService handles
-            // the self-send locally.
-            Set<InetAddressAndPort> participants = new HashSet<>(commonRange.endpoints);
-            participants.add(broadcastAddressAndPort);
-            for (String tableName : tableNames)
+            for (CommonRange commonRange : allRanges)
             {
-                RepairJobDesc desc = new RepairJobDesc(parentSession, TimeUUID.Generator.nextTimeUUID(), keyspace, tableName, commonRange.ranges);
-                MutationTrackingValidationCoordinator validationCoordinator =
-                    new MutationTrackingValidationCoordinator(coordinator.ctx, desc, participants, offset);
-                handles.add(new ValidationHandle(tableName, validationCoordinator, validationCoordinator.start()));
+                // Common range only holds remote replicas. Include the coordinator so its own tree is built and enters 
+                // the pairwise diff. MessagingService handles the self-send locally.
+                Set<InetAddressAndPort> participants = new HashSet<>(commonRange.endpoints);
+                participants.add(broadcastAddressAndPort);
+                for (String tableName : tableNames)
+                {
+                    RepairJobDesc desc = new RepairJobDesc(parentSession, TimeUUID.Generator.nextTimeUUID(), keyspace, tableName, commonRange.ranges);
+                    MutationTrackingValidationCoordinator validationCoordinator = new MutationTrackingValidationCoordinator(coordinator.ctx, desc, participants, offset);
+                    Future<MutationTrackingValidationCoordinator.Result> future = validationScheduler.schedule(validationCoordinator::start, executor);
+                    handles.add(new ValidationHandle(tableName, validationCoordinator, future));
+                }
             }
+        }
+        catch (Throwable t)
+        {
+            for (ValidationHandle handle : handles)
+                handle.coordinator.cancel();
+            promise.tryFailure(new RuntimeException("Failed to dispatch tracked validation: " + t.getMessage(), t));
+            return;
         }
 
         AtomicInteger remaining = new AtomicInteger(handles.size());

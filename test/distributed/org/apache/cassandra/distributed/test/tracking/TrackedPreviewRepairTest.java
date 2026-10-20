@@ -99,6 +99,7 @@ import org.apache.cassandra.utils.MerkleTrees;
 import org.apache.cassandra.utils.concurrent.OpOrder;
 
 import static net.bytebuddy.matcher.ElementMatchers.named;
+import static org.apache.cassandra.distributed.test.tracking.MutationTrackingUtils.settleReconciliation;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.awaitility.Awaitility.await;
 import static org.junit.Assert.assertTrue;
@@ -1208,21 +1209,6 @@ public class TrackedPreviewRepairTest extends TestBaseImpl
         Arrays.fill(values, 0, staticColumns.length, key);
         values[staticColumns.length] = key;
         cluster.coordinator(1).execute(cql, ConsistencyLevel.ALL, values);
-    }
-
-    private static void settleReconciliation(Cluster cluster)
-    {
-        cluster.forEach(i -> i.runOnInstance(() ->{
-            MutationTrackingService.instance().persistLogStateForTesting();
-            MutationTrackingService.instance().broadcastOffsetsForTesting();
-        }));
-
-        // Each replica's own unreconciled-mutation count only drops to zero once it has
-        // received confirmation that every other live participant has also witnessed everything it wrote.
-        for (IInvokableInstance instance : cluster)
-            await().atMost(30, TimeUnit.SECONDS)
-                   .pollInterval(100, TimeUnit.MILLISECONDS)
-                   .until(() -> instance.callOnInstance(() -> MutationTrackingService.instance().getUnreconciledMutationCount()) == 0);
     }
 
     private static void flushAll(Cluster cluster, String keyspace, String table)
