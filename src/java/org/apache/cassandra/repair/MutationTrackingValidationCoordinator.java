@@ -82,6 +82,10 @@ public class MutationTrackingValidationCoordinator
 
     Future<Result> start()
     {
+        // May already be canceled, so don't dispatch a real request for a result nobody will consume.
+        if (future.isDone())
+            return future;
+
         // Register early so a very-fast participant can find us on the response path.
         if (REGISTRY.putIfAbsent(desc, this) != null)
         {
