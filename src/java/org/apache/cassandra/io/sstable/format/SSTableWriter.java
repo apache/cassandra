@@ -19,6 +19,7 @@
 package org.apache.cassandra.io.sstable.format;
 
 import java.io.IOError;
+import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
@@ -460,7 +461,14 @@ public abstract class SSTableWriter extends SSTable implements Transactional
                 if (finalReader.getSSTableMetadata().repairedAt != stale.repairedAt)
                 {
                     metadata.put(MetadataType.STATS, finalReader.getSSTableMetadata());
-                    new StatsComponent(metadata).save(descriptor);
+                    try
+                    {
+                        descriptor.getMetadataSerializer().rewriteSSTableMetadata(descriptor, metadata);
+                    }
+                    catch (IOException e)
+                    {
+                        throw new FSWriteError(e, descriptor.fileFor(Components.STATS));
+                    }
                 }
             }
         }
