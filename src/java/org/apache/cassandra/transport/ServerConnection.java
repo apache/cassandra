@@ -60,9 +60,7 @@ public class ServerConnection extends Connection
         return clientState;
     }
 
-    /**
-     * Must only be called on this connection's Netty event loop (single writer).
-     */
+    /** Must only be called on this connection's Netty event loop (single writer). */
     void incrementRequests()
     {
         requestsUpdater.lazySet(this, requests + 1);

@@ -1895,10 +1895,10 @@ public abstract class CQLTester
     }
 
     private UntypedResultSet executeFormattedQuery(String query, boolean useCoordinator, Object... values)
-    {
+    {        
         if (useCoordinator)
             requireNetworkWithoutDriver();
-
+        
         UntypedResultSet rs;
         if (usePrepared)
         {
