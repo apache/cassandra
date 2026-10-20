@@ -1722,21 +1722,9 @@ public class StorageProxy implements StorageProxyMBean
                         Tracing.trace("Successfully wrote untracked mutations");
                     }
                 }
-                catch (RetryOnDifferentSystemException e)
+                catch (RetryOnDifferentSystemException | CoordinatorBehindException e)
                 {
-                    writeMetrics.retryDifferentSystem.mark();
-                    writeMetricsForLevel(consistencyLevel).retryDifferentSystem.mark();
-                    logger.debug("Retrying mutations on different system because some mutations were misrouted according to Cassandra");
-                    Tracing.trace("Got {} from untracked mutations, will retry", e);
-                    continue;
-                }
-                catch (CoordinatorBehindException e)
-                {
-                    writeMetrics.retryCoordinatorBehind.mark();
-                    writeMetricsForLevel(consistencyLevel).retryCoordinatorBehind.mark();
-                    mutations.forEach(IMutation::clearCachedSerializationsForRetry);
-                    logger.debug("Retrying mutations now that coordinator has caught up to cluster metadata");
-                    Tracing.trace("Got {} from untracked mutations, will retry", e);
+                    markWriteRetry(e, consistencyLevel, mutations, "untracked mutations");
                     continue;
                 }
                 catch (Exception e)
@@ -1844,6 +1832,28 @@ public class StorageProxy implements StorageProxyMBean
             markWriteError(e, consistencyLevel);
             throw e;
         }
+    }
+
+    /**
+     * Marks the retry metric for {@code e}, a signal that the write must be retried, and traces it.
+     * The caller retries. {@code failedPart} names the part of the write that raised {@code e}.
+     */
+    private static void markWriteRetry(RuntimeException e, ConsistencyLevel consistencyLevel, List<? extends IMutation> mutations, String failedPart)
+    {
+        if (e instanceof RetryOnDifferentSystemException)
+        {
+            writeMetrics.retryDifferentSystem.mark();
+            writeMetricsForLevel(consistencyLevel).retryDifferentSystem.mark();
+            logger.debug("Retrying mutations on different system because some mutations were misrouted");
+        }
+        else
+        {
+            writeMetrics.retryCoordinatorBehind.mark();
+            writeMetricsForLevel(consistencyLevel).retryCoordinatorBehind.mark();
+            mutations.forEach(IMutation::clearCachedSerializationsForRetry);
+            logger.debug("Retrying mutations now that coordinator has caught up to cluster metadata");
+        }
+        Tracing.trace("Got {} from {}, will retry", e, failedPart);
     }
 
     /**
@@ -1981,21 +1991,9 @@ public class StorageProxy implements StorageProxyMBean
                         Tracing.trace("Successfully wrote normal mutations");
                     }
                 }
-                catch (RetryOnDifferentSystemException e)
+                catch (RetryOnDifferentSystemException | CoordinatorBehindException e)
                 {
-                    writeMetrics.retryDifferentSystem.mark();
-                    writeMetricsForLevel(consistencyLevel).retryDifferentSystem.mark();
-                    logger.debug("Retrying batch txn on different system because some mutations were misrouted");
-                    Tracing.trace("Got {} from normal mutations, will retry", e);
-                    continue;
-                }
-                catch (CoordinatorBehindException e)
-                {
-                    writeMetrics.retryCoordinatorBehind.mark();
-                    writeMetricsForLevel(consistencyLevel).retryCoordinatorBehind.mark();
-                    mutations.forEach(IMutation::clearCachedSerializationsForRetry);
-                    logger.debug("Retrying batch now that coordinator has caught up to cluster metadata");
-                    Tracing.trace("Got {} from normal mutations, will retry", e);
+                    markWriteRetry(e, consistencyLevel, mutations, "normal mutations");
                     continue;
                 }
                 catch (Exception e)
