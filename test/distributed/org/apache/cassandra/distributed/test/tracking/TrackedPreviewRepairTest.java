@@ -89,6 +89,7 @@ import org.apache.cassandra.schema.TableId;
 import org.apache.cassandra.schema.TableMetadata;
 import org.apache.cassandra.service.ActiveRepairService;
 import org.apache.cassandra.service.snapshot.SnapshotManager;
+import org.apache.cassandra.service.snapshot.TableSnapshot;
 import org.apache.cassandra.tcm.ClusterMetadata;
 import org.apache.cassandra.tcm.Epoch;
 import org.apache.cassandra.utils.DiagnosticSnapshotService;
@@ -409,7 +410,8 @@ public class TrackedPreviewRepairTest extends TestBaseImpl
         assertDesyncRangesBumped(CLUSTER, 1, keyspace, table, desyncBefore);
         assertDesyncBytesBumped(CLUSTER, 1, keyspace, table, desyncBytesBefore);
 
-        assertDiagnosticSnapshotExists(CLUSTER, keyspace, table, 1, 2, 3);
+        assertDiagnosticSnapshotExistsPossiblyEmpty(CLUSTER, keyspace, table, 2);
+        assertDiagnosticSnapshotExists(CLUSTER, keyspace, table, 1, 3);
     }
 
     @Test
@@ -441,7 +443,8 @@ public class TrackedPreviewRepairTest extends TestBaseImpl
         assertNotificationContains(result, table + " -");
         assertPreviewFailuresBumpedOnCoordinator(CLUSTER, previewFailuresBefore, 1);
         assertDesyncRangesBumped(CLUSTER, 1, keyspace, table, desyncBefore);
-        assertDiagnosticSnapshotExists(CLUSTER, keyspace, table, 1, 2, 3);
+        assertDiagnosticSnapshotExistsPossiblyEmpty(CLUSTER, keyspace, table, 1);
+        assertDiagnosticSnapshotExists(CLUSTER, keyspace, table, 2, 3);
     }
 
     @Test
@@ -561,6 +564,22 @@ public class TrackedPreviewRepairTest extends TestBaseImpl
         assertNotificationContains(result, table + " -");
         assertPreviewFailuresBumpedOnCoordinator(CLUSTER, previewFailuresBefore, 1);
         assertDesyncRangesBumped(CLUSTER, 1, keyspace, table, desyncBefore);
+        assertDiagnosticSnapshotExists(CLUSTER, keyspace, table, 1, 2, 3);
+    }
+
+    @Test
+    public void diagnosticSnapshotCapturesUnflushedJournalData()
+    {
+        createTrackedSchema(CLUSTER, keyspace, table);
+        writeRows(CLUSTER, keyspace, table, 0, 10);
+        settleReconciliation(CLUSTER);
+
+        // Full replicas apply mutations to both the journal and the live Memtable, so a snapshot should include it.
+        injectJournalPayloadDivergence(CLUSTER.get(2), keyspace, table, 3, 999);
+
+        NodeToolResult result = CLUSTER.get(1).nodetoolResult(true, "repair", "--validate", keyspace);
+        result.asserts().success();
+
         assertDiagnosticSnapshotExists(CLUSTER, keyspace, table, 1, 2, 3);
     }
 
@@ -1494,14 +1513,38 @@ public class TrackedPreviewRepairTest extends TestBaseImpl
         for (int nodeNum : expectedNodes)
         {
             IInvokableInstance instance = cluster.get(nodeNum);
-            // DiagnosticSnapshotService fans out SNAPSHOT_REQ messages that are handled
-            // asynchronously on each recipient; snapshot creation queues on an executor.
-            // Poll until the snapshot appears rather than reading once.
-            await().atMost(30, TimeUnit.SECONDS)
-                   .pollInterval(200, TimeUnit.MILLISECONDS)
-                   .untilAsserted(() -> assertThat(countDiagnosticSnapshots(instance, keyspace, table)).as("Expected diagnostic snapshot for %s.%s on node %d", keyspace, table, nodeNum)
-                                                                                                       .isGreaterThan(0));
+            awaitDiagnosticSnapshot(instance, keyspace, table, nodeNum);
+            assertThat(diagnosticSnapshotHasSSTableData(instance, keyspace, table)).isTrue();
         }
+    }
+
+    private static void assertDiagnosticSnapshotExistsPossiblyEmpty(Cluster cluster, String keyspace, String table, int... expectedNodes)
+    {
+        for (int nodeNum : expectedNodes)
+            awaitDiagnosticSnapshot(cluster.get(nodeNum), keyspace, table, nodeNum);
+    }
+
+    private static void awaitDiagnosticSnapshot(IInvokableInstance instance, String keyspace, String table, int nodeNum)
+    {
+        // DiagnosticSnapshotService fans out SNAPSHOT_REQ messages that are handled asynchronously on each recipient.
+        await().atMost(30, TimeUnit.SECONDS)
+               .pollInterval(200, TimeUnit.MILLISECONDS)
+               .untilAsserted(() -> assertThat(countDiagnosticSnapshots(instance, keyspace, table)).as("Expected diagnostic snapshot for %s.%s on node %d", keyspace, table, nodeNum)
+                                                                                                   .isGreaterThan(0));
+    }
+
+    private static boolean diagnosticSnapshotHasSSTableData(IInvokableInstance instance, String keyspace, String table)
+    {
+        return instance.callOnInstance(() -> {
+            List<TableSnapshot> snapshots = SnapshotManager.instance.getSnapshots(snapshot ->
+                snapshot.getKeyspaceName().equals(keyspace)
+                && snapshot.getTableName().equals(table)
+                && snapshot.getTag().startsWith(DiagnosticSnapshotService.REPAIRED_DATA_MISMATCH_SNAPSHOT_PREFIX));
+            for (TableSnapshot snapshot : snapshots)
+                if (!TableSnapshot.getSnapshotDescriptors(keyspace, table, snapshot.getTag()).isEmpty())
+                    return true;
+            return false;
+        });
     }
 
     public static class PauseValidationRequest
