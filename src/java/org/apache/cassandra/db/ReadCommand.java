@@ -627,7 +627,7 @@ public abstract class ReadCommand extends AbstractReadQuery
 
     public UnfilteredPartitionIterator completeTrackedRead(UnfilteredPartitionIterator iterator, PartialTrackedRead read)
     {
-        return completeRead(iterator, read.executionController(), read.searcher(), read.cfs(), read.startTimeNanos());
+        return completeRead(iterator, read.executionController(), read.searcher(), read.cfs(), nanoTime() - read.beginPhaseNanos());
     }
 
     /**

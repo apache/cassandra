@@ -19,20 +19,27 @@
 package org.apache.cassandra.distributed.test.tracking;
 
 import java.time.Duration;
+import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicInteger;
+
+import com.google.common.util.concurrent.Uninterruptibles;
 
 import org.awaitility.Awaitility;
 import org.junit.Test;
 
+import org.apache.cassandra.db.Keyspace;
 import org.apache.cassandra.distributed.Cluster;
 import org.apache.cassandra.distributed.api.ConsistencyLevel;
 import org.apache.cassandra.distributed.api.Feature;
 import org.apache.cassandra.distributed.test.TestBaseImpl;
+import org.apache.cassandra.metrics.ClientRequestsMetricsHolder;
 import org.apache.cassandra.metrics.MutationTrackingMetrics;
 import org.apache.cassandra.net.Verb;
 import org.apache.cassandra.replication.MutationJournal;
 import org.apache.cassandra.replication.MutationTrackingService;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 public class MutationTrackingMetricsTest extends TestBaseImpl
 {
@@ -352,6 +359,158 @@ public class MutationTrackingMetricsTest extends TestBaseImpl
             assertThat(afterWrites)
                 .as("Disk space should increase after writes: before=%d", initialSpace)
                 .isGreaterThan(initialSpace);
+        }
+    }
+
+    /**
+     * The local read latency must not include the time spent waiting for missing mutations from other replicas.
+     */
+    @Test(timeout = 60000)
+    public void testLocalReadLatencyMetric() throws Throwable
+    {
+        long pullDelayMillis = 2000;
+        try (Cluster cluster = Cluster.build(3)
+                .withConfig(cfg -> cfg.with(Feature.NETWORK, Feature.GOSSIP)
+                                      .set("read_request_timeout", "30000ms"))
+                .start())
+        {
+            cluster.schemaChange(withKeyspace(CREATE_KEYSPACE));
+            cluster.schemaChange(String.format(CREATE_TABLE, KEYSPACE));
+
+            // Node 1 misses the write, so the read has to pull the mutation from another replica
+            cluster.filters().verbs(Verb.MUTATION_REQ.id).from(2).to(1).drop();
+            cluster.coordinator(2).execute(withKeyspace("INSERT INTO %s.tbl (pk, val) VALUES (?, ?)"),
+                                           ConsistencyLevel.QUORUM, 1, "test1");
+            cluster.filters().reset();
+
+            AtomicInteger pulls = new AtomicInteger();
+            cluster.filters().verbs(Verb.MT_PULL_MUTATIONS_REQ.id).from(1).outbound().messagesMatching((from, to, message) -> {
+                pulls.incrementAndGet();
+                Uninterruptibles.sleepUninterruptibly(pullDelayMillis, TimeUnit.MILLISECONDS);
+                return false;
+            }).drop();
+
+            long start = System.nanoTime();
+            cluster.coordinator(1).execute(withKeyspace("SELECT * FROM %s.tbl WHERE pk = ?"),
+                                           ConsistencyLevel.QUORUM, 1);
+            long elapsedMillis = TimeUnit.NANOSECONDS.toMillis(System.nanoTime() - start);
+
+            assertThat(pulls.get()).as("The read must wait for a delayed pull for this test to be meaningful").isGreaterThan(0);
+            assertThat(elapsedMillis).isGreaterThanOrEqualTo(pullDelayMillis);
+
+            long count = cluster.get(1).callOnInstance(() ->
+                Keyspace.open(KEYSPACE).getColumnFamilyStore("tbl").metric.readLatency.latency.getCount());
+            long maxMicros = cluster.get(1).callOnInstance(() ->
+                Keyspace.open(KEYSPACE).getColumnFamilyStore("tbl").metric.readLatency.latency.getSnapshot().getMax());
+            assertThat(count)
+                .as("Local read latency metric should count tracked reads")
+                .isEqualTo(1);
+            assertThat(maxMicros)
+                .as("Local read latency should not include time spent waiting for other replicas")
+                .isLessThan(TimeUnit.MILLISECONDS.toMicros(pullDelayMillis) / 2);
+        }
+    }
+
+    @Test(timeout = 60000)
+    public void testCoordinatorWriteTimeoutMetric() throws Throwable
+    {
+        long timeoutMillis = 1000;
+        try (Cluster cluster = Cluster.build(3)
+                .withConfig(cfg -> cfg.with(Feature.NETWORK, Feature.GOSSIP)
+                                      .set("write_request_timeout", timeoutMillis + "ms"))
+                .start())
+        {
+            cluster.schemaChange(withKeyspace(CREATE_KEYSPACE));
+            cluster.schemaChange(String.format(CREATE_TABLE, KEYSPACE));
+
+            long initialTimeouts = cluster.get(1).callOnInstance(() ->
+                ClientRequestsMetricsHolder.writeMetrics.timeouts.getCount());
+            long initialLatencyCount = cluster.get(1).callOnInstance(() ->
+                ClientRequestsMetricsHolder.writeMetrics.latency.getCount());
+
+            // Only the coordinator's own replica can acknowledge the write
+            cluster.filters().verbs(Verb.MUTATION_REQ.id).from(1).to(2, 3).drop();
+
+            assertThatThrownBy(() -> cluster.coordinator(1).execute(withKeyspace("INSERT INTO %s.tbl (pk, val) VALUES (?, ?)"),
+                                                                    ConsistencyLevel.QUORUM, 1, "test1"))
+                .hasMessageContaining("timed out");
+
+            long timeouts = cluster.get(1).callOnInstance(() ->
+                ClientRequestsMetricsHolder.writeMetrics.timeouts.getCount());
+            long latencyCount = cluster.get(1).callOnInstance(() ->
+                ClientRequestsMetricsHolder.writeMetrics.latency.getCount());
+            long maxMicros = cluster.get(1).callOnInstance(() ->
+                ClientRequestsMetricsHolder.writeMetrics.latency.getSnapshot().getMax());
+            assertThat(timeouts)
+                .as("Timed out tracked write should be counted")
+                .isEqualTo(initialTimeouts + 1);
+            assertThat(latencyCount)
+                .as("Timed out tracked write should record latency")
+                .isEqualTo(initialLatencyCount + 1);
+            assertThat(maxMicros)
+                .as("Recorded latency should cover the wait for the timeout")
+                .isGreaterThanOrEqualTo(TimeUnit.MILLISECONDS.toMicros(timeoutMillis) / 2);
+        }
+    }
+
+    @Test(timeout = 60000)
+    public void testCoordinatorWriteLatencyMetric() throws Throwable
+    {
+        try (Cluster cluster = Cluster.build(1)
+                .withConfig(cfg -> cfg.with(Feature.NETWORK))
+                .start())
+        {
+            cluster.schemaChange(withKeyspace(CREATE_KEYSPACE));
+            cluster.schemaChange(String.format(CREATE_TABLE, KEYSPACE));
+
+            long initialCount = cluster.get(1).callOnInstance(() ->
+                ClientRequestsMetricsHolder.writeMetrics.latency.getCount());
+            long initialTableCount = cluster.get(1).callOnInstance(() ->
+                Keyspace.open(KEYSPACE).getColumnFamilyStore("tbl").metric.coordinatorWriteLatency.getCount());
+
+            cluster.coordinator(1).execute(withKeyspace("INSERT INTO %s.tbl (pk, val) VALUES (?, ?)"),
+                                           ConsistencyLevel.ONE, 1, "test1");
+
+            long afterCount = cluster.get(1).callOnInstance(() ->
+                ClientRequestsMetricsHolder.writeMetrics.latency.getCount());
+            long afterTableCount = cluster.get(1).callOnInstance(() ->
+                Keyspace.open(KEYSPACE).getColumnFamilyStore("tbl").metric.coordinatorWriteLatency.getCount());
+            assertThat(afterCount)
+                .as("Coordinator write latency metric should count tracked writes")
+                .isEqualTo(initialCount + 1);
+            assertThat(afterTableCount)
+                .as("Per-table coordinator write latency metric should count tracked writes")
+                .isEqualTo(initialTableCount + 1);
+        }
+    }
+
+    @Test(timeout = 60000)
+    public void testWriteUnavailableMetric() throws Throwable
+    {
+        try (Cluster cluster = Cluster.build(2)
+                .withConfig(cfg -> cfg.with(Feature.NETWORK, Feature.GOSSIP))
+                .start())
+        {
+            cluster.schemaChange(withKeyspace("CREATE KEYSPACE %s WITH replication = " +
+                                              "{'class': 'SimpleStrategy', 'replication_factor': 2} " +
+                                              "AND replication_type = 'tracked'"));
+            cluster.schemaChange(String.format(CREATE_TABLE, KEYSPACE));
+            cluster.get(2).shutdown().get();
+            Awaitility.await().atMost(Duration.ofSeconds(30)).until(() ->
+                cluster.get(1).callOnInstance(() -> org.apache.cassandra.gms.Gossiper.instance.getLiveMembers().size()) == 1);
+
+            long initial = cluster.get(1).callOnInstance(() ->
+                ClientRequestsMetricsHolder.writeMetrics.unavailables.getCount());
+
+            assertThatThrownBy(() -> cluster.coordinator(1).execute(withKeyspace("INSERT INTO %s.tbl (pk, val) VALUES (?, ?)"),
+                                                                    ConsistencyLevel.ALL, 1, "test1"))
+                .hasMessageContaining("Cannot achieve consistency level");
+
+            long after = cluster.get(1).callOnInstance(() ->
+                ClientRequestsMetricsHolder.writeMetrics.unavailables.getCount());
+            assertThat(after)
+                .as("Unavailable write metric should count tracked writes")
+                .isEqualTo(initial + 1);
         }
     }
 }

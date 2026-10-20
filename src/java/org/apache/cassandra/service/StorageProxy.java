@@ -1368,36 +1368,13 @@ public class StorageProxy implements StorageProxyMBean
             }
             else
             {
-                if (ex instanceof WriteFailureException)
-                {
-                    writeMetrics.failures.mark();
-                    writeMetricsForLevel(consistencyLevel).failures.mark();
-                    WriteFailureException fe = (WriteFailureException)ex;
-                    Tracing.trace("Write failure; received {} of {} required replies, failed {} requests",
-                                  fe.received, fe.blockFor, fe.failureReasonByEndpoint.size());
-                }
-                else
-                {
-                    writeMetrics.timeouts.mark();
-                    writeMetricsForLevel(consistencyLevel).timeouts.mark();
-                    WriteTimeoutException te = (WriteTimeoutException)ex;
-                    Tracing.trace("Write timeout; received {} of {} required replies", te.received, te.blockFor);
-                }
+                markWriteError(ex, consistencyLevel);
                 throw ex;
             }
         }
-        catch (UnavailableException e)
+        catch (UnavailableException | OverloadedException e)
         {
-            writeMetrics.unavailables.mark();
-            writeMetricsForLevel(consistencyLevel).unavailables.mark();
-            Tracing.trace("Unavailable");
-            throw e;
-        }
-        catch (OverloadedException e)
-        {
-            writeMetrics.unavailables.mark();
-            writeMetricsForLevel(consistencyLevel).unavailables.mark();
-            Tracing.trace("Overloaded");
+            markWriteError(e, consistencyLevel);
             throw e;
         }
         finally
@@ -1460,36 +1437,13 @@ public class StorageProxy implements StorageProxyMBean
             }
             else
             {
-                if (ex instanceof WriteFailureException)
-                {
-                    writeMetrics.failures.mark();
-                    writeMetricsForLevel(consistencyLevel).failures.mark();
-                    WriteFailureException fe = (WriteFailureException)ex;
-                    Tracing.trace("Write failure; received {} of {} required replies, failed {} requests",
-                                  fe.received, fe.blockFor, fe.failureReasonByEndpoint.size());
-                }
-                else
-                {
-                    writeMetrics.timeouts.mark();
-                    writeMetricsForLevel(consistencyLevel).timeouts.mark();
-                    WriteTimeoutException te = (WriteTimeoutException)ex;
-                    Tracing.trace("Write timeout; received {} of {} required replies", te.received, te.blockFor);
-                }
+                markWriteError(ex, consistencyLevel);
                 throw ex;
             }
         }
-        catch (UnavailableException e)
+        catch (UnavailableException | OverloadedException e)
         {
-            writeMetrics.unavailables.mark();
-            writeMetricsForLevel(consistencyLevel).unavailables.mark();
-            Tracing.trace("Unavailable");
-            throw e;
-        }
-        catch (OverloadedException e)
-        {
-            writeMetrics.unavailables.mark();
-            writeMetricsForLevel(consistencyLevel).unavailables.mark();
-            Tracing.trace("Overloaded");
+            markWriteError(e, consistencyLevel);
             throw e;
         }
         finally
@@ -1746,15 +1700,7 @@ public class StorageProxy implements StorageProxyMBean
                 if (accordMutations != null && preserveTimestamps == PreserveTimestamp.mixedTimeSource)
                     checkMixedTimeSourceHandling();
 
-                // Supports batches with multiple tracked mutations (previously limited to one).
-                List<AbstractWriteResponseHandler<?>> trackedHandlers = trackedMutations != null ? new ArrayList<>(trackedMutations.size()) : null;
-                if (trackedMutations != null)
-                {
-                    for (IMutation trackedMutation : trackedMutations)
-                    {
-                        trackedHandlers.add(TrackedWriteRequest.perform(trackedMutation, consistencyLevel, requestTime));
-                    }
-                }
+                List<AbstractWriteResponseHandler<?>> trackedHandlers = startTrackedWrites(trackedMutations, consistencyLevel, requestTime);
 
                 IAccordResult<TxnResult> accordResult = accordMutations != null ? mutateWithAccordAsync(cm, accordMutations, consistencyLevel, requestTime, preserveTimestamps) : null;
                 Tracing.trace("Split mutations into tracked {}, Accord {}, and untracked {}", trackedMutations, accordMutations, untrackedMutations);
@@ -1768,21 +1714,9 @@ public class StorageProxy implements StorageProxyMBean
                         Tracing.trace("Successfully wrote untracked mutations");
                     }
                 }
-                catch (RetryOnDifferentSystemException e)
+                catch (RetryOnDifferentSystemException | CoordinatorBehindException e)
                 {
-                    writeMetrics.retryDifferentSystem.mark();
-                    writeMetricsForLevel(consistencyLevel).retryDifferentSystem.mark();
-                    logger.debug("Retrying mutations on different system because some mutations were misrouted according to Cassandra");
-                    Tracing.trace("Got {} from untracked mutations, will retry", e);
-                    continue;
-                }
-                catch (CoordinatorBehindException e)
-                {
-                    writeMetrics.retryCoordinatorBehind.mark();
-                    writeMetricsForLevel(consistencyLevel).retryCoordinatorBehind.mark();
-                    mutations.forEach(IMutation::clearCachedSerializationsForRetry);
-                    logger.debug("Retrying mutations now that coordinator has caught up to cluster metadata");
-                    Tracing.trace("Got {} from untracked mutations, will retry", e);
+                    markWriteRetry(e, consistencyLevel, mutations, "untracked mutations");
                     continue;
                 }
                 catch (Exception e)
@@ -1792,14 +1726,7 @@ public class StorageProxy implements StorageProxyMBean
 
                 try
                 {
-                    if (trackedHandlers != null)
-                    {
-                        for (AbstractWriteResponseHandler<?> handler : trackedHandlers)
-                        {
-                            handler.get();
-                        }
-                        Tracing.trace("Successfully wrote tracked mutations");
-                    }
+                    awaitTrackedWrites(trackedHandlers, trackedMutations, untrackedMutations != null, consistencyLevel, requestTime);
                 }
                 catch (Exception e)
                 {
@@ -1840,6 +1767,75 @@ public class StorageProxy implements StorageProxyMBean
             }
             break;
         }
+    }
+
+    /**
+     * Starts the tracked writes without waiting for them. Supports batches with multiple tracked mutations.
+     *
+     * @return the handlers to pass to {@link #awaitTrackedWrites}, or null if there are no tracked mutations
+     */
+    @Nullable
+    private static List<AbstractWriteResponseHandler<?>> startTrackedWrites(@Nullable List<? extends IMutation> trackedMutations, ConsistencyLevel consistencyLevel, Dispatcher.RequestTime requestTime)
+    {
+        if (trackedMutations == null)
+            return null;
+
+        List<AbstractWriteResponseHandler<?>> handlers = new ArrayList<>(trackedMutations.size());
+        try
+        {
+            for (IMutation trackedMutation : trackedMutations)
+                handlers.add(TrackedWriteRequest.perform(trackedMutation, consistencyLevel, requestTime));
+        }
+        catch (RuntimeException e)
+        {
+            // awaitTrackedWrites is not reached if starting the writes fails
+            markWriteError(e, consistencyLevel);
+            recordTrackedWriteLatency(trackedMutations, false, consistencyLevel, requestTime);
+            throw e;
+        }
+        return handlers;
+    }
+
+    private static void awaitTrackedWrites(@Nullable List<AbstractWriteResponseHandler<?>> trackedHandlers,
+                                           @Nullable List<? extends IMutation> trackedMutations,
+                                           boolean alsoWritingUntracked,
+                                           ConsistencyLevel consistencyLevel,
+                                           Dispatcher.RequestTime requestTime)
+    {
+        if (trackedHandlers == null)
+            return;
+
+        try
+        {
+            for (AbstractWriteResponseHandler<?> handler : trackedHandlers)
+                handler.get();
+        }
+        catch (WriteTimeoutException | WriteFailureException | UnavailableException | OverloadedException e)
+        {
+            markWriteError(e, consistencyLevel);
+            throw e;
+        }
+        finally
+        {
+            recordTrackedWriteLatency(trackedMutations, alsoWritingUntracked, consistencyLevel, requestTime);
+        }
+        Tracing.trace("Successfully wrote tracked mutations");
+    }
+
+    /**
+     * Records coordinator write latency for tracked mutations. If untracked mutations are also written,
+     * mutate() records the request latency in the aggregate write metrics, so only the per-table
+     * metrics are updated here.
+     */
+    private static void recordTrackedWriteLatency(List<? extends IMutation> trackedMutations, boolean alsoWritingUntracked, ConsistencyLevel consistencyLevel, Dispatcher.RequestTime requestTime)
+    {
+        long latency = nanoTime() - requestTime.startedAtNanos();
+        if (!alsoWritingUntracked)
+        {
+            writeMetrics.addNano(latency);
+            writeMetricsForLevel(consistencyLevel).addNano(latency);
+        }
+        updateCoordinatorWriteLatencyTableMetric(trackedMutations, latency);
     }
 
     private static void checkMixedTimeSourceHandling()
@@ -1885,26 +1881,60 @@ public class StorageProxy implements StorageProxyMBean
         {
             r.run();
         }
-        catch (UnavailableException e)
+        catch (UnavailableException | WriteTimeoutException | WriteFailureException e)
         {
-            writeMetrics.unavailables.mark();
-            writeMetricsForLevel(consistencyLevel).unavailables.mark();
-            Tracing.trace("Unavailable");
+            markWriteError(e, consistencyLevel);
             throw e;
         }
-        catch (WriteTimeoutException e)
+    }
+
+    /**
+     * Marks the retry metric for {@code e}, a signal that the write must be retried, and traces it.
+     * The caller retries. {@code failedPart} names the part of the write that raised {@code e}.
+     */
+    private static void markWriteRetry(RuntimeException e, ConsistencyLevel consistencyLevel, List<? extends IMutation> mutations, String failedPart)
+    {
+        if (e instanceof RetryOnDifferentSystemException)
         {
-            writeMetrics.timeouts.mark();
-            writeMetricsForLevel(consistencyLevel).timeouts.mark();
-            Tracing.trace("Write timeout; received {} of {} required replies", e.received, e.blockFor);
-            throw e;
+            writeMetrics.retryDifferentSystem.mark();
+            writeMetricsForLevel(consistencyLevel).retryDifferentSystem.mark();
+            logger.debug("Retrying mutations on different system because some mutations were misrouted");
         }
-        catch (WriteFailureException e)
+        else
+        {
+            writeMetrics.retryCoordinatorBehind.mark();
+            writeMetricsForLevel(consistencyLevel).retryCoordinatorBehind.mark();
+            mutations.forEach(IMutation::clearCachedSerializationsForRetry);
+            logger.debug("Retrying mutations now that coordinator has caught up to cluster metadata");
+        }
+        Tracing.trace("Got {} from {}, will retry", e, failedPart);
+    }
+
+    /**
+     * Marks the write error metric that matches {@code e} and traces it. Callers decide whether to rethrow.
+     */
+    private static void markWriteError(RuntimeException e, ConsistencyLevel consistencyLevel)
+    {
+        if (e instanceof WriteFailureException)
         {
             writeMetrics.failures.mark();
             writeMetricsForLevel(consistencyLevel).failures.mark();
-            Tracing.trace("Write failure; received {} of {} required replies", e.received, e.blockFor);
-            throw e;
+            WriteFailureException fe = (WriteFailureException) e;
+            Tracing.trace("Write failure; received {} of {} required replies, failed {} requests",
+                          fe.received, fe.blockFor, fe.failureReasonByEndpoint.size());
+        }
+        else if (e instanceof WriteTimeoutException)
+        {
+            writeMetrics.timeouts.mark();
+            writeMetricsForLevel(consistencyLevel).timeouts.mark();
+            WriteTimeoutException te = (WriteTimeoutException) e;
+            Tracing.trace("Write timeout; received {} of {} required replies", te.received, te.blockFor);
+        }
+        else if (e instanceof UnavailableException || e instanceof OverloadedException)
+        {
+            writeMetrics.unavailables.mark();
+            writeMetricsForLevel(consistencyLevel).unavailables.mark();
+            Tracing.trace(e instanceof OverloadedException ? "Overloaded" : "Unavailable");
         }
     }
 
@@ -2015,21 +2045,9 @@ public class StorageProxy implements StorageProxyMBean
                         Tracing.trace("Successfully wrote normal mutations");
                     }
                 }
-                catch (RetryOnDifferentSystemException e)
+                catch (RetryOnDifferentSystemException | CoordinatorBehindException e)
                 {
-                    writeMetrics.retryDifferentSystem.mark();
-                    writeMetricsForLevel(consistencyLevel).retryDifferentSystem.mark();
-                    logger.debug("Retrying batch txn on different system because some mutations were misrouted");
-                    Tracing.trace("Got {} from normal mutations, will retry", e);
-                    continue;
-                }
-                catch (CoordinatorBehindException e)
-                {
-                    writeMetrics.retryCoordinatorBehind.mark();
-                    writeMetricsForLevel(consistencyLevel).retryCoordinatorBehind.mark();
-                    mutations.forEach(IMutation::clearCachedSerializationsForRetry);
-                    logger.debug("Retrying batch now that coordinator has caught up to cluster metadata");
-                    Tracing.trace("Got {} from normal mutations, will retry", e);
+                    markWriteRetry(e, consistencyLevel, mutations, "normal mutations");
                     continue;
                 }
                 catch (Exception e)

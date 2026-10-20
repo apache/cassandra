@@ -41,6 +41,8 @@ import org.apache.cassandra.transport.Dispatcher;
 import org.apache.cassandra.utils.concurrent.AsyncPromise;
 import org.apache.cassandra.utils.concurrent.Future;
 
+import static org.apache.cassandra.utils.Clock.Global.nanoTime;
+
 public abstract class PartialTrackedRead
 {
     private static final Logger logger = LoggerFactory.getLogger(PartialTrackedRead.class);
@@ -48,6 +50,7 @@ public abstract class PartialTrackedRead
     final ReadExecutionController executionController;
     final ColumnFamilyStore cfs;
     final long startTimeNanos;
+    private volatile long beginPhaseNanos;
 
     public PartialTrackedRead(ReadExecutionController executionController, ColumnFamilyStore cfs, long startTimeNanos)
     {
@@ -66,9 +69,13 @@ public abstract class PartialTrackedRead
         return cfs;
     }
 
-    public long startTimeNanos()
+    /**
+     * Time spent in the begin phase (sstable selection, index lookups, initial reads). Local read latency is this
+     * plus the completion phase. The time between the two phases is spent on reconciliation and is not counted.
+     */
+    public long beginPhaseNanos()
     {
-        return startTimeNanos;
+        return beginPhaseNanos;
     }
 
     abstract ReadCommand command();
@@ -229,6 +236,7 @@ public abstract class PartialTrackedRead
     {
         logger.trace("Preparing read {}", this);
         state = state.asInitialized().prepare(initialData);
+        beginPhaseNanos = nanoTime() - startTimeNanos;
     }
 
     void augment(PartitionUpdate update)
