@@ -577,7 +577,7 @@ public class AutoRepair
         repairState.setLastRepairFinishTime(timeFunc.get());
         repairState.setRepairInProgress(false);
 
-        AutoRepairUtils.updateFinishAutoRepairHistory(repairType, myId, timeFunc.get());
+        AutoRepairUtils.updateFinishAutoRepairHistory(repairType, myId, timeFunc.get(), turn == MY_TURN_FORCE_REPAIR);
     }
 
     public AutoRepairState getRepairState(AutoRepairConfig.RepairType repairType)
