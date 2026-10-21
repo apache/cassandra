@@ -1170,6 +1170,36 @@ class TestBuildAttachment(unittest.TestCase):
             mocks[name].assert_not_called()
         self.assertEqual(self.args.attach, 42)
 
+    def test_prompt_attachment_preserves_teardown_after_download(self):
+        self.args.url = None
+        self.args.setup = True
+        self.args.tear_down = True
+        self.args.kubeconfig = 'config'
+        self.args.kubecontext = 'context'
+        self.build(42)
+        with self.invocation() as mocks, patch('run_ci.init_k8s_namespace'), \
+                patch('run_ci.helm_installation_lock'), patch('run_ci.install_jenkins'), \
+                patch('run_ci.wait_for_jenkins_http'), patch('run_ci.ensure_cassandra_job_parameters_visible'):
+            calls = MagicMock()
+            for name in ('wait_for_build_complete', 'download_results_and_print_summary', 'cleanup_and_maybe_teardown'):
+                calls.attach_mock(mocks[name], name)
+            run_ci.main()
+        self.assertEqual([call[0] for call in calls.mock_calls],
+                         ['wait_for_build_complete', 'download_results_and_print_summary', 'cleanup_and_maybe_teardown'])
+        mocks['cleanup_and_maybe_teardown'].assert_called_once_with('config', 'context', 'default', True)
+        mocks['trigger_jenkins_build'].assert_not_called()
+
+    def test_interrupted_prompt_attachment_does_not_teardown(self):
+        self.args.url = None
+        self.args.tear_down = True
+        self.build(42)
+        with self.invocation() as mocks:
+            mocks['wait_for_build_complete'].side_effect = KeyboardInterrupt
+            with self.assertRaises(KeyboardInterrupt):
+                run_ci.main()
+        mocks['download_results_and_print_summary'].assert_not_called()
+        mocks['cleanup_and_maybe_teardown'].assert_not_called()
+
     def test_declining_attachment_starts_new_build(self):
         self.build(42)
         with self.invocation(answer='n') as mocks:

@@ -1649,6 +1649,8 @@ def main():
     if running is not None and confirm_attachment(args.job, running):
         args.attach = running
         attach_build(k8s_client, ip, server, args)
+        if args.tear_down:
+            cleanup_and_maybe_teardown(args.kubeconfig, args.kubecontext, DEFAULT_KUBE_NS, True)
         return
 
     if DEFAULT_REPO_URL == args.repository and DEFAULT_REPO_BRANCH == args.branch and is_local_git_dirty(args):
