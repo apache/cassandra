@@ -56,7 +56,11 @@ public class Decommission extends AbstractCommand
         }
     }
 
-    @Command(name = "abortdecommission", description = "Abort an ongoing, failed decommission")
+    @Command(name = "abortdecommission", description = "Abort an ongoing, failed decommission",
+             footerHeading = "%n",
+             footer = { "EXAMPLES",
+                        "        Abort a failed decommission of node 4 (default: this node):",
+                        "            nodetool abortdecommission --node 4" })
     public static class Abort extends AbstractCommand
     {
         @Option(paramLabel = "nodeId", names = { "--node" })

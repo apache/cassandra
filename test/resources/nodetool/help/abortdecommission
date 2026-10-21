@@ -26,3 +26,7 @@ OPTIONS
 
         -u <username>, --username <username>
             Remote jmx agent username
+
+EXAMPLES
+        Abort a failed decommission of node 4 (default: this node):
+            nodetool abortdecommission --node 4

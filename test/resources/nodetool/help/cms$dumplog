@@ -29,3 +29,7 @@ OPTIONS
 
         -u <username>, --username <username>
             Remote jmx agent username
+
+EXAMPLES
+        Dump the metadata log from epoch 10 to epoch 20:
+            nodetool cms dumplog --start 10 --end 20

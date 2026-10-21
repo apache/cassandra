@@ -45,3 +45,7 @@ OPTIONS
 
         [<keyspace> <tables>...]
             The keyspace followed by one or many tables
+
+EXAMPLES
+        Show when each range of ks1.table1 was last repaired:
+            nodetool repair_admin summarize-repaired ks1 table1

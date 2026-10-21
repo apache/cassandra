@@ -26,3 +26,7 @@ OPTIONS
 
         -u <username>, --username <username>
             Remote jmx agent username
+
+EXAMPLES
+        Abort the CMS initialization started on 127.0.0.1:
+            nodetool cms abortinitialization --initiator 127.0.0.1

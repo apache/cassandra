@@ -103,7 +103,11 @@ public class AsyncProfileCommandGroup extends AbstractCommand
         doWithProfiler(probe, consumer, true);
     }
 
-    @Command(name = "start", description = "Run Async-Profiler on a Cassandra process")
+    @Command(name = "start", description = "Run Async-Profiler on a Cassandra process",
+             footerHeading = "%n",
+             footer = { "EXAMPLES",
+                        "        Profile CPU and allocations for 5 minutes (JFR output):",
+                        "            nodetool profile start -e cpu,alloc -f jfr -d 5m -o profile1.jfr" })
     public static class AsyncProfileStartCommand extends AbstractCommand
     {
         @Option(names = { "-e", "--event" }, split = ",",
@@ -146,7 +150,11 @@ public class AsyncProfileCommandGroup extends AbstractCommand
         }
     }
 
-    @Command(name = "stop", description = "Stop Async-Profiler on a Cassandra process")
+    @Command(name = "stop", description = "Stop Async-Profiler on a Cassandra process",
+             footerHeading = "%n",
+             footer = { "EXAMPLES",
+                        "        Stop profiling and save the result as profile1.jfr:",
+                        "            nodetool profile stop -o profile1.jfr" })
     public static class AsyncProfileStopCommand extends AbstractCommand
     {
         @Option(names = { "-o", "--output" }, description = "File name to save profiling results into, defaults to a " +
@@ -168,7 +176,11 @@ public class AsyncProfileCommandGroup extends AbstractCommand
         }
     }
 
-    @Command(name = "execute", description = "Execute an arbitrary command on Async-Profiler on a Cassandra process.")
+    @Command(name = "execute", description = "Execute an arbitrary command on Async-Profiler on a Cassandra process.",
+             footerHeading = "%n",
+             footer = { "EXAMPLES",
+                        "        Run a raw async-profiler command (needs unsafe mode):",
+                        "            nodetool profile execute status" })
     public static class AsyncProfileExecuteCommand extends AbstractCommand
     {
         @Parameters(index = "0", description = "Raw command to execute. There has to be 'unsafe' profiler configured " +
@@ -216,7 +228,11 @@ public class AsyncProfileCommandGroup extends AbstractCommand
         }
     }
 
-    @Command(name = "fetch", description = "Copy profiler result file from a node to a local file")
+    @Command(name = "fetch", description = "Copy profiler result file from a node to a local file",
+             footerHeading = "%n",
+             footer = { "EXAMPLES",
+                        "        Copy a result file from the node to this machine:",
+                        "            nodetool profile fetch profile1.jfr /tmp/profile1.jfr" })
     public static class AsyncProfileFetchCommand extends AbstractCommand
     {
 

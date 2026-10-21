@@ -60,7 +60,11 @@ public class Move extends AbstractCommand
         }
     }
 
-    @Command(name = "abortmove", description = "Abort a failed move operation for this or a remote node")
+    @Command(name = "abortmove", description = "Abort a failed move operation for this or a remote node",
+             footerHeading = "%n",
+             footer = { "EXAMPLES",
+                        "        Abort a failed move of node 4 (default: this node):",
+                        "            nodetool abortmove --node 4" })
     public static class Abort extends AbstractCommand
     {
         @Option(paramLabel = "nodeId", names = { "--node" })

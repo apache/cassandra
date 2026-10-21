@@ -35,3 +35,7 @@ OPTIONS
 
         <table>
             The table name
+
+EXAMPLES
+        List the dictionaries of ks1.table1:
+            nodetool compressiondictionary list ks1 table1

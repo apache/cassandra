@@ -26,3 +26,7 @@ OPTIONS
 
         -u <username>, --username <username>
             Remote jmx agent username
+
+EXAMPLES
+        Initialize the CMS while two nodes are down:
+            nodetool cms initialize -i 127.0.0.2 -i 127.0.0.3

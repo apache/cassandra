@@ -74,7 +74,11 @@ public class AccordAdmin extends AbstractCommand
         }
     }
 
-    @Command(name = "mark_rejoining", description = "Mark a stale replica as being allowed to participate in durability status coordination again")
+    @Command(name = "mark_rejoining", description = "Mark a stale replica as being allowed to participate in durability status coordination again",
+             footerHeading = "%n",
+             footer = { "EXAMPLES",
+                        "        Let two stale nodes take part again (node id or host id):",
+                        "            nodetool accord mark_rejoining 2 3" })
     public static class MarkRejoining extends AbstractCommand
     {
         @Parameters(arity = "1", description = "One or more node IDs to mark no longer stale")

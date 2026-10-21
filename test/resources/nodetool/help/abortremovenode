@@ -26,3 +26,7 @@ OPTIONS
 
         -u <username>, --username <username>
             Remote jmx agent username
+
+EXAMPLES
+        Abort the removal of node 4 (--node is required):
+            nodetool abortremovenode --node 4

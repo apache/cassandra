@@ -31,3 +31,7 @@ OPTIONS
 
         -u <username>, --username <username>
             Remote jmx agent username
+
+EXAMPLES
+        Cancel a session (ids are shown by repair_admin list):
+            nodetool repair_admin cancel -s <session_id>

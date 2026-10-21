@@ -32,3 +32,7 @@ OPTIONS
 
         <tableId>
             Table id of the table being dropped
+
+EXAMPLES
+        Resume a stalled drop of an Accord table:
+            nodetool cms resumedropaccordtable <table_id>
