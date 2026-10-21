@@ -1665,10 +1665,10 @@ public class MutationTrackingService implements MutationTrackingServiceMBean
             int maxCoordinatorLogId = myNodeId != null ? loadMaxCoordinatorLogIdFromSystemTable(myNodeId.id()) : 0;
             if (maxCoordinatorLogId > storedHostLogId)
             {
-                logger.error("Stored mutation tracking host log id {} in {}.{} has regressed; highest log id found in {}.{} for local node {} is {}",
-                             storedHostLogId, SchemaConstants.SYSTEM_KEYSPACE_NAME, SystemKeyspace.HOST_LOG_ID,
-                             SchemaConstants.SYSTEM_KEYSPACE_NAME, SystemKeyspace.COORDINATOR_LOGS,
-                             myNodeId, maxCoordinatorLogId);
+                logger.warn("Stored mutation tracking host log id {} in {}.{} has regressed; highest log id found in {}.{} for local node {} is {}",
+                            storedHostLogId, SchemaConstants.SYSTEM_KEYSPACE_NAME, SystemKeyspace.HOST_LOG_ID,
+                            SchemaConstants.SYSTEM_KEYSPACE_NAME, SystemKeyspace.COORDINATOR_LOGS,
+                            myNodeId, maxCoordinatorLogId);
             }
             prevHostLogId = Math.max(storedHostLogId, maxCoordinatorLogId);
             if (prevHostLogId > storedHostLogId)
