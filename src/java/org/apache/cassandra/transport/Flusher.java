@@ -153,6 +153,9 @@ abstract class Flusher implements Runnable
 
     private void processFramedResponse(FlushItem.Framed flush)
     {
+        if (!flush.channel.isOpen())
+            return;
+
         Envelope outbound = flush.responseEnvelope;
         if (envelopeSize(outbound.header) >= MAX_FRAMED_PAYLOAD_SIZE)
         {
@@ -205,6 +208,11 @@ abstract class Flusher implements Runnable
 
     private void writeAndFlush(Channel channel, FrameEncoder.Payload payload)
     {
+        if (!channel.isOpen())
+        {
+            payload.release();
+            return;
+        }
         // we finish, but not "release" here since we're passing the buffer ownership to FrameEncoder#encode
         payload.finish();
         channel.writeAndFlush(payload, channel.voidPromise());
