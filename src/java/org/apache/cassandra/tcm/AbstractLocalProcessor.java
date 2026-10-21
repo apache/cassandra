@@ -159,7 +159,7 @@ public abstract class AbstractLocalProcessor implements Processor
         if (!transform.eligibleToCommit(previous))
         {
             result = new Transformation.Rejected(INVALID, "Transformation rejected, can't commit " + transformStr +
-                                                          " it not supported with cluster common serialization version " + previous.directory.commonSerializationVersion +
+                                                          ". It is not supported with cluster common serialization version " + previous.directory.commonSerializationVersion +
                                                           " and min/max serialization versions " + previous.directory.clusterMinVersion + "/" + previous.directory.clusterMaxVersion);
         }
         else
