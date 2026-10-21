@@ -19,6 +19,10 @@
 package org.apache.cassandra.distributed.test.tracking;
 
 import java.time.Duration;
+import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicInteger;
+
+import com.google.common.util.concurrent.Uninterruptibles;
 
 import org.awaitility.Awaitility;
 import org.junit.Test;
@@ -358,30 +362,94 @@ public class MutationTrackingMetricsTest extends TestBaseImpl
         }
     }
 
+    /**
+     * The local read latency must not include the time spent waiting for missing mutations from other replicas.
+     */
     @Test(timeout = 60000)
     public void testLocalReadLatencyMetric() throws Throwable
     {
-        try (Cluster cluster = Cluster.build(1)
-                .withConfig(cfg -> cfg.with(Feature.NETWORK))
+        long pullDelayMillis = 2000;
+        try (Cluster cluster = Cluster.build(3)
+                .withConfig(cfg -> cfg.with(Feature.NETWORK, Feature.GOSSIP)
+                                      .set("read_request_timeout", "30000ms"))
                 .start())
         {
             cluster.schemaChange(withKeyspace(CREATE_KEYSPACE));
             cluster.schemaChange(String.format(CREATE_TABLE, KEYSPACE));
 
-            long initialReadLatencyCount = cluster.get(1).callOnInstance(() ->
-                Keyspace.open(KEYSPACE).getColumnFamilyStore("tbl").metric.readLatency.latency.getCount());
+            // Node 1 misses the write, so the read has to pull the mutation from another replica
+            cluster.filters().verbs(Verb.MUTATION_REQ.id).from(2).to(1).drop();
+            cluster.coordinator(2).execute(withKeyspace("INSERT INTO %s.tbl (pk, val) VALUES (?, ?)"),
+                                           ConsistencyLevel.QUORUM, 1, "test1");
+            cluster.filters().reset();
 
-            cluster.coordinator(1).execute(withKeyspace("INSERT INTO %s.tbl (pk, val) VALUES (?, ?)"),
-                                           ConsistencyLevel.ONE, 1, "test1");
+            AtomicInteger pulls = new AtomicInteger();
+            cluster.filters().verbs(Verb.MT_PULL_MUTATIONS_REQ.id).from(1).outbound().messagesMatching((from, to, message) -> {
+                pulls.incrementAndGet();
+                Uninterruptibles.sleepUninterruptibly(pullDelayMillis, TimeUnit.MILLISECONDS);
+                return false;
+            }).drop();
 
+            long start = System.nanoTime();
             cluster.coordinator(1).execute(withKeyspace("SELECT * FROM %s.tbl WHERE pk = ?"),
-                                           ConsistencyLevel.ONE, 1);
+                                           ConsistencyLevel.QUORUM, 1);
+            long elapsedMillis = TimeUnit.NANOSECONDS.toMillis(System.nanoTime() - start);
 
-            long afterReadLatencyCount = cluster.get(1).callOnInstance(() ->
+            assertThat(pulls.get()).as("The read must wait for a delayed pull for this test to be meaningful").isGreaterThan(0);
+            assertThat(elapsedMillis).isGreaterThanOrEqualTo(pullDelayMillis);
+
+            long count = cluster.get(1).callOnInstance(() ->
                 Keyspace.open(KEYSPACE).getColumnFamilyStore("tbl").metric.readLatency.latency.getCount());
-            assertThat(afterReadLatencyCount)
+            long maxMicros = cluster.get(1).callOnInstance(() ->
+                Keyspace.open(KEYSPACE).getColumnFamilyStore("tbl").metric.readLatency.latency.getSnapshot().getMax());
+            assertThat(count)
                 .as("Local read latency metric should count tracked reads")
-                .isEqualTo(initialReadLatencyCount + 1);
+                .isEqualTo(1);
+            assertThat(maxMicros)
+                .as("Local read latency should not include time spent waiting for other replicas")
+                .isLessThan(TimeUnit.MILLISECONDS.toMicros(pullDelayMillis) / 2);
+        }
+    }
+
+    @Test(timeout = 60000)
+    public void testCoordinatorWriteTimeoutMetric() throws Throwable
+    {
+        long timeoutMillis = 1000;
+        try (Cluster cluster = Cluster.build(3)
+                .withConfig(cfg -> cfg.with(Feature.NETWORK, Feature.GOSSIP)
+                                      .set("write_request_timeout", timeoutMillis + "ms"))
+                .start())
+        {
+            cluster.schemaChange(withKeyspace(CREATE_KEYSPACE));
+            cluster.schemaChange(String.format(CREATE_TABLE, KEYSPACE));
+
+            long initialTimeouts = cluster.get(1).callOnInstance(() ->
+                ClientRequestsMetricsHolder.writeMetrics.timeouts.getCount());
+            long initialLatencyCount = cluster.get(1).callOnInstance(() ->
+                ClientRequestsMetricsHolder.writeMetrics.latency.getCount());
+
+            // Only the coordinator's own replica can acknowledge the write
+            cluster.filters().verbs(Verb.MUTATION_REQ.id).from(1).to(2, 3).drop();
+
+            assertThatThrownBy(() -> cluster.coordinator(1).execute(withKeyspace("INSERT INTO %s.tbl (pk, val) VALUES (?, ?)"),
+                                                                    ConsistencyLevel.QUORUM, 1, "test1"))
+                .hasMessageContaining("timed out");
+
+            long timeouts = cluster.get(1).callOnInstance(() ->
+                ClientRequestsMetricsHolder.writeMetrics.timeouts.getCount());
+            long latencyCount = cluster.get(1).callOnInstance(() ->
+                ClientRequestsMetricsHolder.writeMetrics.latency.getCount());
+            long maxMicros = cluster.get(1).callOnInstance(() ->
+                ClientRequestsMetricsHolder.writeMetrics.latency.getSnapshot().getMax());
+            assertThat(timeouts)
+                .as("Timed out tracked write should be counted")
+                .isEqualTo(initialTimeouts + 1);
+            assertThat(latencyCount)
+                .as("Timed out tracked write should record latency")
+                .isEqualTo(initialLatencyCount + 1);
+            assertThat(maxMicros)
+                .as("Recorded latency should cover the wait for the timeout")
+                .isGreaterThanOrEqualTo(TimeUnit.MILLISECONDS.toMicros(timeoutMillis) / 2);
         }
     }
 
