@@ -3400,6 +3400,25 @@ public abstract class AccordCQLTestBase extends AccordTestBase
             });
     }
 
+    @Test
+    public void testCASStaticConditionOnMissingRowSeesStaticValue() throws Exception
+    {
+        test("CREATE TABLE " + qualifiedAccordTableName + " (p int, k int, s int static, v int, PRIMARY KEY (p, k)) WITH " + transactionalMode.asCqlParam(), cluster -> {
+            cluster.coordinator(1).execute("INSERT INTO " + qualifiedAccordTableName + " (p, s) VALUES (0, 1)", ConsistencyLevel.ALL);
+            assertRowEquals(cluster, new Object[]{ true }, "UPDATE " + qualifiedAccordTableName + " SET v = 1 WHERE p = 0 AND k = 0 IF v = null AND s = 1");
+            assertRowSerial(cluster, "SELECT k, s, v FROM " + qualifiedAccordTableName + " WHERE p = 0", row(0, 1, 1));
+        });
+    }
+
+    @Test
+    public void testFailedCASOnMissingRowReturnsStaticValues() throws Exception
+    {
+        test("CREATE TABLE " + qualifiedAccordTableName + " (p int, k int, s int static, v int, PRIMARY KEY (p, k)) WITH " + transactionalMode.asCqlParam(), cluster -> {
+            cluster.coordinator(1).execute("INSERT INTO " + qualifiedAccordTableName + " (p, s) VALUES (0, 1)", ConsistencyLevel.ALL);
+            assertRowEquals(cluster, new Object[]{ false, null, 1 }, "UPDATE " + qualifiedAccordTableName + " SET v = 1 WHERE p = 0 AND k = 0 IF v = 2 AND s = 2");
+        });
+    }
+
     // Reproduces some bugs that simulator finds
     @Test
     public void testCASSimulatorLite() throws Exception
