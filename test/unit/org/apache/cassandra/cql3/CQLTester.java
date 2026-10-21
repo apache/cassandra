@@ -242,7 +242,7 @@ public abstract class CQLTester
 
     public static final List<ProtocolVersion> PROTOCOL_VERSIONS = new ArrayList<>(ProtocolVersion.SUPPORTED.size());
 
-    private static final String CREATE_INDEX_NAME_REGEX = "(\\s*(\\w*|\"\\w*\")\\s*)";
+    private static final String CREATE_INDEX_NAME_REGEX = "(\\s*(\\w+|\"([^\"]|\"\")*\")\\s*)";
     private static final String CREATE_INDEX_REGEX = String.format("\\A\\s*CREATE(?:\\s+CUSTOM)?\\s+INDEX" +
                                                                    "(?:\\s+IF\\s+NOT\\s+EXISTS)?\\s*" +
                                                                    "%s?\\s*ON\\s+(%<s\\.)?%<s\\s*" +
@@ -1277,7 +1277,7 @@ public abstract class CQLTester
         if (!Strings.isNullOrEmpty(parsedKeyspace))
             keyspace = parsedKeyspace;
 
-        String index = matcher.group(2);
+        String index = matcher.group(2).replace("\"", "");
         if (Strings.isNullOrEmpty(index))
         {
             String table = matcher.group(7);

@@ -79,4 +79,20 @@ public class CQLTesterTest extends CQLTester
         Assertions.assertThat(name.left).isEqualTo(expectedKeyspaceName);
         Assertions.assertThat(name.right).isEqualTo(expectedIndexName);
     }
+
+        @Test
+    public void testCreateIndexWithQuotedName() throws Throwable
+    {
+        createTable("CREATE TABLE %s (k int PRIMARY KEY, v int)");
+        
+        // This used to throw an IllegalArgumentException because the regex only matched word characters
+        createIndex("CREATE INDEX \"my index\" ON %s(v)");
+        
+        // Verify the index was actually created and is queryable
+        assertTrue(isIndexQueryable(KEYSPACE, "my index"));
+        
+        // Test the escape sequence for double quotes (\"\")
+        createIndex("CREATE INDEX \"my \"\"quoted\"\" index\" ON %s(v)");
+        assertTrue(isIndexQueryable(KEYSPACE, "my \"quoted\" index"));
+    }
 }
