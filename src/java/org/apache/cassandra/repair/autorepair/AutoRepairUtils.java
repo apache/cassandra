@@ -156,6 +156,11 @@ public class AutoRepairUtils
     COL_REPAIR_TYPE, COL_HOST_ID);
 
     final static String RECORD_FINISH_REPAIR_HISTORY = String.format(
+    "UPDATE %s.%s SET %s= ? WHERE %s = ? AND %s = ?"
+    , SchemaConstants.DISTRIBUTED_KEYSPACE_NAME, SystemDistributedKeyspace.AUTO_REPAIR_HISTORY, COL_REPAIR_FINISH_TS,
+    COL_REPAIR_TYPE, COL_HOST_ID);
+
+    final static String RECORD_FINISH_FORCE_REPAIR_HISTORY = String.format(
     "UPDATE %s.%s SET %s= ?, %s=false WHERE %s = ? AND %s = ?"
     , SchemaConstants.DISTRIBUTED_KEYSPACE_NAME, SystemDistributedKeyspace.AUTO_REPAIR_HISTORY, COL_REPAIR_FINISH_TS,
     COL_FORCE_REPAIR, COL_REPAIR_TYPE, COL_HOST_ID);
@@ -195,6 +200,7 @@ public class AutoRepairUtils
     static ModificationStatement insertNewRepairHistoryStatement;
     static ModificationStatement recordStartRepairHistoryStatement;
     static ModificationStatement recordFinishRepairHistoryStatement;
+    static ModificationStatement recordFinishForceRepairHistoryStatement;
     static ModificationStatement addHostIDToDeleteHostsStatement;
     static ModificationStatement clearDeleteHostsStatement;
     static ModificationStatement setForceRepairStatement;
@@ -229,6 +235,8 @@ public class AutoRepairUtils
                                                                                                                              .forInternalCalls());
         recordFinishRepairHistoryStatement = (ModificationStatement) QueryProcessor.getStatement(RECORD_FINISH_REPAIR_HISTORY, ClientState
                                                                                                                                .forInternalCalls());
+        recordFinishForceRepairHistoryStatement = (ModificationStatement) QueryProcessor.getStatement(RECORD_FINISH_FORCE_REPAIR_HISTORY, ClientState
+                                                                                                                                         .forInternalCalls());
         addHostIDToDeleteHostsStatement = (ModificationStatement) QueryProcessor.getStatement(ADD_HOST_ID_TO_DELETE_HOSTS, ClientState
                                                                                                                            .forInternalCalls());
         setForceRepairStatement = (ModificationStatement) QueryProcessor.getStatement(SET_FORCE_REPAIR, ClientState
@@ -1071,14 +1079,15 @@ public class AutoRepairUtils
                                                                                 )), Dispatcher.RequestTime.forImmediateExecution());
     }
 
-    static void updateFinishAutoRepairHistory(RepairType repairType, UUID myId, long timestamp)
+    static void updateFinishAutoRepairHistory(RepairType repairType, UUID myId, long timestamp, boolean forceTurn)
     {
-        recordFinishRepairHistoryStatement.execute(QueryState.forInternalCalls(),
-                                                   QueryOptions.forInternalCalls(internalQueryCL,
-                                                                                 Lists.newArrayList(ByteBufferUtil.bytes(timestamp),
-                                                                                                    ByteBufferUtil.bytes(repairType.toString()),
-                                                                                                    ByteBufferUtil.bytes(myId)
-                                                                                 )), Dispatcher.RequestTime.forImmediateExecution());
+        ModificationStatement stmt = forceTurn ? recordFinishForceRepairHistoryStatement : recordFinishRepairHistoryStatement;
+        stmt.execute(QueryState.forInternalCalls(),
+                     QueryOptions.forInternalCalls(internalQueryCL,
+                                                   Lists.newArrayList(ByteBufferUtil.bytes(timestamp),
+                                                                      ByteBufferUtil.bytes(repairType.toString()),
+                                                                      ByteBufferUtil.bytes(myId)
+                                                   )), Dispatcher.RequestTime.forImmediateExecution());
         logger.info("Auto repair finished for {}", myId);
     }
 
