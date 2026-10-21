@@ -36,6 +36,7 @@ import org.apache.cassandra.io.util.RandomAccessReader;
 import org.apache.cassandra.io.util.SequentialWriter;
 import org.apache.cassandra.service.paxos.Ballot;
 import org.apache.cassandra.service.paxos.Commit;
+import org.apache.cassandra.utils.SyncUtil;
 
 import static org.apache.cassandra.io.util.SequentialWriterOption.FINISH_ON_CLOSE;
 import static org.apache.cassandra.net.Crc.crc32;
@@ -135,6 +136,7 @@ public class PaxosBallotTracker
             writer.writeInt(Integer.reverseBytes((int) crc.getValue()));
         }
         file.move(new File(directory, FNAME));
+        SyncUtil.trySyncDir(directory);
     }
 
     public synchronized void truncate()
