@@ -142,7 +142,8 @@ public class GossipTest extends TestBaseImpl
     {
         // TODO: fails with vnode enabled
         try (Cluster cluster = Cluster.build(3)
-                                      .withConfig(c -> c.with(Feature.GOSSIP, Feature.NETWORK))
+                                      // nodetool move is rejected while mutation tracking is enabled
+                                      .withConfig(c -> c.set("mutation_tracking.enabled", false).with(Feature.GOSSIP, Feature.NETWORK))
                                       .withoutVNodes()
                                       .start())
         {
