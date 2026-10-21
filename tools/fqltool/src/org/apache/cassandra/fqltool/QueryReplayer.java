@@ -108,7 +108,8 @@ public class QueryReplayer implements Closeable
         this.filters = filters;
         sessions = targetHosts.stream().map(sessionProvider::connect).collect(Collectors.toList());
         File queryFilePath = queryFilePathString != null ? new File(queryFilePathString) : null;
-        resultHandler = new ResultHandler(targetHosts, resultPaths, queryFilePath, mismatchListener);
+        List<String> maskedTargetHosts = targetHosts.stream().map(ParsedTargetHost::maskPassword).collect(Collectors.toList());
+        resultHandler = new ResultHandler(maskedTargetHosts, resultPaths, queryFilePath, mismatchListener);
     }
 
     public void replay()

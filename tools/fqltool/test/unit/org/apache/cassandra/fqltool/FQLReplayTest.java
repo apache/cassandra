@@ -19,15 +19,21 @@
 package org.apache.cassandra.fqltool;
 
 import java.io.File;
+import java.io.FileInputStream;
+import java.io.FileOutputStream;
 import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.nio.file.Files;
+import java.security.GeneralSecurityException;
+import java.security.KeyStore;
+import java.security.KeyStoreException;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Objects;
 import java.util.Random;
+import java.util.UUID;
 import java.util.stream.Collectors;
 
 import com.datastax.driver.core.CodecRegistry;
@@ -592,9 +598,9 @@ public class FQLReplayTest
         try
         {
             ConnectionOptions.builder().withAuthProviderClass("com.not.a.real.AuthProviderClass").build();
-            throw new AssertionError("Expected RuntimeException for invalid auth provider class");
+            throw new AssertionError("Expected IllegalArgumentException for invalid auth provider class");
         }
-        catch (RuntimeException e)
+        catch (IllegalArgumentException e)
         {
             assertTrue(e.getMessage().contains("com.not.a.real.AuthProviderClass"));
         }
@@ -608,6 +614,33 @@ public class FQLReplayTest
         assertEquals("127.0.0.1", QueryReplayer.ParsedTargetHost.maskPassword("127.0.0.1"));
         assertEquals("user:*****@host:9042", QueryReplayer.ParsedTargetHost.maskPassword("user:p@ssword@host:9042"));
         assertEquals("cassandra:*****@127.0.0.1", QueryReplayer.ParsedTargetHost.maskPassword("cassandra:p@ss@w@rd@127.0.0.1"));
+    }
+
+    @Test
+    public void testResultHandlerKeepsTargetLabels() throws IOException
+    {
+        // fqltool compare passes result directories as labels, they must reach the listener unchanged
+        List<String> targetHosts = Lists.newArrayList("/mnt/a:b/user@host/res", "hostb");
+        List<List<String>> reportedHosts = new ArrayList<>();
+        MismatchListener listener = new MismatchListener()
+        {
+            public void mismatch(UUID mismatchUUID, List<String> targetHosts, FQLQuery query, List<ResultHandler.ComparableRow> rows)
+            {
+                reportedHosts.add(targetHosts);
+            }
+
+            public void columnDefMismatch(UUID mismatchUUID, List<String> targetHosts, FQLQuery query, List<ResultHandler.ComparableColumnDefinitions> cds)
+            {
+                reportedHosts.add(targetHosts);
+            }
+        };
+        FQLQuery query = new FQLQuery.Single("aaa", QueryOptions.DEFAULT.getProtocolVersion().asInt(), QueryOptions.DEFAULT, 1, 2, 3, "select * from xyz", Collections.emptyList());
+        try (ResultHandler rh = new ResultHandler(targetHosts, null, null, listener))
+        {
+            rh.handleResults(query, Lists.newArrayList(createResultSet(10, 10, false), createResultSet(5, 10, false)));
+        }
+        assertFalse(reportedHosts.isEmpty());
+        reportedHosts.forEach(hosts -> assertEquals(targetHosts, hosts));
     }
 
     @Test
@@ -708,6 +741,77 @@ public class FQLReplayTest
                                                                 .build();
         assertTrue(connectionOptions.ssl());
         assertNotNull(connectionOptions.sslOptions());
+    }
+
+    @Test
+    public void testInvalidStoreTypeThrows()
+    {
+        try
+        {
+            ConnectionOptions.builder()
+                             .withTruststore("test/conf/cassandra_ssl_test.truststore")
+                             .withTruststorePassword("cassandra")
+                             .withStoreType("NOTATYPE")
+                             .build();
+            throw new AssertionError("Expected RuntimeException for an unknown store type");
+        }
+        catch (RuntimeException e)
+        {
+            assertTrue(e.getMessage().contains("SSL"));
+            assertTrue(e.getCause() instanceof KeyStoreException);
+        }
+    }
+
+    @Test
+    public void testStoreTypeWithoutStorePathThrows()
+    {
+        try
+        {
+            ConnectionOptions.builder().withStoreType("PKCS12").build();
+            throw new AssertionError("Expected IllegalArgumentException when store type is given without a store path");
+        }
+        catch (IllegalArgumentException e)
+        {
+            assertTrue(e.getMessage().contains("--ssl-store-type requires --ssl-truststore or --ssl-keystore"));
+        }
+    }
+
+    @Test
+    public void testPkcs12StoreTypeSucceeds() throws IOException, GeneralSecurityException
+    {
+        ConnectionOptions connectionOptions = ConnectionOptions.builder()
+                                                                .withTruststore(toPkcs12("test/conf/cassandra_ssl_test.truststore", "cassandra"))
+                                                                .withTruststorePassword("cassandra")
+                                                                .withKeystore(toPkcs12("test/conf/cassandra_ssl_test.keystore", "cassandra"))
+                                                                .withKeystorePassword("cassandra")
+                                                                .withStoreType("PKCS12")
+                                                                .build();
+        assertTrue(connectionOptions.ssl());
+        assertNotNull(connectionOptions.sslOptions());
+    }
+
+    private static String toPkcs12(String jksPath, String password) throws IOException, GeneralSecurityException
+    {
+        KeyStore jks = KeyStore.getInstance("JKS");
+        try (FileInputStream in = new FileInputStream(jksPath))
+        {
+            jks.load(in, password.toCharArray());
+        }
+        KeyStore pkcs12 = KeyStore.getInstance("PKCS12");
+        pkcs12.load(null, password.toCharArray());
+        KeyStore.PasswordProtection protection = new KeyStore.PasswordProtection(password.toCharArray());
+        for (String alias : Collections.list(jks.aliases()))
+        {
+            KeyStore.PasswordProtection entryProtection = jks.isKeyEntry(alias) ? protection : null;
+            pkcs12.setEntry(alias, jks.getEntry(alias, entryProtection), entryProtection);
+        }
+        File file = Files.createTempFile("fqltool", ".p12").toFile();
+        file.deleteOnExit();
+        try (FileOutputStream out = new FileOutputStream(file))
+        {
+            pkcs12.store(out, password.toCharArray());
+        }
+        return file.getPath();
     }
 
     @Test

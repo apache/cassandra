@@ -86,6 +86,9 @@ public class Replay implements Runnable
     @Option(paramLabel = "ssl_keystore_password", names = { "--ssl-keystore-password" }, description = "Password for the SSL keystore.")
     private String keystorePassword;
 
+    @Option(paramLabel = "ssl_store_type", names = { "--ssl-store-type" }, description = "Type of the SSL truststore and keystore, for example JKS or PKCS12. Applies to both stores. Default: JKS.")
+    private String storeType;
+
     @Option(paramLabel = "auth_provider", names = { "--auth-provider" }, description = "Fully qualified class name of a custom com.datastax.driver.core.AuthProvider implementation (e.g. for Kerberos).")
     private String authProviderClass;
 
@@ -117,6 +120,7 @@ public class Replay implements Runnable
                                                                     .withTruststorePassword(truststorePassword)
                                                                     .withKeystore(keystorePath)
                                                                     .withKeystorePassword(keystorePassword)
+                                                                    .withStoreType(storeType)
                                                                     .withAuthProviderClass(authProviderClass)
                                                                     .build();
 
@@ -134,7 +138,7 @@ public class Replay implements Runnable
     }
 
     public static void replay(String keyspace, List<String> arguments, List<String> targetHosts, List<File> resultPaths, String queryStorePath, boolean replayDDLStatements,
-                               ConnectionOptions connectionOptions)
+                              ConnectionOptions connectionOptions)
     {
         int readAhead = 200; // how many fql queries should we read in to memory to be able to sort them?
         List<ChronicleQueue> readQueues = null;

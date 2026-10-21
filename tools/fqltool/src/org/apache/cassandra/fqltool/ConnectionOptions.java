@@ -18,7 +18,6 @@
 
 package org.apache.cassandra.fqltool;
 
-import java.io.FileInputStream;
 import java.io.IOException;
 import java.security.KeyManagementException;
 import java.security.KeyStore;
@@ -26,6 +25,7 @@ import java.security.KeyStoreException;
 import java.security.NoSuchAlgorithmException;
 import java.security.UnrecoverableKeyException;
 import java.security.cert.CertificateException;
+
 import javax.net.ssl.KeyManagerFactory;
 import javax.net.ssl.SSLContext;
 import javax.net.ssl.TrustManagerFactory;
@@ -33,6 +33,8 @@ import javax.net.ssl.TrustManagerFactory;
 import com.datastax.driver.core.AuthProvider;
 import com.datastax.driver.core.RemoteEndpointAwareJdkSSLOptions;
 import com.datastax.driver.core.SSLOptions;
+
+import org.apache.cassandra.io.util.FileInputStreamPlus;
 
 /**
  * Holds the SSL and authentication settings used to connect to target hosts during fqltool replay.
@@ -85,7 +87,7 @@ public class ConnectionOptions
         {
             throw new RuntimeException("Auth provider " + authProviderClass + " does not support plain text credentials", e);
         }
-        catch (Exception e)
+        catch (ReflectiveOperationException e)
         {
             throw new RuntimeException("Could not instantiate auth provider: " + authProviderClass, e);
         }
@@ -98,11 +100,14 @@ public class ConnectionOptions
 
     public static class Builder
     {
+        private static final String DEFAULT_STORE_TYPE = "JKS";
+
         private boolean ssl;
         private String truststorePath;
         private String truststorePassword;
         private String keystorePath;
         private String keystorePassword;
+        private String storeType;
         private String authProviderClass;
 
         public Builder withSsl(boolean ssl)
@@ -135,6 +140,12 @@ public class ConnectionOptions
             return this;
         }
 
+        public Builder withStoreType(String storeType)
+        {
+            this.storeType = storeType;
+            return this;
+        }
+
         public Builder withAuthProviderClass(String authProviderClass)
         {
             this.authProviderClass = authProviderClass;
@@ -147,6 +158,8 @@ public class ConnectionOptions
                 throw new IllegalArgumentException("--ssl-truststore-password requires --ssl-truststore to be set");
             if (keystorePassword != null && keystorePath == null)
                 throw new IllegalArgumentException("--ssl-keystore-password requires --ssl-keystore to be set");
+            if (storeType != null && truststorePath == null && keystorePath == null)
+                throw new IllegalArgumentException("--ssl-store-type requires --ssl-truststore or --ssl-keystore to be set");
 
             // any SSL-related option implicitly enables SSL
             boolean effectiveSsl = ssl || truststorePath != null || keystorePath != null;
@@ -169,7 +182,7 @@ public class ConnectionOptions
             }
             catch (ClassNotFoundException e)
             {
-                throw new RuntimeException("Could not find auth provider class: " + authProviderClass, e);
+                throw new IllegalArgumentException("Could not find auth provider class: " + authProviderClass, e);
             }
         }
 
@@ -201,9 +214,9 @@ public class ConnectionOptions
 
             if (truststorePath != null)
             {
-                KeyStore ts = KeyStore.getInstance("JKS");
+                KeyStore ts = KeyStore.getInstance(storeType());
                 char[] password = truststorePassword != null ? truststorePassword.toCharArray() : null;
-                try (FileInputStream fis = new FileInputStream(truststorePath))
+                try (FileInputStreamPlus fis = new FileInputStreamPlus(truststorePath))
                 {
                     ts.load(fis, password);
                 }
@@ -219,9 +232,9 @@ public class ConnectionOptions
 
         private KeyManagerFactory buildKeyManagerFactory() throws NoSuchAlgorithmException, KeyStoreException, CertificateException, IOException, UnrecoverableKeyException
         {
-            KeyStore ks = KeyStore.getInstance("JKS");
+            KeyStore ks = KeyStore.getInstance(storeType());
             char[] password = keystorePassword != null ? keystorePassword.toCharArray() : null;
-            try (FileInputStream fis = new FileInputStream(keystorePath))
+            try (FileInputStreamPlus fis = new FileInputStreamPlus(keystorePath))
             {
                 ks.load(fis, password);
             }
@@ -230,6 +243,11 @@ public class ConnectionOptions
             kmf.init(ks, password);
 
             return kmf;
+        }
+
+        private String storeType()
+        {
+            return storeType != null ? storeType : DEFAULT_STORE_TYPE;
         }
     }
 }
