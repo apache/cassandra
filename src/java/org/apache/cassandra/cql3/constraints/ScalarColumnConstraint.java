@@ -150,7 +150,7 @@ public class ScalarColumnConstraint extends AbstractFunctionConstraint<ScalarCol
     @Override
     public String toString()
     {
-        return columnName + " " + relationType + " " + term;
+        return columnName.toCQLString() + " " + relationType + " " + term;
     }
 
     @Override
@@ -192,9 +192,9 @@ public class ScalarColumnConstraint extends AbstractFunctionConstraint<ScalarCol
         @Override
         public long serializedSize(ScalarColumnConstraint columnConstraint, Version version)
         {
-            return TypeSizes.sizeof(columnConstraint.term)
+            return TypeSizes.sizeof(columnConstraint.columnName.toCQLString())
                    + Operator.serializedSize()
-                   + TypeSizes.sizeof(columnConstraint.columnName.toString());
+                   + TypeSizes.sizeof(columnConstraint.term);
         }
     }
 
