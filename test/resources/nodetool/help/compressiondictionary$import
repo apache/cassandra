@@ -32,3 +32,7 @@ OPTIONS
 
         <dictionaryPath>
             The path to a dictionary JSON
+
+EXAMPLES
+        Import a dictionary file saved by export:
+            nodetool compressiondictionary import dict.json

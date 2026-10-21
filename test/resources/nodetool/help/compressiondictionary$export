@@ -42,3 +42,7 @@ OPTIONS
 
         <dictionaryPath>
             File name to save dictionary to
+
+EXAMPLES
+        Save the current dictionary of ks1.table1 to a local file:
+            nodetool compressiondictionary export ks1 table1 dict.json

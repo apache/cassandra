@@ -44,3 +44,7 @@ OPTIONS
 
         [<keyspace> <tables>...]
             The keyspace followed by one or many tables
+
+EXAMPLES
+        Show data pending repair for ks1.table1, with details:
+            nodetool repair_admin summarize-pending -v ks1 table1

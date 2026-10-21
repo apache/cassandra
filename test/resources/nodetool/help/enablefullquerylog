@@ -57,3 +57,7 @@ OPTIONS
 
         -u <username>, --username <username>
             Remote jmx agent username
+
+EXAMPLES
+        Log all queries to an empty directory:
+            nodetool enablefullquerylog --path <dir>

@@ -33,3 +33,7 @@ OPTIONS
             Raw command to execute. There has to be 'unsafe' profiler
             configured in Cassandra, driven by cassandra.async_profiler.
             unsafe_mode property set to true, to be able to do this.
+
+EXAMPLES
+        Run a raw async-profiler command (needs unsafe mode):
+            nodetool profile execute status

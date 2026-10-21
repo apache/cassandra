@@ -92,7 +92,11 @@ public class CMSAdmin extends AbstractCommand
         }
     }
 
-    @Command(name = "initialize", description = "Upgrade from gossip and initialize CMS")
+    @Command(name = "initialize", description = "Upgrade from gossip and initialize CMS",
+             footerHeading = "%n",
+             footer = { "EXAMPLES",
+                        "        Initialize the CMS while two nodes are down:",
+                        "            nodetool cms initialize -i 127.0.0.2 -i 127.0.0.3" })
     public static class InitializeCMS extends AbstractCommand
     {
         @Option(paramLabel = "ignored_endpoints", names = { "-i", "--ignore" }, description = "Hosts to ignore due to them being down")
@@ -247,7 +251,11 @@ public class CMSAdmin extends AbstractCommand
         }
     }
 
-    @Command(name = "abortinitialization", description = "Abort an incomplete initialization")
+    @Command(name = "abortinitialization", description = "Abort an incomplete initialization",
+             footerHeading = "%n",
+             footer = { "EXAMPLES",
+                        "        Abort the CMS initialization started on 127.0.0.1:",
+                        "            nodetool cms abortinitialization --initiator 127.0.0.1" })
     public static class AbortInitialization extends AbstractCommand
     {
         @Option(required = true, names = { "--initiator" }, description = "The address of the node where `cms initialize` was run.")
@@ -260,7 +268,11 @@ public class CMSAdmin extends AbstractCommand
         }
     }
 
-    @Command(name = "dumpdirectory", description = "Dump the directory from the current ClusterMetadata")
+    @Command(name = "dumpdirectory", description = "Dump the directory from the current ClusterMetadata",
+             footerHeading = "%n",
+             footer = { "EXAMPLES",
+                        "        Dump the directory, including the tokens of each node:",
+                        "            nodetool cms dumpdirectory --tokens" })
     public static class DumpDirectory extends AbstractCommand
     {
         @Option(names = { "--tokens" }, description = "Include tokens in output")
@@ -273,7 +285,11 @@ public class CMSAdmin extends AbstractCommand
         }
     }
 
-    @Command(name = "dumplog", description = "Dump the metadata log")
+    @Command(name = "dumplog", description = "Dump the metadata log",
+             footerHeading = "%n",
+             footer = { "EXAMPLES",
+                        "        Dump the metadata log from epoch 10 to epoch 20:",
+                        "            nodetool cms dumplog --start 10 --end 20" })
     public static class DumpLog extends AbstractCommand
     {
         @Option(names = { "--start" }, description = "Start epoch")
@@ -307,7 +323,11 @@ public class CMSAdmin extends AbstractCommand
         return map.entrySet().iterator().next().getValue().keySet().stream().max(Comparator.comparingInt(String::length)).get().length() + 1;
     }
 
-    @Command(name = "resumedropaccordtable", description = "Resume a drop accord table operation which has stalled")
+    @Command(name = "resumedropaccordtable", description = "Resume a drop accord table operation which has stalled",
+             footerHeading = "%n",
+             footer = { "EXAMPLES",
+                        "        Resume a stalled drop of an Accord table:",
+                        "            nodetool cms resumedropaccordtable <table_id>" })
     public static class ResumeDropAccordTable extends AbstractCommand
     {
         @Parameters(description = "Table id of the table being dropped")
