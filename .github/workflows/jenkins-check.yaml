@@ -10,12 +10,14 @@ on:
         paths:
             - '.build/run-ci'
             - '.build/run-ci.d/**'
+            - '.build/ci/**'
             - '.jenkins/**'
             - '.github/workflows/jenkins-check.yaml'
     pull_request:
         paths:
             - '.build/run-ci'
             - '.build/run-ci.d/**'
+            - '.build/ci/**'
             - '.jenkins/**'
             - '.github/workflows/jenkins-check.yaml'
 
@@ -31,11 +33,13 @@ jobs:
             with:
               python-version: '3.x'
           - name: Install dependencies
-            run: pip install pylint -r .build/run-ci.d/requirements.txt
+            run: pip install pylint -r .build/run-ci.d/requirements.txt -r .build/ci/requirements.txt
           - name: Lint run-ci
             run: pylint --disable=C0301,C0302,W0511,C0103,W0702,C0415,C0116,C0115,R0914,W0603,R0915,R0913,R0917,R0911,W0212,W0621 .build/run-ci
           - name: Run run-ci unit tests
             run: python .build/run-ci.d/run-ci-test.py
+          - name: Test CI report totals
+            run: python .build/ci/ci_parser_test.py
           - name: Check run-ci argument parsing
             run: python .build/run-ci --help
 
