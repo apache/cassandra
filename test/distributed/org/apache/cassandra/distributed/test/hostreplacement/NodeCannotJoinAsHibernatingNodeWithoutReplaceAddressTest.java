@@ -58,7 +58,7 @@ public class NodeCannotJoinAsHibernatingNodeWithoutReplaceAddressTest extends Te
         CassandraRelevantProperties.DTEST_ACCORD_ENABLED.setBoolean(false); // when added, accord could not replace same address safely
         TokenSupplier even = TokenSupplier.evenlyDistributedTokens(2);
         try (Cluster cluster = init(Cluster.build(2)
-                                           .withConfig(c -> c.with(Feature.values()).set(Constants.KEY_DTEST_API_STARTUP_FAILURE_AS_SHUTDOWN, false))
+                                           .withConfig(c -> c.with(Feature.values()).set("mutation_tracking.enabled", false).set(Constants.KEY_DTEST_API_STARTUP_FAILURE_AS_SHUTDOWN, false))
                                            .withInstanceInitializer(BBHelper::install)
                                            .withTokenSupplier(node -> even.token((node == 3 || node == 4) ? 2 : node))
                                            .start()))
