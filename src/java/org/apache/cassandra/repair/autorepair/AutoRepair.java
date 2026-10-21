@@ -180,6 +180,8 @@ public class AutoRepair
         }
         AutoRepairService.instance.checkCanRun(repairType);
         AutoRepairState repairState = repairStates.get(repairType);
+        UUID myId = null;
+        RepairTurn turn = null;
         try
         {
             String localDC = DatabaseDescriptor.getLocalDataCenter();
@@ -193,7 +195,7 @@ public class AutoRepair
             repairState.setLongestUnrepairedNode(AutoRepairUtils.getHostWithLongestUnrepairTime(repairType));
 
             //consistency level to use for local query
-            UUID myId = Gossiper.instance.getHostId(FBUtilities.getBroadcastAddressAndPort());
+            myId = Gossiper.instance.getHostId(FBUtilities.getBroadcastAddressAndPort());
 
             // Skip this repair cycle if the minimum interval since the last repair has not elapsed,
             // unless force repair is set for this node, which bypasses the interval check
@@ -202,7 +204,7 @@ public class AutoRepair
                 return;
             }
 
-            RepairTurn turn = AutoRepairUtils.myTurnToRunRepair(repairType, myId);
+            turn = AutoRepairUtils.myTurnToRunRepair(repairType, myId);
             if (turn == MY_TURN || turn == MY_TURN_DUE_TO_PRIORITY || turn == MY_TURN_FORCE_REPAIR)
             {
                 repairState.recordTurn(turn);
@@ -277,6 +279,19 @@ public class AutoRepair
         }
         catch (Exception e)
         {
+            if (turn == MY_TURN_FORCE_REPAIR)
+            {
+                // A failed force repair must not leave force_repair set, otherwise the node would force repair on
+                // every cycle. Do not record it as finished, as that would make the failed run look successful.
+                try
+                {
+                    AutoRepairUtils.resetForcedRepair(repairType, myId);
+                }
+                catch (Exception resetError)
+                {
+                    e.addSuppressed(resetError);
+                }
+            }
             logger.error("Exception in autorepair:", e);
         }
     }
