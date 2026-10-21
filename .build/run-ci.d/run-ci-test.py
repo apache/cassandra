@@ -1166,8 +1166,9 @@ class TestBuildAttachment(unittest.TestCase):
         mocks['wait_for_build_complete'].assert_called_once_with(self.server, 'cassandra-5.0', 42)
         mocks['download_results_and_print_summary'].assert_called_once()
         for name in ('trigger_jenkins_build', 'is_local_git_dirty', 'delete_remote_junit_files',
-                     'cleanup_and_maybe_teardown', 'threading.Thread'):
+                     'threading.Thread'):
             mocks[name].assert_not_called()
+        mocks['cleanup_and_maybe_teardown'].assert_called_once_with(None, None, 'default', False)
         self.assertEqual(self.args.attach, 42)
 
     def test_prompt_attachment_preserves_teardown_after_download(self):
