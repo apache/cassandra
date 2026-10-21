@@ -60,6 +60,7 @@ import org.apache.cassandra.db.Keyspace;
 import org.apache.cassandra.db.Mutation;
 import org.apache.cassandra.db.PartitionPosition;
 import org.apache.cassandra.db.SystemKeyspace;
+import org.apache.cassandra.db.commitlog.CommitLog;
 import org.apache.cassandra.dht.AbstractBounds;
 import org.apache.cassandra.dht.Bounds;
 import org.apache.cassandra.dht.Range;
@@ -951,7 +952,6 @@ public class MutationTrackingService implements MutationTrackingServiceMBean
             Preconditions.checkState(hostLogIdLoaded, "Host log id counter has not been loaded from system tables");
             int nextHostLogId = ++prevHostLogId;
             persistHostLogIdToSystemTable(nextHostLogId);
-            SystemKeyspace.forceBlockingFlush(SystemKeyspace.HOST_LOG_ID);
             return nextHostLogId;
         }
     }
@@ -1623,6 +1623,7 @@ public class MutationTrackingService implements MutationTrackingServiceMBean
     static void persistHostLogIdToSystemTable(int hostLogId)
     {
         executeInternal(INSERT_QUERY, HOST_LOG_ID_KEY, hostLogId);
+        CommitLog.instance.syncBlocking();
     }
 
     private static final String SELECT_QUERY =
@@ -1671,10 +1672,7 @@ public class MutationTrackingService implements MutationTrackingServiceMBean
             }
             prevHostLogId = Math.max(storedHostLogId, maxCoordinatorLogId);
             if (prevHostLogId > storedHostLogId)
-            {
                 persistHostLogIdToSystemTable(prevHostLogId);
-                SystemKeyspace.forceBlockingFlush(SystemKeyspace.HOST_LOG_ID);
-            }
             hostLogIdLoaded = true;
         }
     }
