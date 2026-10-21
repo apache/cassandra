@@ -57,42 +57,31 @@ public class StartupMessageTest extends EncodeAndDecodeTestBase<StartupMessage>
     @Test(expected = ProtocolException.class)
     public void testKeyTooLong()
     {
-        Map<String, String> options = new HashMap<>();
-        options.put("a".repeat(257), "value");
-        StartupMessage.validateOptions(options);
+        StartupMessage.validateOptions(Map.of("a".repeat(257), "value"));
     }
 
     @Test(expected = ProtocolException.class)
     public void testValueTooLong()
     {
-        Map<String, String> options = new HashMap<>();
-        options.put("KEY", "b".repeat(1025));
-        StartupMessage.validateOptions(options);
+        StartupMessage.validateOptions(Map.of("KEY", "b".repeat(1025)));
     }
 
     @Test(expected = ProtocolException.class)
     public void testControlCharacterInValue()
     {
-        Map<String, String> options = new HashMap<>();
-        options.put("KEY", "value\u0001withcontrol");
-        StartupMessage.validateOptions(options);
+        StartupMessage.validateOptions(Map.of("KEY", "value\u0001withcontrol"));
     }
 
     @Test(expected = ProtocolException.class)
     public void testNewlineRejectedInValue()
     {
-        Map<String, String> options = new HashMap<>();
-        options.put("KEY", "value\nwithnewline");
-        StartupMessage.validateOptions(options);
+        StartupMessage.validateOptions(Map.of("KEY", "value\nwithnewline"));
     }
 
     @Test
     public void testAllowedWhitespaceInValue()
     {
-        Map<String, String> options = new HashMap<>();
-        options.put(StartupMessage.CQL_VERSION, "3.0.0");
-        options.put("KEY", "value\twith\ttab");
-        StartupMessage.validateOptions(options);
+        StartupMessage.validateOptions(Map.of(StartupMessage.CQL_VERSION, "3.0.0", "KEY", "value\twith\ttab"));
     }
 
     @Test(expected = ProtocolException.class)
@@ -100,24 +89,33 @@ public class StartupMessageTest extends EncodeAndDecodeTestBase<StartupMessage>
     {
         Map<String, String> options = new HashMap<>();
         options.put(null, "value");
+        // Map.of() does not allow null keys, so we have to use a HashMap to test this case
         StartupMessage.validateOptions(options);
     }
 
     @Test
     public void testMultiByteUtf8Allowed()
     {
-        Map<String, String> options = new HashMap<>();
-        options.put(StartupMessage.CQL_VERSION, "3.0.0");
-        options.put("DRIVER_NAME", "🚀-Cassandra-Driver-é");
-        StartupMessage.validateOptions(options);
+        StartupMessage.validateOptions(Map.of(StartupMessage.CQL_VERSION, "3.0.0", "DRIVER_NAME", "🚀-Cassandra-Driver-é"));
     }
 
     @Test(expected = ProtocolException.class)
     public void testBidiOverrideFormatCharRejected()
     {
-        Map<String, String> options = new HashMap<>();
         // U+202E is a bidirectional text override formatting character (Right-to-Left Override)
-        options.put("KEY", "value\u202Espoofed");
+        StartupMessage.validateOptions(Map.of("KEY", "value\u202Espoofed"));
+    }
+
+    @Test
+    public void testExactBoundariesAllowed()
+    {
+        Map<String, String> options = new HashMap<>();
+        for (int i = 0; i < 63; i++)
+        {
+            options.put("KEY_" + i, "val");
+        }
+        options.put("a".repeat(256), "b".repeat(1024));
+
         StartupMessage.validateOptions(options);
     }
 

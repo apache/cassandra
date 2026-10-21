@@ -25,6 +25,8 @@ import java.util.Optional;
 import com.google.common.base.Joiner;
 import com.google.common.collect.ImmutableMap;
 
+import org.apache.commons.lang3.StringUtils;
+
 import org.apache.cassandra.auth.AuthenticatedUser;
 import org.apache.cassandra.auth.IAuthenticator;
 import org.apache.cassandra.service.ClientState;
@@ -48,6 +50,9 @@ public final class ConnectedClient
     public static final String PROTOCOL = "protocol";
     public static final String AUTHENTICATION_MODE = "authenticationMode";
     public static final String AUTHENTICATION_METADATA = "authenticationMetadata";
+
+    private static final String[] SEARCH  = { "\\",   ",",   "="   };
+    private static final String[] REPLACE = { "\\\\", "\\,", "\\=" };
 
     private static final String UNDEFINED = "undefined";
 
@@ -205,11 +210,6 @@ public final class ConnectedClient
      */
     static String escapeOptionString(String str)
     {
-        if (str == null)
-            return "";
-        // Escape backslashes first to prevent ambiguity, then commas and equals
-        return str.replace("\\", "\\\\")
-                  .replace(",", "\\,")
-                  .replace("=", "\\=");
+        return StringUtils.replaceEach(str, SEARCH, REPLACE);
     }
 }

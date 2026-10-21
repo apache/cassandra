@@ -23,6 +23,9 @@ import java.util.Map;
 
 import com.google.common.annotations.VisibleForTesting;
 
+import org.apache.commons.lang3.StringEscapeUtils;
+import org.apache.commons.lang3.StringUtils;
+
 import org.apache.cassandra.auth.IAuthenticator;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.db.guardrails.Guardrails;
@@ -200,30 +203,36 @@ public class StartupMessage extends Message.Request
             return;
         }
 
-        int maxLength = isKey ? MAX_OPTION_KEY_LENGTH : MAX_OPTION_VALUE_LENGTH;
-        byte[] utf8Bytes = str.getBytes(StandardCharsets.UTF_8);
-        if (utf8Bytes.length > maxLength)
-        {
-            String target = isKey ? String.format("key '%s'", str.length() > 20 ? str.substring(0, 20) + "..." : str)
-                                  : "value";
-            throw new ProtocolException(String.format("Startup option %s exceeds maximum byte length: %d (maximum allowed is %d)",
-                                                      target, utf8Bytes.length, maxLength));
-        }
         for (int i = 0; i < str.length(); )
         {
             int cp = str.codePointAt(i);
             char c = (char) cp;
+
             if (c == '\n' || c == '\r')
                 throw new ProtocolException(String.format("Startup option %s contains a newline character at index %d", isKey ? "key" : "value", i));
+
             if ((Character.isISOControl(cp) && cp != '\t') ||
-                Character.getType(cp) == Character.FORMAT ||
                 Character.getType(cp) == Character.SURROGATE ||
+                Character.getType(cp) == Character.FORMAT ||
                 Character.getType(cp) == Character.LINE_SEPARATOR ||
                 Character.getType(cp) == Character.PARAGRAPH_SEPARATOR)
             {
                 throw new ProtocolException(String.format("Startup option %s contains a forbidden control or formatting character at index %d", isKey ? "key" : "value", i));
             }
             i += Character.charCount(cp);
+        }
+
+        // 2. Check length AFTER character scan is complete
+        int maxLength = isKey ? MAX_OPTION_KEY_LENGTH : MAX_OPTION_VALUE_LENGTH;
+        byte[] utf8Bytes = str.getBytes(StandardCharsets.UTF_8);
+        if (utf8Bytes.length > maxLength)
+        {
+            String target = isKey
+                            ? String.format("key '%s'", StringEscapeUtils.escapeJava(StringUtils.abbreviate(str, 23)))
+                            : "value";
+
+            throw new ProtocolException(String.format("Startup option %s exceeds maximum byte length: %d (maximum allowed is %d)",
+                                                      target, utf8Bytes.length, maxLength));
         }
     }
 
