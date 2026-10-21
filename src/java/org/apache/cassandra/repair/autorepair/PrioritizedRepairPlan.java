@@ -28,6 +28,8 @@ import java.util.TreeSet;
 import java.util.function.Consumer;
 
 import org.apache.cassandra.db.ColumnFamilyStore;
+import org.apache.cassandra.dht.Range;
+import org.apache.cassandra.dht.Token;
 
 /**
  * Encapsulates a devised plan to repair tables, grouped by their keyspace and a given priority.  This is used
@@ -110,6 +112,7 @@ public class PrioritizedRepairPlan
 
         // Extract map into a List<PrioritizedRepairPlan> ordered by priority from highest to lowest.
         List<PrioritizedRepairPlan> planList = new ArrayList<>(plans.size());
+        Map<String, List<Range<Token>>> rangesByKeyspace = new HashMap<>();
         TreeSet<Integer> priorities = new TreeSet<>(Comparator.reverseOrder());
         priorities.addAll(plans.keySet());
         for (int priority : priorities)
@@ -127,9 +130,10 @@ public class PrioritizedRepairPlan
             {
                 List<String> tableNames = keyspacesAndTables.get(keyspaceName);
                 orderFunc.accept(tableNames);
+                List<Range<Token>> tokenRanges = rangesByKeyspace.computeIfAbsent(keyspaceName, ks -> AutoRepairUtils.getTokenRanges(primaryRangeOnly, ks));
                 KeyspaceRepairPlan keyspaceRepairPlan =
-                new KeyspaceRepairPlan(keyspaceName, new ArrayList<>(tableNames),
-                                       AutoRepairUtils.calcTotalBytesToBeRepaired(repairType, keyspaceName, tableNames, AutoRepairUtils.getTokenRanges(primaryRangeOnly, keyspaceName)));
+                new KeyspaceRepairPlan(keyspaceName, tableNames, tokenRanges,
+                                       AutoRepairUtils.calcTotalBytesToBeRepaired(repairType, keyspaceName, tableNames, tokenRanges));
                 keyspaceRepairPlans.add(keyspaceRepairPlan);
             }
         }

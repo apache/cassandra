@@ -18,8 +18,11 @@
 
 package org.apache.cassandra.repair.autorepair;
 
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
+import java.util.Collections;
+import java.util.List;
 import java.util.UUID;
 
 import com.google.common.collect.ImmutableList;
@@ -30,8 +33,12 @@ import org.junit.Test;
 import org.junit.runner.RunWith;
 import org.junit.runners.Parameterized;
 
+import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.config.DurationSpec;
 import org.apache.cassandra.cql3.CQLTester;
+import org.apache.cassandra.db.ColumnFamilyStore;
+import org.apache.cassandra.dht.Range;
+import org.apache.cassandra.dht.Token;
 import org.apache.cassandra.repair.autorepair.AutoRepairConfig.RepairType;
 import org.apache.cassandra.repair.autorepair.AutoRepairUtils.AutoRepairHistory;
 import org.apache.cassandra.service.AutoRepairService;
@@ -76,6 +83,173 @@ public class AutoRepairStateTest extends CQLTester
         Runnable runnable = state.getRepairRunnable(KEYSPACE, ImmutableList.of(testTable), ImmutableSet.of(), false);
 
         assertNotNull(runnable);
+    }
+
+    @Test
+    public void testTotalBytesIncludesMemtableOnlyRepairAssignment()
+    {
+        assertMemtableEstimateIsStable(1, () -> {});
+    }
+
+    @Test
+    public void testMemtableEstimateSurvivesFlush()
+    {
+        assertMemtableEstimateIsStable(1, () -> ColumnFamilyStore.getIfExists(KEYSPACE, testTable)
+                                                                                .forceBlockingFlush(ColumnFamilyStore.FlushReason.UNIT_TESTS));
+    }
+
+    @Test
+    public void testMemtableEstimateSurvivesWrites()
+    {
+        assertMemtableEstimateIsStable(1, () -> execute(String.format("INSERT INTO %s.%s (pk, v) VALUES (2, 2)", KEYSPACE, testTable)));
+    }
+
+    @Test
+    public void testMemtableEstimateIsSharedAcrossRanges()
+    {
+        assertMemtableEstimateIsStable(3, () -> {});
+    }
+
+    @Test
+    public void testMemtableEstimateWithMoreRangesThanBytes()
+    {
+        assertMemtableEstimateIsStable(256, () -> {});
+    }
+
+    private void assertMemtableEstimateIsStable(int numberOfRanges, Runnable afterStatistics)
+    {
+        execute(String.format("INSERT INTO %s.%s (pk, v) VALUES (1, 1)", KEYSPACE, testTable));
+        long memtableBytes = ColumnFamilyStore.getIfExists(KEYSPACE, testTable).getTracker().getView().getCurrentMemtable().getLiveDataSize();
+        assertTrue(memtableBytes > 0);
+
+        Range<Token> range = new Range<>(DatabaseDescriptor.getPartitioner().getMinimumToken(),
+                                         DatabaseDescriptor.getPartitioner().getMaximumTokenForSplitting());
+        List<Range<Token>> ranges = new ArrayList<>(AutoRepairUtils.split(range, numberOfRanges));
+        KeyspaceRepairPlan plan = new KeyspaceRepairPlan(KEYSPACE, ImmutableList.of(testTable), ranges,
+                                                        AutoRepairUtils.calcTotalBytesToBeRepaired(repairType, KEYSPACE,
+                                                                                                   ImmutableList.of(testTable), ranges));
+        for (Range<Token> tokenRange : ranges)
+            assertEquals(0, plan.getSizeEstimate(AutoRepairUtils.getKeyspaceTableName(KEYSPACE, testTable), tokenRange).sizeForRepair);
+
+        AutoRepairState state = RepairType.getAutoRepairState(repairType, new AutoRepairConfig());
+        state.updateRepairScheduleStatistics(ImmutableList.of(new PrioritizedRepairPlan(0, ImmutableList.of(plan))));
+        afterStatistics.run();
+
+        RepairTokenRangeSplitter splitter = new RepairTokenRangeSplitter(repairType, Collections.emptyMap());
+        long assignmentBytes = 0;
+        for (Range<Token> tokenRange : ranges)
+        {
+            Collection<RepairTokenRangeSplitter.SizedRepairAssignment> assignments = splitter.getRepairAssignmentsForTable(plan, testTable, tokenRange);
+            assertEquals(1, assignments.size());
+            assignmentBytes += assignments.iterator().next().getEstimatedBytes();
+        }
+        assertEquals(state.getTotalBytesToRepair(), assignmentBytes);
+        assertEquals(memtableBytes, state.getTotalBytesToRepair());
+        assertEquals(memtableBytes, plan.getTableEstimatedBytes(AutoRepairUtils.getKeyspaceTableName(KEYSPACE, testTable)));
+    }
+
+    @Test
+    public void testFixedSplitMemtableAssignmentsMatchTotalBytes()
+    {
+        assertFixedSplitAssignmentsMatchTotalBytes(true, false);
+    }
+
+    @Test
+    public void testFixedSplitMemtableEstimateSurvivesFlush()
+    {
+        assertFixedSplitAssignmentsMatchTotalBytes(true, true);
+    }
+
+    @Test
+    public void testFixedSplitEmptyTableAssignmentsHaveZeroBytes()
+    {
+        assertFixedSplitAssignmentsMatchTotalBytes(false, false);
+    }
+
+    private void assertFixedSplitAssignmentsMatchTotalBytes(boolean withData, boolean flush)
+    {
+        AutoRepairService.setup();
+        String secondTable = createTable("CREATE TABLE %s (pk int PRIMARY KEY, v int)");
+        List<String> tables = ImmutableList.of(testTable, secondTable);
+        if (withData)
+        {
+            execute(String.format("INSERT INTO %s.%s (pk, v) VALUES (1, 1)", KEYSPACE, testTable));
+            execute(String.format("INSERT INTO %s.%s (pk, v) VALUES (1, 1)", KEYSPACE, secondTable));
+            execute(String.format("INSERT INTO %s.%s (pk, v) VALUES (2, 2)", KEYSPACE, secondTable));
+        }
+        long memtableBytes = tables.stream().mapToLong(table -> ColumnFamilyStore.getIfExists(KEYSPACE, table)
+                                                                               .getTracker().getView().getCurrentMemtable().getLiveDataSize()).sum();
+        List<Range<Token>> ranges = AutoRepairUtils.getTokenRanges(true, KEYSPACE);
+        assertTrue(ranges.size() > 1);
+        KeyspaceRepairPlan plan = new KeyspaceRepairPlan(KEYSPACE, tables, ranges,
+                                                        AutoRepairUtils.calcTotalBytesToBeRepaired(repairType, KEYSPACE, tables, ranges));
+        List<PrioritizedRepairPlan> plans = ImmutableList.of(new PrioritizedRepairPlan(0, ImmutableList.of(plan)));
+        AutoRepairConfig config = AutoRepairService.instance.getAutoRepairConfig();
+        AutoRepairState state = RepairType.getAutoRepairState(repairType, config);
+        state.updateRepairScheduleStatistics(plans);
+
+        if (flush)
+        {
+            for (String table : tables)
+                ColumnFamilyStore.getIfExists(KEYSPACE, table).forceBlockingFlush(ColumnFamilyStore.FlushReason.UNIT_TESTS);
+        }
+
+        boolean previousByKeyspace = config.getRepairByKeyspace(repairType);
+        try
+        {
+            for (boolean byKeyspace : new boolean[]{ false, true })
+            {
+                config.setRepairByKeyspace(repairType, byKeyspace);
+                for (int subranges : new int[]{ 1, 4, 256 })
+                {
+                    FixedSplitTokenRangeSplitter splitter = new FixedSplitTokenRangeSplitter(repairType,
+                                                                                             Collections.singletonMap(FixedSplitTokenRangeSplitter.NUMBER_OF_SUBRANGES,
+                                                                                                                      Integer.toString(subranges)));
+                    List<RepairAssignment> assignments = splitter.getRepairAssignments(true, plans).next().getRepairAssignments();
+                    assertEquals(ranges.size() * Math.max(1, subranges / ranges.size()) * (byKeyspace ? 1 : tables.size()), assignments.size());
+                    assertEquals(state.getTotalBytesToRepair(), assignments.stream().mapToLong(RepairAssignment::getEstimatedBytes).sum());
+                    assertTrue(assignments.stream().allMatch(assignment -> assignment.getEstimatedBytes() >= 0));
+                    if (!byKeyspace)
+                    {
+                        for (String table : tables)
+                            assertEquals(plan.getTableEstimatedBytes(AutoRepairUtils.getKeyspaceTableName(KEYSPACE, table)),
+                                         assignments.stream().filter(assignment -> assignment.getTableNames().contains(table))
+                                                    .mapToLong(RepairAssignment::getEstimatedBytes).sum());
+                    }
+                }
+            }
+        }
+        finally
+        {
+            config.setRepairByKeyspace(repairType, previousByKeyspace);
+        }
+        assertEquals(memtableBytes, state.getTotalBytesToRepair());
+        assertEquals(memtableBytes, plan.getEstimatedBytes());
+    }
+
+    @Test
+    public void testTotalBytesDoesNotAddMemtableToSSTableEstimate()
+    {
+        execute(String.format("INSERT INTO %s.%s (pk, v) VALUES (1, 1)", KEYSPACE, testTable));
+        ColumnFamilyStore.getIfExists(KEYSPACE, testTable).forceBlockingFlush(ColumnFamilyStore.FlushReason.UNIT_TESTS);
+        execute(String.format("INSERT INTO %s.%s (pk, v) VALUES (2, 2)", KEYSPACE, testTable));
+
+        Range<Token> range = new Range<>(DatabaseDescriptor.getPartitioner().getMinimumToken(),
+                                         DatabaseDescriptor.getPartitioner().getMaximumTokenForSplitting());
+        String keyspaceTableName = AutoRepairUtils.getKeyspaceTableName(KEYSPACE, testTable);
+        AutoRepairUtils.SizeEstimate estimate = AutoRepairUtils.getRangeSizeEstimate(repairType, KEYSPACE, testTable, range);
+        assertTrue(estimate.sizeForRepair > 0);
+        assertTrue(estimate.memtableSize > 0);
+        KeyspaceRepairPlan plan = new KeyspaceRepairPlan(KEYSPACE, ImmutableList.of(testTable), Collections.singletonList(range),
+                                                        Collections.singletonMap(keyspaceTableName, Collections.singletonMap(range, estimate)));
+        AutoRepairState state = RepairType.getAutoRepairState(repairType, new AutoRepairConfig());
+        state.updateRepairScheduleStatistics(ImmutableList.of(new PrioritizedRepairPlan(0, ImmutableList.of(plan))));
+
+        assertEquals(estimate.sizeForRepair, plan.getTableEstimatedBytes(keyspaceTableName));
+        assertEquals(estimate.sizeForRepair, state.getTotalBytesToRepair());
+        RepairTokenRangeSplitter splitter = new RepairTokenRangeSplitter(repairType, Collections.emptyMap());
+        assertEquals(estimate.sizeForRepair, splitter.getRepairAssignmentsForTable(plan, testTable, range)
+                                                    .stream().mapToLong(RepairAssignment::getEstimatedBytes).sum());
     }
 
     @Test

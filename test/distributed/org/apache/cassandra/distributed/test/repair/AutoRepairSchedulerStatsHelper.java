@@ -96,7 +96,7 @@ public class AutoRepairSchedulerStatsHelper extends TestBaseImpl
                                                                     // Set min_repair_interval to a higher number to
                                                                     // run only one round of AutoRepair
                                                                     "min_repair_interval", "48h"))))
-                                               .set("auto_repair.enabled", "true")
+                                               .set("auto_repair.enabled", "false")
                                                .set("auto_repair.global_settings.repair_retry_backoff", "5s")
                                                .set("auto_repair.repair_task_min_duration", "0s")
                                                .set("auto_repair.repair_check_interval", "5s"))
@@ -130,7 +130,9 @@ public class AutoRepairSchedulerStatsHelper extends TestBaseImpl
             try
             {
                 AutoRepairService.setup();
-                AutoRepair.instance.setup();
+                AutoRepair.SLEEP_IF_REPAIR_FINISHES_QUICKLY = new DurationSpec.IntSecondsBound("2s");
+                // Start only after system tables are excluded and test data has been flushed.
+                AutoRepairService.instance.startScheduler();
             }
             catch (Exception e)
             {
@@ -139,8 +141,6 @@ public class AutoRepairSchedulerStatsHelper extends TestBaseImpl
         });
 
         cluster.forEach(i -> i.runOnInstance(() -> {
-            AutoRepair.SLEEP_IF_REPAIR_FINISHES_QUICKLY = new DurationSpec.IntSecondsBound("2s");
-
             AutoRepairMetrics fullMetrics = AutoRepairMetricsManager.getMetrics(AutoRepairConfig.RepairType.FULL);
             // Since the AutoRepair sleeps up to SLEEP_IF_REPAIR_FINISHES_QUICKLY if the repair finishes quickly,
             // so the "nodeRepairTimeInSec" metric should at least be greater than or equal to
