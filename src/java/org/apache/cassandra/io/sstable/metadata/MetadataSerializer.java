@@ -36,6 +36,7 @@ import org.apache.cassandra.io.sstable.Component;
 import org.apache.cassandra.io.sstable.CorruptSSTableException;
 import org.apache.cassandra.io.sstable.Descriptor;
 import org.apache.cassandra.io.sstable.format.Version;
+import org.apache.cassandra.utils.SyncUtil;
 import org.apache.cassandra.utils.TimeUUID;
 
 import static org.apache.cassandra.utils.FBUtilities.updateChecksumInt;
@@ -258,10 +259,11 @@ public class MetadataSerializer implements IMetadataSerializer
     public void rewriteSSTableMetadata(Descriptor descriptor, Map<MetadataType, MetadataComponent> currentComponents) throws IOException
     {
         String filePath = descriptor.tmpFilenameFor(Component.STATS);
-        try (DataOutputStreamPlus out = new FileOutputStreamPlus(filePath))
+        try (FileOutputStreamPlus out = new FileOutputStreamPlus(filePath))
         {
             serialize(currentComponents, out, descriptor.version);
             out.flush();
+            out.sync();
         }
         catch (IOException e)
         {
@@ -269,5 +271,6 @@ public class MetadataSerializer implements IMetadataSerializer
             throw new FSWriteError(e, filePath);
         }
         FileUtils.renameWithConfirm(filePath, descriptor.filenameFor(Component.STATS));
+        SyncUtil.trySyncDir(descriptor.directory);
     }
 }
