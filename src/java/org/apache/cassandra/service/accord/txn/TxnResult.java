@@ -22,6 +22,8 @@ import accord.api.Result;
 
 public interface TxnResult extends Result
 {
+    PersistableResult PERSISTABLE = new PersistableResult(){};
+
     enum Kind
     {
         txn_data(0),
@@ -38,6 +40,9 @@ public interface TxnResult extends Result
     }
 
     Kind kind();
-
-    long estimatedSizeOnHeap();
+    default PersistableResult toPersistable()
+    {
+        // TODO (required): should we persist the Kind?
+        return PERSISTABLE;
+    }
 }

@@ -62,7 +62,7 @@ public class TableMetricTest extends TestBaseImpl
         ORG_APACHE_CASSANDRA_DISABLE_MBEAN_REGISTRATION.setBoolean(false);
     }
     private static volatile Map<String, Collection<String>> SYSTEM_TABLES = null;
-    private static Set<String> TABLE_METRIC_NAMES = ImmutableSet.of("WriteLatency");
+    private static Set<String> TABLE_METRIC_NAMES = ImmutableSet.of("WriteLatency", "RowsMutatedPerWriteHistogram");
 
     /**
      * Makes sure that all system tables have the expected metrics

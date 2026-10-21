@@ -110,7 +110,7 @@ public class AutoSavingCache<K extends CacheKey, V> extends InstrumentingCache<K
     {
         private final SequentialWriterOption writerOption = SequentialWriterOption.newBuilder()
                                                                     .trickleFsync(DatabaseDescriptor.getTrickleFsync())
-                                                                    .trickleFsyncByteInterval(DatabaseDescriptor.getTrickleFsyncIntervalInKiB() * 1024)
+                                                                    .trickleFsyncByteInterval(DatabaseDescriptor.getTrickleFsyncIntervalInBytes())
                                                                     .finishOnClose(true).build();
 
         public DataInputStreamPlus getInputStream(File dataPath, File crcPath) throws IOException
@@ -330,6 +330,7 @@ public class AutoSavingCache<K extends CacheKey, V> extends InstrumentingCache<K
                                                   type,
                                                   0,
                                                   keysEstimate,
+                                                  keysEstimate,
                                                   Unit.KEYS,
                                                   nextTimeUUID(),
                                                   getCacheDataPath(CURRENT_VERSION).toPath().toString());
@@ -344,7 +345,8 @@ public class AutoSavingCache<K extends CacheKey, V> extends InstrumentingCache<K
         {
             // keyset can change in size, thus total can too
             // TODO need to check for this one... was: info.forProgress(keysWritten, Math.max(keysWritten, keys.size()));
-            return info.forProgress(keysWritten, Math.max(keysWritten, keysEstimate));
+            long totalKeys = Math.max(keysWritten, keysEstimate);
+            return info.forProgress(keysWritten, totalKeys, totalKeys);
         }
 
         public void saveCache()

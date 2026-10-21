@@ -25,8 +25,6 @@ import java.util.function.BiConsumer;
 
 import javax.annotation.Nullable;
 
-import com.google.common.annotations.VisibleForTesting;
-
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -35,21 +33,24 @@ import accord.api.CoordinatorEventListener;
 import accord.api.OwnershipEventListener;
 import accord.api.ProgressLog.BlockedUntil;
 import accord.api.ReplicaEventListener;
+import accord.api.Result;
 import accord.api.RoutingKey;
 import accord.api.Tracing;
 import accord.coordinate.Coordination;
-import accord.coordinate.Timeout;
+import accord.coordinate.CoordinationFailed;
 import accord.local.Command;
+import accord.local.CommandStore;
+import accord.local.LogFaultException;
 import accord.local.Node;
 import accord.local.SafeCommand;
 import accord.local.SafeCommandStore;
 import accord.local.TimeService;
-import accord.messages.ReplyContext;
+import accord.messages.MessageType;
+import accord.primitives.Ballot;
 import accord.primitives.Keys;
 import accord.primitives.Participants;
 import accord.primitives.Ranges;
 import accord.primitives.Routable;
-import accord.primitives.Status;
 import accord.primitives.Timestamp;
 import accord.primitives.Txn;
 import accord.primitives.Txn.Kind;
@@ -59,27 +60,31 @@ import accord.topology.Topologies;
 import accord.utils.DefaultRandom;
 import accord.utils.Invariants;
 import accord.utils.RandomSource;
+import accord.utils.SortedArrays.SortedArrayList;
 import accord.utils.SortedList;
 import accord.utils.UnhandledEnum;
 import accord.utils.async.AsyncChain;
 import accord.utils.async.AsyncChains;
 import accord.utils.async.Cancellable;
 
+import org.apache.cassandra.config.AccordConfig;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.db.SystemKeyspace;
 import org.apache.cassandra.exceptions.RequestTimeoutException;
 import org.apache.cassandra.metrics.AccordReplicaMetrics;
 import org.apache.cassandra.metrics.AccordSystemMetrics;
-import org.apache.cassandra.net.ResponseContext;
 import org.apache.cassandra.service.RetryStrategy;
 import org.apache.cassandra.service.accord.AccordService;
-import org.apache.cassandra.service.accord.AccordTracing;
+import org.apache.cassandra.service.accord.debug.AccordTracing;
+import org.apache.cassandra.service.accord.execution.InconsistentEntryException;
 import org.apache.cassandra.service.accord.serializers.TableMetadatasAndKeys;
 import org.apache.cassandra.service.accord.txn.TxnQuery;
 import org.apache.cassandra.service.accord.txn.TxnRead;
+import org.apache.cassandra.service.accord.txn.TxnResult;
 import org.apache.cassandra.utils.Clock;
 import org.apache.cassandra.utils.JVMStabilityInspector;
 import org.apache.cassandra.utils.NoSpamLogger;
+import org.apache.cassandra.utils.NoSpamLogger.NoDuplicateSpamLogStatement;
 
 import static accord.primitives.Routable.Domain.Key;
 import static accord.utils.SortedArrays.SortedArrayList.ofSorted;
@@ -91,8 +96,11 @@ import static java.util.concurrent.TimeUnit.SECONDS;
 import static org.apache.cassandra.config.DatabaseDescriptor.getAccordScheduleDurabilityTxnIdLag;
 import static org.apache.cassandra.config.DatabaseDescriptor.getReadRpcTimeout;
 import static org.apache.cassandra.service.accord.api.AccordWaitStrategies.expireEpochWait;
+import static org.apache.cassandra.service.accord.api.AccordWaitStrategies.expireSyncPoint;
+import static org.apache.cassandra.service.accord.api.AccordWaitStrategies.expireTxn;
 import static org.apache.cassandra.service.accord.api.AccordWaitStrategies.fetch;
 import static org.apache.cassandra.service.accord.api.AccordWaitStrategies.recover;
+import static org.apache.cassandra.service.accord.api.AccordWaitStrategies.retryBackgroundSyncPoint;
 import static org.apache.cassandra.service.accord.api.AccordWaitStrategies.retryBootstrap;
 import static org.apache.cassandra.service.accord.api.AccordWaitStrategies.retryDurability;
 import static org.apache.cassandra.service.accord.api.AccordWaitStrategies.retryFetchTopology;
@@ -100,13 +108,15 @@ import static org.apache.cassandra.service.accord.api.AccordWaitStrategies.retry
 import static org.apache.cassandra.service.accord.api.AccordWaitStrategies.retrySyncPoint;
 import static org.apache.cassandra.service.accord.api.AccordWaitStrategies.slowRead;
 import static org.apache.cassandra.service.accord.api.AccordWaitStrategies.slowTxnPreaccept;
-import static org.apache.cassandra.utils.Clock.Global.nanoTime;
+import static org.apache.cassandra.service.accord.txn.TxnResult.Kind.txn_data;
 
 // TODO (expected): merge with AccordService
 public class AccordAgent implements Agent, OwnershipEventListener
 {
     private static final Logger logger = LoggerFactory.getLogger(AccordAgent.class);
     private static final NoSpamLogger noSpamLogger = NoSpamLogger.getLogger(logger, 1L, MINUTES);
+    // TODO (desired): track how many of each kind of message was discarded and report once per interval
+    private static final NoDuplicateSpamLogStatement noSpamException = new NoDuplicateSpamLogStatement(logger, "", 1L, MINUTES);
     private static final ReplicaEventListener replicaEventListener = new AccordReplicaMetrics.Listener();
 
     private static BiConsumer<TxnId, Throwable> onFailedBarrier;
@@ -120,6 +130,7 @@ public class AccordAgent implements Agent, OwnershipEventListener
     private final AccordTracing tracing = new AccordTracing();
     private final RandomSource random = new DefaultRandom();
     protected Node.Id self;
+    protected AccordConfig config;
 
     public AccordAgent()
     {
@@ -142,9 +153,16 @@ public class AccordAgent implements Agent, OwnershipEventListener
         return this;
     }
 
-    public void setNodeId(Node.Id id)
+    public void setup(Node.Id id)
     {
         self = id;
+        config = DatabaseDescriptor.getAccord();
+    }
+
+    @Override
+    public void onSuccessfulBootstrap(CommandStore commandStore, int attempt, long epoch, Ranges ranges)
+    {
+        logger.info("{}: Completed bootstrap of {} on epoch {}", commandStore, ranges, epoch);
     }
 
     @Override
@@ -185,7 +203,7 @@ public class AccordAgent implements Agent, OwnershipEventListener
         else
         {
             logger.error(message, phase, ranges, ". Retrying in " + retryDelayMicros + "us.", failure);
-            AccordService.instance().scheduler().once(() -> {
+            AccordService.unsafeInstance().scheduler().once(() -> {
                 logger.info("Retrying bootstrap of {}", ranges);
                 retry.run();
             }, retryDelayMicros, MICROSECONDS);
@@ -204,9 +222,18 @@ public class AccordAgent implements Agent, OwnershipEventListener
             return;
 
         AccordSystemMetrics.metrics.errors.inc();
-        if (t instanceof CancellationException || t instanceof TimeoutException || t instanceof Timeout)
-            return;
-        JVMStabilityInspector.uncaughtException(Thread.currentThread(), t);
+        if (expectedException(t))
+            noSpamException.warn(t);
+        else
+            JVMStabilityInspector.uncaughtException(Thread.currentThread(), t);
+    }
+
+    public static boolean expectedException(Throwable t)
+    {
+        if (t instanceof CancellationException)
+            return t.getCause() == null;
+        return t instanceof TimeoutException || t instanceof LogFaultException || t instanceof CoordinationFailed
+               || t instanceof InconsistentEntryException;
     }
 
     @Override
@@ -240,27 +267,39 @@ public class AccordAgent implements Agent, OwnershipEventListener
     @Override
     public long cfkHlcPruneDelta()
     {
-        return SECONDS.toMicros(10L);
+        return cfkHlcPruneDelta(config);
+    }
+
+    public static long cfkHlcPruneDelta(AccordConfig config)
+    {
+        return config.commands_for_key_prune_delta.to(MICROSECONDS);
     }
 
     @Override
     public int cfkPruneInterval()
     {
-        return 32;
+        return config.commands_for_key_prune_interval;
     }
 
-    // TODO (expected): we probably want additional configuration here
     @Override
     public long maxConflictsHlcPruneDelta()
     {
-        return SECONDS.toMicros(1);
+        return config.max_conflicts_prune_delta.to(MICROSECONDS);
     }
 
-    // TODO (expected): I don't think we even need this - just prune each time we have doubled in size
     @Override
-    public long maxConflictsPruneInterval()
+    public boolean softReject(long unappliedCount, long maxUnappliedAge, long cumulativeUnappliedAge)
     {
-        return 1024;
+        return unappliedCount > config.min_soft_reject_count
+               && (unappliedCount > config.max_soft_reject_count
+                || maxUnappliedAge > config.soft_reject_age.toMicroseconds()
+                || cumulativeUnappliedAge > config.soft_reject_cumulative_age.toMicroseconds());
+    }
+
+    @Override
+    public boolean hardReject(int softRejectCount, int totalCount)
+    {
+        return (softRejectCount / (float) totalCount) >= config.hard_reject_ratio;
     }
 
     /**
@@ -291,15 +330,12 @@ public class AccordAgent implements Agent, OwnershipEventListener
     @Override
     public long slowCoordinatorDelay(Node node, SafeCommandStore safeStore, TxnId txnId, TimeUnit units, int attempt)
     {
-        SafeCommand safeCommand = safeStore.unsafeGetNoCleanup(txnId);
-        Invariants.nonNull(safeCommand);
-
-        Command command = safeCommand.current();
-        Invariants.nonNull(command);
+        Command command = command(safeStore, txnId, "slowCoordinatorDelay");
+        Ballot promised = promised(command);
 
         // TODO (expected): make this a configurable calculation on normal request latencies (like ContentionStrategy)
         long nowMicros = MILLISECONDS.toMicros(Clock.Global.currentTimeMillis());
-        long mostRecentStart = mostRecentStart(command, nowMicros);
+        long mostRecentStart = mostRecentStart(txnId, promised, nowMicros);
         long waitMicros = recover(txnId).computeWait(attempt, MICROSECONDS);
         long startTime = mostRecentStart + waitMicros;
         if (startTime < nowMicros)
@@ -311,24 +347,33 @@ public class AccordAgent implements Agent, OwnershipEventListener
             startTime = nowMicros + waitMicros/2;
         }
 
-        RoutingKey homeKey = command.route().homeKey();
-        Shard shard = node.topology().active().forEpochIfKnown(homeKey, command.txnId().epoch());
+        SortedArrayList<Node.Id> replicas = null;
+        if (command != null)
+        {
+            RoutingKey homeKey = command.homeKey();
+            if (homeKey != null)
+            {
+                Shard shard = node.topology().active().forEpochIfKnown(homeKey, txnId.epoch());
+                if (shard != null)
+                    replicas = shard.nodes;
+            }
+        }
 
-        startTime = nonClashingStartTime(startTime, shard == null ? null : shard.nodes, node.id(), ONE_SECOND, random);
+        startTime = nonClashingStartTime(startTime, replicas, node.id(), coordinatorExclusiveTimeSlice(), random);
         long delayMicros = Math.max(1, startTime - nowMicros);
-        Invariants.require(delayMicros < TimeUnit.HOURS.toMicros(1L), "unexpectedly long coordination recovery delay proposed: %d (start %d, now %d)", delayMicros, startTime, nowMicros, command.txnId(), command.promised());
+        Invariants.require(delayMicros < TimeUnit.HOURS.toMicros(1L), "unexpectedly long coordination recovery delay proposed: %d (start %d, now %d)", delayMicros, startTime, nowMicros, txnId, promised);
         return units.convert(delayMicros, MICROSECONDS);
     }
 
-    private static long mostRecentStart(Command command, long nowMicros)
+    private static long mostRecentStart(TxnId txnId, Ballot promised, long nowMicros)
     {
         // TODO (expected): make this a configurable calculation on normal request latencies (like ContentionStrategy)
-        long promisedHlc = command.promised().hlc();
+        long promisedHlc = promised.hlc();
         if (promisedHlc > nowMicros + ONE_MINUTE)
             promisedHlc = 0;
-        long result = Math.max(command.txnId().hlc(), promisedHlc);
+        long result = Math.max(txnId.hlc(), promisedHlc);
         if (result > nowMicros + ONE_SECOND)
-            noSpamLogger.warn("max({},{})>{}", command.txnId(), command.promised(), nowMicros);
+            noSpamLogger.warn("max({},{})>{}", txnId, promised, nowMicros);
         return result;
     }
 
@@ -339,35 +384,57 @@ public class AccordAgent implements Agent, OwnershipEventListener
         return elapsed >= maxWait;
     }
 
-    @VisibleForTesting
-    public static long nonClashingStartTime(long startTime, SortedList<Node.Id> nodes, Node.Id id, long granularity, RandomSource random)
+    public static long nonClashingStartTime(long startTime, @Nullable SortedList<Node.Id> nodes, Node.Id id, long timeSlicePerNode, RandomSource random)
     {
-        long perSecondStartTime;
-        if (nodes != null)
+        int replicaIndex = nodes == null ? -1 : nodes.indexOf(id);
+        if (replicaIndex < 0) // we've raced with topology update, this should be rare so just use a completely random start time
+            return startTime + random.nextLong(timeSlicePerNode * (nodes == null ? 10 : nodes.size()));
+
+        return nonClashingStartTime(startTime, replicaIndex, nodes.size(), timeSlicePerNode);
+    }
+
+    public static long nonClashingStartTime(long startTime, int replicaIndex, int replicaCount, long timeSlicePerNode)
+    {
+        Invariants.require(replicaIndex >= 0 && replicaIndex < replicaCount);
+        long window = replicaCount * timeSlicePerNode;
+        long offsetWithinWindow = replicaIndex * timeSlicePerNode;
+        long remainder = startTime % window;
+        long newStartTime = startTime - remainder + offsetWithinWindow;
+        if (newStartTime < startTime)
+            newStartTime += window;
+        return newStartTime;
+    }
+
+    private static Ballot promised(@Nullable Command command)
+    {
+        return command == null ? Ballot.ZERO : command.promised();
+    }
+
+    private static Command command(SafeCommandStore safeStore, TxnId txnId, String source)
+    {
+        SafeCommand safeCommand = safeStore.unsafeTryGetNoCleanup(txnId);
+        if (safeCommand == null)
         {
-            int position = nodes.indexOf(id);
-            perSecondStartTime = position * (SECONDS.toMicros(1) / nodes.size());
-        }
-        else
-        {
-            // we've raced with topology update, this should be rare so just pick a random start time
-            perSecondStartTime = random.nextLong(granularity);
+            noSpamLogger.warn("{} invoked {} for {} without having it in cache", safeStore.commandStore(), source, txnId, new RuntimeException());
+            return null;
         }
 
-        // TODO (expected): make this a configurable calculation on normal request latencies (like ContentionStrategy)
-        long subSecondRemainder = startTime % granularity;
-        long newStartTime = startTime - subSecondRemainder + perSecondStartTime;
-        if (newStartTime < startTime)
-            newStartTime += granularity;
-        return newStartTime;
+        Command command = safeCommand.current();
+        if (command == null)
+        {
+            noSpamLogger.warn("{} invoked {} for {} without knowing the command", safeStore.commandStore(), source, txnId, new RuntimeException());
+            return null;
+        }
+
+        return command;
     }
 
     @Override
     public long slowReplicaDelay(Node node, SafeCommandStore safeStore, TxnId txnId, int attempt, BlockedUntil blockedUntil, TimeUnit units)
     {
-        Command command = Invariants.nonNull(safeStore.unsafeGetNoCleanup(txnId).current());
+        Ballot promised = promised(command(safeStore, txnId, "slowReplicaDelay"));
         long nowMicros = MILLISECONDS.toMicros(Clock.Global.currentTimeMillis());
-        long mostRecentStart = mostRecentStart(command, nowMicros);
+        long mostRecentStart = mostRecentStart(txnId, promised, nowMicros);
         long waitMicros = fetch(txnId).computeWait(attempt, units);
         long startTime = mostRecentStart + waitMicros;
         if (startTime < nowMicros)
@@ -393,6 +460,23 @@ public class AccordAgent implements Agent, OwnershipEventListener
     }
 
     @Override
+    public long retryBackgroundSyncPointDelay(Node node, int attempt, int replicaIndex, int replicaCount, TimeUnit units)
+    {
+        long nowMicros = node.elapsed(MICROSECONDS);
+        long waitMicros = retryBackgroundSyncPoint.computeWait(attempt, MICROSECONDS);
+        long startTime = nonClashingStartTime(nowMicros + waitMicros, replicaIndex, replicaCount, coordinatorExclusiveTimeSlice());
+        return units.convert(Math.max(1, startTime - nowMicros), MICROSECONDS);
+    }
+
+    private long coordinatorExclusiveTimeSlice()
+    {
+        AccordConfig config = this.config;
+        if (config == null || config.coordinator_exclusive_time_slice == null)
+            return ONE_SECOND;
+        return Math.max(1, config.coordinator_exclusive_time_slice.to(MICROSECONDS));
+    }
+
+    @Override
     public long retryTopologyDelay(Node node, int attempt, TimeUnit units)
     {
         return retryFetchTopology.computeWait(attempt, units);
@@ -411,40 +495,29 @@ public class AccordAgent implements Agent, OwnershipEventListener
     }
 
     @Override
-    public long expiresAt(ReplyContext replyContext, TimeUnit unit)
+    public long selfSlowAt(TxnId txnId, MessageType type, TimeUnit unit)
     {
-        return unit.convert(((ResponseContext)replyContext).expiresAtNanos(), NANOSECONDS);
+        if (type.getClass() == MessageType.StandardMessage.class)
+        {
+            switch ((MessageType.StandardMessage)type)
+            {
+                case PRE_ACCEPT_REQ:
+                    return unit.convert(slowTxnPreaccept.computeWaitUntil(1), unit);
+                case READ_EPHEMERAL_REQ:
+                case READ_REQ:
+                case STABLE_THEN_READ_REQ:
+                    return unit.convert(slowRead.computeWaitUntil(1), NANOSECONDS);
+            }
+        }
+        return -1;
     }
 
     @Override
-    public long selfSlowAt(TxnId txnId, Status.Phase phase, TimeUnit unit)
+    public long selfExpiresAt(TxnId txnId, MessageType type, TimeUnit unit)
     {
-        switch (phase)
-        {
-            default: throw new UnhandledEnum(phase);
-            case PreAccept: return unit.convert(slowTxnPreaccept.computeWaitUntil(1), NANOSECONDS);
-            case Execute:   return unit.convert(slowRead.computeWaitUntil(1), NANOSECONDS);
-        }
-    }
-
-    @Override
-    public long selfExpiresAt(TxnId txnId, Status.Phase phase, TimeUnit unit)
-    {
-        long delayNanos;
-        switch (txnId.kind())
-        {
-            default: throw new UnhandledEnum(txnId.kind());
-            case Write:
-                delayNanos = DatabaseDescriptor.getWriteRpcTimeout(NANOSECONDS);
-                break;
-            case EphemeralRead:
-            case Read:
-                delayNanos = DatabaseDescriptor.getReadRpcTimeout(NANOSECONDS);
-                break;
-            case ExclusiveSyncPoint:
-                delayNanos = DatabaseDescriptor.getAccordRangeSyncPointTimeoutNanos();
-        }
-        return unit.convert(nanoTime() + delayNanos, NANOSECONDS);
+        if (txnId == null || txnId.equals(TxnId.NONE))
+            return DatabaseDescriptor.getRpcTimeout(unit);
+        return unit.convert((txnId.isSyncPoint() ? expireSyncPoint : expireTxn).computeWaitUntil(1), NANOSECONDS);
     }
 
     @Override
@@ -470,5 +543,11 @@ public class AccordAgent implements Agent, OwnershipEventListener
     public long minStaleHlc(Node node, boolean requested)
     {
         return node.now() - (100 + getAccordScheduleDurabilityTxnIdLag(MICROSECONDS));
+    }
+
+    @Override
+    public boolean reportRemoteSuccess(Result success)
+    {
+        return success instanceof TxnResult && ((TxnResult) success).kind() == txn_data;
     }
 }

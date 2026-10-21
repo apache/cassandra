@@ -33,7 +33,6 @@ import java.util.concurrent.TimeoutException;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.AtomicLongFieldUpdater;
 import java.util.concurrent.atomic.AtomicReferenceFieldUpdater;
-import java.util.concurrent.atomic.LongAdder;
 import java.util.function.BiPredicate;
 import java.util.function.Consumer;
 import java.util.function.Supplier;
@@ -48,6 +47,7 @@ import org.slf4j.LoggerFactory;
 import org.apache.cassandra.concurrent.Shutdownable;
 import org.apache.cassandra.io.compress.BufferType;
 import org.apache.cassandra.metrics.BufferPoolMetrics;
+import org.apache.cassandra.metrics.ThreadLocalCounter;
 import org.apache.cassandra.utils.NoSpamLogger;
 import org.apache.cassandra.utils.Shared;
 import org.apache.cassandra.utils.concurrent.Ref;
@@ -150,12 +150,12 @@ public class BufferPool
     /**
      * Size of unpooled buffer being allocated outside of buffer pool in bytes.
      */
-    private final LongAdder overflowMemoryUsage = new LongAdder();
+    private final ThreadLocalCounter overflowMemoryUsage = new ThreadLocalCounter();
 
     /**
      * Size of buffer being used in bytes, including pooled buffer and unpooled buffer.
      */
-    private final LongAdder memoryInUse = new LongAdder();
+    private final ThreadLocalCounter memoryInUse = new ThreadLocalCounter();
 
     /**
      * Size of allocated buffer pool slabs in bytes
@@ -264,7 +264,7 @@ public class BufferPool
 
     private void updateOverflowMemoryUsage(int size)
     {
-        overflowMemoryUsage.add(size);
+        overflowMemoryUsage.inc(size);
     }
 
     public void setRecycleWhenFreeForCurrentThread(boolean recycleWhenFree)
@@ -277,7 +277,7 @@ public class BufferPool
      */
     public long sizeInBytes()
     {
-        return memoryAllocated.get() + overflowMemoryUsage.longValue();
+        return memoryAllocated.get() + overflowMemoryUsage.getCount();
     }
 
     /**
@@ -285,7 +285,7 @@ public class BufferPool
      */
     public long usedSizeInBytes()
     {
-        return memoryInUse.longValue() + overflowMemoryUsage.longValue();
+        return memoryInUse.getCount() + overflowMemoryUsage.getCount();
     }
 
     /**
@@ -293,7 +293,7 @@ public class BufferPool
      */
     public long overflowMemoryInBytes()
     {
-        return overflowMemoryUsage.longValue();
+        return overflowMemoryUsage.getCount();
     }
 
     /**
@@ -825,7 +825,7 @@ public class BufferPool
             else
             {
                 put(buffer, chunk);
-                memoryInUse.add(-size);
+                memoryInUse.dec(size);
             }
         }
 
@@ -892,7 +892,7 @@ public class BufferPool
 
             chunk.freeUnusedPortion(buffer);
             // Calculate the actual freed bytes which may be different from `size` when pooling is involved
-            memoryInUse.add(buffer.capacity() - originalCapacity);
+            memoryInUse.inc(buffer.capacity() - originalCapacity);
         }
 
         public ByteBuffer get(int size)
@@ -951,7 +951,7 @@ public class BufferPool
             if (ret != null)
             {
                 metrics.hits.mark();
-                memoryInUse.add(ret.capacity());
+                memoryInUse.inc(ret.capacity());
             }
             else
             {

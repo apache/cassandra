@@ -68,6 +68,8 @@ public class AuthenticatedUser
     // Primary Role of the logged-in user
     private final RoleResource role;
 
+    private final int hash;
+
     public AuthenticatedUser(String name)
     {
         this(name, UNAUTHENTICATED);
@@ -94,6 +96,14 @@ public class AuthenticatedUser
         this.role = RoleResource.role(name);
         this.authenticationMode = authenticationMode;
         this.metadata = metadata;
+
+        // Note: for reasons of maintaining the invariant that an object that equals maintains the same hashCode,
+        // we do not include mode and metadata in the hashCode calculation.
+        // This is particularly salient as there are cases where AuthenticatedUser is used as a key in
+        // Role/Permissions cache. In effect, we would like to treat all connections sharing the same name as the same
+        // user, where mode and metadata are just additional context about how the user authenticated that
+        // should not factor into 'equivalence' of users.
+        this.hash = Objects.hashCode(name);
     }
 
     public String getName()
@@ -231,12 +241,6 @@ public class AuthenticatedUser
     @Override
     public int hashCode()
     {
-        // Note: for reasons of maintaining the invariant that an object that equals maintains the same hashCode,
-        // we do not include mode and metadata in the hashCode calculation.
-        // This is particularly salient as there are cases where AuthenticatedUser is used as a key in
-        // Role/Permissions cache. In effect, we would like to treat all connections sharing the same name as the same
-        // user, where mode and metadata are just additional context about how the user authenticated that
-        // should not factor into 'equivalence' of users.
-        return Objects.hashCode(name);
+        return hash;
     }
 }

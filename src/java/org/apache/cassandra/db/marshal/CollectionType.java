@@ -103,6 +103,8 @@ public abstract class CollectionType<T> extends MultiElementType<T>
 
     protected abstract List<ByteBuffer> serializedValues(Iterator<Cell<?>> cells);
 
+    protected abstract List<byte[]> serializedValuesAsByteArrays(Iterator<Cell<?>> cells);
+
     @Override
     public abstract CollectionSerializer<T> getSerializer();
 
@@ -182,6 +184,13 @@ public abstract class CollectionType<T> extends MultiElementType<T>
         assert isMultiCell();
         List<ByteBuffer> values = serializedValues(cells);
         return getSerializer().pack(values);
+    }
+
+    public byte[] serializeForNativeProtocolAsByteArrays(Iterator<Cell<?>> cells)
+    {
+        assert isMultiCell();
+        List<byte[]> values = serializedValuesAsByteArrays(cells);
+        return getSerializer().pack(values, ByteArrayAccessor.instance);
     }
 
     @Override

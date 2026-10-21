@@ -61,7 +61,16 @@ public class ReverseValueIterator<Concrete extends ReverseValueIterator<Concrete
     {
         super(source, root);
         limit = null;
-        initializeNoRightBound(root, NOT_AT_LIMIT, false);
+
+        try
+        {
+            initializeNoRightBound(root, NOT_AT_LIMIT, false);
+        }
+        catch (Throwable t)
+        {
+            super.close();
+            throw t;
+        }
     }
 
     /**
@@ -80,10 +89,18 @@ public class ReverseValueIterator<Concrete extends ReverseValueIterator<Concrete
         super(source, root);
         limit = start != null ? start.asComparableBytes(BYTE_COMPARABLE_VERSION) : null;
 
-        if (end != null)
-            initializeWithRightBound(root, end.asComparableBytes(BYTE_COMPARABLE_VERSION), admitPrefix, limit != null);
-        else
-            initializeNoRightBound(root, limit != null ? limit.next() : NOT_AT_LIMIT, admitPrefix);
+        try
+        {
+            if (end != null)
+                initializeWithRightBound(root, end.asComparableBytes(BYTE_COMPARABLE_VERSION), admitPrefix, limit != null);
+            else
+                initializeNoRightBound(root, limit != null ? limit.next() : NOT_AT_LIMIT, admitPrefix);
+        }
+        catch (Throwable t)
+        {
+            super.close();
+            throw t;
+        }
     }
 
     void initializeWithRightBound(long root, ByteSource endStream, boolean admitPrefix, boolean hasLimit)

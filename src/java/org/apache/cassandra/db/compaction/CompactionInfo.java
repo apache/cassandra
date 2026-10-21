@@ -42,6 +42,7 @@ public final class CompactionInfo
     public static final String COLUMNFAMILY = "columnfamily";
     public static final String COMPLETED = "completed";
     public static final String TOTAL = "total";
+    public static final String TOTAL_COMPRESSED = "totalCompressed";
     public static final String TASK_TYPE = "taskType";
     public static final String UNIT = "unit";
     public static final String COMPACTION_ID = "compactionId";
@@ -52,16 +53,18 @@ public final class CompactionInfo
     private final OperationType tasktype;
     private final long completed;
     private final long total;
+    private final long totalCompressed;
     private final Unit unit;
     private final TimeUUID compactionId;
     private final ImmutableSet<SSTableReader> sstables;
     private final String targetDirectory;
 
-    public CompactionInfo(TableMetadata metadata, OperationType tasktype, long completed, long total, Unit unit, TimeUUID compactionId, Collection<? extends SSTableReader> sstables, String targetDirectory)
+    public CompactionInfo(TableMetadata metadata, OperationType tasktype, long completed, long total, long totalCompressed, Unit unit, TimeUUID compactionId, Collection<? extends SSTableReader> sstables, String targetDirectory)
     {
         this.tasktype = tasktype;
         this.completed = completed;
         this.total = total;
+        this.totalCompressed = totalCompressed;
         this.metadata = metadata;
         this.unit = unit;
         this.compactionId = compactionId;
@@ -69,38 +72,38 @@ public final class CompactionInfo
         this.targetDirectory = targetDirectory;
     }
 
-    public CompactionInfo(TableMetadata metadata, OperationType tasktype, long completed, long total, TimeUUID compactionId, Collection<SSTableReader> sstables, String targetDirectory)
+    public CompactionInfo(TableMetadata metadata, OperationType tasktype, long completed, long total, long totalCompressed, TimeUUID compactionId, Collection<SSTableReader> sstables, String targetDirectory)
     {
-        this(metadata, tasktype, completed, total, Unit.BYTES, compactionId, sstables, targetDirectory);
+        this(metadata, tasktype, completed, total, totalCompressed, Unit.BYTES, compactionId, sstables, targetDirectory);
     }
 
-    public CompactionInfo(TableMetadata metadata, OperationType tasktype, long completed, long total, TimeUUID compactionId, Collection<? extends SSTableReader> sstables)
+    public CompactionInfo(TableMetadata metadata, OperationType tasktype, long completed, long total, long totalCompressed, TimeUUID compactionId, Collection<? extends SSTableReader> sstables)
     {
-        this(metadata, tasktype, completed, total, Unit.BYTES, compactionId, sstables, null);
+        this(metadata, tasktype, completed, total, totalCompressed, Unit.BYTES, compactionId, sstables, null);
     }
 
     /**
      * Special compaction info where we always need to cancel the compaction - for example ViewBuilderTask where we don't know
      * the sstables at construction
      */
-    public static CompactionInfo withoutSSTables(TableMetadata metadata, OperationType tasktype, long completed, long total, Unit unit, TimeUUID compactionId)
+    public static CompactionInfo withoutSSTables(TableMetadata metadata, OperationType tasktype, long completed, long total, long totalCompressed, Unit unit, TimeUUID compactionId)
     {
-        return withoutSSTables(metadata, tasktype, completed, total, unit, compactionId, null);
+        return withoutSSTables(metadata, tasktype, completed, total, totalCompressed, unit, compactionId, null);
     }
 
     /**
      * Special compaction info where we always need to cancel the compaction - for example AutoSavingCache where we don't know
      * the sstables at construction
      */
-    public static CompactionInfo withoutSSTables(TableMetadata metadata, OperationType tasktype, long completed, long total, Unit unit, TimeUUID compactionId, String targetDirectory)
+    public static CompactionInfo withoutSSTables(TableMetadata metadata, OperationType tasktype, long completed, long total, long totalCompressed, Unit unit, TimeUUID compactionId, String targetDirectory)
     {
-        return new CompactionInfo(metadata, tasktype, completed, total, unit, compactionId, ImmutableSet.of(), targetDirectory);
+        return new CompactionInfo(metadata, tasktype, completed, total, totalCompressed, unit, compactionId, ImmutableSet.of(), targetDirectory);
     }
 
     /** @return A copy of this CompactionInfo with updated progress. */
-    public CompactionInfo forProgress(long complete, long total)
+    public CompactionInfo forProgress(long complete, long total, long totalCompressed)
     {
-        return new CompactionInfo(metadata, tasktype, complete, total, unit, compactionId, sstables, targetDirectory);
+        return new CompactionInfo(metadata, tasktype, complete, total, totalCompressed, unit, compactionId, sstables, targetDirectory);
     }
 
     public Optional<String> getKeyspace()
@@ -126,6 +129,11 @@ public final class CompactionInfo
     public long getTotal()
     {
         return total;
+    }
+
+    public long getTotalCompressed()
+    {
+        return totalCompressed;
     }
 
     public OperationType getTaskType()
@@ -183,12 +191,16 @@ public final class CompactionInfo
     /**
      * Note that this estimate is based on the amount of data we have left to read - it assumes input
      * size == output size for a compaction, which is not really true, but should most often provide a worst case
-     * remaining write size.
+     * remaining write size. We also scale by the effective compression ratio since total/completed are for the uncompressed size.
      */
-    public long estimatedRemainingWriteBytes()
+    public long estimatedRemainingWriteToDiskBytes()
     {
         if (unit == Unit.BYTES && tasktype.writesData)
-            return getTotal() - getCompleted();
+        {
+            final long total = getTotal();
+            double compressionRatio = total == 0 ? 1 : ((double) totalCompressed / (double)total);
+            return (long)(compressionRatio * (total - getCompleted()));
+        }
         return 0;
     }
 
@@ -216,6 +228,7 @@ public final class CompactionInfo
         ret.put(COLUMNFAMILY, getTable().orElse(null));
         ret.put(COMPLETED, Long.toString(completed));
         ret.put(TOTAL, Long.toString(total));
+        ret.put(TOTAL_COMPRESSED, Long.toString(totalCompressed));
         ret.put(TASK_TYPE, tasktype.toString());
         ret.put(UNIT, unit.toString());
         ret.put(COMPACTION_ID, compactionId == null ? "" : compactionId.toString());

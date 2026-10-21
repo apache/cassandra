@@ -61,8 +61,14 @@ public class GossipCMSListener implements IEndpointStateChangeSubscriber
             {
                 UUID hostId = UUID.fromString(hostIdValue.value);
                 nodeId = metadata.directory.nodeIdFromHostId(hostId);
-                logger.info("Node {} (hostId = {}) changing IP from {} to {}", nodeId, hostId, metadata.directory.endpoint(nodeId), endpoint);
-                Gossiper.instance.removeEndpoint(endpoint);
+                InetAddressAndPort oldEndpoint = metadata.directory.endpoint(nodeId);
+                if (Gossiper.instance.compareEndpointStartup(oldEndpoint, endpoint) > 0)
+                {
+                    logger.warn("Host ID collision for {} between {} and {}; ignored {}", hostId, oldEndpoint, endpoint, endpoint);
+                    return;
+                }
+                logger.info("Node {} (hostId = {}) changing IP from {} to {}", nodeId, hostId, oldEndpoint, endpoint);
+                Gossiper.instance.removeEndpoint(oldEndpoint);
             }
             else
             {

@@ -53,7 +53,7 @@ public interface LivenessInfo extends IMeasurableMemory
     LivenessInfo EMPTY = new ImmutableLivenessInfo(NO_TIMESTAMP);
     long UNSHARED_HEAP_SIZE = ObjectSizes.measure(EMPTY);
 
-    static LivenessInfo create(long timestamp, long nowInSec)
+    static LivenessInfo create(long timestamp)
     {
         return new ImmutableLivenessInfo(timestamp);
     }
@@ -75,14 +75,14 @@ public interface LivenessInfo extends IMeasurableMemory
     private static LivenessInfo create(long timestamp, int ttl, long nowInSec, boolean applyOverflowPolicy)
     {
         return ttl == NO_TTL
-             ? create(timestamp, nowInSec)
+             ? create(timestamp)
              : expiring(timestamp, ttl, nowInSec, applyOverflowPolicy);
     }
 
     static LivenessInfo create(long timestamp, int ttl, long nowInSec)
     {
         return ttl == NO_TTL
-             ? create(timestamp, nowInSec)
+             ? create(timestamp)
              : expiring(timestamp, ttl, nowInSec);
     }
 

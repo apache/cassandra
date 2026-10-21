@@ -45,11 +45,11 @@ public class CustomIndexExpression
         this.valueRaw = value;
     }
 
-    public void prepareValue(TableMetadata table, AbstractType<?> expressionType, VariableSpecifications boundNames)
+    public void prepareValue(TableMetadata table, AbstractType<?> expressionType, VariableSpecifications boundNames, Object owner)
     {
         ColumnSpecification spec = new ColumnSpecification(table.keyspace, table.keyspace, valueColId, expressionType);
         value = valueRaw.prepare(table.keyspace, spec);
-        value.collectMarkerSpecification(boundNames);
+        value.collectMarkerSpecification(boundNames, owner);
     }
 
     public void addToRowFilter(RowFilter filter, TableMetadata table, QueryOptions options)

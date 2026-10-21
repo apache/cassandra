@@ -80,7 +80,7 @@ public abstract class AbstractClusteringIndexFilter implements ClusteringIndexFi
 
         public ClusteringIndexFilter deserialize(DataInputPlus in, int version, TableMetadata metadata) throws IOException
         {
-            Kind kind = Kind.values()[in.readUnsignedByte()];
+            Kind kind = Kind.fromOrdinal(in.readUnsignedByte());
             boolean reversed = in.readBoolean();
 
             return kind.deserializer.deserialize(in, version, metadata, reversed);

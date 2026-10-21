@@ -23,6 +23,8 @@
 #
 ################################
 
+[ $DEBUG ] && set -x
+
 WORKSPACE=$1
 
 [ "x${WORKSPACE}" != "x" ] || WORKSPACE="$(readlink -f $(dirname "$0")/..)"
@@ -63,6 +65,10 @@ rm -fr ${DIST_DIR}/venv ${DIST_DIR}/test/{html,output,logs}
 virtualenv-clone ${BUILD_HOME}/env${python_version} ${BUILD_DIR}/venv || virtualenv --python=python3 ${BUILD_DIR}/venv
 source ${BUILD_DIR}/venv/bin/activate
 
+# Force pip's legacy pkg_resources metadata backend (instead of the importlib.metadata
+# backend that pip defaults to on Python 3.11+). see ubuntu-test.docker
+export _PIP_USE_IMPORTLIB_METADATA=0
+
 pip install --exists-action w -r ${CASSANDRA_DIR}/pylib/requirements.txt
 pip freeze
 
@@ -97,7 +103,7 @@ pytest --junitxml=${BUILD_DIR}/test/output/cqlshlib.xml
 RETURN="$?"
 
 # remove <testsuites> wrapping elements. `ant generate-unified-test-report` doesn't like it`
-sed -r "s/<[\/]?testsuites>//g" ${BUILD_DIR}/test/output/cqlshlib.xml > /tmp/cqlshlib.xml
+sed -r "s/<[\/]?testsuites[^>]*>//g" ${BUILD_DIR}/test/output/cqlshlib.xml > /tmp/cqlshlib.xml
 cat /tmp/cqlshlib.xml > ${BUILD_DIR}/test/output/cqlshlib.xml
 
 # don't do inline sed for linux+mac compat

@@ -27,6 +27,7 @@ import java.nio.ByteBuffer;
 import java.nio.file.FileSystem;
 import java.nio.file.FileSystems;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashSet;
 import java.util.List;
@@ -41,6 +42,7 @@ import java.util.concurrent.Future;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
 import java.util.concurrent.atomic.AtomicLong;
+import java.util.concurrent.locks.LockSupport;
 import java.util.stream.Stream;
 
 import javax.annotation.Nullable;
@@ -76,6 +78,7 @@ import org.apache.cassandra.cql3.CQLStatement;
 import org.apache.cassandra.cql3.QueryHandler;
 import org.apache.cassandra.cql3.QueryOptions;
 import org.apache.cassandra.cql3.QueryProcessor;
+import org.apache.cassandra.cql3.functions.JavaBasedUDFunction;
 import org.apache.cassandra.db.ColumnFamilyStore;
 import org.apache.cassandra.db.Keyspace;
 import org.apache.cassandra.db.SystemKeyspace;
@@ -109,6 +112,7 @@ import org.apache.cassandra.hints.DTestSerializer;
 import org.apache.cassandra.hints.HintsService;
 import org.apache.cassandra.index.IndexStatusManager;
 import org.apache.cassandra.index.SecondaryIndexManager;
+import org.apache.cassandra.index.sasi.disk.PerSSTableIndexWriter;
 import org.apache.cassandra.io.IVersionedAsymmetricSerializer;
 import org.apache.cassandra.io.sstable.format.SSTableReader;
 import org.apache.cassandra.io.sstable.indexsummary.IndexSummaryManager;
@@ -121,10 +125,12 @@ import org.apache.cassandra.locator.InetAddressAndPort;
 import org.apache.cassandra.metrics.CassandraMetricsRegistry;
 import org.apache.cassandra.metrics.Sampler;
 import org.apache.cassandra.metrics.ThreadLocalMetrics;
+import org.apache.cassandra.net.ArtificialLatency;
 import org.apache.cassandra.net.Message;
 import org.apache.cassandra.net.MessagingService;
 import org.apache.cassandra.net.NoPayload;
 import org.apache.cassandra.net.Verb;
+import org.apache.cassandra.repair.autorepair.AutoRepair;
 import org.apache.cassandra.schema.Schema;
 import org.apache.cassandra.schema.SchemaConstants;
 import org.apache.cassandra.service.ActiveRepairService;
@@ -136,6 +142,7 @@ import org.apache.cassandra.service.QueryState;
 import org.apache.cassandra.service.StorageService;
 import org.apache.cassandra.service.StorageServiceMBean;
 import org.apache.cassandra.service.accord.AccordService;
+import org.apache.cassandra.service.accord.debug.AccordRemoteTracing;
 import org.apache.cassandra.service.paxos.PaxosRepair;
 import org.apache.cassandra.service.paxos.PaxosState;
 import org.apache.cassandra.service.paxos.uncommitted.UncommittedTableData;
@@ -195,6 +202,7 @@ import static org.apache.cassandra.distributed.impl.TestEndpointCache.fromCassan
 import static org.apache.cassandra.distributed.impl.TestEndpointCache.toCassandraInetAddressAndPort;
 import static org.apache.cassandra.net.Verb.BATCH_STORE_REQ;
 import static org.apache.cassandra.service.CassandraDaemon.logSystemInfo;
+import static org.apache.cassandra.utils.Clock.Global.nanoTime;
 
 /**
  * This class is instantiated on the relevant classloader, so its methods invoke the correct target classes automatically
@@ -373,7 +381,7 @@ public class Instance extends IsolatedExecutor implements IInvokableInstance
 
     protected void registerMockMessaging(ICluster<?> cluster)
     {
-        MessagingService.instance().outboundSink.add((message, to) -> {
+        MessagingService.instance().outboundSink.add((message, to, type) -> {
             if (!internodeMessagingStarted)
             {
                 inInstancelogger.debug("Dropping outbound message {} to {} as internode messaging has not been started yet",
@@ -404,7 +412,7 @@ public class Instance extends IsolatedExecutor implements IInvokableInstance
 
     protected void registerOutboundFilter(ICluster cluster)
     {
-        MessagingService.instance().outboundSink.add((message, to) -> {
+        MessagingService.instance().outboundSink.add((message, to, type) -> {
             if (isShutdown())
                 return false; // TODO: Simulator needs this to trigger a failure
             int fromNum = config.num(); // since this instance is sending the message, from will always be this instance
@@ -565,6 +573,7 @@ public class Instance extends IsolatedExecutor implements IInvokableInstance
             TraceState state = Tracing.instance.initializeFromMessage(header);
             if (state != null)
                 state.trace("{} message received from {}", header.verb, header.from);
+            AccordRemoteTracing.traceOffWire(header);
 
             if (runOnCaller)
             {
@@ -677,6 +686,7 @@ public class Instance extends IsolatedExecutor implements IInvokableInstance
                 {
                     partialStartup(cluster);
                 }
+                ArtificialLatency.touch();
             }
             catch (Throwable t)
             {
@@ -834,7 +844,7 @@ public class Instance extends IsolatedExecutor implements IInvokableInstance
         {
             CommitLog.instance.recoverSegmentsOnDisk();
             NodeId self = ClusterMetadata.current().myNodeId();
-            if (self != null)
+            if (self != NodeId.UNREGISTERED)
                 AccordService.localStartup(self);
         }
         catch (IOException e)
@@ -859,6 +869,9 @@ public class Instance extends IsolatedExecutor implements IInvokableInstance
         JVMStabilityInspector.replaceKiller(new InstanceKiller(Instance.this::shutdown));
 
         StorageService.instance.registerDaemon(CassandraDaemon.getInstanceForTesting());
+
+        awaitTurnToRegister(config.num());
+
         if (config.has(GOSSIP))
         {
             try
@@ -879,8 +892,12 @@ public class Instance extends IsolatedExecutor implements IInvokableInstance
         {
             Stream<?> peers = cluster.stream().filter(IInstance::isValid);
             Schema.instance.saveSystemKeyspace();
-            ClusterMetadataService.instance().processor().fetchLogAndWait();
+            int nodeId = config.num();
+
+            ClusterMetadataService cms = ClusterMetadataService.instance();
+            cms.processor().fetchLogAndWait();
             NodeId self = Register.maybeRegister();
+
             RegistrationStatus.instance.onRegistration();
             if (!AccordService.isSetupOrStarting())
                 AccordService.localStartup(self);
@@ -926,7 +943,30 @@ public class Instance extends IsolatedExecutor implements IInvokableInstance
         ActiveRepairService.instance().start();
         StreamManager.instance.start();
         PaxosState.startAutoRepairs();
+        StorageService.instance.doAutoRepairSetup();
         CassandraDaemon.getInstanceForTesting().completeSetup();
+    }
+
+    /**
+     * Block until the next NodeId the cluster will allocate is our instance number to improve debuggability
+     */
+    private static void awaitTurnToRegister(int nodeId) throws InterruptedException
+    {
+        Logger logger = LoggerFactory.getLogger(Instance.class);
+        ClusterMetadataService cms = ClusterMetadataService.instance();
+        cms.processor().fetchLogAndWait();
+        long deadlineNanos = System.nanoTime() + TimeUnit.SECONDS.toNanos(30);
+        while (cms.metadata().myNodeId() == NodeId.UNREGISTERED && cms.metadata().directory.nextId < nodeId)
+        {
+            if (System.nanoTime() - deadlineNanos > 0)
+            {
+                logger.warn("Timed out waiting to register as NodeId {}; next id to allocate is {}. Registering anyway.",
+                            nodeId, cms.metadata().directory.nextId);
+                return;
+            }
+            Thread.sleep(10);
+            cms.processor().fetchLogAndWait();
+        }
     }
 
     @Override
@@ -972,6 +1012,8 @@ public class Instance extends IsolatedExecutor implements IInvokableInstance
                     () -> StorageService.instance.setIsShutdownUnsafeForTests(true),
                     CassandraDaemon.getInstanceForTesting()::destroyClientTransports);
 
+            error = parallelRun(error, executor, StorageService.instance::runPreShutdownHooks);
+
             if (config.has(GOSSIP) || config.has(NETWORK))
             {
                 StorageService.instance.shutdownServer();
@@ -1002,6 +1044,19 @@ public class Instance extends IsolatedExecutor implements IInvokableInstance
                         throw e;
                 }
             };
+            error = parallelRun(error, executor,
+                    // If an index build completes as shutting down, setIndexBuild may trigger
+                    // a CFS.forceBlockingFlush
+                    () -> SecondaryIndexManager.shutdownAndWait(1L, MINUTES)
+            );
+
+            error = parallelRun(error, executor, () -> {
+                if (AccordService.isSetupOrStarting())
+                    AccordService.unsafeInstance().shutdownAndWait(1L, MINUTES);
+            });
+
+            // AutoRepair must stop before ActiveRepairService and commit log, else its repairs may block on writing to system tables
+            error = parallelRun(error, executor, () -> AutoRepair.instance.shutdownBlocking(1L, MINUTES));
 
             error = parallelRun(error, executor,
                                 shutdownBatchlogAndHints,
@@ -1012,7 +1067,6 @@ public class Instance extends IsolatedExecutor implements IInvokableInstance
                                 () -> StreamReceiveTask.shutdownAndWait(1L, MINUTES),
                                 () -> StreamTransferTask.shutdownAndWait(1L, MINUTES),
                                 () -> StreamManager.instance.stop(),
-                                () -> SecondaryIndexManager.shutdownAndWait(1L, MINUTES),
                                 () -> IndexSummaryManager.instance.shutdownAndWait(1L, MINUTES),
                                 () -> ColumnFamilyStore.shutdownExecutorsAndWait(1L, MINUTES),
                                 () -> BufferPools.shutdownLocalCleaner(1L, MINUTES),
@@ -1028,7 +1082,9 @@ public class Instance extends IsolatedExecutor implements IInvokableInstance
                                 SnapshotManager.instance::close,
                                 () -> IndexStatusManager.instance.shutdownAndWait(1L, MINUTES),
                                 DiskErrorsHandlerService::close,
-                                () -> ThreadLocalMetrics.shutdownCleaner(1L, MINUTES)
+                                () -> ThreadLocalMetrics.shutdownCleaner(1L, MINUTES),
+                                () -> JavaBasedUDFunction.shutdownAndWait(1L, MINUTES),
+                                () -> PerSSTableIndexWriter.shutdownAndWait(1L, MINUTES)
             );
 
             internodeMessagingStarted = false;
@@ -1036,18 +1092,28 @@ public class Instance extends IsolatedExecutor implements IInvokableInstance
             error = parallelRun(error, executor, () -> ScheduledExecutors.shutdownNowAndWait(1L, MINUTES));
             error = parallelRun(error, executor,
                                 // can only shutdown message once, so if the test shutsdown an instance, then ignore the failure
-                                (IgnoreThrowingRunnable) () -> MessagingService.instance().shutdown(1L, MINUTES, shutdownMessagingGracefully, config.has(NETWORK))
+                                // NOTE: the executors must be shut down even if NETWORK is not enabled, as SocketFactory
+                                // and its event loop group are always created, and streaming uses the executor even with mocked networking
+                                (IgnoreThrowingRunnable) () -> MessagingService.instance().shutdown(1L, MINUTES, shutdownMessagingGracefully, true)
             );
             error = parallelRun(error, executor,
-                                () -> { if (config.has(NETWORK)) { try { GlobalEventExecutor.INSTANCE.awaitInactivity(1L, MINUTES); } catch (IllegalStateException ignore) {} } },
+                                // as with the socket factory above, GlobalEventExecutor is created (and its non-daemon
+                                // thread started) whether or not NETWORK is enabled
+                                () -> { try { GlobalEventExecutor.INSTANCE.awaitInactivity(1L, MINUTES); } catch (IllegalStateException ignore) {} },
                                 () -> Stage.shutdownAndWait(1L, MINUTES),
                                 () -> SharedExecutorPool.SHARED.shutdownAndWait(1L, MINUTES)
             );
 
-            error = parallelRun(error, executor, () -> {
-                if (AccordService.isSetupOrStarting())
-                    AccordService.unsafeInstance().shutdownAndWait(1L, MINUTES);
-            });
+            // must come after the memtable flush writers (ColumnFamilyStore.shutdownExecutorsAndWait) and the stages
+            // have terminated: it is a vector index build, i.e. a flush, that creates the pool's workers, so shutting
+            // it down while a flush can still run just means a fresh worker afterwards
+            error = parallelRun(error, executor, () -> shutdownJVectorPhysicalCoreExecutor(1L, MINUTES));
+
+            // ScheduledExecutors shuts down after MessagingService, as MessagingService may issue tasks to it and
+            // before CommitLog, as any thread calling executeInternal could wait indefinitely
+            // on commitlog allocator (e.g. SSTableReader tidier on non-periodic calling
+            // SystemKeyspace.clearSSTableReadMeter)
+            error = parallelRun(error, executor, () -> ScheduledExecutors.shutdownNowAndWait(1L, MINUTES));
 
             // CommitLog must shut down after Stage, or threads from the latter may attempt to use the former.
             // (ex. A Mutation stage thread may attempt to add a mutation to the CommitLog.)
@@ -1081,10 +1147,9 @@ public class Instance extends IsolatedExecutor implements IInvokableInstance
             try
             {
                 future.get();
-                ThreadGroup group = Thread.currentThread().getThreadGroup();
-                int active = group.activeCount();
-                Invariants.expect(group.getParent().activeCount() <= active
-                                  || CassandraRelevantProperties.DTEST_IGNORE_SHUTDOWN_THREADCOUNT.getBoolean());
+                List<Thread> alive = awaitInstanceThreadsExit(Thread.currentThread().getThreadGroup(), 10, TimeUnit.SECONDS);
+                Invariants.expect(alive.isEmpty() || CassandraRelevantProperties.DTEST_IGNORE_SHUTDOWN_THREADCOUNT.getBoolean(),
+                                  "Instance %d did not terminate %d of its threads: %s", config.num(), alive.size(), describe(alive));
                 return null;
             }
             finally
@@ -1094,6 +1159,86 @@ public class Instance extends IsolatedExecutor implements IInvokableInstance
                 //withThreadLeakCheck();
             }
         });
+    }
+
+    /**
+     * The names of the supplied threads, each with its stack, so that a leak report says enough to fix the leak.
+     */
+    private static String describe(List<Thread> threads)
+    {
+        StringBuilder sb = new StringBuilder();
+        for (Thread thread : threads)
+        {
+            sb.append("\n  ").append(thread.getName()).append(" (group ")
+              .append(thread.getThreadGroup() == null ? "null" : thread.getThreadGroup().getName()).append(')');
+            for (StackTraceElement ste : thread.getStackTrace())
+                sb.append("\n\tat ").append(ste);
+        }
+        return sb.toString();
+    }
+
+    // excludes the calling group's threads, and includes all other threads of the group's parents
+    // parameter is expected to be the isolatedExecutor group, which is a direct child of the instance's group
+    private List<Thread> awaitInstanceThreadsExit(ThreadGroup group, long timeout, TimeUnit unit)
+    {
+        ThreadGroup parent = group.getParent();
+        Thread[] threads = new Thread[parent.activeCount() + 16];
+        long deadline = System.nanoTime() + unit.toNanos(timeout);
+        int count;
+        while (true)
+        {
+            int inCount = parent.enumerate(threads, true);
+            while (inCount == threads.length)
+            {
+                threads = new Thread[inCount * 2];
+                inCount = parent.enumerate(threads, true);
+            }
+
+            count = 0;
+            for (int i = 0 ; i < inCount ; ++i)
+            {
+                Thread thread = threads[i];
+                if (thread.getThreadGroup() == group || !thread.isAlive())
+                    continue;
+
+                threads[count++] = thread;
+            }
+
+            if (count == 0)
+                return Collections.emptyList();
+
+            if (nanoTime() - deadline >= 0)
+                break;
+
+            LockSupport.parkNanos(TimeUnit.MILLISECONDS.toNanos(10));
+        }
+
+        return Arrays.asList(Arrays.copyOf(threads, count));
+    }
+
+    /**
+     * {@code PhysicalCoreExecutor} in jvector starts a singleton {@link java.util.concurrent.ForkJoinPool}
+     * without exposing a shutdown method. Use reflection to terminate it here to prevent classloader leak.
+     */
+    private void shutdownJVectorPhysicalCoreExecutor(long timeout, TimeUnit unit) throws InterruptedException, TimeoutException
+    {
+        Object pool;
+        try
+        {
+            Class<?> clazz = classLoader.loadClass("io.github.jbellis.jvector.util.PhysicalCoreExecutor");
+            Object singleton = clazz.getField("instance").get(null);
+            java.lang.reflect.Field poolField = clazz.getDeclaredField("pool");
+            poolField.setAccessible(true);
+            pool = poolField.get(singleton);
+        }
+        catch (Throwable t)
+        {
+            // jvector is not on the classpath, or its internals have changed; nothing we can do from here
+            if (inInstancelogger != null)
+                inInstancelogger.warn("Unable to shut down jvector's PhysicalCoreExecutor", t);
+            return;
+        }
+        ExecutorUtils.shutdownNowAndWait(timeout, unit, pool);
     }
 
     private void withThreadLeakCheck()

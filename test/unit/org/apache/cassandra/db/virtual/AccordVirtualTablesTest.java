@@ -145,8 +145,7 @@ public class AccordVirtualTablesTest extends CQLTester
         // enjoy retirement!
         tm.onEpochRetired(Ranges.single(TokenRange.fullRange(T1, getPartitioner())), e2);
         assertRows(execute("SELECT * FROM " + VIRTUAL_VIEWS + "." + AccordVirtualTables.TABLE_EPOCHS),
-                   row(e2, T1_META.keyspace, T1_META.name, List.of(), FULL_RANGE, List.of(), FULL_RANGE, FULL_RANGE),
-                   row(e1, T1_META.keyspace, T1_META.name, FULL_RANGE, FULL_RANGE, List.of(), FULL_RANGE, FULL_RANGE));
+                   row(e2, T1_META.keyspace, T1_META.name, List.of(), FULL_RANGE, List.of(), FULL_RANGE, FULL_RANGE));
     }
 
     private static EpochReady pendingReady(long epoch)

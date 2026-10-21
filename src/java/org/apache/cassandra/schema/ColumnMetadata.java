@@ -304,10 +304,7 @@ public final class ColumnMetadata extends ColumnSpecification implements Selecta
         if (kind.isPrimaryKeyKind() || !type.isMultiCell())
             return null;
 
-        AbstractType<?> nameComparator = type.isCollection()
-                                       ? ((CollectionType) type).nameComparator()
-                                       : ((UserType) type).nameComparator();
-
+        AbstractType<?> nameComparator = pathNameComparator(type);
 
         return (path1, path2) ->
         {
@@ -324,6 +321,35 @@ public final class ColumnMetadata extends ColumnSpecification implements Selecta
             assert path1.size() == 1 && path2.size() == 1;
             return nameComparator.compare(path1.get(0), path2.get(0));
         };
+    }
+
+    /**
+     * Returns the type that compares the bytes of a cell path. A collection and a UDT both give
+     * this type as {@code nameComparator}. Returns null for a type that has no cell paths.
+     *
+     * A UDT path is a 2-byte field index, and ShortType compares it as a signed short. Do not
+     * compare such a path as unsigned bytes, because the two orders differ at field index 32768.
+     */
+    public static AbstractType<?> pathNameComparator(AbstractType<?> type)
+    {
+        if (type instanceof CollectionType)
+            return ((CollectionType<?>) type).nameComparator();
+        if (type instanceof UserType)
+            return ((UserType) type).nameComparator();
+        return null;
+    }
+
+    /**
+     * True if {@code a} and {@code b} are the same column, even if they are two different
+     * {@link ColumnMetadata} instances of that column.
+     *
+     * Two sstables opened against different {@code TableMetadata} versions can hold different
+     * instances for one column. An ALTER that changes a type between two flushes causes this; see
+     * CASSANDRA-13776. A test of the references alone is therefore wrong across sstables.
+     */
+    public static boolean sameName(ColumnMetadata a, ColumnMetadata b)
+    {
+        return a == b || (a != null && b != null && a.name.equals(b.name));
     }
 
     public ColumnMetadata copy()

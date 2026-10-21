@@ -71,7 +71,7 @@ public class EmptyType extends AbstractType<Void>
 
     public static final EmptyType instance = new EmptyType();
 
-    private EmptyType() {super(ComparisonType.CUSTOM);} // singleton
+    private EmptyType() {super(ComparisonType.CUSTOM, 0);} // singleton
 
     @Override
     public <V> ByteSource asComparableBytes(ValueAccessor<V> accessor, V data, ByteComparable.Version version)
@@ -135,12 +135,6 @@ public class EmptyType extends AbstractType<Void>
     public ArgumentDeserializer getArgumentDeserializer()
     {
         throw new UnsupportedOperationException();
-    }
-
-    @Override
-    public int valueLengthIfFixed()
-    {
-        return 0;
     }
 
     @Override

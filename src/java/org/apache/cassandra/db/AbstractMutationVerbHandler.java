@@ -195,6 +195,6 @@ public abstract class AbstractMutationVerbHandler<T extends IMutation> implement
 
     private static VersionedEndpoints.ForToken writePlacements(ClusterMetadata metadata, String keyspace, DecoratedKey key)
     {
-        return metadata.placements.get(metadata.schema.getKeyspace(keyspace).getMetadata().params.replication).writes.forToken(key.getToken());
+        return metadata.placement(metadata.schema.getKeyspace(keyspace).getMetadata().params.replication).writes.forToken(key.getToken());
     }
 }

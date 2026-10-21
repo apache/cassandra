@@ -58,14 +58,14 @@
     </module>
 
     <module name="SuppressWithNearbyCommentFilter">
-      <property name="commentFormat" value="checkstyle: permit this invocation"/>
-      <property name="idFormat" value="blockPathToFile"/>
-      <property name="influenceFormat" value="0"/>
+       <property name="commentFormat" value="checkstyle: permit this invocation"/>
+       <property name="idFormat" value="blockInstantNow|blockPathToFile|blockToCases"/>
+       <property name="influenceFormat" value="0"/>
     </module>
 
     <module name="SuppressWithNearbyCommentFilter">
       <property name="commentFormat" value="checkstyle: permit this invocation"/>
-      <property name="idFormat" value="blockToCases"/>
+      <property name="idFormat" value="blockInstantNow"/>
       <property name="influenceFormat" value="0"/>
     </module>
 

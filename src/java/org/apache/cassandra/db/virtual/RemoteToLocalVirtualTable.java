@@ -188,7 +188,6 @@ public class RemoteToLocalVirtualTable extends AbstractLazyVirtualTable
                 advance = -1;
             }
 
-            PartitionCollector partition = collector.partition(id.id());
             while (i != end)
             {
                 List<Request> request = rebind(local, slices.get(i), dataRange.isReversed(), rowFilter, columnFilter);
@@ -200,7 +199,7 @@ public class RemoteToLocalVirtualTable extends AbstractLazyVirtualTable
                     else
                         readCommand = PartitionRangeReadCommand.create(local, collector.nowInSeconds(), send.columnFilter, send.rowFilter, limits, send.dataRange);
 
-                    RequestAndResponse rr = new RequestAndResponse(id, partition, readCommand);
+                    RequestAndResponse rr = new RequestAndResponse(id, collector, readCommand);
                     send(rr, endpoint);
                     pending.addLast(rr);
 
@@ -218,12 +217,12 @@ public class RemoteToLocalVirtualTable extends AbstractLazyVirtualTable
     private static class RequestAndResponse extends SyncPromise<ReadResponse>
     {
         final NodeId nodeId;
-        final PartitionCollector partition;
+        final PartitionsCollector partitions;
         final ReadCommand readCommand;
-        private RequestAndResponse(NodeId nodeId, PartitionCollector partition, ReadCommand readCommand)
+        private RequestAndResponse(NodeId nodeId, PartitionsCollector partitions, ReadCommand readCommand)
         {
             this.nodeId = nodeId;
-            this.partition = partition;
+            this.partitions = partitions;
             this.readCommand = readCommand;
         }
     }
@@ -292,6 +291,7 @@ public class RemoteToLocalVirtualTable extends AbstractLazyVirtualTable
         }
 
         int pkCount = local.partitionKeyColumns().size();
+        PartitionCollector out = rr.partitions.partition(rr.nodeId.id());
         try (UnfilteredPartitionIterator partitions = response.makeIterator(rr.readCommand))
         {
             while (partitions.hasNext())
@@ -311,7 +311,7 @@ public class RemoteToLocalVirtualTable extends AbstractLazyVirtualTable
                             for (int j = 0 ; j < clustering.size(); ++j)
                                 clusterings[pkCount + j] = clustering.bufferAt(j);
                         }
-                        rr.partition.collect(rows -> {
+                        out.collect(rows -> {
                             rows.add((Object[])clusterings)
                                 .lazyCollect(columns -> {
                                     row.forEach(cd -> {

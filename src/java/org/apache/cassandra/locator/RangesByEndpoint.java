@@ -19,11 +19,13 @@
 package org.apache.cassandra.locator;
 
 import java.io.IOException;
+import java.util.Collection;
 import java.util.Map;
 import java.util.Set;
 
 import com.google.common.base.Preconditions;
 import com.google.common.collect.ImmutableMap;
+import com.google.common.collect.ImmutableMultimap;
 import com.google.common.collect.Maps;
 
 import org.apache.cassandra.db.TypeSizes;
@@ -33,6 +35,9 @@ import org.apache.cassandra.dht.Token;
 import org.apache.cassandra.io.util.DataInputPlus;
 import org.apache.cassandra.io.util.DataOutputPlus;
 import org.apache.cassandra.tcm.ClusterMetadata;
+import org.apache.cassandra.tcm.membership.EndpointLookup;
+import org.apache.cassandra.tcm.membership.NodeId;
+import org.apache.cassandra.tcm.ownership.ReplicaNode;
 import org.apache.cassandra.tcm.serialization.MetadataSerializer;
 import org.apache.cassandra.tcm.serialization.Version;
 
@@ -51,6 +56,20 @@ public class RangesByEndpoint extends ReplicaMultimap<InetAddressAndPort, Ranges
     {
         Preconditions.checkNotNull(endpoint);
         return map.getOrDefault(endpoint, RangesAtEndpoint.empty(endpoint));
+    }
+
+    public static RangesByEndpoint fromNodeIds(ImmutableMultimap<NodeId, ReplicaNode> byNodeId, EndpointLookup endpointLookup)
+    {
+        RangesByEndpoint.Builder builder = new RangesByEndpoint.Builder();
+        for (Map.Entry<NodeId, Collection<ReplicaNode>> entry : byNodeId.asMap().entrySet())
+        {
+            InetAddressAndPort ep = endpointLookup.endpoint(entry.getKey());
+            if (ep == null)
+                throw new IllegalStateException("Could not find endpoint for node id: " + entry.getKey());
+            for (ReplicaNode replicaNode : entry.getValue())
+                builder.put(ep, new Replica(ep, replicaNode.range, replicaNode.full));
+        }
+        return builder.build();
     }
 
     public static class Builder extends ReplicaMultimap.Builder<InetAddressAndPort, RangesAtEndpoint.Builder>

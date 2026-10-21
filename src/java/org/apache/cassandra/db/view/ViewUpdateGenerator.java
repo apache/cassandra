@@ -497,9 +497,9 @@ public class ViewUpdateGenerator
                 }
             }
             if (baseLiveness.isLive(nowInSec) && !baseLiveness.isExpiring())
-                return LivenessInfo.create(timestamp, nowInSec);
+                return LivenessInfo.create(timestamp);
             if (hasNonExpiringLiveCell)
-                return LivenessInfo.create(timestamp, nowInSec);
+                return LivenessInfo.create(timestamp);
             if (biggestExpirationCell == null)
                 return baseLiveness;
             if (biggestExpirationCell.localDeletionTime() > baseLiveness.localExpirationTime()

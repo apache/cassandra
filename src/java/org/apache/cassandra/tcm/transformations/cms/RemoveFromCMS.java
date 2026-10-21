@@ -29,20 +29,16 @@ import org.apache.cassandra.io.util.DataInputPlus;
 import org.apache.cassandra.io.util.DataOutputPlus;
 import org.apache.cassandra.locator.InetAddressAndPort;
 import org.apache.cassandra.locator.MetaStrategy;
-import org.apache.cassandra.locator.Replica;
-import org.apache.cassandra.schema.ReplicationParams;
 import org.apache.cassandra.tcm.ClusterMetadata;
 import org.apache.cassandra.tcm.MultiStepOperation;
 import org.apache.cassandra.tcm.Transformation;
 import org.apache.cassandra.tcm.membership.NodeId;
-import org.apache.cassandra.tcm.ownership.DataPlacement;
 import org.apache.cassandra.tcm.sequences.InProgressSequences;
 import org.apache.cassandra.tcm.sequences.ReconfigureCMS;
 import org.apache.cassandra.tcm.serialization.AsymmetricMetadataSerializer;
 import org.apache.cassandra.tcm.serialization.Version;
 
 import static org.apache.cassandra.exceptions.ExceptionCode.INVALID;
-import static org.apache.cassandra.locator.MetaStrategy.entireRange;
 
 /**
  * This class along with AddToCMS, StartAddToCMS & FinishAddToCMS, contain a high degree of duplication with their intended
@@ -87,11 +83,7 @@ public class RemoveFromCMS extends BaseMembershipTransformation
         if (sequence != null)
             return new Transformation.Rejected(INVALID, String.format("Can't remove %s from CMS as there are ongoing range movements on it", endpoint));
 
-        ReplicationParams metaParams = ReplicationParams.meta(prev);
-        DataPlacement placements = prev.placements.get(metaParams);
-
-        int minProposedSize = (int) Math.min(placements.reads.forRange(replica.range()).get().stream().filter(r -> !r.endpoint().equals(endpoint)).count(),
-                                             placements.writes.forRange(replica.range()).get().stream().filter(r -> !r.endpoint().equals(endpoint)).count());
+        int minProposedSize = prev.fullCMSMemberIds().size() - 1;
         if (minProposedSize < MIN_SAFE_CMS_SIZE)
         {
             logger.warn("Removing {} from CMS members would reduce the service size to {} which is below the " +
@@ -109,19 +101,8 @@ public class RemoveFromCMS extends BaseMembershipTransformation
         if (minProposedSize == 0)
             return new Transformation.Rejected(INVALID, String.format("Removing %s from the CMS would leave no members in CMS.", endpoint));
 
-        ClusterMetadata.Transformer transformer = prev.transformer();
-        Replica replica = new Replica(endpoint, entireRange, true);
-
-        DataPlacement.Builder builder = prev.placements.get(metaParams).unbuild();
-        builder.reads.withoutReplica(prev.nextEpoch(), replica);
-        builder.writes.withoutReplica(prev.nextEpoch(), replica);
-        DataPlacement proposed = builder.build();
-
-        if (proposed.reads.byEndpoint().isEmpty() || proposed.writes.byEndpoint().isEmpty())
-            return new Transformation.Rejected(INVALID, String.format("Removing %s will leave no nodes in CMS", endpoint));
-
-        return Transformation.success(transformer.with(prev.placements.unbuild().with(metaParams, proposed).build()),
-                                      MetaStrategy.affectedRanges(prev));
+        ClusterMetadata.Transformer transformer = prev.transformer().leaveCMS(nodeId);
+        return Transformation.success(transformer, MetaStrategy.affectedRanges(prev));
     }
 
     @Override

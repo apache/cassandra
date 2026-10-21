@@ -45,8 +45,8 @@ public class AbstractPairOfSequencesPaxosSimulationTest
                      "\tat accord.impl.RequestCallbacks$CallbackStripe$RegisteredCallback.lambda$safeInvoke$0(RequestCallbacks.java:140)\n" +
                      "\tat java.base/java.util.concurrent.Executors$RunnableAdapter.call(Executors.java:515)\n" +
                      "\tat accord.utils.async.AsyncChains.lambda$encapsulate$0(AsyncChains.java:498)\n" +
-                     "\tat org.apache.cassandra.service.accord.AccordExecutor$PlainRunnable.run(AccordExecutor.java:989)\n" +
-                     "\tat org.apache.cassandra.service.accord.AccordExecutor$CommandStoreQueue.run(AccordExecutor.java:729)\n" +
+                     "\tat org.apache.cassandra.service.accord.execution.AccordExecutor$PlainRunnable.run(AccordExecutor.java:989)\n" +
+                     "\tat org.apache.cassandra.service.accord.execution.AccordExecutor$CommandStoreQueue.run(AccordExecutor.java:729)\n" +
                      "\tat org.apache.cassandra.service.accord.AccordExecutorSimple.run(AccordExecutorSimple.java:95)\n" +
                      "\tat org.apache.cassandra.concurrent.FutureTask$2.call(FutureTask.java:124)\n" +
                      "\tat org.apache.cassandra.concurrent.SyncFutureTask.run(SyncFutureTask.java:68)\n" +
@@ -77,8 +77,8 @@ public class AbstractPairOfSequencesPaxosSimulationTest
                      "\tat accord.impl.RequestCallbacks$CallbackStripe$RegisteredCallback.lambda$safeInvoke$0(RequestCallbacks.java:140)\n" +
                      "\tat java.base/java.util.concurrent.Executors$RunnableAdapter.call(Executors.java:515)\n" +
                      "\tat accord.utils.async.AsyncChains.lambda$encapsulate$0(AsyncChains.java:498)\n" +
-                     "\tat org.apache.cassandra.service.accord.AccordExecutor$PlainRunnable.run(AccordExecutor.java:989)\n" +
-                     "\tat org.apache.cassandra.service.accord.AccordExecutor$CommandStoreQueue.run(AccordExecutor.java:729)\n" +
+                     "\tat org.apache.cassandra.service.accord.execution.AccordExecutor$PlainRunnable.run(AccordExecutor.java:989)\n" +
+                     "\tat org.apache.cassandra.service.accord.execution.AccordExecutor$CommandStoreQueue.run(AccordExecutor.java:729)\n" +
                      "\tat org.apache.cassandra.service.accord.AccordExecutorSimple.run(AccordExecutorSimple.java:95)\n" +
                      "\tat org.apache.cassandra.concurrent.FutureTask$2.call(FutureTask.java:124)\n" +
                      "\tat org.apache.cassandra.concurrent.SyncFutureTask.run(SyncFutureTask.java:68)\n" +

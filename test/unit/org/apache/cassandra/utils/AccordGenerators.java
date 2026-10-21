@@ -39,9 +39,7 @@ import com.google.common.collect.Sets;
 import org.quicktheories.impl.JavaRandom;
 
 import accord.local.Command;
-import accord.local.Command.Truncated;
 import accord.local.DurableBefore;
-import accord.local.ICommand;
 import accord.local.Node;
 import accord.local.RedundantBefore;
 import accord.local.RedundantBefore.Bounds;
@@ -83,12 +81,12 @@ import org.apache.cassandra.dht.IPartitioner;
 import org.apache.cassandra.dht.Token;
 import org.apache.cassandra.schema.TableId;
 import org.apache.cassandra.service.accord.AccordTestUtils;
-import org.apache.cassandra.service.accord.FetchTopologies;
 import org.apache.cassandra.service.accord.TokenRange;
 import org.apache.cassandra.service.accord.api.PartitionKey;
 import org.apache.cassandra.service.accord.api.TokenKey;
 import org.apache.cassandra.service.accord.serializers.TableMetadatas;
-import org.apache.cassandra.service.accord.txn.TxnData;
+import org.apache.cassandra.service.accord.topology.FetchTopologies;
+import org.apache.cassandra.service.accord.txn.TxnResult;
 import org.apache.cassandra.service.accord.txn.TxnWrite;
 
 import static accord.local.CommandStores.RangesForEpoch;
@@ -177,7 +175,7 @@ public class AccordGenerators
             switch (targetType)
             {
                 case notDefined:
-                    return AccordTestUtils.Commands.notDefined(id, txn);
+                    return AccordTestUtils.Commands.notDefined(id);
                 case preaccepted:
                     return AccordTestUtils.Commands.preaccepted(id, txn, executeAt);
                 case committed:
@@ -194,7 +192,12 @@ public class AccordGenerators
 
     public static Gen<CommandBuilder> commandsBuilder()
     {
-        return commandsBuilder(AccordGens.txnIds(), Gens.bools().all(), Gens.enums().all(RecoveryStatus.class), (rs, txnId, txn) -> AccordGens.depsFor(txnId, txn).next(rs));
+        return commandsBuilder(AccordGens.txnIds());
+    }
+
+    public static Gen<CommandBuilder> commandsBuilder(Gen<TxnId> txnIdGen)
+    {
+        return commandsBuilder(txnIdGen, Gens.bools().all(), Gens.enums().all(RecoveryStatus.class), (rs, txnId, txn) -> AccordGens.depsFor(txnId, txn).next(rs));
     }
 
     public static Gen<CommandBuilder> commandsBuilder(Gen<TxnId> txnIdGen, Gen<Boolean> fastPath, Gen<RecoveryStatus> recover, TriFunction<RandomSource, TxnId, Txn, Deps> depsGen)
@@ -210,7 +213,10 @@ public class AccordGenerators
                                                                             RandomSource::nextInt).next(rs);
             Ranges slice = AccordTestUtils.fullRange(txn);
             PartialTxn partialTxn = txn.slice(slice, true); //TODO (correctness): find the case where includeQuery=false and replicate
-            PartialDeps partialDeps = deps.intersecting(slice);
+            // A command's deps must cover, and be covered by, the participants it declares (see Command.Accepted.validateDeps),
+            // and CommandBuilder derives its participants from this route - so slice the deps to the route, not to the
+            // whole token range the txn's keys belong to.
+            PartialDeps partialDeps = deps.intersecting(routeFor(txn));
             Ballot promised;
             Ballot accepted;
             switch (recover.next(rs))
@@ -267,19 +273,19 @@ public class AccordGenerators
             this.promised = promised;
             this.accepted = accepted;
             this.waitingOn = waitingOn;
-            this.route = txn.keys().toRoute(txn.keys().get(0).someIntersectingRoutingKey(null));
+            this.route = routeFor(txn);
             this.keysOrRanges = txn.keys();
         }
 
-        private ICommand attributes(SaveStatus saveStatus)
+        public Command build(SaveStatus saveStatus)
         {
-            ICommand.Builder builder = new ICommand.Builder(txnId);
+            accord.local.CommandBuilder builder = new accord.local.CommandBuilder(txnId);
             if (saveStatus.known.isDefinitionKnown())
                 builder.partialTxn(partialTxn);
             if (saveStatus.known.deps().hasPreAcceptedOrProposedOrDecidedDeps())
                 builder.partialDeps(partialDeps);
 
-            builder.setParticipants(StoreParticipants.all(route, saveStatus));
+            builder.participants(StoreParticipants.all(route, saveStatus));
             builder.durability(NotDurable);
             if (saveStatus.compareTo(SaveStatus.PreAccepted) >= 0)
                 builder.executeAt(executeAt);
@@ -290,73 +296,20 @@ public class AccordGenerators
                 builder.acceptedOrCommitted(Ballot.ZERO);
             if (saveStatus.compareTo(SaveStatus.Stable) >= 0 && !saveStatus.hasBeen(Status.Truncated))
                 builder.waitingOn(waitingOn);
-            if (saveStatus.hasBeen(Status.PreApplied) && !saveStatus.hasBeen(Status.Truncated))
+            if (saveStatus.hasBeen(Status.PreApplied) && saveStatus.compareTo(SaveStatus.TruncatedApplyWithOutcome) <= 0)
             {
                 if (txnId.is(Write))
                     builder.writes(new Writes(txnId, executeAt, keysOrRanges, new TxnWrite(TableMetadatas.none(), Collections.emptyList(), SimpleBitSets.allSet(1))));
-                builder.result(new TxnData());
+                builder.result(TxnResult.PERSISTABLE);
             }
-            return builder;
+            return builder.build(saveStatus);
         }
+    }
 
-        public Command build(SaveStatus saveStatus)
-        {
-            ICommand command = attributes(saveStatus);
-            switch (saveStatus)
-            {
-                default: throw new AssertionError("Unhandled saveStatus: " + saveStatus);
-                case Uninitialised:
-                case NotDefined:
-                    return Command.NotDefined.notDefined(command, Ballot.ZERO);
-                case PreAccepted:
-                case PreAcceptedWithVote:
-                case PreAcceptedWithDeps:
-                    return Command.PreAccepted.preaccepted(command, saveStatus);
-                case AcceptedInvalidate:
-                    return Command.NotAcceptedWithoutDefinition.acceptedInvalidate(command);
-
-                case AcceptedMedium:
-                case AcceptedMediumWithDefinition:
-                case AcceptedMediumWithDefAndVote:
-                case AcceptedInvalidateWithDefinition:
-                case AcceptedSlow:
-                case AcceptedSlowWithDefinition:
-                case AcceptedSlowWithDefAndVote:
-                case PreCommittedWithDefinition:
-                case PreCommittedWithDeps:
-                case PreCommittedWithFixedDeps:
-                case PreCommittedWithDefAndDeps:
-                case PreCommittedWithDefAndFixedDeps:
-                case PreCommitted:
-                    return Command.Accepted.accepted(command, saveStatus);
-
-                case Committed:
-                    return Command.Committed.committed(command, saveStatus);
-
-                case Stable:
-                case ReadyToExecute:
-                    return Command.Committed.committed(command, saveStatus);
-
-                case PreApplied:
-                case Applying:
-                case Applied:
-                    return Command.Executed.executed(command, saveStatus);
-
-                case TruncatedApply:
-                case TruncatedUnapplied:
-                    if (txnId.kind().awaitsOnlyDeps()) return Truncated.truncated(command, saveStatus, executeAt, null, null, null, txnId);
-                    else return Truncated.truncated(command, saveStatus, executeAt, null, null, null, null);
-
-                case TruncatedApplyWithOutcome:
-                    if (txnId.kind().awaitsOnlyDeps()) return Truncated.truncated(command, saveStatus, executeAt, command.partialDeps(), txnId.is(Write) ? new Writes(txnId, executeAt, keysOrRanges, new TxnWrite(TableMetadatas.none(), Collections.emptyList(), SimpleBitSets.allSet(1))) : null, new TxnData(), txnId);
-                    else return Truncated.truncated(command, saveStatus, executeAt, command.partialDeps(), txnId.is(Write) ? new Writes(txnId, executeAt, keysOrRanges, new TxnWrite(TableMetadatas.none(), Collections.emptyList(), SimpleBitSets.allSet(1))) : null, new TxnData(), null);
-
-                case Erased:
-                case Vestigial:
-                case Invalidated:
-                    return Truncated.invalidated(txnId, command.participants());
-            }
-        }
+    /** the route {@link CommandBuilder} declares its participants over */
+    private static FullRoute<?> routeFor(Txn txn)
+    {
+        return txn.keys().toRoute(txn.keys().get(0).someIntersectingRoutingKey(null));
     }
 
     public static Gen<PartitionKey> keys()

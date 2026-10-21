@@ -79,6 +79,8 @@ ant jar -Dversion=%{upstream_version} -Dno-checkstyle=true -Drat.skip=true -Dant
 mkdir -p %{buildroot}/%{_sysconfdir}/%{username}
 mkdir -p %{buildroot}/usr/share/%{username}
 mkdir -p %{buildroot}/usr/share/%{username}/lib
+mkdir -p %{buildroot}/usr/share/doc/%{username}/html
+mkdir -p %{buildroot}/usr/share/man/man7
 mkdir -p %{buildroot}/%{_sysconfdir}/%{username}/default.conf
 mkdir -p %{buildroot}/%{_sysconfdir}/rc.d/init.d
 mkdir -p %{buildroot}/%{_sysconfdir}/security/limits.d
@@ -88,6 +90,8 @@ mkdir -p %{buildroot}/usr/bin
 mkdir -p %{buildroot}/var/lib/%{username}
 mkdir -p %{buildroot}/var/run/%{username}
 mkdir -p %{buildroot}/var/log/%{username}
+mkdir -p %{buildroot}/usr/share/bash-completion/completions
+cp -p %{_get_dist_dir}/autocomplete/nodetool %{buildroot}/usr/share/bash-completion/completions/nodetool
 ( cd pylib && %{__python} setup.py install --no-compile --root %{buildroot}; )
 
 # patches for data and log paths
@@ -131,6 +135,10 @@ cp -p tools/bin/* %{buildroot}/usr/bin/
 # copy cassandra jar
 cp %{_get_dist_dir}/apache-cassandra-%{upstream_version}.jar %{buildroot}/usr/share/%{username}/
 
+# copy HTML and manpages docs
+cp -pr %{_get_dist_dir}/html/* %{buildroot}/usr/share/doc/%{username}/html/
+cp -p %{_get_dist_dir}/man/*.7.gz %{buildroot}/usr/share/man/man7/
+
 %clean
 %{__rm} -rf %{buildroot}
 
@@ -143,6 +151,9 @@ exit 0
 %files
 %defattr(0644,root,root,0755)
 %doc CHANGES.txt LICENSE.txt README.asc NEWS.txt NOTICE.txt CASSANDRA-14092.txt .snyk
+/usr/share/doc/%{username}/html
+/usr/share/bash-completion/completions/nodetool
+/usr/share/man/man7/*.7.gz
 %attr(755,root,root) %{_bindir}/auditlogviewer
 %attr(755,root,root) %{_bindir}/jmxtool
 %attr(755,root,root) %{_bindir}/cassandra-stress
@@ -206,7 +217,7 @@ This package contains extra tools for working with Cassandra clusters.
 %attr(755,root,root) %{_bindir}/fqltool
 %attr(755,root,root) %{_bindir}/generatetokens
 %attr(755,root,root) %{_bindir}/hash_password
-%attr(755,root,root) %{_bindir}/addtocmstool
+%attr(755,root,root) %{_bindir}/cmsofflinetool
 %attr(755,root,root) %{_bindir}/offlineclustermetadatadump
 
 

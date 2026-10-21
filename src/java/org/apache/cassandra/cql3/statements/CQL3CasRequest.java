@@ -35,8 +35,11 @@ import accord.api.Update;
 import accord.primitives.Keys;
 import accord.primitives.Txn;
 
+import org.apache.cassandra.cql3.FunctionContext;
+import org.apache.cassandra.cql3.FunctionContext.PartialFunctionContext;
 import org.apache.cassandra.cql3.QueryOptions;
-import org.apache.cassandra.cql3.UpdateParameters;
+import org.apache.cassandra.cql3.RowUpdateBuilder;
+import org.apache.cassandra.cql3.RowUpdateBuilder.NoTimeRowUpdateBuilder;
 import org.apache.cassandra.cql3.conditions.ColumnCondition;
 import org.apache.cassandra.db.Clustering;
 import org.apache.cassandra.db.Columns;
@@ -309,12 +312,12 @@ public class CQL3CasRequest implements CASRequest
         return partitionUpdate;
     }
 
-    private static class CASUpdateParameters extends UpdateParameters
+    private static class CASUpdateBuilder extends RowUpdateBuilder implements PartialFunctionContext
     {
         final long timeUuidMsb;
         long timeUuidNanos;
 
-        public CASUpdateParameters(TableMetadata metadata, ClientState state, QueryOptions options, long timestamp, long nowInSec, int ttl, Map<DecoratedKey, Partition> prefetchedRows, long timeUuidMsb, long timeUuidNanos) throws InvalidRequestException
+        public CASUpdateBuilder(TableMetadata metadata, ClientState state, QueryOptions options, long timestamp, long nowInSec, int ttl, Map<DecoratedKey, Partition> prefetchedRows, long timeUuidMsb, long timeUuidNanos) throws InvalidRequestException
         {
             super(metadata, state, options, timestamp, nowInSec, ttl, prefetchedRows);
             this.timeUuidMsb = timeUuidMsb;
@@ -324,6 +327,11 @@ public class CQL3CasRequest implements CASRequest
         public byte[] nextTimeUUIDAsBytes()
         {
             return TimeUUID.toBytes(timeUuidMsb, TimeUUIDType.signedBytesToNativeLong(timeUuidNanos++));
+        }
+
+        public long nowMicros()
+        {
+            return timestamp;
         }
     }
 
@@ -353,8 +361,8 @@ public class CQL3CasRequest implements CASRequest
         long applyUpdates(FilteredPartition current, PartitionUpdate.Builder updateBuilder, ClientState state, long timeUuidMsb, long timeUuidNanos)
         {
             Map<DecoratedKey, Partition> map = stmt.requiresRead() ? Collections.singletonMap(key, current) : null;
-            CASUpdateParameters params =
-                new CASUpdateParameters(metadata, state, options, timestamp, nowInSeconds,
+            CASUpdateBuilder params =
+                new CASUpdateBuilder(metadata, state, options, timestamp, nowInSeconds,
                                      stmt.getTimeToLive(options), map, timeUuidMsb, timeUuidNanos);
             stmt.addUpdateForKey(updateBuilder, clustering, params);
             return params.timeUuidNanos;
@@ -382,14 +390,14 @@ public class CQL3CasRequest implements CASRequest
         {
             // No slice statements currently require a read, but this maintains consistency with RowUpdate, and future proofs us
             Map<DecoratedKey, Partition> map = stmt.requiresRead() ? Collections.singletonMap(key, current) : null;
-            UpdateParameters params =
-                new UpdateParameters(metadata,
-                                     state,
-                                     options,
-                                     timestamp,
-                                     nowInSeconds,
-                                     stmt.getTimeToLive(options),
-                                     map);
+            RowUpdateBuilder params =
+                new NoTimeRowUpdateBuilder(metadata,
+                                           state,
+                                           options,
+                                           timestamp,
+                                           nowInSeconds,
+                                           stmt.getTimeToLive(options),
+                                           map);
             stmt.addUpdateForKey(updateBuilder, slice, params);
         }
     }
@@ -472,11 +480,11 @@ public class CQL3CasRequest implements CASRequest
             super(clustering);
         }
 
-        public void addConditions(Collection<ColumnCondition> conds, QueryOptions options) throws InvalidRequestException
+        public void addConditions(Collection<ColumnCondition> conds, FunctionContext context) throws InvalidRequestException
         {
             for (ColumnCondition condition : conds)
             {
-                conditions.add(condition.bind(options));
+                conditions.add(condition.bind(context));
             }
         }
 

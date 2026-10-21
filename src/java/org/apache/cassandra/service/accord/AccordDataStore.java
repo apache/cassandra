@@ -18,23 +18,47 @@
 
 package org.apache.cassandra.service.accord;
 
+import java.util.ArrayList;
+import java.util.List;
+
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import accord.api.DataStore;
 import accord.local.CommandStore;
+import accord.local.CommandStores.RestrictedStoreSelector;
+import accord.local.MapReduceConsumeCommandStores;
 import accord.local.Node;
 import accord.local.RedundantBefore;
 import accord.local.SafeCommandStore;
-import accord.primitives.Range;
 import accord.primitives.Ranges;
-import accord.primitives.SyncPoint;
+import accord.primitives.Timestamp;
+import accord.primitives.TxnId;
+import accord.utils.Invariants;
+import accord.utils.SortedArrays.SortedArrayList;
 import accord.utils.UnhandledEnum;
+import accord.utils.async.AsyncResults;
 
+import org.apache.cassandra.concurrent.ScheduledExecutors;
 import org.apache.cassandra.db.ColumnFamilyStore;
-import org.apache.cassandra.db.memtable.Memtable;
+import org.apache.cassandra.dht.Range;
+import org.apache.cassandra.dht.Token;
+import org.apache.cassandra.exceptions.UnknownTableException;
+import org.apache.cassandra.locator.RangesAtEndpoint;
+import org.apache.cassandra.repair.RepairCoordinator;
+import org.apache.cassandra.repair.RepairParallelism;
+import org.apache.cassandra.repair.messages.RepairOption;
 import org.apache.cassandra.schema.Schema;
 import org.apache.cassandra.schema.TableId;
+import org.apache.cassandra.schema.TableMetadata;
+import org.apache.cassandra.service.StorageService;
+import org.apache.cassandra.service.accord.AccordDurableOnFlush.ReportDurable;
+import org.apache.cassandra.streaming.PreviewKind;
+import org.apache.cassandra.tcm.ClusterMetadata;
+import org.apache.cassandra.utils.progress.ProgressEvent;
+import org.apache.cassandra.utils.progress.ProgressListener;
+
+import static accord.utils.Invariants.illegalArgument;
 
 public class AccordDataStore implements DataStore
 {
@@ -45,75 +69,232 @@ public class AccordDataStore implements DataStore
      * Ensures data for the intersecting ranges is flushed to sstable before calling back with reportOnSuccess.
      * This is used to gate journal cleanup, since we skip the CommitLog for applying to the data table.
      */
-    public void ensureDurable(CommandStore commandStore, Ranges ranges, RedundantBefore reportOnSuccess)
+    @Override
+    public void ensureDurable(CommandStore commandStore, Ranges ranges, RedundantBefore reportOnSuccess, int flags)
     {
-        if (commandStore.node().isReplaying())
+        if (commandStore.node().isReplaying() || ranges.isEmpty())
             return;
 
-        logger.debug("{} awaiting local data durability of {}", commandStore, ranges);
-        ColumnFamilyStore prev = null;
-        for (Range range : ranges)
-        {
-            ColumnFamilyStore cfs;
-            if (prev != null && prev.metadata().id.equals(range.prefix())) cfs = prev;
-            else cfs = Schema.instance.getColumnFamilyStoreInstance((TableId) range.prefix());
-            if (cfs == null)
-            {
-                // TODO (expected): should we record this as durable?
-                continue;
-            }
-
-            while (true)
-            {
-                Memtable memtable = cfs.getCurrentMemtable();
-                // If RX came when after a quiet period or if it raced with a previous memtable flush
-                if (memtable.isClean())
-                {
-                    AccordDurableOnFlush.notify(cfs.metadata(), commandStore, reportOnSuccess);
-                    break;
-                }
-
-                AccordDurableOnFlush onFlush = memtable.ensureFlushListener(FlushListenerKey.KEY, AccordDurableOnFlush::new);
-                if (onFlush != null && onFlush.add(commandStore.id(), reportOnSuccess))
-                    break;
-
-                if (cfs == prev)
-                {
-                    // we must already have a successful notify, so just propagate
-                    AccordDurableOnFlush.notify(cfs.metadata(), commandStore, reportOnSuccess);
-                    break;
-                }
-            }
-
-            prev = cfs;
-        }
+        logger.debug("{} awaiting local data durability for {}", commandStore, ranges);
+        ensureDurableInternal(commandStore, reportOnSuccess, flags);
     }
 
     @Override
-    public FetchResult fetch(Node node, SafeCommandStore safeStore, Ranges ranges, SyncPoint syncPoint, FetchRanges callback, FetchKind kind)
+    public void ensureDurable(CommandStore commandStore, RedundantBefore reportOnSuccess, int flags)
     {
-        switch (kind)
-        {
-            default: throw new UnhandledEnum(kind);
-            case Image:
-            {
-                AccordFetchCoordinator coordinator;
-                try
-                {
-                    coordinator = new AccordFetchCoordinator(node, ranges, syncPoint, callback, safeStore.commandStore());
-                }
-                catch (Throwable t)
-                {
-                    return new FetchResult.Failure(t);
-                }
+        logger.debug("{} awaiting full local data durability", commandStore);
+        ensureDurableInternal(commandStore, reportOnSuccess, flags);
+    }
 
-                coordinator.start();
-                return coordinator.result();
-            }
-            case Sync:
+    private void ensureDurableInternal(CommandStore commandStore, RedundantBefore redundantBefore, int flags)
+    {
+        ColumnFamilyStore cfs = Schema.instance.getColumnFamilyStoreInstance(((AccordCommandStore)commandStore).tableId());
+        AccordDurableOnFlush.notifyOnDurable(cfs, commandStore, ReportDurable.of(redundantBefore, flags));
+    }
+
+    public FetchResult image(Node node, SafeCommandStore safeStore, Ranges ranges, TxnId atLeast, SortedArrayList<Node.Id> readable, FetchRanges callback)
+    {
+        AccordFetchCoordinator coordinator;
+        try
+        {
+            coordinator = new AccordFetchCoordinator(node, ranges, atLeast, readable, callback, safeStore.commandStore());
+        }
+        catch (Throwable t)
+        {
+            return new FetchResult.Failure(t);
+        }
+
+        coordinator.start();
+        return coordinator.result();
+    }
+
+    // sync performs a quorum data repair, so does not read from any particular source node(s)
+    // TODO (desired): perform a point-to-point repair with some readable node instead, to save effort
+    @Override
+    public FetchResult sync(Node node, SafeCommandStore safeStore, Ranges ranges, TxnId atLeast, SortedArrayList<Node.Id> readable, FetchRanges callback)
+    {
+        TableId tableId = ((AccordCommandStore)safeStore.commandStore()).tableId();
+
+        ClusterMetadata cm = ClusterMetadata.current();
+        TableMetadata tableMetadata = cm.schema.getTableMetadata(tableId);
+        if (tableMetadata == null)
+        {
+            Throwable fail = new UnknownTableException("Could not find tableId " + tableId + " in ClusterMetadata", tableId);
+            callback.fail(ranges, fail);
+            return new FetchResult.Failure(fail);
+        }
+
+        class SyncResult extends AsyncResults.SettableResult<Ranges> implements FetchResult
+        {
+            @Override
+            public void abort(Ranges ranges)
             {
-                throw new UnsupportedOperationException();
+                // do nothing if unimplemented
+                // TODO (expected): implement this
             }
         }
+
+        // TODO (expected): add some automatic slicing of ranges and retry/back-off logic; but for now,
+        //  since this is done at the command store level, and this is already a slice of a node, this should be fine
+        SyncResult syncResult = new SyncResult();
+        class Listener implements ProgressListener
+        {
+            StartingRangeFetch starting;
+            {
+                StartingRangeFetch starting = callback.starting(ranges);
+                Invariants.require(starting != null);
+                synchronized (this)
+                {
+                    this.starting = starting;
+                }
+            }
+
+            @Override
+            public void progress(String tag, ProgressEvent event)
+            {
+                switch (event.getType())
+                {
+                    default: throw new UnhandledEnum(event.getType());
+                    case SUCCESS:
+                        callback.fetched(ranges);
+                        syncResult.trySuccess(null);
+                        // fall-through to ensure started
+                    case START:
+                        reportStarted();
+                        break;
+                    case PROGRESS:
+                    case COMPLETE:
+                    case NOTIFICATION:
+                        break;
+                    case ABORT:
+                    case ERROR:
+                        RuntimeException ex = new RuntimeException(String.format("Repair failed (%s): %s", event.getType(), event.getMessage()));
+                        fail(ex);
+                        break;
+                }
+            }
+
+            private void reportStarted()
+            {
+                StartingRangeFetch start;
+                synchronized (this)
+                {
+                    start = this.starting;
+                    if (start == null)
+                        return;
+                    this.starting = null;
+                }
+
+                node.commandStores().mapReduceConsume(new RestrictedStoreSelector(ranges, 0, Long.MAX_VALUE), new MapReduceConsumeCommandStores<Ranges, Timestamp>(ranges)
+                {
+                    @Override public Timestamp reduce(Timestamp o1, Timestamp o2) { return Timestamp.nonNullOrMax(o1, o2); }
+                    @Override public void accept(Timestamp result, Throwable failure)
+                    {
+                        if (failure == null && result == null)
+                            failure = new RuntimeException("No matching command stores for " + ranges);
+
+                        if (failure != null) fail(start, failure);
+                        else start.started(result);
+                    }
+                    @Override public TxnId primaryTxnId() { return null; }
+                    @Override public String reason() { return "Compute MaxConflict to report for fetch"; }
+                    @Override protected Timestamp applyInternal(SafeCommandStore safeStore) { return safeStore.commandStore().maxConflict(TxnId.NONE, ranges); }
+                });
+            }
+
+            synchronized StartingRangeFetch takeStarting()
+            {
+                StartingRangeFetch start = starting;
+                starting = null;
+                return start;
+            }
+
+            void fail(Throwable fail)
+            {
+                fail(takeStarting(), fail);
+            }
+
+            void fail(StartingRangeFetch starting, Throwable fail)
+            {
+                if (starting != null)
+                {
+                    try { starting.cancel(); }
+                    catch (Throwable t)
+                    {
+                        t.addSuppressed(fail);
+                        node.agent().onException(t);
+                    }
+                }
+                try { callback.fail(ranges, fail); }
+                catch (Throwable t)
+                {
+                    if (t != fail)
+                        t.addSuppressed(fail);
+                    node.agent().onException(t);
+                }
+                try { syncResult.tryFailure(fail); }
+                catch (Throwable t)
+                {
+                    if (t != fail)
+                        t.addSuppressed(fail);
+                    node.agent().onException(t);
+                }
+            }
+        }
+
+        Listener listener = new Listener();
+        try
+        {
+            RepairCoordinator coord = StorageService.instance.newRepairCoordinator(tableMetadata.keyspace, options(tableMetadata, ranges));
+            coord.addProgressListener(listener);
+
+            ScheduledExecutors.optionalTasks.submit(coord).addCallback((s, f) -> {
+                if (f != null)
+                    syncResult.tryFailure(f);
+            });
+        }
+        catch (Throwable t)
+        {
+            listener.fail(t);
+        }
+
+        return syncResult;
+    }
+
+    private static RepairOption options(TableMetadata tableMetadata, Ranges accordRanges)
+    {
+        List<Range<Token>> ranges = new ArrayList<>();
+        RangesAtEndpoint localRanges = StorageService.instance.getLocalReplicas(tableMetadata.keyspace);
+        // repair validation requires that we separate by local range, even if they are adjacent;
+        // unsure if this is important, so just splitting into ranges that are wholly contained by local ranges
+        accordRanges.forEach(accordRange -> {
+            Range<Token> range = ((TokenRange)accordRange).toKeyspaceRange();
+            localRanges.ranges().forEach(localRange -> {
+                if (localRange.contains(range)) ranges.add(range);
+                else if (localRange.intersects(range)) ranges.addAll(range.intersectionWith(localRange));
+            });
+        });
+
+        Ranges matchedWithLocal = Ranges.of(ranges.stream().map(r -> TokenRange.fromKeyspaceRange(tableMetadata.id, r)).toArray(TokenRange[]::new)).mergeTouching();
+        if (!matchedWithLocal.containsAll(accordRanges))
+            throw illegalArgument("Local ranges %s do not fully cover requested accord ranges %s (overlap: %s)", localRanges, accordRanges, matchedWithLocal);
+
+        return new RepairOption(RepairParallelism.PARALLEL, // parallelism
+                false,                      // primaryRange
+                false,                      // incremental
+                false,                      // trace
+                5,                          // jobThreads
+                ranges,                     // ranges
+                true,                       // pullRepair
+                true,                       // forceRepair
+                PreviewKind.NONE,           // previewKind
+                false,                      // optimiseStreams
+                true,                       // ignoreUnreplicatedKeyspaces
+                true,                       // repairData
+                false,                      // repairPaxos
+                true,                       // dontPurgeTombstones
+                false,                      // repairAccord
+                false
+        );
     }
 }

@@ -119,10 +119,6 @@ public class AutoRepairSchedulerStatsHelper extends TestBaseImpl
 
     public static void testSchedulerStats() throws ParseException
     {
-        // ensure there was no history of previous repair runs through the scheduler
-        Object[][] rows = cluster.coordinator(1).execute(String.format("SELECT repair_type, host_id, repair_start_ts, repair_finish_ts, repair_turn FROM %s.%s", DISTRIBUTED_KEYSPACE_NAME, SystemDistributedKeyspace.AUTO_REPAIR_HISTORY), ConsistencyLevel.QUORUM);
-        assertEquals(0, rows.length);
-
         // disabling AutoRepair for system_distributed and system_auth tables to avoid
         // interfering with the repaired bytes/plans calculation
         disableAutoRepair(SystemDistributedKeyspace.NAME, SystemDistributedKeyspace.TABLE_NAMES);

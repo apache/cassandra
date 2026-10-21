@@ -230,7 +230,7 @@ public class RowsTest
     {
         long ts = secondToTs(now);
         Row.Builder builder = createBuilder(c);
-        builder.addPrimaryKeyLivenessInfo(LivenessInfo.create(ts, now));
+        builder.addPrimaryKeyLivenessInfo(LivenessInfo.create(ts));
         if (vVal != null)
         {
             builder.addCell(BufferCell.live(v, ts, vVal));
@@ -251,7 +251,7 @@ public class RowsTest
         long ts = secondToTs(now);
         Row.Builder builder = BTreeRow.unsortedBuilder();
         builder.newRow(c1);
-        LivenessInfo liveness = LivenessInfo.create(ts, now);
+        LivenessInfo liveness = LivenessInfo.create(ts);
         builder.addPrimaryKeyLivenessInfo(liveness);
         DeletionTime complexDeletion = DeletionTime.build(ts-1, now);
         builder.addComplexDeletion(m, complexDeletion);
@@ -282,6 +282,57 @@ public class RowsTest
         }
     }
 
+    private static Row liveRow(Clustering<?> c, long ts, ByteBuffer vVal)
+    {
+        return rowWithCell(c, ts, BufferCell.live(v, ts, vVal));
+    }
+
+    private static Row rowWithCell(Clustering<?> c, long ts, Cell<?> cell)
+    {
+        Row.Builder builder = createBuilder(c);
+        builder.addPrimaryKeyLivenessInfo(LivenessInfo.create(ts));
+        builder.addCell(cell);
+        return builder.build();
+    }
+
+    private static Row mergeRows(Row... rows)
+    {
+        boolean hasComplex = false;
+        for (Row row : rows)
+            hasComplex |= row.hasComplex();
+        Row.Merger merger = new Row.Merger(rows.length, hasComplex);
+        for (int i = 0; i < rows.length; i++)
+            merger.add(i, rows[i]);
+        return merger.merge(DeletionTime.LIVE);
+    }
+
+    @Test
+    public void testMergerMinLocalDeletionTime()
+    {
+        long now = FBUtilities.nowInSeconds();
+        long ts = secondToTs(now);
+
+        // All inputs are free of deletions and expiring data, so the merged row must be too. This is the fast path in
+        // Row.Merger#merge that reuses Cell.MAX_DELETION_TIME instead of recomputing it by scanning the merged btree.
+        Row mergedLive = mergeRows(liveRow(c1, ts, BB1), liveRow(c1, ts + 1, BB2));
+        Assert.assertEquals(Cell.MAX_DELETION_TIME, mergedLive.minLocalDeletionTime());
+        Assert.assertFalse(mergedLive.hasDeletion(now));
+
+        // One input carries an expiring cell that wins reconciliation (higher timestamp): the merged row must keep
+        // its expiration time rather than being reported as deletion-free.
+        Cell<?> expiringCell = BufferCell.expiring(v, ts + 2, 100, now, BB3);
+        Row mergedExpiring = mergeRows(liveRow(c1, ts, BB1), rowWithCell(c1, ts + 2, expiringCell));
+        Assert.assertEquals(expiringCell.localDeletionTime(), mergedExpiring.minLocalDeletionTime());
+        Assert.assertFalse(mergedExpiring.hasDeletion(now));
+        Assert.assertTrue(mergedExpiring.hasDeletion(expiringCell.localDeletionTime()));
+
+        // Same for a tombstone cell winning reconciliation: the merged row must report a deletion.
+        Cell<?> tombstoneCell = BufferCell.tombstone(v, ts + 2, now);
+        Row mergedTombstone = mergeRows(liveRow(c1, ts, BB1), rowWithCell(c1, ts + 2, tombstoneCell));
+        Assert.assertEquals(Long.MIN_VALUE, mergedTombstone.minLocalDeletionTime());
+        Assert.assertTrue(mergedTombstone.hasDeletion(now));
+    }
+
     @Test
     public void diff()
     {
@@ -289,7 +340,7 @@ public class RowsTest
         long ts1 = secondToTs(now1);
         Row.Builder r1Builder = BTreeRow.unsortedBuilder();
         r1Builder.newRow(c1);
-        LivenessInfo r1Liveness = LivenessInfo.create(ts1, now1);
+        LivenessInfo r1Liveness = LivenessInfo.create(ts1);
         r1Builder.addPrimaryKeyLivenessInfo(r1Liveness);
         DeletionTime r1ComplexDeletion = DeletionTime.build(ts1-1, now1);
         r1Builder.addComplexDeletion(m, r1ComplexDeletion);
@@ -305,7 +356,7 @@ public class RowsTest
         long ts2 = secondToTs(now2);
         Row.Builder r2Builder = BTreeRow.unsortedBuilder();
         r2Builder.newRow(c1);
-        LivenessInfo r2Liveness = LivenessInfo.create(ts2, now2);
+        LivenessInfo r2Liveness = LivenessInfo.create(ts2);
         r2Builder.addPrimaryKeyLivenessInfo(r2Liveness);
         Cell<?> r2v = BufferCell.live(v, ts2, BB2);
         Cell<?> r2m2 = BufferCell.live(m, ts2, BB1, CellPath.create(BB2));
@@ -365,7 +416,7 @@ public class RowsTest
         long ts1 = secondToTs(now1);
         Row.Builder r1Builder = BTreeRow.unsortedBuilder();
         r1Builder.newRow(c1);
-        LivenessInfo r1Liveness = LivenessInfo.create(ts1, now1);
+        LivenessInfo r1Liveness = LivenessInfo.create(ts1);
         r1Builder.addPrimaryKeyLivenessInfo(r1Liveness);
 
         // mergedData == null
@@ -373,7 +424,7 @@ public class RowsTest
         long ts2 = secondToTs(now2);
         Row.Builder r2Builder = BTreeRow.unsortedBuilder();
         r2Builder.newRow(c1);
-        LivenessInfo r2Liveness = LivenessInfo.create(ts2, now2);
+        LivenessInfo r2Liveness = LivenessInfo.create(ts2);
         r2Builder.addPrimaryKeyLivenessInfo(r2Liveness);
         DeletionTime r2ComplexDeletion = DeletionTime.build(ts2-1, now2);
         r2Builder.addComplexDeletion(m, r2ComplexDeletion);
@@ -419,7 +470,7 @@ public class RowsTest
         long ts1 = secondToTs(now1);
         Row.Builder r1Builder = BTreeRow.unsortedBuilder();
         r1Builder.newRow(c1);
-        LivenessInfo r1Liveness = LivenessInfo.create(ts1, now1);
+        LivenessInfo r1Liveness = LivenessInfo.create(ts1);
         r1Builder.addPrimaryKeyLivenessInfo(r1Liveness);
 
         // mergedData == null
@@ -427,7 +478,7 @@ public class RowsTest
         long ts2 = secondToTs(now2);
         Row.Builder r2Builder = BTreeRow.unsortedBuilder();
         r2Builder.newRow(c1);
-        LivenessInfo r2Liveness = LivenessInfo.create(ts2, now2);
+        LivenessInfo r2Liveness = LivenessInfo.create(ts2);
         r2Builder.addPrimaryKeyLivenessInfo(r2Liveness);
         DeletionTime r2ComplexDeletion = DeletionTime.build(ts2-1, now2);
         r2Builder.addComplexDeletion(m, r2ComplexDeletion);
@@ -484,7 +535,7 @@ public class RowsTest
         Row merged = Rows.merge(existingBuilder.build(), updateBuilder.build());
 
         Assert.assertEquals(c1, merged.clustering());
-        Assert.assertEquals(LivenessInfo.create(ts2, now2), merged.primaryKeyLivenessInfo());
+        Assert.assertEquals(LivenessInfo.create(ts2), merged.primaryKeyLivenessInfo());
 
         Iterator<Cell<?>> iter = merged.cells().iterator();
         Assert.assertTrue(iter.hasNext());

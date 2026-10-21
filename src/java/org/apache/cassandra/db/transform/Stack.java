@@ -26,6 +26,8 @@ class Stack
 {
     public static final Transformation[] EMPTY_TRANSFORMATIONS = new Transformation[0];
     public static final MoreContentsHolder[] EMPTY_MORE_CONTENTS_HOLDERS = new MoreContentsHolder[0];
+
+    static final int DEFAULT_NOT_EMPTY_SIZE = 6;
     static final Stack EMPTY = new Stack();
 
     Transformation[] stack;
@@ -72,7 +74,7 @@ class Stack
 
     private static <E> E[] resize(E[] array)
     {
-        int newLen = array.length == 0 ? 5 : array.length * 2;
+        int newLen = array.length == 0 ? DEFAULT_NOT_EMPTY_SIZE : array.length * 2;
         return Arrays.copyOf(array, newLen);
     }
 

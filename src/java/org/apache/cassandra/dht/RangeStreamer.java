@@ -728,15 +728,18 @@ public class RangeStreamer
 
                     if (remaining.size() < available.full.size() + available.trans.size())
                     {
-                        // If the operator hasn't specified what to do when we discover a previous partially successful bootstrap,
-                        // we error out and tell them to manually reconcile it. See CASSANDRA-17679.
+                        // If the operator hasn't specified what to do when we discover a previous partially successful bootstrap
+                        // (some of the ranges we are about to fetch are already marked as available), we error out and spell out
+                        // the true/false choice. See CASSANDRA-17679.
                         if (!RESET_BOOTSTRAP_PROGRESS.isPresent())
                         {
                             List<FetchReplica> skipped = fetchReplicas.stream().filter(isAvailable).collect(Collectors.toList());
-                            String msg = String.format("Discovered existing bootstrap data and %s " +
-                                                       "is not configured; aborting bootstrap. Please clean up local files manually " +
-                                                       "and try again or set cassandra.reset_bootstrap_progress=true to ignore. " +
-                                                       "Found: %s. Fully available: %s. Transiently available: %s",
+                            String msg = String.format("Discovered existing bootstrap data (ranges already marked as available by a previous " +
+                                                       "bootstrap attempt) and %1$s is unset; aborting bootstrap. To start a new bootstrap and " +
+                                                       "re-stream all ranges, delete the data files from the previous attempt and set it to 'true'. " +
+                                                       "To stream only the missing ranges, set it to 'false' (potentially dangerous, as the previous " +
+                                                       "data may be incomplete). Set it on restart with -D%1$s=<true|false>. See CASSANDRA-17679. " +
+                                                       "Found: %2$s. Fully available: %3$s. Transiently available: %4$s",
                                                        RESET_BOOTSTRAP_PROGRESS.getKey(), skipped, available.full, available.trans);
                             logger.error(msg);
                             throw new IllegalStateException(msg);

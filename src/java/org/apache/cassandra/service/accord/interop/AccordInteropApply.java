@@ -23,7 +23,7 @@ import javax.annotation.Nullable;
 import org.agrona.collections.Int2ObjectHashMap;
 
 import accord.api.LocalListeners;
-import accord.api.Result;
+import accord.api.Result.PersistableResult;
 import accord.coordinate.ExecuteFlag.ExecuteFlags;
 import accord.local.Command;
 import accord.local.Node.Id;
@@ -49,6 +49,7 @@ import accord.utils.UnhandledEnum;
 
 import org.apache.cassandra.db.ConsistencyLevel;
 import org.apache.cassandra.service.accord.AccordMessageSink.AccordMessageType;
+import org.apache.cassandra.service.accord.AccordService;
 import org.apache.cassandra.service.accord.serializers.ApplySerializers.ApplySerializer;
 import org.apache.cassandra.service.accord.serializers.IVersionedSerializer;
 import org.apache.cassandra.service.accord.txn.AccordUpdate;
@@ -69,9 +70,9 @@ public class AccordInteropApply extends Apply implements LocalListeners.ComplexL
     public static final Apply.Factory FACTORY = new Apply.Factory()
     {
         @Override
-        public Apply create(Kind kind, Id to, Topologies participates, TxnId txnId, Ballot ballot, Route<?> route, Txn txn, Timestamp executeAt, Deps deps, Writes writes, Result result, FullRoute<?> fullRoute, ExecuteFlags flags)
+        public Apply create(Kind kind, Id to, Topologies participates, TxnId txnId, Ballot ballot, Route<?> route, Txn txn, Timestamp executeAt, Deps deps, Writes writes, PersistableResult result, FullRoute<?> fullRoute, ExecuteFlags flags)
         {
-            checkArgument(kind != Kind.Maximal, "Shouldn't need to send a maximal commit with interop support");
+            checkArgument(kind != Kind.Maximal || to.equals(AccordService.nodeId()), "Shouldn't need to send a maximal commit with interop support");
             ConsistencyLevel commitCL = txn.update() instanceof AccordUpdate ? ((AccordUpdate) txn.update()).cassandraCommitCL() : null;
             // Any asynchronous apply option should use the regular Apply that doesn't wait for writes to complete
             if (commitCL == null || commitCL == ConsistencyLevel.ANY)
@@ -83,7 +84,7 @@ public class AccordInteropApply extends Apply implements LocalListeners.ComplexL
     public static final IVersionedSerializer<AccordInteropApply> serializer = new ApplySerializer<AccordInteropApply>()
     {
         @Override
-        protected AccordInteropApply deserializeApply(TxnId txnId, Ballot ballot, Route<?> scope, long minEpoch, long waitForEpoch, long maxEpoch, Apply.Kind kind, Timestamp executeAt, PartialDeps deps, PartialTxn txn, @Nullable FullRoute<?> fullRoute, Writes writes, Result result, ExecuteFlags flags)
+        protected AccordInteropApply deserializeApply(TxnId txnId, Ballot ballot, Route<?> scope, long minEpoch, long waitForEpoch, long maxEpoch, Apply.Kind kind, Timestamp executeAt, PartialDeps deps, PartialTxn txn, @Nullable FullRoute<?> fullRoute, Writes writes, PersistableResult result, ExecuteFlags flags)
         {
             return new AccordInteropApply(kind, txnId, ballot, scope, minEpoch, waitForEpoch, maxEpoch, executeAt, deps, txn, fullRoute, writes, result, flags);
         }
@@ -93,12 +94,12 @@ public class AccordInteropApply extends Apply implements LocalListeners.ComplexL
     transient Int2ObjectHashMap<LocalListeners.Registered> listeners;
     boolean failed;
 
-    private AccordInteropApply(Kind kind, TxnId txnId, Ballot ballot, Route<?> route, long minEpoch, long waitForEpoch, long maxEpoch, Timestamp executeAt, PartialDeps deps, @Nullable PartialTxn txn, @Nullable FullRoute<?> fullRoute, Writes writes, Result result, ExecuteFlags flags)
+    private AccordInteropApply(Kind kind, TxnId txnId, Ballot ballot, Route<?> route, long minEpoch, long waitForEpoch, long maxEpoch, Timestamp executeAt, PartialDeps deps, @Nullable PartialTxn txn, @Nullable FullRoute<?> fullRoute, Writes writes, PersistableResult result, ExecuteFlags flags)
     {
         super(kind, txnId, ballot, route, minEpoch, waitForEpoch, maxEpoch, executeAt, deps, txn, fullRoute, writes, result, flags);
     }
 
-    private AccordInteropApply(Kind kind, Id to, Topologies participates, TxnId txnId, Ballot ballot, Route<?> route, Txn txn, Timestamp executeAt, Deps deps, Writes writes, Result result, FullRoute<?> fullRoute, ExecuteFlags flags)
+    private AccordInteropApply(Kind kind, Id to, Topologies participates, TxnId txnId, Ballot ballot, Route<?> route, Txn txn, Timestamp executeAt, Deps deps, Writes writes, PersistableResult result, FullRoute<?> fullRoute, ExecuteFlags flags)
     {
         super(kind, to, participates, txnId, ballot, route, txn, executeAt, deps, writes, result, fullRoute, flags);
     }
@@ -165,7 +166,7 @@ public class AccordInteropApply extends Apply implements LocalListeners.ComplexL
         // and prevents races where we respond before dispatching all the required reads (if the reads are
         // completing faster than the reads can be setup on all required shards)
         if (-1 == --waitingOnCount)
-            node.reply(replyTo, replyContext, ApplyReply.Applied, null);
+            node.reply(replyTo, replyContext, ApplyReply.Applied, null, tracing());
     }
 
     @Override
@@ -175,11 +176,11 @@ public class AccordInteropApply extends Apply implements LocalListeners.ComplexL
         {
             // Respond with insufficient which should make the coordinator send us the commit
             // we need to respond
-            node.reply(replyTo, replyContext, reply, failure);
+            node.reply(replyTo, replyContext, reply, failure, tracing());
         }
         else if (failure != null)
         {
-            node.reply(replyTo, replyContext, null, failure);
+            node.reply(replyTo, replyContext, null, failure, tracing());
             node.agent().onException(failure);
             fail();
         }

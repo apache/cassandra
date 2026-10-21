@@ -7,4 +7,4 @@ Indexes are built in the background automatically, without blocking reads or wri
 Client-maintained _tables as indexes_ must be created manually;
 for example, if the artists column had been indexed by creating a table such as `songs_by_artist`, your client application would have to populate the table with data from the songs table.
 
-To perform a hot rebuild of an index, use the xref:cassandra:tools/nodetool/rebuild_index.adoc[nodetool rebuild_index] command.
+To perform a hot rebuild of an index, use the xref:cassandra:managing/tools/nodetool/rebuild_index.adoc[nodetool rebuild_index] command.

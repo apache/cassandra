@@ -44,6 +44,16 @@ public class UnfilteredDescriptor extends ClusteringDescriptor
     private long unfilteredDataStart;
     private long prevUnfilteredSize;
     Columns rowColumns;
+    // Bit i set means column i of rowColumns, in iteration order, is absent from this row.
+    // Only a subset row with fewer than 64 superset columns sets a bit.
+    // A superset of 64 columns or more uses presentColumnsWords instead.
+    private long missingColumnsMask;
+    // Bit i of word i/64 set means superset column i is present in this row.
+    // A row with a superset of 64 columns or more decodes into it, and useColumnsWords then
+    // marks it valid. The next row overwrites the array, so CellCursor reads it within
+    // the same row.
+    private long[] presentColumnsWords;
+    private boolean useColumnsWords;
 
     public UnfilteredDescriptor(AbstractType<?>[] clusteringTypes)
     {
@@ -57,9 +67,11 @@ public class UnfilteredDescriptor extends ClusteringDescriptor
         this.flags = flags;
         this.extendedFlags = 0;
         rowColumns = null;
+        missingColumnsMask = 0;
+        useColumnsWords = false;
         byte clusteringKind = dataReader.readByte();
         if (clusteringKind == STATIC_CLUSTERING_KIND || clusteringKind == ROW_CLUSTERING_KIND) {
-            // STATIC_CLUSTERING or CLUSTERING -> no deletion info, should not happen
+            // A row or static clustering kind carries no deletion time.
             throw new IllegalStateException();
         }
 
@@ -70,7 +82,6 @@ public class UnfilteredDescriptor extends ClusteringDescriptor
         if (clusteringKind == EXCL_END_INCL_START_BOUNDARY_CLUSTERING_KIND ||
             clusteringKind == INCL_END_EXCL_START_BOUNDARY_CLUSTERING_KIND)
         {
-            // boundary
             // CLOSE
             serializationHeader.readDeletionTime(dataReader, deletionTime);
             // OPEN
@@ -78,7 +89,6 @@ public class UnfilteredDescriptor extends ClusteringDescriptor
         }
         else
         {
-            // bound
             // CLOSE|OPEN
             serializationHeader.readDeletionTime(dataReader, deletionTime);
         }
@@ -87,11 +97,13 @@ public class UnfilteredDescriptor extends ClusteringDescriptor
     void loadRow(RandomAccessReader dataReader,
                  SerializationHeader serializationHeader,
                  DeserializationHelper deserializationHelper,
-                 int flags) throws IOException {
-        // body = whatever is covered by size, so inclusive of the prev_row_size inclusive of flags
-        position = dataReader.getPosition() - 1;
+                 int flags,
+                 int extendedFlags) throws IOException {
+        // The unfiltered starts at its flags byte, which the reader has already consumed.
+        // A non-static row adds an extended-flags byte only for a shadowable deletion.
+        position = dataReader.getPosition() - (UnfilteredSerializer.isExtended(flags) ? 2 : 1);
         this.flags = flags;
-        this.extendedFlags = 0;
+        this.extendedFlags = extendedFlags;
 
         loadClustering(dataReader, ROW_CLUSTERING_KIND, this.clusteringTypes.length);
 
@@ -105,11 +117,11 @@ public class UnfilteredDescriptor extends ClusteringDescriptor
                        DeserializationHelper deserializationHelper,
                        int flags,
                        int extendedFlags) throws IOException {
-        // body = whatever is covered by size, so inclusive of the prev_row_size inclusive of flags
+        // The unfiltered starts at its flags byte, and a static row always adds an
+        // extended-flags byte.
         position = dataReader.getPosition() - 2;
         this.flags = flags;
         this.extendedFlags = extendedFlags;
-        // no clustering
         loadClustering(dataReader, STATIC_CLUSTERING_KIND, 0);
         rowColumns = serializationHeader.columns(true);
 
@@ -122,6 +134,7 @@ public class UnfilteredDescriptor extends ClusteringDescriptor
                                      int flags) throws IOException
     {
         unfilteredSize = dataReader.readUnsignedVInt();
+        // size covers the body from this point on, prev_row_size included.
         unfilteredDataStart = dataReader.getPosition();
         prevUnfilteredSize = dataReader.readUnsignedVInt(); // debug only, unused otherwise
 
@@ -133,20 +146,88 @@ public class UnfilteredDescriptor extends ClusteringDescriptor
 
         if (UnfilteredSerializer.hasDeletion(flags))
         {
-            // struct delta_deletion_time {
-            //    varint delta_marked_for_delete_at;
-            //    varint delta_local_deletion_time;
-            //};
             serializationHeader.readDeletionTime(dataReader, deletionTime);
         }
         else
         {
             deletionTime.resetLive();
         }
-        if (!UnfilteredSerializer.hasAllColumns(flags))
+        useColumnsWords = false;
+        if (UnfilteredSerializer.hasAllColumns(flags))
+            missingColumnsMask = 0;
+        else if (rowColumns.size() < 64)
+            readSmallColumnsSubset(dataReader);
+        else
+            readLargeColumnsSubset(dataReader);
+    }
+
+    /**
+     * Columns.Serializer.deserializeSubset would build a Columns per row, so decode its wire format
+     * here: an unsigned vint bitmask of the missing superset columns. rowColumns stays the superset,
+     * and consumers filter with missingColumnsMask().
+     */
+    private void readSmallColumnsSubset(RandomAccessReader dataReader) throws IOException
+    {
+        long encoded = dataReader.readUnsignedVInt();
+        // Mirrors the corruption check in Columns.Serializer.deserializeSubset.
+        if ((encoded >>> rowColumns.size()) != 0)
+            throw new IOException("Invalid Columns subset bytes; too many bits set: " + Long.toBinaryString(encoded));
+        missingColumnsMask = encoded;
+    }
+
+    /**
+     * Wire format per Columns.Serializer.serializeLargeSubset: an unsigned vint delta of
+     * supersetCount - presentCount, then one unsigned vint superset index per column. The indices
+     * name the present columns when presentCount is under half the superset, and the missing
+     * columns otherwise. Decoding into reusable mask words leaves rowColumns as the superset, so
+     * CellCursor never rebuilds its per-superset arrays.
+     */
+    private void readLargeColumnsSubset(RandomAccessReader dataReader) throws IOException
+    {
+        long encoded = dataReader.readUnsignedVInt();
+        int supersetCount = rowColumns.size();
+        if (encoded > supersetCount)
+            throw new IOException("Invalid large Columns subset: missing count " + encoded + " of " + supersetCount);
+
+        int delta = (int) encoded;
+        int columnCount = supersetCount - delta;
+        int nWords = (supersetCount + 63) >>> 6;
+        if (presentColumnsWords == null || presentColumnsWords.length < nWords)
+            presentColumnsWords = new long[nWords];
+
+        if (columnCount < supersetCount / 2)
+            readPresentColumnIndexes(dataReader, supersetCount, nWords, columnCount);
+        else
+            readMissingColumnIndexes(dataReader, supersetCount, nWords, delta);
+
+        useColumnsWords = true;
+        missingColumnsMask = 0;
+    }
+
+    private void readPresentColumnIndexes(RandomAccessReader dataReader, int supersetCount, int nWords, int columnCount) throws IOException
+    {
+        java.util.Arrays.fill(presentColumnsWords, 0, nWords, 0L);
+        for (int i = 0; i < columnCount; i++)
         {
-            // TODO: re-implement GC free
-            rowColumns = Columns.serializer.deserializeSubset(rowColumns, dataReader);
+            int idx = dataReader.readUnsignedVInt32();
+            if (idx < 0 || idx >= supersetCount)
+                throw new IOException("Invalid large Columns subset: present index " + idx + " of " + supersetCount);
+            presentColumnsWords[idx >>> 6] |= 1L << (idx & 63);
+        }
+    }
+
+    /** The last word starts trimmed to the column range. A delta of 0 clears nothing. */
+    private void readMissingColumnIndexes(RandomAccessReader dataReader, int supersetCount, int nWords, int delta) throws IOException
+    {
+        java.util.Arrays.fill(presentColumnsWords, 0, nWords, -1L);
+        if ((supersetCount & 63) != 0)
+            presentColumnsWords[nWords - 1] = -1L >>> (64 - (supersetCount & 63));
+        for (int i = 0; i < delta; i++)
+        {
+            int idx = dataReader.readUnsignedVInt32();
+            if (idx < 0 || idx >= supersetCount)
+                throw new IOException("Invalid large Columns subset: missing index " + idx + " of " + supersetCount);
+            presentColumnsWords[idx >>> 6] &= ~(1L << (idx & 63));
         }
     }
 
@@ -160,6 +241,8 @@ public class UnfilteredDescriptor extends ClusteringDescriptor
         unfilteredDataStart = 0;
         prevUnfilteredSize = 0;
         rowColumns = null;
+        missingColumnsMask = 0;
+        useColumnsWords = false;
     }
 
     public long position()
@@ -187,6 +270,21 @@ public class UnfilteredDescriptor extends ClusteringDescriptor
         return deletionTime2;
     }
 
+    // Row.Deletion.isShadowable(): deprecated since 4.0 (CASSANDRA-11500), reachable only on
+    // old Materialized View data nothing still produces. A live deletion is never shadowable
+    // (Row.Deletion's own constructor asserts this), so this is meaningful only alongside a
+    // non-live deletionTime().
+    public boolean isShadowableDeletion()
+    {
+        return UnfilteredSerializer.deletionIsShadowable(extendedFlags);
+    }
+
+    /** True when this row stores a deletion for every complex column, live deletions included. */
+    public boolean hasComplexDeletion()
+    {
+        return UnfilteredSerializer.hasComplexDeletion(flags);
+    }
+
     public int flags()
     {
         return flags;
@@ -205,6 +303,22 @@ public class UnfilteredDescriptor extends ClusteringDescriptor
     public Columns rowColumns()
     {
         return rowColumns;
+    }
+
+    /** See {@link #missingColumnsMask} */
+    public long missingColumnsMask()
+    {
+        return missingColumnsMask;
+    }
+
+    /**
+     * Present-column mask words for this row, or null when the row holds every column or its
+     * superset has fewer than 64 columns. See {@link #presentColumnsWords} for the bit layout.
+     * The next unfiltered load overwrites the array, so read it before then.
+     */
+    public long[] presentColumnsWords()
+    {
+        return useColumnsWords ? presentColumnsWords : null;
     }
 
     @Override

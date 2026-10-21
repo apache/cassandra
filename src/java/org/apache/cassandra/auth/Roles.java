@@ -36,7 +36,7 @@ public class Roles
 
     private static final Role NO_ROLE = new Role("", false, false, Collections.emptyMap(), Collections.emptySet());
 
-    public static final RolesCache cache = new RolesCache(DatabaseDescriptor.getRoleManager(), () -> DatabaseDescriptor.getAuthenticator().requireAuthentication());
+    public static final RolesCache cache = new RolesCache(DatabaseDescriptor.getRoleManager(), DatabaseDescriptor::isAuthenticationRequired);
 
     /** Use {@link AuthCacheService#initializeAndRegisterCaches} rather than calling this directly */
     public static void init()
@@ -94,6 +94,16 @@ public class Roles
         return getAllRoles().stream()
                             .filter(predicate)
                             .collect(Collectors.toUnmodifiableSet());
+    }
+
+    /**
+     * Identifies the current generation of the roles cache contents.
+     * It is used to check if an explicit invalidation or a validity or refresh interval reconfiguration
+     * happen for the cache.
+     */
+    public static long cacheGeneration()
+    {
+        return cache.getGeneration();
     }
 
     /**

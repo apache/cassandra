@@ -1213,7 +1213,7 @@ public class ActiveRepairService implements IEndpointStateChangeSubscriber, IFai
                 // are based on the system partitioner
                 EndpointsForRange endpoints = replication.isMeta()
                                               ? ClusterMetadata.current().fullCMSMembersAsReplicas()
-                                              : ClusterMetadata.current().placements.get(replication).reads.forRange(range).get();
+                                              : ClusterMetadata.current().placement(replication).reads.forRange(range).get();
 
                 Set<InetAddressAndPort> liveEndpoints = endpoints.filter(FailureDetector.isReplicaAlive).endpoints();
                 if (!PaxosRepair.hasSufficientLiveNodesForTopologyChange(keyspace, range, liveEndpoints))
@@ -1259,6 +1259,8 @@ public class ActiveRepairService implements IEndpointStateChangeSubscriber, IFai
 
     public void shutdownNowAndWait(long timeout, TimeUnit unit) throws InterruptedException, TimeoutException
     {
+        // sessions have their own executors that need to also be shutdown
+        terminateSessions();
         ExecutorUtils.shutdownNowAndWait(timeout, unit, snapshotExecutor);
     }
 

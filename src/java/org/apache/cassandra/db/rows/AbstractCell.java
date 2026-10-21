@@ -61,7 +61,18 @@ public abstract class AbstractCell<V> extends Cell<V>
 
     public boolean isTombstone()
     {
-        return localDeletionTime() != NO_DELETION_TIME && ttl() == NO_TTL;
+        return isTombstone(localDeletionTime());
+    }
+
+    public long minDeletionTime()
+    {
+        long localDeletionTime = localDeletionTime();
+        return isTombstone(localDeletionTime) ? Long.MIN_VALUE : localDeletionTime;
+    }
+
+    private boolean isTombstone(long localDeletionTime)
+    {
+        return localDeletionTime != NO_DELETION_TIME && ttl() == NO_TTL;
     }
 
     public boolean isExpiring()

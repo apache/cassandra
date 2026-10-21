@@ -31,6 +31,7 @@ import org.junit.Test;
 
 import org.apache.cassandra.distributed.Cluster;
 import org.apache.cassandra.distributed.api.ConsistencyLevel;
+import org.apache.cassandra.distributed.api.Feature;
 import org.apache.cassandra.distributed.test.TestBaseImpl;
 import org.apache.cassandra.gms.FailureDetector;
 import org.apache.cassandra.locator.InetAddressAndPort;
@@ -49,6 +50,7 @@ public class FailureDetectorRecomputeTest extends TestBaseImpl
     {
         try (Cluster cluster = init(Cluster.build(3)
                                            .withInstanceInitializer(BB::install)
+                                           .withConfig(c -> c.set("metadata_snapshot_frequency", "10000"))
                                            .start()))
         {
             cluster.schemaChange(withKeyspace("create table %s.tbl (id int primary key)"));
@@ -63,12 +65,28 @@ public class FailureDetectorRecomputeTest extends TestBaseImpl
     {
         try (Cluster cluster = init(Cluster.build(3)
                                            .withInstanceInitializer(BB::install)
+                                           .withConfig(c -> c.set("metadata_snapshot_frequency", "10000"))
                                            .start()))
         {
             cluster.schemaChange(withKeyspace("create table %s.tbl (id int primary key)"));
             cluster.get(1).runOnInstance(() -> BB.enabled.set(true));
             for (int i = 0; i < 10; i++)
                 cluster.coordinator(1).execute(withKeyspace("insert into %s.tbl (id) values (?)"), ConsistencyLevel.QUORUM, i);
+        }
+    }
+
+    @Test
+    public void counterWriteOneTest() throws IOException
+    {
+        try (Cluster cluster = init(Cluster.build(3)
+                                           .withInstanceInitializer(BB::install)
+                                           .withConfig(c -> c.with(Feature.values()).set("metadata_snapshot_frequency", "10000"))
+                                           .start()))
+        {
+            cluster.schemaChange(withKeyspace("create table %s.tbl (id int primary key, c counter)"));
+            cluster.get(1).runOnInstance(() -> BB.enabled.set(true));
+            for (int i = 0; i < 10; i++)
+                cluster.coordinator(1).execute(withKeyspace("update %s.tbl set c = c + 1 where id = ?"), ConsistencyLevel.ONE, i);
         }
     }
 

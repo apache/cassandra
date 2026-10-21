@@ -55,7 +55,6 @@ import org.apache.cassandra.cql3.restrictions.ClusteringElements;
 import org.apache.cassandra.cql3.restrictions.Restriction;
 import org.apache.cassandra.cql3.restrictions.SimpleRestriction;
 import org.apache.cassandra.cql3.statements.schema.IndexTarget;
-import org.apache.cassandra.db.CassandraWriteContext;
 import org.apache.cassandra.db.ColumnFamilyStore;
 import org.apache.cassandra.db.DecoratedKey;
 import org.apache.cassandra.db.ReadCommand;
@@ -88,6 +87,7 @@ import org.apache.cassandra.index.sai.disk.format.IndexDescriptor;
 import org.apache.cassandra.index.sai.disk.format.Version;
 import org.apache.cassandra.index.sai.disk.v1.IndexWriterConfig;
 import org.apache.cassandra.index.sai.memory.MemtableIndexManager;
+import org.apache.cassandra.index.sai.memory.ShardedMemtableIndex;
 import org.apache.cassandra.index.sai.metrics.ColumnQueryMetrics;
 import org.apache.cassandra.index.sai.metrics.IndexMetrics;
 import org.apache.cassandra.index.sai.utils.IndexIdentifier;
@@ -113,10 +113,10 @@ import org.apache.cassandra.utils.Pair;
 import org.apache.cassandra.utils.concurrent.Future;
 import org.apache.cassandra.utils.concurrent.FutureCombiner;
 import org.apache.cassandra.utils.concurrent.ImmediateFuture;
-import org.apache.cassandra.utils.concurrent.OpOrder;
 
 import io.github.jbellis.jvector.vector.VectorSimilarityFunction;
 
+import static org.apache.cassandra.config.CassandraRelevantProperties.MEMTABLE_SHARD_COUNT;
 import static org.apache.cassandra.index.sai.disk.v1.IndexWriterConfig.MAX_TOP_K;
 
 public class StorageAttachedIndex implements Index
@@ -140,6 +140,9 @@ public class StorageAttachedIndex implements Index
     @VisibleForTesting
     public static final String ANALYSIS_ON_KEY_COLUMNS_MESSAGE = "Analysis options are not supported on primary key columns, but found ";
 
+    @VisibleForTesting
+    public static final String VECTOR_SHARDING_SUPPORT_MESSAGE = "A storage-attached index on a vector column does not support sharding";
+
     public static final String ANN_LIMIT_ERROR = "Use of ANN OF in an ORDER BY clause requires a LIMIT that is not greater than %s. LIMIT was %s";
 
     private static final Logger logger = LoggerFactory.getLogger(StorageAttachedIndex.class);
@@ -159,17 +162,24 @@ public class StorageAttachedIndex implements Index
                                                                      IndexWriterConfig.OPTIMIZE_FOR,
                                                                      NonTokenizingOptions.CASE_SENSITIVE,
                                                                      NonTokenizingOptions.NORMALIZE,
-                                                                     NonTokenizingOptions.ASCII);
+                                                                     NonTokenizingOptions.ASCII,
+                                                                     ShardedMemtableIndex.SHARDS_OPTION);
 
     public static final Set<CQL3Type> SUPPORTED_TYPES = ImmutableSet.of(CQL3Type.Native.ASCII, CQL3Type.Native.BIGINT, CQL3Type.Native.DATE,
                                                                         CQL3Type.Native.DOUBLE, CQL3Type.Native.FLOAT, CQL3Type.Native.INT,
                                                                         CQL3Type.Native.SMALLINT, CQL3Type.Native.TEXT, CQL3Type.Native.TIME,
                                                                         CQL3Type.Native.TIMESTAMP, CQL3Type.Native.TIMEUUID, CQL3Type.Native.TINYINT,
                                                                         CQL3Type.Native.UUID, CQL3Type.Native.VARCHAR, CQL3Type.Native.INET,
-                                                                        CQL3Type.Native.VARINT, CQL3Type.Native.DECIMAL, CQL3Type.Native.BOOLEAN);
+                                                                        CQL3Type.Native.VARINT, CQL3Type.Native.DECIMAL, CQL3Type.Native.BOOLEAN,
+                                                                        CQL3Type.Native.BLOB);
+
+    // Upper bound on the shards option to prevent runaway per-shard allocations at first-write.
+    public static final int MAX_SHARD_COUNT = 256;
 
     private static final Set<Class<? extends IPartitioner>> ILLEGAL_PARTITIONERS =
             ImmutableSet.of(OrderPreservingPartitioner.class, LocalPartitioner.class, ByteOrderedPartitioner.class, RandomPartitioner.class);
+    private static final int DEFAULT_SHARD_COUNT = MEMTABLE_SHARD_COUNT.getInt(FBUtilities.getAvailableProcessors());
+    private static final String AUTO_SHARDS_OPTION = "auto";
 
     private final ColumnFamilyStore baseCfs;
     private final IndexMetadata indexMetadata;
@@ -183,6 +193,7 @@ public class StorageAttachedIndex implements Index
     private final MemtableIndexManager memtableIndexManager;
     private final IndexMetrics indexMetrics;
     private final MaxThreshold maxTermSizeGuardrail;
+    private final int shardCount;
 
     // Tracks whether we've started the index build on initialization.
     private volatile boolean initBuildStarted = false;
@@ -206,10 +217,23 @@ public class StorageAttachedIndex implements Index
         analyzerFactory = AbstractAnalyzer.fromOptions(indexTermType, indexMetadata.options);
         memtableIndexManager = new MemtableIndexManager(this);
         indexMetrics = new IndexMetrics(this, memtableIndexManager);
-        maxTermSizeGuardrail = indexTermType.isVector()
-                               ? Guardrails.saiVectorTermSize
-                               : (indexTermType.isFrozen() ? Guardrails.saiFrozenTermSize
-                                                           : Guardrails.saiStringTermSize);
+
+        if (indexTermType.isVector())
+            maxTermSizeGuardrail = Guardrails.saiVectorTermSize;
+        else if (indexTermType.isFrozen())
+            maxTermSizeGuardrail = Guardrails.saiFrozenTermSize;
+        else if (indexTermType.isBytes())
+            maxTermSizeGuardrail = Guardrails.saiBlobTermSize;
+        else
+            maxTermSizeGuardrail = Guardrails.saiStringTermSize;
+
+        String shardsOption = indexMetadata.options.get(ShardedMemtableIndex.SHARDS_OPTION);
+        if (indexTermType.isVector())
+            shardCount = 1;
+        else if (shardsOption == null || shardsOption.equalsIgnoreCase(AUTO_SHARDS_OPTION))
+            shardCount = DEFAULT_SHARD_COUNT;
+        else
+            shardCount = Integer.parseInt(shardsOption);
     }
 
     /**
@@ -276,6 +300,28 @@ public class StorageAttachedIndex implements Index
         }
 
         IndexTermType indexTermType = IndexTermType.create(target.left, metadata.partitionKeyColumns(), target.right);
+        String shardsOption = options.get(ShardedMemtableIndex.SHARDS_OPTION);
+        if (shardsOption != null)
+        {
+            if (indexTermType.isVector())
+                throw new InvalidRequestException(VECTOR_SHARDING_SUPPORT_MESSAGE);
+
+            if (!shardsOption.equalsIgnoreCase(AUTO_SHARDS_OPTION))
+            {
+                try
+                {
+                    int shardCount = Integer.parseInt(shardsOption);
+                    if (shardCount <= 0)
+                        throw new InvalidRequestException("Shard count for a storage-attached index must be a positive integer, was " + shardCount);
+                    if (shardCount > MAX_SHARD_COUNT)
+                        throw new InvalidRequestException("Shard count for a storage-attached index must not exceed " + MAX_SHARD_COUNT + ", was " + shardCount);
+                }
+                catch (NumberFormatException e)
+                {
+                    throw new InvalidRequestException("Shard count for a storage-attached index must be a valid integer, got '" + shardsOption + "'");
+                }
+            }
+        }
         AbstractAnalyzer.fromOptions(indexTermType, analysisOptions);
         IndexWriterConfig config = IndexWriterConfig.fromOptions(null, indexTermType, options);
 
@@ -327,6 +373,11 @@ public class StorageAttachedIndex implements Index
     public IndexMetadata getIndexMetadata()
     {
         return indexMetadata;
+    }
+
+    public int shardCount()
+    {
+        return shardCount;
     }
 
     @Override
@@ -599,7 +650,7 @@ public class StorageAttachedIndex implements Index
     {
         if (transactionType == IndexTransaction.Type.UPDATE)
         {
-            return new UpdateIndexer(key, memtable, writeContext);
+            return new UpdateIndexer(key, memtable);
         }
 
         // we are only interested in the data from Memtable
@@ -1013,34 +1064,30 @@ public class StorageAttachedIndex implements Index
     {
         private final DecoratedKey key;
         private final Memtable memtable;
-        private final WriteContext writeContext;
 
-        UpdateIndexer(DecoratedKey key, Memtable memtable, WriteContext writeContext)
+        UpdateIndexer(DecoratedKey key, Memtable memtable)
         {
             this.key = key;
             this.memtable = memtable;
-            this.writeContext = writeContext;
         }
 
         @Override
         public void insertRow(Row row)
         {
-            adjustMemtableSize(memtableIndexManager.index(key, row, memtable),
-                               CassandraWriteContext.fromContext(writeContext).getGroup());
+            adjustMemtableSize(memtableIndexManager.index(key, row, memtable));
         }
 
         @Override
         public void updateRow(Row oldRow, Row newRow)
         {
-            adjustMemtableSize(memtableIndexManager.update(key, oldRow, newRow, memtable),
-                               CassandraWriteContext.fromContext(writeContext).getGroup());
+            adjustMemtableSize(memtableIndexManager.update(key, oldRow, newRow, memtable));
         }
 
-        void adjustMemtableSize(long additionalSpace, OpOrder.Group opGroup)
+        void adjustMemtableSize(long additionalSpace)
         {
             // The memtable will assert if we try and reduce its memory usage so, for now, just don't tell it.
             if (additionalSpace >= 0)
-                memtable.markExtraOnHeapUsed(additionalSpace, opGroup);
+                memtable.markExtraOnHeapUsed(additionalSpace);
         }
     }
 }

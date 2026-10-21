@@ -20,6 +20,7 @@ package org.apache.cassandra.net;
 import javax.annotation.Nullable;
 
 import org.apache.cassandra.io.IVersionedSerializer;
+import org.apache.cassandra.service.accord.debug.AccordRemoteTracing;
 import org.apache.cassandra.service.writes.thresholds.WriteThresholdMapSerializer;
 import org.apache.cassandra.tracing.Tracing;
 import org.apache.cassandra.utils.Int32Serializer;
@@ -57,7 +58,9 @@ public enum ParamType
     TOO_MANY_REFERENCED_INDEXES_WARN (16, Int32Serializer.serializer),
     TOO_MANY_REFERENCED_INDEXES_FAIL (17, Int32Serializer.serializer),
     WRITE_SIZE_WARN                  (18, WriteThresholdMapSerializer.serializer),
-    WRITE_TOMBSTONE_WARN             (19, WriteThresholdMapSerializer.serializer);
+    WRITE_TOMBSTONE_WARN             (19, WriteThresholdMapSerializer.serializer),
+    ACCORD_TRACING                   (20, AccordRemoteTracing.tracingSerializer),
+    ;
 
     final int id;
     final IVersionedSerializer serializer;

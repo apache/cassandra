@@ -22,6 +22,7 @@ import java.io.ByteArrayInputStream;
 import java.io.DataInputStream;
 import java.io.IOException;
 import java.net.UnknownHostException;
+import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.EnumSet;
@@ -33,7 +34,6 @@ import java.util.Set;
 import java.util.UUID;
 
 import com.google.common.annotations.VisibleForTesting;
-import com.google.common.collect.Lists;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -55,9 +55,9 @@ import org.apache.cassandra.schema.Keyspaces;
 import org.apache.cassandra.schema.SchemaConstants;
 import org.apache.cassandra.schema.SchemaKeyspace;
 import org.apache.cassandra.service.StorageService;
-import org.apache.cassandra.service.accord.AccordFastPath;
-import org.apache.cassandra.service.accord.AccordStaleReplicas;
+import org.apache.cassandra.service.accord.topology.AccordNodeInfos;
 import org.apache.cassandra.service.consensus.migration.ConsensusMigrationState;
+import org.apache.cassandra.tcm.CMSMembership;
 import org.apache.cassandra.tcm.ClusterMetadata;
 import org.apache.cassandra.tcm.Epoch;
 import org.apache.cassandra.tcm.MultiStepOperation;
@@ -105,9 +105,12 @@ public class GossipHelper
         Gossiper.runInGossipStageBlocking(() -> Gossiper.instance.removeEndpoint(addr));
     }
 
-    public static void evictFromMembership(InetAddressAndPort endpoint)
+    public static void removeAndEvict(InetAddressAndPort endpoint)
     {
-        Gossiper.runInGossipStageBlocking(() -> Gossiper.instance.evictFromMembership(endpoint));
+        Gossiper.runInGossipStageBlocking(() -> {
+            Gossiper.instance.removeEndpoint(endpoint);
+            Gossiper.instance.evictFromMembership(endpoint);
+        });
     }
 
     public static VersionedValue nodeStateToStatus(NodeId nodeId,
@@ -284,7 +287,7 @@ public class GossipHelper
         return NodeVersion.fromCassandraVersion(cassandraVersion);
     }
 
-    public static ClusterMetadata emptyWithSchemaFromSystemTables(Set<String> allKnownDatacenters)
+    public static ClusterMetadata emptyWithSchemaFromSystemTables()
     {
         // If this instance was previously upgraded then subsequently downgraded, the metadata keyspace may have been
         // added to system_schema tables. If so, don't include it in the initial schema as this will cause it to be
@@ -294,16 +297,16 @@ public class GossipHelper
                                             .filter(k -> !k.name.equals(SchemaConstants.METADATA_KEYSPACE_NAME));
         return new ClusterMetadata(Epoch.UPGRADE_STARTUP,
                                    DatabaseDescriptor.getPartitioner(),
-                                   DistributedSchema.fromSystemTables(keyspaces, allKnownDatacenters),
+                                   DistributedSchema.fromSystemTables(keyspaces),
                                    Directory.EMPTY,
                                    new TokenMap(DatabaseDescriptor.getPartitioner()),
                                    DataPlacements.empty(),
-                                   AccordFastPath.EMPTY,
+                                   AccordNodeInfos.EMPTY,
                                    LockedRanges.EMPTY,
                                    InProgressSequences.EMPTY,
                                    ConsensusMigrationState.EMPTY,
                                    Collections.emptyMap(),
-                                   AccordStaleReplicas.EMPTY);
+                                   CMSMembership.EMPTY);
     }
 
     public static ClusterMetadata fromEndpointStates(DistributedSchema schema, Map<InetAddressAndPort, EndpointState> epStates)
@@ -339,8 +342,41 @@ public class GossipHelper
         return epstates;
     }
 
+    /**
+     * During upgrade, in gossip mode we allow nodes to change IP, this means that we can't decide the
+     * nodeId based on the sorting of the ip address, since that might change during the upgrade
+     *
+     * Instead we sort by hostId which can't change - replacements are not allowed etc.
+     *
+     * If a node has no hostId, we add the endpoints to the end, sorted by ip (if a node doesn't have a hostid it can't change ip)
+     *
+     */
+    public static List<InetAddressAndPort> sortEndpointsByHostId(Map<InetAddressAndPort, EndpointState> epStates)
+    {
+        Map<String, InetAddressAndPort> hostIdToEndpoint = new HashMap<>();
+        List<InetAddressAndPort> noHostId = new ArrayList<>();
+        for (Map.Entry<InetAddressAndPort, EndpointState> entry : epStates.entrySet())
+        {
+            VersionedValue vv = entry.getValue().getApplicationState(HOST_ID);
+            if (vv == null)
+                noHostId.add(entry.getKey());
+            else
+                hostIdToEndpoint.put(vv.value, entry.getKey());
+        }
+        List<InetAddressAndPort> sorted = new ArrayList<>(epStates.size());
+        List<String> hostIds = new ArrayList<>(hostIdToEndpoint.keySet());
+        Collections.sort(hostIds);
+        for (String hostId : hostIds)
+            sorted.add(hostIdToEndpoint.get(hostId));
+        Collections.sort(noHostId);
+        sorted.addAll(noHostId);
+        return sorted;
+    }
+
     @VisibleForTesting
-    public static ClusterMetadata fromEndpointStates(Map<InetAddressAndPort, EndpointState> epStates, IPartitioner partitioner, DistributedSchema schema)
+    public static ClusterMetadata fromEndpointStates(Map<InetAddressAndPort, EndpointState> epStates,
+                                                     IPartitioner partitioner,
+                                                     DistributedSchema schema)
     {
         Directory directory = new Directory().withLastModified(Epoch.UPGRADE_GOSSIP);
         TokenMap tokenMap = new TokenMap(partitioner).withLastModified(Epoch.UPGRADE_GOSSIP);
@@ -350,8 +386,7 @@ public class GossipHelper
         // generation if there is a duplicate hostid.
         if (containsDuplicateHostIds(epStates))
             epStates = cleanupDuplicateHostIds(epStates);
-        List<InetAddressAndPort> sortedEps = Lists.newArrayList(epStates.keySet());
-        Collections.sort(sortedEps);
+        List<InetAddressAndPort> sortedEps = sortEndpointsByHostId(epStates);
         Map<ExtensionKey<?, ?>, ExtensionValue<?>> extensions = new HashMap<>();
         for (InetAddressAndPort endpoint : sortedEps)
         {
@@ -388,12 +423,12 @@ public class GossipHelper
                                                                       directory,
                                                                       tokenMap,
                                                                       DataPlacements.empty(),
-                                                                      AccordFastPath.EMPTY,
+                                                                      AccordNodeInfos.EMPTY,
                                                                       LockedRanges.EMPTY,
                                                                       InProgressSequences.EMPTY,
                                                                       ConsensusMigrationState.EMPTY,
                                                                       extensions,
-                                                                      AccordStaleReplicas.EMPTY);
+                                                                      CMSMembership.EMPTY);
         DataPlacements placements = new UniformRangePlacement().calculatePlacements(Epoch.UPGRADE_GOSSIP,
                                                                                     forPlacementCalculation,
                                                                                     schema.getKeyspaces());
@@ -403,12 +438,12 @@ public class GossipHelper
                                    directory,
                                    tokenMap,
                                    placements,
-                                   AccordFastPath.EMPTY,
+                                   AccordNodeInfos.EMPTY,
                                    LockedRanges.EMPTY,
                                    InProgressSequences.EMPTY,
                                    ConsensusMigrationState.EMPTY,
                                    extensions,
-                                   AccordStaleReplicas.EMPTY);
+                                   CMSMembership.EMPTY);
     }
 
     public static boolean isValidForClusterMetadata(Map<InetAddressAndPort, EndpointState> epstates)

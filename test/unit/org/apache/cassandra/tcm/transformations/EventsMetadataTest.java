@@ -95,8 +95,8 @@ public class EventsMetadataTest
 
         // should not be in tokenMap (no tokens yet)
         assertTrue(metadata.tokenMap.tokens(nodeId).isEmpty());
-        assertTrue(metadata.placements.get(KSM.params.replication).writes.byEndpoint().isEmpty());
-        assertTrue(metadata.placements.get(KSM.params.replication).reads.byEndpoint().isEmpty());
+        assertTrue(metadata.placement(KSM.params.replication).writes.byEndpoint().isEmpty());
+        assertTrue(metadata.placement(KSM.params.replication).reads.byEndpoint().isEmpty());
         assertTrue(metadata.lockedRanges.locked.isEmpty());
     }
 
@@ -130,9 +130,9 @@ public class EventsMetadataTest
         assertTrue(ClusterMetadata.current().tokenMap.tokens(nodeId).isEmpty());
         assertEquals(NodeState.BOOTSTRAPPING, ClusterMetadata.current().directory.peerState(nodeId));
 
-        assertTrue(ClusterMetadata.current().placements.get(KSM.params.replication).writes.byEndpoint().containsKey(node1));
+        assertTrue(ClusterMetadata.current().placement(KSM.params.replication).writes.byEndpoint().containsKey(node1));
         // the first joined node gets added to the read endpoints immediately
-        assertTrue(ClusterMetadata.current().placements.get(KSM.params.replication).reads.byEndpoint().containsKey(node1));
+        assertTrue(ClusterMetadata.current().placement(KSM.params.replication).reads.byEndpoint().containsKey(node1));
 
         ClusterMetadataService.instance().commit(plan.midJoin);
         ClusterMetadataService.instance().commit(plan.finishJoin);
@@ -152,8 +152,8 @@ public class EventsMetadataTest
 
         assertTrue(ClusterMetadata.current().tokenMap.tokens(nodeId).isEmpty());
         assertEquals(NodeState.BOOTSTRAPPING, ClusterMetadata.current().directory.peerState(nodeId));
-        assertTrue(ClusterMetadata.current().placements.get(KSM.params.replication).writes.byEndpoint().containsKey(node2));
-        assertFalse(ClusterMetadata.current().placements.get(KSM.params.replication).reads.byEndpoint().containsKey(node2));
+        assertTrue(ClusterMetadata.current().placement(KSM.params.replication).writes.byEndpoint().containsKey(node2));
+        assertFalse(ClusterMetadata.current().placement(KSM.params.replication).reads.byEndpoint().containsKey(node2));
     }
 
     @Test
@@ -178,7 +178,7 @@ public class EventsMetadataTest
         // no change in metadata after prepareLeave;
         assertEquals(before.directory, after.directory);
         assertEquals(before.tokenMap, after.tokenMap);
-        assertEquals(before.placements, after.placements);
+        assertEquals(before.placements(), after.placements());
         assertEquals(before.schema, after.schema);
 
         ClusterMetadataService.instance().commit(leave.startLeave);

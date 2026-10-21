@@ -29,6 +29,7 @@ import java.util.function.Predicate;
 
 import javax.annotation.Nullable;
 
+import com.google.common.annotations.VisibleForTesting;
 import com.google.common.collect.Iterables;
 import com.google.common.collect.Sets;
 
@@ -404,7 +405,8 @@ public class IndexHints
         return hints;
     }
 
-    private static int maxIncludedOrExcludedIndexCount()
+    @VisibleForTesting
+    static int maxIncludedOrExcludedIndexCount()
     {
         int guardrail = DatabaseDescriptor.getSecondaryIndexesPerTableFailThreshold();
 
@@ -586,7 +588,8 @@ public class IndexHints
                 return;
 
             int n = indexes.size();
-            assert n < maxIncludedOrExcludedIndexCount() : TOO_MANY_INDEXES_ERROR + n;
+            // The validation accepts a count equal to the maximum, so the assertion must accept it too.
+            assert n <= maxIncludedOrExcludedIndexCount() : TOO_MANY_INDEXES_ERROR + n;
 
             out.writeVInt32(n);
             for (IndexMetadata index : indexes)

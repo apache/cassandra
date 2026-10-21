@@ -55,7 +55,7 @@ public interface StorageHook
         String className = STORAGE_HOOK.getString();
         if (className != null)
         {
-            return FBUtilities.construct(className, StorageHook.class.getSimpleName());
+            return FBUtilities.construct(className, StorageHook.class.getSimpleName(), StorageHook.class);
         }
 
         return new StorageHook()

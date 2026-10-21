@@ -61,16 +61,23 @@ public class RoleResource implements IResource, Comparable<RoleResource>
     private final Level level;
     private final String name;
 
+    private final int hash;
+
     private RoleResource()
     {
-        level = Level.ROOT;
-        name = null;
+        this(Level.ROOT, null);
     }
 
     private RoleResource(String name)
     {
-        level = Level.ROLE;
+        this(Level.ROLE, name);
+    }
+
+    private RoleResource(Level level, String name)
+    {
+        this.level = level;
         this.name = name;
+        this.hash = Objects.hashCode(level, name);
     }
 
     /**
@@ -183,6 +190,6 @@ public class RoleResource implements IResource, Comparable<RoleResource>
     @Override
     public int hashCode()
     {
-        return Objects.hashCode(level, name);
+        return hash;
     }
 }

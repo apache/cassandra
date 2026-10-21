@@ -18,8 +18,6 @@
 
 package org.apache.cassandra.io.sstable.keycache;
 
-import java.util.concurrent.atomic.LongAdder;
-
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 
@@ -29,6 +27,7 @@ import org.slf4j.LoggerFactory;
 import org.apache.cassandra.cache.InstrumentingCache;
 import org.apache.cassandra.cache.KeyCacheKey;
 import org.apache.cassandra.io.sstable.AbstractRowIndexEntry;
+import org.apache.cassandra.metrics.ThreadLocalCounter;
 
 /**
  * A simple wrapper of possibly global cache with local metrics.
@@ -40,8 +39,8 @@ public class KeyCache
     private final static Logger logger = LoggerFactory.getLogger(KeyCache.class);
 
     private final InstrumentingCache<KeyCacheKey, AbstractRowIndexEntry> cache;
-    private final LongAdder hits = new LongAdder();
-    private final LongAdder requests = new LongAdder();
+    private final ThreadLocalCounter hits = new ThreadLocalCounter();
+    private final ThreadLocalCounter requests = new ThreadLocalCounter();
 
     public KeyCache(@Nullable InstrumentingCache<KeyCacheKey, AbstractRowIndexEntry> cache)
     {
@@ -50,12 +49,12 @@ public class KeyCache
 
     public long getHits()
     {
-        return cache != null ? hits.sum() : 0;
+        return cache != null ? hits.getCount() : 0;
     }
 
     public long getRequests()
     {
-        return cache != null ? requests.sum() : 0;
+        return cache != null ? requests.getCount() : 0;
     }
 
     public void put(@Nonnull KeyCacheKey cacheKey, @Nonnull AbstractRowIndexEntry info)
@@ -74,10 +73,10 @@ public class KeyCache
 
         if (updateStats)
         {
-            requests.increment();
+            requests.inc();
             AbstractRowIndexEntry r = cache.get(key);
             if (r != null)
-                hits.increment();
+                hits.inc();
             return r;
         }
         else

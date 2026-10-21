@@ -20,13 +20,9 @@ package org.apache.cassandra.fuzz.sai;
 
 import org.junit.BeforeClass;
 
-import org.apache.cassandra.distributed.Cluster;
 import org.apache.cassandra.distributed.test.sai.SAIUtil;
 import org.apache.cassandra.harry.SchemaSpec;
 import org.apache.cassandra.service.consensus.TransactionalMode;
-
-import static org.apache.cassandra.distributed.api.Feature.GOSSIP;
-import static org.apache.cassandra.distributed.api.Feature.NETWORK;
 
 public abstract class MultiNodeSAITestBase extends SingleNodeSAITestBase
 {
@@ -38,18 +34,7 @@ public abstract class MultiNodeSAITestBase extends SingleNodeSAITestBase
     @BeforeClass
     public static void before() throws Throwable
     {
-        cluster = Cluster.build()
-                         .withNodes(2)
-                         // At lower fetch sizes, queries w/ hundreds or thousands of matches can take a very long time.
-                         .withConfig(defaultConfig().andThen(c -> c.set("range_request_timeout", "180s")
-                                                                   .set("read_request_timeout", "180s")
-                                                                   .set("write_request_timeout", "180s")
-                                                                   .set("native_transport_timeout", "180s")
-                                                                   .set("slow_query_log_timeout", "180s")
-                                                                   .with(GOSSIP).with(NETWORK)))
-                         .createWithoutStarting();
-        cluster.startup();
-        cluster = init(cluster);
+        init(2);
     }
 
     @Override
@@ -62,24 +47,6 @@ public abstract class MultiNodeSAITestBase extends SingleNodeSAITestBase
     protected int rf()
     {
         return 2;
-    }
-
-    @Override
-    protected void flush(SchemaSpec schema)
-    {
-        cluster.forEach(i -> i.nodetool("flush", schema.keyspace));
-    }
-
-    @Override
-    protected void repair(SchemaSpec schema)
-    {
-        cluster.get(1).nodetool("repair", schema.keyspace);
-    }
-
-    @Override
-    protected void compact(SchemaSpec schema)
-    {
-        cluster.forEach(i -> i.nodetool("compact", schema.keyspace));
     }
 
     @Override

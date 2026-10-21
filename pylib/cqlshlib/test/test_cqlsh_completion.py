@@ -634,7 +634,7 @@ class TestCqlshCompletion(CqlshCompletionCase):
 
     def test_complete_in_drop_type(self):
         self.trycompletions('DROP TYPE ',
-                            choices=['IF', 'system_views.', 'system_metrics.',
+                            choices=['IF', 'system_views.',
                                      'tags', 'system_traces.', 'system_distributed.', 'system_cluster_metadata.',
                                      'phone_number', 'quote_udt', 'band_info_type', 'address', 'system.', 'system_schema.',
                                      'system_auth.', 'system_virtual_schema.', self.cqlsh.keyspace + '.'])
@@ -1043,7 +1043,7 @@ class TestCqlshCompletion(CqlshCompletionCase):
 
     def test_complete_in_use(self):
         self.trycompletions('US', immediate='E ')
-        self.trycompletions('USE ', choices=[self.cqlsh.keyspace, 'system', 'system_auth', 'system_metrics',
+        self.trycompletions('USE ', choices=[self.cqlsh.keyspace, 'system', 'system_auth',
                                              'system_distributed', 'system_schema', 'system_traces', 'system_views',
                                              'system_virtual_schema', 'system_cluster_metadata'])
 
@@ -1139,7 +1139,7 @@ class TestCqlshCompletion(CqlshCompletionCase):
                                                      'dynamic_columns',
                                                      'twenty_rows_composite_table',
                                                      'utf8_with_special_chars',
-                                                     'system_traces.', 'songs', 'system_views.', 'system_metrics.',
+                                                     'system_traces.', 'songs', 'system_views.',
                                                      'system_virtual_schema.',
                                                      'system_schema.', 'system_distributed.',
                                                      'system_cluster_metadata.',
@@ -1175,7 +1175,7 @@ class TestCqlshCompletion(CqlshCompletionCase):
     def test_complete_in_alter_type(self):
         self.trycompletions('ALTER TYPE I', immediate='F EXISTS ')
         self.trycompletions('ALTER TYPE ', choices=['IF', 'system_views.',
-                                                    'tags', 'system_traces.', 'system_distributed.', 'system_metrics.',
+                                                    'tags', 'system_traces.', 'system_distributed.',
                                                     'phone_number', 'quote_udt', 'band_info_type', 'address', 'system.', 'system_schema.',
                                                     'system_auth.', 'system_virtual_schema.', 'system_cluster_metadata.',
                                                     self.cqlsh.keyspace + '.'

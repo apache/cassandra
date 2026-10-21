@@ -177,8 +177,8 @@ public abstract class SimulatedOperation
         sutActions.next();
         ClusterMetadata m2 = ClusterMetadata.current();
 
-        Map<Range<Token>, VersionedEndpoints.ForRange> after = m2.placements.get(simulatedState.rf.asKeyspaceParams().replication).reads.asMap();
-        m1.placements.get(simulatedState.rf.asKeyspaceParams().replication).reads.forEach((k, beforePlacements) -> {
+        Map<Range<Token>, VersionedEndpoints.ForRange> after = m2.placement(simulatedState.rf.asKeyspaceParams().replication).reads.asMap();
+        m1.placement(simulatedState.rf.asKeyspaceParams().replication).reads.forEach((k, beforePlacements) -> {
             if (after.containsKey(k))
             {
                 VersionedEndpoints.ForRange afterPlacements = after.get(k);

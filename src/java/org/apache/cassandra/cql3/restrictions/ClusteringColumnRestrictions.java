@@ -24,6 +24,7 @@ import javax.annotation.Nullable;
 
 import com.google.common.collect.RangeSet;
 
+import org.apache.cassandra.cql3.FunctionContext;
 import org.apache.cassandra.cql3.QueryOptions;
 import org.apache.cassandra.db.Clustering;
 import org.apache.cassandra.db.ClusteringComparator;
@@ -131,8 +132,10 @@ final class ClusteringColumnRestrictions extends RestrictionSetWrapper
     public Slices slices(QueryOptions options) throws InvalidRequestException
     {
         MultiCBuilder builder = new MultiCBuilder(comparator);
-        int keyPosition = 0;
+        if (restrictions.isEmpty()) // to avoid an iterator allocation for restrictions
+            return builder.buildSlices();
 
+        int keyPosition = 0;
         for (SingleRestriction r : restrictions)
         {
             if (handleInFilter(r, keyPosition))
@@ -197,7 +200,7 @@ final class ClusteringColumnRestrictions extends RestrictionSetWrapper
     @Override
     public void addToRowFilter(RowFilter filter,
                                IndexRegistry indexRegistry,
-                               QueryOptions options,
+                               FunctionContext context,
                                IndexHints indexHints) throws InvalidRequestException
     {
         int position = 0;
@@ -207,7 +210,7 @@ final class ClusteringColumnRestrictions extends RestrictionSetWrapper
             // We ignore all the clustering columns that can be handled by slices.
             if (handleInFilter(restriction, position) || restriction.hasSupportingIndex(indexRegistry, indexHints))
             {
-                restriction.addToRowFilter(filter, indexRegistry, options, indexHints);
+                restriction.addToRowFilter(filter, indexRegistry, context, indexHints);
                 continue;
             }
 

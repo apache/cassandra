@@ -33,7 +33,7 @@
     <property name="debuglevel" value="source,lines,vars"/>
 
     <!-- default version and SCM information -->
-    <property name="base.version" value="6.0-alpha2"/>
+    <property name="base.version" value="7.0"/>
     <property name="scm.connection" value="scm:https://gitbox.apache.org/repos/asf/cassandra.git"/>
     <property name="scm.developerConnection" value="scm:https://gitbox.apache.org/repos/asf/cassandra.git"/>
     <property name="scm.url" value="https://gitbox.apache.org/repos/asf?p=cassandra.git"/>
@@ -111,9 +111,11 @@
     <property name="version.properties.dir"
               value="${build.src.resources}/org/apache/cassandra/config/" />
     <property name="final.name" value="${ant.project.name}-${version}"/>
+
     <property name="accord.dir" value="modules/accord" />
-    <!-- The reason not to use ant.project.name is we publish as "cassandra-accord" so the file names won't be named apache-cassandra-accord -->
-    <property name="accord.final.name" value="cassandra-accord-${version}"/>
+    <property name="accord-core.build.libs" value="${accord.dir}/accord-core/build" />
+    <property name="accord-core.build.name" value="accord-core-${version}" />
+    <property name="accord-core.build.pom" value="${accord-core.build.libs}/publications/mavenJava/pom-default.xml" />
 
     <property name="local.repository" value="${user.home}/.m2/repository" />
     <property name="accord.local.repository" value="${local.repository}/org/apache/cassandra/cassandra-accord/${version}" />
@@ -141,6 +143,9 @@
 
     <!-- The number of active processors seen by JVM -->
     <property name="cassandra.test.processorCount" value="2"/>
+
+    <property name="accord.test.jvmargs"
+              value="-Daccord.paranoid=true -Daccord.paranoia.cpu=SUPERLINEAR -Daccord.paranoia.memory=LINEAR -Daccord.testing=true"/>
 
     <!-- skip flushing schema tables during tests -->
     <property name="cassandra.test.flush_local_schema_changes" value="false" />
@@ -547,6 +552,7 @@
 
     <target name="clean" description="Remove all locally created artifacts">
         <delete dir="${build.test.dir}" />
+        <delete dir="${autocomplete.dir}"/>
         <delete dir="${build.dir}/tmp" />
         <delete dir="${build.classes}" />
         <delete dir="${build.src.gen-java}" />
@@ -605,7 +611,29 @@
         </wikitext-to-html>
     </target>
 
-    <target name="gen-asciidoc" description="Generate dynamic asciidoc pages" depends="jar" unless="ant.gen-doc.skip">
+    <target name="gen-nodetool-text" description="Generate nodetool command help text files consumed by the docs" depends="jar" unless="ant.gen-doc.skip">
+        <property name="nodetool.help.outdir" location="${doc.dir}/modules/cassandra/examples/TEXT/NODETOOL"/>
+        <property name="nodetool.help.classes" location="${build.dir}/nodetool-helpgen"/>
+        <mkdir dir="${nodetool.help.outdir}"/>
+        <mkdir dir="${nodetool.help.classes}"/>
+        <javac srcdir="${test.unit.src}" includes="org/apache/cassandra/tools/nodetool/NodetoolHelpGenerator.java"
+               destdir="${nodetool.help.classes}" includeantruntime="false" classpathref="cassandra.classpath"/>
+        <java classname="org.apache.cassandra.tools.nodetool.NodetoolHelpGenerator" fork="true" failonerror="true">
+            <classpath>
+                <pathelement location="${nodetool.help.classes}"/>
+                <pathelement location="${basedir}/conf"/>
+                <path refid="cassandra.classpath"/>
+            </classpath>
+            <jvmarg line="${java-jvmargs}"/>
+            <sysproperty key="logback.configurationFile" value="logback-tools.xml"/>
+            <sysproperty key="cassandra.cli.layout" value="airline"/>
+            <arg value="--dir"/>
+            <arg value="${nodetool.help.outdir}"/>
+            <arg value="--txt"/>
+        </java>
+    </target>
+
+    <target name="gen-asciidoc" description="Generate dynamic asciidoc pages" depends="jar,gen-nodetool-text" unless="ant.gen-doc.skip">
         <exec executable="make" osfamily="unix" dir="${doc.dir}" failonerror="true">
             <arg value="gen-asciidoc"/>
         </exec>
@@ -614,6 +642,7 @@
     <target name="gen-doc" description="Generate documentation" depends="gen-asciidoc,generate-cql-html" unless="ant.gen-doc.skip">
         <exec executable="make" osfamily="unix" dir="${doc.dir}" failonerror="true">
             <arg value="html"/>
+            <arg value="manpages"/>
         </exec>
     </target>
 
@@ -624,6 +653,68 @@
     <target name="generate-jflex-java" description="Generate Java from jflex grammar">
         <taskdef classname="jflex.anttask.JFlexTask" classpathref="jflex.classpath" name="jflex" />
         <jflex file="${build.src.java}/org/apache/cassandra/index/sasi/analyzer/StandardTokenizerImpl.jflex" destdir="${build.src.gen-java}/" />
+    </target>
+
+    <!--
+        Copies a source class into ${build.src.gen-java} under a NEW class name while keeping it
+        in its ORIGINAL package, so it compiles into an independent class that still enjoys
+        package-private access to its neighbours.
+
+        This lets a hot call site use its own dedicated copy of a class (e.g. a RowMergeIterator
+        copy of MergeIterator) so that the virtual calls inside it stay mono-/bi-morphic and
+        remain inlinable, instead of turning megamorphic once every caller in the code base
+        funnels the shared original through the same bytecode.
+
+        The transformation is purely textual: every whole-word occurrence of the original simple
+        class name is rewritten to the new name. Matching on word boundaries keeps substrings
+        such as IMergeIterator intact. The package declaration is left untouched, so the copy
+        stays in the same package as the original and no imports need to change.
+    -->
+    <macrodef name="gen-java-copy">
+        <!-- Fully-qualified name of the class to copy, e.g. org.apache.cassandra.utils.MergeIterator -->
+        <attribute name="class"/>
+        <!-- New simple class name for the copy, e.g. RowMergeIterator -->
+        <attribute name="newName"/>
+        <sequential>
+            <local name="gen.src.rel"/>
+            <local name="gen.simple.name"/>
+            <!-- source file path relative to ${build.src.java}: dots -> slashes -->
+            <loadresource property="gen.src.rel">
+                <string value="@{class}"/>
+                <filterchain><tokenfilter><replaceregex pattern="\." replace="/" flags="g"/></tokenfilter></filterchain>
+            </loadresource>
+            <!-- original simple class name = last segment of the fully-qualified name -->
+            <loadresource property="gen.simple.name">
+                <string value="@{class}"/>
+                <filterchain><tokenfilter><replaceregex pattern="^.*\.([^.]+)$" replace="\1"/></tokenfilter></filterchain>
+            </loadresource>
+            <copy todir="${build.src.gen-java}" preservelastmodified="true">
+                <fileset dir="${build.src.java}" includes="${gen.src.rel}.java"/>
+                <!-- keep the original package directory, only rename the file -->
+                <mapper type="regexp" from="^(.*[\\/])[^\\/]+$" to="\1@{newName}.java"/>
+                <filterchain>
+                    <tokenfilter>
+                        <replaceregex pattern="\b${gen.simple.name}\b" replace="@{newName}" flags="g"/>
+                    </tokenfilter>
+                </filterchain>
+            </copy>
+        </sequential>
+    </macrodef>
+
+    <!--
+        Generate the copies of hand-picked classes before compilation. Add a
+        <gen-java-copy class="..." newName="..."/> line here for every class that needs a
+        dedicated copy.
+    -->
+    <target name="gen-java-copies" depends="init"
+            description="Copy selected classes under new names (e.g. MergeIterator -> RowMergeIterator) into src/gen-java to avoid megamorphic calls">
+        <gen-java-copy class="org.apache.cassandra.utils.MergeIterator" newName="RowMergeIterator"/>
+        <gen-java-copy class="org.apache.cassandra.utils.MergeIterator" newName="UnfilteredMergeIterator"/>
+        <gen-java-copy class="org.apache.cassandra.utils.MergeIterator" newName="ComplexCellMergeIterator"/>
+        <gen-java-copy class="org.apache.cassandra.db.compaction.PreSortedBubbleInsert" newName="PartitionKeyMergeSort"/>
+        <gen-java-copy class="org.apache.cassandra.db.compaction.PreSortedBubbleInsert" newName="RowClusteringMergeSort"/>
+        <gen-java-copy class="org.apache.cassandra.db.compaction.PreSortedBubbleInsert" newName="StaticMergeSort"/>
+        <gen-java-copy class="org.apache.cassandra.db.compaction.PreSortedBubbleInsert" newName="ColumnMergeSort"/>
     </target>
 
     <!-- create properties file with C version -->
@@ -685,7 +776,7 @@
         </javac>
     </target>
 
-    <target depends="init,gen-cql3-grammar,generate-cql-html,generate-jflex-java"
+    <target depends="init,gen-cql3-grammar,generate-cql-html,generate-jflex-java,gen-java-copies"
             name="build-project">
         <echo message="${ant.project.name}: ${ant.file}"/>
         <!-- Order matters! -->
@@ -697,7 +788,7 @@
         <copy todir="${basedir}/conf" file="${build.classes.main}/META-INF/hotspot_compiler"/>
     </target>
 
-    <target name="check" depends="_main-jar,build-test,gen-doc" description="Verifies the source code and dependencies. This task is intended to run on pre-commit and locally. It should verify mostly modified files compared to the upstream base branch." unless="check.skip">
+    <target name="check" depends="_main-jar,build-test,gen-asciidoc" description="Verifies the source code and dependencies. This task is intended to run on pre-commit and locally. It should verify mostly modified files compared to the upstream base branch." unless="check.skip">
         <antcall target="rat-check" inheritrefs="true"/>
         <antcall target="checkstyle" inheritrefs="true"/>
         <antcall target="checkstyle-test" inheritrefs="true"/>
@@ -964,7 +1055,7 @@
     </target>
 
     <target name="jar"
-            depends="_main-jar,build-test,stress-jar,fqltool-jar,simulator-jars,sstableloader-jar,write-poms"
+            depends="_main-jar,build-test,stress-jar,fqltool-jar,simulator-jars,sstableloader-jar,write-poms,gen-autocomplete"
             description="Assemble Cassandra JAR files">
     </target>
 
@@ -993,6 +1084,8 @@
     </target>
 
     <target name="_artifacts-init" depends="jar">
+      <!-- gen-doc should be depended on, but it requires antora and pandoc installed,
+            so for now it's seperated to artifacts-with-docs -->
       <mkdir dir="${dist.dir}"/>
       <!-- fix the control linefeed so that builds on windows works on linux -->
       <fixcrlf srcdir="bin" includes="**/*" eol="lf" eof="remove" />
@@ -1012,8 +1105,12 @@
         </fileset>
       </copy>
       <copy todir="${dist.dir}/doc/html" failonerror="false">
-        <fileset dir="doc" />
-        <globmapper from="build/html/*" to="*"/>
+        <fileset dir="build/html" />
+      </copy>
+      <copy todir="${dist.dir}/doc/man" failonerror="false">
+        <fileset dir="build/man">
+          <include name="*.gz" />
+        </fileset>
       </copy>
       <copy todir="${dist.dir}/bin">
         <fileset dir="bin"/>
@@ -1033,6 +1130,7 @@
           <include name=".snyk" />
         </fileset>
       </copy>
+      <copy file="${autocomplete.dir}/nodetool" tofile="${dist.dir}/tools/autocomplete/nodetool"/>
       <copy todir="${dist.dir}/tools/bin">
         <fileset dir="${basedir}/tools/bin"/>
       </copy>
@@ -1047,6 +1145,10 @@
         </fileset>
       </copy>
     </target>
+
+    <!-- creates release tarballs with documentation -->
+    <target name="artifacts-with-docs" depends="gen-doc,artifacts"
+            description="Create Cassandra tarball and maven artifacts with documentation"/>
 
     <!-- creates release tarballs -->
     <target name="artifacts" depends="_artifacts-init,check,sources-jar,sstableloader-sources-jar"
@@ -1104,6 +1206,10 @@
           <exclude name="${accord.dir}/*/build/**" />
           <exclude name="${accord.dir}/**/.gradle/**" />
           <exclude name=".git-blame-ignore-revs" />
+          <!-- AI stuff -->
+          <exclude name="AGENTS.md" />
+          <exclude name="CLAUDE.md" />
+          <exclude name=".claude/**" />
         </tarfileset>
 
         <!-- python driver -->
@@ -1124,7 +1230,7 @@
           <exclude name="tools/bin/*.in.sh" />
           <include name=".build/**/*.sh"/>
           <include name="${accord.dir}/gradlew" />
-          <include name="doc/scripts/process-native-protocol-specs-in-docker.sh"/>
+          <include name="doc/scripts/gen-native-protocol-docs.sh"/>
         </tarfileset>
       </tar>
 
@@ -1153,6 +1259,10 @@
           <exclude name="bin/*" />
           <exclude name="tools/bin/*"/>
           <exclude name=".git-blame-ignore-revs" />
+          <!-- AI stuff -->
+          <exclude name="AGENTS.md" />
+          <exclude name="CLAUDE.md" />
+          <exclude name=".claude/**" />
         </tarfileset>
         <!-- Shell includes in bin/ (default mode) -->
         <tarfileset dir="${dist.dir}" prefix="${final.name}">
@@ -1359,6 +1469,7 @@
         <jvmarg value="-Dcassandra.keepBriefBrief=${cassandra.keepBriefBrief}" />
         <jvmarg value="-Dcassandra.strict.runtime.checks=true" />
         <jvmarg value="-Dcassandra.reads.thresholds.coordinator.defensive_checks_enabled=true" /> <!-- enable defensive checks -->
+        <jvmarg line="${accord.test.jvmargs}" />
         <jvmarg value="-Dcassandra.test.flush_local_schema_changes=${cassandra.test.flush_local_schema_changes}"/>
         <jvmarg value="-Dcassandra.test.messagingService.nonGracefulShutdown=${cassandra.test.messagingService.nonGracefulShutdown}"/>
         <jvmarg value="-Dcassandra.use_nix_recursive_delete=${cassandra.use_nix_recursive_delete}"/>
@@ -1996,7 +2107,9 @@
   <pathconvert property="_simulator.jvmargs_concat" refid="_simulator_jvmargs_items" pathsep=" "/>
 
   <target name="test-simulator-dtest" depends="maybe-build-test" description="Execute simulator dtests">
-    <testmacro inputdir="${test.simulator-test.src}" timeout="${test.simulation.timeout}" forkmode="perTest" showoutput="true" filter="**/test/${test.name}.java" maxmemory="8g">
+    <!-- match on the class name alone: not every simulator test lives in a package that ends in 'test'
+         (e.g. org.apache.cassandra.service.accord.execution), and a filter that assumed so silently ran nothing -->
+    <testmacro inputdir="${test.simulator-test.src}" timeout="${test.simulation.timeout}" forkmode="perTest" showoutput="true" filter="**/${test.name}.java" maxmemory="8g">
       <jvmarg line="${_simulator.jvmargs_concat}"/>
     </testmacro>
   </target>
@@ -2130,7 +2243,7 @@
   </target>
 
   <!-- Generate IDEA project description files -->
-  <target name="generate-idea-files" depends="init,resolver-dist-lib,gen-cql3-grammar,generate-jflex-java,_createVersionPropFile" description="Generate IDEA files">
+  <target name="generate-idea-files" depends="init,resolver-dist-lib,gen-cql3-grammar,generate-jflex-java,gen-java-copies,_createVersionPropFile" description="Generate IDEA files">
     <delete dir=".idea"/>
     <delete file="${eclipse.project.name}.iml"/>
     <mkdir dir=".idea"/>
@@ -2209,6 +2322,8 @@
   <classpathentry kind="src" output="${test.classes}" path="test/distributed"/>
   <classpathentry kind="src" output="${test.classes}" path="test/simulator/asm"/>
   <classpathentry kind="src" output="${test.classes}" path="test/simulator/main"/>
+  <classpathentry kind="src" output="${test.classes}" path="test/simulator/test"/>
+  <classpathentry kind="src" output="${test.classes}" path="test/harry/main"/>
   <classpathentry kind="src" output="${test.classes}" path="test/resources" />
   <classpathentry kind="src" path="tools/stress/src"/>
   <classpathentry kind="src" path="tools/fqltool/src"/>
@@ -2218,8 +2333,8 @@
   <classpathentry kind="src" output="build/test/sstableloader-classes" path="tools/sstableloader/test/unit" />
   <classpathentry kind="con" path="org.eclipse.jdt.launching.JRE_CONTAINER"/>
   <classpathentry kind="output" path="build/classes/eclipse"/>
+  <classpathentry kind="lib" path="${build.classes.main}"/>
   <classpathentry kind="lib" path="test/conf"/>
-  <classpathentry kind="lib" path="${java.home}/../lib/tools.jar"/>
   ${eclipse-libs-list}
 </classpath>
 ]]>
@@ -2277,17 +2392,18 @@
   <target name="publish"
           depends="mvn-install,sstableloader-mvn-install,artifacts"
           description="Publishes the artifacts to the Maven repository">
-    <!-- Accord -->
-    <deploy pomFile="${accord.local.repository}/${accord.final.name}.pom"
-            file="${accord.local.repository}/${accord.final.name}.pom"
+
+    <!-- Accord (from the submodule's gradle build) -->
+    <deploy pomFile="${accord-core.build.pom}"
+            file="${accord-core.build.pom}"
             packaging="pom"/>
-    <deploy pomFile="${accord.local.repository}/${accord.final.name}.pom"
-            file="${accord.local.repository}/${accord.final.name}.jar" />
-    <deploy pomFile="${accord.local.repository}/${accord.final.name}.pom"
-            file="${accord.local.repository}/${accord.final.name}-sources.jar"
+    <deploy pomFile="${accord-core.build.pom}"
+            file="${accord-core.build.libs}/libs/${accord-core.build.name}.jar" />
+    <deploy pomFile="${accord-core.build.pom}"
+            file="${accord-core.build.libs}/libs/${accord-core.build.name}-sources.jar"
             classifier="sources"/>
-    <deploy pomFile="${accord.local.repository}/${accord.final.name}.pom"
-            file="${accord.local.repository}/${accord.final.name}-javadoc.jar"
+    <deploy pomFile="${accord-core.build.pom}"
+            file="${accord-core.build.libs}/libs/${accord-core.build.name}-javadoc.jar"
             classifier="javadoc"/>
 
     <!-- the parent -->
@@ -2331,4 +2447,5 @@
   <import file="${build.helpers.dir}/build-sonar.xml"/>
   <import file="${build.helpers.dir}/build-accord.xml" />
   <import file="${basedir}/tools/sstableloader/build.xml"/>
+  <import file="${build.helpers.dir}/build-autocomplete.xml"/>
 </project>

@@ -18,8 +18,11 @@
 package org.apache.cassandra.schema;
 
 import java.io.IOException;
+import java.nio.ByteBuffer;
 import java.util.Arrays;
+import java.util.Collections;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 
 import org.junit.Test;
@@ -27,6 +30,12 @@ import org.junit.Test;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.cql3.ColumnIdentifier;
 import org.apache.cassandra.cql3.FieldIdentifier;
+import org.apache.cassandra.cql3.functions.Function;
+import org.apache.cassandra.cql3.functions.FunctionName;
+import org.apache.cassandra.cql3.functions.FunctionResolver;
+import org.apache.cassandra.cql3.functions.ScalarFunction;
+import org.apache.cassandra.cql3.functions.masking.ColumnMask;
+import org.apache.cassandra.db.marshal.AbstractType;
 import org.apache.cassandra.db.marshal.Int32Type;
 import org.apache.cassandra.db.marshal.UTF8Type;
 import org.apache.cassandra.db.marshal.UserType;
@@ -94,6 +103,58 @@ public class SchemaMetadataSerializationTest
         assertNotNull("Email column should exist", emailColumn);
         assertEquals("User email", emailColumn.comment);
         assertEquals("PII-EMAIL", emailColumn.securityLabel);
+    }
+
+    /**
+     * Round-trips a column masked with a function that takes no partial arguments, e.g. {@code MASKED WITH DEFAULT}.
+     */
+    @Test
+    public void testMaskedColumnMetadataSerializationWithoutPartialArguments() throws IOException
+    {
+        ColumnMask mask = mask("mask_default", UTF8Type.instance);
+        ColumnMetadata original = maskedColumn(mask);
+
+        ColumnMetadata deserialized = serializeAndDeserializeColumn(original);
+
+        assertEquals("Mask should survive serialization", mask, deserialized.getMask());
+    }
+
+    /**
+     * Round-trips a column masked with a function that takes partial arguments, e.g.
+     * {@code MASKED WITH mask_inner(2, 1)}. Both the arguments and the fields serialized after the mask need to
+     * survive, since losing the arguments would also leave the input stream misaligned.
+     */
+    @Test
+    public void testMaskedColumnMetadataSerializationWithPartialArguments() throws IOException
+    {
+        ColumnMask mask = mask("mask_inner",
+                               UTF8Type.instance, Int32Type.instance, Int32Type.instance,
+                               Int32Type.instance.decompose(2), Int32Type.instance.decompose(1));
+        ColumnMetadata original = maskedColumn(mask);
+
+        ColumnMetadata deserialized = serializeAndDeserializeColumn(original);
+
+        assertEquals("Mask should survive serialization", mask, deserialized.getMask());
+        assertEquals("Masked column comment should survive serialization", "User email", deserialized.comment);
+        assertEquals("Masked column security label should survive serialization", "PII-EMAIL", deserialized.securityLabel);
+    }
+
+    /**
+     * Round-trips a column masked with a function that takes a null partial argument, e.g.
+     * {@code MASKED WITH mask_inner(null, 1)}.
+     */
+    @Test
+    public void testMaskedColumnMetadataSerializationWithNullPartialArgument() throws IOException
+    {
+        ColumnMask mask = mask("mask_inner",
+                               UTF8Type.instance, Int32Type.instance, Int32Type.instance,
+                               null, Int32Type.instance.decompose(1));
+        ColumnMetadata original = maskedColumn(mask);
+
+        ColumnMetadata deserialized = serializeAndDeserializeColumn(original);
+
+        assertEquals("Mask should survive serialization", mask, deserialized.getMask());
+        assertEquals("Masked column comment should survive serialization", "User email", deserialized.comment);
     }
 
     @Test
@@ -241,6 +302,50 @@ public class SchemaMetadataSerializationTest
                             .build();
     }
 
+    /**
+     * @param functionName the name of a native masking function
+     * @param argTypes the types of the arguments of the function, including the type of the masked column
+     * @param partialArgumentValues the values of the arguments of the function, excluding the masked column
+     */
+    private static ColumnMask mask(String functionName, List<AbstractType<?>> argTypes, ByteBuffer... partialArgumentValues)
+    {
+        Function function = FunctionResolver.get(KEYSPACE,
+                                                 FunctionName.nativeFunction(functionName),
+                                                 argTypes,
+                                                 KEYSPACE,
+                                                 "users",
+                                                 argTypes.get(0),
+                                                 UserFunctions.none());
+        assertNotNull("Masking function should be resolvable", function);
+        return new ColumnMask((ScalarFunction) function, partialArgumentValues);
+    }
+
+    private static ColumnMask mask(String functionName, AbstractType<?> columnType)
+    {
+        return mask(functionName, Collections.singletonList(columnType));
+    }
+
+    private static ColumnMask mask(String functionName,
+                                   AbstractType<?> columnType,
+                                   AbstractType<?> firstArgType,
+                                   AbstractType<?> secondArgType,
+                                   ByteBuffer firstArgValue,
+                                   ByteBuffer secondArgValue)
+    {
+        return mask(functionName,
+                    Arrays.asList(columnType, firstArgType, secondArgType),
+                    firstArgValue,
+                    secondArgValue);
+    }
+
+    private static ColumnMetadata maskedColumn(ColumnMask mask)
+    {
+        return ColumnMetadata.regularColumn(KEYSPACE, "users", "email", UTF8Type.instance, ColumnMetadata.NO_UNIQUE_ID)
+                             .withNewMask(mask)
+                             .withNewComment("User email")
+                             .withNewSecurityLabel("PII-EMAIL");
+    }
+
     private UserType createUserType(String name, String comment, String securityLabel)
     {
         FieldIdentifier field = FieldIdentifier.forUnquoted("field1");
@@ -262,6 +367,15 @@ public class SchemaMetadataSerializationTest
 
         DataInputBuffer in = new DataInputBuffer(out.toByteArray());
         return KeyspaceMetadata.serializer.deserialize(in, Version.V8);
+    }
+
+    private ColumnMetadata serializeAndDeserializeColumn(ColumnMetadata original) throws IOException
+    {
+        DataOutputBuffer out = new DataOutputBuffer();
+        ColumnMetadata.serializer.serialize(original, out, Version.V8);
+
+        DataInputBuffer in = new DataInputBuffer(out.toByteArray());
+        return ColumnMetadata.serializer.deserialize(in, Types.none(), UserFunctions.none(), Version.V8);
     }
 
     private TableMetadata serializeAndDeserializeTable(TableMetadata original) throws IOException

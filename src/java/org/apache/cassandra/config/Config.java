@@ -86,9 +86,11 @@ public class Config
     public ParameterizedClass authenticator;
     public ParameterizedClass authorizer;
     public ParameterizedClass role_manager;
+    public ParameterizedClass default_role_initializer;
     public ParameterizedClass crypto_provider;
     public ParameterizedClass network_authorizer;
     public ParameterizedClass cidr_authorizer;
+    public Map<String, ParameterizedClass> compressor_providers = new HashMap<>();
 
     @Replaces(oldName = "permissions_validity_in_ms", converter = Converters.MILLIS_DURATION_INT, deprecated = true)
     public volatile DurationSpec.IntMillisecondsBound permissions_validity = new DurationSpec.IntMillisecondsBound("2s");
@@ -165,8 +167,6 @@ public class Config
     @Replaces(oldName = "cas_contention_timeout_in_ms", converter = Converters.MILLIS_DURATION_LONG, deprecated = true)
     public volatile DurationSpec.LongMillisecondsBound cas_contention_timeout = new DurationSpec.LongMillisecondsBound("1800ms");
 
-    public volatile DurationSpec.LongMillisecondsBound accord_preaccept_timeout = new DurationSpec.LongMillisecondsBound("1s");
-
     @Replaces(oldName = "truncate_request_timeout_in_ms", converter = Converters.MILLIS_DURATION_LONG, deprecated = true)
     public volatile DurationSpec.LongMillisecondsBound truncate_request_timeout = new DurationSpec.LongMillisecondsBound("60000ms");
 
@@ -185,6 +185,18 @@ public class Config
 
     public volatile DurationSpec.LongMillisecondsBound stream_transfer_task_timeout = new DurationSpec.LongMillisecondsBound("12h");
 
+    /**
+     * Timeout for the per-message window when a non-CMS node sends a TCM_COMMIT_REQ to a CMS node.
+     * The CMS will attempt Paxos retries for (cms_await_timeout - write_request_timeout) before
+     * returning an explicit failure, giving the sender time to reschedule before its message callback fires.
+     *
+     * WARNING: cms_await_timeout should be substantially larger than write_request_timeout.
+     * A single Paxos CAS attempt can take up to (cas_contention_timeout + write_request_timeout) to
+     * complete. If cms_await_timeout is set close to write_request_timeout the deadline reduction has
+     * no effect and many concurrent CMS operations timing out at the same time may create a thundering herd,
+     * all retrying against the CMS.
+     * Default 2 minutes to match "nodetool cms initialize".
+     */
     public volatile DurationSpec.LongMillisecondsBound cms_await_timeout = new DurationSpec.LongMillisecondsBound("120000ms");
     public volatile int cms_default_max_retries = 10;
     @Deprecated(since="6.0")
@@ -192,6 +204,40 @@ public class Config
     @Deprecated(since="6.0")
     public volatile DurationSpec.IntMillisecondsBound cms_default_max_retry_backoff = null;
     public String cms_retry_delay = "50ms*attempts <= 500ms ... 100ms*attempts <= 1s,retries=10";
+
+    public volatile CMSCommitMemberPreferencePolicy cms_commit_member_preference_policy = CMSCommitMemberPreferencePolicy.random;
+    /**
+     * Controls the sender-side retry behavior for CMS commits (topology changes,
+     * CMS reconfiguration, node registration — everything except STARTUP and schema DDL
+     * with an explicit client deadline).
+     *
+     * cms_commit_timeout: Overall deadline for the commit to succeed. The sender retries
+     *   with exponential backoff until this deadline expires. Each retry sends a fresh
+     *   TCM_COMMIT_REQ to a (possibly different) CMS node. Set this longer than the
+     *   expected total time for all concurrent operations to drain through the Paxos log.
+     *
+     * cms_commit_retry_initial_delay: Base delay for Full Jitter exponential backoff.
+     *   Actual delay per retry = uniform_random(0, min(max_delay, initial_delay * 2^attempt)).
+     *   Higher values reduce Paxos contention at the cost of slower progress when the log
+     *   is lightly loaded. 5s is a good default — it spaces retries enough to avoid
+     *   thundering herd while still making progress within minutes.
+     *
+     * cms_commit_retry_max_delay: Cap on the exponential backoff. Once 2^attempt growth
+     *   exceeds this, all subsequent retries draw from uniform_random(0, max_delay).
+     *   60s keeps retries frequent enough that a freed Paxos slot is filled within
+     *   ~30s on average, while avoiding retry storms.
+     *
+     * When to change:
+     *   - If bulk topology ops complete but take too long: reduce max_delay (e.g. 30s)
+     *     to retry more aggressively. Monitor CommitRetries rate for contention impact.
+     *   - If bulk topology ops fail (timeout): increase cms_commit_timeout.
+     *   - If Paxos contention is extremely high (>100 concurrent commits): increase
+     *     initial_delay to 10-15s to spread the retry wavefront.
+     *   - All three are hot-settable via JMX without restart.
+     */
+    public volatile DurationSpec.LongMillisecondsBound cms_commit_timeout = new DurationSpec.LongMillisecondsBound("1h");
+    public volatile DurationSpec.LongMillisecondsBound cms_commit_retry_initial_delay = new DurationSpec.LongMillisecondsBound("5s");
+    public volatile DurationSpec.LongMillisecondsBound cms_commit_retry_max_delay = new DurationSpec.LongMillisecondsBound("60s");
 
     public volatile int epoch_aware_debounce_inflight_tracker_max_size = 100;
 
@@ -205,7 +251,6 @@ public class Config
 
     public int concurrent_reads = 32;
     public int concurrent_writes = 32;
-    public int concurrent_accord_operations = 32;
     public int concurrent_counter_writes = 32;
     public int concurrent_materialized_view_writes = 32;
     public OptionaldPositiveInt available_processors = new OptionaldPositiveInt(CASSANDRA_AVAILABLE_PROCESSORS.getInt(OptionaldPositiveInt.UNDEFINED_VALUE));
@@ -365,6 +410,18 @@ public class Config
 
     public DataStorageSpec.IntKibibytesBound compressed_read_ahead_buffer_size = new DataStorageSpec.IntKibibytesBound("256KiB");
 
+    // Direct IO for background SSTable writes (compaction, streaming, cleanup, etc.)
+    // When 'direct' is set, background writes bypass the OS page cache using O_DIRECT.
+    // Memtable flushes always use buffered I/O regardless of this setting.
+    // Default is 'standard' (buffered I/O) - users must opt-in to Direct IO
+    public DiskAccessMode background_write_disk_access_mode = DiskAccessMode.standard;
+
+    // Size of the in-memory staging buffer for Direct IO background writes. Trades off syscall
+    // frequency against per-flush blocking latency on the compaction thread.
+    // Aligned up to filesystem block size; auto-expands to fit a single compressed chunk + CRC
+    // + one block when chunk_length exceeds this value.
+    public DataStorageSpec.IntKibibytesBound direct_write_buffer_size = new DataStorageSpec.IntKibibytesBound("1MiB");
+
     // fraction of free disk space available for compaction after min free space is subtracted
     public volatile Double max_space_usable_for_compactions_in_percentage = .95;
 
@@ -490,7 +547,7 @@ public class Config
     public volatile boolean use_creation_time_for_hint_ttl = true;
 
     public volatile boolean incremental_backups = false;
-    public boolean trickle_fsync = false;
+    public boolean trickle_fsync = true;
     @Replaces(oldName = "trickle_fsync_interval_in_kb", converter = Converters.KIBIBYTES_DATASTORAGE, deprecated = true)
     public DataStorageSpec.IntKibibytesBound trickle_fsync_interval = new DataStorageSpec.IntKibibytesBound("10240KiB");
 
@@ -754,6 +811,11 @@ public class Config
     public volatile int max_concurrent_automatic_sstable_upgrades = 1;
     public boolean stream_entire_sstables = true;
 
+    /**
+     * When receiving a zero-copy stream, validate Digest.crc32 before the sstable is made visible.
+     */
+    public volatile boolean entire_sstable_stream_digest_validation_enabled = true;
+
     public volatile boolean skip_stream_disk_space_check = false;
 
     public volatile AuditLogOptions audit_logging_options = new AuditLogOptions();
@@ -938,6 +1000,8 @@ public class Config
     public volatile boolean user_timestamps_enabled = true;
     public volatile boolean alter_table_enabled = true;
     public volatile boolean group_by_enabled = true;
+    public volatile boolean prepared_statements_require_parameters_warned = true;
+    public volatile boolean prepared_statements_require_parameters_enabled = false;
     public volatile boolean bulk_load_enabled = true;
     public volatile boolean drop_truncate_table_enabled = true;
     public volatile boolean drop_keyspace_enabled = true;
@@ -998,6 +1062,7 @@ public class Config
     public volatile int minimum_replication_factor_fail_threshold = -1;
     public volatile int maximum_replication_factor_warn_threshold = -1;
     public volatile int maximum_replication_factor_fail_threshold = -1;
+    public volatile int minimum_cms_size_fail_threshold = -1;
     public volatile boolean zero_ttl_on_twcs_warned = true;
     public volatile boolean zero_ttl_on_twcs_enabled = true;
     public volatile boolean non_partition_restricted_index_query_enabled = true;
@@ -1006,14 +1071,22 @@ public class Config
     public volatile boolean unset_training_min_frequency_warned = true;
     public volatile boolean unset_training_min_frequency_enabled = true;
 
+    public volatile Map<String, String> minimum_client_driver_versions_warned = Collections.emptyMap();
+    public volatile Map<String, String> minimum_client_driver_versions_disallowed = Collections.emptyMap();
+
     public volatile int sai_sstable_indexes_per_query_warn_threshold = 32;
     public volatile int sai_sstable_indexes_per_query_fail_threshold = -1;
     public volatile DataStorageSpec.LongBytesBound sai_string_term_size_warn_threshold = new DataStorageSpec.LongBytesBound("1KiB");
     public volatile DataStorageSpec.LongBytesBound sai_string_term_size_fail_threshold = new DataStorageSpec.LongBytesBound("8KiB");
+    public volatile DataStorageSpec.LongBytesBound sai_blob_term_size_warn_threshold = new DataStorageSpec.LongBytesBound("1KiB");
+    public volatile DataStorageSpec.LongBytesBound sai_blob_term_size_fail_threshold = new DataStorageSpec.LongBytesBound("8KiB");
     public volatile DataStorageSpec.LongBytesBound sai_frozen_term_size_warn_threshold = new DataStorageSpec.LongBytesBound("1KiB");
     public volatile DataStorageSpec.LongBytesBound sai_frozen_term_size_fail_threshold = new DataStorageSpec.LongBytesBound("8KiB");
     public volatile DataStorageSpec.LongBytesBound sai_vector_term_size_warn_threshold = new DataStorageSpec.LongBytesBound("16KiB");
     public volatile DataStorageSpec.LongBytesBound sai_vector_term_size_fail_threshold = new DataStorageSpec.LongBytesBound("32KiB");
+
+    public volatile int zstd_compression_level_warn_threshold = -1;
+    public volatile int zstd_compression_level_fail_threshold = -1;
 
     public volatile DurationSpec.LongNanosecondsBound streaming_state_expires = new DurationSpec.LongNanosecondsBound("3d");
     public volatile DataStorageSpec.LongBytesBound streaming_state_size = new DataStorageSpec.LongBytesBound("40MiB");
@@ -1235,7 +1308,7 @@ public class Config
      */
     public ParameterizedClass default_compaction = null;
 
-    public final AccordSpec accord = new AccordSpec();
+    public final AccordConfig accord = new AccordConfig();
 
     public static Supplier<Config> getOverrideLoadConfig()
     {
@@ -1252,6 +1325,31 @@ public class Config
         periodic,
         batch,
         group
+    }
+
+    /**
+     * Strategy for selecting which CMS member to contact for TCM commits.
+     */
+    public enum CMSCommitMemberPreferencePolicy
+    {
+        /** Shuffle candidates randomly (original behavior) */
+        random,
+
+        /** Shuffle local DC candidates randomly, followed by shuffled non-local */
+        local_random,
+
+        /** Sort by address - all nodes converge on same member with the goal
+         *  of reducing Paxos contention, but will increase hot-spotting on the
+         *  determined member
+         */
+        deterministic,
+
+        /** Sort local members first by name, then non-local. Nodes in each DC
+         *  will converge on same member with the goal of reducing Paxos contention d
+         *  below the random but with lower latency, though higher contention than
+         *  globally deterministic.
+         */
+        local_deterministic
     }
 
     public enum FlushCompression
@@ -1275,8 +1373,7 @@ public class Config
         legacy,
 
         /**
-         * Direct-I/O is enabled for commitlog disk only.
-         * When adding support for direct IO, update {@link org.apache.cassandra.service.StartupChecks#checkKernelBug1057843}
+         * When adding support for Direct I/O, update {@link org.apache.cassandra.service.StartupChecks#checkKernelBug1057843}
          */
         direct
     }
@@ -1499,7 +1596,9 @@ public class Config
     public volatile DurationSpec.LongMillisecondsBound progress_barrier_timeout = new DurationSpec.LongMillisecondsBound("3600000ms");
     public volatile DurationSpec.LongMillisecondsBound progress_barrier_backoff = new DurationSpec.LongMillisecondsBound("1000ms");
     public volatile DurationSpec.LongSecondsBound discovery_timeout = new DurationSpec.LongSecondsBound("30s");
+    public volatile int discovery_rounds = 5;
     public boolean unsafe_tcm_mode = false;
+    public boolean legacy_state_listener_sync_local_updates = true;
 
     public enum TriggersPolicy
     {

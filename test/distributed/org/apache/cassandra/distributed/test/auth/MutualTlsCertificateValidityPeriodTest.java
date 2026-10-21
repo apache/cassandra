@@ -57,7 +57,6 @@ import org.apache.cassandra.utils.tls.CertificateBundle;
 import static org.apache.cassandra.transport.TlsTestUtils.CLIENT_SPIFFE_IDENTITY;
 import static org.apache.cassandra.transport.TlsTestUtils.SERVER_KEYSTORE_PASSWORD;
 import static org.apache.cassandra.transport.TlsTestUtils.SERVER_TRUSTSTORE_PASSWORD;
-import static org.apache.cassandra.transport.TlsTestUtils.configureIdentity;
 import static org.apache.cassandra.transport.TlsTestUtils.generateClientCertificate;
 import static org.apache.cassandra.transport.TlsTestUtils.getSSLOptions;
 import static org.assertj.core.api.Assertions.as;
@@ -104,6 +103,8 @@ public class MutualTlsCertificateValidityPeriodTest extends TestBaseImpl
                                  .set("authenticator.parameters", Collections.singletonMap("validator_class_name", "org.apache.cassandra.auth.SpiffeCertificateValidator"))
                                  .set("role_manager", "CassandraRoleManager")
                                  .set("authorizer", "CassandraAuthorizer")
+                                 .set("default_role_initializer.class_name", "org.apache.cassandra.auth.MutualTlsDefaultRoleInitializer")
+                                 .set("default_role_initializer.parameters", Map.of("role", "cassandra_ssl_test", "identity", CLIENT_SPIFFE_IDENTITY))
                                  .set("client_encryption_options.enabled", "true")
                                  .set("client_encryption_options.require_client_auth", "optional")
                                  .set("client_encryption_options.keystore", serverKeystorePath.toString())
@@ -115,8 +116,6 @@ public class MutualTlsCertificateValidityPeriodTest extends TestBaseImpl
                                  .set("client_encryption_options.certificate_validity_warn_threshold", "5d")
                                  .with(Feature.NATIVE_PROTOCOL, Feature.GOSSIP));
         CLUSTER = builder.start();
-
-        configureIdentity(CLUSTER, getSSLOptions(null, truststorePath));
     }
 
     @AfterClass

@@ -37,11 +37,15 @@ public class Crc
 
     private static final byte[] initialBytes = new byte[] { (byte) 0xFA, (byte) 0x2D, (byte) 0x55, (byte) 0xCA };
 
-    public static final class InvalidCrc extends IOException
+    public static class InvalidCrc extends IOException
     {
+        public final int read;
+        public final int computed;
         public InvalidCrc(int read, int computed)
         {
             super(String.format("Read %d, Computed %d", read, computed));
+            this.read = read;
+            this.computed = computed;
         }
     }
 

@@ -21,6 +21,7 @@ package org.apache.cassandra.db.compression;
 import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
@@ -146,6 +147,8 @@ public class SSTableChunkSampler
                 uncompressedCount++;
         }
 
+        Collections.shuffle(sstableInfos);
+
         logger.info("Sampling from {} SSTables ({} compressed, {} uncompressed) with {} total chunks",
                     sstableInfos.size(), compressedCount, uncompressedCount, totalChunks);
 
@@ -214,12 +217,22 @@ public class SSTableChunkSampler
                 break;
             }
 
-            // Calculate how many chunks to sample from this SSTable (proportional to its size)
+            // Calculate how many chunks to sample from this SSTable (proportional to its size), but always at
+            // least one chunk per SSTable, bounded by the remaining budget. The proportional share is integer
+            // division and truncates to ZERO once there are more SSTables than the target chunk count. That
+            // happens with large chunk sizes, because targetChunkCount = maxTotalSampleSize / chunkSize shrinks
+            // as chunks grow (e.g. 8 MiB / 64 KiB = 128): spread across hundreds of SSTables the per-SSTable
+            // share rounds to zero, so most SSTables are skipped and far fewer samples are collected than
+            // intended — often below the trainer's minimum, failing training despite gigabytes of data. The
+            // Math.max(1, ...) floor guarantees every SSTable contributes; the maxTotalSampleSize byte budget
+            // (via remainingTarget) still caps the total that is actually sampled.
             long remainingTarget = Math.min(targetChunkCount - sampleCount, (config.maxTotalSampleSize - totalSampleSize) / info.chunkSize);
-            long chunksFromThisSSTable = Math.min((targetChunkCount * info.chunkCount) / totalChunks, remainingTarget);
+            long proportionalChunks = (targetChunkCount * info.chunkCount) / totalChunks;
+            long chunksFromThisSSTable = Math.min(Math.max(1, proportionalChunks), remainingTarget);
 
             if (chunksFromThisSSTable <= 0)
             {
+                // remainingTarget == 0: the remaining byte budget cannot fit another chunk from this SSTable.
                 continue;
             }
 

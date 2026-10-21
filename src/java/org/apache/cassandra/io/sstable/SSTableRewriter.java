@@ -228,7 +228,9 @@ public class SSTableRewriter extends Transactional.AbstractTransactional impleme
 
             if (lowerbound.compareTo(latest.getLast()) >= 0)
             {
-                if (!transaction.isObsolete(latest))
+                // a fully-covered original must still be retained when the caller asked to
+                // keep the originals; obsoleting here deleted them despite keepOriginals=true
+                if (!keepOriginals && !transaction.isObsolete(latest))
                     transaction.obsolete(latest);
                 continue;
             }

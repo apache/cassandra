@@ -32,6 +32,7 @@ public class SchemaMutationsSerializer implements IVersionedSerializer<Collectio
 {
     public static final SchemaMutationsSerializer instance = new SchemaMutationsSerializer();
 
+    @Override
     public void serialize(Collection<Mutation> schema, DataOutputPlus out, int version) throws IOException
     {
         out.writeInt(schema.size());
@@ -39,6 +40,7 @@ public class SchemaMutationsSerializer implements IVersionedSerializer<Collectio
             Mutation.serializer.serialize(mutation, out, version);
     }
 
+    @Override
     public Collection<Mutation> deserialize(DataInputPlus in, int version) throws IOException
     {
         int count = in.readInt();
@@ -50,9 +52,10 @@ public class SchemaMutationsSerializer implements IVersionedSerializer<Collectio
         return schema;
     }
 
+    @Override
     public long serializedSize(Collection<Mutation> schema, int version)
     {
-        int size = TypeSizes.sizeof(schema.size());
+        long size = TypeSizes.sizeof(schema.size());
         for (Mutation mutation : schema)
             size += mutation.serializedSize(version);
         return size;

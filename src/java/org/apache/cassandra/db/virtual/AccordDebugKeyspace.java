@@ -36,11 +36,13 @@ import java.util.concurrent.TimeoutException;
 import java.util.function.BiConsumer;
 import java.util.function.Function;
 import java.util.function.IntFunction;
+import java.util.function.Supplier;
 import java.util.function.UnaryOperator;
 import java.util.stream.Collectors;
 
 import javax.annotation.Nullable;
 
+import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.ImmutableSet;
 
 import org.slf4j.Logger;
@@ -60,6 +62,8 @@ import accord.impl.CommandChange;
 import accord.impl.progresslog.DefaultProgressLog;
 import accord.impl.progresslog.DefaultProgressLog.ModeFlag;
 import accord.impl.progresslog.TxnStateKind;
+import accord.local.BootstrapReason;
+import accord.local.Catchup;
 import accord.local.Cleanup;
 import accord.local.Command;
 import accord.local.CommandStore;
@@ -68,10 +72,9 @@ import accord.local.CommandStores.LatentStoreSelector;
 import accord.local.Commands;
 import accord.local.Commands.NotifyWaitingOnPlus;
 import accord.local.DurableBefore;
+import accord.local.ExecutionContext;
 import accord.local.MaxConflicts;
 import accord.local.Node;
-import accord.local.PreLoadContext;
-import accord.local.RejectBefore;
 import accord.local.SafeCommand;
 import accord.local.SafeCommandStore;
 import accord.local.StoreParticipants;
@@ -79,6 +82,7 @@ import accord.local.cfk.CommandsForKey;
 import accord.local.cfk.CommandsForKey.TxnInfo;
 import accord.local.cfk.SafeCommandsForKey;
 import accord.local.durability.ShardDurability;
+import accord.primitives.Ballot;
 import accord.primitives.FullRoute;
 import accord.primitives.Known;
 import accord.primitives.Participants;
@@ -103,6 +107,7 @@ import accord.utils.async.AsyncChains;
 import accord.utils.async.AsyncResult;
 import accord.utils.async.AsyncResults;
 
+import org.apache.cassandra.config.AccordConfig.JournalConfig.ReplayMode;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.cql3.statements.schema.CreateTableStatement;
 import org.apache.cassandra.db.ColumnFamilyStore;
@@ -110,6 +115,7 @@ import org.apache.cassandra.db.DataRange;
 import org.apache.cassandra.db.DecoratedKey;
 import org.apache.cassandra.db.Keyspace;
 import org.apache.cassandra.db.PartitionPosition;
+import org.apache.cassandra.db.filter.RowFilter;
 import org.apache.cassandra.db.marshal.AbstractType;
 import org.apache.cassandra.db.marshal.CompositeType;
 import org.apache.cassandra.db.marshal.Int32Type;
@@ -119,29 +125,38 @@ import org.apache.cassandra.dht.LocalPartitioner;
 import org.apache.cassandra.dht.NormalizedRanges;
 import org.apache.cassandra.dht.Token;
 import org.apache.cassandra.exceptions.InvalidRequestException;
+import org.apache.cassandra.index.IndexRegistry;
+import org.apache.cassandra.index.accord.NoOpIndex;
 import org.apache.cassandra.schema.ColumnMetadata;
+import org.apache.cassandra.schema.IndexMetadata;
+import org.apache.cassandra.schema.Indexes;
 import org.apache.cassandra.schema.Schema;
 import org.apache.cassandra.schema.TableId;
 import org.apache.cassandra.schema.TableMetadata;
-import org.apache.cassandra.service.accord.AccordCache;
 import org.apache.cassandra.service.accord.AccordCommandStore;
 import org.apache.cassandra.service.accord.AccordCommandStores;
-import org.apache.cassandra.service.accord.AccordExecutor;
-import org.apache.cassandra.service.accord.AccordJournal;
 import org.apache.cassandra.service.accord.AccordKeyspace;
 import org.apache.cassandra.service.accord.AccordOperations;
 import org.apache.cassandra.service.accord.AccordService;
-import org.apache.cassandra.service.accord.AccordTracing;
-import org.apache.cassandra.service.accord.AccordTracing.BucketMode;
-import org.apache.cassandra.service.accord.AccordTracing.CoordinationKinds;
-import org.apache.cassandra.service.accord.AccordTracing.TracePattern;
-import org.apache.cassandra.service.accord.AccordTracing.TxnKindsAndDomains;
-import org.apache.cassandra.service.accord.DebugBlockedTxns;
 import org.apache.cassandra.service.accord.IAccordService;
 import org.apache.cassandra.service.accord.JournalKey;
 import org.apache.cassandra.service.accord.TokenRange;
 import org.apache.cassandra.service.accord.api.AccordAgent;
 import org.apache.cassandra.service.accord.api.TokenKey;
+import org.apache.cassandra.service.accord.debug.AccordTracing;
+import org.apache.cassandra.service.accord.debug.AccordTracing.BucketMode;
+import org.apache.cassandra.service.accord.debug.AccordTracing.TracePattern;
+import org.apache.cassandra.service.accord.debug.CoordinationKinds;
+import org.apache.cassandra.service.accord.debug.DebugBlockedTxns;
+import org.apache.cassandra.service.accord.debug.DebugTxnDepsAll;
+import org.apache.cassandra.service.accord.debug.DebugTxnDepsOrdered;
+import org.apache.cassandra.service.accord.debug.DebugTxnGraph;
+import org.apache.cassandra.service.accord.debug.TxnKindsAndDomains;
+import org.apache.cassandra.service.accord.execution.AccordCache;
+import org.apache.cassandra.service.accord.execution.AccordCacheEntry;
+import org.apache.cassandra.service.accord.execution.AccordExecutor;
+import org.apache.cassandra.service.accord.execution.TaskInfo;
+import org.apache.cassandra.service.accord.journal.AccordJournal;
 import org.apache.cassandra.service.consensus.migration.ConsensusMigrationState;
 import org.apache.cassandra.service.consensus.migration.TableMigrationState;
 import org.apache.cassandra.tcm.ClusterMetadata;
@@ -150,6 +165,10 @@ import org.apache.cassandra.utils.LocalizeString;
 import org.apache.cassandra.utils.concurrent.Future;
 
 import static accord.coordinate.Infer.InvalidIf.NotKnownToBeInvalid;
+import static accord.impl.CommandChange.Field.ACCEPTED;
+import static accord.impl.CommandChange.Field.PROMISED;
+import static accord.local.BootstrapReason.LOG_CORRUPTED;
+import static accord.local.BootstrapReason.LOG_INCOMPLETE;
 import static accord.local.RedundantStatus.Property.GC_BEFORE;
 import static accord.local.RedundantStatus.Property.LOCALLY_APPLIED;
 import static accord.local.RedundantStatus.Property.LOCALLY_DURABLE_TO_COMMAND_STORE;
@@ -167,9 +186,11 @@ import static java.util.concurrent.TimeUnit.NANOSECONDS;
 import static org.apache.cassandra.cql3.statements.RequestValidations.invalidRequest;
 import static org.apache.cassandra.db.virtual.AbstractLazyVirtualTable.OnTimeout.BEST_EFFORT;
 import static org.apache.cassandra.db.virtual.AbstractLazyVirtualTable.OnTimeout.FAIL;
+import static org.apache.cassandra.db.virtual.AccordDebugKeyspace.CommandStoreOpsTable.CommandStoreOp.REBOOTSTRAP_CORRUPTED;
 import static org.apache.cassandra.db.virtual.VirtualTable.Sorted.ASC;
 import static org.apache.cassandra.db.virtual.VirtualTable.Sorted.SORTED;
 import static org.apache.cassandra.db.virtual.VirtualTable.Sorted.UNSORTED;
+import static org.apache.cassandra.schema.IndexMetadata.Kind.CUSTOM;
 import static org.apache.cassandra.schema.SchemaConstants.VIRTUAL_ACCORD_DEBUG;
 import static org.apache.cassandra.service.accord.AccordService.toFuture;
 import static org.apache.cassandra.utils.MonotonicClock.Global.approxTime;
@@ -194,9 +215,11 @@ public class AccordDebugKeyspace extends VirtualKeyspace
     public static final String NODE_OPS           = "node_ops";
     public static final String PROGRESS_LOG       = "progress_log";
     public static final String REDUNDANT_BEFORE   = "redundant_before";
-    public static final String REJECT_BEFORE      = "reject_before";
     public static final String TXN                = "txn";
+    public static final String TXN_CACHE          = "txn_cache";
     public static final String TXN_BLOCKED_BY     = "txn_blocked_by";
+    public static final String TXN_GRAPH          = "txn_graph";
+    public static final String TXN_GRAPH_ALL      = "txn_graph_all";
     public static final String TXN_PATTERN_TRACE  = "txn_pattern_trace";
     public static final String TXN_PATTERN_TRACES = "txn_pattern_traces";
     public static final String TXN_TRACE          = "txn_trace";
@@ -204,7 +227,11 @@ public class AccordDebugKeyspace extends VirtualKeyspace
     public static final String TXN_OPS            = "txn_ops";
     public static final String SHARD_EPOCHS       = "shard_epochs";
 
+    public static final String INTERSECTS_INDEX_NAME = "intersects";
+    public static final String KIND_INDEX_NAME = "kind";
+
     private static final Function<Object, String> TO_STRING = AccordDebugKeyspace::toStringOrNull;
+    private static final Function<Object, String> TO_BALLOT_STRING = b -> b == null ? null : b.equals(Ballot.MAX) ? "+Inf" : b.toString();
 
     public static final AccordDebugKeyspace instance = new AccordDebugKeyspace();
 
@@ -228,9 +255,11 @@ public class AccordDebugKeyspace extends VirtualKeyspace
             new NodeOpsTable(),
             new ProgressLogTable(),
             new RedundantBeforeTable(),
-            new RejectBeforeTable(),
             new TxnBlockedByTable(),
             new TxnTable(),
+            new TxnCacheTable(),
+            new TxnGraphTable(),
+            new TxnGraphAllTable(),
             new TxnTraceTable(),
             new TxnTracesTable(),
             new TxnPatternTraceTable(),
@@ -284,7 +313,7 @@ public class AccordDebugKeyspace extends VirtualKeyspace
                         "CREATE TABLE %s (\n" +
                         "  executor_id int,\n" +
                         "  status text,\n" +
-                        "  position int,\n" +
+                        "  position bigint,\n" +
                         "  unique_position int,\n" +
                         "  description text,\n" +
                         "  command_store_id int,\n" +
@@ -307,22 +336,22 @@ public class AccordDebugKeyspace extends VirtualKeyspace
                 int executorId = executor.executorId();
                 collector.partition(executorId).collect(rows -> {
                     int uniquePos = 0;
-                    AccordExecutor.TaskInfo prev = null;
-                    for (AccordExecutor.TaskInfo info : executor.taskSnapshot())
+                    TaskInfo prev = null;
+                    for (TaskInfo info : executor.taskSnapshot())
                     {
                         if (prev != null && info.status() == prev.status() && info.position() == prev.position()) ++uniquePos;
                         else uniquePos = 0;
                         prev = info;
-                        PreLoadContext preLoadContext = info.preLoadContext();
+                        ExecutionContext executionContext = info.preLoadContext();
                         rows.add(info.status().name(), info.position(), uniquePos)
                                  .lazyCollect(columns -> {
                                      columns.add("description", info.describe())
                                             .add("command_store_id", info.commandStoreId())
-                                            .add("txn_id", preLoadContext, PreLoadContext::primaryTxnId, TO_STRING)
-                                            .add("txn_id_additional", preLoadContext, PreLoadContext::additionalTxnId, TO_STRING)
-                                            .add("keys", preLoadContext, PreLoadContext::keys, TO_STRING)
-                                            .add("keys_loading", preLoadContext, PreLoadContext::loadKeys, TO_STRING)
-                                            .add("keys_loading_for", preLoadContext, PreLoadContext::loadKeysFor, TO_STRING);
+                                            .add("txn_id", executionContext, ExecutionContext::primaryTxnId, TO_STRING)
+                                            .add("txn_id_additional", executionContext, ExecutionContext::additionalTxnId, TO_STRING)
+                                            .add("keys", executionContext, ExecutionContext::keys, TO_STRING)
+                                            .add("keys_loading", executionContext, ExecutionContext::loadKeys, TO_STRING)
+                                            .add("keys_loading_for", executionContext, ExecutionContext::findKeys, TO_STRING);
                         });
                     }
                 });
@@ -626,17 +655,17 @@ public class AccordDebugKeyspace extends VirtualKeyspace
         public void collect(PartitionsCollector collector)
         {
             DurableBefore durableBefore = AccordService.unsafeInstance().node().durableBefore();
-            durableBefore.foldlWithBounds(
-                (entry, ignore, start, end) -> {
-                    TableId tableId = (TableId) start.prefix();
-                    collector.row(tableId.toString(), printToken(start))
+            durableBefore.foldl(
+                (entry, ignore) -> {
+                    TableId tableId = (TableId) entry.prefix();
+                    collector.row(tableId.toString(), printToken(entry.start()))
                              .lazyCollect(columns -> {
-                                  columns.add("token_end", end, AccordDebugKeyspace::printToken)
-                                         .add("quorum", entry.quorumBefore, TO_STRING)
-                                         .add("universal", entry.universalBefore, TO_STRING);
+                                  columns.add("token_end", entry.end(), AccordDebugKeyspace::printToken)
+                                         .add("quorum", entry.quorum, TO_STRING)
+                                         .add("universal", entry.universal, TO_STRING);
                              });
                     return null;
-                }, null, ignore -> false);
+                }, null);
         }
     }
 
@@ -716,7 +745,7 @@ public class AccordDebugKeyspace extends VirtualKeyspace
             collector.partition(commandStore.id())
                      .collect(rows -> {
                          // TODO (desired): support maybe execute immediately with safeStore
-                         Future<?> future = toFuture(commandStore.chain((PreLoadContext.Empty) metadata::toString, safeStore -> { addRows(safeStore, rows); }));
+                         Future<?> future = toFuture(commandStore.chain((ExecutionContext.Empty) metadata::toString, safeStore -> { addRows(safeStore, rows); }));
                          if (!future.awaitUntilThrowUncheckedOnInterrupt(collector.deadlineNanos()))
                              throw new InternalTimeoutException();
                      });
@@ -792,7 +821,9 @@ public class AccordDebugKeyspace extends VirtualKeyspace
                         "  token_start 'TokenUtf8Type',\n" +
                         "  table_id text,\n" +
                         "  token_end 'TokenUtf8Type',\n" +
-                        "  timestamp text,\n" +
+                        "  any text,\n" +
+                        "  write text,\n" +
+                        "  reject text,\n" +
                         "  PRIMARY KEY (command_store_id, token_start)" +
                         ')', Int32Type.instance), FAIL, ASC);
         }
@@ -810,16 +841,18 @@ public class AccordDebugKeyspace extends VirtualKeyspace
                 String tableIdStr = tableId.toString();
 
                 collector.partition(commandStoreId).collect(rows -> {
-                    maxConflicts.foldlWithBounds(
-                        (timestamp, rs, start, end) -> {
-                            rows.add(printToken(start))
+                    maxConflicts.foldl(
+                        (entry, rs) -> {
+                            rows.add(printToken(entry.start()))
                                 .lazyCollect(columns -> {
-                                    columns.add("token_end", end, AccordDebugKeyspace::printToken)
+                                    columns.add("token_end", entry.end(), AccordDebugKeyspace::printToken)
                                            .add("table_id", tableIdStr)
-                                           .add("timestamp", timestamp, TO_STRING);
+                                           .add("any", entry.any, TO_STRING)
+                                           .add("write", entry.write, TO_STRING)
+                                           .add("reject", entry.reject, TO_STRING);
                                 });
                              return rows;
-                        }, rows, ignore -> false
+                        }, rows
                     );
                 });
             }
@@ -1057,47 +1090,6 @@ public class AccordDebugKeyspace extends VirtualKeyspace
         }
     }
 
-    public static final class RejectBeforeTable extends AbstractLazyVirtualTable
-    {
-        private RejectBeforeTable()
-        {
-            super(parse(VIRTUAL_ACCORD_DEBUG, REJECT_BEFORE,
-                        "Accord per-CommandStore RejectBefore State",
-                        "CREATE TABLE %s (\n" +
-                        "  command_store_id int,\n" +
-                        "  token_start 'TokenUtf8Type',\n" +
-                        "  table_id text,\n" +
-                        "  token_end 'TokenUtf8Type',\n" +
-                        "  timestamp text,\n" +
-                        "  PRIMARY KEY (command_store_id, token_start)" +
-                        ')', UTF8Type.instance), FAIL, ASC);
-        }
-
-        @Override
-        protected void collect(PartitionsCollector collector)
-        {
-            CommandStores commandStores = AccordService.unsafeInstance().node().commandStores();
-            for (CommandStore commandStore : commandStores.all())
-            {
-                RejectBefore rejectBefore = commandStore.unsafeGetRejectBefore();
-                if (rejectBefore == null)
-                    continue;
-
-                collector.partition(commandStore.id()).collect(rows -> {
-                    TableId tableId = ((AccordCommandStore)commandStore).tableId();
-                    String tableIdStr = tableId.toString();
-                    rejectBefore.foldlWithBounds((timestamp, rs, start, end) -> {
-                        rs.add(printToken(start))
-                          .lazyCollect(columns -> columns.add("table_id", tableIdStr)
-                                                         .add("token_end", end, AccordDebugKeyspace::printToken)
-                                                         .add("timestamp", timestamp, AccordDebugKeyspace::toStringOrNull));
-                        return rs;
-                    }, rows, ignore -> false);
-                });
-            }
-        }
-    }
-
     /**
      * Usage:
      * collect N events (may be more than N messages)
@@ -1232,6 +1224,7 @@ public class AccordDebugKeyspace extends VirtualKeyspace
                         "  event text,\n" +
                         "  at_micros bigint,\n" +
                         "  command_store_id int,\n" +
+                        "  remote_node_id int,\n" +
                         "  message text,\n" +
                         "  PRIMARY KEY (txn_id, id_micros, event, at_micros)" +
                         ')', TxnIdUtf8Type.instance), FAIL, UNSORTED, UNSORTED);
@@ -1291,6 +1284,8 @@ public class AccordDebugKeyspace extends VirtualKeyspace
                             .eagerCollect(columns -> {
                                 columns.add("command_store_id", m.commandStoreId)
                                        .add("message", m.message);
+                                if (m.nodeId >= 0)
+                                    columns.add("remote_node_id", m.nodeId);
                             });
                         });
                     }
@@ -1327,7 +1322,7 @@ public class AccordDebugKeyspace extends VirtualKeyspace
                         "  trace_bucket_sub_size int,\n" +
                         "  trace_events text,\n" +
                         "  PRIMARY KEY (id)" +
-                        ')', Int32Type.instance), FAIL, SORTED);
+                        ')', Int32Type.instance), FAIL, UNSORTED);
         }
 
         @Override
@@ -1342,7 +1337,7 @@ public class AccordDebugKeyspace extends VirtualKeyspace
                                     .add("bucket_seen", state.bucketSeen())
                                     .add("chance", state.pattern().chance)
                                     .add("current_size", state.currentSize())
-                                    .add("if_intersects", state.pattern().intersects, TxnPatternTraceTable::toString)
+                                    .add("if_intersects", state.pattern().intersects, AccordDebugKeyspace::toString)
                                     .add("if_kind", state.pattern().kinds, TO_STRING)
                                     .add("on_failure", state.pattern().traceFailures, TO_STRING)
                                     .add("on_new", state.pattern().traceNew, TO_STRING)
@@ -1424,49 +1419,6 @@ public class AccordDebugKeyspace extends VirtualKeyspace
             tracing().setPattern(id, pattern, newBucketMode, newBucketSeen, newBucketSize, newTraceBucketMode, newTraceBucketSize, newTraceBucketSubSize, newTraceEvents);
         }
 
-        private static String toString(Participants<?> participants)
-        {
-            StringBuilder out = new StringBuilder();
-            for (Routable r : participants)
-            {
-                if (out.length() != 0)
-                    out.append('|');
-                out.append(r);
-            }
-            return out.toString();
-        }
-
-        private static Participants<?> parseParticipants(Object input)
-        {
-            if (input == null)
-                return null;
-
-            String[] vs = ((String)input).split("\\|");
-            if (vs.length == 0)
-                return RoutingKeys.EMPTY;
-
-            if (!vs[0].endsWith("]"))
-            {
-                RoutingKey[] keys = new RoutingKey[vs.length];
-                for (int i = 0 ; i < keys.length ; ++i)
-                {
-                    try { keys[i] = TokenKey.parse(vs[i], DatabaseDescriptor.getPartitioner()); }
-                    catch (Throwable t) { throw new InvalidRequestException("Could not parse TokenKey " + vs[0]); }
-                }
-                return RoutingKeys.of(keys);
-            }
-            else
-            {
-                TokenRange[] ranges = new TokenRange[vs.length];
-                for (int i = 0 ; i < ranges.length ; ++i)
-                {
-                    try { ranges[i] = TokenRange.parse(vs[0], DatabaseDescriptor.getPartitioner()); }
-                    catch (Throwable t) { throw new InvalidRequestException("Could not parse TokenKey " + vs[0]); }
-                }
-                return Ranges.of(ranges);
-            }
-        }
-
         @Override
         public void truncate()
         {
@@ -1484,7 +1436,7 @@ public class AccordDebugKeyspace extends VirtualKeyspace
                         "  id int,\n" +
                         "  txn_id 'TxnIdUtf8Type',\n" +
                         "  PRIMARY KEY (id, txn_id)" +
-                        ')', Int32Type.instance), FAIL, SORTED, SORTED);
+                        ')', Int32Type.instance), FAIL, UNSORTED, UNSORTED);
         }
 
         @Override
@@ -1584,7 +1536,7 @@ public class AccordDebugKeyspace extends VirtualKeyspace
                 }
             }
 
-            accord.journal().forEach(key -> collect(collector, accord, key), min, max, true);
+            accord.journal().forEach(key -> collect(collector, accord, key), min, max, true, 0);
         }
 
         abstract void collect(PartitionsCollector collector, AccordService accord, JournalKey key);
@@ -1603,30 +1555,32 @@ public class AccordDebugKeyspace extends VirtualKeyspace
     }
 
     // TODO (desired): don't report null as "null"
-    public static final class TxnTable extends AbstractJournalTable
+    public static abstract class AbstractTxnTable extends AbstractJournalTable
     {
-        private TxnTable()
+        private AbstractTxnTable(String tableName)
         {
-            super(parse(VIRTUAL_ACCORD_DEBUG, TXN,
+            super(parse(VIRTUAL_ACCORD_DEBUG, tableName,
                         "Accord per-CommandStore Transaction State",
                         "CREATE TABLE %s (\n" +
                         "  command_store_id int,\n" +
                         "  txn_id 'TxnIdUtf8Type',\n" +
-                        "  save_status text,\n" +
-                        "  route text,\n" +
+                        "  ballot_accepted text,\n" +
+                        "  ballot_promised text,\n" +
+                        "  deps text,\n" +
                         "  durability text,\n" +
                         "  execute_at text,\n" +
                         "  executes_at_least text,\n" +
-                        "  txn text,\n" +
-                        "  deps text,\n" +
-                        "  waiting_on text,\n" +
-                        "  writes text,\n" +
-                        "  result text,\n" +
                         "  participants_owns text,\n" +
                         "  participants_touches text,\n" +
                         "  participants_has_touched text,\n" +
                         "  participants_executes text,\n" +
                         "  participants_waits_on text,\n" +
+                        "  result text,\n" +
+                        "  save_status text,\n" +
+                        "  route text,\n" +
+                        "  txn text,\n" +
+                        "  waiting_on text,\n" +
+                        "  writes text,\n" +
                         "  PRIMARY KEY ((command_store_id, txn_id))" +
                         ')', PK));
         }
@@ -1641,7 +1595,7 @@ public class AccordDebugKeyspace extends VirtualKeyspace
             if (commandStore == null)
                 return;
 
-            Command command = commandStore.loadCommand(key.id);
+            Command command = get(commandStore, key.id);
             if (command == null)
                 return;
 
@@ -1649,24 +1603,61 @@ public class AccordDebugKeyspace extends VirtualKeyspace
                      .lazyCollect(columns -> addColumns(command, columns));
         }
 
+        abstract Command get(AccordCommandStore commandStore, TxnId txnId);
+
         private static void addColumns(Command command, ColumnsCollector columns)
         {
             StoreParticipants participants = command.participants();
-            columns.add("save_status", command.saveStatus(), TO_STRING)
-                   .add("route", participants, StoreParticipants::route, TO_STRING)
+            columns.add("ballot_promised", command, Command::promised, TO_BALLOT_STRING)
+                   .add("ballot_accepted", command, Command::acceptedOrCommitted, TO_BALLOT_STRING)
+                   .add("deps", command, Command::partialDeps, TO_STRING)
+                   .add("durability", command, Command::durability, TO_STRING)
+                   .add("execute_at", command, Command::executeAt, TO_STRING)
+                   .add("executes_at_least", command, Command::executesAtLeast, TO_STRING)
                    .add("participants_owns", participants, p -> toStr(p, StoreParticipants::owns, StoreParticipants::stillOwns))
                    .add("participants_touches", participants, p -> toStr(p, StoreParticipants::touches, StoreParticipants::stillTouches))
                    .add("participants_has_touched", participants, StoreParticipants::hasTouched, TO_STRING)
                    .add("participants_executes", participants, p -> toStr(p, StoreParticipants::executes, StoreParticipants::stillExecutes))
                    .add("participants_waits_on", participants, p -> toStr(p, StoreParticipants::waitsOn, StoreParticipants::stillWaitsOn))
-                   .add("durability", command, Command::durability, TO_STRING)
-                   .add("execute_at", command, Command::executeAt, TO_STRING)
-                   .add("executes_at_least", command, Command::executesAtLeast, TO_STRING)
+                   .add("save_status", command.saveStatus(), TO_STRING)
+                   .add("result", command, Command::result, TO_STRING)
+                   .add("route", participants, StoreParticipants::route, TO_STRING)
                    .add("txn", command, Command::partialTxn, TO_STRING)
-                   .add("deps", command, Command::partialDeps, TO_STRING)
                    .add("waiting_on", command, Command::waitingOn, TO_STRING)
                    .add("writes", command, Command::writes, TO_STRING)
-                   .add("result", command, Command::result, TO_STRING);
+                   ;
+        }
+    }
+
+    public static final class TxnTable extends AbstractTxnTable
+    {
+        private TxnTable()
+        {
+            super(TXN);
+        }
+
+        @Override
+        Command get(AccordCommandStore commandStore, TxnId txnId)
+        {
+            return commandStore.loadCommand(txnId);
+        }
+    }
+
+    public static final class TxnCacheTable extends AbstractTxnTable
+    {
+        private TxnCacheTable()
+        {
+            super(TXN_CACHE);
+        }
+
+        @Override
+        Command get(AccordCommandStore commandStore, TxnId txnId)
+        {
+            try (AccordCommandStore.ExclusiveCaches caches = commandStore.lockCaches())
+            {
+                AccordCacheEntry<TxnId, Command, ?> entry = caches.commands().getUnsafe(txnId);
+                return entry == null ? null : entry.getExclusive();
+            }
         }
     }
 
@@ -1681,20 +1672,22 @@ public class AccordDebugKeyspace extends VirtualKeyspace
                         "  command_store_id int,\n" +
                         "  segment bigint,\n" +
                         "  segment_position int,\n" +
-                        "  save_status text,\n" +
-                        "  route text,\n" +
+                        "  ballot_accepted text,\n" +
+                        "  ballot_promised text,\n" +
+                        "  deps text,\n" +
                         "  durability text,\n" +
                         "  execute_at text,\n" +
                         "  executes_at_least text,\n" +
-                        "  txn text,\n" +
-                        "  deps text,\n" +
-                        "  writes text,\n" +
-                        "  result text,\n" +
                         "  participants_owns text,\n" +
                         "  participants_touches text,\n" +
                         "  participants_has_touched text,\n" +
                         "  participants_executes text,\n" +
                         "  participants_waits_on text,\n" +
+                        "  result text,\n" +
+                        "  route text,\n" +
+                        "  save_status text,\n" +
+                        "  txn text,\n" +
+                        "  writes text,\n" +
                         "  PRIMARY KEY ((command_store_id, txn_id), segment, segment_position)" +
                         ')', PK));
         }
@@ -1710,20 +1703,22 @@ public class AccordDebugKeyspace extends VirtualKeyspace
                     StoreParticipants participants = b.participants() != null ? b.participants() : StoreParticipants.empty(key.id);
                     rows.add(e.segment, e.position)
                         .lazyCollect(columns -> {
-                            columns.add("save_status", b.saveStatus(), TO_STRING)
-                                   .add("route", participants, StoreParticipants::route, TO_STRING)
+                            columns.add("ballot_accepted", b.get(ACCEPTED), TO_BALLOT_STRING)
+                                   .add("ballot_promised", b.get(PROMISED), TO_BALLOT_STRING)
+                                   .add("deps", b.partialDeps(), TO_STRING)
+                                   .add("durability", b.durability(), TO_STRING)
+                                   .add("execute_at", b.executeAt(), TO_STRING)
+                                   .add("executes_at_least", b.executesAtLeast(), TO_STRING)
                                    .add("participants_owns", participants, p -> toStr(p, StoreParticipants::owns, StoreParticipants::stillOwns))
                                    .add("participants_touches", participants, p -> toStr(p, StoreParticipants::touches, StoreParticipants::stillTouches))
                                    .add("participants_has_touched", participants, StoreParticipants::hasTouched, TO_STRING)
                                    .add("participants_executes", participants, p -> toStr(p, StoreParticipants::executes, StoreParticipants::stillExecutes))
                                    .add("participants_waits_on", participants, p -> toStr(p, StoreParticipants::waitsOn, StoreParticipants::stillWaitsOn))
-                                   .add("durability", b.durability(), TO_STRING)
-                                   .add("execute_at", b.executeAt(), TO_STRING)
-                                   .add("executes_at_least", b.executesAtLeast(), TO_STRING)
+                                   .add("result", b.result(), TO_STRING)
+                                   .add("route", participants, StoreParticipants::route, TO_STRING)
+                                   .add("save_status", b.saveStatus(), TO_STRING)
                                    .add("txn", b.partialTxn(), TO_STRING)
-                                   .add("deps", b.partialDeps(), TO_STRING)
-                                   .add("writes", b.writes(), TO_STRING)
-                                   .add("result", b.result(), TO_STRING);
+                                   .add("writes", b.writes(), TO_STRING);
                         });
                 }
             });
@@ -1801,24 +1796,24 @@ public class AccordDebugKeyspace extends VirtualKeyspace
                     break;
                 case TRY_EXECUTE:
                     run(txnId, commandStoreId, safeStore -> {
-                        SafeCommand safeCommand = safeStore.unsafeGet(txnId);
+                        SafeCommand safeCommand = safeStore.unsafeTryGet(txnId);
                         Command command = safeCommand.current();
                         if (command.saveStatus() == SaveStatus.Applying)
-                            return Commands.applyChain(safeStore, (Command.Executed) command);
+                            return Commands.applyChain(safeStore, command.asExecuted());
                         Commands.maybeExecute(safeStore, safeCommand, command, true, true, NotifyWaitingOnPlus.adapter(ignore -> {}, true, true));
                         return AsyncChains.success(null);
                     });
                     break;
                 case FORCE_UPDATE:
                     run(txnId, commandStoreId, safeStore -> {
-                        SafeCommand safeCommand = safeStore.unsafeGet(txnId);
+                        SafeCommand safeCommand = safeStore.unsafeTryGet(txnId);
                         safeCommand.update(safeStore, safeCommand.current(), true);
                         return AsyncChains.success(null);
                     });
                     break;
                 case FORCE_APPLY:
                     run(txnId, commandStoreId, safeStore -> {
-                        SafeCommand safeCommand = safeStore.unsafeGet(txnId);
+                        SafeCommand safeCommand = safeStore.unsafeTryGet(txnId);
                         Command command = safeCommand.current();
                         // TODO (expected): we can call applyChain with TruncatedApplyWithOutcome in theory, but the type signature prevents it
                         if (command.saveStatus().compareTo(SaveStatus.PreApplied) < 0 || command.saveStatus().compareTo(SaveStatus.TruncatedApplyWithOutcome) >= 0)
@@ -1849,7 +1844,7 @@ public class AccordDebugKeyspace extends VirtualKeyspace
         private void runWithRoute(TxnId txnId, int commandStoreId, Function<Command, BiConsumer<Route<?>, AsyncResult.Settable<Void>>> apply)
         {
             run(txnId, commandStoreId, safeStore -> {
-                SafeCommand safeCommand = safeStore.unsafeGet(txnId);
+                SafeCommand safeCommand = safeStore.unsafeTryGet(txnId);
                 Command command = safeCommand.current();
                 if (command == null)
                     throw new InvalidRequestException(txnId + " not known");
@@ -1885,7 +1880,7 @@ public class AccordDebugKeyspace extends VirtualKeyspace
             Node node = AccordService.unsafeInstance().node();
             if (Route.isFullRoute(route))
             {
-                PrepareRecovery.recover(node, node.someSequentialExecutor(), txnId, NotKnownToBeInvalid, (FullRoute<?>) route, null, LatentStoreSelector.standard(), (success, fail) -> {
+                PrepareRecovery.recover(node, node.someExclusiveExecutor(), txnId, NotKnownToBeInvalid, (FullRoute<?>) route, null, LatentStoreSelector.standard(), (success, fail) -> {
                     if (fail != null) result.setFailure(fail);
                     else result.setSuccess(null);
                 });
@@ -1905,14 +1900,14 @@ public class AccordDebugKeyspace extends VirtualKeyspace
             AccordService.getBlocking(accord.node()
                                             .commandStores()
                                             .forId(commandStoreId)
-                                            .chain(PreLoadContext.contextFor(txnId, TXN_OPS), apply)
+                                            .chain(ExecutionContext.unsequenced(txnId, TXN_OPS), apply)
                                             .flatMap(i -> i));
         }
 
         private void cleanup(TxnId txnId, int commandStoreId, Cleanup cleanup)
         {
             run(txnId, commandStoreId, safeStore -> {
-                SafeCommand safeCommand = safeStore.unsafeGet(txnId);
+                SafeCommand safeCommand = safeStore.unsafeTryGet(txnId);
                 Command command = safeCommand.current();
                 Command updated = Commands.purge(safeStore, command, command.participants(), cleanup, true);
                 safeCommand.update(safeStore, updated);
@@ -1996,6 +1991,11 @@ public class AccordDebugKeyspace extends VirtualKeyspace
             SET_PROGRESS_LOG_MODE("Set the specified progress log mode."),
             UNSET_PROGRESS_LOG_MODE("Unset the specified progress log mode."),
             TRY_EXECUTE_LISTENING("Try to execute all of the transactions (and their dependencies) that have registered listeners on other transactions."),
+            REPLAY("Run journal replay for all transactions"),
+            // TODO (expected): specify ranges
+            REBOOTSTRAP_CORRUPTED("Rebootstrap the command store. This invalidates the local journal, synchronises its data via data repair and rejoins the distributed state machine."),
+            REBOOTSTRAP_INCOMPLETE("Rebootstrap the command store. This invalidates the local journal, synchronises its data via data repair and rejoins the distributed state machine."),
+            REBOOTSTRAP_IF_BEHIND("Hard catchup the command store. This invalidates the local journal for any ranges not up to date with some quorum, synchronises its data via data repair and rejoins the distributed state machine."),
             ;
 
             final String description;
@@ -2047,12 +2047,16 @@ public class AccordDebugKeyspace extends VirtualKeyspace
             if (op == null)
                 throw new IllegalArgumentException("Must specify 'op'");
 
+            final AccordService accord = (AccordService) AccordService.unsafeInstance();
+            final Node node = accord.node();
             final Function<CommandStore, AsyncResult<?>> function;
+            Supplier<AsyncResult<?>> allFunction = null;
             switch (op)
             {
                 default: throw new UnhandledEnum(op);
                 case SET_PROGRESS_LOG_MODE:
                 case UNSET_PROGRESS_LOG_MODE:
+                {
                     if (param == null)
                         throw new IllegalArgumentException("Must specify 'param' for " + op);
                     ModeFlag mode = tryParse(param, true, ModeFlag.class, ModeFlag::valueOf);
@@ -2064,47 +2068,72 @@ public class AccordDebugKeyspace extends VirtualKeyspace
                         return AsyncResults.success(null);
                     };
                     break;
+                }
                 case TRY_EXECUTE_LISTENING:
-                    if (param != null)
-                        throw new IllegalArgumentException("'param' is not supported for " + op);
-                    function = CommandStore::operatorTryToExecuteListeningTxns;
+                {
+                    boolean loop;
+                    if (param == null) loop = false;
+                    else if (param.equalsIgnoreCase("loop")) loop = true;
+                    else throw new InvalidRequestException("Unknown param for " + CommandStoreOp.TRY_EXECUTE_LISTENING + ": '" + param + "'; expect only 'loop' or missing");
+
+                    function = commandStore -> commandStore.tryToExecuteListeningTxns(loop);
+                    break;
+                }
+                case REPLAY:
+                {
+                    ReplayMode replayMode = tryParse(param, true, ReplayMode.class, ReplayMode::valueOf);
+                    function = commandStore -> {
+                        accord.journal().replay(commandStore, replayMode, 0L);
+                        return AsyncResults.success(null);
+                    };
+                    break;
+                }
+                case REBOOTSTRAP_CORRUPTED:
+                case REBOOTSTRAP_INCOMPLETE:
+                    BootstrapReason reason = op == REBOOTSTRAP_CORRUPTED ? LOG_CORRUPTED : LOG_INCOMPLETE;
+                    allFunction = () -> ((AccordService) AccordService.instance()).rebootstrap(reason, true);
+                    function = commandStore -> commandStore.rebootstrap(node, reason).coordinateAndReads();
+                    break;
+                case REBOOTSTRAP_IF_BEHIND:
+                    allFunction = () -> Catchup.rebootstrapIfBehind(node, Arrays.asList(node.commandStores().all())).beginAsResult();
+                    function = commandStore -> Catchup.rebootstrapIfBehind(node, Collections.singletonList(commandStore)).beginAsResult();
                     break;
             }
 
             AsyncResult<?> result;
             if (commandStoreId < 0)
             {
-                List<AsyncResult<?>> results = new ArrayList<>();
-                AccordService.unsafeInstance().node()
-                             .commandStores()
-                             .forAllUnsafe(commandStore -> results.add(function.apply(commandStore)));
-                result = AsyncResults.allOf(results);
+                if (allFunction == null)
+                {
+                    allFunction = () -> {
+                        List<AsyncResult<?>> results = new ArrayList<>();
+                        for (CommandStore commandStore : node.commandStores().all())
+                            results.add(function.apply(commandStore));
+                        return AsyncResults.allOf(results);
+                    };
+                }
+                result = allFunction.get();
             }
             else
             {
-                result = function.apply(AccordService.unsafeInstance().node().commandStores().forId(commandStoreId));
+                result = function.apply(node.commandStores().forId(commandStoreId));
             }
 
             AccordService.getBlocking(result);
         }
     }
 
-    public static class TxnBlockedByTable extends AbstractLazyVirtualTable
+
+    static abstract class AbstractTxnGraphTable extends AbstractLazyVirtualTable
     {
-        protected TxnBlockedByTable()
+        protected AbstractTxnGraphTable(TableMetadata metadata, OnTimeout onTimeout, Sorted sorted)
         {
-            super(parse(VIRTUAL_ACCORD_DEBUG, TXN_BLOCKED_BY,
-                        "Accord Transactions Blocked By Table",
-                        "CREATE TABLE %s (\n" +
-                        "  txn_id 'TxnIdUtf8Type',\n" +
-                        "  command_store_id int,\n" +
-                        "  depth int,\n" +
-                        "  blocked_by_key text,\n" +
-                        "  blocked_by_txn_id 'TxnIdUtf8Type',\n" +
-                        "  save_status text,\n" +
-                        "  execute_at text,\n" +
-                        "  PRIMARY KEY (txn_id, depth, command_store_id, blocked_by_txn_id, blocked_by_key)" +
-                        ')', TxnIdUtf8Type.instance), BEST_EFFORT, ASC);
+            super(metadata, onTimeout, sorted);
+        }
+
+        protected AbstractTxnGraphTable(TableMetadata metadata, OnTimeout onTimeout, Sorted sorted, Sorted sortedByPartitionKey)
+        {
+            super(metadata, onTimeout, sorted, sortedByPartitionKey);
         }
 
         @Override
@@ -2117,24 +2146,165 @@ public class AccordDebugKeyspace extends VirtualKeyspace
             FilterRange<Integer> depthRange = collector.filters("depth", Function.identity(), i -> i + 1, i -> i - 1);
             int maxDepth = depthRange.max == null ? Integer.MAX_VALUE : depthRange.max;
 
+            // TODO (expected): cleanly handle Timestamp.NONE / Timestamp.MAX
+            FilterRange<String> executeAtRange = collector.filters("execute_at", Function.identity(), i -> Timestamp.parse(i).next().toString(), i -> Timestamp.parse(i).prev().toString());
+            FilterRange<String> parentRange = collector.filters("parent", Function.identity(), i -> Timestamp.parse(i).next().toString(), i -> Timestamp.parse(i).prev().toString());
+            Timestamp min = Timestamp.nonNullOrMax(Timestamp.nonNullOrMax(executeAtRange == null ? null : executeAtRange.min == null ? null : Timestamp.tryParse(executeAtRange.min), parentRange == null ? null : parentRange.min == null ? null : Timestamp.tryParse(parentRange.min)), Timestamp.NONE);
+
+
+            TxnKindsAndDomains kinds;
+            Participants<?> intersects;
+            {
+                TxnKindsAndDomains tmpKinds = TxnKindsAndDomains.ALL;
+                Participants<?> tmpIntersects = null;
+                for (RowFilter.Expression expr : collector.rowFilter().getExpressions())
+                {
+                    if (expr.isCustom())
+                    {
+                        switch (((RowFilter.CustomExpression)expr).getTargetIndex().name)
+                        {
+                            default: continue;
+                            case KIND_INDEX_NAME:
+                                tmpKinds = TxnKindsAndDomains.parse(UTF8Type.instance.compose(expr.getIndexValue()));
+                                break;
+                            case INTERSECTS_INDEX_NAME:
+                                tmpIntersects = parseParticipants(UTF8Type.instance.compose(expr.getIndexValue()));
+                                break;
+                        }
+                    }
+                }
+                kinds = tmpKinds;
+                intersects = tmpIntersects;
+            }
+
+
             TxnId txnId = TxnId.parse((String) pks[0]);
             PartitionCollector partition = collector.partition(pks[0]);
             partition.collect(rows -> {
-                try
-                {
-                    DebugBlockedTxns.visit(AccordService.unsafeInstance(), txnId, maxDepth, collector.deadlineNanos(), txn -> {
-                        String keyStr = txn.blockedViaKey == null ? "" : txn.blockedViaKey.toString();
-                        String txnIdStr = txn.txnId == null || txn.txnId.equals(txnId) ? "" : txn.txnId.toString();
-                        rows.add(txn.depth, txn.commandStoreId, txnIdStr, keyStr)
-                            .eagerCollect(columns -> {
-                                columns.add("save_status", txn.saveStatus, TO_STRING)
-                                       .add("execute_at", txn.executeAt, TO_STRING);
-                            });
+                try { collect(txnId, maxDepth, min, kinds, intersects, collector, rows); }
+                catch (TimeoutException e) { throw new InternalTimeoutException(); }
+            });
+        }
+
+        abstract void collect(TxnId txnId, int maxDepth, Timestamp min, TxnKindsAndDomains kinds, Participants<?> intersecting, PartitionsCollector collector, RowsCollector rows) throws TimeoutException;
+    }
+
+    public static class TxnBlockedByTable extends AbstractTxnGraphTable
+    {
+        protected TxnBlockedByTable()
+        {
+            super(parse(VIRTUAL_ACCORD_DEBUG, TXN_BLOCKED_BY,
+                        "Accord Transactions Blocked By Table",
+                        "CREATE TABLE %s (\n" +
+                        "  txn_id 'TxnIdUtf8Type',\n" +
+                        "  depth int,\n" +
+                        "  command_store_id int,\n" +
+                        "  blocked_by_txn_id 'TxnIdUtf8Type',\n" +
+                        "  blocked_by_key text,\n" +
+                        "  execute_at 'TimestampUtf8Type',\n" +
+                        "  save_status text,\n" +
+                        "  PRIMARY KEY (txn_id, depth, command_store_id, blocked_by_txn_id, blocked_by_key)" +
+                        ')', TxnIdUtf8Type.instance), BEST_EFFORT, ASC);
+        }
+
+        @Override
+        void collect(TxnId txnId, int maxDepth, Timestamp min, TxnKindsAndDomains kinds, Participants<?> intersecting, PartitionsCollector collector, RowsCollector rows) throws TimeoutException
+        {
+            DebugBlockedTxns.visit(AccordService.unsafeInstance(), txnId, maxDepth, collector.deadlineNanos(), txn -> {
+                String keyStr = txn.blockedViaKey == null ? "" : txn.blockedViaKey.toString();
+                String txnIdStr = txn.txnId == null || txn.txnId.equals(txnId) ? "" : txn.txnId.toString();
+                rows.add(txn.depth, txn.commandStoreId, txnIdStr, keyStr)
+                    .eagerCollect(columns -> {
+                        columns.add("save_status", txn.saveStatus, TO_STRING)
+                               .add("execute_at", txn.executeAt, TO_STRING);
                     });
-                }
-                catch (TimeoutException e)
+            });
+        }
+    }
+
+    static class TxnGraphTable extends AbstractTxnGraphTable
+    {
+        final IndexRegistry indexes;
+        protected TxnGraphTable()
+        {
+            super(parse(VIRTUAL_ACCORD_DEBUG, TXN_GRAPH,
+                        "Accord Transaction Graph Table",
+                        "CREATE TABLE %s (\n" +
+                        "  txn_id 'TxnIdUtf8Type',\n" +
+                        "  depth int,\n" +
+                        "  command_store_id int,\n" +
+                        "  parent_txn_id 'TxnIdUtf8Type',\n" +
+                        "  execute_at 'TimestampUtf8Type',\n" +
+                        "  child_txn_id 'TxnIdUtf8Type',\n" +
+                        "  save_status text,\n" +
+                        "  via text,\n" +
+                        "  PRIMARY KEY (txn_id, depth, command_store_id, parent_txn_id, execute_at, child_txn_id)" +
+                        ") WITH CLUSTERING ORDER BY (depth ASC, command_store_id ASC, parent_txn_id DESC, execute_at DESC, child_txn_id DESC)",
+                        TxnIdUtf8Type.instance)
+                  .unbuild()
+                  .indexes(Indexes.of(IndexMetadata.fromSchemaMetadata(INTERSECTS_INDEX_NAME, CUSTOM, ImmutableMap.of("class_name", NoOpIndex.class.getCanonicalName(), "target", "via")),
+                                      IndexMetadata.fromSchemaMetadata(KIND_INDEX_NAME, CUSTOM, ImmutableMap.of("class_name", NoOpIndex.class.getCanonicalName(), "target", "child_txn_id"))
+                  ))
+                  .build(), BEST_EFFORT, ASC);
+            indexes = indexes(new NoOpIndex(metadata().indexes.get(INTERSECTS_INDEX_NAME).get()),
+                              new NoOpIndex(metadata().indexes.get(KIND_INDEX_NAME).get()));
+        }
+
+        @Override
+        public IndexRegistry indexes()
+        {
+            return indexes;
+        }
+
+        @Override
+        void collect(TxnId txnId, int maxDepth, Timestamp min, TxnKindsAndDomains kinds, Participants<?> intersecting, PartitionsCollector collector, RowsCollector rows) throws TimeoutException
+        {
+            DebugTxnDepsOrdered.visit(AccordService.unsafeInstance(), txnId, kinds, intersecting, min, maxDepth, collector.deadlineNanos(), parent -> {
+                for (DebugTxnGraph.TxnInfo info : parent.infos)
                 {
-                    throw new InternalTimeoutException();
+                    rows.add(parent.depth, parent.commandStoreId, parent.parent.toString(), (info.executeAt == null ? "" : info.executeAt.toString()), info.txnId.toString())
+                        .eagerCollect(columns -> {
+                            columns.add("save_status", info.saveStatus, TO_STRING)
+                                   .add("via", info.via, TO_STRING);
+                        });
+                }
+            });
+        }
+    }
+
+    static class TxnGraphAllTable extends AbstractTxnGraphTable
+    {
+        protected TxnGraphAllTable()
+        {
+            super(parse(VIRTUAL_ACCORD_DEBUG, TXN_GRAPH_ALL,
+                        "Accord Transaction Graph All Table",
+                        "CREATE TABLE %s (\n" +
+                        "  txn_id 'TxnIdUtf8Type',\n" +
+                        "  depth int,\n" +
+                        "  command_store_id int,\n" +
+                        "  parent_txn_id 'TxnIdUtf8Type',\n" +
+                        "  execute_at 'TimestampUtf8Type',\n" +
+                        "  child_txn_id 'TxnIdUtf8Type',\n" +
+                        "  first_parent 'TxnIdUtf8Type',\n" +
+                        "  save_status text,\n" +
+                        "  via text,\n" +
+                        "  PRIMARY KEY (txn_id, depth, command_store_id, parent_txn_id, execute_at, child_txn_id)" +
+                        ") WITH CLUSTERING ORDER BY (depth ASC, command_store_id ASC, parent_txn_id DESC, execute_at DESC, child_txn_id DESC)",
+                        TxnIdUtf8Type.instance), BEST_EFFORT, ASC);
+        }
+
+        @Override
+        void collect(TxnId txnId, int maxDepth, Timestamp min, TxnKindsAndDomains kinds, Participants<?> intersecting, PartitionsCollector collector, RowsCollector rows) throws TimeoutException
+        {
+            DebugTxnDepsAll.visit(AccordService.unsafeInstance(), txnId, null, TxnKindsAndDomains.ALL, min, maxDepth, collector.deadlineNanos(), parent -> {
+                for (DebugTxnDepsAll.TxnInfo info : parent.infos)
+                {
+                    rows.add(parent.depth, parent.commandStoreId, parent.parent.toString(), (info.executeAt == null ? "" : info.executeAt.toString()), info.txnId.toString())
+                        .eagerCollect(columns -> {
+                            columns.add("save_status", info.saveStatus, TO_STRING)
+                                   .add("first_parent", info.firstParent, TO_STRING)
+                                   .add("via", info.via, TO_STRING);
+                        });
                 }
             });
         }
@@ -2291,11 +2461,6 @@ public class AccordDebugKeyspace extends VirtualKeyspace
         return av + " (" + bv + ')';
     }
 
-    private static CoordinationKind parseEventType(String input)
-    {
-        return tryParse(input, false, CoordinationKind.class, CoordinationKind::valueOf);
-    }
-
     private static String toStringOrNull(Object o)
     {
         return toStringOrNull(o, Object::toString);
@@ -2327,7 +2492,6 @@ public class AccordDebugKeyspace extends VirtualKeyspace
         {
             throw new InvalidRequestException("Unknown bucket_mode '" + value + '\'');
         }
-
     }
 
     private static int checkNonNegative(Object value, String field, int ifNull)
@@ -2394,5 +2558,49 @@ public class AccordDebugKeyspace extends VirtualKeyspace
             return null;
 
         return TxnKindsAndDomains.parse((String) input);
+    }
+
+    public static Participants<?> parseParticipants(Object input)
+    {
+        if (input == null)
+            return null;
+
+        String str = (String) input;
+        if (str.isEmpty())
+            return RoutingKeys.EMPTY;
+
+        String[] vs = str.split("\\|");
+        if (!vs[0].endsWith("]"))
+        {
+            RoutingKey[] keys = new RoutingKey[vs.length];
+            for (int i = 0 ; i < keys.length ; ++i)
+            {
+                try { keys[i] = TokenKey.parse(vs[i], DatabaseDescriptor.getPartitioner()); }
+                catch (Throwable t) { throw new InvalidRequestException("Could not parse TokenKey " + vs[i]); }
+            }
+            return RoutingKeys.of(keys);
+        }
+        else
+        {
+            TokenRange[] ranges = new TokenRange[vs.length];
+            for (int i = 0 ; i < ranges.length ; ++i)
+            {
+                try { ranges[i] = TokenRange.parse(vs[i], DatabaseDescriptor.getPartitioner()); }
+                catch (Throwable t) { throw new InvalidRequestException("Could not parse TokenKey " + vs[i]); }
+            }
+            return Ranges.of(ranges);
+        }
+    }
+
+    public static String toString(Participants<?> participants)
+    {
+        StringBuilder out = new StringBuilder();
+        for (Routable r : participants)
+        {
+            if (out.length() != 0)
+                out.append('|');
+            out.append(r);
+        }
+        return out.toString();
     }
 }

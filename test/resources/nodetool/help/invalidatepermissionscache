@@ -10,7 +10,7 @@ SYNOPSIS
                 [--all-tables] [--function <function>]
                 [--functions-in-keyspace <functions-in-keyspace>]
                 [--keyspace <keyspace>] [--mbean <mbean>] [--role <role>]
-                [--table <table>] [--] <role>
+                [--table <table>] [--] <role_name>
 
 OPTIONS
         --all-functions
@@ -69,6 +69,6 @@ OPTIONS
             list of argument, (useful when arguments might be mistaken for
             command-line options
 
-        <role>
+        <role_name>
             A role for which permissions to specified resources need to be
             invalidated

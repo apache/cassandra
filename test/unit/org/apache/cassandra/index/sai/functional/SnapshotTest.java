@@ -106,7 +106,8 @@ public class SnapshotTest extends SAITester
         verifyIndexFiles(indexTermType, indexIdentifier, 2);
         assertNotEquals(snapshotLastModified, indexFilesLastModified());
         assertNumRows(2, "SELECT * FROM %%s WHERE v1 >= 0");
-        assertValidationCount(2, 2); // compaction should not validate
+        // CASSANDRA-21515: a single-index rebuild no longer rewrites the shared per-SSTable components
+        assertValidationCount(4, 2);
 
         // index components are included after rebuild
         verifyIndexComponentsIncludedInSSTable();

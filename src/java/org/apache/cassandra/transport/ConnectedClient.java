@@ -99,7 +99,7 @@ public final class ConnectedClient
 
     public long requestCount()
     {
-        return connection.requests.getCount();
+        return connection.requestCount();
     }
 
     public Optional<String> keyspace()

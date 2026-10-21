@@ -25,7 +25,7 @@ import java.util.List;
 import org.apache.cassandra.cql3.AssignmentTestable;
 import org.apache.cassandra.cql3.ColumnIdentifier;
 import org.apache.cassandra.cql3.ColumnSpecification;
-import org.apache.cassandra.cql3.QueryOptions;
+import org.apache.cassandra.cql3.FunctionContext;
 import org.apache.cassandra.cql3.VariableSpecifications;
 import org.apache.cassandra.cql3.functions.Function;
 import org.apache.cassandra.db.marshal.AbstractType;
@@ -33,6 +33,7 @@ import org.apache.cassandra.db.marshal.ByteBufferAccessor;
 import org.apache.cassandra.db.marshal.ListType;
 import org.apache.cassandra.db.marshal.MultiElementType;
 import org.apache.cassandra.exceptions.InvalidRequestException;
+import org.apache.cassandra.serializers.MarshalException;
 import org.apache.cassandra.utils.ByteBufferUtil;
 
 /**
@@ -54,15 +55,15 @@ public final class InMarker extends Terms.NonTerminals
     public void addFunctionsTo(List<Function> functions) {}
 
     @Override
-    public void collectMarkerSpecification(VariableSpecifications boundNames)
+    public void collectMarkerSpecification(VariableSpecifications boundNames, Object owner)
     {
-        boundNames.add(bindIndex, receiver);
+        boundNames.add(bindIndex, receiver, owner);
     }
 
     @Override
-    public Terminals bind(QueryOptions options)
+    public Terminals bind(FunctionContext context)
     {
-        ByteBuffer values = options.getValues().get(bindIndex);
+        ByteBuffer values = context.options().getValues().get(bindIndex);
         if (values == null)
             return null;
 
@@ -77,7 +78,15 @@ public final class InMarker extends Terms.NonTerminals
                                       ListType<T> type,
                                       java.util.function.Function<ByteBuffer, Term.Terminal> terminalConverter)
     {
-        List<T> elements = type.getSerializer().deserialize(value, ByteBufferAccessor.instance);
+        List<T> elements;
+        try
+        {
+            elements = type.getSerializer().deserialize(value, ByteBufferAccessor.instance);
+        }
+        catch (MarshalException e)
+        {
+            throw new InvalidRequestException(e.getMessage(), e);
+        }
         List<Term.Terminal> terminals = new ArrayList<>(elements.size());
         for (T element : elements)
         {
@@ -95,16 +104,16 @@ public final class InMarker extends Terms.NonTerminals
     }
 
     @Override
-    public List<ByteBuffer> bindAndGet(QueryOptions options)
+    public List<ByteBuffer> bindAndGet(FunctionContext context)
     {
-        Terminals terminals = bind(options);
+        Terminals terminals = bind(context);
         return terminals == null ? null : terminals.get();
     }
 
     @Override
-    public List<List<ByteBuffer>> bindAndGetElements(QueryOptions options)
+    public List<List<ByteBuffer>> bindAndGetElements(FunctionContext context)
     {
-        Terminals terminals = bind(options);
+        Terminals terminals = bind(context);
         return terminals == null ? null : terminals.getElements();
     }
 

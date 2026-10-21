@@ -85,7 +85,7 @@ public class UntypedResultSetTest
                 AbstractTypeGenerators.TypeSupport<?> support = AbstractTypeGenerators.getTypeSupport(columns.get(i).type);
                 data.add(fromQT(support.bytesGen()).next(rs));
             }
-            return new UntypedResultSet.Row(columns, data);
+            return UntypedResultSet.Row.fromByteBuffers(columns, data);
         });
     }
 
@@ -99,7 +99,7 @@ public class UntypedResultSetTest
             for (int i = 0; i < numRows; i++)
             {
                 List<ByteBuffer> row = dataGens.stream().map(g -> g.next(rs)).collect(Collectors.toList());
-                result.addRow(row);
+                result.addByteBufferRow(row);
             }
             return result;
         };

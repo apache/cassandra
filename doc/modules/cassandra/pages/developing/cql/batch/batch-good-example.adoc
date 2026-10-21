@@ -24,7 +24,7 @@ All the `INSERT` and `UPDATE` statements in this batch write to the same partiti
 include::cassandra:example$CQL/cyclist_expenses-table.cql[tag=batch_Vera]
 ----
 +
-This batching example includes conditional updates combined with using xref:reference:static.adoc[static columns].
+This batching example includes conditional updates combined with using xref:cassandra:developing/cql/ddl.adoc#static-column[static columns].
 Recall that single partition batches are not logged.
 +
 [NOTE]

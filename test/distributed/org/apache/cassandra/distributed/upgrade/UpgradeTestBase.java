@@ -95,19 +95,19 @@ public class UpgradeTestBase extends DistributedTestBase
         public void run(UpgradeableCluster cluster, int node) throws Throwable;
     }
 
-    public static final Semver v40 = new Semver("4.0-alpha1", SemverType.LOOSE);
     public static final Semver v41 = new Semver("4.1-alpha1", SemverType.LOOSE);
     public static final Semver v42 = new Semver("4.2-alpha1", SemverType.LOOSE);
     public static final Semver v50 = new Semver("5.0-alpha1", SemverType.LOOSE);
     public static final Semver v60 = new Semver("6.0-alpha1", SemverType.LOOSE);
+    public static final Semver v70 = new Semver("7.0-alpha1", SemverType.LOOSE);
 
     protected static final SimpleGraph<Semver> SUPPORTED_UPGRADE_PATHS = new SimpleGraph.Builder<Semver>()
-                                                                         .addEdge(v40, v41)
-                                                                         .addEdge(v40, v50)
-                                                                         .addEdge(v40, v60)
                                                                          .addEdge(v41, v50)
                                                                          .addEdge(v41, v60)
+                                                                         .addEdge(v41, v70)
                                                                          .addEdge(v50, v60)
+                                                                         .addEdge(v50, v70)
+                                                                         .addEdge(v60, v70)
                                                                          .build();
 
     // the last is always the current
@@ -163,6 +163,7 @@ public class UpgradeTestBase extends DistributedTestBase
         private RunOnCluster runBeforeClusterUpgrade;
         private RunOnCluster runAfterClusterUpgrade;
         private final Set<Integer> nodesToUpgrade = new LinkedHashSet<>();
+        private boolean noNodesToUpgrade = false;
         private Consumer<IInstanceConfig> configConsumer;
         private Consumer<UpgradeableCluster.Builder> builderConsumer;
         private TokenSupplier tokenSupplier;
@@ -294,6 +295,15 @@ public class UpgradeTestBase extends DistributedTestBase
             return this;
         }
 
+        /** Will test this specific upgrade path **/
+        public TestCase strictSingleUpgradeToCurrent(Semver from)
+        {
+            TestVersions tests = new TestVersions(this.versions.get(from), Arrays.asList(this.versions.getLatest(CURRENT)));
+            logger.info("Adding upgrade of {}", tests);
+            this.upgrade.add(tests);
+            return this;
+        }
+
         public TestCase setup(RunOnCluster setup)
         {
             this.setup = setup;
@@ -370,7 +380,7 @@ public class UpgradeTestBase extends DistributedTestBase
                 runAfterClusterUpgrade = (c) -> {};
             if (runAfterNodeUpgrade == null)
                 runAfterNodeUpgrade = (c, n) -> {};
-            if (nodesToUpgrade.isEmpty())
+            if (nodesToUpgrade.isEmpty() && !noNodesToUpgrade)
                 for (int n = 1; n <= nodeCount; n++)
                     nodesToUpgrade.add(n);
 
@@ -416,6 +426,11 @@ public class UpgradeTestBase extends DistributedTestBase
 
         public TestCase nodesToUpgrade(int ... nodes)
         {
+            if (nodes.length == 0)
+            {
+                noNodesToUpgrade = true;
+                return this;
+            }
             Set<Integer> set = new HashSet<>(nodes.length);
             for (int n : nodes)
             {

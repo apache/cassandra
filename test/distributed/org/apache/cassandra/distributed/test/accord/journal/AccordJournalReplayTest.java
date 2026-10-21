@@ -63,7 +63,7 @@ import org.apache.cassandra.service.accord.AccordCommandStore;
 import org.apache.cassandra.service.accord.AccordService;
 import org.apache.cassandra.service.accord.AccordTestUtils;
 import org.apache.cassandra.service.accord.api.PartitionKey;
-import org.apache.cassandra.service.accord.serializers.ResultSerializers;
+import org.apache.cassandra.service.accord.txn.TxnDataResult;
 import org.apache.cassandra.utils.ByteBufferUtil;
 
 import static org.apache.cassandra.Util.spinUntilTrue;
@@ -97,6 +97,7 @@ public class AccordJournalReplayTest extends TestBaseImpl
                                                                   .set("accord.shard_durability_target_splits", "1")
                                                                   .set("accord.retry_syncpoint", "1s*attempts")
                                                                   .set("accord.retry_durability", "1s*attempts")
+                                                                  .set("accord.journal.replay_save_point", "NO")
                                                                   .set("accord.catchup_on_start", "false")
                                                                   .with(NETWORK, GOSSIP))
                                       .start())
@@ -127,7 +128,7 @@ public class AccordJournalReplayTest extends TestBaseImpl
                     waitingOn = new Command.WaitingOn(RoutingKeys.EMPTY, deps.rangeDeps, new ImmutableBitSet(waitingOnBits), null);
                 }
                 Writes writes = new Writes(txnId, txnId, Keys.of(key), null);
-                Command command = Command.Executed.executed(txnId, SaveStatus.PreApplied, Status.Durability.NotDurable, StoreParticipants.execute(commandStore.unsafeGetRangesForEpoch(), route, txnId, txnId.epoch()), Ballot.ZERO, txnId, txn.intersecting(route, true), deps.intersecting(route), Ballot.ZERO, waitingOn, writes, ResultSerializers.APPLIED);
+                Command command = Command.Executed.executed(txnId, SaveStatus.PreApplied, Status.Durability.NotDurable, StoreParticipants.execute(commandStore.unsafeGetRangesForEpoch(), route, txnId, txnId.epoch()), Ballot.ZERO, txnId, txn.intersecting(route, true), deps.intersecting(route), Ballot.ZERO, waitingOn, writes, TxnDataResult.PERSISTABLE);
                 commandStore.journal.saveCommand(commandStore.id(), new Journal.CommandUpdate(null, command), () -> {});
 
                 SyncPoint syncPoint = AccordService.getBlocking(CoordinateSyncPoint.exclusive(node, syncPointId, Ranges.of(key.asRange())));

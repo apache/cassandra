@@ -42,6 +42,7 @@ import accord.utils.Invariants;
 import accord.utils.btree.BTreeSet;
 
 import org.apache.cassandra.db.TypeSizes;
+import org.apache.cassandra.dht.Token;
 import org.apache.cassandra.io.util.DataInputPlus;
 import org.apache.cassandra.io.util.DataOutputPlus;
 import org.apache.cassandra.locator.InetAddressAndPort;
@@ -50,7 +51,7 @@ import org.apache.cassandra.tcm.Epoch;
 import org.apache.cassandra.tcm.MetadataValue;
 import org.apache.cassandra.tcm.serialization.MetadataSerializer;
 import org.apache.cassandra.tcm.serialization.Version;
-import org.apache.cassandra.utils.Pair;
+import org.apache.cassandra.utils.SortedBiMultiValMap;
 import org.apache.cassandra.utils.UUIDSerializer;
 import org.apache.cassandra.utils.btree.BTreeBiMap;
 import org.apache.cassandra.utils.btree.BTreeMap;
@@ -58,14 +59,15 @@ import org.apache.cassandra.utils.btree.BTreeMultimap;
 
 import static org.apache.cassandra.db.TypeSizes.sizeof;
 import static org.apache.cassandra.tcm.membership.NodeVersion.CURRENT;
+import static org.apache.cassandra.tcm.membership.NodeVersion.CURRENT_METADATA_VERSION;
 
-public class Directory implements MetadataValue<Directory>
+public class Directory implements MetadataValue<Directory>, EndpointLookup, NodeIdLookup
 {
     public static final Serializer serializer = new Serializer();
 
     public static Directory EMPTY = new Directory();
 
-    private final int nextId;
+    public final int nextId;
     private final Epoch lastModified;
     private final BTreeBiMap<NodeId, InetAddressAndPort> peers;
     private final BTreeSet<RemovedNode> removedNodes;
@@ -107,6 +109,41 @@ public class Directory implements MetadataValue<Directory>
                       BTreeMultimap<String, InetAddressAndPort> endpointsByDC,
                       BTreeMap<String, Multimap<String, InetAddressAndPort>> racksByDC)
     {
+        this(nextId, lastModified, peers, removedNodes, locations, states, versions, hostIds, addresses, endpointsByDC, racksByDC, clusterVersions(states, versions));
+    }
+
+    private Directory(int nextId,
+                      Epoch lastModified,
+                      BTreeBiMap<NodeId, InetAddressAndPort> peers,
+                      BTreeSet<RemovedNode> removedNodes,
+                      BTreeMap<NodeId, Location> locations,
+                      BTreeMap<NodeId, NodeState> states,
+                      BTreeMap<NodeId, NodeVersion> versions,
+                      BTreeBiMap<NodeId, UUID> hostIds,
+                      BTreeMap<NodeId, NodeAddresses> addresses,
+                      BTreeMultimap<String, InetAddressAndPort> endpointsByDC,
+                      BTreeMap<String, Multimap<String, InetAddressAndPort>> racksByDC,
+                      ClusterVersions clusterVersions)
+    {
+        this(nextId, lastModified, peers, removedNodes, locations, states, versions, hostIds, addresses, endpointsByDC, racksByDC,
+             clusterVersions.clusterMinVersion, clusterVersions.clusterMaxVersion, clusterVersions.commonSerializationVersion);
+    }
+
+    private Directory(int nextId,
+                      Epoch lastModified,
+                      BTreeBiMap<NodeId, InetAddressAndPort> peers,
+                      BTreeSet<RemovedNode> removedNodes,
+                      BTreeMap<NodeId, Location> locations,
+                      BTreeMap<NodeId, NodeState> states,
+                      BTreeMap<NodeId, NodeVersion> versions,
+                      BTreeBiMap<NodeId, UUID> hostIds,
+                      BTreeMap<NodeId, NodeAddresses> addresses,
+                      BTreeMultimap<String, InetAddressAndPort> endpointsByDC,
+                      BTreeMap<String, Multimap<String, InetAddressAndPort>> racksByDC,
+                      NodeVersion clusterMinVersion,
+                      NodeVersion clusterMaxVersion,
+                      Version commonSerializationVersion)
+    {
         this.nextId = nextId;
         this.lastModified = lastModified;
         this.peers = peers;
@@ -118,10 +155,9 @@ public class Directory implements MetadataValue<Directory>
         this.addresses = addresses;
         this.endpointsByDC = endpointsByDC;
         this.racksByDC = racksByDC;
-        Pair<NodeVersion, NodeVersion> minMaxVer = minMaxVersions(states, versions);
-        clusterMinVersion = minMaxVer.left;
-        clusterMaxVersion = minMaxVer.right;
-        commonSerializationVersion = minCommonSerializationVersion(states, versions);
+        this.clusterMinVersion = clusterMinVersion;
+        this.clusterMaxVersion = clusterMaxVersion;
+        this.commonSerializationVersion = commonSerializationVersion;
     }
 
     @Override
@@ -161,7 +197,7 @@ public class Directory implements MetadataValue<Directory>
     @Override
     public Directory withLastModified(Epoch epoch)
     {
-        return new Directory(nextId, epoch, peers, removedNodes, locations, states, versions, hostIds, addresses, endpointsByDC, racksByDC);
+        return new Directory(nextId, epoch, peers, removedNodes, locations, states, versions, hostIds, addresses, endpointsByDC, racksByDC, clusterMinVersion, clusterMaxVersion, commonSerializationVersion);
     }
 
     public Directory withNonUpgradedNode(NodeAddresses addresses,
@@ -250,9 +286,18 @@ public class Directory implements MetadataValue<Directory>
         BTreeMap<String, Multimap<String, InetAddressAndPort>> updatedEndpointsByRack = racksByDC.withForce(location(id).datacenter, rackEP);
 
         return new Directory(nextId, lastModified,
-                             peers.withForce(id,nodeAddresses.broadcastAddress), removedNodes, locations, states, versions, hostIds, addresses.withForce(id, nodeAddresses),
+                             peers.withForce(id, nodeAddresses.broadcastAddress),
+                             removedNodes,
+                             locations,
+                             states,
+                             versions,
+                             hostIds,
+                             addresses.withForce(id, nodeAddresses),
                              updatedEndpointsByDC,
-                             updatedEndpointsByRack);
+                             updatedEndpointsByRack,
+                             clusterMinVersion,
+                             clusterMaxVersion,
+                             commonSerializationVersion);
     }
 
     public Directory withRackAndDC(NodeId id)
@@ -266,7 +311,10 @@ public class Directory implements MetadataValue<Directory>
 
         return new Directory(nextId, lastModified, peers, removedNodes, locations, states, versions, hostIds, addresses,
                              endpointsByDC.with(location.datacenter, endpoint),
-                             racksByDC.withForce(location.datacenter, rackEP));
+                             racksByDC.withForce(location.datacenter, rackEP),
+                             clusterMinVersion,
+                             clusterMaxVersion,
+                             commonSerializationVersion);
     }
 
     public Directory withoutRackAndDC(NodeId id)
@@ -286,7 +334,10 @@ public class Directory implements MetadataValue<Directory>
             newRacksByDC = racksByDC.withForce(location.datacenter, rackEP);
         return new Directory(nextId, lastModified, peers, removedNodes, locations, states, versions, hostIds, addresses,
                              endpointsByDC.without(location.datacenter, endpoint),
-                             newRacksByDC);
+                             newRacksByDC,
+                             clusterMinVersion,
+                             clusterMaxVersion,
+                             commonSerializationVersion);
     }
 
     public Directory withUpdatedRackAndDc(NodeId id, Location location)
@@ -306,23 +357,7 @@ public class Directory implements MetadataValue<Directory>
             return this;
 
         return new Directory(nextId, lastModified, peers, removedNodes, locations.withForce(id, location), states, versions, hostIds,
-                             addresses, endpointsByDC, racksByDC);
-    }
-
-    public Directory removed(Epoch removedIn, NodeId id, InetAddressAndPort addr)
-    {
-        Invariants.require(!peers.containsKey(id));
-        return new Directory(nextId,
-                             lastModified,
-                             peers,
-                             removedNodes.with(new RemovedNode(removedIn, id, addr)),
-                             locations,
-                             states,
-                             versions,
-                             hostIds,
-                             addresses,
-                             endpointsByDC,
-                             racksByDC);
+                             addresses, endpointsByDC, racksByDC, clusterMinVersion, clusterMaxVersion, commonSerializationVersion);
     }
 
     public Directory without(Epoch removedIn, NodeId id)
@@ -364,6 +399,7 @@ public class Directory implements MetadataValue<Directory>
                              racksByDC.withForce(location.datacenter, rackEP));
     }
 
+    @Override
     public NodeId peerId(InetAddressAndPort endpoint)
     {
         return peers.inverse().get(endpoint);
@@ -374,6 +410,7 @@ public class Directory implements MetadataValue<Directory>
         return peers.inverse().containsKey(endpoint);
     }
 
+    @Override
     public InetAddressAndPort endpoint(NodeId id)
     {
         return peers.get(id);
@@ -432,7 +469,7 @@ public class Directory implements MetadataValue<Directory>
 
     public NodeState peerState(NodeId peer)
     {
-        return states.get(peer);
+        return peer == NodeId.UNREGISTERED ? null : states.get(peer);
     }
 
     public NodeVersion version(NodeId peer)
@@ -489,6 +526,30 @@ public class Directory implements MetadataValue<Directory>
                     .map(this::getNode)
                     .map(Node::toString)
                     .collect(Collectors.joining("\n"));
+    }
+
+    /**
+     * nodeId(address): {state, tokens, ser ver, cass ver, dc:rack}
+     */
+    public String conciseToString(SortedBiMultiValMap<Token, NodeId> tokenMap)
+    {
+        return peers.entrySet().stream().map((peerEntry) -> {
+            StringBuilder sb = new StringBuilder();
+            NodeId nodeId = peerEntry.getKey();
+            sb.append(nodeId.id()).append('(').append(peerEntry.getValue()).append("): ");
+            sb.append('{');
+            sb.append(states.get(nodeId).ordinal());
+            if (tokenMap != null)
+                sb.append(',').append(tokenMap.inverse().get(nodeId));
+            NodeVersion version = versions.get(nodeId);
+            if (version != null)
+                sb.append(',').append(version.serializationVersion).append(',').append(version.cassandraVersion);
+            Location loc = locations.get(nodeId);
+            if (loc != null)
+                sb.append(',').append(loc.datacenter).append(':').append(loc.rack);
+            sb.append('}');
+            return sb.toString();
+        }).collect(Collectors.joining(","));
     }
 
     private static class Node
@@ -641,14 +702,23 @@ public class Directory implements MetadataValue<Directory>
             if (version.isAtLeast(Version.V1))
                 nextId = in.readInt();
             int count = in.readInt();
-            Directory newDir = new Directory();
 
+            BTreeBiMap<NodeId, InetAddressAndPort> peers = BTreeBiMap.empty();
+            BTreeMap<NodeId, Location> locations = BTreeMap.empty();
+            BTreeMap<NodeId, NodeState> states = BTreeMap.empty();
+            BTreeMap<NodeId, NodeVersion> versions = BTreeMap.empty();
+            BTreeBiMap<NodeId, UUID> hostIds = BTreeBiMap.empty();
+            BTreeMap<NodeId, NodeAddresses> addresses = BTreeMap.empty();
             for (int i = 0; i < count; i++)
             {
                 Node n = Node.serializer.deserialize(in, version);
-                // todo: bulk operations
-                newDir = newDir.with(n.addresses, n.id, n.hostId, n.location, n.version)
-                               .withNodeState(n.id, n.state);
+                NodeId id = n.id;
+                peers = peers.withForce(id, n.addresses.broadcastAddress);
+                locations = locations.withForce(id, n.location);
+                states = states.withForce(id, n.state);
+                versions = versions.withForce(id, n.version);
+                hostIds = hostIds.withForce(id, n.hostId);
+                addresses = addresses.withForce(id, n.addresses);
             }
 
             int dcCount = in.readInt();
@@ -677,7 +747,7 @@ public class Directory implements MetadataValue<Directory>
             if (version.isBefore(Version.V1))
             {
                 NodeId maxId = null;
-                for (NodeId id : newDir.peers.keySet())
+                for (NodeId id : peers.keySet())
                 {
                     if (maxId == null || id.compareTo(maxId) > 0)
                         maxId = id;
@@ -688,7 +758,7 @@ public class Directory implements MetadataValue<Directory>
                 else
                     nextId = maxId.id() + 1;
             }
-
+            BTreeSet<RemovedNode> removed = BTreeSet.empty(RemovedNode::compareTo);
             if (version.isAtLeast(Version.V7))
             {
                 int removedNodes = in.readInt();
@@ -697,19 +767,20 @@ public class Directory implements MetadataValue<Directory>
                     long epoch = in.readLong();
                     NodeId nodeId = NodeId.serializer.deserialize(in, version);
                     InetAddressAndPort addr = InetAddressAndPort.MetadataSerializer.serializer.deserialize(in, version);
-                    newDir.removed(Epoch.create(epoch), nodeId, addr);
+                    Invariants.require(!peers.containsKey(nodeId));
+                    removed = removed.with(new RemovedNode(Epoch.create(epoch), nodeId, addr));
                 }
             }
 
             return new Directory(nextId,
                                  lastModified,
-                                 newDir.peers,
-                                 newDir.removedNodes,
-                                 newDir.locations,
-                                 newDir.states,
-                                 newDir.versions,
-                                 newDir.hostIds,
-                                 newDir.addresses,
+                                 peers,
+                                 removed,
+                                 locations,
+                                 states,
+                                 versions,
+                                 hostIds,
+                                 addresses,
                                  dcEndpoints,
                                  racksByDC);
         }
@@ -769,10 +840,11 @@ public class Directory implements MetadataValue<Directory>
                equivalentTo(directory);
     }
 
-    private static Pair<NodeVersion, NodeVersion> minMaxVersions(BTreeMap<NodeId, NodeState> states, BTreeMap<NodeId, NodeVersion> versions)
+    private static ClusterVersions clusterVersions(BTreeMap<NodeId, NodeState> states, BTreeMap<NodeId, NodeVersion> versions)
     {
         NodeVersion minVersion = null;
         NodeVersion maxVersion = null;
+        int commonVersion = Integer.MAX_VALUE;
         for (Map.Entry<NodeId, NodeState> entry : states.entrySet())
         {
             if (entry.getValue() != NodeState.LEFT)
@@ -782,26 +854,15 @@ public class Directory implements MetadataValue<Directory>
                     minVersion = ver;
                 if (maxVersion == null || ver.compareTo(maxVersion) > 0)
                     maxVersion = ver;
-            }
-        }
-        if (minVersion == null)
-            return Pair.create(CURRENT, CURRENT);
-        return Pair.create(minVersion, maxVersion);
-    }
-
-    public static Version minCommonSerializationVersion(BTreeMap<NodeId, NodeState> states, BTreeMap<NodeId, NodeVersion> versions)
-    {
-        int commonVersion = Integer.MAX_VALUE;
-        for (Map.Entry<NodeId, NodeState> entry : states.entrySet())
-        {
-            if (entry.getValue() != NodeState.LEFT)
-            {
-                NodeVersion ver = versions.get(entry.getKey());
                 if (ver.serializationVersion > Version.OLD.asInt() && ver.serializationVersion < commonVersion)
                     commonVersion = ver.serializationVersion;
             }
         }
-        return commonVersion == Integer.MAX_VALUE ? NodeVersion.CURRENT_METADATA_VERSION : Version.fromInt(commonVersion);
+        if (minVersion == null)
+            return new ClusterVersions(CURRENT, CURRENT, CURRENT_METADATA_VERSION);
+
+        return new ClusterVersions(minVersion, maxVersion,
+                                   commonVersion == Integer.MAX_VALUE ? NodeVersion.CURRENT_METADATA_VERSION : Version.fromInt(commonVersion));
     }
 
     @Override
@@ -825,7 +886,8 @@ public class Directory implements MetadataValue<Directory>
                Objects.equals(endpointsByDC, directory.endpointsByDC) &&
                Objects.equals(racksByDC, directory.racksByDC) &&
                Objects.equals(versions, directory.versions) &&
-               Objects.equals(addresses, directory.addresses);
+               Objects.equals(addresses, directory.addresses) &&
+               Objects.equals(removedNodes, directory.removedNodes);
     }
     
     private static final Logger logger = LoggerFactory.getLogger(Directory.class);
@@ -891,7 +953,6 @@ public class Directory implements MetadataValue<Directory>
 
     }
 
-
     public static class RemovedNode implements Comparable<RemovedNode>
     {
         public final Epoch removedIn;
@@ -921,6 +982,20 @@ public class Directory implements MetadataValue<Directory>
         public int compareTo(RemovedNode o)
         {
             return id.compareTo(o.id);
+        }
+    }
+
+    private static class ClusterVersions
+    {
+        private final NodeVersion clusterMinVersion;
+        private final NodeVersion clusterMaxVersion;
+        private final Version commonSerializationVersion;
+        public ClusterVersions(NodeVersion clusterMinVersion, NodeVersion clusterMaxVersion, Version commonSerializationVersion)
+        {
+
+            this.clusterMinVersion = clusterMinVersion;
+            this.clusterMaxVersion = clusterMaxVersion;
+            this.commonSerializationVersion = commonSerializationVersion;
         }
     }
 }

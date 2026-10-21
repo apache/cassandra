@@ -26,6 +26,7 @@ import java.util.Objects;
 import java.util.Set;
 import java.util.stream.Collectors;
 
+import com.fasterxml.jackson.annotation.JsonValue;
 import com.google.common.base.Preconditions;
 import com.google.common.collect.ImmutableSet;
 
@@ -130,6 +131,7 @@ public class SubnetGroups
             return Objects.hash(subnet);
         }
 
+        @JsonValue
         @Override
         public String toString()
         {

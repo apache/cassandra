@@ -18,30 +18,42 @@
 
 package org.apache.cassandra.tcm.ownership;
 
-import com.google.common.collect.ImmutableMap;
+import com.google.common.collect.ImmutableMultimap;
 
+import org.junit.BeforeClass;
 import org.junit.Test;
 
+import org.apache.cassandra.ServerTestUtils;
 import org.apache.cassandra.dht.Murmur3Partitioner;
 import org.apache.cassandra.dht.Range;
 import org.apache.cassandra.dht.Token;
+import org.apache.cassandra.distributed.test.log.ClusterMetadataTestHelper;
 import org.apache.cassandra.locator.InetAddressAndPort;
-import org.apache.cassandra.locator.RangesAtEndpoint;
-import org.apache.cassandra.locator.RangesByEndpoint;
-import org.apache.cassandra.locator.Replica;
 import org.apache.cassandra.schema.ReplicationParams;
+import org.apache.cassandra.tcm.ClusterMetadata;
 import org.apache.cassandra.tcm.Transformation;
-import org.apache.cassandra.utils.FBUtilities;
+import org.apache.cassandra.tcm.membership.NodeId;
 
 public class PlacementTransitionPlanTest
 {
     private static final ReplicationParams params = ReplicationParams.simple(2);
-    private static final InetAddressAndPort ep = FBUtilities.getBroadcastAddressAndPort();
+    private static NodeId node;
+    private static ClusterMetadata metadata;
+    @BeforeClass
+    public static void setup()
+    {
+        ServerTestUtils.prepareServerNoRegister();
+        InetAddressAndPort ep = InetAddressAndPort.getByNameUnchecked("127.0.0.2");
+        node = ClusterMetadataTestHelper.register(ep);
+        ClusterMetadataTestHelper.join(ep, ClusterMetadataTestHelper.bytesToken(0));
+        metadata = ClusterMetadata.current();
+    }
+
     @Test(expected = Transformation.RejectedTransformationException.class)
     public void testEmptyWriteReplica()
     {
         DataPlacements startPlacements = DataPlacements.EMPTY;
-        RangesByEndpoint newReads = rbe(r(0, 20));
+        ImmutableMultimap<NodeId, ReplicaNode> newReads = rbe(r(0, 20));
         PlacementDeltas addRead = PlacementDeltas.builder()
                                                  .put(params,
                                                       addReadDelta(newReads)).build();
@@ -52,7 +64,7 @@ public class PlacementTransitionPlanTest
     public void testHasWriteReplica()
     {
         DataPlacements startPlacements = DataPlacements.EMPTY;
-        RangesByEndpoint newReplica = rbe(r(0, 20));
+        ImmutableMultimap<NodeId, ReplicaNode> newReplica = rbe(r(0, 20));
         PlacementDeltas addWrite = PlacementDeltas.builder()
                                                   .put(params,
                                                        addWriteDelta(newReplica)).build();
@@ -67,11 +79,11 @@ public class PlacementTransitionPlanTest
     public void testHasSplitWriteReplica()
     {
         DataPlacements startPlacements = DataPlacements.EMPTY;
-        RangesByEndpoint writeReplicas = rbe(r(0, 20), r(20, 40));
+        ImmutableMultimap<NodeId, ReplicaNode> writeReplicas = rbe(r(0, 20), r(20, 40));
         PlacementDeltas addWrite = PlacementDeltas.builder()
                                                   .put(params,
                                                        addWriteDelta(writeReplicas)).build();
-        RangesByEndpoint readReplicas = rbe(r(0, 40));
+        ImmutableMultimap<NodeId, ReplicaNode> readReplicas = rbe(r(0, 40));
         PlacementDeltas addRead = PlacementDeltas.builder()
                                                  .put(params,
                                                       addReadDelta(readReplicas)).build();
@@ -81,11 +93,11 @@ public class PlacementTransitionPlanTest
     public void testAddSplitReadReplica()
     {
         DataPlacements startPlacements = DataPlacements.EMPTY;
-        RangesByEndpoint writeReplicas = rbe(r(0, 40));
+        ImmutableMultimap<NodeId, ReplicaNode> writeReplicas = rbe(r(0, 40));
         PlacementDeltas addWrite = PlacementDeltas.builder()
                                                   .put(params,
                                                        addWriteDelta(writeReplicas)).build();
-        RangesByEndpoint readReplicas = rbe(r(0, 20), r(20, 40));
+        ImmutableMultimap<NodeId, ReplicaNode> readReplicas = rbe(r(0, 20), r(20, 40));
         PlacementDeltas addRead = PlacementDeltas.builder()
                                                  .put(params,
                                                       addReadDelta(readReplicas)).build();
@@ -96,11 +108,11 @@ public class PlacementTransitionPlanTest
     public void testAddSplitReadReplicaGap()
     {
         DataPlacements startPlacements = DataPlacements.EMPTY;
-        RangesByEndpoint writeReplicas = rbe(r(0, 40));
+        ImmutableMultimap<NodeId, ReplicaNode> writeReplicas = rbe(r(0, 40));
         PlacementDeltas addWrite = PlacementDeltas.builder()
                                                   .put(params,
                                                        addWriteDelta(writeReplicas)).build();
-        RangesByEndpoint readReplicas = rbe(r(0, 20), r(25, 40)); // this won't happen, but all read replicas are "covered" by the write replica above
+        ImmutableMultimap<NodeId, ReplicaNode> readReplicas = rbe(r(0, 20), r(25, 40)); // this won't happen, but all read replicas are "covered" by the write replica above
         PlacementDeltas addRead = PlacementDeltas.builder()
                                                  .put(params,
                                                       addReadDelta(readReplicas)).build();
@@ -111,11 +123,11 @@ public class PlacementTransitionPlanTest
     public void testHasSplitWriteReplicaWithGaps()
     {
         DataPlacements startPlacements = DataPlacements.EMPTY;
-        RangesByEndpoint writeReplicas = rbe(r(0, 20), r(21, 40)); // token 21 missing
+        ImmutableMultimap<NodeId, ReplicaNode> writeReplicas = rbe(r(0, 20), r(21, 40)); // token 21 missing
         PlacementDeltas addWrite = PlacementDeltas.builder()
                                                   .put(params,
                                                        addWriteDelta(writeReplicas)).build();
-        RangesByEndpoint readReplicas = rbe(r(0, 40));
+        ImmutableMultimap<NodeId, ReplicaNode> readReplicas = rbe(r(0, 40));
         PlacementDeltas addRead = PlacementDeltas.builder()
                                                  .put(params,
                                                       addReadDelta(readReplicas)).build();
@@ -126,15 +138,15 @@ public class PlacementTransitionPlanTest
     public void testPlacementsAreUpdatedByDeltas()
     {
         DataPlacements startPlacements = DataPlacements.EMPTY;
-        RangesByEndpoint writeReplicas1 = rbe(r(0, 20));
+        ImmutableMultimap<NodeId, ReplicaNode> writeReplicas1 = rbe(r(0, 20));
         PlacementDeltas addWrite1 = PlacementDeltas.builder()
                                                   .put(params,
                                                        addWriteDelta(writeReplicas1)).build();
-        RangesByEndpoint writeReplicas2 = rbe(r(20, 40));
+        ImmutableMultimap<NodeId, ReplicaNode> writeReplicas2 = rbe(r(20, 40));
         PlacementDeltas addWrite2 = PlacementDeltas.builder()
                                                    .put(params,
                                                         addWriteDelta(writeReplicas2)).build();
-        RangesByEndpoint readReplicas = rbe(r(0, 40));
+        ImmutableMultimap<NodeId, ReplicaNode> readReplicas = rbe(r(0, 40));
         PlacementDeltas addRead = PlacementDeltas.builder()
                                                  .put(params,
                                                       addReadDelta(readReplicas)).build();
@@ -146,12 +158,12 @@ public class PlacementTransitionPlanTest
     public void testDisallowAddingFullReadWithTransientWrite()
     {
         DataPlacements startPlacements = DataPlacements.EMPTY;
-        RangesByEndpoint transientWrite = rbeTransient(r(0, 20));
+        ImmutableMultimap<NodeId, ReplicaNode> transientWrite = rbeTransient(r(0, 20));
         PlacementDeltas addWrite = PlacementDeltas.builder()
                                                   .put(params,
                                                        addWriteDelta(transientWrite)).build();
 
-        RangesByEndpoint fullRead = rbe(r(0,20));
+        ImmutableMultimap<NodeId, ReplicaNode> fullRead = rbe(r(0,20));
         PlacementDeltas addRead = PlacementDeltas.builder()
                                                  .put(params,
                                                       addReadDelta(fullRead)).build();
@@ -162,12 +174,12 @@ public class PlacementTransitionPlanTest
     public void testAllowAddingTransientReadWithTransientWrite()
     {
         DataPlacements startPlacements = DataPlacements.EMPTY;
-        RangesByEndpoint transientWrite = rbeTransient(r(0, 20));
+        ImmutableMultimap<NodeId, ReplicaNode> transientWrite = rbeTransient(r(0, 20));
         PlacementDeltas addWrite = PlacementDeltas.builder()
                                                   .put(params,
                                                        addWriteDelta(transientWrite)).build();
 
-        RangesByEndpoint transientRead = rbeTransient(r(0,20));
+        ImmutableMultimap<NodeId, ReplicaNode> transientRead = rbeTransient(r(0,20));
         PlacementDeltas addRead = PlacementDeltas.builder()
                                                  .put(params,
                                                       addReadDelta(transientRead)).build();
@@ -178,12 +190,12 @@ public class PlacementTransitionPlanTest
     public void testAllowAddingTransientReadWithFullWrite()
     {
         DataPlacements startPlacements = DataPlacements.EMPTY;
-        RangesByEndpoint fullWrite = rbe(r(0, 20));
+        ImmutableMultimap<NodeId, ReplicaNode> fullWrite = rbe(r(0, 20));
         PlacementDeltas addWrite = PlacementDeltas.builder()
                                                   .put(params,
                                                        addWriteDelta(fullWrite)).build();
 
-        RangesByEndpoint transientRead = rbeTransient(r(0,20));
+        ImmutableMultimap<NodeId, ReplicaNode> transientRead = rbeTransient(r(0,20));
         PlacementDeltas addRead = PlacementDeltas.builder()
                                                  .put(params,
                                                       addReadDelta(transientRead)).build();
@@ -194,8 +206,8 @@ public class PlacementTransitionPlanTest
     public void testHasSplitTransientWriteReplica()
     {
         DataPlacements startPlacements = DataPlacements.EMPTY;
-        RangesByEndpoint writeReplicas1 = rbe(r(0, 20));
-        RangesByEndpoint writeReplicas2 = rbeTransient(r(20, 40));
+        ImmutableMultimap<NodeId, ReplicaNode> writeReplicas1 = rbe(r(0, 20));
+        ImmutableMultimap<NodeId, ReplicaNode> writeReplicas2 = rbeTransient(r(20, 40));
         PlacementDeltas addWriteFull = PlacementDeltas.builder()
                                                   .put(params,
                                                        addWriteDelta(writeReplicas1)).build();
@@ -203,7 +215,7 @@ public class PlacementTransitionPlanTest
                                                            .put(params,
                                                            addWriteDelta(writeReplicas2)).build();
 
-        RangesByEndpoint readReplicas = rbe(r(0, 40));
+        ImmutableMultimap<NodeId, ReplicaNode> readReplicas = rbe(r(0, 40));
         PlacementDeltas addRead = PlacementDeltas.builder()
                                                  .put(params,
                                                       addReadDelta(readReplicas)).build();
@@ -215,35 +227,34 @@ public class PlacementTransitionPlanTest
         new PlacementTransitionPlan(PlacementDeltas.empty(),
                                     PlacementDeltas.empty(),
                                     PlacementDeltas.empty(),
-                                    PlacementDeltas.empty()).assertPreExistingWriteReplica(start, deltasInOrder);
+                                    PlacementDeltas.empty()).assertPreExistingWriteReplica(metadata.directory, start, deltasInOrder);
     }
 
-    private PlacementDeltas.PlacementDelta addReadDelta(RangesByEndpoint replica)
+    private PlacementDeltas.PlacementDelta addReadDelta(ImmutableMultimap<NodeId, ReplicaNode> replica)
     {
-        return new PlacementDeltas.PlacementDelta(new Delta(RangesByEndpoint.EMPTY, replica), Delta.empty());
+        return new PlacementDeltas.PlacementDelta(new NodeIdDelta(ImmutableMultimap.of(), replica), NodeIdDelta.empty());
     }
 
-    private PlacementDeltas.PlacementDelta addWriteDelta(RangesByEndpoint replica)
+    private PlacementDeltas.PlacementDelta addWriteDelta(ImmutableMultimap<NodeId, ReplicaNode> replica)
     {
-        return new PlacementDeltas.PlacementDelta(Delta.empty(), new Delta(RangesByEndpoint.EMPTY, replica));
+        return new PlacementDeltas.PlacementDelta(NodeIdDelta.empty(), new NodeIdDelta(ImmutableMultimap.of(), replica));
     }
 
-    private RangesByEndpoint rbe(Range<Token> ... ranges)
+    private ImmutableMultimap<NodeId, ReplicaNode> rbe(Range<Token> ... ranges)
     {
-        RangesAtEndpoint.Builder builder = RangesAtEndpoint.builder(ep);
+        ImmutableMultimap.Builder<NodeId, ReplicaNode> builder = ImmutableMultimap.builder();
         for (Range<Token> r : ranges)
-            builder.add(Replica.fullReplica(ep, r));
-        return new RangesByEndpoint(ImmutableMap.of(ep, builder.build()));
+            builder.put(node, new ReplicaNode(node, r, true));
+        return builder.build();
     }
 
-    private RangesByEndpoint rbeTransient(Range<Token> ... ranges)
+    private ImmutableMultimap<NodeId, ReplicaNode> rbeTransient(Range<Token> ... ranges)
     {
-        RangesAtEndpoint.Builder builder = RangesAtEndpoint.builder(ep);
+        ImmutableMultimap.Builder<NodeId, ReplicaNode> builder = ImmutableMultimap.builder();
         for (Range<Token> r : ranges)
-            builder.add(Replica.transientReplica(ep, r));
-        return new RangesByEndpoint(ImmutableMap.of(ep, builder.build()));
+            builder.put(node, new ReplicaNode(node, r, false));
+        return builder.build();
     }
-
 
     private Range<Token> r(long start, long end)
     {

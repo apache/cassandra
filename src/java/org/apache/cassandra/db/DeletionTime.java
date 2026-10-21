@@ -110,7 +110,7 @@ public abstract class DeletionTime implements Comparable<DeletionTime>, IMeasura
      */
     public boolean isLive()
     {
-        return markedForDeleteAt() == Long.MIN_VALUE && localDeletionTime() == Long.MAX_VALUE;
+        return markedForDeleteAt == Long.MIN_VALUE && localDeletionTimeUnsignedInteger == Cell.NO_DELETION_TIME_UNSIGNED_INTEGER;
     }
 
     public void digest(Digest digest)
@@ -138,7 +138,7 @@ public abstract class DeletionTime implements Comparable<DeletionTime>, IMeasura
         if(!(o instanceof DeletionTime))
             return false;
         DeletionTime that = (DeletionTime)o;
-        return markedForDeleteAt() == that.markedForDeleteAt() && localDeletionTime() == that.localDeletionTime();
+        return markedForDeleteAt == that.markedForDeleteAt && localDeletionTimeUnsignedInteger == that.localDeletionTimeUnsignedInteger;
     }
 
     @Override
@@ -168,7 +168,7 @@ public abstract class DeletionTime implements Comparable<DeletionTime>, IMeasura
      */
     public boolean supersedes(DeletionTime dt)
     {
-        return markedForDeleteAt() > dt.markedForDeleteAt() || (markedForDeleteAt() == dt.markedForDeleteAt() && localDeletionTime() > dt.localDeletionTime());
+        return markedForDeleteAt > dt.markedForDeleteAt || (markedForDeleteAt == dt.markedForDeleteAt && CassandraUInt.compare(localDeletionTimeUnsignedInteger, dt.localDeletionTimeUnsignedInteger) > 0);
     }
 
     public boolean deletes(LivenessInfo info)
@@ -176,9 +176,26 @@ public abstract class DeletionTime implements Comparable<DeletionTime>, IMeasura
         return deletes(info.timestamp());
     }
 
+    /**
+     * Whether this deletion shadows a cell written at {@code timestamp}.
+     *
+     * LIVE stores {@code Long.MIN_VALUE} as its {@code markedForDeleteAt}, and that is also
+     * {@link LivenessInfo#NO_TIMESTAMP}. The LIVE check is therefore required: without it a LIVE
+     * deletion shadows a cell that carries no timestamp.
+     *
+     * Do not add the same check to {@link #deletes(LivenessInfo)}. The iterator path applies the
+     * unguarded form to row liveness ({@code Row.Merger.merge}, {@code BTreeRow}), so a guard there
+     * would move the reference as well as the cursor.
+     */
+    public boolean deletesCellAt(long timestamp)
+    {
+        return markedForDeleteAt != MARKED_FOR_DELETE_AT_LIVE && timestamp <= markedForDeleteAt;
+    }
+
     public boolean deletes(Cell<?> cell)
     {
-        return deletes(cell.timestamp());
+        // check for LIVE first to avoid a potential cell megamorphic call
+        return markedForDeleteAt() != MARKED_FOR_DELETE_AT_LIVE && deletes(cell.timestamp());
     }
 
     public boolean deletes(long timestamp)
@@ -442,7 +459,13 @@ public abstract class DeletionTime implements Comparable<DeletionTime>, IMeasura
         public void reset(long markedForDeleteAt, long localDeletionTime)
         {
             this.markedForDeleteAt = markedForDeleteAt;
-            if (localDeletionTime < 0 || localDeletionTime > Cell.MAX_DELETION_TIME) // invalid
+            if (localDeletionTime == Cell.NO_DELETION_TIME)
+                // NO_DELETION_TIME (Long.MAX_VALUE) is the canonical "no deletion" long and must
+                // round-trip to the LIVE marker (deletionTimeLongToUnsignedInteger semantics);
+                // classifying it as invalid made reset(LIVE.markedForDeleteAt(),
+                // LIVE.localDeletionTime()) produce a NON-live deletion
+                this.localDeletionTimeUnsignedInteger = LOCAL_DELETION_TIME_LIVE;
+            else if (localDeletionTime < 0 || localDeletionTime > Cell.MAX_DELETION_TIME) // invalid
                 this.localDeletionTimeUnsignedInteger = Cell.MAX_DELETION_TIME_UNSIGNED_INTEGER + 1;
             else
                 this.localDeletionTimeUnsignedInteger = Cell.deletionTimeLongToUnsignedInteger(localDeletionTime);

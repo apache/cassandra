@@ -35,12 +35,16 @@ import javax.annotation.Nullable;
 import org.assertj.core.api.Assertions;
 
 import accord.api.AsyncExecutor;
+import accord.api.ExclusiveAsyncExecutor;
 import accord.api.Journal;
 import accord.api.LocalListeners;
 import accord.api.ProgressLog;
 import accord.api.RemoteListeners;
+import accord.api.Result;
 import accord.api.RoutingKey;
+import accord.api.Scheduler;
 import accord.api.Timeouts;
+import accord.coordinate.Coordinations;
 import accord.impl.DefaultLocalListeners;
 import accord.impl.DefaultTimeouts;
 import accord.impl.SizeOfIntersectionSorter;
@@ -50,18 +54,20 @@ import accord.impl.basic.SimulatedFault;
 import accord.local.Command;
 import accord.local.CommandStore;
 import accord.local.CommandStores;
+import accord.local.CommandStores.RangesForEpoch;
 import accord.local.DurableBefore;
+import accord.local.ExecutionContext;
 import accord.local.Node;
 import accord.local.NodeCommandStoreService;
-import accord.local.PreLoadContext;
 import accord.local.SafeCommand;
 import accord.local.SafeCommandStore;
-import accord.local.SequentialAsyncExecutor;
 import accord.local.TimeService;
 import accord.local.durability.DurabilityService;
 import accord.messages.BeginRecovery;
 import accord.messages.PreAccept;
-import accord.messages.Reply;
+import accord.messages.PreAccept.PreAcceptOk;
+import accord.messages.PreAccept.PreAcceptReply;
+import accord.messages.ReplyList;
 import accord.messages.RouteRequest;
 import accord.primitives.AbstractUnseekableKeys;
 import accord.primitives.Ballot;
@@ -72,17 +78,23 @@ import accord.primitives.Routable;
 import accord.primitives.RoutableKey;
 import accord.primitives.Route;
 import accord.primitives.RoutingKeys;
+import accord.primitives.Timestamp;
 import accord.primitives.Txn;
 import accord.primitives.TxnId;
 import accord.primitives.Unseekables;
+import accord.primitives.Writes;
 import accord.topology.Topologies;
 import accord.topology.Topology;
 import accord.topology.TopologyManager;
 import accord.utils.Gens;
+import accord.utils.Invariants;
 import accord.utils.RandomSource;
 import accord.utils.async.AsyncResult;
+import accord.utils.async.AsyncResults;
+import accord.utils.async.CancellableAsyncResult;
 
 import org.apache.cassandra.concurrent.ExecutorFactory;
+import org.apache.cassandra.concurrent.ImmediateExecutor;
 import org.apache.cassandra.concurrent.ScheduledExecutorPlus;
 import org.apache.cassandra.concurrent.SimulatedExecutorFactory;
 import org.apache.cassandra.concurrent.Stage;
@@ -94,6 +106,13 @@ import org.apache.cassandra.db.filter.ColumnFilter;
 import org.apache.cassandra.db.memtable.Memtable;
 import org.apache.cassandra.schema.TableId;
 import org.apache.cassandra.service.accord.api.TokenKey;
+import org.apache.cassandra.service.accord.execution.AccordCache;
+import org.apache.cassandra.service.accord.execution.AccordCacheEntry;
+import org.apache.cassandra.service.accord.execution.AccordExecutor;
+import org.apache.cassandra.service.accord.execution.AccordExecutorSimple;
+import org.apache.cassandra.service.accord.journal.RangeSearcher;
+import org.apache.cassandra.service.accord.journal.SegmentRangeSearcher;
+import org.apache.cassandra.service.accord.topology.AccordTopology;
 import org.apache.cassandra.tcm.ClusterMetadata;
 import org.apache.cassandra.utils.FBUtilities;
 import org.apache.cassandra.utils.Generators;
@@ -103,13 +122,13 @@ import static org.apache.cassandra.config.DatabaseDescriptor.getPartitioner;
 import static org.apache.cassandra.db.ColumnFamilyStore.FlushReason.UNIT_TESTS;
 import static org.apache.cassandra.schema.SchemaConstants.ACCORD_KEYSPACE_NAME;
 import static org.apache.cassandra.service.accord.AccordService.getBlocking;
+import static org.apache.cassandra.service.accord.SimulatedAccordCommandStoreTestBase.emptyNode;
 import static org.apache.cassandra.utils.AccordGenerators.fromQT;
 
 public class SimulatedAccordCommandStore implements AutoCloseable
 {
     private final List<Throwable> failures = new ArrayList<>();
     private final SimulatedExecutorFactory globalExecutor;
-    private final CommandStore.EpochUpdateHolder updateHolder;
     private final BooleanSupplier shouldEvict, shouldFlush, shouldCompact;
 
     public final NodeCommandStoreService storeService;
@@ -157,14 +176,12 @@ public class SimulatedAccordCommandStore implements AutoCloseable
             stage.unsafeSetExecutor(globalExecutor.configureSequential("ignore").build());
 
         this.nodeId = AccordTopology.tcmIdToAccord(ClusterMetadata.currentNullable().myNodeId());
-        this.updateHolder = new CommandStore.EpochUpdateHolder();
         this.topology = AccordTopology.createAccordTopology(ClusterMetadata.current());
         this.topologies = new Topologies.Single(SizeOfIntersectionSorter.SUPPLIER, topology);
         Ranges ranges = topology.ranges();
         if (tableId != null)
             ranges = ranges.overlapping(Ranges.of(TokenRange.create(TokenKey.min(tableId, getPartitioner()), TokenKey.max(tableId, getPartitioner()))));
-        CommandStores.RangesForEpoch rangesForEpoch = new CommandStores.RangesForEpoch(topology.epoch(), ranges);
-        updateHolder.add(topology.epoch(), rangesForEpoch, ranges);
+        RangesForEpoch rangesForEpoch = new RangesForEpoch(topology.epoch(), ranges);
 
         this.storeService = new NodeCommandStoreService()
         {
@@ -175,13 +192,13 @@ public class SimulatedAccordCommandStore implements AutoCloseable
             }
 
             @Override
-            public SequentialAsyncExecutor someSequentialExecutor()
+            public ExclusiveAsyncExecutor someExclusiveExecutor()
             {
                 return null;
             }
 
             private final ToLongFunction<TimeUnit> elapsed = TimeService.elapsedWrapperFromNonMonotonicSource(TimeUnit.NANOSECONDS, this::now);
-            final Timeouts timeouts = new DefaultTimeouts(this);
+            final Timeouts timeouts = new DefaultTimeouts(this, ImmediateExecutor.INSTANCE);
             long stamp;
 
             @Override public Timeouts timeouts() { return timeouts; }
@@ -250,6 +267,19 @@ public class SimulatedAccordCommandStore implements AutoCloseable
             {
                 return false;
             }
+
+            @Override
+            public void reportLocalExecution(TxnId txnId, Route<?> route, Ballot ballot, Timestamp applyAt, Writes writes, Result result)
+            {
+            }
+
+            @Override public Coordinations coordinations() { return new Coordinations(); }
+
+            @Override
+            public Scheduler scheduler()
+            {
+                return null;
+            }
         };
 
         TestAgent.RethrowAgent agent = new TestAgent.RethrowAgent()
@@ -279,14 +309,13 @@ public class SimulatedAccordCommandStore implements AutoCloseable
                                                        @Override public void notify(SafeCommandStore safeStore, SafeCommand safeCommand, TxnId listener) {}
                                                        @Override public boolean notify(SafeCommandStore safeStore, SafeCommand safeCommand, LocalListeners.ComplexListener listener) { return false; }
                                                    }),
-                                                   updateHolder,
+                                                   rangesForEpoch,
                                                    journal,
                                                    new AccordExecutorSimple(0, CommandStore.class.getSimpleName() + '[' + 0 + ']', agent));
         this.commandStore.executor().executeDirectlyWithLock(() -> {
             commandStore.executor().setCapacity(8 << 20);
             commandStore.executor().setWorkingSetSize(4 << 20);
         });
-        commandStore.unsafeUpdateRangesForEpoch();
 
         shouldEvict = boolSource(rs.fork());
         {
@@ -430,37 +459,57 @@ public class SimulatedAccordCommandStore implements AutoCloseable
         throw error;
     }
 
-    public <T extends Reply> T process(RouteRequest<T> request) throws ExecutionException, InterruptedException
+    public <T> T process(RouteRequest<T> request) throws ExecutionException, InterruptedException
     {
         return process(request, request);
     }
 
-    public <T extends Reply> T process(PreLoadContext loadCtx, Function<? super SafeCommandStore, T> function) throws ExecutionException, InterruptedException
+    public <T> T process(ExecutionContext loadCtx, Function<? super SafeCommandStore, T> function) throws ExecutionException, InterruptedException
     {
         var result = processAsync(loadCtx, function);
         processAll();
         return getBlocking(result);
     }
 
-    public <T extends Reply> AsyncResult<T> processAsync(RouteRequest<T> request)
+    public <T> AsyncResult<T> processAsync(RouteRequest<T> request)
     {
         return processAsync(request, request);
     }
 
-    public <T extends Reply> AsyncResult<T> processAsync(PreLoadContext loadCtx, Function<? super SafeCommandStore, T> function)
+    public <T> AsyncResult<T> processAsync(ExecutionContext loadCtx, Function<? super SafeCommandStore, T> function)
     {
         return commandStore.submit(loadCtx, function);
     }
 
-    public Pair<TxnId, AsyncResult<PreAccept.PreAcceptOk>> enqueuePreAccept(Txn txn, FullRoute<?> route)
+    /**
+     * A reply is not necessarily complete when the task that computed it returns. Dependencies are computed
+     * incrementally ({@link accord.local.DepsCalculator}), so a request whose deps cannot be finished in one pass
+     * returns a reply that only completes once a continuation has run - concretely a
+     * {@code DepsCalculator.AsyncDepsReply}, which is a {@link ReplyList} but not yet a {@code Reply}. Everything
+     * that consumes a reply must therefore await it rather than cast it; for a reply that was computed in one pass
+     * this resolves immediately.
+     */
+    public static <R extends CancellableAsyncResult<R> & ReplyList<R>> AsyncResult<R> awaitReply(ReplyList<R> replies)
+    {
+        if (replies == null) // rejected, e.g. wholly redundant
+            return AsyncResults.success(null);
+        Invariants.require(replies.size() == 1, "expected a single reply, found %d", replies.size());
+        return replies.get(0);
+    }
+
+    public Pair<TxnId, AsyncResult<PreAcceptOk>> enqueuePreAccept(Txn txn, FullRoute<?> route)
     {
         TxnId txnId = nextTxnId(txn.kind(), txn.keys().domain());
         PreAccept preAccept = new PreAccept(nodeId, topologies, txnId, txn, null, false, route);
-        return Pair.create(txnId, processAsync(preAccept, safe -> {
-            var reply = preAccept.apply(safe);
-            Assertions.assertThat(reply.isOk()).isTrue();
-            return (PreAccept.PreAcceptOk) reply;
-        }));
+        AsyncResult<ReplyList<PreAcceptReply>> replies = processAsync(preAccept, safe -> {
+            preAccept.unsafeSetNode(emptyNode());
+            return preAccept.apply(safe);
+        });
+        return Pair.create(txnId, replies.flatMap(SimulatedAccordCommandStore::awaitReply)
+                                         .map(reply -> {
+                                             Assertions.assertThat(reply).isInstanceOf(PreAcceptOk.class);
+                                             return (PreAcceptOk) reply;
+                                         }));
     }
 
     public Pair<TxnId, AsyncResult<BeginRecovery.RecoverOk>> enqueueBeginRecovery(Txn txn, FullRoute<?> route)
@@ -498,7 +547,7 @@ public class SimulatedAccordCommandStore implements AutoCloseable
 
     private static class DefaultJournal extends InMemoryJournal implements RangeSearcher.Supplier
     {
-        private final RouteInMemoryIndex<?> index = new RouteInMemoryIndex<>();
+        private final SegmentRangeSearcher<?> index = new SegmentRangeSearcher<>();
         private DefaultJournal(Node.Id id, RandomSource rs)
         {
             super(id, rs);

@@ -494,6 +494,7 @@ public class QueryProcessor implements QueryHandler
         // Note: if 2 threads prepare the same query, we'll live so don't bother synchronizing
         CQLStatement statement = raw.prepare(clientState);
         statement.validate(clientState);
+        statement.validatePrepare(clientState);
 
         // Set CQL string for AlterSchemaStatement as this is used to serialize the transformation
         // in the cluster metadata log
@@ -555,7 +556,7 @@ public class QueryProcessor implements QueryHandler
                                                                                       .map(m -> MessagingService.instance().<ReadCommand, ReadResponse>sendWithResult(m, address))
                                                                                       .collect(Collectors.toList()));
 
-            ResultSetBuilder result = new ResultSetBuilder(select.getResultMetadata(), select.getSelection().newSelectors(options), false);
+            ResultSetBuilder result = new ResultSetBuilder(select.getResultMetadata(), options, select.getSelection().newSelectors(options), false);
             return future.map(list -> {
                 int i = 0;
                 for (Message<ReadResponse> m : list)

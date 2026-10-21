@@ -579,18 +579,18 @@ public class DecayingEstimatedHistogramReservoir implements CassandraReservoir
                 throw new IllegalStateException("Unable to compute when histogram overflowed");
 
             long elements = 0;
-            long sum = 0;
+            double sum = 0;
             for (int i = 0; i < lastBucket; i++)
             {
                 long bCount = decayingBuckets[i];
                 elements += bCount;
-                sum += bCount * bucketOffsets[i];
+                sum += bCount * (double)bucketOffsets[i];
             }
 
             if (elements == 0)
                 return 0d;
 
-            return (double) sum / elements;
+            return sum / elements;
         }
 
         /**

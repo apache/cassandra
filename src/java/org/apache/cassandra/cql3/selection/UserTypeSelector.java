@@ -29,6 +29,7 @@ import com.google.common.base.Objects;
 
 import org.apache.cassandra.cql3.ColumnSpecification;
 import org.apache.cassandra.cql3.FieldIdentifier;
+import org.apache.cassandra.cql3.FunctionContext;
 import org.apache.cassandra.cql3.QueryOptions;
 import org.apache.cassandra.cql3.functions.Function;
 import org.apache.cassandra.cql3.terms.UserTypes;
@@ -233,6 +234,14 @@ final class UserTypeSelector extends Selector
         super(Kind.USER_TYPE_SELECTOR);
         this.type = (UserType) type;
         this.fields = fields;
+    }
+
+    @Override
+    public void prepare(FunctionContext context)
+    {
+        super.prepare(context);
+        for (Selector selector : fields.values())
+            selector.prepare(context);
     }
 
     @Override

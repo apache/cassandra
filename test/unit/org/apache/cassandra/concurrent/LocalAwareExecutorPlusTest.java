@@ -25,7 +25,7 @@ import static org.apache.cassandra.concurrent.ExecutorFactory.Global.executorFac
 
 public class LocalAwareExecutorPlusTest extends AbstractExecutorPlusTest
 {
-    final ExecutorLocals locals = new ExecutorLocals(null, null);
+    final ExecutorLocals locals = new ExecutorLocals(null, null, false);
 
     @Test
     public void testPooled() throws Throwable

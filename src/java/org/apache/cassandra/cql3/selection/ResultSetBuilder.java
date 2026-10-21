@@ -21,6 +21,7 @@ import java.nio.ByteBuffer;
 import java.util.ArrayList;
 import java.util.List;
 
+import org.apache.cassandra.cql3.FunctionContext;
 import org.apache.cassandra.cql3.ResultSet;
 import org.apache.cassandra.cql3.ResultSet.ResultMetadata;
 import org.apache.cassandra.cql3.selection.Selection.Selectors;
@@ -60,25 +61,26 @@ public final class ResultSetBuilder
     private long size = 0;
     private boolean sizeWarningEmitted = false;
 
-    public ResultSetBuilder(ResultMetadata metadata, Selectors selectors, boolean unmask)
+    public ResultSetBuilder(ResultMetadata metadata, FunctionContext context, Selectors selectors, boolean unmask)
     {
-        this(metadata, selectors, unmask, null);
+        this(metadata, context, selectors, unmask, null);
     }
 
-    public ResultSetBuilder(ResultMetadata metadata, Selectors selectors, boolean unmask, GroupMaker groupMaker)
+    public ResultSetBuilder(ResultMetadata metadata, FunctionContext context, Selectors selectors, boolean unmask, GroupMaker groupMaker)
     {
         this.resultSet = new ResultSet(metadata.copy(), new ArrayList<>());
         this.selectors = selectors;
         this.groupMaker = groupMaker;
         this.unmask = unmask;
+        selectors.prepare(context);
     }
 
-    private void addSize(List<ByteBuffer> row)
+    private void addSize(List<byte[]> row)
     {
         for (int i=0, isize=row.size(); i<isize; i++)
         {
-            ByteBuffer value = row.get(i);
-            size += value != null ? value.remaining() : 0;
+            byte[] value = row.get(i);
+            size += value != null ? value.length : 0;
         }
     }
 
@@ -103,6 +105,11 @@ public final class ResultSetBuilder
     }
 
     public void add(ByteBuffer v)
+    {
+        inputRow.add(v);
+    }
+
+    public void add(byte[] v)
     {
         inputRow.add(v);
     }
@@ -170,9 +177,9 @@ public final class ResultSetBuilder
         return resultSet;
     }
 
-    private List<ByteBuffer> getOutputRow()
+    private List<byte[]> getOutputRow()
     {
-        List<ByteBuffer> row = selectors.getOutputRow();
+        List<byte[]> row = selectors.getOutputRow();
         addSize(row);
         return row;
     }

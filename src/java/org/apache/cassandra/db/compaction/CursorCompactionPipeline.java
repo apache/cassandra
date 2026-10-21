@@ -19,55 +19,21 @@
 package org.apache.cassandra.db.compaction;
 
 import java.io.IOException;
-import java.util.Collection;
-import java.util.Set;
 
 import org.apache.cassandra.db.AbstractCompactionController;
-import org.apache.cassandra.db.ColumnFamilyStore;
-import org.apache.cassandra.db.Directories;
-import org.apache.cassandra.db.compaction.writers.CompactionAwareWriter;
-import org.apache.cassandra.db.lifecycle.ILifecycleTransaction;
-import org.apache.cassandra.io.sstable.format.SSTableReader;
 import org.apache.cassandra.utils.TimeUUID;
 
 class CursorCompactionPipeline extends AbstractCompactionPipeline {
     final CursorCompactor cursorCompactor;
-    final CompactionTask task;
-    long totalKeysWritten;
-    CompactionAwareWriter writer;
 
     CursorCompactionPipeline(CompactionTask task, OperationType type, AbstractCompactionStrategy.ScannerList scanners, AbstractCompactionController controller, long nowInSec, TimeUUID compactionId) {
-        this.task = task;
+        super(task);
         cursorCompactor = new CursorCompactor(type, scanners.scanners, controller, nowInSec, compactionId);
     }
 
-    public AutoCloseable openWriterResource(ColumnFamilyStore cfs,
-                                            Directories directories,
-                                            ILifecycleTransaction transaction,
-                                            Set<SSTableReader> nonExpiredSSTables) {
-        this.writer = task.getCompactionAwareWriter(cfs, directories, transaction, nonExpiredSSTables);
-        return writer;
-    }
-
-
     @Override
-    public Collection<SSTableReader> finishWriting() {
-        return writer.finish();
-    }
-
-    @Override
-    public long estimatedKeys() {
-        return writer.estimatedKeys();
-    }
-
-    @Override
-    public CompactionInfo getCompactionInfo() {
-        return cursorCompactor.getCompactionInfo();
-    }
-
-    @Override
-    public boolean isGlobal() {
-        return cursorCompactor.isGlobal();
+    CompactionInfo.Holder delegate() {
+        return cursorCompactor;
     }
 
     @Override
@@ -91,11 +57,6 @@ class CursorCompactionPipeline extends AbstractCompactionPipeline {
     }
 
     @Override
-    public long getTotalKeysWritten() {
-        return totalKeysWritten;
-    }
-
-    @Override
     public long getTotalBytesScanned() {
         return cursorCompactor.getTotalBytesScanned();
     }
@@ -103,10 +64,5 @@ class CursorCompactionPipeline extends AbstractCompactionPipeline {
     @Override
     public void close() throws IOException {
         cursorCompactor.close();
-    }
-
-    @Override
-    public void stop() {
-        cursorCompactor.stop();
     }
 }

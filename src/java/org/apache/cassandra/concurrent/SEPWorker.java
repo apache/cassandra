@@ -27,8 +27,6 @@ import org.slf4j.LoggerFactory;
 
 import org.apache.cassandra.utils.JVMStabilityInspector;
 
-import io.netty.util.concurrent.FastThreadLocalThread;
-
 import static org.apache.cassandra.concurrent.SEPExecutor.TakeTaskPermitResult.RETURNED_WORK_PERMIT;
 import static org.apache.cassandra.concurrent.SEPExecutor.TakeTaskPermitResult.TOOK_PERMIT;
 import static org.apache.cassandra.config.CassandraRelevantProperties.SET_SEP_THREAD_NAME;
@@ -53,23 +51,63 @@ final class SEPWorker extends AtomicReference<SEPWorker.Work> implements Runnabl
 
     private final AtomicReference<Runnable> currentTask = new AtomicReference<>();
 
+    private class ImmediateDebuggableTaskRunner implements DebuggableTask.DebuggableTaskRunner, ImmediateTaskHolder
+    {
+        private final AtomicReference<Runnable> immediateCurrentTask = new AtomicReference<>();
+
+        @Override
+        public DebuggableTask running()
+        {
+            return getDebuggableTask(immediateCurrentTask.get());
+        }
+
+        @Override
+        public String id()
+        {
+            // derive from the current thread name so the nested row tracks renames and correlates with the worker's main row
+            return thread.getName() + "(immediate)";
+        }
+
+        @Override
+        public Runnable setImmediateTask(Runnable currentTask)
+        {
+            // plain is used to reduce overheads, the method is expected to be invoked only by a single thread
+            Runnable previousTask = immediateCurrentTask.getPlain();
+            immediateCurrentTask.lazySet(currentTask);
+            return previousTask;
+        }
+    }
+
+    private final ImmediateDebuggableTaskRunner immediateDebuggableTaskRunner;
+
+    private String lastUsedExecutorName;
+
     SEPWorker(ThreadGroup threadGroup, Long workerId, Work initialState, SharedExecutorPool pool)
     {
         this.pool = pool;
         this.workerId = workerId;
         this.workerIdThreadSuffix = '-' + workerId.toString();
-        thread = new FastThreadLocalThread(threadGroup, this, threadGroup.getName() + "-Worker-" + workerId);
+        String threadName = threadGroup.getName() + "-Worker-" + workerId;
+        this.immediateDebuggableTaskRunner = new ImmediateDebuggableTaskRunner();
+        thread = new CassandraThread(threadGroup, this, threadName, immediateDebuggableTaskRunner);
         thread.setDaemon(true);
         set(initialState);
         thread.start();
     }
 
+    public DebuggableTask.DebuggableTaskRunner immediateRunner()
+    {
+        return immediateDebuggableTaskRunner;
+    }
+
     @Override
     public DebuggableTask running()
     {
-        // can change after null check so go off local reference
-        Runnable task = currentTask.get();
+        return getDebuggableTask(currentTask.get());
+    }
 
+    private static DebuggableTask getDebuggableTask(Runnable task)
+    {
         // Local read and mutation Runnables are themselves debuggable
         if (task instanceof DebuggableTask)
             return (DebuggableTask) task;
@@ -129,8 +167,11 @@ final class SEPWorker extends AtomicReference<SEPWorker.Work> implements Runnabl
                 assigned = get().assigned;
                 if (assigned == null)
                     continue;
-                if (SET_THREAD_NAME)
+                if (SET_THREAD_NAME && assigned.name != lastUsedExecutorName) // .equals is not used intentionally
+                {
                     Thread.currentThread().setName(assigned.name + workerIdThreadSuffix);
+                    lastUsedExecutorName = assigned.name;
+                }
 
                 task = assigned.tasks.poll();
                 currentTask.lazySet(task);

@@ -28,7 +28,9 @@ import com.google.common.collect.ImmutableMap;
 
 import accord.api.AsyncExecutor;
 import accord.api.MessageSink;
+import accord.api.Tracing;
 import accord.impl.RequestCallbacks;
+import accord.local.MapReduceCommandStores;
 import accord.local.Node;
 import accord.messages.Callback;
 import accord.messages.MessageType;
@@ -36,18 +38,19 @@ import accord.messages.Reply;
 import accord.messages.ReplyContext;
 import accord.messages.Request;
 import accord.primitives.TxnId;
+import accord.utils.Invariants;
 import accord.utils.async.Cancellable;
 
 import org.apache.cassandra.exceptions.RequestFailureReason;
 import org.apache.cassandra.locator.InetAddressAndPort;
 import org.apache.cassandra.net.Message;
 import org.apache.cassandra.net.MessageDelivery;
-import org.apache.cassandra.net.MessageFlag;
 import org.apache.cassandra.net.MessagingService;
+import org.apache.cassandra.net.ParamType;
 import org.apache.cassandra.net.ResponseContext;
 import org.apache.cassandra.net.Verb;
 import org.apache.cassandra.service.TimeoutStrategy;
-import org.apache.cassandra.utils.Clock;
+import org.apache.cassandra.service.accord.topology.AccordEndpointMap;
 
 import static accord.messages.MessageType.StandardMessage.ACCEPT_REQ;
 import static accord.messages.MessageType.StandardMessage.ACCEPT_RSP;
@@ -85,6 +88,7 @@ import static accord.messages.MessageType.StandardMessage.READ_REQ;
 import static accord.messages.MessageType.StandardMessage.READ_RSP;
 import static accord.messages.MessageType.StandardMessage.RECOVER_AWAIT_REQ;
 import static accord.messages.MessageType.StandardMessage.RECOVER_AWAIT_RSP;
+import static accord.messages.MessageType.StandardMessage.REMOTE_SUCCESS_REQ;
 import static accord.messages.MessageType.StandardMessage.SET_GLOBALLY_DURABLE_REQ;
 import static accord.messages.MessageType.StandardMessage.SET_SHARD_DURABLE_REQ;
 import static accord.messages.MessageType.StandardMessage.SIMPLE_RSP;
@@ -95,6 +99,8 @@ import static java.util.concurrent.TimeUnit.NANOSECONDS;
 import static org.apache.cassandra.service.accord.api.AccordWaitStrategies.expire;
 import static org.apache.cassandra.service.accord.api.AccordWaitStrategies.slowPreaccept;
 import static org.apache.cassandra.service.accord.api.AccordWaitStrategies.slowRead;
+import static org.apache.cassandra.service.accord.api.AccordWaitStrategies.slowStatusCheck;
+import static org.apache.cassandra.utils.Clock.Global.nanoTime;
 
 public class AccordMessageSink implements MessageSink
 {
@@ -166,6 +172,7 @@ public class AccordMessageSink implements MessageSink
             builder.put(SET_GLOBALLY_DURABLE_REQ,                 Verb.ACCORD_SET_GLOBALLY_DURABLE_REQ);
             builder.put(GET_DURABLE_BEFORE_REQ,                   Verb.ACCORD_GET_DURABLE_BEFORE_REQ);
             builder.put(GET_DURABLE_BEFORE_RSP,                   Verb.ACCORD_GET_DURABLE_BEFORE_RSP);
+            builder.put(REMOTE_SUCCESS_REQ,                       Verb.ACCORD_REMOTE_SUCCESS_REQ);
             builder.put(FAILURE_RSP,                              Verb.FAILURE_RSP);
             Map<StandardMessage, Verb> mapping = builder.build();
             StandardMessage.initialise(mapping);
@@ -188,17 +195,17 @@ public class AccordMessageSink implements MessageSink
     }
 
     private final MessageDelivery messaging;
-    private final AccordEndpointMapper endpointMapper;
+    private final AccordEndpointMap endpointMapper;
     private final RequestCallbacks callbacks;
 
-    public AccordMessageSink(MessageDelivery messaging, AccordEndpointMapper endpointMapper, RequestCallbacks callbacks)
+    public AccordMessageSink(MessageDelivery messaging, AccordEndpointMap endpointMapper, RequestCallbacks callbacks)
     {
         this.messaging = messaging;
         this.endpointMapper = endpointMapper;
         this.callbacks = callbacks;
     }
 
-    public AccordMessageSink(AccordEndpointMapper endpointMapper, RequestCallbacks callbacks)
+    public AccordMessageSink(AccordEndpointMap endpointMapper, RequestCallbacks callbacks)
     {
         this(MessagingService.instance(), endpointMapper, callbacks);
     }
@@ -208,6 +215,7 @@ public class AccordMessageSink implements MessageSink
     {
         Verb verb = VerbMapping.getVerb(request);
         Preconditions.checkNotNull(verb, "Verb is null for type %s", request.type());
+
         Message<Request> message = Message.out(verb, request);
         InetAddressAndPort endpoint = endpointMapper.mappedEndpointOrNull(to, message);
         if (endpoint == null)
@@ -223,7 +231,7 @@ public class AccordMessageSink implements MessageSink
         Verb verb = VerbMapping.getVerb(request);
         Preconditions.checkNotNull(verb, "Verb is null for type %s", request.type());
 
-        long nowNanos = Clock.Global.nanoTime();
+        long nowNanos = nanoTime();
         TxnId txnId = request.primaryTxnId();
         long slowAtNanos = Long.MAX_VALUE;
         long expiresAtNanos = nowNanos + expire(txnId, verb).computeWait(attempt, NANOSECONDS);
@@ -232,9 +240,17 @@ public class AccordMessageSink implements MessageSink
         {
             case ACCORD_READ_REQ:
             case ACCORD_STABLE_THEN_READ_REQ:
-            case ACCORD_CHECK_STATUS_REQ:
             {
                 TimeoutStrategy slow = slowRead(txnId);
+                if (slow != null)
+                    slowAtNanos = nowNanos + slow.computeWait(attempt, NANOSECONDS);
+                break;
+            }
+
+            case ACCORD_CHECK_STATUS_REQ:
+            case ACCORD_AWAIT_REQ:
+            {
+                TimeoutStrategy slow = slowStatusCheck();
                 if (slow != null)
                     slowAtNanos = nowNanos + slow.computeWait(attempt, NANOSECONDS);
                 break;
@@ -247,9 +263,24 @@ public class AccordMessageSink implements MessageSink
                     slowAtNanos = nowNanos + slow.computeWait(attempt, NANOSECONDS);
                 break;
             }
+
+            case ACCORD_WAIT_UNTIL_APPLIED_REQ:
+            {
+                TimeoutStrategy slow = slowPreaccept(txnId);
+                if (slow != null)
+                    slowAtNanos = nowNanos + slow.computeWait(attempt, NANOSECONDS);
+                break;
+            }
         }
 
         Message<Request> message = Message.out(verb, request, expiresAtNanos);
+        if (request instanceof MapReduceCommandStores<?, ?>)
+        {
+            Tracing tracing =  ((MapReduceCommandStores<?, ?>) request).tracing();
+            if (tracing != null) tracing = tracing.send();
+            if (tracing != null) message = message.withParam(ParamType.ACCORD_TRACING, tracing);
+        }
+
         InetAddressAndPort endpoint = endpointMapper.mappedEndpointOrNull(to, message);
         if (endpoint == null)
         {
@@ -262,26 +293,24 @@ public class AccordMessageSink implements MessageSink
         return cancellable;
     }
 
-    @Override
-    public void reply(Node.Id replyingTo, ReplyContext replyContext, Reply reply)
+    public void reply(Node.Id replyingTo, ReplyContext replyContext, Reply reply, Throwable failure)
     {
         ResponseContext respondTo = (ResponseContext) replyContext;
-        Message<?> message = Message.responseWith(reply, respondTo);
-        if (!reply.isFinal())
-            message = message.withFlag(MessageFlag.NOT_FINAL);
-        checkReplyType(reply, respondTo);
-        InetAddressAndPort endpoint = endpointMapper.mappedEndpointOrNull(replyingTo, message);
-        if (endpoint == null)
-            return;
+        Message<?> message;
+        if (failure != null) message = Message.failureResponse(RequestFailureReason.UNKNOWN, failure, respondTo);
+        else
+        {
+            message = Message.responseWith(reply, respondTo);
+            if (Invariants.isParanoid()) checkReplyType(reply, respondTo);
+        }
+        Object tracing = respondTo.params().get(ParamType.ACCORD_TRACING);
+        if (tracing != null)
+        {
+            tracing = ((Tracing)tracing).send();
+            if (tracing != null)
+                message = message.withParam(ParamType.ACCORD_TRACING, tracing);
+        }
 
-        messaging.send(message, endpoint);
-    }
-
-    @Override
-    public void replyWithUnknownFailure(Node.Id replyingTo, ReplyContext replyContext, Throwable failure)
-    {
-        ResponseContext respondTo = (ResponseContext) replyContext;
-        Message<?> message = Message.failureResponse(RequestFailureReason.UNKNOWN, failure, respondTo);
         InetAddressAndPort endpoint = endpointMapper.mappedEndpointOrNull(replyingTo, message);
         if (endpoint == null)
             return;

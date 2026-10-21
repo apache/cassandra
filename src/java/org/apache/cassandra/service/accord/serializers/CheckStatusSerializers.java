@@ -21,7 +21,7 @@ package org.apache.cassandra.service.accord.serializers;
 import java.io.IOException;
 import java.util.Objects;
 
-import accord.api.Result;
+import accord.api.Result.PersistableResult;
 import accord.api.RoutingKey;
 import accord.coordinate.Infer;
 import accord.messages.CheckStatus;
@@ -48,6 +48,7 @@ import org.apache.cassandra.io.UnversionedSerializer;
 import org.apache.cassandra.io.util.DataInputPlus;
 import org.apache.cassandra.io.util.DataOutputPlus;
 import org.apache.cassandra.service.accord.serializers.CommandSerializers.ExecuteAtSerializer;
+import org.apache.cassandra.service.accord.txn.TxnDataResult;
 
 import static accord.messages.CheckStatus.SerializationSupport.createOk;
 import static org.apache.cassandra.service.accord.serializers.CommandSerializers.known;
@@ -96,7 +97,7 @@ public class CheckStatusSerializers
                 Known max = kind == 1 ? min : known.deserialize(in);
                 values[i] = new MinAndMaxKnown(min, max);
             }
-            return KnownMap.SerializerSupport.create(true, starts, values);
+            return KnownMap.SerializerSupport.create(starts, values);
         }
 
         @Override
@@ -228,9 +229,9 @@ public class CheckStatusSerializers
                     PartialDeps committedDeps = DepsSerializers.nullablePartialDeps.deserialize(in);
                     Writes writes = CommandSerializers.nullableWrites.deserialize(in, version);
 
-                    Result result = null;
+                    PersistableResult result = null;
                     if (maxKnowledgeStatus.known.outcome().isOrWasApply())
-                        result = ResultSerializers.APPLIED;
+                        result = TxnDataResult.PERSISTABLE;
 
                     return createOk(map, maxKnowledgeStatus, maxStatus, maxPromised, maxAcceptedOrCommitted, acceptedOrCommitted, executeAt,
                                     isCoordinating, durability, route, homeKey, invalidIf, partialTxn, committedDeps, writes, result);

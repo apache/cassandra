@@ -33,7 +33,7 @@ final class ScalarFunctionSelector extends AbstractFunctionSelector<ScalarFuncti
         @Override
         protected Selector newFunctionSelector(ProtocolVersion version, Function function, List<Selector> argSelectors)
         {
-            return new ScalarFunctionSelector(version, function, argSelectors);
+            return new ScalarFunctionSelector(function, argSelectors);
         }
     };
 
@@ -69,8 +69,8 @@ final class ScalarFunctionSelector extends AbstractFunctionSelector<ScalarFuncti
             argSelectors.get(i).validateForGroupBy();
     }
 
-    ScalarFunctionSelector(ProtocolVersion version, Function fun, List<Selector> argSelectors)
+    ScalarFunctionSelector(Function fun, List<Selector> argSelectors)
     {
-        super(Kind.SCALAR_FUNCTION_SELECTOR, version, (ScalarFunction) fun, argSelectors);
+        super(Kind.SCALAR_FUNCTION_SELECTOR, (ScalarFunction) fun, argSelectors);
     }
 }

@@ -44,7 +44,17 @@ public abstract class ColumnSubselection implements Comparable<ColumnSubselectio
     public static final Serializer serializer = new Serializer();
 
     /* this enum is used in serialization; preserve order for compatibility */
-    private enum Kind { SLICE, ELEMENT }
+    private enum Kind
+    {
+        SLICE, ELEMENT;
+
+        private static final Kind[] VALUES = values();
+
+        static Kind fromOrdinal(int ordinal)
+        {
+            return VALUES[ordinal];
+        }
+    }
 
     protected final ColumnMetadata column;
 
@@ -229,7 +239,7 @@ public abstract class ColumnSubselection implements Comparable<ColumnSubselectio
                 }
             }
 
-            Kind kind = Kind.values()[in.readUnsignedByte()];
+            Kind kind = Kind.fromOrdinal(in.readUnsignedByte());
             switch (kind)
             {
                 case SLICE:

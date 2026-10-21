@@ -73,7 +73,7 @@ public class StreamsDiskSpaceTest extends TestBaseImpl
                                           .withConfig(config -> config.set("hinted_handoff_enabled", false)
                                                                       .with(GOSSIP)
                                                                       .with(NETWORK))
-                                          .withInstanceInitializer((cl, id) -> BB.doInstall(cl, id, ActiveCompactions.class, "estimatedRemainingWriteBytes"))
+                                          .withInstanceInitializer((cl, id) -> BB.doInstall(cl, id, ActiveCompactions.class, "estimatedRemainingWriteToDiskBytes"))
                                           .start()))
         {
             cluster.schemaChange("create table " + KEYSPACE + ".tbl (id int primary key, t int) with compaction={'class': 'SizeTieredCompactionStrategy'}");
@@ -139,7 +139,7 @@ public class StreamsDiskSpaceTest extends TestBaseImpl
             return ongoing.get();
         }
 
-        public static Map<File, Long> estimatedRemainingWriteBytes()
+        public static Map<File, Long> estimatedRemainingWriteToDiskBytes()
         {
             Map<File, Long> ret = new HashMap<>();
             if (datadir != null)

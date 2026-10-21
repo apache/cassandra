@@ -29,7 +29,7 @@ import org.apache.cassandra.auth.AuthCacheService;
 import org.apache.cassandra.auth.AuthKeyspace;
 import org.apache.cassandra.auth.AuthTestUtils;
 import org.apache.cassandra.auth.AuthenticatedUser;
-import org.apache.cassandra.auth.CassandraRoleManager;
+import org.apache.cassandra.auth.PasswordDefaultRoleInitializer;
 import org.apache.cassandra.auth.RoleResource;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.cql3.CQLStatement;
@@ -62,7 +62,7 @@ public class AddIdentityStatementTest
                                                      + "VALUES ('%s', true, true, '%s')",
                                                      AUTH_KEYSPACE_NAME,
                                                      AuthKeyspace.ROLES,
-                                                     CassandraRoleManager.DEFAULT_SUPERUSER_NAME,
+                                                     PasswordDefaultRoleInitializer.DEFAULT_SUPERUSER_NAME,
                                                      "xxx"));
     }
 
@@ -194,7 +194,7 @@ public class AddIdentityStatementTest
     static QueryState getClientState()
     {
         ClientState state = ClientState.forInternalCalls();
-        state.login(new AuthenticatedUser(CassandraRoleManager.DEFAULT_SUPERUSER_NAME));
+        state.login(new AuthenticatedUser(PasswordDefaultRoleInitializer.DEFAULT_SUPERUSER_NAME));
         return new QueryState(state);
     }
 }

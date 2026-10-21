@@ -24,10 +24,13 @@ import java.net.Inet6Address;
 import java.net.InetAddress;
 import java.net.NetworkInterface;
 import java.nio.file.Files;
+import java.nio.file.Path;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.EnumSet;
 import java.util.Enumeration;
+import java.util.HashSet;
+import java.util.Set;
 import java.util.function.Consumer;
 
 import com.google.common.base.Throwables;
@@ -41,10 +44,14 @@ import org.mockito.MockedStatic;
 import org.apache.cassandra.db.Keyspace;
 import org.apache.cassandra.distributed.shared.WithProperties;
 import org.apache.cassandra.exceptions.ConfigurationException;
+import org.apache.cassandra.io.util.File;
 import org.apache.cassandra.io.util.FileUtils;
 import org.apache.cassandra.io.util.PathUtils;
+import org.apache.cassandra.locator.IEndpointSnitch;
 import org.apache.cassandra.security.EncryptionContext;
 import org.apache.cassandra.security.EncryptionContextGenerator;
+import org.apache.cassandra.utils.ClassLoadingTestNonAssignable;
+import org.apache.cassandra.utils.ClassLoadingTestSupport;
 
 import static org.apache.cassandra.config.CassandraRelevantProperties.ALLOW_UNLIMITED_CONCURRENT_VALIDATIONS;
 import static org.apache.cassandra.config.CassandraRelevantProperties.CONFIG_LOADER;
@@ -127,6 +134,25 @@ public class DatabaseDescriptorTest
                 return;
             }
         }
+    }
+
+    @Test
+    public void testCreateEndpointSnitchWrongTypeRejectedWithoutInitializing()
+    {
+        ClassLoadingTestSupport.assertNotInitialized(ClassLoadingTestNonAssignable.class);
+
+        assertThatThrownBy(() -> DatabaseDescriptor.createEndpointSnitch(ClassLoadingTestNonAssignable.class.getName()))
+        .isInstanceOf(ConfigurationException.class)
+        .hasMessageContaining("must extend or implement " + IEndpointSnitch.class.getName());
+
+        assertThat(ClassLoadingTestSupport.wasInitialized(ClassLoadingTestNonAssignable.class)).isFalse();
+    }
+
+    @Test
+    public void testCreateEndpointSnitchValidClassResolves()
+    {
+        IEndpointSnitch snitch = DatabaseDescriptor.createEndpointSnitch("SimpleSnitch");
+        assertThat(snitch).isNotNull();
     }
 
     @Test
@@ -484,6 +510,51 @@ public class DatabaseDescriptorTest
 
         assertEquals(100, // total size is more than preferred so keep the configured limit
                      DatabaseDescriptor.calculateDefaultSpaceInMiB("type", "/path", "setting_name", preferredInMiB, spaceInBytes, numerator, denominator));
+    }
+
+    @Test
+    public void testZeroMemtableOffheapSpaceRejectedForOffheapAllocationTypes()
+    {
+        // off-heap allocators must not be configured with an off-heap space of 0
+        for (Config.MemtableAllocationType type : EnumSet.of(Config.MemtableAllocationType.offheap_buffers,
+                                                            Config.MemtableAllocationType.offheap_objects))
+        {
+            Config conf = new Config();
+            conf.memtable_allocation_type = type;
+            conf.memtable_offheap_space = new DataStorageSpec.IntMebibytesBound(0);
+
+            assertThatExceptionOfType(ConfigurationException.class)
+                .isThrownBy(() -> DatabaseDescriptor.applyMemtableSpace(conf))
+                .withMessageContaining("memtable_offheap_space must be positive")
+                .withMessageContaining(type.toString());
+        }
+    }
+
+    @Test
+    public void testZeroMemtableOffheapSpaceAllowedForHeapAllocationTypes()
+    {
+        for (Config.MemtableAllocationType type : EnumSet.of(Config.MemtableAllocationType.heap_buffers,
+                                                             Config.MemtableAllocationType.unslabbed_heap_buffers,
+                                                             Config.MemtableAllocationType.unslabbed_heap_buffers_logged))
+        {
+            Config conf = new Config();
+            conf.memtable_allocation_type = type;
+            conf.memtable_offheap_space = new DataStorageSpec.IntMebibytesBound(0);
+
+            DatabaseDescriptor.applyMemtableSpace(conf);
+            assertThat(conf.memtable_heap_space.toMebibytes()).isGreaterThan(0);
+        }
+    }
+
+    @Test
+    public void testZeroMemtableHeapSpaceIsRejected()
+    {
+        Config conf = new Config();
+        conf.memtable_heap_space = new DataStorageSpec.IntMebibytesBound(0);
+
+        assertThatExceptionOfType(ConfigurationException.class)
+            .isThrownBy(() -> DatabaseDescriptor.applyMemtableSpace(conf))
+            .withMessageContaining("memtable_heap_space must be positive");
     }
 
     @Test
@@ -1065,6 +1136,149 @@ public class DatabaseDescriptorTest
                 assertThat(DatabaseDescriptor.getCommitLogWriteDiskAccessMode()).isEqualTo(expectedAuto);
             else
                 assertThat(DatabaseDescriptor.getCommitLogWriteDiskAccessMode()).isEqualTo(mode);
+        }
+    }
+
+    @Test
+    public void testMaxValueSize()
+    {
+        Config config = DatabaseDescriptor.loadConfig();
+        Assert.assertEquals(config.max_value_size.toMebibytes() * 1024 * 1024, DatabaseDescriptor.getMaxValueSize());
+    }
+
+    @Test
+    public void testInitializeBackgroundWriteDiskAccessModeRejectsZeroBufferSize()
+    {
+        Config conf = DatabaseDescriptor.getRawConfig();
+        Config.DiskAccessMode savedMode = conf.background_write_disk_access_mode;
+        DataStorageSpec.IntKibibytesBound savedBufferSize = conf.direct_write_buffer_size;
+        try
+        {
+            conf.background_write_disk_access_mode = Config.DiskAccessMode.direct;
+            conf.direct_write_buffer_size = new DataStorageSpec.IntKibibytesBound("0KiB");
+
+            try
+            {
+                DatabaseDescriptor.initializeBackgroundWriteDiskAccessMode();
+                fail("expected ConfigurationException for direct_write_buffer_size == 0");
+            }
+            catch (ConfigurationException expected)
+            {
+                Assert.assertTrue("expected message to mention direct_write_buffer_size, got: " + expected.getMessage(),
+                                  expected.getMessage().contains("direct_write_buffer_size"));
+            }
+        }
+        finally
+        {
+            conf.background_write_disk_access_mode = savedMode;
+            conf.direct_write_buffer_size = savedBufferSize;
+        }
+    }
+
+    @Test
+    public void testInitializeBackgroundWriteDiskAccessModeRejectsUnsupportedModes()
+    {
+        // Everything outside standard/direct must be rejected, including 'auto': it has no
+        // Direct I/O auto-detection for background writes yet, so it must fail rather than
+        // silently resolving to standard (unlike commitlog_disk_access_mode).
+        Config conf = DatabaseDescriptor.getRawConfig();
+        Config.DiskAccessMode savedMode = conf.background_write_disk_access_mode;
+        try
+        {
+            EnumSet<Config.DiskAccessMode> supported = EnumSet.of(Config.DiskAccessMode.standard,
+                                                                  Config.DiskAccessMode.direct);
+            for (Config.DiskAccessMode mode : EnumSet.complementOf(supported))
+            {
+                conf.background_write_disk_access_mode = mode;
+                assertThatExceptionOfType(ConfigurationException.class)
+                    .isThrownBy(DatabaseDescriptor::initializeBackgroundWriteDiskAccessMode)
+                    .withMessageContaining("background_write_disk_access_mode");
+            }
+        }
+        finally
+        {
+            conf.background_write_disk_access_mode = savedMode;
+        }
+    }
+
+    @Test
+    public void testGetDirectIOWritePaths() throws IOException
+    {
+        Config conf = DatabaseDescriptor.getRawConfig();
+        Config.DiskAccessMode savedCommitLogMode = DatabaseDescriptor.getCommitLogWriteDiskAccessMode();
+        Config.DiskAccessMode savedBgWriteMode = DatabaseDescriptor.getBackgroundWriteDiskAccessMode();
+        String savedCommitLogLocation = DatabaseDescriptor.getCommitLogLocation();
+        String[] savedDataDirs = conf.data_file_directories;
+        String savedLocalSystemDir = conf.local_system_data_file_directory;
+        try
+        {
+            Path baseDir = Files.createTempDirectory("testGetDirectIOWritePaths");
+            String dataDir1 = baseDir.resolve("dio-data-1").toString();
+            String dataDir2 = baseDir.resolve("dio-data-2").toString();
+            String commitLogDir = baseDir.resolve("dio-commitlog").toString();
+
+            conf.local_system_data_file_directory = null;
+            conf.data_file_directories = new String[]{ dataDir1, dataDir2 };
+            DatabaseDescriptor.setCommitLogLocation(commitLogDir);
+
+            Path commitLogPath = new File(commitLogDir).toPath();
+            Set<Path> dataPaths = new HashSet<>();
+            for (String dir : DatabaseDescriptor.getAllDataFileLocations())
+                dataPaths.add(new File(dir).toPath());
+
+            // Neither write path uses Direct I/O.
+            DatabaseDescriptor.setCommitLogWriteDiskAccessMode(Config.DiskAccessMode.standard);
+            DatabaseDescriptor.setBackgroundWriteDiskAccessMode(Config.DiskAccessMode.standard);
+            assertThat(DatabaseDescriptor.getDirectIOWritePaths()).isEmpty();
+
+            // Only the commit log uses Direct I/O.
+            DatabaseDescriptor.setCommitLogWriteDiskAccessMode(Config.DiskAccessMode.direct);
+            DatabaseDescriptor.setBackgroundWriteDiskAccessMode(Config.DiskAccessMode.standard);
+            assertThat(DatabaseDescriptor.getDirectIOWritePaths()).containsExactly(commitLogPath);
+
+            // Only background SSTable writes use Direct I/O, which must enumerate every data directory.
+            DatabaseDescriptor.setCommitLogWriteDiskAccessMode(Config.DiskAccessMode.standard);
+            DatabaseDescriptor.setBackgroundWriteDiskAccessMode(Config.DiskAccessMode.direct);
+            assertThat(DatabaseDescriptor.getDirectIOWritePaths()).containsExactlyInAnyOrderElementsOf(dataPaths);
+
+            // Both write paths use Direct I/O: the union of the commit log and data directories.
+            DatabaseDescriptor.setCommitLogWriteDiskAccessMode(Config.DiskAccessMode.direct);
+            DatabaseDescriptor.setBackgroundWriteDiskAccessMode(Config.DiskAccessMode.direct);
+            Set<Path> expectedUnion = new HashSet<>(dataPaths);
+            expectedUnion.add(commitLogPath);
+            assertThat(DatabaseDescriptor.getDirectIOWritePaths()).containsExactlyInAnyOrderElementsOf(expectedUnion);
+        }
+        finally
+        {
+            DatabaseDescriptor.setCommitLogWriteDiskAccessMode(savedCommitLogMode);
+            DatabaseDescriptor.setBackgroundWriteDiskAccessMode(savedBgWriteMode);
+            DatabaseDescriptor.setCommitLogLocation(savedCommitLogLocation);
+            conf.data_file_directories = savedDataDirs;
+            conf.local_system_data_file_directory = savedLocalSystemDir;
+        }
+    }
+
+    @Test
+    public void testSetCompressedReadAheadBufferSizeInKb()
+    {
+        int original = DatabaseDescriptor.getCompressedReadAheadBufferSizeInKB();
+        try
+        {
+            // 0 should be a legal value, and represents disabling read-ahead buffer
+            DatabaseDescriptor.setCompressedReadAheadBufferSizeInKb(0);
+            assertEquals(0, DatabaseDescriptor.getCompressedReadAheadBufferSizeInKB());
+            assertEquals(0, DatabaseDescriptor.getCompressedReadAheadBufferSize());
+
+            Assertions.assertThatThrownBy(() -> DatabaseDescriptor.setCompressedReadAheadBufferSizeInKb(255))
+                      .isInstanceOf(IllegalArgumentException.class)
+                      .hasMessage("compressed_read_ahead_buffer_size_in_kb must be at least 256KiB (set to 0 to disable)");
+
+            DatabaseDescriptor.setCompressedReadAheadBufferSizeInKb(256);
+            assertEquals(256, DatabaseDescriptor.getCompressedReadAheadBufferSizeInKB());
+        }
+        finally
+        {
+            DatabaseDescriptor.setCompressedReadAheadBufferSizeInKb(original);
         }
     }
 }

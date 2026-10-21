@@ -28,6 +28,7 @@ import javax.annotation.Nullable;
 
 import org.apache.cassandra.io.util.File;
 import org.apache.cassandra.io.util.FileOutputStreamPlus;
+import org.apache.cassandra.journal.Params.RecoverableCrcFailurePolicy;
 import org.apache.cassandra.journal.StaticSegment.SequentialReader;
 
 /**
@@ -154,11 +155,11 @@ public final class InMemoryIndex<K> extends Index<K>
         tmpFile.move(descriptor.fileFor(Component.INDEX));
     }
 
-    static <K> InMemoryIndex<K> rebuild(Descriptor descriptor, KeySupport<K> keySupport, int fsyncedLimit)
+    static <K> InMemoryIndex<K> rebuild(Descriptor descriptor, KeySupport<K> keySupport, int fsyncedLimit, RecoverableCrcFailurePolicy crcFailurePolicy)
     {
         InMemoryIndex<K> index = new InMemoryIndex<>(keySupport, new TreeMap<>(keySupport));
 
-        try (SequentialReader<K> reader = StaticSegment.sequentialReader(descriptor, keySupport, fsyncedLimit))
+        try (SequentialReader<K> reader = StaticSegment.sequentialReader(descriptor, keySupport, fsyncedLimit, crcFailurePolicy))
         {
             while (reader.advance())
                 index.update(reader.key(), reader.offset, reader.buffer.position() - reader.offset);

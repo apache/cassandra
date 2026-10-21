@@ -38,7 +38,7 @@ import static com.google.common.base.Preconditions.checkArgument;
 @Command(name = "invalidatepermissionscache", description = "Invalidate the permissions cache")
 public class InvalidatePermissionsCache extends AbstractCommand
 {
-    @Parameters(paramLabel = "role", description = "A role for which permissions to specified resources need to be invalidated", arity = "0..1", index = "0")
+    @Parameters(paramLabel = "role_name", description = "A role for which permissions to specified resources need to be invalidated", arity = "0..1", index = "0")
     private String roleName;
 
     // Data Resources

@@ -78,7 +78,7 @@ public interface MBeanWrapper
                 return new PlatformMBeanWrapper();
             }
         }
-        return FBUtilities.construct(klass, "mbean");
+        return FBUtilities.construct(klass, "mbean", MBeanWrapper.class);
     }
 
     // Passing true for graceful will log exceptions instead of rethrowing them

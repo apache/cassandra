@@ -1482,7 +1482,7 @@ public class MerkleTree
     {
         assert left.length == right.length;
 
-        byte[] out = Arrays.copyOf(right, right.length);
+        byte[] out = new byte[right.length];
         for (int i = 0; i < left.length; i++)
             out[i] = (byte)((left[i] & 0xFF) ^ (right[i] & 0xFF));
         return out;

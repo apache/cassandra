@@ -55,6 +55,10 @@ import org.apache.cassandra.tcm.ownership.PlacementDeltas;
 import org.apache.cassandra.tcm.ownership.PlacementProvider;
 import org.apache.cassandra.tcm.ownership.PlacementTransitionPlan;
 import org.apache.cassandra.tcm.sequences.LeaveStreams;
+import org.apache.cassandra.tcm.sequences.LockedRanges;
+import org.apache.cassandra.tcm.sequences.ReconfigureCMS;
+import org.apache.cassandra.tcm.transformations.cms.AdvanceCMSReconfiguration;
+import org.apache.cassandra.tcm.transformations.cms.PrepareCMSReconfiguration;
 
 import static org.apache.cassandra.distributed.test.log.ClusterMetadataTestHelper.addr;
 import static org.junit.Assert.assertFalse;
@@ -84,10 +88,11 @@ public class PrepareLeaveTest
     public void testCheckRF_Simple() throws Throwable
     {
         Keyspaces kss = Keyspaces.of(DistributedMetadataLogKeyspace.initialMetadata(Sets.newHashSet(hostDc.values())), KSM);
+        // should be accepted (2 nodes in dc1 where we remove the host):
         ClusterMetadata metadata = prepMetadata(kss, 2, 2);
         assertTrue(executeLeave(metadata));
-        // should be rejected:
-        metadata = prepMetadata(kss, 1, 2);
+        // should be rejected because only 1 node in dc2:
+        metadata = prepMetadata(kss, 2, 1);
         assertFalse(executeLeave(metadata));
     }
 
@@ -97,17 +102,69 @@ public class PrepareLeaveTest
         Keyspaces kss = Keyspaces.of(DistributedMetadataLogKeyspace.initialMetadata(Sets.newHashSet(hostDc.values())), KSM_NTS);
         ClusterMetadata metadata = prepMetadata(kss, 4, 4);
         assertTrue(executeLeave(metadata));
-        // should be accepted (4 nodes in dc1 where we remove the host):
-        metadata = prepMetadata(kss, 4, 2);
+        // should be accepted (4 nodes in dc2 where we remove the host):
+        metadata = prepMetadata(kss, 2, 4);
         assertTrue(executeLeave(metadata));
-        // should be rejected
-        metadata = prepMetadata(kss, 3, 4);
+        // should be rejected because there are already only 3 replicas in dc2
+        metadata = prepMetadata(kss, 4, 3);
+        assertFalse(executeLeave(metadata));
+    }
+
+    @Test
+    public void testRejectedWhenLeavingNodeIsCMSReconfigurationAdd() throws Throwable
+    {
+        Keyspaces kss = Keyspaces.of(DistributedMetadataLogKeyspace.initialMetadata(Sets.newHashSet(hostDc.values())), KSM);
+        ClusterMetadata metadata = prepMetadata(kss, 2, 2);
+        NodeId leaving = metadata.directory.peerId(InetAddressAndPort.getByName("127.0.0.11"));
+        PrepareCMSReconfiguration.Diff diff = new PrepareCMSReconfiguration.Diff(Collections.singletonList(leaving), Collections.emptyList());
+        assertFalse(executeLeave(withReconfiguringCMS(metadata, diff)));
+    }
+
+    @Test
+    public void testRejectedWhenLeavingNodeIsCMSReconfigurationRemove() throws Throwable
+    {
+        Keyspaces kss = Keyspaces.of(DistributedMetadataLogKeyspace.initialMetadata(Sets.newHashSet(hostDc.values())), KSM);
+        ClusterMetadata metadata = prepMetadata(kss, 2, 2);
+        NodeId leaving = metadata.directory.peerId(InetAddressAndPort.getByName("127.0.0.11"));
+        PrepareCMSReconfiguration.Diff diff = new PrepareCMSReconfiguration.Diff(Collections.emptyList(), Collections.singletonList(leaving));
+        assertFalse(executeLeave(withReconfiguringCMS(metadata, diff)));
+    }
+
+    private ClusterMetadata withReconfiguringCMS(ClusterMetadata metadata, PrepareCMSReconfiguration.Diff diff)
+    {
+        ReconfigureCMS sequence = ReconfigureCMS.newSequence(LockedRanges.keyFor(Epoch.FIRST), diff);
+        return metadata.transformer()
+                       .with(metadata.inProgressSequences.with(ReconfigureCMS.SequenceKey.instance, sequence))
+                       .build()
+               .metadata;
+    }
+
+    @Test
+    public void testRejectedWhenLeavingNodeIsActiveCMSTransition() throws Throwable
+    {
+        Keyspaces kss = Keyspaces.of(DistributedMetadataLogKeyspace.initialMetadata(Sets.newHashSet(hostDc.values())), KSM);
+        ClusterMetadata metadata = prepMetadata(kss, 2, 2);
+        NodeId leaving = metadata.directory.peerId(InetAddressAndPort.getByName("127.0.0.11"));
+
+        LockedRanges.Key lockKey = LockedRanges.keyFor(Epoch.FIRST);
+        ReconfigureCMS sequence = ReconfigureCMS.newSequence(lockKey, PrepareCMSReconfiguration.Diff.NOCHANGE);
+        AdvanceCMSReconfiguration activeStep = new AdvanceCMSReconfiguration(0,
+                                                                             Epoch.EMPTY,
+                                                                             lockKey,
+                                                                             PrepareCMSReconfiguration.Diff.NOCHANGE,
+                                                                             ReconfigureCMS.ActiveTransition.withNodeIds(leaving, Collections.emptySet()));
+        sequence = sequence.advance(activeStep);
+
+        metadata = metadata.transformer()
+                           .with(metadata.inProgressSequences.with(ReconfigureCMS.SequenceKey.instance, sequence))
+                           .build()
+                   .metadata;
         assertFalse(executeLeave(metadata));
     }
 
     private boolean executeLeave(ClusterMetadata metadata) throws Throwable
     {
-        PrepareLeave prepareLeave = new PrepareLeave(metadata.directory.peerId(InetAddressAndPort.getByName("127.0.0.1")),
+        PrepareLeave prepareLeave = new PrepareLeave(metadata.directory.peerId(InetAddressAndPort.getByName("127.0.0.11")),
                                                      false,
                                                      dummyPlacementProvider,
                                                      LeaveStreams.Kind.UNBOOTSTRAP);

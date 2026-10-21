@@ -56,8 +56,8 @@
 
         <typedef uri="antlib:org.apache.maven.resolver.ant" resource="org/apache/maven/resolver/ant/antlib.xml" classpathref="resolver-ant-tasks.classpath" />
         <resolver:remoterepos id="all">
-            <remoterepo id="resolver-central" url="${artifact.remoteRepository.central}"/>
-            <remoterepo id="resolver-apache" url="${artifact.remoteRepository.apache}"/>
+            <remoterepo id="resolver-central" url="${artifact.remoteRepository.central}" checksums="fail" />
+            <remoterepo id="resolver-apache" url="${artifact.remoteRepository.apache}" checksums="fail" />
             <!-- Snapshot artifacts must not exist in nor be downloaded by any Cassandra release artifact.
                  Please validate that all artifacts included in parent-pom-template.xml are release
                  artifacts before committing.
@@ -146,7 +146,7 @@
             <attribute name="classifier" default=""/>
             <attribute name="packaging" default="jar"/>
             <sequential>
-                <exec dir="." executable="sh">
+                <exec dir="." executable="sh" failonerror="true" failifexecutionfails="true">
                     <arg line="-c 'mvn org.apache.maven.plugins:maven-install-plugin:2.3.1:install-file -DpomFile=@{pomFile} -Dfile=@{file} -Dclassifier=@{classifier} -Dpackaging=@{packaging}'" />
                 </exec>
             </sequential>
@@ -158,7 +158,7 @@
             <attribute name="classifier" default=""/>
             <attribute name="packaging" default="jar"/>
             <sequential>
-                <exec dir="." executable="sh">
+                <exec dir="." executable="sh" failonerror="true" failifexecutionfails="true">
                     <arg line="-c 'mvn org.apache.maven.plugins:maven-gpg-plugin:1.6:sign-and-deploy-file -DretryFailedDeploymentCount=5 -Durl=${maven-repository-url} -DrepositoryId=${maven-repository-id} -DpomFile=@{pomFile} -Dfile=@{file} -Dclassifier=@{classifier} -Dpackaging=@{packaging}'" />
                 </exec>
             </sequential>
@@ -168,7 +168,7 @@
             <attribute name="file"/>
             <sequential>
                 <echo message="gpg signing @{file}" />
-                <exec dir="." executable="sh">
+                <exec dir="." executable="sh" failonerror="true" failifexecutionfails="true">
                     <!-- dummy out the deploy parameters, only the signing is required here -->
                     <arg line="-c 'mvn -q org.apache.maven.plugins:maven-gpg-plugin:1.6:sign-and-deploy-file -Dfile=@{file} -DgroupId=org.apache.cassandra -DartifactId=cassandra-parent -Dversion=${version} -Durl=file:///tmp/ -DrepositoryId=tmp'" />
                 </exec>
@@ -245,6 +245,7 @@
             <file file="${local.repository}/org/apache/cassandra/deps/geomet-0.1.0.zip"/>
             <file file="${local.repository}/org/apache/cassandra/deps/pure_sasl-0.6.2-py2-none-any.zip"/>
             <file file="${local.repository}/org/apache/cassandra/deps/wcwidth-0.2.5-py2.py3-none-any.zip"/>
+            <file file="${local.repository}/org/apache/cassandra/deps/pyasyncore-1.0.5-py3-none-any.zip"/>
         </copy>
 
         <!-- as resolver will copy all dependencies into lib dir, and we are copying jars to lib/{x86_64|aarch64} as well, we would have duplicities -->
@@ -261,6 +262,7 @@
         <get src="${artifact.python.pypi}/59/a0/cf4cd997e1750f0c2d91c6ea5abea218251c43c3581bcc2f118b00baf5cf/futures-2.1.6-py2.py3-none-any.whl" dest="${local.repository}/org/apache/cassandra/deps/futures-2.1.6-py2.py3-none-any.zip" usetimestamp="true" quiet="true" skipexisting="true"/>
         <get src="${artifact.python.pypi}/37/b2/ef1124540ee2c0b417be8d0f74667957e6aa084a3f26621aa67e2e77f3fb/pure_sasl-0.6.2-py2-none-any.whl" dest="${local.repository}/org/apache/cassandra/deps/pure_sasl-0.6.2-py2-none-any.zip" usetimestamp="true" quiet="true" skipexisting="true"/>
         <get src="${artifact.python.pypi}/59/7c/e39aca596badaf1b78e8f547c807b04dae603a433d3e7a7e04d67f2ef3e5/wcwidth-0.2.5-py2.py3-none-any.whl" dest="${local.repository}/org/apache/cassandra/deps/wcwidth-0.2.5-py2.py3-none-any.zip" usetimestamp="true" quiet="true" skipexisting="true"/>
+        <get src="${artifact.python.pypi}/1f/ab/b10cee56269ae150763f3f83b3e9305a11f42f50b3dcd58eeb8f7988f0bb/pyasyncore-1.0.5-py3-none-any.whl" dest="${local.repository}/org/apache/cassandra/deps/pyasyncore-1.0.5-py3-none-any.zip" usetimestamp="true" quiet="true" skipexisting="true"/>
 
         <!-- apache/cassandra/lib -->
         <get src="${lib.download.base.url}/lib/geomet-0.1.0.zip" dest="${local.repository}/org/apache/cassandra/deps/geomet-0.1.0.zip" usetimestamp="true" quiet="true" skipexisting="true"/>

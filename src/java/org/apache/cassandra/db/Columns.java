@@ -24,6 +24,7 @@ import java.util.Collection;
 import java.util.Comparator;
 import java.util.Iterator;
 import java.util.Objects;
+import java.util.function.BiConsumer;
 import java.util.function.Consumer;
 import java.util.function.Predicate;
 
@@ -431,6 +432,11 @@ public class Columns extends AbstractCollection<ColumnMetadata> implements Colle
         BTree.apply(columns, function);
     }
 
+    public <A> void apply(BiConsumer<A, ColumnMetadata> function, A argument)
+    {
+        BTree.apply(columns, function, argument);
+    }
+
     @Override
     public boolean equals(Object other)
     {
@@ -454,7 +460,7 @@ public class Columns extends AbstractCollection<ColumnMetadata> implements Colle
         if(this == NONE)
             return 0;
 
-        return EMPTY_SIZE + BTree.sizeOfStructureOnHeap(columns);
+        return EMPTY_SIZE + BTree.sizeOnHeapOf(columns);
     }
 
     @Override

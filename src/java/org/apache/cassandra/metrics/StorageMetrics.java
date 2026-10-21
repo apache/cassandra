@@ -53,6 +53,9 @@ public class StorageMetrics
     public static final Counter startupOpsForInvalidToken = Metrics.counter(factory.createMetricName("StartupOpsForInvalidToken"));
     public static final Meter bootstrapFilesThroughputMetric = Metrics.meter(factory.createMetricName("BootstrapFilesThroughput"));
 
+    public static final Counter directWriteBufferBytes = Metrics.counter(factory.createMetricName("DirectWriteBufferBytes"));
+    public static final Meter directWriteBuffersAllocated = Metrics.meter(factory.createMetricName("DirectWriteBuffersAllocated"));
+
     private static Gauge<Long> createSummingGauge(String name, ToLongFunction<KeyspaceMetrics> extractor)
     {
         return Metrics.register(factory.createMetricName(name),

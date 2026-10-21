@@ -44,6 +44,7 @@ import org.apache.cassandra.serializers.CollectionSerializer;
 import org.apache.cassandra.serializers.MapSerializer;
 import org.apache.cassandra.serializers.MarshalException;
 import org.apache.cassandra.transport.ProtocolVersion;
+import org.apache.cassandra.utils.ByteBufferUtil;
 import org.apache.cassandra.utils.JsonUtils;
 import org.apache.cassandra.utils.Pair;
 import org.apache.cassandra.utils.bytecomparable.ByteComparable.Version;
@@ -311,6 +312,19 @@ public class MapType<K, V> extends CollectionType<Map<K, V>>
             Cell<?> c = cells.next();
             bbs.add(c.path().get(0));
             bbs.add(c.buffer());
+        }
+        return bbs;
+    }
+
+    public List<byte[]> serializedValuesAsByteArrays(Iterator<Cell<?>> cells)
+    {
+        assert isMultiCell;
+        List<byte[]> bbs = new ArrayList<>();
+        while (cells.hasNext())
+        {
+            Cell<?> c = cells.next();
+            bbs.add(ByteBufferUtil.getArrayUnsafeNullable(c.path().get(0)));
+            bbs.add(c.valueAsArray());
         }
         return bbs;
     }

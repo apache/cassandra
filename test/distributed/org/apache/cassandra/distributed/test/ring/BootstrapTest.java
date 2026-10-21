@@ -18,6 +18,8 @@
 
 package org.apache.cassandra.distributed.test.ring;
 
+import java.io.Closeable;
+import java.io.IOException;
 import java.util.Map;
 import java.util.Objects;
 import java.util.concurrent.Callable;
@@ -48,6 +50,7 @@ import org.apache.cassandra.distributed.api.ConsistencyLevel;
 import org.apache.cassandra.distributed.api.ICluster;
 import org.apache.cassandra.distributed.api.IInstanceConfig;
 import org.apache.cassandra.distributed.api.IInvokableInstance;
+import org.apache.cassandra.distributed.api.NodeToolResult;
 import org.apache.cassandra.distributed.api.TokenSupplier;
 import org.apache.cassandra.distributed.shared.JMXUtil;
 import org.apache.cassandra.distributed.shared.NetworkTopology;
@@ -55,7 +58,6 @@ import org.apache.cassandra.distributed.test.TestBaseImpl;
 import org.apache.cassandra.metrics.DefaultNameFactory;
 import org.apache.cassandra.service.StorageService;
 import org.apache.cassandra.service.StorageServiceMBean;
-import org.apache.cassandra.utils.Closeable;
 import org.apache.cassandra.utils.concurrent.CountDownLatch;
 
 import static net.bytebuddy.matcher.ElementMatchers.named;
@@ -228,6 +230,26 @@ public class BootstrapTest extends TestBaseImpl
         }
     }
 
+    @Test
+    public void testAbortBootstrapBadIp() throws IOException
+    {
+        try (Cluster cluster = builder().withNodes(1).start())
+        {
+            NodeToolResult res = cluster.get(1).nodetoolResult("abortbootstrap", "--ip", "127.0.0.55");
+            res.asserts().failure();
+            assertTrue(res.getStdout().contains("Unknown endpoint"));
+            res = cluster.get(1).nodetoolResult("abortbootstrap", "--ip", "127.0.0.999");
+            res.asserts().failure();
+            assertTrue(res.getStdout().contains("Unable to look up endpoint"));
+            res = cluster.get(1).nodetoolResult("abortbootstrap", "--node", "999");
+            res.asserts().failure();
+            assertTrue(res.getStdout().contains("does not exist in cluster metadata"));
+            res = cluster.get(1).nodetoolResult("abortbootstrap", "--node", "hello");
+            res.asserts().failure();
+            assertTrue(res.getStdout().contains("Unable to parse node id"));
+        }
+    }
+
     public static void populate(ICluster cluster, int from, int to)
     {
         populate(cluster, from, to, 1, 3, ConsistencyLevel.QUORUM);
@@ -235,8 +257,13 @@ public class BootstrapTest extends TestBaseImpl
 
     public static void populate(ICluster cluster, int from, int to, int coord, int rf, ConsistencyLevel cl)
     {
+        populate(cluster, from, to, coord, rf, cl, "pk int, ck int, v int");
+    }
+
+    public static void populate(ICluster cluster, int from, int to, int coord, int rf, ConsistencyLevel cl, String columnDefinitions)
+    {
         cluster.schemaChange("CREATE KEYSPACE IF NOT EXISTS " + KEYSPACE + " WITH replication = {'class': 'SimpleStrategy', 'replication_factor': " + rf + "};");
-        cluster.schemaChange("CREATE TABLE IF NOT EXISTS " + KEYSPACE + ".tbl (pk int, ck int, v int, PRIMARY KEY (pk, ck))");
+        cluster.schemaChange("CREATE TABLE IF NOT EXISTS " + KEYSPACE + ".tbl (" + columnDefinitions + ", PRIMARY KEY (pk, ck))");
         populateExistingTable(cluster, from, to, coord, cl);
         for (int i = from; i < to; i++)
         {

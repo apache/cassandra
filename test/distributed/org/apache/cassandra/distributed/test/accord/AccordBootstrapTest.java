@@ -46,8 +46,8 @@ import org.apache.cassandra.distributed.api.TokenSupplier;
 import org.apache.cassandra.distributed.shared.NetworkTopology;
 import org.apache.cassandra.service.StorageService;
 import org.apache.cassandra.service.accord.AccordCommandStore;
-import org.apache.cassandra.service.accord.AccordSafeCommandStore;
 import org.apache.cassandra.service.accord.api.PartitionKey;
+import org.apache.cassandra.service.accord.execution.SaferCommandStore;
 import org.apache.cassandra.streaming.StreamEvent;
 import org.apache.cassandra.streaming.StreamEventHandler;
 import org.apache.cassandra.streaming.StreamManager;
@@ -74,7 +74,7 @@ public class AccordBootstrapTest extends AccordBootstrapTestBase
         IInvokableInstance newInstance = cluster.bootstrap(config);
         newInstance.startup(cluster);
         spinUntilTrue(() -> cluster.stream().anyMatch(instance -> instance.callOnInstance(() -> StreamListener.listener.hasFailedStream)));
-        try { newInstance.shutdown(false).get(5L, TimeUnit.MINUTES); }
+        try { newInstance.shutdown(false).get(3L, TimeUnit.MINUTES); }
         catch (InterruptedException | ExecutionException | TimeoutException e) { throw new RuntimeException(e); }
         cluster.get(1, 2).forEach(instance -> instance.runOnInstance(() -> StreamListener.listener.failStream = false));
         newInstance.startup(cluster);
@@ -262,7 +262,7 @@ public class AccordBootstrapTest extends AccordBootstrapTestBase
                         getBlocking(service().node().commandStores().forEach("Test", RoutingKeys.of(partitionKey.toUnseekable()), Long.MIN_VALUE, Long.MAX_VALUE, safeStore -> {
                             if (safeStore.ranges().currentRanges().contains(partitionKey))
                             {
-                                AccordSafeCommandStore ss = (AccordSafeCommandStore) safeStore;
+                                SaferCommandStore ss = (SaferCommandStore) safeStore;
                                 Assert.assertFalse(ss.bootstrapBeganAt().isEmpty());
                                 Assert.assertFalse(ss.safeToReadAt().isEmpty());
 

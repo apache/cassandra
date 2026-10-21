@@ -34,7 +34,7 @@ import org.apache.cassandra.io.util.DataInputPlus;
 import org.apache.cassandra.io.util.DataOutputPlus;
 import org.apache.cassandra.schema.KeyspaceMetadata;
 import org.apache.cassandra.schema.SchemaConstants;
-import org.apache.cassandra.service.accord.AccordTopology;
+import org.apache.cassandra.service.accord.topology.AccordTopology;
 import org.apache.cassandra.tcm.ClusterMetadata;
 import org.apache.cassandra.tcm.Transformation;
 import org.apache.cassandra.tcm.membership.NodeId;
@@ -44,6 +44,7 @@ import org.apache.cassandra.tcm.serialization.Version;
 import org.apache.cassandra.utils.CollectionSerializers;
 
 import static org.apache.cassandra.exceptions.ExceptionCode.INVALID;
+import static org.apache.cassandra.service.accord.topology.AccordNodeInfos.supportsExtendedNodeInfo;
 
 public class AccordMarkStale implements Transformation
 {
@@ -63,6 +64,12 @@ public class AccordMarkStale implements Transformation
     }
 
     @Override
+    public boolean eligibleToCommit(ClusterMetadata metadata)
+    {
+        return Transformation.super.eligibleToCommit(metadata) && supportsExtendedNodeInfo(metadata.directory);
+    }
+
+    @Override
     public Result execute(ClusterMetadata prev)
     {
         for (NodeId id : ids)
@@ -70,15 +77,15 @@ public class AccordMarkStale implements Transformation
                 return new Rejected(INVALID, String.format("Can not mark node %s stale as it is not present in the directory.", id));
 
         SortedArrayList<Node.Id> staleIds = SortedArrayList.ofUnsorted(ids.stream().map(AccordTopology::tcmIdToAccord).toArray(Node.Id[]::new));
-        SortedArrayList<Node.Id> allStaleIds = prev.accordStaleReplicas.stale().with(staleIds);
+        SortedArrayList<Node.Id> allStaleIds = prev.accordNodeInfos.stale().with(staleIds);
 
         for (Node.Id id : staleIds)
-            if (prev.accordStaleReplicas.stale().contains(id))
+            if (prev.accordNodeInfos.stale().contains(id))
                 return new Rejected(INVALID, String.format("Can not mark node %s stale as it already is.", id));
 
         for (KeyspaceMetadata keyspace : prev.schema.getKeyspaces().without(SchemaConstants.REPLICATED_SYSTEM_KEYSPACE_NAMES))
         {
-            List<AccordTopology.KeyspaceShard> shards = AccordTopology.KeyspaceShard.forKeyspace(keyspace, prev.placements, prev.directory);
+            List<AccordTopology.KeyspaceShard> shards = AccordTopology.KeyspaceShard.forKeyspace(keyspace, prev.placements(), prev.directory);
             
             for (AccordTopology.KeyspaceShard shard : shards)
             {

@@ -99,8 +99,8 @@ public class V1SSTableIndex extends SSTableIndex
 
             this.bounds = AbstractBounds.bounds(minKey, true, maxKey, true);
 
-            this.minTerm = metadatas.stream().map(m -> m.minTerm).min(indexTermType.comparator()).orElse(null);
-            this.maxTerm = metadatas.stream().map(m -> m.maxTerm).max(indexTermType.comparator()).orElse(null);
+            this.minTerm = metadatas.stream().map(m -> m.minTerm).reduce(indexTermType::min).orElse(null);
+            this.maxTerm = metadatas.stream().map(m -> m.maxTerm).reduce(indexTermType::max).orElse(null);
 
             this.numRows = metadatas.stream().mapToLong(m -> m.numRows).sum();
 

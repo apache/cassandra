@@ -74,6 +74,7 @@ import accord.utils.async.AsyncResult;
 import accord.utils.async.AsyncResults;
 import accord.utils.async.Cancellable;
 
+import org.apache.cassandra.concurrent.ImmediateExecutor;
 import org.apache.cassandra.concurrent.ScheduledExecutorPlus;
 import org.apache.cassandra.concurrent.SimulatedExecutorFactory;
 import org.apache.cassandra.concurrent.Stage;
@@ -94,6 +95,10 @@ import org.apache.cassandra.schema.TableMetadata;
 import org.apache.cassandra.schema.TableParams;
 import org.apache.cassandra.schema.Tables;
 import org.apache.cassandra.service.accord.api.TokenKey;
+import org.apache.cassandra.service.accord.topology.AccordEndpointMap;
+import org.apache.cassandra.service.accord.topology.AccordSyncPropagator;
+import org.apache.cassandra.service.accord.topology.AccordTopology;
+import org.apache.cassandra.service.accord.topology.AccordTopologyService;
 import org.apache.cassandra.service.consensus.TransactionalMode;
 import org.apache.cassandra.tcm.ClusterMetadata;
 import org.apache.cassandra.tcm.ClusterMetadataService;
@@ -116,7 +121,7 @@ import org.apache.cassandra.utils.Pair;
 
 import static accord.utils.Property.commands;
 import static accord.utils.Property.stateful;
-import static org.apache.cassandra.config.DatabaseDescriptor.getAccordCommandStoreShardCount;
+import static org.apache.cassandra.config.DatabaseDescriptor.getAccord;
 import static org.apache.cassandra.config.DatabaseDescriptor.getPartitioner;
 
 public class EpochSyncTest
@@ -129,12 +134,13 @@ public class EpochSyncTest
         DatabaseDescriptor.setPartitionerUnsafe(Murmur3Partitioner.instance);
 
         ClusterMetadataService.setInstance(StubClusterMetadataService.forTesting());
+        AccordService.touch();
     }
 
     @Test
     public void test()
     {
-        stateful().withSeed(152472217520379L).withExamples(50).withSteps(500).check(commands(() -> Cluster::new)
+        stateful().withExamples(50).withSteps(500).check(commands(() -> Cluster::new)
                 .destroyState(cluster -> {
                     finishPendingWork(cluster);
                     cluster.processAll();
@@ -216,7 +222,7 @@ public class EpochSyncTest
         private int nodeCounter = 0;
         private final ValidatingClusterMetadataService cms = ValidatingClusterMetadataService.createAndRegister(NodeVersion.CURRENT_METADATA_VERSION);
 
-        class Mapper implements AccordEndpointMapper
+        class Mapper implements AccordEndpointMap
         {
             @Override
             public Node.Id mappedIdOrNull(InetAddressAndPort endpoint, @Nullable Object logIdentityIfUnmapped)
@@ -230,11 +236,6 @@ public class EpochSyncTest
                 return address(id);
             }
 
-            @Override
-            public Map<Node.Id, Long> removedNodes()
-            {
-                return Map.of();
-            }
 
             @Override
             public NodeStatus nodeStatus(Node.Id id)
@@ -338,7 +339,7 @@ public class EpochSyncTest
         private static boolean joined(ClusterMetadata metadata, Node.Id id)
         {
             NodeAddresses address = metadata.directory.getNodeAddresses(new NodeId(id.id));
-            return metadata.placements.get(replication_params).reads.byEndpoint().keySet().contains(address.broadcastAddress);
+            return metadata.placement(replication_params).reads.byEndpoint().keySet().contains(address.broadcastAddress);
         }
 
         public enum EpochTracker { topologyManager, accordSyncPropagator }
@@ -609,7 +610,7 @@ public class EpochSyncTest
         {
             Topology t = AccordTopology.createAccordTopology(current);
             Ranges ranges = t.ranges().mergeTouching();
-            if (!current.placements.get(replication_params).reads.isEmpty())
+            if (!current.placement(replication_params).reads.isEmpty())
                 Assertions.assertThat(ranges).hasSize(1);
             cms.setMetadata(current);
             for (Node.Id id : status(s -> s != Status.Removed))
@@ -659,17 +660,17 @@ public class EpochSyncTest
             private final Epoch epoch;
             private Status status = Status.Init;
 
-            Instance(Node.Id id, long token, Epoch epoch, SimulatedMessageDelivery messagingService, AccordEndpointMapper mapper)
+            Instance(Node.Id id, long token, Epoch epoch, SimulatedMessageDelivery messagingService, AccordEndpointMap mapper)
             {
                 this.id = id;
                 this.token = token;
                 this.epoch = epoch;
                 MockCluster.Clock clock = new MockCluster.Clock(0);
-                Node node = Utils.createNode(id, ignore -> AsyncResults.settable(), new MessageSink.NoOpSink(), clock, new TestAgent(clock), new TokenKey.KeyspaceSplitter(new ShardDistributor.EvenSplit<>(getAccordCommandStoreShardCount(), getPartitioner().accordSplitter())));
+                Node node = Utils.createNode(id, ignore -> AsyncResults.settable(), new MessageSink.NoOpSink(), clock, new TestAgent(clock), new TokenKey.KeyspaceSplitter(new ShardDistributor.EvenSplit<>(getAccord().commandStoreShardCount(), getPartitioner().accordSplitter())));
                 // TODO (review): Should there be a real scheduler here? Is it possible to adapt the Scheduler interface to scheduler used in this test?
                 TimeService time = TimeService.ofNonMonotonic(globalExecutor::currentTimeMillis, TimeUnit.MILLISECONDS);
                 this.topologyService = new AccordTopologyService(id, mapper, messagingService, scheduler);
-                this.topology = new TopologyManager(SizeOfIntersectionSorter.SUPPLIER, node, topologyService, time, new DefaultTimeouts(time))
+                this.topology = new TopologyManager(SizeOfIntersectionSorter.SUPPLIER, node, topologyService, time, new DefaultTimeouts(time, ImmediateExecutor.INSTANCE))
                 {
                     @Override
                     protected EpochReady bootstrap(Supplier<EpochReady> bootstrap)
@@ -715,7 +716,7 @@ public class EpochSyncTest
                     case Registered:
                         Invariants.require(!t.nodes().contains(id), "Node was in Init state but present in the Topology!");
                         Invariants.require(current.directory.peerId(address(id)) != null, "Node exists but not in TCM");
-                        if (current.placements.get(replication_params).writes.byEndpoint().keySet().contains(address(id)))
+                        if (current.placement(replication_params).writes.byEndpoint().keySet().contains(address(id)))
                             status = Status.Joining;
                         break;
                     case Joining:

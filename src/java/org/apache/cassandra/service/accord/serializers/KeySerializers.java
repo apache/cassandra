@@ -914,7 +914,7 @@ public class KeySerializers
         @Override
         final int serializedSizeWithoutPrefix(RoutingKey routable)
         {
-            return routingKey.serializedSizeWithoutPrefix(routable);
+            return routingKey.serializedSizeWithoutPrefixOrLength(routable);
         }
 
         @Override
@@ -1067,8 +1067,8 @@ public class KeySerializers
         @Override
         final int serializedSizeWithoutPrefix(Range range)
         {
-            return routingKey.serializedSizeWithoutPrefix(range.start())
-                   + routingKey.serializedSizeWithoutPrefix(range.end());
+            return routingKey.serializedSizeWithoutPrefixOrLength(range.start())
+                   + routingKey.serializedSizeWithoutPrefixOrLength(range.end());
         }
 
         @Override
@@ -1085,9 +1085,9 @@ public class KeySerializers
             for (int i = startIndex; i < endIndex; ++i)
             {
                 Range r = ranges[i];
-                endOffset += routingKey.serializedSizeWithoutPrefix(r.start());
+                endOffset += routingKey.serializedSizeWithoutPrefixOrLength(r.start());
                 out.writeInt(endOffset);
-                endOffset += routingKey.serializedSizeWithoutPrefix(r.end());
+                endOffset += routingKey.serializedSizeWithoutPrefixOrLength(r.end());
                 out.writeInt(endOffset);
             }
         }

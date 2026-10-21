@@ -107,7 +107,7 @@ public class BurnTestKeySerializers
         }
 
         @Override
-        public int serializedSizeWithoutPrefix(PrefixedIntHashKey key)
+        public int serializedSizeWithoutPrefixOrLength(PrefixedIntHashKey key)
         {
             return 8;
         }
@@ -181,7 +181,7 @@ public class BurnTestKeySerializers
         }
 
         @Override
-        public int serializedSizeWithoutPrefix(PrefixedIntHashKey.Hash key)
+        public int serializedSizeWithoutPrefixOrLength(PrefixedIntHashKey.Hash key)
         {
             return 4;
         }

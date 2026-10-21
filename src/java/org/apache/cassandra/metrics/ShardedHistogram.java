@@ -139,4 +139,20 @@ public class ShardedHistogram extends OverrideHistogram
     {
         return isCumulative;
     }
+
+    public void clear()
+    {
+        for (HistogramShard shard : shards)
+        {
+            shard.lock.lock();
+            try
+            {
+                shard.histogram.clear();
+            }
+            finally
+            {
+                shard.lock.unlock();
+            }
+        }
+    }
 }

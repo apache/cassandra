@@ -401,9 +401,12 @@ public class ActionSchedule implements CloseableIterator<Object>, LongConsumer
                 advance(scheduled.poll());
         }
 
-        Action perform = runnable.poll();
+        Action perform = runnableByDeadline.peek();
         if (perform == null)
             throw new NoSuchElementException();
+
+        if (perform.deadline() < now - currentJitter) runnable.remove(perform);
+        else perform = runnable.poll();
 
         if (!runnableByDeadline.remove(perform) && perform.deadline() > 0)
             throw new IllegalStateException();

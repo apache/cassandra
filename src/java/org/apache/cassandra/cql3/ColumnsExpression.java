@@ -356,9 +356,9 @@ public final class ColumnsExpression
      * Returns the key, index or fieldname specifying the selected element.
      * @return the key, index or fieldname specifying the selected element.
      */
-    public ByteBuffer element(QueryOptions options)
+    public ByteBuffer element(FunctionContext context)
     {
-        return element.bindAndGet(options);
+        return element.bindAndGet(context);
     }
 
     /**
@@ -386,10 +386,10 @@ public final class ColumnsExpression
      * @param boundNames the variables specification where to collect the
      * bind variables of the map key/collection element in.
      */
-    public void collectMarkerSpecification(VariableSpecifications boundNames)
+    public void collectMarkerSpecification(VariableSpecifications boundNames, Object owner)
     {
         if (element != null)
-            element.collectMarkerSpecification(boundNames);
+            element.collectMarkerSpecification(boundNames, owner);
     }
 
     /**

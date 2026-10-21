@@ -30,6 +30,7 @@ import accord.impl.CommandChange;
 import accord.local.Command;
 import accord.local.RedundantBefore;
 import accord.primitives.SaveStatus;
+import accord.primitives.Status;
 import accord.primitives.TxnId;
 import accord.utils.Gen;
 import accord.utils.LazyToString;
@@ -42,6 +43,8 @@ import org.apache.cassandra.schema.KeyspaceParams;
 import org.apache.cassandra.schema.Schema;
 import org.apache.cassandra.schema.TableMetadata;
 import org.apache.cassandra.service.StorageService;
+import org.apache.cassandra.service.accord.journal.CommandChangeWriter;
+import org.apache.cassandra.service.accord.journal.CommandChanges;
 import org.apache.cassandra.service.accord.serializers.Version;
 import org.apache.cassandra.service.consensus.TransactionalMode;
 import org.apache.cassandra.utils.AccordGenerators;
@@ -106,11 +109,17 @@ public class CommandChangeTest
                         SoftAssertions checks = new SoftAssertions();
                         for (SaveStatus saveStatus : SaveStatus.values())
                         {
+                            if (cmdBuilder.txnId.awaitsOnlyDeps() && saveStatus.is(Status.Truncated))
+                                continue;
+
                             out.clear();
                             Command orig = cmdBuilder.build(saveStatus);
+                            CommandChangeWriter writer = CommandChangeWriter.make(null, orig);
+                            if (writer == null)
+                                continue;
 
-                            AccordJournal.Writer.make(null, orig).write(out, version);
-                            AccordJournal.Builder builder = new AccordJournal.Builder(orig.txnId(), Load.ALL);
+                            writer.write(out, version);
+                            CommandChanges builder = new CommandChanges(orig.txnId(), Load.ALL);
                             builder.deserializeNext(new DataInputBuffer(out.unsafeGetBufferAndFlip(), false), version);
                             // We are not persisting the result, so force it for strict equality
                             builder.forceResult(orig.result());

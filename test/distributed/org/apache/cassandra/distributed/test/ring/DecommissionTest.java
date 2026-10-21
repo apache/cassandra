@@ -19,12 +19,17 @@
 package org.apache.cassandra.distributed.test.ring;
 
 import java.io.IOException;
+import java.nio.ByteBuffer;
+import java.util.Arrays;
 import java.util.HashSet;
+import java.util.List;
 import java.util.Set;
 import java.util.concurrent.Callable;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.TimeoutException;
 import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.stream.Collectors;
 
 import javax.annotation.Nullable;
 
@@ -39,6 +44,7 @@ import org.junit.Test;
 
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.cql3.QueryProcessor;
+import org.apache.cassandra.dht.Murmur3Partitioner;
 import org.apache.cassandra.distributed.Cluster;
 import org.apache.cassandra.distributed.Constants;
 import org.apache.cassandra.distributed.api.ConsistencyLevel;
@@ -53,15 +59,22 @@ import org.apache.cassandra.service.StorageService;
 import org.apache.cassandra.streaming.StreamSession;
 import org.apache.cassandra.tcm.ClusterMetadata;
 import org.apache.cassandra.tcm.ClusterMetadataService;
+import org.apache.cassandra.tcm.Epoch;
 import org.apache.cassandra.tcm.membership.NodeId;
 import org.apache.cassandra.tcm.membership.NodeVersion;
+import org.apache.cassandra.tcm.transformations.PrepareLeave;
 import org.apache.cassandra.tcm.transformations.Startup;
 import org.apache.cassandra.utils.CassandraVersion;
 import org.apache.cassandra.utils.FBUtilities;
+import org.apache.cassandra.utils.concurrent.Future;
+import org.apache.cassandra.utils.concurrent.ImmediateFuture;
 
 import static net.bytebuddy.matcher.ElementMatchers.named;
+import static org.apache.cassandra.db.SystemKeyspace.TRANSFERRED_RANGES_V2;
 import static org.apache.cassandra.distributed.api.Feature.GOSSIP;
 import static org.apache.cassandra.distributed.api.Feature.NETWORK;
+import static org.apache.cassandra.distributed.shared.ClusterUtils.pauseBeforeCommit;
+import static org.apache.cassandra.distributed.shared.ClusterUtils.unpauseCommits;
 import static org.apache.cassandra.distributed.shared.NetworkTopology.dcAndRack;
 import static org.apache.cassandra.distributed.shared.NetworkTopology.networkTopology;
 import static org.apache.cassandra.distributed.test.ring.BootstrapTest.populate;
@@ -81,6 +94,75 @@ public class DecommissionTest extends TestBaseImpl
             populate(cluster, 0, 100, 1, 2, ConsistencyLevel.QUORUM);
             cluster.get(2).nodetoolResult("decommission", "--force").asserts().failure();
             cluster.get(2).nodetoolResult("decommission", "--force").asserts().success();
+        }
+    }
+
+    @Test
+    public void testOperationModeOnDecomResume() throws Exception
+    {
+        // Node 2's first decomission attempt fails mid-stream (injected by BB), leaving it in
+        // DECOMISSION_FAILED. On resume, operationMode() must transition back to LEAVING before
+        // MID_LEAVE is committed. We pause the CMS just before that commit to assert the mode
+        // in the window where streaming has finished but the epoch has not yet advanced.
+        try (Cluster cluster = builder().withNodes(3)
+                                        .withConfig(config -> config.with(NETWORK, GOSSIP))
+                                        .withInstanceInitializer(BB::install)
+                                        .start())
+        {
+            populate(cluster, 0, 100, 1, 2, ConsistencyLevel.QUORUM);
+
+            IInvokableInstance cmsNode = cluster.get(1);
+            IInvokableInstance leavingNode = cluster.get(2);
+
+            // --force required: system_distributed keyspace has RF=3, decommission would fail replication check otherwise
+            leavingNode.nodetoolResult("decommission", "--force").asserts().failure();
+            leavingNode.runOnInstance(() -> assertEquals(StorageService.Mode.DECOMMISSION_FAILED, StorageService.instance.operationMode()));
+
+            Callable<Epoch> midLeavePaused = pauseBeforeCommit(cmsNode, e -> e instanceof PrepareLeave.MidLeave);
+
+            Thread resumeThread = new Thread(() -> leavingNode.nodetoolResult("decommission").asserts().success());
+            resumeThread.start();
+            midLeavePaused.call();
+
+            leavingNode.runOnInstance(() ->
+                assertEquals("operationMode during resumed decommission streaming should be LEAVING, not DECOMMISSION_FAILED",
+                             StorageService.Mode.LEAVING,
+                             StorageService.instance.operationMode()));
+
+            unpauseCommits(cmsNode);
+            resumeThread.join(TimeUnit.MINUTES.toMillis(2));
+        }
+    }
+
+    @Test
+    public void testOperationModeOnFreshDecomAfterRejectedAttempt() throws Exception
+    {
+        try (Cluster cluster = builder().withNodes(3)
+                                        .withConfig(config -> config.with(NETWORK, GOSSIP))
+                                        .start())
+        {
+            populate(cluster, 0, 100, 1, 2, ConsistencyLevel.QUORUM);
+
+            IInvokableInstance cmsNode = cluster.get(1);
+            IInvokableInstance leavingNode = cluster.get(2);
+
+            leavingNode.nodetoolResult("decommission").asserts().failure();
+            leavingNode.runOnInstance(() -> assertEquals(StorageService.Mode.DECOMMISSION_FAILED,
+                                                         StorageService.instance.operationMode()));
+
+            Callable<Epoch> midLeavePaused = pauseBeforeCommit(cmsNode, e -> e instanceof PrepareLeave.MidLeave);
+
+            Thread decomThread = new Thread(() -> leavingNode.nodetoolResult("decommission", "--force").asserts().success());
+            decomThread.start();
+            midLeavePaused.call();
+
+            leavingNode.runOnInstance(() ->
+                assertEquals("operationMode during re-decommission after rejected attempt should be LEAVING, not DECOMMISSION_FAILED",
+                             StorageService.Mode.LEAVING,
+                             StorageService.instance.operationMode()));
+
+            unpauseCommits(cmsNode);
+            decomThread.join(TimeUnit.MINUTES.toMillis(2));
         }
     }
 
@@ -125,8 +207,72 @@ public class DecommissionTest extends TestBaseImpl
         }
     }
 
+    @Test
+    public void testAbortingDecommissionRestreams() throws Exception
+    {
+        // https://issues.apache.org/jira/browse/CASSANDRA-16290
+        // We demonstrate here that decommissioning and then aborting decommission is unsafe
+        // if we've persisted transferred ranges and then skip them for something which was delivered after we aborted the decommission but before we resumed
+        try (Cluster cluster = builder().withNodes(4)
+                                        .withConfig(config -> config.with(NETWORK, GOSSIP)
+                                                                    // disable hints to simplify test
+                                                                    .set("hinted_handoff_enabled", false)
+                                        )
+                                        .withInstanceInitializer(BB::streamHintsInstall)
+                                        .start())
+        {
+            // We need blob columns here so later we can do Murmur3Partitioner.LongToken.keyForToken(token);
+            populate(cluster, 0, 100, 1, 2, ConsistencyLevel.QUORUM, "pk blob, ck blob, v blob");
+
+            IInvokableInstance leavingNode = cluster.get(2);
+
+            leavingNode.nodetoolResult("decommission").asserts().failure();
+            leavingNode.runOnInstance(() -> assertEquals(StorageService.Mode.DECOMMISSION_FAILED, StorageService.instance.operationMode()));
+
+            // abort the decommission
+            leavingNode.nodetoolResult("abortdecommission").asserts().success();
+
+            // Stop the non leaving nodes so we can write at ONE and fail to stream that datum
+            ClusterUtils.stopUnchecked(cluster.get(1));
+            ClusterUtils.stopUnchecked(cluster.get(3));
+            ClusterUtils.stopUnchecked(cluster.get(4));
+
+            List<Murmur3Partitioner.LongToken> tokens = ClusterUtils.getLocalTokens(leavingNode).stream().map(t -> new Murmur3Partitioner.LongToken(Long.parseLong(t))).collect(Collectors.toList());
+            for (Murmur3Partitioner.LongToken token : tokens)
+            {
+                ByteBuffer key = Murmur3Partitioner.LongToken.keyForToken(token);
+                leavingNode.coordinator().execute("INSERT INTO " + KEYSPACE + ".tbl (pk, ck, v) VALUES (?, ?, ?)", ConsistencyLevel.ONE, key, key, key);
+            }
+
+            ClusterUtils.start(cluster.get(1), props -> {});
+            ClusterUtils.start(cluster.get(3), props -> {});
+            ClusterUtils.start(cluster.get(4), props -> {});
+
+            ClusterUtils.awaitRingHealthy(leavingNode);
+            ClusterUtils.waitForCMSToQuiesce(cluster, cluster.get(1));
+
+            Object[][] ranges = leavingNode.executeInternal("SELECT keyspace_name from system." + TRANSFERRED_RANGES_V2);
+
+            assertTrue("transferred ranges missing entirely", ranges.length > 0);
+            assertTrue("transferred ranges present for keyspace", Arrays.stream(ranges).anyMatch(x -> x[0].equals(KEYSPACE)));
+
+            // Resume decomm
+            leavingNode.nodetoolResult("decommission").asserts().success();
+
+            // Try and read data we wrote at ONE at ALL
+            for (Murmur3Partitioner.LongToken token : tokens)
+            {
+                ByteBuffer key = Murmur3Partitioner.LongToken.keyForToken(token);
+                Object[][] resp = cluster.get(1).coordinator().execute("SELECT pk from " + KEYSPACE + ".tbl where pk=?", ConsistencyLevel.ALL, key);
+                assertTrue("We should get a response for this key we wrote it at ONE", resp.length > 0);
+                assertEquals(key, resp[0][0]);
+            }
+        }
+    }
+
     public static class BB
     {
+
         static void install(ClassLoader cl, int nodeNumber)
         {
             if (nodeNumber != 2)
@@ -137,7 +283,29 @@ public class DecommissionTest extends TestBaseImpl
                            .make()
                            .load(cl, ClassLoadingStrategy.Default.INJECTION);
         }
+
+        static void streamHintsInstall(ClassLoader cl, int nodeNumber)
+        {
+            if (nodeNumber != 2)
+                return;
+            new ByteBuddy().rebase(StorageService.class)
+                           .method(named("streamHints"))
+                           .intercept(MethodDelegation.to(BB.class))
+                           .make()
+                           .load(cl, ClassLoadingStrategy.Default.INJECTION);
+        }
+
         static AtomicBoolean first = new AtomicBoolean();
+
+        public static Future<?> streamHints(@SuperCall Callable<Future<?>> zuper) throws Exception
+        {
+            if (!first.get())
+            {
+                first.set(true);
+                return ImmediateFuture.failure(new IOException("failing hints so that decomm fails at last moment possible" ));
+            }
+            return zuper.call();
+        }
 
         public static void startStreamingFiles(@Nullable StreamSession.PrepareDirection prepareDirection, @SuperCall Callable<Void> zuper) throws Exception
         {
@@ -245,7 +413,7 @@ public class DecommissionTest extends TestBaseImpl
                                         .start())
         {
             populate(cluster, 0, 100, 1, 2, ConsistencyLevel.QUORUM);
-            cluster.get(3).nodetoolResult("decommission", "--force").asserts().success();
+            cluster.get(3).nodetoolResult("decommission").asserts().success();
 
             int[] remainingNodes = {1, 2, 4};
             Set<String> expectedPeers = new HashSet<>();
@@ -268,6 +436,21 @@ public class DecommissionTest extends TestBaseImpl
                     }
                 });
             }
+        }
+    }
+
+    @Test
+    public void testDontReplicateToLeftNodes() throws IOException, TimeoutException
+    {
+        try (Cluster cluster = init(builder().withNodes(3)
+                                        .withConfig(config -> config.with(NETWORK, GOSSIP))
+                                        .start()))
+        {
+            cluster.get(2).nodetoolResult("decommission", "--force").asserts().success();
+            long mark = cluster.get(1).logs().mark();
+            cluster.coordinator(1).execute(withKeyspace("create table %s.tbl (id int primary key)"), ConsistencyLevel.ONE);
+            cluster.get(3).logs().watchFor("Enacted.*CreateTableStatement.*tbl");
+            assertTrue(cluster.get(1).logs().grep(mark, "Replicating newly committed transformations up to.*127.0.0.2.*").getResult().isEmpty());
         }
     }
 

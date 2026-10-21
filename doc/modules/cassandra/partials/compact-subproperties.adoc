@@ -108,7 +108,7 @@ Default: `32`
 The compaction class `SizeTieredCompactionStrategy` (STCS) triggers a minor compaction when table meets the `min_threshold`.
 Minor compactions do not involve all the tables in a keyspace.
 See
-xref:operating/compaction/stcs.adoc#stcs_options[SizeTieredCompactionStrategy (STCS)].
+xref:cassandra:managing/operating/compaction/stcs.adoc#stcs_options[SizeTieredCompactionStrategy (STCS)].
 
 [NOTE]
 ====
@@ -151,7 +151,7 @@ Default: `50` (MB)
 [NOTE]
 ====
 The `cold_reads_to_omit` property for
-xref:operating/compaction/stcs.adoc#stcs_options[SizeTieredCompactionStrategy (STCS)] is no longer supported.
+xref:cassandra:managing/operating/compaction/stcs.adoc#stcs_options[SizeTieredCompactionStrategy (STCS)] is no longer supported.
 ====
 
 [[TWCS]]
@@ -162,7 +162,7 @@ TWCS creates a new time window within each successive time period.
 During the active time window, TWCS compacts all SSTables flushed from memory into larger SSTables using STCS.
 At the end of the time period, all of these SSTables are compacted into a single SSTable.
 Then the next time window starts and the process repeats.
-See xref:operating/compaction/twcs.adoc#twcs_options[TimeWindowCompactionStrategy (TWCS)].
+See xref:cassandra:managing/operating/compaction/twcs.adoc#twcs_options[TimeWindowCompactionStrategy (TWCS)].
 
 [NOTE]
 ====
@@ -228,7 +228,7 @@ Default: `160`
 ====
 The default value, 160 MB, may be inefficient and negatively impact database indexing and the queries that rely on indexes.
 For example, consider the benefit of using higher values for sstable_size_in_mb in tables that use (SAI) indexes.
-For related information, see xref:developing/cql/indexing/sai/configuring.adoc#saiConfigure__saiCompactionStrategies[Compaction strategies].
+For related information, see xref:cassandra:developing/cql/indexing/sai/operations/configuring.adoc#saiConfigure__saiCompactionStrategies[Compaction strategies].
 ====
 
 ==== DateTieredCompactionStrategy (deprecated)

@@ -176,6 +176,13 @@ public class TrieMemtable extends AbstractShardedMemtable
         }
     }
 
+    @Override
+    public boolean limitsConcurrentWritesTo(int maxWriters)
+    {
+        // each shard applies one update at a time under its write lock
+        return boundaries.shardCount() <= maxWriters;
+    }
+
     /**
      * Should only be called by ColumnFamilyStore.apply via Keyspace.apply, which supplies the appropriate
      * OpOrdering.
@@ -573,8 +580,8 @@ public class TrieMemtable extends AbstractShardedMemtable
                                       update,
                                       updater::mergePartitions,
                                       key.getKeyLength() < MAX_RECURSIVE_KEY_LENGTH);
-                    allocator.offHeap().adjust(data.sizeOffHeap() - offHeap, opGroup);
-                    allocator.onHeap().adjust(data.sizeOnHeap() - onHeap, opGroup);
+                    allocator.offHeap().adjust(data.sizeOffHeap() - offHeap);
+                    allocator.onHeap().adjust(data.sizeOnHeap() - onHeap);
                 }
                 finally
                 {

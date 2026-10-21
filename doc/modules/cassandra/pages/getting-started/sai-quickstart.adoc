@@ -40,6 +40,8 @@ Use xref:reference/cql-commands/create-custom-index.adoc[CREATE CUSTOM INDEX] co
 include::cassandra:example$CQL/sai/cyclist_semi_pro_sai_indices.cql[tag=createQuickStartIndices]
 ----
 
+include::cassandra:partial$index-naming.adoc[]
+
 Let's take a look at the description of the table and its indexes:
 [tabs]
 ====

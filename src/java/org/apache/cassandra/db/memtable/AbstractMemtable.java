@@ -26,7 +26,7 @@ import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.AtomicReference;
-import java.util.function.Consumer;
+import java.util.function.BiConsumer;
 import java.util.function.Supplier;
 
 import com.google.common.annotations.VisibleForTesting;
@@ -43,6 +43,8 @@ import org.apache.cassandra.schema.ColumnMetadata;
 import org.apache.cassandra.schema.TableMetadata;
 import org.apache.cassandra.schema.TableMetadataRef;
 
+import static org.apache.cassandra.utils.Clock.Global.nanoTime;
+
 public abstract class AbstractMemtable implements Memtable
 {
     private static final AtomicLong nextId = new AtomicLong();
@@ -55,8 +57,8 @@ public abstract class AbstractMemtable implements Memtable
     protected AtomicLong minTimestamp = new AtomicLong(Long.MAX_VALUE);
     // The smallest local deletion time for all partitions in this memtable
     protected AtomicLong minLocalDeletionTime = new AtomicLong(Long.MAX_VALUE);
-    private final long id = nextId.incrementAndGet();
-    private Map<Object, Consumer<TableMetadata>> onFlush = ImmutableMap.of();
+    private final long id = nextId.accumulateAndGet(nanoTime(), (a, b) -> a >= b ? a + 1 : b);
+    private volatile Map<Object, BiConsumer<Long, TableMetadata>> onFlush = ImmutableMap.of();
     // Note: statsCollector has corresponding statistics to the two above, but starts with an epoch value which is not
     // correct for their usage.
 
@@ -154,7 +156,7 @@ public abstract class AbstractMemtable implements Memtable
     }
 
     @Override
-    public synchronized <T extends Consumer<TableMetadata>> T ensureFlushListener(Object key, Supplier<T> factory)
+    public synchronized <T extends BiConsumer<Long, TableMetadata>> T ensureFlushListener(Object key, Supplier<T> factory)
     {
         if (onFlush == null)
             return null;
@@ -163,7 +165,7 @@ public abstract class AbstractMemtable implements Memtable
         if (null == listener)
         {
             listener = factory.get();
-            onFlush = ImmutableMap.<Object, Consumer<TableMetadata>>builder()
+            onFlush = ImmutableMap.<Object, BiConsumer<Long, TableMetadata>>builder()
                                   .putAll(onFlush)
                                   .put(key, listener)
                                   .build();
@@ -171,15 +173,26 @@ public abstract class AbstractMemtable implements Memtable
         return listener;
     }
 
+    public boolean hasFlushListener()
+    {
+        Map<?, ?> listeners = onFlush;
+        return listeners != null && !listeners.isEmpty();
+    }
+
     public void notifyFlushed()
     {
-        Collection<Consumer<TableMetadata>> run;
+        Collection<BiConsumer<Long, TableMetadata>> run;
         synchronized (this)
         {
             run = onFlush.values();
             onFlush = null;
         }
-        run.forEach(c -> c.accept(metadata()));
+        run.forEach(c -> c.accept(id, metadata()));
+    }
+
+    public long createdAtNanos()
+    {
+        return id;
     }
 
     protected static class ColumnsCollector

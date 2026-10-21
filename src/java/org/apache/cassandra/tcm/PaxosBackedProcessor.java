@@ -64,6 +64,12 @@ public class PaxosBackedProcessor extends AbstractLocalProcessor
     }
 
     @Override
+    protected boolean acceptCommit(ClusterMetadata metadata)
+    {
+        return metadata.isCMSMember();
+    }
+
+    @Override
     protected boolean tryCommitOne(Entry.Id entryId, Transformation transform, Epoch previousEpoch, Epoch nextEpoch)
     {
         return tryCommit(entryId, transform, previousEpoch, nextEpoch);
@@ -106,7 +112,7 @@ public class PaxosBackedProcessor extends AbstractLocalProcessor
         for (Replica peer : replicas)
             requests.add(new FetchLogRequest(peer, MessagingService.instance(), metadata.epoch));
 
-        while (!retryPolicy.hasExpired())
+        while (!retryPolicy.hasExpired() && !log.isClosed())
         {
             Iterator<FetchLogRequest> iter = requests.iterator();
             boolean hasRequestToSelf = false;
@@ -213,6 +219,15 @@ public class PaxosBackedProcessor extends AbstractLocalProcessor
         {
             condition = new AsyncPromise<>();
             messagingService.sendWithCallback(Message.out(Verb.TCM_FETCH_CMS_LOG_REQ, request), to.endpoint(), this);
+        }
+
+        @Override
+        public String toString()
+        {
+            return "FetchLogRequest{" +
+                   "to=" + to.endpoint() +
+                   ", request=" + request +
+                   '}';
         }
     }
 

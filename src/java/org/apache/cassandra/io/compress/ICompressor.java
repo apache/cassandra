@@ -88,4 +88,19 @@ public interface ICompressor
     {
         return ImmutableSet.copyOf(EnumSet.allOf(Uses.class));
     }
+
+    /**
+     * Compressor class recorded in the table schema and SSTable compression metadata for
+     * compressors built by this instance. Plugin wrappers should override this to return the
+     * built-in they substitute for, so schema and on-disk format stay portable to peers and
+     * restarts without the plugin.
+     * <p>
+     * Contract: the returned class must (a) live in {@code org.apache.cassandra.io.compress}.
+     * Serializers write only its simple name; deserialization prepends that package.
+     * (b) have a non-empty simple name (no anonymous/synthetic classes).
+     */
+    default Class<? extends ICompressor> serializedAs()
+    {
+        return getClass();
+    }
 }

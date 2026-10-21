@@ -39,6 +39,7 @@ import org.apache.cassandra.exceptions.SyntaxException;
 import org.apache.cassandra.serializers.MarshalException;
 import org.apache.cassandra.serializers.SetSerializer;
 import org.apache.cassandra.transport.ProtocolVersion;
+import org.apache.cassandra.utils.ByteBufferUtil;
 import org.apache.cassandra.utils.JsonUtils;
 import org.apache.cassandra.utils.bytecomparable.ByteComparable;
 import org.apache.cassandra.utils.bytecomparable.ByteSource;
@@ -210,6 +211,14 @@ public class SetType<T> extends CollectionType<Set<T>>
         List<ByteBuffer> bbs = new ArrayList<>();
         while (cells.hasNext())
             bbs.add(cells.next().path().get(0));
+        return bbs;
+    }
+
+    public List<byte[]> serializedValuesAsByteArrays(Iterator<Cell<?>> cells)
+    {
+        List<byte[]> bbs = new ArrayList<>();
+        while (cells.hasNext())
+            bbs.add(ByteBufferUtil.getArrayUnsafeNullable(cells.next().path().get(0)));
         return bbs;
     }
 

@@ -28,8 +28,7 @@ import org.apache.cassandra.schema.DistributedMetadataLogKeyspace;
 import org.apache.cassandra.schema.DistributedSchema;
 import org.apache.cassandra.schema.KeyspaceMetadata;
 import org.apache.cassandra.schema.Keyspaces;
-import org.apache.cassandra.service.accord.AccordFastPath;
-import org.apache.cassandra.service.accord.AccordStaleReplicas;
+import org.apache.cassandra.service.accord.topology.AccordNodeInfos;
 import org.apache.cassandra.service.consensus.migration.ConsensusMigrationState;
 import org.apache.cassandra.tcm.Commit.Replicator;
 import org.apache.cassandra.tcm.log.Entry;
@@ -179,12 +178,12 @@ public class StubClusterMetadataService extends ClusterMetadataService
                                               Directory.EMPTY,
                                               new TokenMap(partitioner),
                                               DataPlacements.EMPTY,
-                                              AccordFastPath.EMPTY,
+                                              AccordNodeInfos.EMPTY,
                                               LockedRanges.EMPTY,
                                               InProgressSequences.EMPTY,
                                               ConsensusMigrationState.EMPTY,
                                               ImmutableMap.of(),
-                                              AccordStaleReplicas.EMPTY);
+                                              CMSMembership.EMPTY);
             }
             return new StubClusterMetadataService(new UniformRangePlacement(),
                                                   snapshots != null ? snapshots : MetadataSnapshots.NO_OP,

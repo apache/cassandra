@@ -21,6 +21,8 @@ import java.util.Comparator;
 import java.util.Iterator;
 import java.util.List;
 
+import net.nicoulaj.compilecommand.annotations.DontInline;
+
 import accord.utils.Invariants;
 
 /** Merges sorted input iterators which individually contain unique items. */
@@ -149,6 +151,8 @@ public abstract class MergeIterator<In,Out> extends AbstractIterator<Out> implem
     {
         protected final Candidate<In>[] heap;
 
+        private final Comparator<? super In> comp;
+
         /** Number of non-exhausted iterators. */
         int size;
 
@@ -174,9 +178,10 @@ public abstract class MergeIterator<In,Out> extends AbstractIterator<Out> implem
             this.heap = heap;
             size = 0;
 
+            this.comp = comp;
             for (int i = 0; i < iters.size(); i++)
             {
-                Candidate<In> candidate = new Candidate<>(i, iters.get(i), comp);
+                Candidate<In> candidate = new Candidate<>(i, iters.get(i));
                 heap[size++] = candidate;
             }
             needingAdvance = size;
@@ -292,7 +297,7 @@ public abstract class MergeIterator<In,Out> extends AbstractIterator<Out> implem
             {
                 if (!heap[nextIdx].equalParent) // if we were greater then an (or were the) equal parent, we are >= the child
                 {
-                    int cmp = candidate.compareTo(heap[nextIdx]);
+                    int cmp = candidate.compareTo(heap[nextIdx], comp);
                     if (cmp <= 0)
                     {
                         heap[nextIdx].equalParent = cmp == 0;
@@ -304,9 +309,36 @@ public abstract class MergeIterator<In,Out> extends AbstractIterator<Out> implem
                 heap[currIdx] = heap[nextIdx];
                 currIdx = nextIdx;
             }
+            // If the candidate has no children in the binary-heap section it is already in its final position, so we can
+            // skip the (rarely needed) sink below. nextIdx is the candidate's left child; anything >= size means there
+            // are no children. The single-child (nextIdx == size - 1) and two-children cases still have to go through
+            // sinkInBinaryHeap, which compares against the child(ren) and may swap or update the equalParent flag.
+            nextIdx = (currIdx * 2) - (sortedSectionSize - 1);
+            if (nextIdx >= size)
+            {
+                heap[currIdx] = candidate;
+                return;
+            }
+            // The candidate did not settle within the sorted section; sink it through the binary-heap section. This is
+            // rarely reached for typical narrow, lightly-overlapping merges, so it is split into its own method to keep
+            // the hot sorted-section path above small enough to be inlined into advance().
+            sinkInBinaryHeap(candidate, currIdx, size, sortedSectionSize);
+        }
+
+        /**
+         * Sink {@code candidate} down the binary-heap section of the queue (the part below the sorted section), pulling
+         * up the lighter child at each level, and place it in its final position.
+         *
+         * Split out of {@link #replaceAndSink} so that the common case, where the candidate settles within the sorted
+         * section, stays compact and inlinable.
+         */
+        @DontInline
+        private void sinkInBinaryHeap(Candidate<In> candidate, int currIdx, final int size, final int sortedSectionSize)
+        {
             // If size <= SORTED_SECTION_SIZE, nextIdx below will be no less than size,
             // because currIdx == sortedSectionSize == size - 1 and nextIdx becomes
             // (size - 1) * 2) - (size - 1 - 1) == size.
+            int nextIdx;
 
             // Advance in the binary heap, pulling up the lighter element from the two at each level.
             while ((nextIdx = (currIdx * 2) - (sortedSectionSize - 1)) + 1 < size)
@@ -316,12 +348,12 @@ public abstract class MergeIterator<In,Out> extends AbstractIterator<Out> implem
                     if (!heap[nextIdx + 1].equalParent)
                     {
                         // pick the smallest of the two children
-                        int siblingCmp = heap[nextIdx + 1].compareTo(heap[nextIdx]);
+                        int siblingCmp = heap[nextIdx + 1].compareTo(heap[nextIdx], comp);
                         if (siblingCmp < 0)
                             ++nextIdx;
 
                         // if we're smaller than this, we are done, and must only restore the heap and equalParent properties
-                        int cmp = candidate.compareTo(heap[nextIdx]);
+                        int cmp = candidate.compareTo(heap[nextIdx], comp);
                         if (cmp <= 0)
                         {
                             if (cmp == 0)
@@ -362,7 +394,7 @@ public abstract class MergeIterator<In,Out> extends AbstractIterator<Out> implem
             // ... but sometimes we will have one last child to compare against, that has no siblings
             if (!heap[nextIdx].equalParent)
             {
-                int cmp = candidate.compareTo(heap[nextIdx]);
+                int cmp = candidate.compareTo(heap[nextIdx], comp);
                 if (cmp <= 0)
                 {
                     heap[nextIdx].equalParent = cmp == 0;
@@ -377,19 +409,17 @@ public abstract class MergeIterator<In,Out> extends AbstractIterator<Out> implem
     }
 
     // Holds and is comparable by the head item of an iterator it owns
-    protected static final class Candidate<In> implements Comparable<Candidate<In>>
+    protected static final class Candidate<In>
     {
         private final Iterator<? extends In> iter;
-        private final Comparator<? super In> comp;
         private final int idx;
         private In item;
         private In lowerBound;
         boolean equalParent;
 
-        public Candidate(int idx, Iterator<? extends In> iter, Comparator<? super In> comp)
+        public Candidate(int idx, Iterator<? extends In> iter)
         {
             this.iter = iter;
-            this.comp = comp;
             this.idx = idx;
             this.lowerBound = iter instanceof IteratorWithLowerBound ? ((IteratorWithLowerBound<In>)iter).lowerBound() : null;
         }
@@ -410,7 +440,7 @@ public abstract class MergeIterator<In,Out> extends AbstractIterator<Out> implem
             return this;
         }
 
-        public int compareTo(Candidate<In> that)
+        int compareTo(Candidate<In> that, Comparator<? super In> comp)
         {
             assert this.item != null && that.item != null;
             int ret = comp.compare(this.item, that.item);

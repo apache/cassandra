@@ -19,8 +19,8 @@
 package org.apache.cassandra.distributed.test;
 
 import java.io.IOException;
-import java.util.List;
 
+import org.assertj.core.api.ListAssert;
 import org.junit.AfterClass;
 import org.junit.BeforeClass;
 import org.junit.Test;
@@ -37,6 +37,7 @@ import static org.apache.cassandra.config.ReplicaFilteringProtectionOptions.DEFA
 import static org.apache.cassandra.distributed.api.ConsistencyLevel.ALL;
 import static org.apache.cassandra.distributed.shared.AssertUtils.assertRows;
 import static org.apache.cassandra.distributed.shared.AssertUtils.row;
+import static org.assertj.core.api.Assertions.assertThat;
 import static org.junit.Assert.assertEquals;
 
 /**
@@ -112,7 +113,122 @@ public class ReplicaFilteringProtectionTest extends TestBaseImpl
         catch (RuntimeException e)
         {
             assertEquals(e.getClass().getName(), OverloadedException.class.getName());
+            assertThat(e).hasMessageContaining("has cached " + REPLICAS * ROWS_PER_PARTITION + " rows")
+                         .hasMessageContaining("cached_replica_rows_fail_threshold");
         }
+    }
+
+    @Test
+    public void testRangeTombstoneAcrossPages()
+    {
+        String table = createRangeTombstoneTable("rt_across_pages");
+
+        // Node 2 has stale matches at c = 0 and c = 5. Node 1 overwrites c = 0 and deletes c = 5 with a range
+        // tombstone that also covers newer live matches at c = 1 and c = 7.
+        write(2, "INSERT INTO %s (k, c, v) VALUES (0, 0, 1) USING TIMESTAMP 1", table);
+        write(2, "INSERT INTO %s (k, c, v) VALUES (0, 5, 1) USING TIMESTAMP 1", table);
+        write(1, "INSERT INTO %s (k, c, v) VALUES (0, 0, 0) USING TIMESTAMP 2", table);
+        write(1, "DELETE FROM %s USING TIMESTAMP 2 WHERE k = 0 AND c > 0 AND c <= 10", table);
+        write(1, "INSERT INTO %s (k, c, v) VALUES (0, 1, 1) USING TIMESTAMP 3", table);
+        write(1, "INSERT INTO %s (k, c, v) VALUES (0, 7, 1) USING TIMESTAMP 3", table);
+
+        // Replica filtering protection's first page of LIMIT rows ends at c = 1, inside the range tombstone, then drops
+        // c = 0. The next page, ending at c = 7, must still see the range tombstone that deletes c = 5.
+        assertRows(cluster.coordinator(1).execute("SELECT c FROM " + table + " WHERE k = 0 AND v = 1 LIMIT 2 ALLOW FILTERING", ALL),
+                   row(1), row(7));
+    }
+
+    @Test
+    public void testRangeTombstoneAcrossPagesReversed()
+    {
+        String table = createRangeTombstoneTable("rt_across_pages_reversed");
+
+        write(2, "INSERT INTO %s (k, c, v) VALUES (0, 10, 1) USING TIMESTAMP 1", table);
+        write(2, "INSERT INTO %s (k, c, v) VALUES (0, 5, 1) USING TIMESTAMP 1", table);
+        write(1, "INSERT INTO %s (k, c, v) VALUES (0, 10, 0) USING TIMESTAMP 2", table);
+        write(1, "DELETE FROM %s USING TIMESTAMP 2 WHERE k = 0 AND c > 0 AND c <= 9", table);
+        write(1, "INSERT INTO %s (k, c, v) VALUES (0, 8, 1) USING TIMESTAMP 3", table);
+        write(1, "INSERT INTO %s (k, c, v) VALUES (0, 2, 1) USING TIMESTAMP 3", table);
+
+        // In descending order the first page ends at c = 8, inside the range tombstone that deletes c = 5.
+        assertRows(cluster.coordinator(1).execute("SELECT c FROM " + table + " WHERE k = 0 AND v = 1 ORDER BY c DESC LIMIT 2 ALLOW FILTERING", ALL),
+                   row(8), row(2));
+    }
+
+    @Test
+    public void testRangeTombstoneAcrossPagesWithoutRowsFromDeletingReplica()
+    {
+        String table = createRangeTombstoneTable("rt_across_pages_without_rows");
+
+        write(2, "INSERT INTO %s (k, c, v) VALUES (0, 0, 1) USING TIMESTAMP 1", table);
+        write(2, "INSERT INTO %s (k, c, v) VALUES (0, 4, 1) USING TIMESTAMP 1", table);
+        write(1, "INSERT INTO %s (k, c, v) VALUES (0, 0, 0) USING TIMESTAMP 2", table);
+        write(1, "DELETE FROM %s USING TIMESTAMP 2 WHERE k = 0 AND c > 0 AND c <= 10", table);
+        write(1, "INSERT INTO %s (k, c, v) VALUES (0, 1, 1) USING TIMESTAMP 3", table);
+        write(2, "INSERT INTO %s (k, c, v) VALUES (0, 5, 1) USING TIMESTAMP 4", table);
+        write(2, "INSERT INTO %s (k, c, v) VALUES (0, 6, 1) USING TIMESTAMP 4", table);
+
+        // The second page holds nothing from node 1, which must still delete c = 4 there.
+        assertRows(cluster.coordinator(1).execute("SELECT c FROM " + table + " WHERE k = 0 AND v = 1 LIMIT 2 ALLOW FILTERING", ALL),
+                   row(1), row(5));
+    }
+
+    @Test
+    public void testRangeTombstoneBoundaryAtPageEnd()
+    {
+        String table = createRangeTombstoneTable("rt_boundary_at_page_end");
+        // Blocking read repair also merges the replicas' protected partitions, including the markers closed at page ends.
+        cluster.schemaChange("ALTER TABLE " + table + " WITH read_repair = 'BLOCKING'");
+
+        write(2, "INSERT INTO %s (k, c, v) VALUES (0, 0, 1) USING TIMESTAMP 1", table);
+        write(2, "INSERT INTO %s (k, c, v) VALUES (0, 5, 1) USING TIMESTAMP 1", table);
+        write(1, "INSERT INTO %s (k, c, v) VALUES (0, 0, 0) USING TIMESTAMP 2", table);
+        write(1, "DELETE FROM %s USING TIMESTAMP 2 WHERE k = 0 AND c > 0 AND c <= 1", table);
+        write(1, "DELETE FROM %s USING TIMESTAMP 4 WHERE k = 0 AND c > 1 AND c <= 10", table);
+        write(1, "INSERT INTO %s (k, c, v) VALUES (0, 1, 1) USING TIMESTAMP 3", table);
+        write(1, "INSERT INTO %s (k, c, v) VALUES (0, 7, 1) USING TIMESTAMP 5", table);
+
+        // The first page ends at c = 1, where node 1 has a boundary between two range tombstones.
+        assertRows(cluster.coordinator(1).execute("SELECT c FROM " + table + " WHERE k = 0 AND v = 1 LIMIT 2 ALLOW FILTERING", ALL),
+                   row(1), row(7));
+    }
+
+    @Test
+    public void testRangeTombstoneBoundaryOpensRangeThatSpansPageEnd()
+    {
+        String table = createRangeTombstoneTable("rt_boundary_opens_range_across_pages");
+
+        // Node 2 has a stale match at c = 5. Node 1 has two adjacent ranges meeting at a boundary at c = 1: the
+        // first closes there, the second opens there and extends to cover the newer live match at c = 7. The
+        // boundary itself is consumed within the first page (to reach c = 2), but the range it opens must still
+        // be remembered in the second page, where node 1 contributes nothing until c = 7, to shadow node 2's c = 5.
+        write(2, "INSERT INTO %s (k, c, v) VALUES (0, 0, 1) USING TIMESTAMP 1", table);
+        write(2, "INSERT INTO %s (k, c, v) VALUES (0, 5, 1) USING TIMESTAMP 1", table);
+        write(1, "INSERT INTO %s (k, c, v) VALUES (0, 0, 0) USING TIMESTAMP 2", table);
+        write(1, "DELETE FROM %s USING TIMESTAMP 2 WHERE k = 0 AND c > 0 AND c <= 1", table);
+        write(1, "DELETE FROM %s USING TIMESTAMP 4 WHERE k = 0 AND c > 1 AND c <= 10", table);
+        write(1, "INSERT INTO %s (k, c, v) VALUES (0, 1, 1) USING TIMESTAMP 3", table);
+        write(1, "INSERT INTO %s (k, c, v) VALUES (0, 2, 1) USING TIMESTAMP 6", table);
+        write(1, "INSERT INTO %s (k, c, v) VALUES (0, 7, 1) USING TIMESTAMP 5", table);
+
+        // The first page ends at c = 2, after the boundary at c = 1 opened the range that must shadow c = 5 in
+        // the second page.
+        assertRows(cluster.coordinator(1).execute("SELECT c FROM " + table + " WHERE k = 0 AND v = 1 LIMIT 3 ALLOW FILTERING", ALL),
+                   row(1), row(2), row(7));
+    }
+
+    private String createRangeTombstoneTable(String name)
+    {
+        cluster.get(1).runOnInstance(() -> StorageService.instance.setCachedReplicaRowsWarnThreshold(DEFAULT_WARN_THRESHOLD));
+        cluster.get(1).runOnInstance(() -> StorageService.instance.setCachedReplicaRowsFailThreshold(DEFAULT_FAIL_THRESHOLD));
+        String table = KEYSPACE + '.' + name;
+        cluster.schemaChange("CREATE TABLE " + table + " (k int, c int, v int, PRIMARY KEY (k, c)) WITH read_repair = 'NONE'");
+        return table;
+    }
+
+    private void write(int node, String cql, String table)
+    {
+        cluster.get(node).executeInternal(String.format(cql, table));
     }
 
     private void testMissedUpdates(String tableName, int warnThreshold, int failThreshold, boolean shouldWarn)
@@ -147,7 +263,7 @@ public class ReplicaFilteringProtectionTest extends TestBaseImpl
         // of that row for all replicas.
         SimpleQueryResult oldResult = cluster.coordinator(1).executeWithResult(query, ALL, "old", PARTITIONS * ROWS_PER_PARTITION);
         assertRows(oldResult.toObjectArrays());
-        verifyWarningState(shouldWarn, oldResult);
+        verifyWarningState(shouldWarn, REPLICAS * ROWS_PER_PARTITION, oldResult);
 
         // We should have made 3 row "completion" requests.
         assertEquals(PARTITIONS, protectionQueryCount(cluster.get(1), tableName));
@@ -170,7 +286,7 @@ public class ReplicaFilteringProtectionTest extends TestBaseImpl
                    row(0, 0, "new"), row(0, 1, "new"), row(0, 2, "new"),
                    row(2, 0, "new"), row(2, 1, "new"), row(2, 2, "new"));
 
-        verifyWarningState(warnThreshold < REPLICAS * ROWS_PER_PARTITION, newResult);
+        verifyWarningState(warnThreshold < REPLICAS * ROWS_PER_PARTITION, REPLICAS * ROWS_PER_PARTITION, newResult);
 
         // We still sould only have made 3 row "completion" requests, with no replica divergence in the last query.
         assertEquals(PARTITIONS, protectionQueryCount(cluster.get(1), tableName));
@@ -193,7 +309,7 @@ public class ReplicaFilteringProtectionTest extends TestBaseImpl
                    row(0, 0, "future"), row(0, 1, "future"), row(0, 2, "future"),
                    row(2, 0, "future"), row(2, 1, "future"), row(2, 2, "future"));
 
-        verifyWarningState(shouldWarn, futureResult);
+        verifyWarningState(shouldWarn, REPLICAS * ROWS_PER_PARTITION, futureResult);
 
         // We sould have made 3 more row "completion" requests.
         assertEquals(PARTITIONS * 2, protectionQueryCount(cluster.get(1), tableName));
@@ -212,11 +328,16 @@ public class ReplicaFilteringProtectionTest extends TestBaseImpl
                 cluster.get(node).executeInternal("UPDATE " + table + " SET v = ? WHERE k = ? and c = ?", value, i, j);
     }
 
-    private void verifyWarningState(boolean shouldWarn, SimpleQueryResult futureResult)
+    private void verifyWarningState(boolean shouldWarn, int cachedRows, SimpleQueryResult result)
     {
-        List<String> futureWarnings = futureResult.warnings();
-        assertEquals(shouldWarn, futureWarnings.stream().anyMatch(w -> w.contains("cached_replica_rows_warn_threshold")));
-        assertEquals(shouldWarn ? 1 : 0, futureWarnings.size());
+        ListAssert<String> warnings = assertThat(result.warnings());
+
+        if (shouldWarn)
+            warnings.hasSize(1)
+                    .anyMatch(w -> w.contains("has cached up to " + cachedRows + " rows"))
+                    .anyMatch(w -> w.contains("cached_replica_rows_warn_threshold"));
+        else
+            warnings.isEmpty();
     }
 
     private long protectionQueryCount(IInvokableInstance instance, String tableName)

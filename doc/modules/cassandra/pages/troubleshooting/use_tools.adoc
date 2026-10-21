@@ -208,7 +208,7 @@ when it syncs the commit log. This typically enters into the very high
 percentiles of write latency.
 
 Note that to get detailed latency breakdowns you will need a more
-advanced tool such as xref:use_tools.adoc#bcc-tools[`bcc-tools`].
+advanced tool such as xref:cassandra:troubleshooting/use_tools.adoc#use-bcc-tools[`bcc-tools`].
 
 === OS page Cache Usage
 
@@ -232,8 +232,8 @@ Cassandra performance can suffer significantly. This is why Cassandra
 starts with a reasonably small amount of memory reserved for the heap.
 
 If you suspect that you are missing the OS page cache frequently you can
-use advanced tools like xref:use_tools.adoc#use-bcc-tools[cachestat] or
-xref:use_tools.adoc#use-vmtouch[vmtouch] to dive deeper.
+use advanced tools like xref:cassandra:troubleshooting/use_tools.adoc#use-bcc-tools[cachestat] or
+xref:cassandra:troubleshooting/use_tools.adoc#use-vmtouch[vmtouch] to dive deeper.
 
 === Network Latency and Reliability
 
@@ -483,7 +483,7 @@ $ ./vmtouch /var/lib/cassandra/data/
 
 In this case almost the entire dataset is hot in OS page Cache.
 Generally speaking the percentage doesn't really matter unless reads are
-missing the cache (per e.g. xref:cassandra:developing/cql/troubleshooting/use_tools.adoc#use-bcc-tools[cachestat] in which case
+missing the cache (per e.g. xref:cassandra:troubleshooting/use_tools.adoc#use-bcc-tools[cachestat] in which case
 having additional memory may help read performance.
 
 === CPU Flamegraphs
@@ -544,6 +544,7 @@ $ cat cassandra_stacks | ./stackcollapse-perf.pl | grep -v cpu_idle | \
 The resulting SVG is searchable, zoomable, and generally easy to
 introspect using a browser.
 
+[[packet-capture]]
 === Packet Capture
 
 Sometimes you have to understand what queries a Cassandra node is

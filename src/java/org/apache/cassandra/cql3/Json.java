@@ -86,7 +86,7 @@ public final class Json
 
         public Prepared prepareAndCollectMarkers(TableMetadata metadata, Collection<ColumnMetadata> receivers, VariableSpecifications boundNames)
         {
-            boundNames.add(bindIndex, makeReceiver(metadata));
+            boundNames.add(bindIndex, makeReceiver(metadata), null);
             return new PreparedMarker(bindIndex, receivers);
         }
 
@@ -239,7 +239,7 @@ public final class Json
         }
 
         @Override
-        public void collectMarkerSpecification(VariableSpecifications boundNames)
+        public void collectMarkerSpecification(VariableSpecifications boundNames, Object owner)
         {
             // We've already collected what we should (and in practice this method is never called).
         }
@@ -251,12 +251,12 @@ public final class Json
         }
 
         @Override
-        public Terminal bind(QueryOptions options) throws InvalidRequestException
+        public Terminal bind(FunctionContext context) throws InvalidRequestException
         {
-            Term term = options.getJsonColumnValue(marker.bindIndex, column.name, marker.columns);
+            Term term = context.options().getJsonColumnValue(marker.bindIndex, column.name, marker.columns);
             return term == null
                    ? (defaultUnset ? Constants.UNSET_VALUE : null)
-                   : term.bind(options);
+                   : term.bind(context);
         }
 
         @Override

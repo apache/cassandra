@@ -655,7 +655,7 @@ public class IndexSummaryManagerTest<R extends SSTableReader & IndexSummarySuppo
         {
             public CompactionInfo getCompactionInfo()
             {
-                return new CompactionInfo(cfs.metadata(), OperationType.UNKNOWN, 0, 0, nextTimeUUID(), compacting);
+                return new CompactionInfo(cfs.metadata(), OperationType.UNKNOWN, 0, 0, 0, nextTimeUUID(), compacting);
             }
 
             public boolean isGlobal()

@@ -41,6 +41,15 @@ public interface IPartitioner
         return DatabaseDescriptor.getPartitioner();
     }
 
+    static boolean equivalent(IPartitioner p1, IPartitioner p2)
+    {
+        if (p1 == p2) return true;
+        if (p1.getClass() != p2.getClass()) return false;
+        if (p1.getClass() == LocalPartitioner.class)
+            return ((LocalPartitioner)p1).comparator == ((LocalPartitioner)p2).comparator;
+        return true;
+    }
+
     /**
      * @return a new instance of a reusable key
      */

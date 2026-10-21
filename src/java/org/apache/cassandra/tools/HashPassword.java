@@ -31,10 +31,11 @@ import org.apache.commons.cli.Option;
 import org.apache.commons.cli.OptionGroup;
 import org.apache.commons.cli.Options;
 import org.apache.commons.cli.ParseException;
-import org.apache.commons.lang3.StringUtils;
 import org.mindrot.jbcrypt.BCrypt;
 
 import org.apache.cassandra.io.util.File;
+
+import static org.apache.cassandra.auth.AuthUtils.escapeCqlLiteral;
 
 public class HashPassword
 {
@@ -131,7 +132,7 @@ public class HashPassword
                         "(bcrypt) can only compare up to 72 bytes. The password will be accepted and work, but only compared up to 72 bytes.",
                         password.getBytes().length));
 
-            String hashed = escape(hashpw(password, logRounds));
+            String hashed = escapeCqlLiteral(hashpw(password, logRounds));
             System.out.print(hashed);
             System.out.flush();
         }
@@ -178,11 +179,6 @@ public class HashPassword
     private static String hashpw(String password, int rounds)
     {
         return BCrypt.hashpw(password, BCrypt.gensalt(rounds));
-    }
-
-    private static String escape(String name)
-    {
-        return StringUtils.replace(name, "'", "''");
     }
 
     public static void printUsage(Options options)

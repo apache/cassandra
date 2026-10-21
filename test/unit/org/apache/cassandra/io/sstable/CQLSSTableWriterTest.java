@@ -25,6 +25,7 @@ import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
+import java.util.HashSet;
 import java.util.Iterator;
 import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
@@ -53,6 +54,7 @@ import org.junit.Test;
 import org.junit.rules.TemporaryFolder;
 
 import org.apache.cassandra.Util;
+import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.cql3.CQL3Type;
 import org.apache.cassandra.cql3.QueryProcessor;
 import org.apache.cassandra.cql3.UntypedResultSet;
@@ -145,6 +147,59 @@ public abstract class CQLSSTableWriterTest
         testWritingSstableWithFormat(btiFormat);
     }
 
+    @Test
+    public void testUUIDSSTableIdentifiers() throws Exception
+    {
+        String schema = "CREATE TABLE " + qualifiedTable + " ("
+                        + "  k int PRIMARY KEY,"
+                        + "  v int"
+                        + ")";
+        String insert = "INSERT INTO " + qualifiedTable + " (k, v) VALUES (?, ?)";
+        CQLSSTableWriter writer = CQLSSTableWriter.builder()
+                                                  .inDirectory(dataDir)
+                                                  .forTable(schema)
+                                                  .withSSTableIdBuilder(UUIDBasedSSTableId.Builder.instance)
+                                                  .using(insert).build();
+
+        writer.addRow(0, 1);
+        writer.close();
+
+        File[] dataFiles = dataDir.tryList((dir, name) -> name.contains("Data.db"));
+        assertEquals(1, dataFiles.length);
+
+        Descriptor descriptor = Descriptor.fromFile(dataFiles[0]);
+        assertTrue(UUIDBasedSSTableId.Builder.instance.isUniqueIdentifier(descriptor.id.toString()));
+    }
+
+    @Test
+    public void testDefaultSSTableIdentifiersFollowConfig() throws Exception
+    {
+        String schema = "CREATE TABLE " + qualifiedTable + " ("
+                        + "  k int PRIMARY KEY,"
+                        + "  v int"
+                        + ")";
+        String insert = "INSERT INTO " + qualifiedTable + " (k, v) VALUES (?, ?)";
+        CQLSSTableWriter writer = CQLSSTableWriter.builder()
+                                                  .inDirectory(dataDir)
+                                                  .forTable(schema)
+                                                  .using(insert).build();
+
+        writer.addRow(0, 1);
+        writer.close();
+
+        File[] dataFiles = dataDir.tryList((dir, name) -> name.contains("Data.db"));
+        assertEquals(1, dataFiles.length);
+
+        // With no builder given the writer falls back to SSTableIdFactory#defaultBuilder, which follows
+        // uuid_sstable_identifiers_enabled: false in cassandra.yaml, true in cassandra_latest.yaml.
+        SSTableId.Builder<?> expected = DatabaseDescriptor.isUUIDSSTableIdentifiersEnabled()
+                                        ? UUIDBasedSSTableId.Builder.instance
+                                        : SequenceBasedSSTableId.Builder.instance;
+
+        Descriptor descriptor = Descriptor.fromFile(dataFiles[0]);
+        assertTrue(expected.isUniqueIdentifier(descriptor.id.toString()));
+    }
+
     private void testWritingSstableWithFormat(SSTableFormat<?, ?> format) throws Exception
     {
         try (AutoCloseable ignored = Util.switchPartitioner(ByteOrderedPartitioner.instance))
@@ -198,6 +253,42 @@ public abstract class CQLSSTableWriterTest
                 assertEquals(3, row.getInt("k"));
                 assertFalse(row.has("v1"));
                 assertEquals(12, row.getInt("v2"));
+            }
+        }
+    }
+
+    @Test
+    public void testCompressedWriteAndReadBack() throws Exception
+    {
+        String schema = "CREATE TABLE " + qualifiedTable + " ("
+                        + "  k int PRIMARY KEY,"
+                        + "  v text"
+                        + ") WITH compression = {'enabled':'true', 'class':'LZ4Compressor'}";
+        String insert = "INSERT INTO " + qualifiedTable + " (k, v) VALUES (?, ?)";
+
+        try (CQLSSTableWriter writer = CQLSSTableWriter.builder()
+                                                       .inDirectory(dataDir)
+                                                       .forTable(schema)
+                                                       .using(insert)
+                                                       .build())
+        {
+            for (int i = 0; i < 50; i++)
+                writer.addRow(i, "row-" + i);
+        }
+
+        loadSSTables(dataDir, keyspace, table);
+
+        if (verifyDataAfterLoading)
+        {
+            UntypedResultSet rs = QueryProcessor.executeInternal("SELECT k, v FROM " + qualifiedTable);
+            assertEquals(50, rs.size());
+
+            Set<Integer> seen = new HashSet<>();
+            for (UntypedResultSet.Row row : rs)
+            {
+                int k = row.getInt("k");
+                assertTrue("duplicate key " + k, seen.add(k));
+                assertEquals("row-" + k, row.getString("v"));
             }
         }
     }

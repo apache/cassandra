@@ -81,13 +81,13 @@ public class ListRolesStatement extends AuthorizationStatement
     public void validate(ClientState state) throws UnauthorizedException, InvalidRequestException
     {
         state.ensureNotAnonymous();
-
-        if ((grantee != null) && !DatabaseDescriptor.getRoleManager().isExistingRole(grantee))
-            throw new InvalidRequestException(String.format("%s doesn't exist", grantee));
     }
 
     public void authorize(ClientState state) throws InvalidRequestException
     {
+        // Authorization is enforced in execute(): a caller without DESCRIBE on the root roles
+        // resource may only view roles granted to them, and is rejected with UnauthorizedException
+        // before any existence check is reached.
     }
 
     public ResultMessage execute(ClientState state) throws RequestValidationException, RequestExecutionException
@@ -100,8 +100,9 @@ public class ListRolesStatement extends AuthorizationStatement
         {
             if (grantee == null)
                 return resultMessage(DatabaseDescriptor.getRoleManager().getAllRoles());
-            else
-                return resultMessage(DatabaseDescriptor.getRoleManager().getRoles(grantee, recursive));
+            if (!DatabaseDescriptor.getRoleManager().isExistingRole(grantee))
+                throw new InvalidRequestException(String.format("%s doesn't exist", grantee));
+            return resultMessage(DatabaseDescriptor.getRoleManager().getRoles(grantee, recursive));
         }
         else
         {

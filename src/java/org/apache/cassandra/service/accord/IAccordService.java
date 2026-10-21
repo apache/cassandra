@@ -40,6 +40,7 @@ import accord.local.Node;
 import accord.local.Node.Id;
 import accord.local.RedundantBefore;
 import accord.local.durability.DurabilityService.SyncLocal;
+import accord.local.durability.DurabilityService.SyncReadable;
 import accord.local.durability.DurabilityService.SyncRemote;
 import accord.messages.Reply;
 import accord.messages.Request;
@@ -47,6 +48,7 @@ import accord.primitives.Keys;
 import accord.primitives.Ranges;
 import accord.primitives.Timestamp;
 import accord.primitives.Txn;
+import accord.primitives.TxnId;
 import accord.topology.EpochReady;
 import accord.topology.TopologyManager;
 import accord.utils.Invariants;
@@ -60,9 +62,13 @@ import org.apache.cassandra.journal.Params;
 import org.apache.cassandra.net.IVerbHandler;
 import org.apache.cassandra.net.Message;
 import org.apache.cassandra.schema.TableId;
-import org.apache.cassandra.service.accord.AccordSyncPropagator.Notification;
 import org.apache.cassandra.service.accord.api.AccordScheduler;
 import org.apache.cassandra.service.accord.api.AccordTopologySorter;
+import org.apache.cassandra.service.accord.execution.AccordExecutor;
+import org.apache.cassandra.service.accord.topology.AccordEndpointMap;
+import org.apache.cassandra.service.accord.topology.AccordSyncPropagator;
+import org.apache.cassandra.service.accord.topology.AccordSyncPropagator.Notification;
+import org.apache.cassandra.service.accord.topology.AccordTopologyService;
 import org.apache.cassandra.service.accord.txn.TxnResult;
 import org.apache.cassandra.tcm.ClusterMetadata;
 import org.apache.cassandra.tcm.Epoch;
@@ -83,8 +89,8 @@ public interface IAccordService
     IVerbHandler<? extends Request> requestHandler();
     IVerbHandler<? extends Reply> responseHandler();
 
-    AsyncResult<Void> sync(Object requestedBy, @Nullable Timestamp minBound, Ranges ranges, @Nullable Collection<Id> include, SyncLocal syncLocal, SyncRemote syncRemote, long timeout, TimeUnit timeoutUnits);
-    AsyncChain<Void> sync(@Nullable Timestamp minBound, Keys keys, SyncLocal syncLocal, SyncRemote syncRemote);
+    AsyncResult<?> sync(Object requestedBy, @Nullable TxnId minBound, Ranges ranges, @Nullable Collection<Id> include, Collection<Id> exclude, SyncLocal syncLocal, SyncRemote syncRemote, SyncReadable readable, long timeout, TimeUnit timeoutUnits);
+    AsyncChain<?> syncKeysForMigration(@Nullable TxnId minBound, Keys keys, SyncLocal syncLocal, SyncRemote syncRemote);
     AsyncChain<Timestamp> maxConflict(Ranges ranges);
 
     @Nonnull
@@ -121,7 +127,7 @@ public interface IAccordService
     void localStartup();
 
     Future<Void> flushCaches();
-    void markShuttingDown();
+    void stop();
     void shutdownAndWait(long timeout, TimeUnit unit) throws InterruptedException, TimeoutException;
 
     AccordScheduler scheduler();
@@ -177,13 +183,11 @@ public interface IAccordService
 
     Agent agent();
 
-    Id nodeId();
-
     long minEpoch();
 
     void awaitDone(TableId id, long epoch);
 
-    AccordEndpointMapper endpointMapper();
+    AccordEndpointMap endpointMapper();
 
     AccordTopologyService topologyService();
 
@@ -215,13 +219,13 @@ public interface IAccordService
         }
 
         @Override
-        public AsyncResult<Void> sync(Object requestedBy, @Nullable Timestamp onOrAfter, Ranges ranges, @Nullable Collection<Id> include, SyncLocal syncLocal, SyncRemote syncRemote, long timeout, TimeUnit timeoutUnits)
+        public AsyncResult<Void> sync(Object requestedBy, @Nullable TxnId onOrAfter, Ranges ranges, @Nullable Collection<Id> include, Collection<Id> exclude, SyncLocal syncLocal, SyncRemote syncRemote, SyncReadable readable, long timeout, TimeUnit timeoutUnits)
         {
             throw new UnsupportedOperationException("No accord transaction should be executed when accord.enabled = false in cassandra.yaml");
         }
 
         @Override
-        public AsyncChain<Void> sync(@Nullable Timestamp onOrAfter, Keys keys, SyncLocal syncLocal, SyncRemote syncRemote)
+        public AsyncChain<Void> syncKeysForMigration(@Nullable TxnId onOrAfter, Keys keys, SyncLocal syncLocal, SyncRemote syncRemote)
         {
             throw new UnsupportedOperationException("No accord transaction should be executed when accord.enabled = false in cassandra.yaml");
         }
@@ -288,7 +292,7 @@ public interface IAccordService
         }
 
         @Override
-        public void markShuttingDown()
+        public void stop()
         {
         }
 
@@ -335,12 +339,6 @@ public interface IAccordService
         }
 
         @Override
-        public Id nodeId()
-        {
-            throw new UnsupportedOperationException();
-        }
-
-        @Override
         public long minEpoch()
         {
             return -1;
@@ -353,7 +351,7 @@ public interface IAccordService
         }
 
         @Override
-        public AccordEndpointMapper endpointMapper()
+        public AccordEndpointMap endpointMapper()
         {
             throw new UnsupportedOperationException();
         }
@@ -405,15 +403,15 @@ public interface IAccordService
         }
 
         @Override
-        public AsyncResult<Void> sync(Object requestedBy, @Nullable Timestamp onOrAfter, Ranges ranges, @Nullable Collection<Id> include, SyncLocal syncLocal, SyncRemote syncRemote, long timeout, TimeUnit timeoutUnits)
+        public AsyncResult<?> sync(Object requestedBy, @Nullable TxnId onOrAfter, Ranges ranges, @Nullable Collection<Id> include, Collection<Id> exclude, SyncLocal syncLocal, SyncRemote syncRemote, SyncReadable readable, long timeout, TimeUnit timeoutUnits)
         {
-            return delegate.sync(requestedBy, onOrAfter, ranges, include, syncLocal, syncRemote, timeout, timeoutUnits);
+            return delegate.sync(requestedBy, onOrAfter, ranges, include, exclude, syncLocal, syncRemote, readable, timeout, timeoutUnits);
         }
 
         @Override
-        public AsyncChain<Void> sync(@Nullable Timestamp onOrAfter, Keys keys, SyncLocal syncLocal, SyncRemote syncRemote)
+        public AsyncChain<?> syncKeysForMigration(@Nullable TxnId onOrAfter, Keys keys, SyncLocal syncLocal, SyncRemote syncRemote)
         {
-            return delegate.sync(onOrAfter, keys, syncLocal, syncRemote);
+            return delegate.syncKeysForMigration(onOrAfter, keys, syncLocal, syncRemote);
         }
 
         @Override
@@ -423,7 +421,7 @@ public interface IAccordService
         }
 
         @Override
-        public AccordEndpointMapper endpointMapper()
+        public AccordEndpointMap endpointMapper()
         {
             return delegate.endpointMapper();
         }
@@ -497,9 +495,9 @@ public interface IAccordService
         }
 
         @Override
-        public void markShuttingDown()
+        public void stop()
         {
-            delegate.markShuttingDown();
+            delegate.stop();
         }
 
         @Override
@@ -542,12 +540,6 @@ public interface IAccordService
         public Agent agent()
         {
             return delegate.agent();
-        }
-
-        @Override
-        public Id nodeId()
-        {
-            return delegate.nodeId();
         }
 
         @Override

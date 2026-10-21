@@ -164,7 +164,7 @@ public class EndpointsForToken extends Endpoints<EndpointsForToken>
 
     public static VersionedEndpoints.ForToken natural(Keyspace keyspace, Token token)
     {
-        return ClusterMetadata.current().placements.get(keyspace.getMetadata().params.replication).reads.forToken(token);
+        return ClusterMetadata.current().placement(keyspace.getMetadata().params.replication).reads.forToken(token);
     }
 
 }

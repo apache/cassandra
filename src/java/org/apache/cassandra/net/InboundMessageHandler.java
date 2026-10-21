@@ -35,6 +35,7 @@ import org.apache.cassandra.net.FrameDecoder.CorruptFrame;
 import org.apache.cassandra.net.FrameDecoder.IntactFrame;
 import org.apache.cassandra.net.Message.Header;
 import org.apache.cassandra.net.ResourceLimits.Limit;
+import org.apache.cassandra.service.accord.debug.AccordRemoteTracing;
 import org.apache.cassandra.tcm.ClusterMetadataService;
 import org.apache.cassandra.tracing.TraceState;
 import org.apache.cassandra.tracing.Tracing;
@@ -422,6 +423,7 @@ public class InboundMessageHandler extends AbstractMessageHandler
 
         TraceState state = Tracing.instance.initializeFromMessage(header);
         if (state != null) state.trace("{} message received from {}", header.verb, header.from);
+        AccordRemoteTracing.traceOffWire(header);
 
         callbacks.onDispatched(task.size(), header);
         header.verb.stage.execute(ExecutorLocals.create(state), task);

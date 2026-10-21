@@ -911,6 +911,25 @@ class Shell(cmd.Cmd):
         result = None
         try:
             result = future.result()
+            # If we just dropped the keyspace we are currently in, clear current_keyspace so the
+            # prompt falls back to the default 'cqlsh>' (CASSANDRA-21548). Only DROP statements are
+            # candidates, so cheaply skip parsing everything else. For a candidate we parse with the
+            # cqlsh grammar (handles whitespace, IF EXISTS and quoting), require it to actually be
+            # DROP KEYSPACE (DROP TABLE also binds ksname), and normalise the dropped name via
+            # cql_unprotect_name so it matches how do_use stores current_keyspace (quoted identifiers
+            # stay case-sensitive, unquoted ones fold to lower case).
+            qs = getattr(statement, 'query_string', str(statement))
+            if qs.lstrip().lower().startswith('drop'):
+                try:
+                    parsed = ruleset.cql_parse(qs)[1]
+                except IndexError:
+                    parsed = None
+                if (parsed is not None and len(parsed.matched) >= 2
+                        and parsed.matched[0][1].upper() == 'DROP'
+                        and parsed.matched[1][1].upper() == 'KEYSPACE'):
+                    dropped_ks = self.cql_unprotect_name(parsed.get_binding('ksname', None))
+                    if self.current_keyspace is not None and self.current_keyspace == dropped_ks:
+                        self.current_keyspace = None
         except CQL_ERRORS as err:
             err_msg = err.message if hasattr(err, 'message') else str(err)
             self.printerr(str(err.__class__.__name__) + ": " + err_msg)

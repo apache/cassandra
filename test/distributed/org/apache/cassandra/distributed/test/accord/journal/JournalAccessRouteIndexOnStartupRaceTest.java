@@ -31,9 +31,9 @@ import org.junit.Test;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import accord.local.durability.DurabilityService;
+import accord.local.durability.DurabilityService.SyncRemote;
 import accord.primitives.Ranges;
-import accord.primitives.Timestamp;
+import accord.primitives.TxnId;
 
 import org.apache.cassandra.db.Keyspace;
 import org.apache.cassandra.distributed.Cluster;
@@ -43,13 +43,15 @@ import org.apache.cassandra.distributed.test.TestBaseImpl;
 import org.apache.cassandra.index.accord.RouteJournalIndex;
 import org.apache.cassandra.schema.TableMetadata;
 import org.apache.cassandra.service.RetryStrategy;
-import org.apache.cassandra.service.accord.AccordJournalTable;
 import org.apache.cassandra.service.accord.AccordService;
 import org.apache.cassandra.service.accord.TokenRange;
+import org.apache.cassandra.service.accord.journal.RangeSearchManager;
 import org.apache.cassandra.service.consensus.TransactionalMode;
 import org.apache.cassandra.utils.Shared;
 import org.apache.cassandra.utils.concurrent.CountDownLatch;
 
+import static accord.local.durability.DurabilityService.SyncLocal.Self;
+import static accord.local.durability.DurabilityService.SyncReadable.UnknownReadable;
 import static net.bytebuddy.matcher.ElementMatchers.named;
 import static org.apache.cassandra.schema.SchemaConstants.ACCORD_KEYSPACE_NAME;
 import static org.apache.cassandra.service.accord.AccordKeyspace.JOURNAL;
@@ -93,7 +95,7 @@ public class JournalAccessRouteIndexOnStartupRaceTest extends TestBaseImpl
             Ranges ranges = Ranges.single(TokenRange.fullRange(metadata.id, metadata.partitioner));
             for (int i = 0; i < 10; i++)
             {
-                getBlocking(accord.sync(null, Timestamp.NONE, ranges, null, DurabilityService.SyncLocal.Self, DurabilityService.SyncRemote.Quorum, 10L, TimeUnit.MINUTES));
+                getBlocking(accord.sync(null, TxnId.NONE, ranges, null, null, Self, SyncRemote.Quorum, UnknownReadable, 1L, TimeUnit.MINUTES));
 
                 accord.journal().closeCurrentSegmentForTestingIfNonEmpty();
                 accord.journal().runCompactorForTesting();
@@ -136,7 +138,7 @@ public class JournalAccessRouteIndexOnStartupRaceTest extends TestBaseImpl
                            .make()
                            .load(cl, ClassLoadingStrategy.Default.INJECTION);
 
-            new ByteBuddy().rebase(AccordJournalTable.class)
+            new ByteBuddy().rebase(RangeSearchManager.class)
                            .method(named("maybeWait"))
                            .intercept(MethodDelegation.to(BBHelper.class))
                            .make()

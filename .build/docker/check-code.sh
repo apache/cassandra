@@ -17,7 +17,9 @@
 
 #
 # Perform code checks
+#
+# Usage: check-code.sh [<java version>] [<check-code.sh arguments…>]
 
 export CASSANDRA_DOCKER_ANT_OPTS="-Ddependency-check.home.base=/tmp"
 
-$(dirname -- "$0")/_docker_run.sh debian-build.docker check-code.sh $1
+$(dirname -- "$0")/_docker_run.sh debian-build.docker check-code.sh "$@"

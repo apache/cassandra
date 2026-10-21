@@ -565,7 +565,7 @@ public abstract class AbstractCommitLogSegmentManager
      */
     public void shutdown()
     {
-        executor.shutdownNow();
+        executor.shutdown();
         // Release the management thread and delete prepared segment.
         // Do not block as another thread may claim the segment (this can happen during unit test initialization).
         discardAvailableSegment();

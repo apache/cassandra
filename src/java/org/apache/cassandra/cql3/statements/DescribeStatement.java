@@ -182,13 +182,13 @@ public abstract class DescribeStatement<T> extends CQLStatement.Raw implements C
         if (pageSize > 0)
             stream = stream.limit(pageSize);
 
-        List<List<ByteBuffer>> rows = stream.map(e -> toRow(e, includeInternalDetails))
-                                            .collect(Collectors.toList());
+        List<List<ByteBuffer>> bbRows = stream.map(e -> toRow(e, includeInternalDetails))
+                                              .collect(Collectors.toList());
 
         ResultSet.ResultMetadata resultMetadata = new ResultSet.ResultMetadata(metadata(state.getClientState()));
-        ResultSet result = new ResultSet(resultMetadata, rows);
+        ResultSet result = ResultSet.fromByteBufferRows(resultMetadata, bbRows);
 
-        if (pageSize > 0 && rows.size() == pageSize)
+        if (pageSize > 0 && bbRows.size() == pageSize)
             result.metadata.setHasMorePages(getPagingState(offset + pageSize, schemaVersion));
 
         return new ResultMessage.Rows(result);

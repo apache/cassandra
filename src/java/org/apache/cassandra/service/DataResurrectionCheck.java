@@ -19,6 +19,7 @@
 package org.apache.cassandra.service;
 
 import java.io.IOException;
+import java.nio.file.Files;
 import java.time.Instant;
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -40,12 +41,14 @@ import org.slf4j.LoggerFactory;
 import org.apache.cassandra.concurrent.ScheduledExecutors;
 import org.apache.cassandra.config.CassandraRelevantProperties;
 import org.apache.cassandra.config.DatabaseDescriptor;
+import org.apache.cassandra.config.DurationSpec;
 import org.apache.cassandra.config.StartupChecksConfiguration;
 import org.apache.cassandra.exceptions.StartupException;
 import org.apache.cassandra.io.util.File;
 import org.apache.cassandra.schema.KeyspaceMetadata;
 import org.apache.cassandra.schema.SchemaKeyspace;
 import org.apache.cassandra.utils.Clock;
+import org.apache.cassandra.utils.Hex;
 import org.apache.cassandra.utils.JsonUtils;
 import org.apache.cassandra.utils.Pair;
 
@@ -54,7 +57,6 @@ import static java.util.concurrent.TimeUnit.MILLISECONDS;
 import static java.util.stream.Collectors.joining;
 import static java.util.stream.Collectors.toList;
 import static java.util.stream.Collectors.toSet;
-import static org.apache.cassandra.exceptions.StartupException.ERR_WRONG_DISK_STATE;
 import static org.apache.cassandra.exceptions.StartupException.ERR_WRONG_MACHINE_STATE;
 import static org.apache.cassandra.utils.Clock.Global.currentTimeMillis;
 
@@ -65,6 +67,7 @@ public class DataResurrectionCheck implements StartupCheck
     public static final String HEARTBEAT_FILE_CONFIG_PROPERTY = "heartbeat_file";
     public static final String EXCLUDED_KEYSPACES_CONFIG_PROPERTY = "excluded_keyspaces";
     public static final String EXCLUDED_TABLES_CONFIG_PROPERTY = "excluded_tables";
+    public static final String MINIMUM_THRESHOLD_CONFIG_PROPERTY = "minimum_threshold";
 
     public static final String DEFAULT_HEARTBEAT_FILE = "cassandra-heartbeat";
 
@@ -87,12 +90,24 @@ public class DataResurrectionCheck implements StartupCheck
 
         public void serializeToJsonFile(File outputFile) throws IOException
         {
-            JsonUtils.serializeToJsonFile(this, outputFile);
+            JsonUtils.serializeToJsonFileAtomic(this, outputFile);
         }
 
         public static Heartbeat deserializeFromJsonFile(File file) throws IOException
         {
-            return JsonUtils.deserializeFromJsonFile(Heartbeat.class, file);
+            byte[] bytes = Files.readAllBytes(file.toPath());
+            try
+            {
+                return JsonUtils.deserializeFromJsonBytes(Heartbeat.class, bytes);
+            }
+            catch (IOException ex)
+            {
+                int maxLogBytes = Math.min(bytes.length, 1024);
+                String hexContent = bytes.length > 0 ? Hex.bytesToHex(bytes, 0, maxLogBytes) : "(empty)";
+                LOGGER.error("Failed to deserialize heartbeat file {} (length: {} bytes, first {} bytes hex: {})",
+                             file, bytes.length, maxLogBytes, hexContent, ex);
+                throw ex;
+            }
         }
 
         @Override
@@ -145,6 +160,38 @@ public class DataResurrectionCheck implements StartupCheck
         return heartbeatFile;
     }
 
+    static long getMinimumThresholdMillis(Map<String, Object> config)
+    {
+        String minimumThresholdConfigValue = (String) config.get(MINIMUM_THRESHOLD_CONFIG_PROPERTY);
+        long minimumThresholdInMs;
+        if (minimumThresholdConfigValue != null)
+        {
+            try
+            {
+                minimumThresholdInMs = new DurationSpec.LongSecondsBound(minimumThresholdConfigValue).to(MILLISECONDS);
+            }
+            catch (Throwable t)
+            {
+                throw new IllegalArgumentException("Unable to parse " + MINIMUM_THRESHOLD_CONFIG_PROPERTY
+                                                   + " property for check_data_resurrection startup check.");
+            }
+        }
+        else
+        {
+            minimumThresholdInMs = 0;
+        }
+
+        if (minimumThresholdInMs == 0)
+        {
+            LOGGER.warn(MINIMUM_THRESHOLD_CONFIG_PROPERTY + " property for check_data_resurrection startup check " +
+                        "is not set or is set to 0s. Consider increasing the default value as the startup check " +
+                        "might prevent the startup of the node when gc_grace_seconds for user tables " +
+                        "is set very low and the node is restarted.");
+        }
+
+        return minimumThresholdInMs;
+    }
+
     @Override
     public boolean isConfigurable()
     {
@@ -186,7 +233,10 @@ public class DataResurrectionCheck implements StartupCheck
         }
         catch (IOException ex)
         {
-            throw new StartupException(ERR_WRONG_DISK_STATE, "Failed to deserialize heartbeat file " + heartbeatFile);
+            LOGGER.warn("Failed to deserialize heartbeat file {}. Falling back to file last modified time.",
+                        heartbeatFile, ex);
+            Instant lastModified = Instant.ofEpochMilli(heartbeatFile.lastModified());
+            heartbeat = new Heartbeat(lastModified);
         }
 
         if (heartbeat.lastHeartbeat == null)
@@ -198,6 +248,8 @@ public class DataResurrectionCheck implements StartupCheck
 
         Set<String> excludedKeyspaces = getExcludedKeyspaces(config);
         Set<Pair<String, String>> excludedTables = getExcludedTables(config);
+
+        long minimumThresholdMillis = getMinimumThresholdMillis(config);
 
         long currentTimeMillis = currentTimeMillis();
 
@@ -212,7 +264,7 @@ public class DataResurrectionCheck implements StartupCheck
                     continue;
 
                 long gcGraceMillis = ((long) userTable.gcPeriod) * 1000;
-                if (heartbeatMillis + gcGraceMillis < currentTimeMillis)
+                if (heartbeatMillis + Math.max(gcGraceMillis, minimumThresholdMillis) < currentTimeMillis)
                     violations.add(Pair.create(keyspace, userTable.table));
             }
         }
@@ -310,7 +362,7 @@ public class DataResurrectionCheck implements StartupCheck
     List<TableGCPeriod> getTablesGcPeriods(String userKeyspace)
     {
         Optional<KeyspaceMetadata> keyspaceMetadata = SchemaKeyspace.fetchNonSystemKeyspaces().get(userKeyspace);
-        if (!keyspaceMetadata.isPresent())
+        if (keyspaceMetadata.isEmpty())
             return Collections.emptyList();
 
         KeyspaceMetadata ksmd = keyspaceMetadata.get();

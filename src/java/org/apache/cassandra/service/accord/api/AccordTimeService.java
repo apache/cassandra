@@ -22,13 +22,22 @@ import java.util.concurrent.TimeUnit;
 
 import accord.local.TimeService;
 
-import org.apache.cassandra.utils.Clock;
+import org.apache.cassandra.config.DatabaseDescriptor;
+import org.apache.cassandra.utils.FBUtilities;
 
 import static java.util.concurrent.TimeUnit.NANOSECONDS;
+import static org.apache.cassandra.utils.Clock.Global.currentTimeMicros;
 import static org.apache.cassandra.utils.Clock.Global.nanoTime;
 
 public class AccordTimeService implements TimeService
 {
+    private static final boolean PRECISE_MICROS;
+    static
+    {
+        Boolean precise = DatabaseDescriptor.getAccord().precise_micros;
+        PRECISE_MICROS = precise == null || precise;
+    }
+
     @Override
     public long now()
     {
@@ -37,7 +46,7 @@ public class AccordTimeService implements TimeService
 
     public static long nowMicros()
     {
-        return TimeUnit.MILLISECONDS.toMicros(Clock.Global.currentTimeMillis());
+        return PRECISE_MICROS ? currentTimeMicros() : FBUtilities.timestampMicros();
     }
 
     @Override

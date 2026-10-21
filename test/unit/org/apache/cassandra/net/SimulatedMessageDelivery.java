@@ -293,7 +293,7 @@ public class SimulatedMessageDelivery implements MessageDelivery
         {
             if (status != Status.Up)
                 return;
-            if (msg.verb().isResponse())
+            if (msg.verb().isManagedResponse())
             {
                 CallbackKey key = new CallbackKey(msg.id(), msg.from());
                 if (callbacks.containsKey(key))

@@ -1,0 +1,2 @@
+grant_permission_statement ::= GRANT permission ON ALL TABLES IN KEYSPACE keyspace_name TO user_name;
+permission ::= CREATE | ALTER | DROP | SELECT | MODIFY | AUTHORIZE | UNMASK | SELECT_MASKED

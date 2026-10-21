@@ -35,7 +35,7 @@ public class BatchUpgradeTest extends UpgradeTestBase
         .nodes(2)
         .nodesToUpgrade(2)
         .withConfig(c -> c.with(Feature.GOSSIP))
-        .upgradesToCurrentFrom(v40).setup((cluster) -> {
+        .upgradesToCurrentFrom(v41).setup((cluster) -> {
             cluster.schemaChange("CREATE TABLE " + KEYSPACE + ".users (" +
                                  "userid uuid PRIMARY KEY," +
                                  "firstname ascii," +

@@ -120,6 +120,7 @@ import static org.apache.cassandra.tools.nodetool.Help.printTopCommandUsage;
                          GetInterDCStreamThroughput.class,
                          GetLoggingLevels.class,
                          GetMaxHintWindow.class,
+                         GetReplicas.class,
                          GetSSTables.class,
                          GetSeeds.class,
                          GetSnapshotThrottle.class,

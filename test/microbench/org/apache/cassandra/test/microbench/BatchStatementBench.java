@@ -26,6 +26,7 @@ import java.util.concurrent.TimeUnit;
 import org.openjdk.jmh.annotations.Benchmark;
 import org.openjdk.jmh.annotations.BenchmarkMode;
 import org.openjdk.jmh.annotations.Fork;
+import org.openjdk.jmh.annotations.Level;
 import org.openjdk.jmh.annotations.Measurement;
 import org.openjdk.jmh.annotations.Mode;
 import org.openjdk.jmh.annotations.OutputTimeUnit;
@@ -33,6 +34,7 @@ import org.openjdk.jmh.annotations.Param;
 import org.openjdk.jmh.annotations.Scope;
 import org.openjdk.jmh.annotations.Setup;
 import org.openjdk.jmh.annotations.State;
+import org.openjdk.jmh.annotations.TearDown;
 import org.openjdk.jmh.annotations.Threads;
 import org.openjdk.jmh.annotations.Warmup;
 import org.openjdk.jmh.profile.GCProfiler;
@@ -63,6 +65,7 @@ import org.apache.cassandra.service.ClientState;
 import org.apache.cassandra.transport.Dispatcher;
 import org.apache.cassandra.utils.ByteArrayUtil;
 import org.apache.cassandra.utils.FBUtilities;
+import org.apache.cassandra.utils.TestHelper;
 
 @BenchmarkMode(Mode.Throughput)
 @OutputTimeUnit(TimeUnit.MILLISECONDS)
@@ -118,6 +121,12 @@ public class BatchStatementBench
         }
         bs = new BatchStatement(BatchStatement.Type.UNLOGGED, VariableSpecifications.empty(), modifications, Attributes.none());
         bqo = BatchQueryOptions.withPerStatementVariables(QueryOptions.DEFAULT, parameters, queryOrIdList);
+    }
+
+    @TearDown(Level.Trial)
+    public void teardown() throws Exception
+    {
+        TestHelper.teardown();
     }
 
     @Benchmark

@@ -35,7 +35,7 @@ public class TimeWindowCompactionTask extends CompactionTask
     }
 
     @Override
-    public CompactionController getCompactionController(Set<SSTableReader> toCompact)
+    public CompactionController getCompactionController(Set<SSTableReader> toCompact, long gcBefore)
     {
         return new TimeWindowCompactionController(cfs, toCompact, gcBefore, ignoreOverlaps);
     }

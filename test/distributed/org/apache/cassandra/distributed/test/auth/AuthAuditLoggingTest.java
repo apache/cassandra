@@ -52,8 +52,8 @@ import org.apache.cassandra.utils.tls.CertificateBundle;
 
 import static org.apache.cassandra.audit.AuditLogEntryType.LOGIN_ERROR;
 import static org.apache.cassandra.audit.AuditLogEntryType.LOGIN_SUCCESS;
-import static org.apache.cassandra.auth.CassandraRoleManager.DEFAULT_SUPERUSER_NAME;
-import static org.apache.cassandra.auth.CassandraRoleManager.DEFAULT_SUPERUSER_PASSWORD;
+import static org.apache.cassandra.auth.PasswordDefaultRoleInitializer.DEFAULT_SUPERUSER_NAME;
+import static org.apache.cassandra.auth.PasswordDefaultRoleInitializer.DEFAULT_SUPERUSER_PASSWORD;
 import static org.apache.cassandra.transport.TlsTestUtils.SERVER_KEYSTORE_PASSWORD;
 import static org.apache.cassandra.transport.TlsTestUtils.SERVER_TRUSTSTORE_PASSWORD;
 import static org.apache.cassandra.transport.TlsTestUtils.configureIdentity;
@@ -235,9 +235,10 @@ public class AuthAuditLoggingTest extends TestBaseImpl
     {
         configureMutualTlsAuthenticator();
         // optionally match source/port because in MacOS source/port are null
+        // optionally match TLS alert prefix e.g. "(certificate_required) " prepended on some JDK/Netty versions
         CharSequence expectedLogStringRegex = "^user:null\\|host:.*/127.0.0.1:\\d+(\\|source:/127.0.0.1\\|port:\\d+)?" +
                                               "\\|timestamp:\\d+\\|type:LOGIN_ERROR\\|category:AUTH" +
-                                              "\\|operation:LOGIN FAILURE; Empty client certificate chain.*$";
+                                              "\\|operation:LOGIN FAILURE; (?:\\([^)]+\\) )?Empty client certificate chain.*$";
         Path untrustedCertPath = generateSelfSignedCertificate(null, tempFolder.getRoot());
 
         testMtlsAuthenticationFailure(untrustedCertPath, "Authentication should fail with a self-signed certificate", expectedLogStringRegex);

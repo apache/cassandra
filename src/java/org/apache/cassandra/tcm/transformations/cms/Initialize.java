@@ -23,12 +23,12 @@ import java.io.IOException;
 import org.apache.cassandra.auth.AuthKeyspace;
 import org.apache.cassandra.io.util.DataInputPlus;
 import org.apache.cassandra.io.util.DataOutputPlus;
-import org.apache.cassandra.locator.MetaStrategy;
 import org.apache.cassandra.schema.DistributedSchema;
 import org.apache.cassandra.schema.Keyspaces;
 import org.apache.cassandra.schema.SystemDistributedKeyspace;
 import org.apache.cassandra.tcm.ClusterMetadata;
 import org.apache.cassandra.tcm.Transformation;
+import org.apache.cassandra.tcm.sequences.LockedRanges;
 import org.apache.cassandra.tcm.serialization.AsymmetricMetadataSerializer;
 import org.apache.cassandra.tcm.serialization.Version;
 import org.apache.cassandra.tcm.transformations.ForceSnapshot;
@@ -75,7 +75,7 @@ public class Initialize extends ForceSnapshot
                                                                 ? setUpDistributedSystemKeyspaces(next)
                                                                 : next.schema.getKeyspaces());
         ClusterMetadata.Transformer transformer = next.transformer().with(initialSchema);
-        return Transformation.success(transformer, MetaStrategy.affectedRanges(prev));
+        return Transformation.success(transformer, LockedRanges.AffectedRanges.EMPTY);
     }
 
     public Keyspaces setUpDistributedSystemKeyspaces(ClusterMetadata next)

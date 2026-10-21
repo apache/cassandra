@@ -40,7 +40,8 @@ import org.apache.cassandra.cql3.CQLStatement;
 import org.apache.cassandra.cql3.ColumnSpecification;
 import org.apache.cassandra.cql3.CqlParser;
 import org.apache.cassandra.cql3.QueryOptions;
-import org.apache.cassandra.cql3.UpdateParameters;
+import org.apache.cassandra.cql3.RowUpdateBuilder;
+import org.apache.cassandra.cql3.RowUpdateBuilder.RegularRowUpdateBuilder;
 import org.apache.cassandra.cql3.functions.types.TypeCodec;
 import org.apache.cassandra.cql3.statements.UpdateStatement;
 import org.apache.cassandra.cql3.statements.schema.CreateTableStatement;
@@ -265,20 +266,20 @@ public class StressCQLSSTableWriter implements Closeable
         long now = currentTimeMillis();
         // Note that we asks indexes to not validate values (the last 'false' arg below) because that triggers a 'Keyspace.open'
         // and that forces a lot of initialization that we don't want.
-        UpdateParameters params = new UpdateParameters(insert.metadata(),
-                                                       ClientState.forInternalCalls(),
-                                                       options,
-                                                       insert.getTimestamp(TimeUnit.MILLISECONDS.toMicros(now), options),
-                                                       (int) TimeUnit.MILLISECONDS.toSeconds(now),
-                                                       insert.getTimeToLive(options),
-                                                       Collections.emptyMap());
+        RowUpdateBuilder builder = new RegularRowUpdateBuilder(insert.metadata(),
+                                                               ClientState.forInternalCalls(),
+                                                               options,
+                                                               insert.getTimestamp(TimeUnit.MILLISECONDS.toMicros(now), options),
+                                                               (int) TimeUnit.MILLISECONDS.toSeconds(now),
+                                                               insert.getTimeToLive(options),
+                                                               null);
 
         try
         {
             for (ByteBuffer key : keys)
             {
                 for (Clustering<?> clustering : clusterings)
-                    insert.addUpdateForKey(writer.getUpdateFor(key), clustering, params);
+                    insert.addUpdateForKey(writer.getUpdateFor(key), clustering, builder);
             }
             return this;
         }

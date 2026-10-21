@@ -27,6 +27,8 @@ import java.util.Random;
 import java.util.Set;
 import java.util.function.Predicate;
 
+import com.google.common.collect.Sets;
+
 import org.junit.Test;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -41,6 +43,7 @@ import org.apache.cassandra.io.util.FileOutputStreamPlus;
 import org.apache.cassandra.tcm.membership.Directory;
 import org.apache.cassandra.tcm.membership.Location;
 import org.apache.cassandra.tcm.membership.MembershipUtils;
+import org.apache.cassandra.tcm.membership.NodeAddresses;
 import org.apache.cassandra.tcm.membership.NodeId;
 import org.apache.cassandra.tcm.membership.NodeVersion;
 import org.apache.cassandra.tcm.ownership.DataPlacements;
@@ -110,7 +113,10 @@ public class BootWithMetadataTest
         Directory directory = first.directory;
         int nodeCount = 10;
         int tokensPerNode = 5;
-        for (int i = 0; i < nodeCount; i++)
+        // Ensure that the "local" node is registered as it being member of the CMS is a precondition of booting from
+        // a ClusterMetadata.
+        directory = directory.with(NodeAddresses.current(), new Location("DC1", "RACK1"));
+        for (int i = 0; i < nodeCount-1; i++)
             directory = directory.with(nodeAddresses(random), new Location("DC1", "RACK1"));
         t = t.with(directory);
 
@@ -124,15 +130,16 @@ public class BootWithMetadataTest
             t = t.proposeToken(nodeId, perNodeTokens);
         };
 
-        DataPlacements placements = randomPlacements(random);
+        DataPlacements placements = randomPlacements(directory, random);
         t = t.with(placements);
         t = t.with(lockedRanges(placements, random));
 
         InProgressSequences seq = first.inProgressSequences;
-        seq = addSequence(seq, bootstrapAndJoin(partitioner, random, seq::contains));
-        seq = addSequence(seq, bootstrapAndReplace(partitioner, random, seq::contains));
-        seq = addSequence(seq, unbootstrapAndLeave(partitioner, random, seq::contains));
-        seq = addSequence(seq, move(partitioner, random, seq::contains));
+        ClusterMetadata withDir = first.transformer().with(directory).build().metadata;
+        seq = addSequence(seq, bootstrapAndJoin(withDir, partitioner, random, seq::contains));
+        seq = addSequence(seq, bootstrapAndReplace(withDir, partitioner, random, seq::contains));
+        seq = addSequence(seq, unbootstrapAndLeave(withDir, partitioner, random, seq::contains));
+        seq = addSequence(seq, move(withDir, partitioner, random, seq::contains));
         seq = addSequence(seq, addToCMS(random, seq::contains));
         t = t.with(seq);
         ClusterMetadata toWrite = t.build().metadata.forceEpoch(epoch);
@@ -156,12 +163,26 @@ public class BootWithMetadataTest
         assertEquals(toWrite.schema, fromRead.schema);
         assertEquals(toWrite.directory, fromRead.directory);
         assertEquals(toWrite.tokenMap, fromRead.tokenMap);
-        assertEquals(toWrite.placements, fromRead.placements);
+        assertEquals(toWrite.placements(), fromRead.placements());
         assertEquals(toWrite.lockedRanges, fromRead.lockedRanges);
-        assertEquals(toWrite.inProgressSequences, fromRead.inProgressSequences);
+        assertEquals(diff(toWrite.inProgressSequences, fromRead.inProgressSequences), toWrite.inProgressSequences, fromRead.inProgressSequences);
         assertEquals(toWrite.extensions, fromRead.extensions);
 
         return fromRead.epoch;
+    }
+    private static String diff(InProgressSequences toWrite, InProgressSequences fromRead)
+    {
+        StringBuilder sb = new StringBuilder();
+        if (!toWrite.keys().equals(fromRead.keys()))
+            sb.append(Sets.difference(toWrite.keys(), fromRead.keys()));
+        for (MultiStepOperation.SequenceKey k : toWrite.keys())
+        {
+            MultiStepOperation<?> wop = toWrite.get(k);
+            MultiStepOperation<?> rop = fromRead.get(k);
+            if (!wop.equals(rop))
+                sb.append(wop).append(" != ").append(rop).append("\n");
+        }
+        return sb.toString();
     }
 
     private InProgressSequences addSequence(InProgressSequences sequences, MultiStepOperation<?> seq)

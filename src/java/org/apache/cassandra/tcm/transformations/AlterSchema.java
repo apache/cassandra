@@ -36,7 +36,7 @@ import com.google.common.collect.Streams;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import org.apache.cassandra.config.AccordSpec;
+import org.apache.cassandra.config.AccordConfig;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.cql3.statements.schema.AlterSchemaStatement;
 import org.apache.cassandra.dht.Range;
@@ -244,7 +244,7 @@ public class AlterSchema implements Transformation
 
             DataPlacements.Builder newPlacementsBuilder = DataPlacements.builder(calculatedPlacements.size());
             calculatedPlacements.forEach((params, newPlacement) -> {
-                DataPlacement previousPlacement = prev.placements.get(params);
+                DataPlacement previousPlacement = prev.placement(params);
                 // Preserve placement versioning that has resulted from natural application where possible
                 if (previousPlacement.equivalentTo(newPlacement))
                     newPlacementsBuilder.with(params, previousPlacement);
@@ -312,7 +312,7 @@ public class AlterSchema implements Transformation
         if (!started.isEmpty())
         {
             List<Range<Token>> ranges;
-            AccordSpec.TransactionalRangeMigration migration = DatabaseDescriptor.getTransactionalRangeMigration();
+            AccordConfig.TransactionalRangeMigration migration = DatabaseDescriptor.getTransactionalRangeMigration();
             switch (migration)
             {
                 default: throw new IllegalStateException("Unhandled transactional range migration: " + migration);

@@ -67,7 +67,7 @@ public class ErrorMessageTest extends EncodeAndDecodeTestBase<ErrorMessage>
         boolean dataPresent = false;
         ReadFailureException rfe = new ReadFailureException(consistencyLevel, receivedBlockFor, receivedBlockFor, dataPresent, failureReasonMap1);
 
-        ErrorMessage deserialized = encodeThenDecode(ErrorMessage.fromException(rfe), ProtocolVersion.V5);
+        ErrorMessage deserialized = encodeThenDecode(ErrorMessage.fromTransportException(rfe), ProtocolVersion.V5);
         ReadFailureException deserializedRfe = (ReadFailureException) deserialized.error;
 
         assertEquals(failureReasonMap1, deserializedRfe.failureReasonByEndpoint);
@@ -85,7 +85,7 @@ public class ErrorMessageTest extends EncodeAndDecodeTestBase<ErrorMessage>
         WriteType writeType = WriteType.SIMPLE;
         WriteFailureException wfe = new WriteFailureException(consistencyLevel, receivedBlockFor, receivedBlockFor, writeType, failureReasonMap2);
 
-        ErrorMessage deserialized = encodeThenDecode(ErrorMessage.fromException(wfe), ProtocolVersion.V5);
+        ErrorMessage deserialized = encodeThenDecode(ErrorMessage.fromTransportException(wfe), ProtocolVersion.V5);
         WriteFailureException deserializedWfe = (WriteFailureException) deserialized.error;
 
         assertEquals(failureReasonMap2, deserializedWfe.failureReasonByEndpoint);
@@ -103,7 +103,7 @@ public class ErrorMessageTest extends EncodeAndDecodeTestBase<ErrorMessage>
         ConsistencyLevel consistencyLevel = ConsistencyLevel.SERIAL;
         CasWriteTimeoutException ex = new CasWriteTimeoutException(WriteType.CAS, consistencyLevel, 0, receivedBlockFor, contentions);
 
-        ErrorMessage deserialized = encodeThenDecode(ErrorMessage.fromException(ex), ProtocolVersion.V5);
+        ErrorMessage deserialized = encodeThenDecode(ErrorMessage.fromTransportException(ex), ProtocolVersion.V5);
         assertTrue(deserialized.error instanceof CasWriteTimeoutException);
         CasWriteTimeoutException deserializedEx = (CasWriteTimeoutException) deserialized.error;
 
@@ -124,7 +124,7 @@ public class ErrorMessageTest extends EncodeAndDecodeTestBase<ErrorMessage>
         ConsistencyLevel consistencyLevel = ConsistencyLevel.SERIAL;
         CasWriteTimeoutException ex = new CasWriteTimeoutException(WriteType.CAS, consistencyLevel, receivedBlockFor, receivedBlockFor, contentions);
 
-        ErrorMessage deserialized = encodeThenDecode(ErrorMessage.fromException(ex), ProtocolVersion.V4);
+        ErrorMessage deserialized = encodeThenDecode(ErrorMessage.fromTransportException(ex), ProtocolVersion.V4);
         assertTrue(deserialized.error instanceof WriteTimeoutException);
         assertFalse(deserialized.error instanceof CasWriteTimeoutException);
         WriteTimeoutException deserializedEx = (WriteTimeoutException) deserialized.error;
@@ -142,7 +142,7 @@ public class ErrorMessageTest extends EncodeAndDecodeTestBase<ErrorMessage>
         ConsistencyLevel consistencyLevel = ConsistencyLevel.SERIAL;
         CasWriteUnknownResultException ex = new CasWriteUnknownResultException(consistencyLevel, receivedBlockFor, receivedBlockFor);
 
-        ErrorMessage deserialized = encodeThenDecode(ErrorMessage.fromException(ex), ProtocolVersion.V5);
+        ErrorMessage deserialized = encodeThenDecode(ErrorMessage.fromTransportException(ex), ProtocolVersion.V5);
         assertTrue(deserialized.error instanceof CasWriteUnknownResultException);
         CasWriteUnknownResultException deserializedEx = (CasWriteUnknownResultException) deserialized.error;
 
@@ -160,7 +160,7 @@ public class ErrorMessageTest extends EncodeAndDecodeTestBase<ErrorMessage>
         ConsistencyLevel consistencyLevel = ConsistencyLevel.SERIAL;
         CasWriteUnknownResultException ex = new CasWriteUnknownResultException(consistencyLevel, receivedBlockFor, receivedBlockFor);
 
-        ErrorMessage deserialized = encodeThenDecode(ErrorMessage.fromException(ex), ProtocolVersion.V4);
+        ErrorMessage deserialized = encodeThenDecode(ErrorMessage.fromTransportException(ex), ProtocolVersion.V4);
         assertTrue(deserialized.error instanceof WriteTimeoutException);
         assertFalse(deserialized.error instanceof CasWriteUnknownResultException);
         WriteTimeoutException deserializedEx = (WriteTimeoutException) deserialized.error;

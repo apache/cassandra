@@ -29,7 +29,6 @@ import java.util.Map;
 import java.util.Set;
 import java.util.function.Function;
 import java.util.function.Predicate;
-import java.util.stream.Collectors;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -45,7 +44,7 @@ import org.apache.cassandra.schema.KeyspaceMetadata;
 import org.apache.cassandra.schema.KeyspaceParams;
 import org.apache.cassandra.schema.ReplicationParams;
 import org.apache.cassandra.schema.SchemaConstants;
-import org.apache.cassandra.service.accord.fastpath.FastPathStrategy;
+import org.apache.cassandra.service.accord.topology.FastPathStrategy;
 import org.apache.cassandra.tcm.ClusterMetadata;
 import org.apache.cassandra.tcm.Transformation;
 import org.apache.cassandra.tcm.membership.NodeId;
@@ -62,6 +61,12 @@ import static org.apache.cassandra.tcm.CMSOperations.REPLICATION_FACTOR;
 public abstract class PrepareCMSReconfiguration implements Transformation
 {
     private static final Logger logger = LoggerFactory.getLogger(PrepareCMSReconfiguration.class);
+
+    /**
+     * Nodes to exclude from the new CMS: those the failure detector considered down when the reconfiguration was
+     * initiated, plus any the operator excluded via {@code nodetool cms reconfigure --ignore}. Resolved by the
+     * initiating node and serialized so that every node executing or replaying this derives the same {@link Diff}.
+     */
     final Set<NodeId> downNodes;
 
     public PrepareCMSReconfiguration(Set<NodeId> downNodes)
@@ -81,8 +86,9 @@ public abstract class PrepareCMSReconfiguration implements Transformation
             return Transformation.success(prev.transformer(), LockedRanges.AffectedRanges.EMPTY);
         }
 
+        logger.info("Proposed CMS reconfiguration resulted in {}", diff);
         LockedRanges.Key lockKey = LockedRanges.keyFor(prev.nextEpoch());
-        Set<NodeId> cms = prev.fullCMSMembers().stream().map(prev.directory::peerId).collect(Collectors.toSet());
+        Set<NodeId> cms = prev.fullCMSMemberIds();
         Set<NodeId> tmp = new HashSet<>(cms);
         tmp.addAll(diff.additions);
         tmp.removeAll(diff.removals);
@@ -118,7 +124,9 @@ public abstract class PrepareCMSReconfiguration implements Transformation
         int expectedSize = dcRf.values().stream().mapToInt(Integer::intValue).sum();
         Set<NodeId> newCms = prepareNewCMS(dcRf, prev);
         if (newCms.size() < (expectedSize / 2) + 1)
-            throw new IllegalStateException("Too many nodes are currently DOWN to safely perform the reconfiguration");
+            throw new IllegalStateException(String.format("Too many nodes are currently DOWN or ignored to safely perform " +
+                                                          "the reconfiguration (only %d of %d members could be placed)",
+                                                          newCms.size(), expectedSize));
     }
 
     private static void serializeDownNodes(PrepareCMSReconfiguration transformation, DataOutputPlus out, Version version) throws IOException
@@ -266,9 +274,7 @@ public abstract class PrepareCMSReconfiguration implements Transformation
             KeyspaceMetadata keyspace = prev.schema.getKeyspaceMetadata(SchemaConstants.METADATA_KEYSPACE_NAME);
             KeyspaceMetadata newKeyspace = keyspace.withSwapped(new KeyspaceParams(keyspace.params.durableWrites, replicationParams, FastPathStrategy.simple()));
 
-            return executeInternal(prev,
-                                   transformer -> transformer.with(prev.placements.replaceParams(prev.nextEpoch(), ReplicationParams.meta(prev), replicationParams))
-                                                             .with(new DistributedSchema(prev.schema.getKeyspaces().withAddedOrUpdated(newKeyspace))));
+            return executeInternal(prev, transformer -> transformer.with(new DistributedSchema(prev.schema.getKeyspaces().withAddedOrUpdated(newKeyspace))));
         }
 
         public String toString()
@@ -311,7 +317,6 @@ public abstract class PrepareCMSReconfiguration implements Transformation
 
     public static Diff diff(Set<NodeId> currentCms, Set<NodeId> newCms)
     {
-        assert !currentCms.contains(null) : "Current CMS contains a null value " + currentCms;
         assert !newCms.contains(null) : "New CMS contains a null value " + newCms;
 
         List<NodeId> additions = new ArrayList<>();
@@ -354,10 +359,7 @@ public abstract class PrepareCMSReconfiguration implements Transformation
     public static boolean needsReconfiguration(ClusterMetadata metadata)
     {
         Map<String, Integer> dcRf = extractRf(ReplicationParams.meta(metadata));
-        Set<NodeId> currentCms = metadata.fullCMSMembers()
-                                         .stream()
-                                         .map(metadata.directory::peerId)
-                                         .collect(Collectors.toSet());
+        Set<NodeId> currentCms = metadata.fullCMSMemberIds();
         int expectedSize = dcRf.values().stream().mapToInt(Integer::intValue).sum();
         if (currentCms.size() != expectedSize)
             return true;

@@ -175,11 +175,12 @@ public final class StatementRestrictions
                                  WhereClause whereClause,
                                  VariableSpecifications boundNames,
                                  List<Ordering> orderings,
+                                 Object owner,
                                  boolean selectsOnlyStaticColumns,
                                  boolean allowFiltering,
                                  boolean forView)
     {
-        this(state, type, table, indexHints, whereClause, boundNames, orderings, selectsOnlyStaticColumns, type.allowUseOfSecondaryIndices(), allowFiltering, forView);
+        this(state, type, table, indexHints, whereClause, boundNames, orderings, owner, selectsOnlyStaticColumns, type.allowUseOfSecondaryIndices(), allowFiltering, forView);
     }
 
     /*
@@ -193,6 +194,7 @@ public final class StatementRestrictions
                                  WhereClause whereClause,
                                  VariableSpecifications boundNames,
                                  List<Ordering> orderings,
+                                 Object owner,
                                  boolean selectsOnlyStaticColumns,
                                  boolean allowUseOfSecondaryIndices,
                                  boolean allowFiltering,
@@ -227,11 +229,11 @@ public final class StatementRestrictions
                 if (!forView)
                     throw new InvalidRequestException("Unsupported restriction: " + relation);
 
-                this.notNullColumns.addAll(relation.toRestriction(table, boundNames, allowFiltering).columns());
+                this.notNullColumns.addAll(relation.toRestriction(table, boundNames, owner, allowFiltering).columns());
             }
             else if (operator.requiresIndexing())
             {
-                Restriction restriction = relation.toRestriction(table, boundNames, allowFiltering);
+                Restriction restriction = relation.toRestriction(table, boundNames, owner, allowFiltering);
 
                 if (!type.allowUseOfSecondaryIndices() || !restriction.hasSupportingIndex(indexRegistry, indexHints))
                     throw invalidRequest("%s restriction is only supported on properly " +
@@ -241,7 +243,7 @@ public final class StatementRestrictions
             }
             else
             {
-                addRestriction(relation.toRestriction(table, boundNames, allowFiltering), indexRegistry, indexHints);
+                addRestriction(relation.toRestriction(table, boundNames, owner, allowFiltering), indexRegistry, indexHints);
             }
         }
 
@@ -735,30 +737,31 @@ public final class StatementRestrictions
                                                VariableSpecifications boundNames,
                                                IndexRegistry indexRegistry)
     {
-        if (expressions.size() > 1)
+        if (expressions.size() > 1 && !indexRegistry.supportsMultipleIndexExpressions())
             throw new InvalidRequestException(IndexRestrictions.MULTIPLE_EXPRESSIONS);
 
-        CustomIndexExpression expression = expressions.get(0);
+        for (CustomIndexExpression expression : expressions)
+        {
+            QualifiedName name = expression.targetIndex;
 
-        QualifiedName name = expression.targetIndex;
+            if (name.hasKeyspace() && !name.getKeyspace().equals(table.keyspace))
+                throw IndexRestrictions.invalidIndex(expression.targetIndex, table);
 
-        if (name.hasKeyspace() && !name.getKeyspace().equals(table.keyspace))
-            throw IndexRestrictions.invalidIndex(expression.targetIndex, table);
+            if (!table.indexes.has(expression.targetIndex.getName()))
+                throw IndexRestrictions.indexNotFound(expression.targetIndex, table);
 
-        if (!table.indexes.has(expression.targetIndex.getName()))
-            throw IndexRestrictions.indexNotFound(expression.targetIndex, table);
+            Index index = indexRegistry.getIndex(table.indexes.get(expression.targetIndex.getName()).get());
+            if (!index.getIndexMetadata().isCustom())
+                throw IndexRestrictions.nonCustomIndexInExpression(expression.targetIndex);
 
-        Index index = indexRegistry.getIndex(table.indexes.get(expression.targetIndex.getName()).get());
-        if (!index.getIndexMetadata().isCustom())
-            throw IndexRestrictions.nonCustomIndexInExpression(expression.targetIndex);
+            AbstractType<?> expressionType = index.customExpressionValueType();
+            if (expressionType == null)
+                throw IndexRestrictions.customExpressionNotSupported(expression.targetIndex);
 
-        AbstractType<?> expressionType = index.customExpressionValueType();
-        if (expressionType == null)
-            throw IndexRestrictions.customExpressionNotSupported(expression.targetIndex);
+            expression.prepareValue(table, expressionType, boundNames, table);
 
-        expression.prepareValue(table, expressionType, boundNames);
-
-        filterRestrictions.add(expression);
+            filterRestrictions.add(expression);
+        }
     }
 
     public RowFilter getRowFilter(IndexRegistry indexRegistry, QueryOptions options)

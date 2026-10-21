@@ -18,6 +18,7 @@
 */
 package org.apache.cassandra.utils;
 
+import java.lang.reflect.Field;
 import java.util.ArrayDeque;
 import java.util.HashMap;
 import java.util.Map;
@@ -32,13 +33,20 @@ import org.junit.Test;
 import org.slf4j.Logger;
 import org.slf4j.helpers.SubstituteLogger;
 
+import org.apache.cassandra.distributed.shared.WithProperties;
+import org.apache.cassandra.exceptions.ConfigurationException;
 import org.apache.cassandra.utils.NoSpamLogger.Level;
+import org.apache.cassandra.utils.NoSpamLogger.NoDuplicateSpamLogStatement;
 import org.apache.cassandra.utils.NoSpamLogger.NoSpamLogStatement;
 
+import static org.apache.cassandra.config.CassandraRelevantProperties.NOSPAM_LOGGER_MAX_STATEMENTS_PER_LOGGER;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.junit.Assert.assertArrayEquals;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertNotNull;
+import static org.junit.Assert.assertNotSame;
+import static org.junit.Assert.assertSame;
 import static org.junit.Assert.assertTrue;
 
 public class NoSpamLoggerTest
@@ -278,9 +286,9 @@ public class NoSpamLoggerTest
 
         now = 45;
 
-        assertTrue(nospamStatement.error(param));
-        checkMock(Level.ERROR);
-    }
+       assertTrue(nospamStatement.error(param));
+       checkMock(Level.ERROR);
+   }
 
     @Test
     public void testSupplierLogging()
@@ -310,5 +318,408 @@ public class NoSpamLoggerTest
         loggedMsg = logged.get(Level.INFO).remove();
         assertEquals("TESTING {}", loggedMsg.left);
         assertArrayEquals(params, loggedMsg.right);
+    }
+
+    /**
+     * Test that the {@link NoSpamLogStatement} cache is bounded and doesn't grow beyond max_statements_per_logger.
+     * This prevents memory exhaustion from dynamic log messages (e.g., queries with unique strings).
+     */
+    @Test
+    public void testNoSpamLogStatementCacheBounded()
+    {
+        long maxStatementsPerLogger = NoSpamLogger.parseMaxStatementsPerLogger();
+        now = 5;
+        NoSpamLogger logger = NoSpamLogger.wrap(mock, 5, TimeUnit.NANOSECONDS);
+
+        // Create more unique log statements than the cache can hold
+        long numberOfLogStatements = (long) (maxStatementsPerLogger * 1.5);
+        for (long i = 0; i < numberOfLogStatements; i++)
+        {
+            String uniqueStatement = "statement" + i + "{}";
+            assertTrue("First occurrence of statement " + i + " should succeed",
+                      logger.info(uniqueStatement, param));
+        }
+
+        assertEquals(numberOfLogStatements, logged.get(Level.INFO).size());
+
+        // Force cache cleanup to ensure eviction has completed
+        logger.cleanUpStatementsForTest();
+
+        // Verify the cache size is bounded to the configured maximum
+        assertTrue("Cache size should be at most " + maxStatementsPerLogger, logger.getStatementsCount() <= maxStatementsPerLogger);
+    }
+
+    @Test
+    public void testNonPositiveMaxStatementsPerLoggerIsRejected()
+    {
+        for (String invalid : new String[]{ "0", "-1" })
+        {
+            try (WithProperties ignored = new WithProperties().set(NOSPAM_LOGGER_MAX_STATEMENTS_PER_LOGGER, invalid))
+            {
+                assertThatThrownBy(NoSpamLogger::parseMaxStatementsPerLogger)
+                .isInstanceOf(ConfigurationException.class)
+                .hasMessageContaining("Invalid value for system property cassandra.nospam_logger.max_statements_per_logger: expected a positive value but got " + invalid);
+            }
+        }
+    }
+
+    @Test
+    public void testPositiveMaxStatementsPerLoggerIsAccepted()
+    {
+        try (WithProperties ignored = new WithProperties().set(NOSPAM_LOGGER_MAX_STATEMENTS_PER_LOGGER, "7"))
+        {
+            assertEquals(7, NoSpamLogger.parseMaxStatementsPerLogger());
+        }
+    }
+
+    @Test
+    public void testConfiguredMaxStatementsPerLoggerBoundsTheCache()
+    {
+        NoSpamLogger logger = NoSpamLogger.wrap(mock, 5, TimeUnit.NANOSECONDS);
+        assertEquals(NoSpamLogger.parseMaxStatementsPerLogger(), logger.getMaxStatementsCount());
+    }
+
+    /**
+     * Test that log statements expire after the configured inactivity period.
+     */
+    @Test
+    public void testNoSpamLogStatementsCacheTimeBasedEviction()
+    {
+        try
+        {
+            int minIntervalInseconds = 10;
+            NoSpamLogger.clearWrappedLoggersForTest();
+            now = 0;
+            NoSpamLogger logger = NoSpamLogger.getLogger(mock, minIntervalInseconds, TimeUnit.SECONDS);
+
+            assertTrue(logger.info("test{}", param));
+            assertEquals(1, logged.get(Level.INFO).size());
+            assertEquals("Cache should contain 1 statement", 1, logger.getStatementsCount());
+
+            // Try to log again immediately - should be rate-limited
+            assertFalse(logger.info("test{}", param));
+            assertEquals(1, logged.get(Level.INFO).size());
+            assertEquals("Cache should still contain 1 statement", 1, logger.getStatementsCount());
+
+            // Advance past `minIntervalInseconds`, which drives both rate limiting and cache expiration
+            long advanceTime = TimeUnit.SECONDS.toNanos(minIntervalInseconds + 1);
+            now += advanceTime;
+
+            // Trigger cache cleanup to process expired entries
+            logger.cleanUpStatementsForTest();
+
+            // Verify the statement was evicted from cache
+            assertEquals("Cache should be empty after expiration", 0, logger.getStatementsCount());
+
+            // The statement should have expired from cache, so it should log again
+            assertTrue("Statement should have expired and can log again",
+                      logger.info("test{}", param));
+            assertEquals(2, logged.get(Level.INFO).size());
+            assertEquals("Cache should contain 1 statement again", 1, logger.getStatementsCount());
+        }
+        finally
+        {
+            NoSpamLogger.clearWrappedLoggersForTest();
+        }
+    }
+
+    /**
+     * Test that NoSpamLogger instances are cached and reused.
+     * This test verifies that getting the same logger returns the cached instance,
+     * and that clearing the cache creates new instances.
+     */
+    @Test
+    public void testNoSpamLoggerCaching()
+    {
+        NoSpamLogger.clearWrappedLoggersForTest();
+        now = 0;
+
+        // Create multiple unique logger instances
+        Logger logger1 = new SubstituteLogger("testLogger1", null, true)
+        {
+            @Override
+            public void info(String statement, Object... args)
+            {
+                logged.get(Level.INFO).offer(Pair.create(statement, args));
+            }
+
+            @Override
+            public int hashCode()
+            {
+                return System.identityHashCode(this);
+            }
+
+            @Override
+            public boolean equals(Object o)
+            {
+                return this == o;
+            }
+        };
+
+        Logger logger2 = new SubstituteLogger("testLogger2", null, true)
+        {
+            @Override
+            public void info(String statement, Object... args)
+            {
+                logged.get(Level.INFO).offer(Pair.create(statement, args));
+            }
+
+            @Override
+            public int hashCode()
+            {
+                return System.identityHashCode(this);
+            }
+
+            @Override
+            public boolean equals(Object o)
+            {
+                return this == o;
+            }
+        };
+
+        // Get NoSpamLogger instances - these should be cached
+        NoSpamLogger nsl1 = NoSpamLogger.getLogger(logger1, 5, TimeUnit.NANOSECONDS);
+        NoSpamLogger nsl2 = NoSpamLogger.getLogger(logger2, 5, TimeUnit.NANOSECONDS);
+
+        assertTrue(nsl1.info("test{}", param));
+        assertTrue(nsl2.info("test{}", param));
+        assertEquals(2, logged.get(Level.INFO).size());
+
+        // Verify that getting the same logger returns the cached instance
+        NoSpamLogger nsl1Again = NoSpamLogger.getLogger(logger1, 5, TimeUnit.NANOSECONDS);
+        assertSame("Should return cached instance", nsl1, nsl1Again);
+
+        // Forcefully clear all cached loggers
+        NoSpamLogger.clearWrappedLoggersForTest();
+
+        // Getting the logger again should create a new instance
+        NoSpamLogger nsl1New = NoSpamLogger.getLogger(logger1, 5, TimeUnit.NANOSECONDS);
+        assertNotSame("Should create new instance after cache clear", nsl1, nsl1New);
+
+        // Verify the new instance works correctly
+        assertTrue("New logger instance should log immediately", nsl1New.info("test{}", param));
+        assertEquals(3, logged.get(Level.INFO).size());
+    }
+
+    /**
+     * Test that the NoSpamLogStatement cache uses custom per-entry expiry based on each logger's minIntervalNanos.
+     * This test verifies that different NoSpamLogger instances with different intervals result in
+     * different expiry times for their cached statements.
+     */
+    @Test
+    public void testNoSpamLogStatementCacheCustomExpiry()
+    {
+        NoSpamLogger.clearWrappedLoggersForTest();
+        now = 0;
+
+        // Create three NoSpamLogger instances with different intervals
+        int[] intervals = { 2, 5, 10 };
+        NoSpamLogger[] loggers = new NoSpamLogger[intervals.length];
+        int logMessagesPerLogger = 3;
+        for (int i = 0; i < intervals.length; i++)
+        {
+            // Create a unique Logger instance for each interval to get separate NoSpamLogger instances
+            Logger testLogger = new SubstituteLogger("testLogger" + i, null, true)
+            {
+                @Override
+                public void info(String statement, Object... args)
+                {
+                    logged.get(Level.INFO).offer(Pair.create(statement, args));
+                }
+
+                @Override
+                public int hashCode()
+                {
+                    return System.identityHashCode(this);
+                }
+
+                @Override
+                public boolean equals(Object o)
+                {
+                    return this == o;
+                }
+            };
+
+            loggers[i] = NoSpamLogger.getLogger(testLogger, intervals[i], TimeUnit.SECONDS);
+
+            // Log 3 messages from each logger
+            for (int j = 1; j <= logMessagesPerLogger; j++)
+            {
+                assertTrue(loggers[i].info("message" + j));
+            }
+            assertEquals(logMessagesPerLogger, loggers[i].getStatementsCount());
+        }
+
+        assertEquals(logMessagesPerLogger * intervals.length, logged.get(Level.INFO).size());
+
+        // Test expiry at different time points
+        // Entries were created at now=0, so they expire at their interval time
+        int[] checkTimes = new int[intervals.length];
+        for (int i = 0; i < intervals.length; i++)
+        {
+            // Set check time to 1 second after expiry (entries expire at interval seconds)
+            checkTimes[i] = intervals[i] + 1;
+        }
+
+        for (int timeIdx = 0; timeIdx < checkTimes.length; timeIdx++)
+        {
+            now = TimeUnit.SECONDS.toNanos(checkTimes[timeIdx]);
+
+            for (int i = 0; i < loggers.length; i++)
+            {
+                loggers[i].cleanUpStatementsForTest();
+
+                // Entries expire at (creation_time + interval), created at time 0
+                // So they expire when now > interval
+                int expected = (intervals[i] < checkTimes[timeIdx]) ? 0 : logMessagesPerLogger;
+                assertEquals(String.format("After %ds, %d-second logger should have %d statements",
+                                           checkTimes[timeIdx], intervals[i], expected),
+                             expected, loggers[i].getStatementsCount());
+            }
+        }
+    }
+
+    // BELOW TESTS WERE AUTHORED BY LLM
+    // ---------------------------------------------------------------------------------------------------------------
+    // NoDuplicateSpamLogStatement: per-identity rate limiting. The state it keeps to recognise a duplicate must be
+    // bounded (it is fed by error storms), and recognising a duplicate must be cheap (it is on the storm path).
+    // ---------------------------------------------------------------------------------------------------------------
+
+    private static final long INTERVAL_NANOS = 100;
+    /**
+     * Upper bound we are willing to see retained. The implementation's own cap is 1024; we assert against a bound
+     * that is generous but still independent of {@link #DISTINCT_IDS}, so the test states "bounded", not "exactly
+     * 1024", and does not have to be edited if the cap is retuned.
+     */
+    private static final int RETAINED_BOUND = 4096;
+    private static final int DISTINCT_IDS = 20_000;
+
+    private static Map<?, ?> lastLoggedOf(NoDuplicateSpamLogStatement statement) throws Exception
+    {
+        // Reflection, deliberately: the class exposes no accessor for its suppression state, and the alternative
+        // (asserting only on behaviour) cannot say *how many* entries were retained, which is the whole finding.
+        // The behavioural assertion in the same test is the primary one; this is here so that the failure message
+        // names the actual defect (a map of N entries) rather than only its symptom.
+        Field field = NoDuplicateSpamLogStatement.class.getDeclaredField("lastLogged");
+        field.setAccessible(true);
+        return (Map<?, ?>) field.get(statement);
+    }
+
+    /**
+     * Pins: {@code NoDuplicateSpamLogStatement}'s duplicate-suppression state is bounded. Pruning happens only from
+     * inside a call that passes the gate, once per interval, and only for expired entries, so a burst of distinct
+     * identities followed by quiescence used to retain one entry each for ever - and the number of identities is not
+     * bounded by code paths (line numbers x cause chains x suppressed sets).
+     *
+     * <p>The clock is held still for the burst, so nothing can expire and only the hard size cap can bound the map.
+     * The cap declines to log a never-before-seen identity rather than evicting an older one, whose interval has not
+     * elapsed; asserted here as retained count, consistency between logged and retained, and (via the public API)
+     * that the cap is not a permanent gag once the retained entries expire.
+     */
+    @Test
+    public void testNoDuplicateSpamLoggerStateIsBounded() throws Exception
+    {
+        now = 5;
+        NoDuplicateSpamLogStatement nospam = new NoDuplicateSpamLogStatement(mock, statement, INTERVAL_NANOS, TimeUnit.NANOSECONDS);
+
+        long firstId = 0;
+        assertTrue(nospam.warn(firstId, param));
+        assertFalse("an identity repeated inside the interval must be suppressed", nospam.warn(firstId, param));
+        assertLoggedSizes(0, 1, 0);
+
+        // a burst of distinct identities, with the clock frozen: nothing expires, so nothing can be pruned
+        int logged = 1;
+        for (long id = 1; id <= DISTINCT_IDS; ++id)
+            if (nospam.warn(id, param)) ++logged;
+
+        int retained = lastLoggedOf(nospam).size();
+        assertTrue("lastLogged retained " + retained + " entries after " + (DISTINCT_IDS + 1) + " distinct " +
+                   "identities with the clock frozen (expected at most " + RETAINED_BOUND + "): the duplicate-" +
+                   "suppression map is unbounded",
+                   retained <= RETAINED_BOUND);
+        assertEquals("every identity that was logged must be one the map still holds: the cap declines new " +
+                     "identities, it does not forget identities that are still inside their interval",
+                     logged, retained);
+        assertLoggedSizes(0, logged, 0);
+
+        // once the retained entries have expired the next call prunes them, so the cap does not silence the statement
+        // for the lifetime of the process
+        now += INTERVAL_NANOS;
+        assertTrue("a new identity must be logged again once the retained entries have expired: the cap is a bound on " +
+                   "the state, not a permanent gag",
+                   nospam.warn(DISTINCT_IDS + 1L, param));
+        assertTrue(lastLoggedOf(nospam).size() <= RETAINED_BOUND);
+    }
+
+    /**
+     * Pins: bounding the state did not break what the state is for. Same identity inside the interval is logged
+     * once, distinct identities are independent, and the interval still applies to each identity separately.
+     *
+     * Deliberately stays well below the cap (and below the prune threshold of 32) so that it is only about the
+     * suppression contract. A cap that cleared the map too eagerly, or a gate that ignored the identity, would show
+     * up here as a duplicate message.
+     */
+    @Test
+    public void testNoDuplicateSpamLoggerSuppression()
+    {
+        now = 5;
+        NoDuplicateSpamLogStatement nospam = new NoDuplicateSpamLogStatement(mock, statement, INTERVAL_NANOS, TimeUnit.NANOSECONDS);
+
+        assertTrue(nospam.warn(1L, param));
+        assertFalse(nospam.warn(1L, param));
+        assertFalse(nospam.warn(1L, param));
+        assertLoggedSizes(0, 1, 0);
+
+        assertTrue("a distinct identity must not be suppressed by another identity's interval", nospam.warn(2L, param));
+        assertFalse(nospam.warn(2L, param));
+        assertLoggedSizes(0, 2, 0);
+
+        // one nanosecond before identity 1's interval expires
+        now = 5 + INTERVAL_NANOS - 1;
+        assertFalse("the interval must still be enforced per identity", nospam.warn(1L, param));
+        assertLoggedSizes(0, 2, 0);
+
+        now = 5 + INTERVAL_NANOS;
+        assertTrue("the identity must be logged again once its interval has elapsed", nospam.warn(1L, param));
+        assertFalse(nospam.warn(1L, param));
+        assertLoggedSizes(0, 3, 0);
+
+        // and the arguments still reach the wrapped logger unchanged
+        Pair<String, Object[]> p = logged.get(Level.WARN).poll();
+        assertNotNull(p);
+        assertEquals(statement, p.left);
+        assertArrayEquals(new Object[]{ param }, p.right);
+    }
+
+    /**
+     * Pins: the cheap gate is still discriminating enough to tell distinct exception *shapes* apart - it walks the
+     * cause chain, it is not just the type of the outermost throwable. Otherwise the cost fix would have bought
+     * itself by swallowing genuinely different failures under one message per interval.
+     *
+     * Version-neutral by construction (it holds no opinion on stack traces), so it is a guard on the gate's
+     * fidelity rather than a detector; the detector for the gate itself is
+     * {@link #testSuppressedExceptionDoesNotWalkTheStackTrace}.
+     */
+    @Test
+    public void testDistinctCauseChainsAreLoggedSeparately()
+    {
+        now = 5;
+        NoDuplicateSpamLogStatement nospam = new NoDuplicateSpamLogStatement(mock, statement, INTERVAL_NANOS, TimeUnit.NANOSECONDS);
+
+        Throwable ise = new RuntimeException("a", new IllegalStateException("inner"));
+        assertTrue(nospam.warn(ise));
+        assertTrue("a different cause type is a different failure and must be logged",
+                   nospam.warn(new RuntimeException("a", new IllegalArgumentException("inner"))));
+        assertLoggedSizes(0, 2, 0);
+
+        // differing only at the third level of the cause chain
+        assertTrue(nospam.warn(new RuntimeException("b", new RuntimeException("m", new IllegalStateException("deep")))));
+        assertTrue("the gate must walk the whole cause chain, not only the outermost throwable",
+                   nospam.warn(new RuntimeException("b", new RuntimeException("m", new IllegalArgumentException("deep")))));
+        assertLoggedSizes(0, 4, 0);
+
+        // ... and each of those shapes is now suppressed for the interval
+        assertFalse("a throwable already logged in this interval must be suppressed", nospam.warn(ise));
+        assertLoggedSizes(0, 4, 0);
     }
 }

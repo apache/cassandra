@@ -116,6 +116,7 @@ import static java.util.concurrent.TimeUnit.NANOSECONDS;
 import static org.apache.cassandra.config.CassandraRelevantProperties.CASSANDRA_FOREGROUND;
 import static org.apache.cassandra.config.CassandraRelevantProperties.CASSANDRA_PID_FILE;
 import static org.apache.cassandra.config.CassandraRelevantProperties.COM_SUN_MANAGEMENT_JMXREMOTE_PORT;
+import static org.apache.cassandra.config.CassandraRelevantProperties.DTEST_AVOID_SYSTEM_EXIT;
 import static org.apache.cassandra.config.CassandraRelevantProperties.JAVA_CLASS_PATH;
 import static org.apache.cassandra.config.CassandraRelevantProperties.JAVA_RMI_SERVER_RANDOM_ID;
 import static org.apache.cassandra.config.CassandraRelevantProperties.JAVA_VERSION;
@@ -272,14 +273,6 @@ public class CassandraDaemon
         Keyspace.setInitialized();
         CommitLog.instance.start();
 
-        SnapshotManager.instance.start(false);
-        SnapshotManager.instance.clearExpiredSnapshots();
-        SnapshotManager.instance.clearEphemeralSnapshots();
-        SnapshotManager.instance.resumeSnapshotCleanup();
-        SnapshotManager.instance.registerMBean();
-
-        // clearing of snapshots above here will in fact clear all ephemeral snapshots
-        // which were cleared as part of startup checks before CASSANDRA-18111
         runStartupChecks();
 
         try
@@ -305,6 +298,17 @@ public class CassandraDaemon
         {
             exitOrFail(e.returnCode, e.getMessage(), e.getCause());
         }
+
+        // SnapshotManager is started after Startup.initialize so that ClusterMetadata is available,
+        // allowing SnapshotLoader to resolve tableId for pre-2.1 tables via ColumnFamilyStore.
+        // This means ephemeral/expired snapshot cleanup now runs later in startup than before
+        // CASSANDRA-21173. No default StartupChecks depend on snapshot state, but custom
+        // StartupCheck implementations that check disk space may observe stale snapshots.
+        SnapshotManager.instance.start(false);
+        SnapshotManager.instance.clearExpiredSnapshots();
+        SnapshotManager.instance.clearEphemeralSnapshots();
+        SnapshotManager.instance.resumeSnapshotCleanup();
+        SnapshotManager.instance.registerMBean();
 
         QueryProcessor.registerStatementInvalidatingListener();
 
@@ -357,7 +361,7 @@ public class CassandraDaemon
         {
             CommitLog.instance.recoverSegmentsOnDisk();
             NodeId self = ClusterMetadata.current().myNodeId();
-            if (self != null)
+            if (self != NodeId.UNREGISTERED)
                 AccordService.localStartup(self);
         }
         catch (IOException e)
@@ -388,6 +392,11 @@ public class CassandraDaemon
 
         // Prepared statements
         QueryProcessor.instance.preloadPreparedStatements();
+
+        // Apply overrides before re-enabling auto-compaction
+        setCompactionStrategyOverrides(Schema.instance.getKeyspaces());
+        // re-enable auto-compaction after replay, so correct disk boundaries are used
+        enableAutoCompaction(Schema.instance.getKeyspaces());
 
         // start server internals
         StorageService.instance.registerDaemon(this);
@@ -420,11 +429,6 @@ public class CassandraDaemon
 
         ScheduledExecutors.optionalTasks.schedule(viewRebuild, StorageService.RING_DELAY_MILLIS, TimeUnit.MILLISECONDS);
         StorageService.instance.doAuthSetup();
-
-        // Apply overrides before re-enabling auto-compaction
-        setCompactionStrategyOverrides(Schema.instance.getKeyspaces());
-        // re-enable auto-compaction after replay, so correct disk boundaries are used
-        enableAutoCompaction(Schema.instance.getKeyspaces());
 
         AuditLogManager.instance.initialize();
 
@@ -638,13 +642,15 @@ public class CassandraDaemon
     {
         VirtualKeyspaceRegistry.instance.register(VirtualSchemaKeyspace.instance);
         VirtualKeyspaceRegistry.instance.register(SystemViewsKeyspace.instance);
-        VirtualKeyspaceRegistry.instance.register(new VirtualKeyspace(VIRTUAL_METRICS, createMetricsKeyspaceTables()));
 
         if (DatabaseDescriptor.getAccord().enable_virtual_debug_only_keyspace)
         {
             VirtualKeyspaceRegistry.instance.register(AccordDebugKeyspace.instance);
             VirtualKeyspaceRegistry.instance.register(AccordDebugRemoteKeyspace.instance);
         }
+
+        if (CassandraRelevantProperties.VIRTUAL_KEYSPACE_SYSTEM_METRICS_ENABLED.getBoolean())
+            VirtualKeyspaceRegistry.instance.register(new VirtualKeyspace(VIRTUAL_METRICS, createMetricsKeyspaceTables()));
 
         // Flush log messages to system_views.system_logs virtual table as there were messages already logged
         // before that virtual table was instantiated.
@@ -901,7 +907,7 @@ public class CassandraDaemon
         {
             if (StorageService.instance.isSurveyMode())
             {
-                if (!StorageService.instance.readyToFinishJoiningRing() || DatabaseDescriptor.getAuthenticator().requireAuthentication())
+                if (!StorageService.instance.readyToFinishJoiningRing() || DatabaseDescriptor.isAuthenticationRequired())
                 {
                     throw new IllegalStateException("Not starting client transports in write_survey mode as it's bootstrapping or " +
                                                     "auth is enabled");
@@ -1007,7 +1013,7 @@ public class CassandraDaemon
 
     private void exitOrFail(int code, String message, Throwable cause)
     {
-        if (runManaged)
+        if (runManaged || DTEST_AVOID_SYSTEM_EXIT.getBoolean())
         {
             RuntimeException t = cause!=null ? new RuntimeException(message, cause) : new RuntimeException(message);
             throw t;

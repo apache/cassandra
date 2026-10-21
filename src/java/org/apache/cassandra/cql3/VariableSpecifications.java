@@ -21,6 +21,8 @@ import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
 
+import javax.annotation.Nullable;
+
 import com.google.common.collect.ImmutableList;
 
 import org.apache.cassandra.schema.ColumnMetadata;
@@ -32,6 +34,8 @@ public class VariableSpecifications
     private final List<ColumnSpecification> specs;
     private volatile ImmutableList<ColumnSpecification> immutableSpecs;
     private final ColumnMetadata[] targetColumns;
+    // TODO (desired): this is an ugly way to figure out which sub statement we're using as a key in transactions, but path of least resistance...
+    private @Nullable Object[] targetOwners;
 
     public VariableSpecifications(List<ColumnIdentifier> variableNames)
     {
@@ -39,6 +43,12 @@ public class VariableSpecifications
         this.specs = Arrays.asList(new ColumnSpecification[variableNames.size()]);
         this.targetColumns = new ColumnMetadata[variableNames.size()];
     }
+
+    public void setSaveTargetOwners(boolean saveTargetOwners)
+    {
+        this.targetOwners = saveTargetOwners ? new Object[variableNames.size()] : null;
+    }
+
 
     /**
      * Returns an empty instance of <code>VariableSpecifications</code>.
@@ -77,14 +87,14 @@ public class VariableSpecifications
      *
      * Callers of this method should ensure that all statements operate on the same table.
      */
-    public short[] getPartitionKeyBindVariableIndexes(TableMetadata metadata)
+    public short[] getPartitionKeyBindVariableIndexes(TableMetadata metadata, Object targetOwner)
     {
         short[] partitionKeyPositions = new short[metadata.partitionKeyColumns().size()];
         boolean[] set = new boolean[partitionKeyPositions.length];
         for (int i = 0; i < targetColumns.length; i++)
         {
             ColumnMetadata targetColumn = targetColumns[i];
-            if (targetColumn != null && targetColumn.isPartitionKey())
+            if (targetColumn != null && targetColumn.isPartitionKey() && (targetOwners == null || (targetOwner != null && targetOwners[i] == targetOwner)))
             {
                 assert targetColumn.ksName.equals(metadata.keyspace) && targetColumn.cfName.equals(metadata.name);
                 partitionKeyPositions[targetColumn.position()] = (short) i;
@@ -99,11 +109,14 @@ public class VariableSpecifications
         return partitionKeyPositions;
     }
 
-    public void add(int bindIndex, ColumnSpecification spec)
+    public void add(int bindIndex, ColumnSpecification spec, Object owner)
     {
         assert immutableSpecs == null : "bind variable specs cannot be modified once we started to use them";
         if (spec instanceof ColumnMetadata)
             targetColumns[bindIndex] = (ColumnMetadata) spec;
+
+        if (targetOwners != null)
+            targetOwners[bindIndex] = owner;
 
         ColumnIdentifier bindMarkerName = variableNames.get(bindIndex);
         // Use the user name, if there is one

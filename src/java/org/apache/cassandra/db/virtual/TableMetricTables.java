@@ -78,6 +78,7 @@ public class TableMetricTables
             new HistogramTableMetric(name, "tombstones_per_read", t -> t.tombstoneScannedHistogram.cf),
             new HistogramTableMetric(name, "purgeable_tombstones_per_read", t -> t.purgeableTombstoneScannedHistogram.cf),
             new HistogramTableMetric(name, "rows_per_read", t -> t.liveScannedHistogram.cf),
+            new HistogramTableMetric(name, "rows_per_write", t -> t.rowsMutatedPerWriteHistogram.cf),
             new StorageTableMetric(name, "disk_usage", (TableMetrics t) -> t.totalDiskSpaceUsed),
             new StorageTableMetric(name, "max_partition_size", (TableMetrics t) -> t.maxPartitionSize),
             new StorageTableMetric(name, "max_sstable_size", (TableMetrics t) -> t.maxSSTableSize),

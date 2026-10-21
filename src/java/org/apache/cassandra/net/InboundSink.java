@@ -31,6 +31,7 @@ import org.apache.cassandra.db.filter.TombstoneOverwhelmingException;
 import org.apache.cassandra.exceptions.CoordinatorBehindException;
 import org.apache.cassandra.exceptions.InvalidRoutingException;
 import org.apache.cassandra.exceptions.RequestFailure;
+import org.apache.cassandra.exceptions.TruncateException;
 import org.apache.cassandra.index.IndexBuildInProgressException;
 import org.apache.cassandra.index.IndexNotAvailableException;
 import org.apache.cassandra.locator.InetAddressAndPort;
@@ -134,7 +135,8 @@ public class InboundSink implements InboundMessageHandlers.MessageConsumer
             else if (t instanceof TombstoneOverwhelmingException ||
                      t instanceof IndexNotAvailableException ||
                      t instanceof IndexBuildInProgressException ||
-                     t instanceof InvalidRoutingException)
+                     t instanceof InvalidRoutingException ||
+                     t instanceof TruncateException)
             {
                 noSpamLogger.error(t.getMessage());
             }

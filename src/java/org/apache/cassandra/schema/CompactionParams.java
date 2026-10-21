@@ -112,6 +112,7 @@ public final class CompactionParams
     private final ImmutableMap<String, String> options;
     private final boolean isEnabled;
     private final TombstoneOption tombstoneOption;
+    private final boolean onlyPurgeRepairedTombstones;
 
     private CompactionParams(Class<? extends AbstractCompactionStrategy> klass, Map<String, String> options, boolean isEnabled, TombstoneOption tombstoneOption)
     {
@@ -119,6 +120,7 @@ public final class CompactionParams
         this.options = ImmutableMap.copyOf(options);
         this.isEnabled = isEnabled;
         this.tombstoneOption = tombstoneOption;
+        this.onlyPurgeRepairedTombstones = Boolean.parseBoolean(options.get(AbstractCompactionStrategy.ONLY_PURGE_REPAIRED_TOMBSTONES));
     }
 
     public static CompactionParams create(Class<? extends AbstractCompactionStrategy> klass, Map<String, String> options)
@@ -279,6 +281,11 @@ public final class CompactionParams
         return options;
     }
 
+    public boolean onlyPurgeRepairedTombstones()
+    {
+        return onlyPurgeRepairedTombstones;
+    }
+
     public boolean isEnabled()
     {
         return isEnabled;
@@ -304,15 +311,7 @@ public final class CompactionParams
         String className = name.contains(".")
                          ? name
                          : "org.apache.cassandra.db.compaction." + name;
-        Class<AbstractCompactionStrategy> strategyClass = FBUtilities.classForName(className, "compaction strategy");
-
-        if (!AbstractCompactionStrategy.class.isAssignableFrom(strategyClass))
-        {
-            throw new ConfigurationException(format("Compaction strategy class %s is not derived from AbstractReplicationStrategy",
-                                                    className));
-        }
-
-        return strategyClass;
+        return FBUtilities.classForNameWithoutInitialization(className, "compaction strategy", AbstractCompactionStrategy.class);
     }
 
     /*

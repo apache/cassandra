@@ -111,8 +111,6 @@ public abstract class MixedModeTTLOverflowUpgradeTestBase extends UpgradeTestBas
         new TestCase()
                 .nodes(2)
                 .nodesToUpgradeOrdered(1, 2)
-                // all upgrades from v40 to current, excluding v50 -> v51
-                .singleUpgradeToCurrentFrom(v40)
                 .singleUpgradeToCurrentFrom(v41)
                 .withConfig(c -> c.with(Feature.GOSSIP).set("storage_compatibility_mode", "CASSANDRA_4"))
                 .setup(cluster -> {

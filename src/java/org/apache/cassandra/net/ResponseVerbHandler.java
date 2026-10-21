@@ -30,7 +30,6 @@ import org.apache.cassandra.tcm.ClusterMetadata;
 import org.apache.cassandra.tcm.ClusterMetadataService;
 import org.apache.cassandra.tcm.Epoch;
 import org.apache.cassandra.tracing.Tracing;
-import org.apache.cassandra.utils.FBUtilities;
 
 import static java.util.concurrent.TimeUnit.NANOSECONDS;
 import static org.apache.cassandra.exceptions.RequestFailureReason.COORDINATOR_BEHIND;
@@ -49,6 +48,8 @@ class ResponseVerbHandler implements IVerbHandler
                                                                  Verb.TCM_REPLICATION,
                                                                  Verb.TCM_NOTIFY_RSP,
                                                                  Verb.TCM_DISCOVER_RSP,
+                                                                 Verb.TCM_DISCOVER_PEERS_RSP,
+                                                                 Verb.TCM_DISCOVER_SURVEY_RSP,
                                                                  Verb.TCM_INIT_MIG_RSP);
 
     // We skip epoch catchup for PaxosV2 verbs, since we are using PaxosV2 to serially read the log.
@@ -61,11 +62,7 @@ class ResponseVerbHandler implements IVerbHandler
     @Override
     public void doVerb(Message message)
     {
-        RequestCallbacks.CallbackInfo callbackInfo;
-        if (message.header.isFinal())
-            callbackInfo = MessagingService.instance().callbacks.remove(message.id(), message.from());
-        else
-            callbackInfo = MessagingService.instance().callbacks.get(message.id(), message.from());
+        RequestCallbacks.CallbackInfo callbackInfo = MessagingService.instance().callbacks.remove(message.id(), message.from());
         if (callbackInfo == null)
         {
             String msg = "Callback already removed for {} (from {})";
@@ -102,7 +99,7 @@ class ResponseVerbHandler implements IVerbHandler
         if (SKIP_CATCHUP_FOR.contains(message.verb()))
             return;
 
-        if (metadata.isCMSMember(FBUtilities.getBroadcastAddressAndPort()) && CMS_SKIP_CATCHUP_FOR.contains(message.verb()))
+        if (metadata.isCMSMember() && CMS_SKIP_CATCHUP_FOR.contains(message.verb()))
             return;
 
         // Gossip stage is single-threaded, so we may end up in a deadlock with after-commit hook

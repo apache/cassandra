@@ -105,7 +105,7 @@ public class AccordTopologyUtils
         {
             ReplicationParams replication = keyspace.params.replication;
             AbstractReplicationStrategy strategy = AbstractReplicationStrategy.createReplicationStrategy(keyspace.name, replication);
-            DataPlacements.Builder placements = metadata.placements.unbuild();
+            DataPlacements.Builder placements = metadata.placements().unbuild();
             DataPlacement placement = strategy.calculateDataPlacement(Epoch.EMPTY, metadata.tokenMap.toRanges(), metadata);
             placements.with(replication, placement);
             metadata = transformer.with(placements.build()).build().metadata;

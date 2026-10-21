@@ -22,11 +22,11 @@ import java.nio.ByteBuffer;
 import java.util.List;
 
 import org.apache.cassandra.cql3.CQL3Type;
+import org.apache.cassandra.cql3.FunctionContext;
 import org.apache.cassandra.db.marshal.AbstractType;
 import org.apache.cassandra.db.marshal.FloatType;
 import org.apache.cassandra.db.marshal.VectorType;
 import org.apache.cassandra.exceptions.InvalidRequestException;
-import org.apache.cassandra.transport.ProtocolVersion;
 
 import io.github.jbellis.jvector.vector.VectorSimilarityFunction;
 
@@ -69,9 +69,9 @@ public class VectorFcts
         return new NativeScalarFunction(name, FloatType.instance, type, type)
         {
             @Override
-            public Arguments newArguments(ProtocolVersion version)
+            public Arguments newArguments(FunctionContext context)
             {
-                return new FunctionArguments(version,
+                return new FunctionArguments(context,
                                              (v, b) -> type.composeAsFloat(b),
                                              (v, b) -> type.composeAsFloat(b));
             }

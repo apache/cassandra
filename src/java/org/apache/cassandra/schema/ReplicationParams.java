@@ -286,7 +286,7 @@ public final class ReplicationParams
             Map<String, String> options = new HashMap<>(size);
             for (int i = 0; i < size; i++)
                 options.put(in.readUTF(), in.readUTF());
-            return new ReplicationParams(FBUtilities.classForName(klassName, "ReplicationStrategy"), options);
+            return new ReplicationParams(FBUtilities.classForNameWithoutInitialization(klassName, "ReplicationStrategy", AbstractReplicationStrategy.class), options);
         }
 
         public long serializedSize(ReplicationParams t, Version version)
@@ -322,7 +322,7 @@ public final class ReplicationParams
             Map<String, String> options = new HashMap<>(size);
             for (int i=0; i<size; i++)
                 options.put(in.readUTF(), in.readUTF());
-            return new ReplicationParams(FBUtilities.classForName(klassName, "ReplicationStrategy"), options);
+            return new ReplicationParams(FBUtilities.classForNameWithoutInitialization(klassName, "ReplicationStrategy", AbstractReplicationStrategy.class), options);
         }
 
         public long serializedSize(ReplicationParams t, int version)

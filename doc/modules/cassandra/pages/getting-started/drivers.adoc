@@ -65,7 +65,7 @@ connector]
 
 == Rust
 
-* https://github.com/neich/rust-cql[Rust CQL]
+* https://github.com/scylladb/scylla-rust-driver[Scylla Rust Driver]
 
 == Perl
 

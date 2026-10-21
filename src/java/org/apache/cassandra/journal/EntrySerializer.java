@@ -28,8 +28,6 @@ import org.apache.cassandra.db.TypeSizes;
 import org.apache.cassandra.utils.ByteBufferUtil;
 import org.apache.cassandra.utils.Crc;
 
-import static org.apache.cassandra.journal.Journal.validateCRC;
-
 /**
  * Entry format:
  *
@@ -73,10 +71,10 @@ public final class EntrySerializer
         out.limit(headerCrcPosition);
         crc.update(out);
         out.limit(recordEnd);
-        out.putInt((int) crc.getValue());
+        out.putInt(nonZeroCrc(crc));
         crc.update(out);
         out.limit(recordEnd + 4);
-        out.putInt((int) crc.getValue());
+        out.putInt(nonZeroCrc(crc));
     }
 
     // we reuse record as the value we return
@@ -173,11 +171,15 @@ public final class EntrySerializer
     public static class MaybeRecoverableJournalError extends IOException
     {
         public final int knownLength;
+        public final int readCrc;
+        public final int computedCrc;
 
-        public MaybeRecoverableJournalError(int knownLength, Throwable cause)
+        public MaybeRecoverableJournalError(int knownLength, Crc.InvalidCrc cause)
         {
             super(cause);
             this.knownLength = knownLength;
+            this.readCrc = cause.read;
+            this.computedCrc = cause.computed;
         }
 
         @Override
@@ -243,5 +245,17 @@ public final class EntrySerializer
             key = null;
             value = null;
         }
+    }
+
+    static int nonZeroCrc(CRC32 crc)
+    {
+        int v = (int) crc.getValue();
+        return v == 0 ? 1 : v;
+    }
+
+    static void validateCRC(CRC32 crc, int readCRC) throws Crc.InvalidCrc
+    {
+        if (readCRC != nonZeroCrc(crc))
+            throw new Crc.InvalidCrc(readCRC, nonZeroCrc(crc));
     }
 }

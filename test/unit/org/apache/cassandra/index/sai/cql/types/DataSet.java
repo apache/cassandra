@@ -694,4 +694,37 @@ public abstract class DataSet<T> extends SAITester
             return "inet";
         }
     }
+
+    public static class BlobDataSet extends DataSet<ByteBuffer>
+    {
+        public BlobDataSet()
+        {
+            values = new ByteBuffer[NUMBER_OF_VALUES];
+            List<ByteBuffer> list = Arrays.asList(values);
+
+            for (int index = 0; index < values.length; index++)
+            {
+                ByteBuffer value;
+                do
+                {
+                    byte[] bytes = new byte[getRandom().nextIntBetween(1, 256)];
+                    getRandom().nextBytes(bytes);
+                    value = ByteBuffer.wrap(bytes);
+                }
+                while (list.contains(value));
+                values[index] = value;
+            }
+        }
+
+        @Override
+        public QuerySet querySet()
+        {
+            return new QuerySet.LiteralQuerySet();
+        }
+
+        public String toString()
+        {
+            return "blob";
+        }
+    }
 }

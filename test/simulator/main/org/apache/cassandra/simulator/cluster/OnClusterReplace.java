@@ -78,8 +78,8 @@ class OnClusterReplace extends OnClusterChangeTopology
             List<Map.Entry<String, String>> repairRanges = actions.cluster.get(leaving).unsafeApplyOnThisThread(
             (String keyspaceName) -> {
                 ClusterMetadata metadata = ClusterMetadata.current();
-                return metadata.placements.get(metadata.schema.getKeyspace(keyspaceName).getMetadata().params.replication)
-                       .writes.ranges()
+                return metadata.placement(metadata.schema.getKeyspace(keyspaceName).getMetadata().params.replication)
+                       .writes.sortedRanges()
                               .stream()
                               .map(OnClusterReplace::toStringEntry)
                               .collect(Collectors.toList());
@@ -93,7 +93,7 @@ class OnClusterReplace extends OnClusterChangeTopology
                                       (String keyspaceName, String tk) -> {
                                           ClusterMetadata metadata = ClusterMetadata.current();
                                           KeyspaceMetadata keyspaceMetadata = metadata.schema.getKeyspaces().getNullable(keyspaceName);
-                                          return metadata.placements.get(keyspaceMetadata.params.replication).reads
+                                          return metadata.placement(keyspaceMetadata.params.replication).reads
                                                  .forToken(Utils.parseToken(tk))
                                                  .get()
                                                  .stream().map(Replica::endpoint)

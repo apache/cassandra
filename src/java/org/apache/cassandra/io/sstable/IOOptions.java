@@ -33,7 +33,7 @@ public class IOOptions
                              DatabaseDescriptor.getDiskOptimizationEstimatePercentile(),
                              SequentialWriterOption.newBuilder()
                                                    .trickleFsync(DatabaseDescriptor.getTrickleFsync())
-                                                   .trickleFsyncByteInterval(DatabaseDescriptor.getTrickleFsyncIntervalInKiB() * 1024)
+                                                   .trickleFsyncByteInterval(DatabaseDescriptor.getTrickleFsyncIntervalInBytes())
                                                    .build(),
                              DatabaseDescriptor.getFlushCompression());
     }

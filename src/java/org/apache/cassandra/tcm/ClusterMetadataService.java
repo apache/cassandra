@@ -19,6 +19,7 @@
 package org.apache.cassandra.tcm;
 
 import java.io.IOException;
+import java.net.UnknownHostException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.Collections;
@@ -29,6 +30,7 @@ import java.util.Set;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
 import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.function.Consumer;
 import java.util.function.Function;
 import java.util.function.Supplier;
 
@@ -37,6 +39,8 @@ import com.google.common.collect.Sets;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+
+import accord.utils.Invariants;
 
 import org.apache.cassandra.concurrent.ScheduledExecutors;
 import org.apache.cassandra.config.CassandraRelevantProperties;
@@ -52,12 +56,14 @@ import org.apache.cassandra.metrics.TCMMetrics;
 import org.apache.cassandra.net.IVerbHandler;
 import org.apache.cassandra.net.Message;
 import org.apache.cassandra.net.MessageDelivery;
+import org.apache.cassandra.schema.DistributedMetadataLogKeyspace;
 import org.apache.cassandra.schema.DistributedSchema;
 import org.apache.cassandra.schema.Keyspaces;
 import org.apache.cassandra.schema.ReplicationParams;
-import org.apache.cassandra.service.accord.AccordFastPath;
-import org.apache.cassandra.service.accord.AccordStaleReplicas;
+import org.apache.cassandra.service.RetryStrategy;
+import org.apache.cassandra.service.accord.topology.AccordNodeInfos;
 import org.apache.cassandra.service.consensus.migration.ConsensusMigrationState;
+import org.apache.cassandra.tcm.discovery.Discovery;
 import org.apache.cassandra.tcm.listeners.SchemaListener;
 import org.apache.cassandra.tcm.log.Entry;
 import org.apache.cassandra.tcm.log.LocalLog;
@@ -79,6 +85,7 @@ import org.apache.cassandra.tcm.serialization.VerboseMetadataSerializer;
 import org.apache.cassandra.tcm.serialization.Version;
 import org.apache.cassandra.tcm.transformations.ForceSnapshot;
 import org.apache.cassandra.tcm.transformations.TriggerSnapshot;
+import org.apache.cassandra.tcm.transformations.cms.PreInitialize;
 import org.apache.cassandra.tcm.transformations.cms.PrepareCMSReconfiguration;
 import org.apache.cassandra.utils.FBUtilities;
 import org.apache.cassandra.utils.JVMStabilityInspector;
@@ -113,7 +120,7 @@ public class ClusterMetadataService
                                             trace);
         instance = newInstance;
         RegistrationStatus.instance.onInitialized();
-        if (newInstance.metadata().myNodeId() != null)
+        if (newInstance.metadata().myNodeId() != NodeId.UNREGISTERED)
             RegistrationStatus.instance.onRegistration();
         trace = new RuntimeException("Previously initialized trace");
         DatabaseDescriptor.applyLocator();
@@ -138,6 +145,14 @@ public class ClusterMetadataService
     private final LocalLog log;
     private final MetadataSnapshots snapshots;
 
+    /*
+     * Special callback for execution when the PreInitialize transformation is used to bootstrap the cluster metadata
+     * log. In practice, this is only relevant when using PaxosBackedProcessor which needs to insert the PreInitialize
+     * entry into the distributed log table, but is unable to do so until it has been enacted, the keyspace created and
+     * the replication configured.
+     */
+    private final Consumer<PreInitialize> logBootstrapCallback;
+
     private final IVerbHandler<LogState> replicationHandler;
     private final IVerbHandler<LogState> logNotifyHandler;
     private final IVerbHandler<FetchCMSLog> fetchLogHandler;
@@ -153,7 +168,7 @@ public class ClusterMetadataService
         return state(ClusterMetadata.current());
     }
 
-    public static State state(ClusterMetadata metadata)
+    public static ClusterMetadataService.State state(ClusterMetadata metadata)
     {
         if (CassandraRelevantProperties.TCM_UNSAFE_BOOT_WITH_CLUSTERMETADATA.isPresent())
             return RESET;
@@ -164,8 +179,9 @@ public class ClusterMetadataService
         // The node is a full member of the CMS if it has started participating in reads for distributed metadata table (which
         // implies it is a write replica as well). In other words, it's a fully joined member of the replica set responsible for
         // the distributed metadata table.
-        if (ClusterMetadata.current().isCMSMember(FBUtilities.getBroadcastAddressAndPort()))
+        if (metadata.epoch.isEqualOrBefore(Epoch.FIRST) || metadata.isCMSMember())
             return LOCAL;
+
         return REMOTE;
     }
 
@@ -181,19 +197,23 @@ public class ClusterMetadataService
         if (CassandraRelevantProperties.TCM_USE_ATOMIC_LONG_PROCESSOR.getBoolean())
         {
             log = logSpec.sync().withStorage(new AtomicLongBackedProcessor.InMemoryStorage()).createLog();
-            localProcessor = wrapProcessor.apply(new AtomicLongBackedProcessor(log, logSpec.isReset()));
+            AtomicLongBackedProcessor processor =  new AtomicLongBackedProcessor(log, logSpec.isReset());
+            logBootstrapCallback = logBootstrapCallback(processor);
+            localProcessor = wrapProcessor.apply(processor);
             fetchLogHandler = new FetchCMSLog.Handler((e, ignored) -> logSpec.storage().getLogState(e));
         }
         else
         {
             log = logSpec.async().createLog();
-            localProcessor = wrapProcessor.apply(new PaxosBackedProcessor(log));
+            PaxosBackedProcessor processor = new PaxosBackedProcessor(log);
+            logBootstrapCallback = logBootstrapCallback(processor);
+            localProcessor = wrapProcessor.apply(processor);
             fetchLogHandler = new FetchCMSLog.Handler();
         }
 
         Commit.Replicator replicator = CassandraRelevantProperties.TCM_USE_TEST_NO_OP_REPLICATOR.getBoolean()
                                        ? Commit.Replicator.NO_OP
-                                       : new Commit.DefaultReplicator(() -> log.metadata().directory);
+                                       : new Commit.DefaultReplicator(() -> new Commit.DefaultReplicator.RoutingHelper(log.metadata()));
 
         RemoteProcessor remoteProcessor = new RemoteProcessor(log, Discovery.instance::discoveredNodes);
         GossipProcessor gossipProcessor = new GossipProcessor();
@@ -234,8 +254,12 @@ public class ClusterMetadataService
         commitRequestHandler = isMemberOfOwnershipGroup ? new Commit.Handler(processor, replicator, () -> LOCAL) : null;
 
         peerLogFetcher = new PeerLogFetcher(log);
+        logBootstrapCallback = logBootstrapCallback(processor);
     }
 
+    /**
+     * Only called from initializeForTools
+     */
     private ClusterMetadataService(PlacementProvider placementProvider,
                                    MetadataSnapshots snapshots,
                                    LocalLog log,
@@ -257,6 +281,7 @@ public class ClusterMetadataService
         this.fetchLogHandler = fetchLogHandler;
         this.commitRequestHandler = commitRequestHandler;
         this.peerLogFetcher = peerLogFetcher;
+        this.logBootstrapCallback = logBootstrapCallback(processor);
     }
 
     @SuppressWarnings("resource")
@@ -265,8 +290,7 @@ public class ClusterMetadataService
         if (instance != null)
             return;
         String localDC = DatabaseDescriptor.getLocalDataCenter();
-        ClusterMetadata emptyFromSystemTables = emptyWithSchemaFromSystemTables(Collections.singleton(localDC))
-                                                .forceEpoch(Epoch.EMPTY);
+        ClusterMetadata emptyFromSystemTables = emptyWithSchemaFromSystemTables().forceEpoch(Epoch.EMPTY);
 
         LocalLog.LogSpec logSpec = LocalLog.logSpec()
                                            .withInitialState(emptyFromSystemTables)
@@ -294,7 +318,7 @@ public class ClusterMetadataService
                                                                 new PeerLogFetcher(log));
 
         log.readyUnchecked();
-        log.bootstrap(FBUtilities.getBroadcastAddressAndPort(), localDC);
+        log.bootstrap(FBUtilities.getBroadcastAddressAndPort(), localDC, (p) -> {});
         ClusterMetadataService.setInstance(cms);
     }
 
@@ -307,14 +331,14 @@ public class ClusterMetadataService
                                                     DatabaseDescriptor.getPartitioner(),
                                                     new DistributedSchema(keyspaces),
                                                     Directory.EMPTY,
-                                   new TokenMap(DatabaseDescriptor.getPartitioner()),
-                                   DataPlacements.empty(),
-                                   AccordFastPath.EMPTY,
-                                   LockedRanges.EMPTY,
-                                   InProgressSequences.EMPTY,
-                                   ConsensusMigrationState.EMPTY,
-                                   Collections.emptyMap(),
-                                   AccordStaleReplicas.EMPTY);
+                                                    new TokenMap(DatabaseDescriptor.getPartitioner()),
+                                                    DataPlacements.empty(),
+                                                    AccordNodeInfos.EMPTY,
+                                                    LockedRanges.EMPTY,
+                                                    InProgressSequences.EMPTY,
+                                                    ConsensusMigrationState.EMPTY,
+                                                    Collections.emptyMap(),
+                                                    CMSMembership.EMPTY);
 
 
         LocalLog.LogSpec logSpec = LocalLog.logSpec()
@@ -336,10 +360,9 @@ public class ClusterMetadataService
                                                                 null);
 
         log.readyUnchecked();
-        log.bootstrap(FBUtilities.getBroadcastAddressAndPort(), localDC);
+        log.bootstrap(FBUtilities.getBroadcastAddressAndPort(), localDC, (p) -> {});
         ClusterMetadataService.setInstance(cms);
     }
-
 
     @SuppressWarnings("resource")
     public static void initializeForClients()
@@ -357,6 +380,41 @@ public class ClusterMetadataService
 
 
         ClusterMetadataService.setInstance(StubClusterMetadataService.forClientTools(initialSchema));
+    }
+
+    /*
+     * Hook to be executed when the LocalLog is bootstrapped with the PreInitialize transformation. This is done on
+     * the first CMS member to set up the initial replication and data placements for the metadata keyspace.
+     */
+    public Consumer<PreInitialize> logBootstrapCallback()
+    {
+        return logBootstrapCallback;
+    }
+
+    private static Consumer<PreInitialize> logBootstrapCallback(Processor processor)
+    {
+        if (processor instanceof PaxosBackedProcessor)
+        {
+            // Insert an entry containing the PRE_INITIALIZE_CMS transform at Epoch.FIRST in the distributed
+            // log table. This can only be done after the log is bootstrapped as it depends on the effects of
+            // that transform on ClusterMetadata.
+            return preInit -> {
+                try
+                {
+                    if (DistributedMetadataLogKeyspace.insertPreInitialize(preInit))
+                        logger.info("Successfully inserted pre-initialize entry into distributed metadata log");
+                    else
+                        throw new IllegalStateException("Failed to insert pre-initialize entry into distributed metadata log. Check server for details");
+                }
+                catch (IOException e)
+                {
+                    throw new IllegalStateException("Unable to pre-initialize distributed metadata log table", e);
+                }
+            };
+        }
+        // otherwise, this is a noop.
+        return preInit -> {
+        };
     }
 
     public boolean isCurrentMember(InetAddressAndPort peer)
@@ -441,18 +499,82 @@ public class ClusterMetadataService
 
     public void reconfigureCMS(ReplicationParams replicationParams)
     {
+        reconfigureCMS(replicationParams, Collections.emptyList());
+    }
+
+    /**
+     * Reconfigure the CMS so that its membership satisfies the supplied replication params.
+     *
+     * Nodes named in {@code ignoredEndpoints}, along with any node currently considered down, are not eligible for
+     * membership of the new CMS. Excluding nodes that are about to be decommissioned lets an operator shrink a cluster
+     * with a single reconfiguration up front, rather than one per departing CMS member. The ignore list applies only to
+     * this call; it is not remembered, and does not change whether the CMS is later reported as needing reconfiguration.
+     *
+     * Note that a subsequent bootstrap, replace or move recomputes placement without any ignore list and may therefore
+     * reintroduce an ignored node to the CMS.
+     */
+    public void reconfigureCMS(ReplicationParams replicationParams, List<String> ignoredEndpoints)
+    {
         ClusterMetadata metadata = ClusterMetadata.current();
-        Set<NodeId> downNodes = new HashSet<>();
+        Set<NodeId> excludedNodes = new HashSet<>(resolveIgnoredEndpoints(metadata, ignoredEndpoints));
+        Set<NodeId> allJoinedNodes = Sets.newHashSetWithExpectedSize(metadata.directory.allJoinedEndpoints().size());
         for (InetAddressAndPort ep : metadata.directory.allJoinedEndpoints())
+        {
+            NodeId id = metadata.directory.peerId(ep);
+            allJoinedNodes.add(id);
             if (!FailureDetector.instance.isAlive(ep))
-                downNodes.add(metadata.directory.peerId(ep));
-        PrepareCMSReconfiguration.Complex transformation = new PrepareCMSReconfiguration.Complex(replicationParams, downNodes);
+                excludedNodes.add(id);
+        }
+
+        // Placement needs at least one candidate to work with; leaving none is rejected here because the strategy
+        // itself would fail on an assertion rather than reporting anything useful.
+        if (!excludedNodes.isEmpty() && excludedNodes.size() >= allJoinedNodes.size() && excludedNodes.containsAll(allJoinedNodes))
+            throw new IllegalStateException("Cannot reconfigure CMS as all joined nodes are DOWN or ignored");
+
+        PrepareCMSReconfiguration.Complex transformation = new PrepareCMSReconfiguration.Complex(replicationParams, excludedNodes);
         transformation.verify(metadata);
 
         ClusterMetadataService.instance()
                               .commit(transformation);
 
         InProgressSequences.finishInProgressSequences(ReconfigureCMS.SequenceKey.instance);
+    }
+
+    /**
+     * Resolve operator supplied hosts to the NodeIds they identify, rejecting any host which does not exist in the
+     * cluster.
+     */
+    private static Set<NodeId> resolveIgnoredEndpoints(ClusterMetadata metadata, List<String> ignoredEndpoints)
+    {
+        if (ignoredEndpoints.isEmpty())
+            return Collections.emptySet();
+
+        Set<InetAddressAndPort> ignored = new HashSet<>(ignoredEndpoints.size());
+        for (String host : ignoredEndpoints)
+        {
+            try
+            {
+                ignored.add(InetAddressAndPort.getByName(host));
+            }
+            catch (UnknownHostException e)
+            {
+                throw new IllegalArgumentException("Unknown host in ignore list: " + host, e);
+            }
+        }
+
+        // Unlike CMS initialization, the local node may legitimately be ignored here. Reconfiguring the CMS away from
+        // the node running the command is valid, and is expected when that node is itself due to be decommissioned.
+        Set<InetAddressAndPort> unknown = Sets.difference(ignored, metadata.directory.allAddresses());
+        if (!unknown.isEmpty())
+        {
+            String msg = "Ignored host(s) " + unknown + " don't exist in the cluster";
+            logger.error(msg);
+            throw new IllegalStateException(msg);
+        }
+
+        Set<NodeId> ignoredIds = metadata.directory.toNodeIds(ignored);
+        logger.info("Excluding operator specified hosts from CMS reconfiguration: {}", ignoredIds);
+        return ignoredIds;
     }
 
     public void ensureCMSPlacement(ClusterMetadata metadata)
@@ -510,7 +632,6 @@ public class ClusterMetadataService
 
     /**
      * dumps the cluster metadata at the given epoch, returns path to the generated file
-     *
      * if the given Epoch is EMPTY, we dump the current metadata
      *
      * @param epoch dump clustermetadata at this epoch
@@ -585,21 +706,48 @@ public class ClusterMetadataService
 
     /**
      * Attempt to commit the transformation (with retries).
-     *
+     * <p>
      * Since we can not rely on reliability of the network or even the fact that the committing node will stay alive
      * for the duration of commit, we have to allow for subsequent discovery of the transformation effects, which can
      * be made visible either by replaying the log, or receiving the metadata snapshot.
-     *
+     * <p>
      * In other words, there is no reliable way to find out whether _this particular_ transformation has been executed
      * while we are allowing replay from snapshot, since even failure response from the CMS does not guarantee
      * Paxos re-proposal, which would place the transformation into the log during proposal _by some other_ CMS node.
-     *
+     * <p>
      * Protocol does foresee the concept of EntryId that would allow discovery of the committed transformations
      * without changes to binary protocol, but this change was left out from the initial implementation of TCM.
+     * <p>
+     * TCM Commit Timeouts
+     * <p>
+     * Timeout passed to the TCM Processor
+     *   - STARTUP: retries indefinitely with Jitter(cms_default_retry_backoff 50ms)
+     *   - SCHEMA_CHANGE: rpc_timeout + Jitter(cms_default_retry_backoff 50ms) - fast retry, fail fast for DDL
+     *   - Everything else (LOCAL/CMS & REMOTE/non-CMS): cms_commit_timeout (1h) + ExponentialJitter(5s-60s) - full jitter exponential backoff
+     * <p>
+     * The Processor changes behavior based on whether the node is a member of the CMS or not.
+     * For non-CMS members (REMOTE state / RemoteProcessor):
+     *   - Sends the commit with a TCM_COMMIT_REQ message
+     *   - Message expires after min(cms_await_timeout, remaining sender deadline) to account for CMS node failures.
+     *   - On failure/timeout retries use exponential backoff with full jitter to decorrelate cms await timeouts.
+     * For CMS members (LOCAL state / AbstractLocalProcessor) for local TCM commits:
+     *   - The main outer retry policy described below for TCM_COMMIT_REQ is used without the message expiry,
+     *     as the commit runs locally through Paxos without a remote message hop.
+     * For CMS members handling TCM_COMMIT_REQ messages (Commit.Handler):
+     *   - Deadline is max(now + write_rpc_timeout, message.expiresAtNanos() - write_rpc_timeout), with exponential
+     *     backoff and full jitter using the TCM admin initial/max delay. The floor guarantees at least one attempt
+     *     window even when cms_await_timeout is misconfigured close to write_rpc_timeout.
+     *   - The CMS member reduces its own retry deadline by write_rpc_timeout before the message expiry so it exhausts
+     *     retries and returns an explicit failure before the sender's per-message callback fires (see Commit.Handler).
      *
-     * @param onFailure handler checks if rejection has resulted from a retry of the same trasformation.
+     * @param onFailure     handler checks if rejection has resulted from a retry of the same trasformation.
      */
     public <T1> T1 commit(Transformation transform, CommitSuccessHandler<T1> onSuccess, CommitFailureHandler<T1> onFailure)
+    {
+        return commit(transform, onSuccess, onFailure, Long.MAX_VALUE);
+    }
+
+    public <T1> T1 commit(Transformation transform, CommitSuccessHandler<T1> onSuccess, CommitFailureHandler<T1> onFailure, long deadlineLimitNanos)
     {
         if (commitsPaused.get())
             throw new IllegalStateException("Commits are paused, not trying to commit " + transform);
@@ -610,7 +758,9 @@ public class ClusterMetadataService
         // discover-own-commits via entry id in case of lost messages (in remote case) and Paxos re-proposals (in local case)
         Epoch highestConsecutive = log.waitForHighestConsecutive().epoch;
 
-        Commit.Result result = processor.commit(entryIdGen.get(), transform, highestConsecutive);
+        Retry retryPolicy = getRetryPolicy(transform.kind(), deadlineLimitNanos);
+        logger.info("Committing {} with {}", transform.kind(), retryPolicy);
+        Commit.Result result = processor.commit(entryIdGen.get(), transform, highestConsecutive, retryPolicy);
 
         try
         {
@@ -622,6 +772,9 @@ public class ClusterMetadataService
             else
             {
                 TCMMetrics.instance.recordCommitFailureLatency(nanoTime() - startTime, NANOSECONDS, result.failure().rejected);
+                logger.debug("Failed to commit {} after {} attempts ({}): {} {}",
+                             transform.kind(), retryPolicy.attempts(), retryPolicy,
+                             result.failure().code, result.failure().message);
                 return onFailure.accept(result.failure().code, result.failure().message);
             }
         }
@@ -633,6 +786,36 @@ public class ClusterMetadataService
         {
             throw new IllegalStateException("Couldn't commit the transformation. Is the node shutting down?", e);
         }
+    }
+
+    private static Retry getRetryPolicy(Transformation.Kind kind)
+    {
+        return getRetryPolicy(kind, Long.MAX_VALUE);
+    }
+
+    private static Retry getRetryPolicy(Transformation.Kind kind, long deadlineLimitNanos)
+    {
+        Retry retryPolicy;
+        if (kind == Transformation.Kind.STARTUP)
+        {
+            Invariants.require(deadlineLimitNanos == Long.MAX_VALUE);
+            retryPolicy = Retry.withNoTimeLimit(TCMMetrics.instance.commitRetries, Retry.unsafeRetryIndefinitely());
+        }
+        else if (kind == Transformation.Kind.SCHEMA_CHANGE)
+        {
+            long deadlineNanos = Math.min(deadlineLimitNanos, nanoTime() + DatabaseDescriptor.getRpcTimeout(TimeUnit.NANOSECONDS));
+            retryPolicy = Retry.until(deadlineNanos, TCMMetrics.instance.commitRetries);
+        }
+        else
+        {
+            // On non-CMS members, which send commit requests via messaging to the CMS members, the exponential backoff
+            // with jitter works to desynchronize retry waves after a CMS await timeout. For CMS members committing
+            // locally, it helps to space Paxos CAS retries in the local commit loop.
+            long deadlineNanos = Math.min(deadlineLimitNanos, nanoTime() + DatabaseDescriptor.getCmsCommitTimeout().to(TimeUnit.NANOSECONDS));
+            RetryStrategy backoffWithJitter = DatabaseDescriptor.getCmsCommitRetryStrategy();
+            retryPolicy = Retry.until(deadlineNanos, TCMMetrics.instance.commitRetries, backoffWithJitter);
+        }
+        return retryPolicy;
     }
 
     /**
@@ -708,7 +891,6 @@ public class ClusterMetadataService
 
     /**
      * Fetches log entries from directly from CMS, at least to the specified epoch.
-     *
      * This operation is blocking and also waits for all retrieved log entries to be
      * enacted, so on return all transformations to ClusterMetadata will be visible.
      * @return metadata with all currently committed entries enacted.
@@ -720,9 +902,14 @@ public class ClusterMetadataService
             return metadata;
 
         Epoch ourEpoch = metadata.epoch;
-
         if (ourEpoch.isEqualOrAfter(awaitAtLeast))
             return metadata;
+
+        if (log.isPaused())
+        {
+            logger.debug("Fetch metadata log from CMS was requested, but log processing is paused");
+            return metadata;
+        }
 
         Retry deadline = Retry.untilElapsed(getCmsAwaitTimeout().to(TimeUnit.NANOSECONDS), TCMMetrics.instance.fetchLogRetries);
         // responses for ALL withhout knowing we have pending
@@ -758,13 +945,17 @@ public class ClusterMetadataService
             awaitAtLeast.isBefore(Epoch.FIRST))
             return ImmediateFuture.success(current);
 
+        if (log.isPaused())
+        {
+            logger.debug("Fetch metadata log from peer was requested, but log processing is paused");
+            return ImmediateFuture.success(current);
+        }
+
         return peerLogFetcher.asyncFetchLog(from, awaitAtLeast);
     }
 
     /**
-     *
      * IMPORTANT: this call can return _without_ catching us up, so should only be used privately.
-     *
      * Attempts to synchronously retrieve log entries from a non-CMS peer.
      * Fetches the log state representing the delta between the current local epoch and the one supplied.
      * This is to be used when a message from a peer contains an epoch higher than the current local epoch. As
@@ -786,6 +977,13 @@ public class ClusterMetadataService
         Epoch before = metadata.epoch;
         if (before.isEqualOrAfter(awaitAtLeast))
             return metadata;
+
+        if (log.isPaused())
+        {
+            logger.debug("Fetch metadata log from peer was requested, but log processing is paused");
+            return metadata;
+        }
+
         return peerLogFetcher.fetchLogEntriesAndWait(from, awaitAtLeast);
     }
 
@@ -810,7 +1008,7 @@ public class ClusterMetadataService
     public boolean maybeFetchLogFromPeerOrCMSAsync(MessageDelivery messaging, Message<?> message, Runnable onFetchSuccess)
     {
         ClusterMetadata metadata = metadata();
-        if (metadata.epoch.isEqualOrAfter(metadata.epoch))
+        if (metadata.epoch.isEqualOrAfter(message.epoch()))
             return false;
         Future<ClusterMetadata> f = fetchLogFromPeerOrCMSAsync(metadata, message.from(), message.epoch());
         f.addCallback((success, failure) -> {
@@ -840,6 +1038,12 @@ public class ClusterMetadataService
     {
         if (awaitAtLeast.isBefore(Epoch.FIRST) || FBUtilities.getBroadcastAddressAndPort().equals(from))
             return metadata;
+
+        if (log.isPaused())
+        {
+            logger.debug("Fetch metadata log from peer or CMS was requested, but log processing is paused");
+            return metadata;
+        }
 
         Epoch before = metadata.epoch;
         if (before.isEqualOrAfter(awaitAtLeast))
@@ -1000,6 +1204,6 @@ public class ClusterMetadataService
 
     public enum State
     {
-        LOCAL, REMOTE, GOSSIP, RESET
+        LOCAL, REMOTE, GOSSIP, RESET, OFFLINE_TOOL
     }
 }

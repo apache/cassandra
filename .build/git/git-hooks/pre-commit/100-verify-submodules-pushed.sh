@@ -60,7 +60,7 @@ _main() {
   root_dir="$(git rev-parse --show-toplevel)"
   cd "$root_dir"
 
-  [[ ! -e .gitmodules ]] && return 0
+  git ls-files --error-unmatch .gitmodules &>/dev/null || return 0
   local enabled=$(git config --bool cassandra.pre-commit.verify-submodules.enabled || echo true)
   [ "$enabled" == "false" ] && return 0
   local submodules=( $(git config --file .gitmodules --get-regexp path | awk '{ print $2 }') )

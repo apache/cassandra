@@ -20,6 +20,7 @@ package org.apache.cassandra.tcm;
 
 import java.io.IOException;
 import java.util.Collections;
+import java.util.List;
 import java.util.Random;
 import java.util.concurrent.ThreadLocalRandom;
 
@@ -33,8 +34,11 @@ import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.dht.Murmur3Partitioner;
 import org.apache.cassandra.io.util.DataInputBuffer;
 import org.apache.cassandra.io.util.DataOutputBuffer;
+import org.apache.cassandra.locator.InetAddressAndPort;
 import org.apache.cassandra.schema.DistributedSchema;
 import org.apache.cassandra.schema.ReplicationParams;
+import org.apache.cassandra.service.accord.topology.AccordNodeInfos;
+import org.apache.cassandra.service.accord.topology.AccordTopology;
 import org.apache.cassandra.tcm.ClusterMetadata.Transformer.Transformed;
 import org.apache.cassandra.tcm.extensions.EpochValue;
 import org.apache.cassandra.tcm.extensions.ExtensionKey;
@@ -50,11 +54,12 @@ import org.apache.cassandra.tcm.membership.NodeState;
 import org.apache.cassandra.tcm.membership.NodeVersion;
 import org.apache.cassandra.tcm.ownership.DataPlacement;
 import org.apache.cassandra.tcm.ownership.DataPlacements;
+import org.apache.cassandra.tcm.ownership.OwnershipUtils;
 import org.apache.cassandra.tcm.sequences.InProgressSequences;
 import org.apache.cassandra.tcm.sequences.LockedRanges;
 
-import static org.apache.cassandra.tcm.MetadataKeys.ACCORD_FAST_PATH;
-import static org.apache.cassandra.tcm.MetadataKeys.ACCORD_STALE_REPLICAS;
+import static org.apache.cassandra.tcm.MetadataKeys.ACCORD_NODE_INFOS;
+import static org.apache.cassandra.tcm.MetadataKeys.CMS_MEMBERSHIP;
 import static org.apache.cassandra.tcm.MetadataKeys.CONSENSUS_MIGRATION_STATE;
 import static org.apache.cassandra.tcm.MetadataKeys.DATA_PLACEMENTS;
 import static org.apache.cassandra.tcm.MetadataKeys.IN_PROGRESS_SEQUENCES;
@@ -64,6 +69,7 @@ import static org.apache.cassandra.tcm.MetadataKeys.SCHEMA;
 import static org.apache.cassandra.tcm.MetadataKeys.TOKEN_MAP;
 import static org.apache.cassandra.tcm.ownership.OwnershipUtils.randomPlacements;
 import static org.apache.cassandra.tcm.ownership.OwnershipUtils.token;
+import static org.apache.cassandra.tcm.sequences.InProgressSequenceCancellationTest.directory;
 import static org.apache.cassandra.tcm.sequences.SequencesUtils.affectedRanges;
 import static org.apache.cassandra.tcm.sequences.SequencesUtils.epoch;
 import static org.junit.Assert.assertEquals;
@@ -92,8 +98,10 @@ public class ClusterMetadataTransformationTest
         transformed = metadata.transformer()
                               .register(addresses, new Location("dc1", "rack1"), NodeVersion.CURRENT)
                               .build();
-        assertModifications(transformed, NODE_DIRECTORY);
+        // registering a member also gives it an accord node info entry, so that no reader has to interpret an absent one
+        assertModifications(transformed, NODE_DIRECTORY, ACCORD_NODE_INFOS);
         NodeId n1 = transformed.metadata.directory.peerId(addresses.broadcastAddress);
+        assertEquals(AccordNodeInfos.StampedNodeInfo.DEFAULT, transformed.metadata.accordNodeInfos.get(n1));
 
         NodeAddresses updated = getNonConflictingAddresses(random, transformed.metadata.directory);
         transformed = transformed.metadata.transformer().withNewAddresses(n1, updated).build();
@@ -120,7 +128,10 @@ public class ClusterMetadataTransformationTest
                                           .build();
         NodeId n2 = transformed.metadata.directory.peerId(replaceAddresses.broadcastAddress);
         transformed = transformed.metadata.transformer().replaced(n1, n2).build();
-        assertModifications(transformed, NODE_DIRECTORY, TOKEN_MAP);
+        // the replaced node keeps its entry, recording that it is removed (a cluster below AccordNodeInfos.MIN_VERSION
+        // instead leaves it alone, and the startup sweep back-fills it later)
+        assertModifications(transformed, NODE_DIRECTORY, TOKEN_MAP, ACCORD_NODE_INFOS);
+        assertEquals(AccordNodeInfos.Status.REMOVED, transformed.metadata.accordNodeInfos.status(AccordTopology.tcmIdToAccord(n1)));
         transformed = transformed.metadata.transformer().proposeRemoveNode(n2).build();
         assertModifications(transformed, TOKEN_MAP);
 
@@ -135,6 +146,42 @@ public class ClusterMetadataTransformationTest
         assertModifications(transformed, NODE_DIRECTORY);
         transformed = transformed.metadata.transformer().left(n3).build();
         assertModifications(transformed, NODE_DIRECTORY, TOKEN_MAP);
+    }
+
+    @Test
+    public void testModifyCMSMembership()
+    {
+        ClusterMetadata metadata = new ClusterMetadata(Murmur3Partitioner.instance, Directory.EMPTY, DistributedSchema.empty());
+        Transformed transformed = metadata.transformer().build();
+        assertTrue(transformed.modifiedKeys.isEmpty());
+
+        List<InetAddressAndPort> endpoints = MembershipUtils.uniqueEndpoints(random, 2);
+        NodeAddresses a1 = new NodeAddresses(endpoints.get(0));
+        NodeAddresses a2 = new NodeAddresses(endpoints.get(1));
+
+        transformed = metadata.transformer()
+                              .register(a1, new Location("dc1", "rack1"), NodeVersion.CURRENT)
+                              .register(a2, new Location("dc1", "rack1"), NodeVersion.CURRENT)
+                              .build();
+        assertModifications(transformed, NODE_DIRECTORY, ACCORD_NODE_INFOS);
+        NodeId n1 = transformed.metadata.directory.peerId(a1.broadcastAddress);
+        NodeId n2 = transformed.metadata.directory.peerId(a2.broadcastAddress);
+
+        transformed = metadata.transformer().startJoiningCMS(n1).build();
+        assertModifications(transformed, CMS_MEMBERSHIP);
+        transformed = transformed.metadata.transformer().cancelJoiningCMS(n1).build();
+        assertModifications(transformed, CMS_MEMBERSHIP);
+
+        transformed = transformed.metadata.transformer().startJoiningCMS(n1).build();
+        assertModifications(transformed, CMS_MEMBERSHIP);
+        transformed = transformed.metadata.transformer().finishJoiningCMS(n1).build();
+        assertModifications(transformed, CMS_MEMBERSHIP);
+
+        transformed = transformed.metadata.transformer().startJoiningCMS(n2).finishJoiningCMS(n2).build();
+        assertModifications(transformed, CMS_MEMBERSHIP);
+
+        transformed = transformed.metadata.transformer().leaveCMS(n1).build();
+        assertModifications(transformed, CMS_MEMBERSHIP);
     }
 
     @Test
@@ -161,12 +208,13 @@ public class ClusterMetadataTransformationTest
     @Test
     public void testModifyLockedRanges()
     {
-        ClusterMetadata metadata = new ClusterMetadata(Murmur3Partitioner.instance, Directory.EMPTY, DistributedSchema.empty());
+        Directory directory = directory(new NodeAddresses(InetAddressAndPort.getByNameUnchecked("127.0.0.1")), OwnershipUtils.replicationForRandomPlacements, random);
+        ClusterMetadata metadata = new ClusterMetadata(Murmur3Partitioner.instance, directory, DistributedSchema.empty());
         // Initial state has LockedRanges.EMPTY, so supplying the same value results in no change
         Transformed transformed = metadata.transformer().with(LockedRanges.EMPTY).build();
         assertModifications(transformed);
 
-        LockedRanges.AffectedRanges ranges = affectedRanges(randomPlacements(random), random);
+        LockedRanges.AffectedRanges ranges = affectedRanges(randomPlacements(directory, random), random);
         LockedRanges trivial = transformed.metadata.lockedRanges.lock(LockedRanges.keyFor(epoch(random)), ranges);
         transformed = transformed.metadata.transformer().with(trivial).build();
         assertModifications(transformed, LOCKED_RANGES);
@@ -309,17 +357,17 @@ public class ClusterMetadataTransformationTest
         else if (key == TOKEN_MAP)
             return metadata.tokenMap;
         else if (key == DATA_PLACEMENTS)
-            return metadata.placements;
+            return metadata.placements();
         else if (key == LOCKED_RANGES)
             return metadata.lockedRanges;
         else if (key == IN_PROGRESS_SEQUENCES)
             return metadata.inProgressSequences;
-        else if (key == ACCORD_FAST_PATH)
-            return metadata.accordFastPath;
+        else if (key == ACCORD_NODE_INFOS)
+            return metadata.accordNodeInfos;
         else if (key == CONSENSUS_MIGRATION_STATE)
             return metadata.consensusMigrationState;
-        else if (key == ACCORD_STALE_REPLICAS)
-            return metadata.accordStaleReplicas;
+        else if (key == CMS_MEMBERSHIP)
+            return metadata.cmsMembership;
 
         throw new IllegalArgumentException("Unknown metadata key " + key);
     }

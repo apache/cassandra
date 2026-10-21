@@ -26,6 +26,7 @@ import java.util.concurrent.TimeUnit;
 
 import com.google.common.base.Throwables;
 
+import org.apache.cassandra.concurrent.CassandraThread;
 import org.apache.cassandra.db.DecoratedKey;
 import org.apache.cassandra.db.RegularAndStaticColumns;
 import org.apache.cassandra.db.SerializationHeader;
@@ -39,8 +40,6 @@ import org.apache.cassandra.io.util.File;
 import org.apache.cassandra.schema.TableMetadataRef;
 import org.apache.cassandra.utils.JVMStabilityInspector;
 import org.apache.cassandra.utils.concurrent.UncheckedInterruptedException;
-
-import io.netty.util.concurrent.FastThreadLocalThread;
 
 import static org.apache.cassandra.utils.concurrent.BlockingQueues.newBlockingQueue;
 
@@ -68,19 +67,26 @@ class SSTableSimpleUnsortedWriter extends AbstractSSTableSimpleWriter
 
     private final BlockingQueue<Buffer> writeQueue = newBlockingQueue(0);
     private final DiskWriter diskWriter = new DiskWriter();
+    private final Thread diskWriterThread = new CassandraThread(diskWriter);
+
 
     public SSTableSimpleUnsortedWriter(File directory, TableMetadataRef metadata, RegularAndStaticColumns columns, long maxSSTableSizeInMiB)
     {
-        this(null, directory, metadata, columns, maxSSTableSizeInMiB);
+        this(null, directory, metadata, columns, maxSSTableSizeInMiB, SSTableIdFactory.instance.defaultBuilder());
     }
 
     SSTableSimpleUnsortedWriter(SSTable.Owner owner, File directory, TableMetadataRef metadata, RegularAndStaticColumns columns, long maxSSTableSizeInMiB)
     {
-        super(directory, metadata, columns);
+        this(owner, directory, metadata, columns, maxSSTableSizeInMiB, SSTableIdFactory.instance.defaultBuilder());
+    }
+
+    SSTableSimpleUnsortedWriter(SSTable.Owner owner, File directory, TableMetadataRef metadata, RegularAndStaticColumns columns, long maxSSTableSizeInMiB, SSTableId.Builder<? extends SSTableId> idBuilder)
+    {
+        super(directory, metadata, columns, idBuilder);
         this.maxSStableSizeInBytes = maxSSTableSizeInMiB * 1024L * 1024L;
         this.header = new SerializationHeader(true, metadata.get(), columns, EncodingStats.NO_STATS);
         this.helper = new SerializationHelper(this.header);
-        diskWriter.start();
+        diskWriterThread.start();
         this.owner = owner;
     }
 
@@ -146,7 +152,7 @@ class SSTableSimpleUnsortedWriter extends AbstractSSTableSimpleWriter
         put(SENTINEL);
         try
         {
-            diskWriter.join();
+            diskWriterThread.join();
             checkForWriterException();
         }
         catch (Throwable e)
@@ -210,7 +216,7 @@ class SSTableSimpleUnsortedWriter extends AbstractSSTableSimpleWriter
     //// typedef
     static class Buffer extends TreeMap<DecoratedKey, PartitionUpdate.Builder> {}
 
-    private class DiskWriter extends FastThreadLocalThread
+    private class DiskWriter implements Runnable
     {
         volatile Throwable exception = null;
 

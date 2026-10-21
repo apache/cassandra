@@ -39,6 +39,7 @@ final class SSTableTasksTable extends AbstractVirtualTable
     private final static String PROGRESS = "progress";
     private final static String SSTABLES = "sstables";
     private final static String TOTAL = "total";
+    private final static String TOTAL_COMPRESSED = "total_compressed";
     private final static String UNIT = "unit";
     private final static String TARGET_DIRECTORY = "target_directory";
 
@@ -56,6 +57,7 @@ final class SSTableTasksTable extends AbstractVirtualTable
                            .addRegularColumn(PROGRESS, LongType.instance)
                            .addRegularColumn(SSTABLES, Int32Type.instance)
                            .addRegularColumn(TOTAL, LongType.instance)
+                           .addRegularColumn(TOTAL_COMPRESSED, LongType.instance)
                            .addRegularColumn(UNIT, UTF8Type.instance)
                            .addRegularColumn(TARGET_DIRECTORY, UTF8Type.instance)
                            .build());
@@ -69,6 +71,7 @@ final class SSTableTasksTable extends AbstractVirtualTable
         {
             long completed = task.getCompleted();
             long total = task.getTotal();
+            long totalCompressed = task.getTotalCompressed();
 
             double completionRatio = total == 0L ? 1.0 : (((double) completed) / total);
 
@@ -80,6 +83,7 @@ final class SSTableTasksTable extends AbstractVirtualTable
                   .column(PROGRESS, completed)
                   .column(SSTABLES, task.getSSTables().size())
                   .column(TOTAL, total)
+                  .column(TOTAL_COMPRESSED, totalCompressed)
                   .column(UNIT, toLowerCaseLocalized(task.getUnit().toString()))
                   .column(TARGET_DIRECTORY, task.targetDirectory());
         }

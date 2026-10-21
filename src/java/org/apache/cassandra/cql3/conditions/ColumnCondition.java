@@ -29,8 +29,8 @@ import org.apache.cassandra.cql3.ColumnIdentifier;
 import org.apache.cassandra.cql3.ColumnSpecification;
 import org.apache.cassandra.cql3.ColumnsExpression;
 import org.apache.cassandra.cql3.FieldIdentifier;
+import org.apache.cassandra.cql3.FunctionContext;
 import org.apache.cassandra.cql3.Operator;
-import org.apache.cassandra.cql3.QueryOptions;
 import org.apache.cassandra.cql3.VariableSpecifications;
 import org.apache.cassandra.cql3.functions.Function;
 import org.apache.cassandra.cql3.terms.Term;
@@ -57,7 +57,7 @@ import static org.apache.cassandra.cql3.statements.RequestValidations.checkFalse
 import static org.apache.cassandra.cql3.statements.RequestValidations.checkNotNull;
 import static org.apache.cassandra.cql3.statements.RequestValidations.invalidRequest;
 import static org.apache.cassandra.db.TypeSizes.sizeofUnsignedVInt;
-import static org.apache.cassandra.service.accord.AccordSerializers.columnMetadataSerializer;
+import static org.apache.cassandra.service.accord.serializers.AccordSerializers.columnMetadataSerializer;
 import static org.apache.cassandra.utils.ByteBufferUtil.nullableByteBufferSerializer;
 
 /**
@@ -104,45 +104,45 @@ public final class ColumnCondition
      * @param boundNames the list of column specification where to collect the
      * bind variables of this term in.
      */
-    public void collectMarkerSpecification(VariableSpecifications boundNames)
+    public void collectMarkerSpecification(VariableSpecifications boundNames, Object owner)
     {
-        columnsExpression.collectMarkerSpecification(boundNames);
-        values.collectMarkerSpecification(boundNames);
+        columnsExpression.collectMarkerSpecification(boundNames, owner);
+        values.collectMarkerSpecification(boundNames, owner);
     }
 
-    public ColumnCondition.Bound bind(QueryOptions options)
+    public ColumnCondition.Bound bind(FunctionContext context)
     {
         switch (columnsExpression.kind())
         {
             case SINGLE_COLUMN:
-                return bindSingleColumn(options);
+                return bindSingleColumn(context);
             case ELEMENT:
-                return bindElement(options);
+                return bindElement(context);
             default:
                 throw new UnsupportedOperationException();
         }
     }
 
-    private Bound bindSingleColumn(QueryOptions options)
+    private Bound bindSingleColumn(FunctionContext context)
     {
         ColumnMetadata column = columnsExpression.firstColumn();
         TableMetadata table = columnsExpression.table();
         if (column.type.isMultiCell())
-            return new MultiCellBound(column, table, operator, toValue(column.type, bindAndGetTerms(options)));
+            return new MultiCellBound(column, table, operator, toValue(column.type, bindAndGetTerms(context)));
 
-        return new SimpleBound(column, table, operator, toValue(column.type, bindAndGetTerms(options)));
+        return new SimpleBound(column, table, operator, toValue(column.type, bindAndGetTerms(context)));
     }
 
-    private ColumnCondition.Bound bindElement(QueryOptions options)
+    private ColumnCondition.Bound bindElement(FunctionContext context)
     {
         ColumnMetadata column = columnsExpression.firstColumn();
         TableMetadata table = columnsExpression.table();
-        ByteBuffer keyOrIndex = columnsExpression.element(options);
+        ByteBuffer keyOrIndex = columnsExpression.element(context);
         if (column.type.isCollection())
         {
             checkNotNull(keyOrIndex, "Invalid null value for %s element access", column.type instanceof MapType ? "map" : "list");
         }
-        return new ElementOrFieldAccessBound(column, table, keyOrIndex, operator, toValue(columnsExpression.type(), bindAndGetTerms(options)));
+        return new ElementOrFieldAccessBound(column, table, keyOrIndex, operator, toValue(columnsExpression.type(), bindAndGetTerms(context)));
     }
 
     private ByteBuffer toValue(AbstractType<?> type, List<ByteBuffer> values)
@@ -157,9 +157,9 @@ public final class ColumnCondition
         return value;
     }
 
-    private List<ByteBuffer> bindAndGetTerms(QueryOptions options)
+    private List<ByteBuffer> bindAndGetTerms(FunctionContext context)
     {
-        List<ByteBuffer> buffers = values.bindAndGet(options);
+        List<ByteBuffer> buffers = values.bindAndGet(context);
         checkFalse(buffers == null && operator.isIN(), "Invalid null list in IN condition");
         checkFalse(buffers == Term.UNSET_LIST, "Invalid 'unset' value in condition");
         return filterUnsetValuesIfNeeded(buffers, ByteBufferUtil.UNSET_BYTE_BUFFER);

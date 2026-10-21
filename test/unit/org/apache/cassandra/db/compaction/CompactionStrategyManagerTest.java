@@ -214,8 +214,9 @@ public class CompactionStrategyManagerTest extends CassandraTestBase
         // inside the currentlyBackgroundUpgrading check - with max_concurrent_auto_upgrade_tasks = 1 this will make
         // sure that BackgroundCompactionCandidate#maybeRunUpgradeTask returns false until the latch has been counted down
         CountDownLatch latch = new CountDownLatch(1);
+        CountDownLatch inFindUpgradeSSTables = new CountDownLatch(1);
         AtomicInteger upgradeTaskCount = new AtomicInteger(0);
-        MockCFSForCSM mock = new MockCFSForCSM(cfs, latch, upgradeTaskCount);
+        MockCFSForCSM mock = new MockCFSForCSM(cfs, latch, inFindUpgradeSSTables, upgradeTaskCount);
 
         CompactionManager.BackgroundCompactionCandidate r = CompactionManager.instance.getBackgroundCompactionCandidate(mock);
         CompactionStrategyManager mgr = mock.getCompactionStrategyManager();
@@ -224,7 +225,7 @@ public class CompactionStrategyManagerTest extends CassandraTestBase
         // due to the currentlyBackgroundUpgrading count being >= max_concurrent_auto_upgrade_tasks
         Thread t = new Thread(() -> r.maybeRunUpgradeTask(mgr));
         t.start();
-        Thread.sleep(100); // let the thread start and grab the task
+        inFindUpgradeSSTables.await();
         assertEquals(1, CompactionManager.instance.currentlyBackgroundUpgrading.get());
         assertFalse(r.maybeRunUpgradeTask(mgr));
         assertFalse(r.maybeRunUpgradeTask(mgr));
@@ -246,8 +247,9 @@ public class CompactionStrategyManagerTest extends CassandraTestBase
         // inside the currentlyBackgroundUpgrading check - with max_concurrent_auto_upgrade_tasks = 1 this will make
         // sure that BackgroundCompactionCandidate#maybeRunUpgradeTask returns false until the latch has been counted down
         CountDownLatch latch = new CountDownLatch(1);
+        CountDownLatch inFindUpgradeSSTables = new CountDownLatch(2);
         AtomicInteger upgradeTaskCount = new AtomicInteger();
-        MockCFSForCSM mock = new MockCFSForCSM(cfs, latch, upgradeTaskCount);
+        MockCFSForCSM mock = new MockCFSForCSM(cfs, latch, inFindUpgradeSSTables, upgradeTaskCount);
 
         CompactionManager.BackgroundCompactionCandidate r = CompactionManager.instance.getBackgroundCompactionCandidate(mock);
         CompactionStrategyManager mgr = mock.getCompactionStrategyManager();
@@ -259,7 +261,7 @@ public class CompactionStrategyManagerTest extends CassandraTestBase
         t.start();
         Thread t2 = new Thread(() -> r.maybeRunUpgradeTask(mgr));
         t2.start();
-        Thread.sleep(100); // let the threads start and grab the task
+        inFindUpgradeSSTables.await();
         assertEquals(2, CompactionManager.instance.currentlyBackgroundUpgrading.get());
         assertFalse(r.maybeRunUpgradeTask(mgr));
         assertFalse(r.maybeRunUpgradeTask(mgr));
@@ -619,18 +621,20 @@ public class CompactionStrategyManagerTest extends CassandraTestBase
     private static class MockCFSForCSM extends ColumnFamilyStore
     {
         private final CountDownLatch latch;
+        private final CountDownLatch inFindUpgradeSSTables;
         private final AtomicInteger upgradeTaskCount;
 
-        private MockCFSForCSM(ColumnFamilyStore cfs, CountDownLatch latch, AtomicInteger upgradeTaskCount)
+        private MockCFSForCSM(ColumnFamilyStore cfs, CountDownLatch latch, CountDownLatch inFindUpgradeSSTables, AtomicInteger upgradeTaskCount)
         {
             super(cfs.keyspace, cfs.name, Util.newSeqGen(10), cfs.metadata.get(), cfs.getDirectories(), true, false);
             this.latch = latch;
+            this.inFindUpgradeSSTables = inFindUpgradeSSTables;
             this.upgradeTaskCount = upgradeTaskCount;
         }
         @Override
         public CompactionStrategyManager getCompactionStrategyManager()
         {
-            return new MockCSM(this, latch, upgradeTaskCount);
+            return new MockCSM(this, latch, inFindUpgradeSSTables, upgradeTaskCount);
         }
     }
 
@@ -638,11 +642,13 @@ public class CompactionStrategyManagerTest extends CassandraTestBase
     {
         private final CountDownLatch latch;
         private final AtomicInteger upgradeTaskCount;
+        private final CountDownLatch inFindUpgradeSSTables;
 
-        private MockCSM(ColumnFamilyStore cfs, CountDownLatch latch, AtomicInteger upgradeTaskCount)
+        private MockCSM(ColumnFamilyStore cfs, CountDownLatch latch, CountDownLatch inFindUpgradeSSTables, AtomicInteger upgradeTaskCount)
         {
             super(cfs);
             this.latch = latch;
+            this.inFindUpgradeSSTables = inFindUpgradeSSTables;
             this.upgradeTaskCount = upgradeTaskCount;
         }
 
@@ -651,6 +657,7 @@ public class CompactionStrategyManagerTest extends CassandraTestBase
         {
             try
             {
+                inFindUpgradeSSTables.countDown();
                 latch.await();
                 upgradeTaskCount.incrementAndGet();
             }

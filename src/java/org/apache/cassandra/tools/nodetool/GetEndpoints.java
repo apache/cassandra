@@ -17,62 +17,10 @@
  */
 package org.apache.cassandra.tools.nodetool;
 
-import java.net.InetAddress;
-import java.util.ArrayList;
-import java.util.List;
-
-import org.apache.cassandra.tools.NodeProbe;
-import org.apache.cassandra.tools.nodetool.layout.CassandraUsage;
-
 import picocli.CommandLine.Command;
-import picocli.CommandLine.Mixin;
-import picocli.CommandLine.Parameters;
 
-import static com.google.common.base.Preconditions.checkArgument;
-import static org.apache.cassandra.tools.nodetool.CommandUtils.concatArgs;
-
-@Command(name = "getendpoints", description = "Print the end points that owns the key")
-public class GetEndpoints extends AbstractCommand
+@Deprecated(since = "7.0") // this is alias to getreplicas
+@Command(name = "getendpoints", description = "Print the end points that owns the key, deprecated, use getreplicas instead")
+public class GetEndpoints extends GetReplicas
 {
-    @CassandraUsage(usage = "<keyspace> <table> <key>", description = "The keyspace, the table, and the partition key for which we need to find the endpoint")
-    private List<String> args = new ArrayList<>();
-
-    @Parameters(index = "0", arity = "0..1", description = "The keyspace for which we need to find the endpoint")
-    private String keyspace;
-
-    @Parameters(index = "1", arity = "0..1", description = "The table for which we need to find the endpoint")
-    private String table;
-
-    @Parameters(index = "2", arity = "0..1", description = "The partition key for which we need to find the endpoint")
-    private String key;
-
-    @Mixin
-    private PrintPortMixin printPortMixin = new PrintPortMixin();
-
-    @Override
-    public void execute(NodeProbe probe)
-    {
-        args = concatArgs(keyspace, table, key);
-
-        checkArgument(args.size() == 3, "getendpoints requires keyspace, table and partition key arguments");
-        String ks = args.get(0);
-        String table = args.get(1);
-        String key = args.get(2);
-
-        if (printPortMixin.printPort)
-        {
-            for (String endpoint : probe.getEndpointsWithPort(ks, table, key))
-            {
-                probe.output().out.println(endpoint);
-            }
-        }
-        else
-        {
-            List<InetAddress> endpoints = probe.getEndpoints(ks, table, key);
-            for (InetAddress endpoint : endpoints)
-            {
-                probe.output().out.println(endpoint.getHostAddress());
-            }
-        }
-    }
 }

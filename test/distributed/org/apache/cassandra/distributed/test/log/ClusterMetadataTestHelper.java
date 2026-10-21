@@ -46,6 +46,7 @@ import org.apache.cassandra.dht.IPartitioner;
 import org.apache.cassandra.dht.Murmur3Partitioner;
 import org.apache.cassandra.dht.Token;
 import org.apache.cassandra.locator.InetAddressAndPort;
+import org.apache.cassandra.net.ConnectionType;
 import org.apache.cassandra.net.Message;
 import org.apache.cassandra.net.MessagingService;
 import org.apache.cassandra.net.Verb;
@@ -59,10 +60,10 @@ import org.apache.cassandra.schema.SchemaConstants;
 import org.apache.cassandra.schema.SchemaTestUtil;
 import org.apache.cassandra.schema.SchemaTransformation;
 import org.apache.cassandra.service.ClientState;
-import org.apache.cassandra.service.accord.AccordFastPath;
-import org.apache.cassandra.service.accord.AccordStaleReplicas;
+import org.apache.cassandra.service.accord.topology.AccordNodeInfos;
 import org.apache.cassandra.service.consensus.migration.ConsensusMigrationState;
 import org.apache.cassandra.tcm.AtomicLongBackedProcessor;
+import org.apache.cassandra.tcm.CMSMembership;
 import org.apache.cassandra.tcm.ClusterMetadata;
 import org.apache.cassandra.tcm.ClusterMetadataService;
 import org.apache.cassandra.tcm.Commit;
@@ -158,22 +159,28 @@ public class ClusterMetadataTestHelper
 
     public static ClusterMetadata minimalForTesting(Epoch epoch, IPartitioner partitioner)
     {
-        return new ClusterMetadata(epoch, Murmur3Partitioner.instance,
+        return new ClusterMetadata(epoch,
+                                   Murmur3Partitioner.instance,
                                    DistributedSchema.empty(),
                                    Directory.EMPTY,
                                    new TokenMap(partitioner),
                                    DataPlacements.empty(),
-                                   AccordFastPath.EMPTY,
+                                   AccordNodeInfos.EMPTY,
                                    LockedRanges.EMPTY,
                                    InProgressSequences.EMPTY,
                                    ConsensusMigrationState.EMPTY,
                                    ImmutableMap.of(),
-                                   AccordStaleReplicas.EMPTY);
+                                   CMSMembership.EMPTY);
     }
 
     public static ClusterMetadata minimalForTesting(IPartitioner partitioner)
     {
         return minimalForTesting(Epoch.EMPTY, partitioner);
+    }
+
+    public static ClusterMetadata minimalForTesting(Epoch e, Keyspaces keyspaces, CMSMembership cms)
+    {
+        return minimalForTesting(e, Murmur3Partitioner.instance, new DistributedSchema(keyspaces), cms);
     }
 
     public static ClusterMetadata minimalForTesting(Keyspaces keyspaces)
@@ -182,6 +189,27 @@ public class ClusterMetadataTestHelper
                                                              .with(new DistributedSchema(keyspaces))
                                                              .build()
                .metadata.forceEpoch(Epoch.EMPTY);
+    }
+
+    public static ClusterMetadata minimalForTesting(Epoch epoch, IPartitioner partitioner, DistributedSchema schema)
+    {
+        return minimalForTesting(epoch, partitioner, schema, CMSMembership.EMPTY);
+    }
+
+    public static ClusterMetadata minimalForTesting(Epoch epoch, IPartitioner partitioner, DistributedSchema schema, CMSMembership cms)
+    {
+        return new ClusterMetadata(epoch,
+                                   Murmur3Partitioner.instance,
+                                   schema,
+                                   Directory.EMPTY,
+                                   new TokenMap(partitioner),
+                                   DataPlacements.empty(),
+                                   AccordNodeInfos.EMPTY,
+                                   LockedRanges.EMPTY,
+                                   InProgressSequences.EMPTY,
+                                   ConsensusMigrationState.EMPTY,
+                                   ImmutableMap.of(),
+                                   cms);
     }
 
     public static ClusterMetadataService syncInstanceForTest()
@@ -1056,7 +1084,7 @@ public class ClusterMetadataTestHelper
     public static VersionedEndpoints.ForToken getNaturalReplicasForToken(ClusterMetadata metadata, String keyspace, Token searchPosition)
     {
         KeyspaceMetadata keyspaceMetadata = metadata.schema.getKeyspaces().getNullable(keyspace);
-        return metadata.placements.get(keyspaceMetadata.params.replication).reads.forToken(searchPosition);
+        return metadata.placement(keyspaceMetadata.params.replication).reads.forToken(searchPosition);
     }
 
     public static BootstrapAndJoin getBootstrapPlan(int idx)
@@ -1155,7 +1183,7 @@ public class ClusterMetadataTestHelper
         final SettableFuture<MessageDelivery> future = SettableFuture.create();
         Set<Verb> ignore = Sets.newHashSet(ignored);
         MessagingService.instance().outboundSink.clear();
-        MessagingService.instance().outboundSink.add((Message<?> message, InetAddressAndPort to) ->
+        MessagingService.instance().outboundSink.add((Message<?> message, InetAddressAndPort to, ConnectionType type) ->
                                                      {
                                                          if (!ignore.contains(message.verb()))
                                                              future.set(new MessageDelivery(message, to));

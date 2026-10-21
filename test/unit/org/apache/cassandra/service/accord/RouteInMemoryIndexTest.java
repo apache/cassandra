@@ -49,6 +49,8 @@ import org.apache.cassandra.index.accord.RouteIndexFormat;
 import org.apache.cassandra.index.accord.TxnRange;
 import org.apache.cassandra.schema.TableId;
 import org.apache.cassandra.service.accord.api.TokenKey;
+import org.apache.cassandra.service.accord.journal.RangeSearcher;
+import org.apache.cassandra.service.accord.journal.SegmentRangeSearcher;
 import org.apache.cassandra.utils.CloseableIterator;
 
 import static accord.utils.Property.commands;
@@ -133,7 +135,7 @@ public class RouteInMemoryIndexTest
 
     private static class State
     {
-        private final RouteInMemoryIndex<?> index = new RouteInMemoryIndex<>();
+        private final SegmentRangeSearcher<?> index = new SegmentRangeSearcher<>();
         private final Model model = new Model();
         private final float unfiltered;
         private final float minDecidedIdNull;

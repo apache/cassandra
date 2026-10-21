@@ -17,15 +17,29 @@
  */
 package org.apache.cassandra.utils;
 
+import java.time.Duration;
+import java.util.Collections;
+import java.util.IdentityHashMap;
+import java.util.Map;
+import java.util.Set;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.Supplier;
 
+import com.github.benmanes.caffeine.cache.Cache;
+import com.github.benmanes.caffeine.cache.Caffeine;
+import com.github.benmanes.caffeine.cache.Expiry;
+import com.github.benmanes.caffeine.cache.Ticker;
 import com.google.common.annotations.VisibleForTesting;
 
 import org.cliffc.high_scale_lib.NonBlockingHashMap;
 import org.slf4j.Logger;
 
+import org.apache.cassandra.concurrent.ImmediateExecutor;
+import org.apache.cassandra.exceptions.ConfigurationException;
+
+import static org.apache.cassandra.config.CassandraRelevantProperties.NOSPAM_LOGGER_MAX_STATEMENTS_PER_LOGGER;
 import static org.apache.cassandra.utils.Clock.Global;
 
 /**
@@ -36,8 +50,11 @@ import static org.apache.cassandra.utils.Clock.Global;
  * result in the original time being used. No warning is provided if there is a mismatch.
  *
  * If the statement is cached and used to log directly then only a volatile read will be required in the common case.
- * If the Logger is cached then there is a single concurrent hash map lookup + the volatile read.
- * If neither the logger nor the statement is cached then it is two concurrent hash map lookups + the volatile read.
+ * If the Logger is cached then there is a single Caffeine cache lookup + the volatile read.
+ * If neither the logger nor the statement is cached then it is a NonBlockingHashMap lookup + a Caffeine cache lookup + the volatile read.
+ *
+ * The implementation uses Caffeine cache with time-based expiration to automatically evict log statements
+ * after their minimum interval has passed, preventing unbounded memory growth from dynamic log messages.
  *
  */
 public class NoSpamLogger
@@ -64,16 +81,34 @@ public class NoSpamLogger
         CLOCK = clock;
     }
 
-    public class NoSpamLogStatement extends AtomicLong
+    private static final Ticker TICKER = () -> CLOCK.nanoTime();
+
+    @VisibleForTesting
+    static long parseMaxStatementsPerLogger()
+    {
+        long maxStatementsPerLogger = NOSPAM_LOGGER_MAX_STATEMENTS_PER_LOGGER.getLong();
+        if (maxStatementsPerLogger <= 0)
+            throw new ConfigurationException(String.format("Invalid value for system property %s: " +
+                                                           "expected a positive value but got %d",
+                                                           NOSPAM_LOGGER_MAX_STATEMENTS_PER_LOGGER.getKey(),
+                                                           maxStatementsPerLogger));
+        return maxStatementsPerLogger;
+    }
+
+    private static final long MAX_STATEMENTS_PER_LOGGER = parseMaxStatementsPerLogger();
+
+    public static class NoSpamLogStatement extends AtomicLong
     {
         private static final long serialVersionUID = 1L;
 
+        private final Logger wrapped;
         private final String statement;
         private final long minIntervalNanos;
 
-        public NoSpamLogStatement(String statement, long minIntervalNanos)
+        public NoSpamLogStatement(Logger wrapped, String statement, long minIntervalNanos)
         {
             super(Long.MIN_VALUE);
+            this.wrapped = wrapped;
             this.statement = statement;
             this.minIntervalNanos = minIntervalNanos;
         }
@@ -157,6 +192,167 @@ public class NoSpamLogger
         {
             return NoSpamLogStatement.this.error(CLOCK.nanoTime(), objects);
         }
+
+        public long expiry()
+        {
+            return minIntervalNanos;
+        }
+    }
+
+    public static class NoDuplicateSpamLogStatement
+    {
+        private static final int PRUNE_SIZE = 32;
+        private static final int MAX_SIZE = 1024;
+
+        private final Logger wrapped;
+        private final String statement;
+        private final long minIntervalNanos;
+        private final ConcurrentHashMap<Long, Long> lastLogged = new ConcurrentHashMap<>();
+        private final AtomicLong nextPruneAt = new AtomicLong(Long.MIN_VALUE);
+
+        public NoDuplicateSpamLogStatement(Logger wrapped, String statement, long minInterval, TimeUnit units)
+        {
+            this(wrapped, statement, units.toNanos(minInterval));
+        }
+
+        public NoDuplicateSpamLogStatement(Logger wrapped, String statement, long minIntervalNanos)
+        {
+            this.wrapped = wrapped;
+            this.statement = statement;
+            this.minIntervalNanos = minIntervalNanos;
+        }
+
+        private boolean shouldLog(long id, long nowNanos)
+        {
+            Long expected = lastLogged.getOrDefault(id, Long.MIN_VALUE);
+            if (nowNanos < expected)
+                return false;
+            else if (expected == Long.MIN_VALUE && null != lastLogged.putIfAbsent(id, nowNanos + minIntervalNanos))
+                return false;
+            else if (expected != Long.MIN_VALUE && !lastLogged.replace(id, expected, nowNanos + minIntervalNanos))
+                return false;
+
+            if (lastLogged.size() >= PRUNE_SIZE)
+            {
+                long pruneAt = nextPruneAt.get();
+                if (nowNanos >= pruneAt && nextPruneAt.compareAndSet(pruneAt, nowNanos + minIntervalNanos))
+                {
+                    for (Map.Entry<Long, Long> e : lastLogged.entrySet())
+                    {
+                        if (nowNanos >= e.getValue())
+                            lastLogged.remove(e.getKey(), e.getValue());
+                    }
+                }
+                if (lastLogged.size() >= MAX_SIZE)
+                {
+                    lastLogged.remove(id, nowNanos + minIntervalNanos);
+                    return false;
+                }
+            }
+            return true;
+        }
+
+        public boolean log(Level l, Throwable throwable)
+        {
+            long nowNanos = CLOCK.nanoTime();
+            return log(l, exceptionId(throwable), nowNanos, throwable);
+        }
+
+        public boolean warn(Throwable throwable)
+        {
+            return log(Level.WARN, throwable);
+        }
+
+        public boolean log(Level l, long id, long nowNanos, Object... objects)
+        {
+            if (!shouldLog(id, nowNanos)) return false;
+            return logNoCheck(l, objects);
+        }
+
+        private boolean logNoCheck(Level l, Object... objects)
+        {
+            switch (l)
+            {
+                case DEBUG:
+                    wrapped.debug(statement, objects);
+                    break;
+                case INFO:
+                    wrapped.info(statement, objects);
+                    break;
+                case WARN:
+                    wrapped.warn(statement, objects);
+                    break;
+                case ERROR:
+                    wrapped.error(statement, objects);
+                    break;
+                default:
+                    throw new AssertionError();
+            }
+            return true;
+        }
+
+        public boolean debug(long id, Object... objects)
+        {
+            return log(Level.DEBUG, id, CLOCK.nanoTime(), objects);
+        }
+
+        public boolean info(long id, Object... objects)
+        {
+            return log(Level.INFO, id, CLOCK.nanoTime(), objects);
+        }
+
+        public boolean warn(long id, Object... objects)
+        {
+            return log(Level.WARN, id, CLOCK.nanoTime(), objects);
+        }
+
+        public boolean error(long id, Object... objects)
+        {
+            return log(Level.ERROR, id, CLOCK.nanoTime(), objects);
+        }
+
+        public static long exceptionId(Throwable throwable)
+        {
+            return exceptionId(throwable, Collections.newSetFromMap(new IdentityHashMap<>()));
+        }
+
+        private static long exceptionId(Throwable throwable, Set<Throwable> visited)
+        {
+            long id = shallowExceptionId(throwable, visited);
+
+            for (Throwable cause = throwable.getCause() ; cause != null ; cause = cause.getCause())
+            {
+                if (!visited.add(cause))
+                    break;
+
+                id *= 31;
+                id += shallowExceptionId(cause, visited);
+            }
+            return id;
+        }
+
+        private static long shallowExceptionId(Throwable throwable, Set<Throwable> visited)
+        {
+            long id = throwable.getClass().hashCode();
+            for (StackTraceElement ste : throwable.getStackTrace())
+            {
+                id *= 31;
+                id += ste.getClassName().hashCode();
+                id *= 31;
+                id += ste.getLineNumber();
+            }
+
+            for (Throwable suppressed : throwable.getSuppressed())
+            {
+                if (!visited.add(suppressed))
+                    continue;
+
+                id *= 31;
+                id += exceptionId(suppressed, visited);
+            }
+
+            return id;
+        }
     }
 
     private static final NonBlockingHashMap<Logger, NoSpamLogger> wrappedLoggers = new NonBlockingHashMap<>();
@@ -165,6 +361,34 @@ public class NoSpamLogger
     static void clearWrappedLoggersForTest()
     {
         wrappedLoggers.clear();
+    }
+
+    /**
+     * Forces eviction of entries from the {@link NoSpamLogStatement} cache for this logger instance.
+     * This is useful for testing to ensure cache size limits are enforced immediately.
+     */
+    @VisibleForTesting
+    void cleanUpStatementsForTest()
+    {
+        lastMessage.cleanUp();
+    }
+
+    /**
+     * Returns the current size of the lastMessage cache for this logger instance.
+     * This is useful for testing cache eviction behavior.
+     *
+     * @return the number of log statements currently cached for this logger
+     */
+    @VisibleForTesting
+    long getStatementsCount()
+    {
+        return lastMessage.estimatedSize();
+    }
+
+    @VisibleForTesting
+    long getMaxStatementsCount()
+    {
+        return lastMessage.policy().eviction().orElseThrow(AssertionError::new).getMaximum();
     }
 
     public static NoSpamLogger getLogger(Logger logger, long minInterval, TimeUnit unit)
@@ -222,7 +446,19 @@ public class NoSpamLogger
 
     private final Logger wrapped;
     private final long minIntervalNanos;
-    private final NonBlockingHashMap<String, NoSpamLogStatement> lastMessage = new NonBlockingHashMap<>();
+
+    /**
+     * Cache of NoSpamLogStatement instances per NoSpamLogger instance.
+     * Bounded by size and time to prevent memory exhaustion from dynamic log messages.
+     * Uses Caffeine with W-TinyLFU eviction policy.
+     * Uses custom per-entry expiry based on each statement's minIntervalNanos.
+     */
+    private final Cache<String, NoSpamLogStatement> lastMessage = Caffeine.newBuilder()
+                                                                          .maximumSize(MAX_STATEMENTS_PER_LOGGER)
+                                                                          .expireAfter(Expiry.writing((String key, NoSpamLogStatement value) -> Duration.ofNanos(value.expiry())))
+                                                                          .ticker(TICKER)
+                                                                          .executor(ImmediateExecutor.INSTANCE)
+                                                                          .build();
 
     private NoSpamLogger(Logger wrapped, long minInterval, TimeUnit timeUnit)
     {
@@ -302,14 +538,6 @@ public class NoSpamLogger
 
     public NoSpamLogStatement getStatement(String key, String s, long minIntervalNanos)
     {
-        NoSpamLogStatement statement = lastMessage.get(key);
-        if (statement == null)
-        {
-            statement = new NoSpamLogStatement(s, minIntervalNanos);
-            NoSpamLogStatement temp = lastMessage.putIfAbsent(key, statement);
-            if (temp != null)
-                statement = temp;
-        }
-        return statement;
+        return lastMessage.get(key, k -> new NoSpamLogStatement(wrapped, s, minIntervalNanos));
     }
 }

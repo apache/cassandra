@@ -911,6 +911,17 @@ public interface GuardrailsMBean
     void setMinimumReplicationFactorThreshold (int warn, int fail);
 
     /**
+     * @return The threshold to fail when the CMS size (aggregate replication factor across DCs) is below the threshold.
+     */
+    int getMinimumCmsSizeFailThreshold();
+
+    /**
+     * @param fail The threshold to fail when the CMS size (aggregate replication factor across DCs) is below it.
+     *             -1 means disabled.
+     */
+    void setMinimumCmsSizeFailThreshold(int fail);
+
+    /**
      * @return The threshold to fail when replication factor is greater than threshold.
      */
     int getMaximumReplicationFactorWarnThreshold();
@@ -1058,6 +1069,30 @@ public interface GuardrailsMBean
     void setSaiStringTermSizeThreshold(@Nullable String warnSize, @Nullable String failSize);
 
     /**
+     * @return The warning threshold for blob terms written to an SAI index, as a human-readable string.
+     *         (ex. {@code 10GiB}, {@code 20MiB}, {@code 30KiB} or {@code 40B}) A {@code null} value means disabled.
+     */
+    @Nullable
+    String getSaiBlobTermSizeWarnThreshold();
+
+    /**
+     * @return The failure threshold for blob terms written to an SAI index, as a human-readable string.
+     *         (ex. {@code 10GiB}, {@code 20MiB}, {@code 30KiB} or {@code 40B}) A {@code null} value means disabled.
+     */
+    @Nullable
+    String getSaiBlobTermSizeFailThreshold();
+
+    /**
+     * @param warnSize The warning threshold for blob terms written to an SAI index, as a human-readable string.
+     *                 (ex. {@code 10GiB}, {@code 20MiB}, {@code 30KiB} or {@code 40B})
+     *                 A {@code null} value means disabled.
+     * @param failSize The failure threshold for blob terms written to an SAI index, as a human-readable string.
+     *                 (ex. {@code 10GiB}, {@code 20MiB}, {@code 30KiB} or {@code 40B})
+     *                 A {@code null} value means disabled.
+     */
+    void setSaiBlobTermSizeThreshold(@Nullable String warnSize, @Nullable String failSize);
+
+    /**
      * @return The warning threshold for frozen terms written to an SAI index, as a human-readable string.
      *         (ex. {@code 10GiB}, {@code 20MiB}, {@code 30KiB} or {@code 40B}) A {@code null} value means disabled.
      */
@@ -1190,4 +1225,70 @@ public interface GuardrailsMBean
      * dictionary compressor as frequently as needed, without any limits, false otherwise.
      */
     boolean getUnsetTrainingMinFrequencyEnabled();
+
+    /**
+     * @return JSON representation of the minimum client driver versions that trigger a warning.
+     */
+    String getMinimumClientDriverVersionsWarned();
+
+    /**
+     * @return JSON representation of the minimum client driver versions that trigger a failure.
+     */
+    String getMinimumClientDriverVersionsDisallowed();
+
+    /**
+     * Sets the minimum client driver versions that trigger a warning.
+     *
+     * @param value JSON representation of a map of driver name to minimum version string.
+     */
+    void setMinimumClientDriverVersionsWarned(String value);
+
+    /**
+     * Sets the minimum client driver versions that trigger a failure.
+     *
+     * @param value JSON representation of a map of driver name to minimum version string.
+     */
+    void setMinimumClientDriverVersionsDisallowed(String value);
+
+    /**
+     * @return {@code true} if a warning is logged when a prepared statement is created without parameters,
+     * {@code false} otherwise.
+     */
+    boolean getPreparedStatementsRequireParametersWarned();
+
+    /**
+     * @return {@code true} if creating a prepared statement without parameters is rejected,
+     * {@code false} otherwise.
+     */
+    boolean getPreparedStatementsRequireParametersEnabled();
+
+    /**
+     * Sets whether to log a warning when a prepared statement is created without parameters.
+     *
+     * @param warned {@code true} to enable the warning, {@code false} to disable it.
+     */
+    void setPreparedStatementsRequireParametersWarned(boolean warned);
+
+    /**
+     * Sets whether to reject creating a prepared statement without parameters.
+     *
+     * @param enabled {@code true} to reject, {@code false} to allow.
+     */
+    void setPreparedStatementsRequireParametersEnabled(boolean enabled);
+
+    /**
+     * @return The threshold to warn when creating a table with a Zstd compression level above it.
+     */
+    int getZstdCompressionLevelWarnThreshold();
+
+    /**
+     * @return The threshold to fail when creating a table with a Zstd compression level above it.
+     */
+    int getZstdCompressionLevelFailThreshold();
+
+    /**
+     * @param warn The threshold to warn when creating a table with a Zstd compression level above it. -1 means disabled.
+     * @param fail The threshold to prevent creating a table with a Zstd compression level above it. -1 means disabled.
+     */
+    void setZstdCompressionLevelThreshold(int warn, int fail);
 }

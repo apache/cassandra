@@ -20,7 +20,7 @@ package org.apache.cassandra.test.microbench;
 
 import java.util.concurrent.ThreadPoolExecutor;
 
-import io.netty.util.concurrent.DefaultThreadFactory;
+import org.apache.cassandra.concurrent.CassandraThreadFactory;
 
 import static java.util.concurrent.TimeUnit.SECONDS;
 import static org.apache.cassandra.utils.concurrent.BlockingQueues.newBlockingQueue;
@@ -35,6 +35,6 @@ public class FastThreadExecutor extends ThreadPoolExecutor
 {
     public FastThreadExecutor(int size, String name)
     {
-        super(size, size, 10, SECONDS, newBlockingQueue(), new DefaultThreadFactory(name, true));
+        super(size, size, 10, SECONDS, newBlockingQueue(), new CassandraThreadFactory(name, true));
     }
 }

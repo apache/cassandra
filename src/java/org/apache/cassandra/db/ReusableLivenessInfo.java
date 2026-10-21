@@ -43,10 +43,16 @@ public class ReusableLivenessInfo implements LivenessInfo
         return localExpirationTime;
     }
 
+    /**
+     * "Has a TTL", as specified by {@link LivenessInfo#isExpiring()} and implemented by every other
+     * liveness type ({@link LivenessInfo.ExpiringLivenessInfo}, {@link org.apache.cassandra.db.rows.AbstractCell#isExpiring()}).
+     * Note this is NOT "has an expiration time": cell liveness held here can be a tombstone, which
+     * carries a local deletion time with no TTL.
+     */
     @Override
     public boolean isExpiring()
     {
-        return localExpirationTime != NO_EXPIRATION_TIME;
+        return ttl != NO_TTL;
     }
 
     @Override
@@ -56,29 +62,16 @@ public class ReusableLivenessInfo implements LivenessInfo
     }
 
     /**
-     * {@link org.apache.cassandra.db.rows.AbstractCell#isTombstone()}
+     * The ROW contract, matching the row references: empty liveness is not live, an
+     * {@link #EXPIRED_LIVENESS_TTL} marker is never live, and otherwise an expiring liveness is live
+     * until its expiration second. {@code ReusableCellLivenessInfo} carries the cell reading.
      */
-    public boolean isTombstone()
-    {
-        return localExpirationTime != NO_EXPIRATION_TIME && ttl == NO_TTL;
-    }
-
     @Override
     public boolean isLive(long nowInSec)
     {
-        return localExpirationTime == NO_EXPIRATION_TIME || ttl != NO_TTL && !isExpired(nowInSec);
-    }
-
-    public boolean isExpired(long nowInSec)
-    {
-        return nowInSec >= localExpirationTime;
-    }
-
-    public void ttlToTombstone()
-    {
-        // LET/LDT is now the time the TTL would have expired
-        localExpirationTime = localExpirationTime - ttl;
-        ttl = NO_TTL;
+        if (isEmpty() || isExpired())
+            return false;
+        return !isExpiring() || nowInSec < localExpirationTime;
     }
 
     public void reset(long timestamp, int ttl, long localExpirationTime)

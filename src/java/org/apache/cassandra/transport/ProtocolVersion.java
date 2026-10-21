@@ -24,7 +24,11 @@ import java.util.EnumSet;
 import java.util.List;
 import java.util.Optional;
 
+import com.google.common.collect.ImmutableList;
+
 import org.apache.commons.lang3.ArrayUtils;
+
+import org.apache.cassandra.cql3.FunctionContext;
 
 /**
  * The native (CQL binary) protocol version.
@@ -35,7 +39,7 @@ import org.apache.commons.lang3.ArrayUtils;
  * by the specs.
  *
  */
-public enum ProtocolVersion implements Comparable<ProtocolVersion>
+public enum ProtocolVersion implements Comparable<ProtocolVersion>, FunctionContext.NoTimeOrQueryFunctionContext
 {
     // The order is important as it defines the chronological history of versions, which is used
     // to determine if a feature is supported or some serdes formats
@@ -71,6 +75,7 @@ public enum ProtocolVersion implements Comparable<ProtocolVersion>
 
     /** All supported versions, published as an enumset */
     public final static EnumSet<ProtocolVersion> SUPPORTED = EnumSet.copyOf(Arrays.asList(ArrayUtils.addAll(SUPPORTED_VERSIONS)));
+    private final static ImmutableList<String> SUPPORTED_VERSION_STRINGS = SUPPORTED.stream().map(ProtocolVersion::toString).collect(ImmutableList.toImmutableList());
 
     /** Old unsupported versions, this is OK as long as we never add newer unsupported versions */
     public final static EnumSet<ProtocolVersion> UNSUPPORTED = EnumSet.complementOf(SUPPORTED);
@@ -82,12 +87,9 @@ public enum ProtocolVersion implements Comparable<ProtocolVersion>
     public final static ProtocolVersion CURRENT = V5;
     public final static Optional<ProtocolVersion> BETA = Optional.of(V6);
 
-    public static List<String> supportedVersions()
+    public static ImmutableList<String> supportedVersions()
     {
-        List<String> ret = new ArrayList<>(SUPPORTED.size());
-        for (ProtocolVersion version : SUPPORTED)
-            ret.add(version.toString());
-        return ret;
+        return SUPPORTED_VERSION_STRINGS;
     }
 
     public static List<ProtocolVersion> supportedVersionsStartingWith(ProtocolVersion smallestVersion)
@@ -172,5 +174,11 @@ public enum ProtocolVersion implements Comparable<ProtocolVersion>
     public final boolean isSmallerOrEqualTo(ProtocolVersion other)
     {
         return num <= other.num;
+    }
+
+    @Override
+    public ProtocolVersion getProtocolVersion()
+    {
+        return this;
     }
 }

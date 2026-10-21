@@ -18,6 +18,7 @@ bs4
 dotenv
 kubernetes
 python-jenkins
+pyyaml
 requests
 
 # optional for different clouds

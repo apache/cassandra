@@ -3,8 +3,9 @@
 
 // LLP: *NOT DONE*
 
-Configuring your {product} environment for Storage-Attached Indexing (SAI) may require some customization of the `cassandra.yaml` file. 
+Configuring your {product} environment for Storage-Attached Indexing (SAI) may require some customization of the `cassandra.yaml` file.
 
+[[saiConfigure__saiCompactionStrategies]]
 == Compaction strategies
 
 Read queries perform better with compaction strategies that produce fewer SSTables.
@@ -20,13 +21,13 @@ While in a time window, TWCS compacts all SSTables flushed from memory into larg
 At the end of the time window, all of these SSTables are compacted into a single SSTable.
 Then the next time window starts and the process repeats.
 The duration of the time window is the only setting required.
-See xref:reference:cql-commands/create-table.adoc#compactSubprop__TWCS[TimeWindowCompactionStrategy].
+See xref:cassandra:reference/cql-commands/compact-subproperties.adoc#TWCS[TimeWindowCompactionStrategy].
 For more information about TWCS, see xref:cassandra:managing/operating/compaction/twcs.adoc[Time Window Compaction Strategy].
 
 In general, do not use `LeveledCompactionStrategy` (LCS) unless your index queries restrict the token range, either directly or by providing a restriction on the partition key.
 However, if you decide to use LCS, use the following guidelines:
 
-* The `160` MB default for the `CREATE TABLE` command's `sstable_size_in_mb` option, described in this xref:reference:cql-commands/create-table.adoc#compactSubprop__LCS[topic], may result in suboptimal performance for index queries that do not restrict on token range or partition key.
+* The `160` MB default for the `CREATE TABLE` command's `sstable_size_in_mb` option, described in this xref:cassandra:reference/cql-commands/compact-subproperties.adoc#LCS[topic], may result in suboptimal performance for index queries that do not restrict on token range or partition key.
 * While even higher values may be appropriate, depending on your hardware, we recommend at least doubling the default value of `sstable_size_in_mb`. 
 
 Example:

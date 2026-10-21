@@ -28,6 +28,7 @@ import java.util.stream.Collectors;
 import com.google.common.base.Objects;
 
 import org.apache.cassandra.cql3.ColumnSpecification;
+import org.apache.cassandra.cql3.FunctionContext;
 import org.apache.cassandra.cql3.QueryOptions;
 import org.apache.cassandra.cql3.functions.Function;
 import org.apache.cassandra.cql3.terms.Maps;
@@ -259,7 +260,17 @@ final class MapSelector extends Selector
         this.type = (MapType<?, ?>) type;
         this.elements = elements;
     }
-    
+
+    @Override
+    public void prepare(FunctionContext context)
+    {
+        super.prepare(context);
+        for (Pair<Selector, Selector> selector : elements)
+        {
+            selector.left.prepare(context);
+            selector.right.prepare(context);
+        }
+    }
 
     @Override
     public boolean equals(Object o)

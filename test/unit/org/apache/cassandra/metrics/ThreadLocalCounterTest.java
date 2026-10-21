@@ -90,7 +90,7 @@ public class ThreadLocalCounterTest
 
             LOGGER.info("id generator state: {}, free IDs: {}",
                         ThreadLocalMetrics.idGenerator.get(),
-                        ThreadLocalMetrics.freeMetricIdSet);
+                        ThreadLocalMetrics.freeMetricIdSetTracker);
             LOGGER.info("iteration completed: {} / {}", iteration + 1, ITERATIONS_COUNT);
         }
     }

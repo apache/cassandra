@@ -38,6 +38,7 @@ import java.util.TreeMap;
 import java.util.function.Consumer;
 import java.util.function.Function;
 import java.util.function.IntFunction;
+import java.util.function.Predicate;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
@@ -934,10 +935,10 @@ public class ASTSingleTableModel
             if (!where.lhs.type().equals(where.rhs.type()))
                 throw new UnsupportedOperationException("For now where clause must always have matching types: given " + where.lhs.type() + ' ' + where.rhs.type());
             ByteBuffer lhs = where.lhs instanceof ReferenceExpression
-                             ? (ByteBuffer) extract((ReferenceExpression) where.lhs, lets)
+                             ? (ByteBuffer) extract((ReferenceExpression) where.lhs, lets, who == Who.cas && where.kind.isEqualityBased())
                              : eval(where.lhs);
             ByteBuffer rhs = where.rhs instanceof ReferenceExpression
-                             ? (ByteBuffer) extract((ReferenceExpression) where.rhs, lets)
+                             ? (ByteBuffer) extract((ReferenceExpression) where.rhs, lets, who == Who.cas && where.kind.isEqualityBased())
                              : eval(where.rhs);
             switch (who)
             {
@@ -979,10 +980,14 @@ public class ASTSingleTableModel
         }
     }
 
-    // Either ByteBuffer (cell) or ByteBuffer[] (row)
     private static Object extract(ReferenceExpression expr, Map<String, SelectResult> lets)
     {
-        Object result = extract0(expr, lets);
+        return extract(expr, lets, false);
+    }
+
+    private static Object extract(ReferenceExpression expr, Map<String, SelectResult> lets, boolean preserveEmpty)
+    {
+        Object result = extract0(expr, lets, preserveEmpty);
         if (result instanceof SelectResult)
         {
             var rows = ((SelectResult) result).rows;
@@ -992,14 +997,14 @@ public class ASTSingleTableModel
     }
 
     // o can be Map<String, SelectResult> (lets), SelectResult (row), ByteBuffer (cell)
-    private static Object extract0(ReferenceExpression expr, @Nullable Object o)
+    private static Object extract0(ReferenceExpression expr, @Nullable Object o, boolean preserveEmpty)
     {
         if (o == null) return null;
         if (expr instanceof Reference)
         {
             Reference ref = (Reference) expr;
             for (var symbol : ref.path)
-                o = extract0(symbol, o);
+                o = extract0(symbol, o, preserveEmpty);
             return o;
         }
         else if (expr instanceof Symbol)
@@ -1016,7 +1021,7 @@ public class ASTSingleTableModel
                 if (result.rows.length == 0)
                     return null;
                 ByteBuffer bb = result.rows[0][result.columns.indexOf(symbol)];
-                if (bb != null && symbol.type().isNull(bb))
+                if (!preserveEmpty && bb != null && symbol.type().isNull(bb))
                     bb = null;
                 return bb;
             }
@@ -2255,6 +2260,7 @@ public class ASTSingleTableModel
     {
         private final Map<ReferenceExpression, List<? extends Expression>> eq = new HashMap<>();
         private final Map<ReferenceExpression, List<ColumnCondition>> ltOrGt = new HashMap<>();
+        private final Map<ReferenceExpression, LikeCondition> like = new HashMap<>();
         @Nullable
         private Token token = null;
         @Nullable
@@ -2474,6 +2480,20 @@ public class ASTSingleTableModel
                 addConditional(and.left);
                 addConditional(and.right);
             }
+            else if (conditional instanceof Conditional.Like)
+            {
+                Conditional.Like likeCondition = (Conditional.Like) conditional;
+                if (likeCondition.ref instanceof Symbol)
+                {
+                    Symbol col = (Symbol) likeCondition.ref;
+                    ByteBuffer pattern = eval(likeCondition.pattern);
+                    var override = like.put(col, new LikeCondition(col.type(), pattern));
+                    if (override != null)
+                        throw new IllegalStateException("Column " + col.detailedName() + " had 2 LIKE statements...");
+                }
+                else
+                    throw new UnsupportedOperationException(likeCondition.ref.getClass().getCanonicalName());
+            }
             else
             {
                 //TODO (coverage): IS
@@ -2526,6 +2546,14 @@ public class ASTSingleTableModel
                     if (!matches(col.type(), actual, ltOrGt.get(col)))
                         return false;
                 }
+                if (like.containsKey(col))
+                {
+                    ByteBuffer actual = accessor.apply(columns.indexOf(col));
+                    if (actual == null)
+                        return false;
+                    if (!like.get(col).matches(actual))
+                        return false;
+                }
             }
             return true;
         }
@@ -2533,13 +2561,15 @@ public class ASTSingleTableModel
         private boolean testsClustering()
         {
             return factory.clusteringColumns.stream().anyMatch(eq::containsKey)
-                   || factory.clusteringColumns.stream().anyMatch(ltOrGt::containsKey);
+                   || factory.clusteringColumns.stream().anyMatch(ltOrGt::containsKey)
+                   || factory.clusteringColumns.stream().anyMatch(like::containsKey);
         }
 
         private boolean testsRegular()
         {
             return factory.regularColumns.stream().anyMatch(eq::containsKey)
-                   || factory.regularColumns.stream().anyMatch(ltOrGt::containsKey);
+                   || factory.regularColumns.stream().anyMatch(ltOrGt::containsKey)
+                   || factory.regularColumns.stream().anyMatch(like::containsKey);
         }
 
         private boolean testsRow()
@@ -2569,6 +2599,48 @@ public class ASTSingleTableModel
         {
             this.inequality = inequality;
             this.token = token;
+        }
+    }
+
+    private static class LikeCondition
+    {
+        private final AbstractType<?> type;
+        private final Predicate<String> fn;
+
+        private LikeCondition(AbstractType<?> type, ByteBuffer pattern)
+        {
+            this.type = type;
+            String patternStr = type.getString(pattern);
+
+            // Guard against empty or all-wildcard patterns ("", "%", "%%") that would leave an empty search value.
+            if (patternStr.isEmpty() || (patternStr.startsWith("%") && patternStr.endsWith("%") && patternStr.length() <= 2))
+                throw new AssertionError("LIKE value can't be empty or just %: " + patternStr);
+
+            if (patternStr.startsWith("%") && patternStr.endsWith("%"))
+            {
+                String substring = patternStr.substring(1, patternStr.length() - 1);
+                this.fn = v -> v.contains(substring);
+            }
+            else if (patternStr.startsWith("%"))
+            {
+                String suffix = patternStr.substring(1);
+                this.fn = v -> v.endsWith(suffix);
+            }
+            else if (patternStr.endsWith("%"))
+            {
+                String prefix = patternStr.substring(0, patternStr.length() - 1);
+                this.fn = v -> v.startsWith(prefix);
+            }
+            else
+            {
+                this.fn = v -> v.equals(patternStr);
+            }
+        }
+
+        private boolean matches(ByteBuffer value)
+        {
+            String valueStr = type.getString(value);
+            return fn.test(valueStr);
         }
     }
 

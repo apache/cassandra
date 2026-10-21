@@ -35,6 +35,7 @@ import org.apache.commons.lang3.StringUtils;
 
 import org.apache.cassandra.tools.nodetool.CommandUtils;
 import org.apache.cassandra.tools.nodetool.JmxConnect;
+import org.apache.cassandra.tools.nodetool.LocalCommand;
 import org.apache.cassandra.tools.nodetool.NodetoolCommand;
 import org.apache.cassandra.utils.Pair;
 
@@ -65,9 +66,11 @@ import static picocli.CommandLine.Model.UsageMessageSpec.SECTION_KEY_SYNOPSIS_HE
  * Help factory for the Cassandra nodetool to generate the help output in the format
  * of the airline help output, which is used as the default layout for the Cassandra nodetool.
  * <p>
- * Note, that JMX connect options are always shown in the help output and are not hidden. The
- * {@link JmxConnect} class is used to connect to a C* node via JMX, but the opttions are not
- * part of the command hierarchy to allow reusage of the commands in other contexts.
+ * JMX connect options (host, port, username, password, etc.) are shown in the help output for
+ * all commands that require a JMX connection. Commands that implement {@link org.apache.cassandra.tools.nodetool.LocalCommand}
+ * are known at the metadata level to run locally, and their help output suppresses the JMX options.
+ * Commands whose locality is only determined at runtime (e.g. {@link org.apache.cassandra.tools.nodetool.Sjk})
+ * continue to show JMX options since the decision cannot be made statically.
  */
 public class CassandraCliHelpLayout extends CommandLine.Help
 {
@@ -257,6 +260,10 @@ public class CassandraCliHelpLayout extends CommandLine.Help
         if (commandSpec.helpCommand())
             return Collections.emptyList();
 
+        // If the command is a LocalCommand, it runs locally and does not need JMX connection options
+        // in its help output. This is a static, metadata-level check based on the class hierarchy.
+        boolean shouldShowJmx = !(commandSpec.userObject() instanceof LocalCommand);
+
         List<CommandLine.Model.CommandSpec> hierarhy = new LinkedList<>();
         CommandLine.Model.CommandSpec curr;
         CommandLine.Model.CommandSpec command = commandSpec;
@@ -271,11 +278,16 @@ public class CassandraCliHelpLayout extends CommandLine.Help
         {
             for (CommandLine.Model.OptionSpec option : spec.options())
             {
-                // JmxConnect and NodetoolCommand options are always shown in the help output for backwards compatibility.
+                // JmxConnect options are shown for online commands only; NodetoolCommand options are always shown for backwards compatibility.
                 if (option.userObject() instanceof Field &&
                     (((Field) option.userObject()).getDeclaringClass().equals(JmxConnect.class) ||
                      ((Field) option.userObject()).getDeclaringClass().equals(NodetoolCommand.class)))
+                {
+                    if (((Field) option.userObject()).getDeclaringClass().equals(JmxConnect.class) && !shouldShowJmx)
+                        continue;
+
                     options.add(option);
+                }
                 else
                 {
                     if (option.hidden() || option.scopeType() == CommandLine.ScopeType.LOCAL)

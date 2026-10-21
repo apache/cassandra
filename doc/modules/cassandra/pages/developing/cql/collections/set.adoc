@@ -8,7 +8,7 @@ Use the `set` data type to store data that has a many-to-one relationship with a
 
 == Prerequisite
 
-* xref:developing/cql/keyspace-check.adoc[Keyspace] must exist
+* xref:cassandra:developing/cql/ddl.adoc#create-keyspace-statement[Keyspace] must exist
 
 In the following example, a `set` called `teams` stores all the teams that a cyclist has been a member of during their career.
 The table is `cyclist_career_teams`.

@@ -25,6 +25,9 @@ import java.util.HashSet;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
+import java.util.function.Function;
+
+import com.google.common.collect.Maps;
 
 import org.apache.cassandra.db.TypeSizes;
 import org.apache.cassandra.io.util.DataInputPlus;
@@ -32,6 +35,8 @@ import org.apache.cassandra.io.util.DataOutputPlus;
 import org.apache.cassandra.locator.InetAddressAndPort;
 import org.apache.cassandra.schema.ReplicationParams;
 import org.apache.cassandra.tcm.Epoch;
+import org.apache.cassandra.tcm.membership.EndpointLookup;
+import org.apache.cassandra.tcm.membership.NodeId;
 import org.apache.cassandra.tcm.serialization.MetadataSerializer;
 import org.apache.cassandra.tcm.serialization.Version;
 
@@ -70,12 +75,12 @@ public class PlacementDeltas extends ReplicationMap<PlacementDeltas.PlacementDel
                '}';
     }
 
-    public DataPlacements apply(Epoch epoch, DataPlacements placements)
+    public DataPlacements apply(EndpointLookup endpointLookup, Epoch epoch, DataPlacements placements)
     {
         DataPlacements.Builder builder = placements.unbuild();
         asMap().forEach((params, delta) -> {
             DataPlacement previous = placements.get(params);
-            builder.with(params, delta.apply(epoch, previous));
+            builder.with(params, delta.apply(endpointLookup, epoch, previous));
         });
         return builder.build();
     }
@@ -88,14 +93,9 @@ public class PlacementDeltas extends ReplicationMap<PlacementDeltas.PlacementDel
 
         for (Map.Entry<ReplicationParams, PlacementDelta> e : map.entrySet())
         {
-            if (!e.getValue().reads.removals.isEmpty())
+            if (!e.getValue().reads.isEmpty())
                 return false;
-            if (!e.getValue().reads.additions.isEmpty())
-                return false;
-
-            if (!e.getValue().writes.removals.isEmpty())
-                return false;
-            if (!e.getValue().writes.additions.isEmpty())
+            if (!e.getValue().writes.isEmpty())
                 return false;
         }
 
@@ -107,6 +107,14 @@ public class PlacementDeltas extends ReplicationMap<PlacementDeltas.PlacementDel
         return EMPTY;
     }
 
+    public PlacementDeltas withEndpointDeltas(EndpointLookup endpointLookup)
+    {
+        PlacementDeltas.Builder builder = PlacementDeltas.builder();
+        for (Map.Entry<ReplicationParams, PlacementDelta> entry : map.entrySet())
+            builder.put(entry.getKey(), entry.getValue().withEndpointDeltas(endpointLookup));
+        return builder.build();
+    }
+
     public static Builder builder()
     {
         return new Builder(new HashMap<>());
@@ -114,7 +122,7 @@ public class PlacementDeltas extends ReplicationMap<PlacementDeltas.PlacementDel
 
     public static Builder builder(int expectedSize)
     {
-        return new Builder(new HashMap<>(expectedSize));
+        return new Builder(Maps.newHashMapWithExpectedSize(expectedSize));
     }
 
     public static Builder builder(Map<ReplicationParams, PlacementDelta> map)
@@ -124,7 +132,7 @@ public class PlacementDeltas extends ReplicationMap<PlacementDeltas.PlacementDel
 
     public static class PlacementDelta
     {
-        public static PlacementDelta EMPTY = new PlacementDelta(Delta.empty(), Delta.empty());
+        public static PlacementDelta EMPTY = new PlacementDelta(NodeIdDelta.empty(), NodeIdDelta.empty());
 
         public final Delta reads;
         public final Delta writes;
@@ -137,41 +145,32 @@ public class PlacementDeltas extends ReplicationMap<PlacementDeltas.PlacementDel
 
         public PlacementDelta onlyReads()
         {
-            return new PlacementDelta(reads, Delta.empty());
+            assert reads instanceof NodeIdDelta;
+            return new PlacementDelta(reads, NodeIdDelta.empty());
         }
 
         public PlacementDelta onlyWrites()
         {
-            return new PlacementDelta(Delta.empty(), writes);
+            assert writes instanceof NodeIdDelta;
+            return new PlacementDelta(NodeIdDelta.empty(), writes);
         }
 
-        public PlacementDelta onlyAdditions()
-        {
-            return new PlacementDelta(reads.onlyAdditions(), writes.onlyAdditions());
-        }
-
-        public PlacementDelta onlyRemovals()
-        {
-            return new PlacementDelta(reads.onlyRemovals(), writes.onlyRemovals());
-        }
-
-        // TODO deltas (& placements in general) should deal in node ids, not endpoints.
-        public Set<InetAddressAndPort> affectedEndpoints()
-        {
-            Set<InetAddressAndPort> affectedEndpoints = new HashSet<>(reads.allEndpoints());
-            affectedEndpoints.addAll(writes.allEndpoints());
-            return affectedEndpoints;
-        }
-
-        public DataPlacement apply(Epoch epoch, DataPlacement placement)
+        public DataPlacement apply(EndpointLookup endpointLookup, Epoch epoch, DataPlacement placement)
         {
             DataPlacement.Builder builder = placement.unbuild();
-            reads.removals.flattenValues().forEach(r -> builder.reads.withoutReplica(epoch, r));
-            writes.removals.flattenValues().forEach(r -> builder.writes.withoutReplica(epoch, r));
+            reads.removals(endpointLookup).flattenValues().forEach(r -> builder.reads.withoutReplica(epoch, r));
+            writes.removals(endpointLookup).flattenValues().forEach(r -> builder.writes.withoutReplica(epoch, r));
 
-            reads.additions.flattenValues().forEach(r -> builder.reads.withReplica(epoch, r));
-            writes.additions.flattenValues().forEach(r -> builder.writes.withReplica(epoch, r));
+            reads.additions(endpointLookup).flattenValues().forEach(r -> builder.reads.withReplica(epoch, r));
+            writes.additions(endpointLookup).flattenValues().forEach(r -> builder.writes.withReplica(epoch, r));
             return builder.build();
+        }
+
+        public Set<NodeId> affectedPeers(Function<InetAddressAndPort, NodeId> nodeIdLookup)
+        {
+            Set<NodeId> affectedPeers = new HashSet<>(reads.allPeers(nodeIdLookup));
+            affectedPeers.addAll(writes.allPeers(nodeIdLookup));
+            return affectedPeers;
         }
 
         public PlacementDelta merge(PlacementDelta other)
@@ -183,6 +182,12 @@ public class PlacementDeltas extends ReplicationMap<PlacementDeltas.PlacementDel
         public PlacementDelta invert()
         {
             return new PlacementDelta(reads.invert(), writes.invert());
+        }
+
+        public PlacementDelta withEndpointDeltas(EndpointLookup endpointLookup)
+        {
+            return new PlacementDelta(reads.asEndpointDelta(endpointLookup),
+                                      writes.asEndpointDelta(endpointLookup));
         }
 
         public String toString()
@@ -246,7 +251,6 @@ public class PlacementDeltas extends ReplicationMap<PlacementDeltas.PlacementDel
                 Delta.serializer.serialize(e.getValue().reads, out, version);
                 Delta.serializer.serialize(e.getValue().writes, out, version);
             }
-
         }
 
         public PlacementDeltas deserialize(DataInputPlus in, Version version) throws IOException

@@ -113,7 +113,7 @@ public class ProgressBarrierTest extends CMSTestBase
             // Internally affectedRanges::toPeers uses the same logic as
             // the progress barrier does to identify the consensus group
             Set<NodeId> consensusGroup = leave.barrier().affectedRanges.toPeers(ReplicationParams.simple(1),
-                                                                                sut.service.metadata().placements,
+                                                                                sut.service.metadata().placements(),
                                                                                 sut.service.metadata().directory);
             assertEquals(Set.of(node2.nodeId(), node3.nodeId()), consensusGroup);
         }
@@ -217,7 +217,7 @@ public class ProgressBarrierTest extends CMSTestBase
                         case ALL:
                         {
                             Set<InetAddressAndPort> replicas = metadata.lockedRanges.locked.get(LockedRanges.keyFor(metadata.epoch))
-                                                                                           .toPeers(rf.asKeyspaceParams().replication, metadata.placements, metadata.directory)
+                                                                                           .toPeers(rf.asKeyspaceParams().replication, metadata.placements(), metadata.directory)
                                                                                            .stream()
                                                                                            .map(n -> metadata.directory.getNodeAddresses(n).broadcastAddress)
                                                                                            .collect(Collectors.toSet());
@@ -235,7 +235,7 @@ public class ProgressBarrierTest extends CMSTestBase
                         case QUORUM:
                         {
                             Set<InetAddressAndPort> replicas = metadata.lockedRanges.locked.get(LockedRanges.keyFor(metadata.epoch))
-                                                                                           .toPeers(rf.asKeyspaceParams().replication, metadata.placements, metadata.directory)
+                                                                                           .toPeers(rf.asKeyspaceParams().replication, metadata.placements(), metadata.directory)
                                                                                            .stream()
                                                                                            .map(n -> metadata.directory.getNodeAddresses(n).broadcastAddress)
                                                                                            .collect(Collectors.toSet());
@@ -253,7 +253,7 @@ public class ProgressBarrierTest extends CMSTestBase
                         case LOCAL_QUORUM:
                         {
                             List<InetAddressAndPort> replicas = new ArrayList<>(metadata.lockedRanges.locked.get(LockedRanges.keyFor(metadata.epoch))
-                                                                                                            .toPeers(rf.asKeyspaceParams().replication, metadata.placements, metadata.directory)
+                                                                                                            .toPeers(rf.asKeyspaceParams().replication, metadata.placements(), metadata.directory)
                                                                                                             .stream()
                                                                                                             .filter((n) -> metadata.directory.location(n).datacenter.equals(dc))
                                                                                                             .map(n -> metadata.directory.getNodeAddresses(n).broadcastAddress)
@@ -277,7 +277,7 @@ public class ProgressBarrierTest extends CMSTestBase
                         {
                             Map<String, Integer> byDc = new HashMap<>();
                             metadata.lockedRanges.locked.get(LockedRanges.keyFor(metadata.epoch))
-                                                        .toPeers(rf.asKeyspaceParams().replication, metadata.placements, metadata.directory)
+                                                        .toPeers(rf.asKeyspaceParams().replication, metadata.placements(), metadata.directory)
                                                         .forEach(n -> byDc.compute(metadata.directory.location(n).datacenter,
                                                                                    (k, v) -> v == null ? 1 : v + 1));
 
@@ -306,7 +306,7 @@ public class ProgressBarrierTest extends CMSTestBase
                         }
                         case ONE:
                             Set<InetAddressAndPort> replicas = metadata.lockedRanges.locked.get(LockedRanges.keyFor(metadata.epoch))
-                                                                                           .toPeers(rf.asKeyspaceParams().replication, metadata.placements, metadata.directory)
+                                                                                           .toPeers(rf.asKeyspaceParams().replication, metadata.placements(), metadata.directory)
                                                                                            .stream()
                                                                                            .map(n -> metadata.directory.getNodeAddresses(n).broadcastAddress)
                                                                                            .collect(Collectors.toSet());

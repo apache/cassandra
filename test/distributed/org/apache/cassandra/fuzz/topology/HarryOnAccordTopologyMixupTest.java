@@ -34,11 +34,11 @@ public class HarryOnAccordTopologyMixupTest extends HarryTopologyMixupTest
 {
     static
     {
-        CassandraRelevantProperties.ACCORD_AGENT_CLASS.setString(AccordTopologyMixupTest.InterceptAgent.class.getName());
+        CassandraRelevantProperties.ACCORD_TEST_AGENT_CLASS.setString(AccordTopologyMixupTest.InterceptAgent.class.getName());
         // enable most expensive debugging checks
-        CassandraRelevantProperties.ACCORD_KEY_PARANOIA_CPU.setString(Invariants.Paranoia.QUADRATIC.name());
-        CassandraRelevantProperties.ACCORD_KEY_PARANOIA_MEMORY.setString(Invariants.Paranoia.QUADRATIC.name());
-        CassandraRelevantProperties.ACCORD_KEY_PARANOIA_COSTFACTOR.setString(Invariants.ParanoiaCostFactor.HIGH.name());
+        CassandraRelevantProperties.ACCORD_PARANOIA_CPU.setString(Invariants.Paranoia.QUADRATIC.name());
+        CassandraRelevantProperties.ACCORD_PARANOIA_MEMORY.setString(Invariants.Paranoia.QUADRATIC.name());
+        CassandraRelevantProperties.ACCORD_PARANOIA_COSTFACTOR.setString(Invariants.ParanoiaCostFactor.HIGH.name());
     }
 
     @Override
@@ -77,7 +77,7 @@ public class HarryOnAccordTopologyMixupTest extends HarryTopologyMixupTest
             config.set("accord.command_store_shard_count", 1)
                   .set("accord.queue_shard_count", 1)
                   .set("accord.shard_durability_target_splits", 4)
-                  .set("concurrent_accord_operations", 1);
+                  .set("accord.queue_thread_count", 1);
         }
 
         @Override

@@ -130,11 +130,11 @@ public class AlterTopology implements Transformation
         for (Map.Entry<NodeId, Location> update : updates.entrySet())
             updated = updated.withUpdatedRackAndDc(update.getKey(), update.getValue());
         ClusterMetadata proposed = prev.transformer().with(updated).build().metadata;
-        DataPlacements proposedPlacements = placementProvider.calculatePlacements(prev.placements.lastModified(),
+        DataPlacements proposedPlacements = placementProvider.calculatePlacements(prev.placements().lastModified(),
                                                                                   proposed.tokenMap.toRanges(),
                                                                                   proposed,
                                                                                   proposed.schema.getKeyspaces());
-        if (!proposedPlacements.equivalentTo(prev.placements))
+        if (!proposedPlacements.equivalentTo(prev.placements()))
         {
             logger.info("Rejecting topology modifications which would materially change data placements: {}", updates);
             return new Rejected(INVALID, "Proposed updates modify data placements, violating consistency guarantees");

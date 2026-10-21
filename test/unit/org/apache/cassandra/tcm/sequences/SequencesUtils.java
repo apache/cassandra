@@ -88,7 +88,7 @@ public class SequencesUtils
         return Epoch.create(Math.abs(random.nextLong()));
     }
 
-    public static BootstrapAndJoin bootstrapAndJoin(IPartitioner partitioner, Random random, Predicate<NodeId> alreadyInUse)
+    public static BootstrapAndJoin bootstrapAndJoin(ClusterMetadata metadata, IPartitioner partitioner, Random random, Predicate<NodeId> alreadyInUse)
     {
         Transformation.Kind[] potentialNextStates = {START_JOIN, MID_JOIN, FINISH_JOIN};
         NodeId node = node(random);
@@ -97,7 +97,7 @@ public class SequencesUtils
         Epoch epoch = epoch(random);
         Set<Token> tokens = randomTokens(10, partitioner, random);
         List<Range<Token>> ranges = ranges(tokens, partitioner);
-        PlacementDeltas deltas = randomDeltas(ranges, random);
+        PlacementDeltas deltas = randomDeltas(metadata, ranges, random);
         LockedRanges.Key key = LockedRanges.keyFor(epoch);
         return new BootstrapAndJoin(epoch,
                                     key,
@@ -110,7 +110,7 @@ public class SequencesUtils
                                     true);
     }
 
-    public static BootstrapAndReplace bootstrapAndReplace(IPartitioner partitioner, Random random, Predicate<NodeId> alreadyInUse)
+    public static BootstrapAndReplace bootstrapAndReplace(ClusterMetadata metadata, IPartitioner partitioner, Random random, Predicate<NodeId> alreadyInUse)
     {
         Transformation.Kind[] potentialNextStates = {START_REPLACE, MID_REPLACE, FINISH_REPLACE};
         NodeId replaced = node(random);
@@ -122,7 +122,7 @@ public class SequencesUtils
         Epoch epoch = epoch(random);
         Set<Token> tokens = randomTokens(10, partitioner, random);
         List<Range<Token>> ranges = ranges(tokens, partitioner);
-        PlacementDeltas deltas = randomDeltas(ranges, random);
+        PlacementDeltas deltas = randomDeltas(metadata, ranges, random);
         LockedRanges.Key key = LockedRanges.keyFor(epoch);
         return new BootstrapAndReplace(epoch,
                                        key,
@@ -135,7 +135,7 @@ public class SequencesUtils
                                        true);
     }
 
-    public static UnbootstrapAndLeave unbootstrapAndLeave(IPartitioner partitioner, Random random, Predicate<NodeId> alreadyInUse)
+    public static UnbootstrapAndLeave unbootstrapAndLeave(ClusterMetadata metadata, IPartitioner partitioner, Random random, Predicate<NodeId> alreadyInUse)
     {
         Transformation.Kind[] potentialNextStates = {START_LEAVE, MID_LEAVE, FINISH_LEAVE};
         NodeId node = node(random);
@@ -144,7 +144,7 @@ public class SequencesUtils
         Epoch epoch = epoch(random);
         Set<Token> tokens = randomTokens(10, partitioner, random);
         List<Range<Token>> ranges = ranges(tokens, partitioner);
-        PlacementDeltas deltas = randomDeltas(ranges, random);
+        PlacementDeltas deltas = randomDeltas(metadata, ranges, random);
         LockedRanges.Key key = LockedRanges.keyFor(epoch);
         return new UnbootstrapAndLeave(epoch,
                                        key,
@@ -155,7 +155,7 @@ public class SequencesUtils
                                        new UnbootstrapStreams());
     }
 
-    public static Move move(IPartitioner partitioner, Random random, Predicate<NodeId> alreadyInUse)
+    public static Move move(ClusterMetadata metadata, IPartitioner partitioner, Random random, Predicate<NodeId> alreadyInUse)
     {
         Transformation.Kind[] potentialNextStates = {START_MOVE, MID_MOVE, FINISH_MOVE};
         NodeId node = node(random);
@@ -165,7 +165,7 @@ public class SequencesUtils
         Epoch epoch = epoch(random);
         Set<Token> tokens = randomTokens(10, partitioner, random);
         List<Range<Token>> ranges = ranges(tokens, partitioner);
-        PlacementDeltas deltas = randomDeltas(ranges, random);
+        PlacementDeltas deltas = randomDeltas(metadata, ranges, random);
         LockedRanges.Key key = LockedRanges.keyFor(epoch);
         return new Move(epoch,
                         key,

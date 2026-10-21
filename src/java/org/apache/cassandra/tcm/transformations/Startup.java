@@ -22,12 +22,11 @@ import java.io.IOException;
 import java.util.Map;
 import java.util.Objects;
 
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+
 import org.apache.cassandra.io.util.DataInputPlus;
 import org.apache.cassandra.io.util.DataOutputPlus;
-import org.apache.cassandra.locator.InetAddressAndPort;
-import org.apache.cassandra.locator.Replica;
-import org.apache.cassandra.schema.Keyspaces;
-import org.apache.cassandra.schema.ReplicationParams;
 import org.apache.cassandra.tcm.ClusterMetadata;
 import org.apache.cassandra.tcm.ClusterMetadataService;
 import org.apache.cassandra.tcm.Transformation;
@@ -35,17 +34,16 @@ import org.apache.cassandra.tcm.membership.Directory;
 import org.apache.cassandra.tcm.membership.NodeAddresses;
 import org.apache.cassandra.tcm.membership.NodeId;
 import org.apache.cassandra.tcm.membership.NodeVersion;
-import org.apache.cassandra.tcm.ownership.DataPlacement;
 import org.apache.cassandra.tcm.ownership.DataPlacements;
 import org.apache.cassandra.tcm.sequences.LockedRanges;
 import org.apache.cassandra.tcm.serialization.MetadataSerializer;
 import org.apache.cassandra.tcm.serialization.Version;
 
 import static org.apache.cassandra.exceptions.ExceptionCode.INVALID;
-import static org.apache.cassandra.locator.MetaStrategy.entireRange;
 
 public class Startup implements Transformation
 {
+    private static final Logger logger = LoggerFactory.getLogger(Startup.class);
     public static final Serializer serializer = new Serializer();
     private final NodeId nodeId;
     private final NodeVersion nodeVersion;
@@ -84,11 +82,11 @@ public class Startup implements Transformation
         }
 
         ClusterMetadata.Transformer next = prev.transformer();
-        if (!prev.directory.addresses.get(nodeId).equals(addresses))
+        NodeAddresses oldAddresses = prev.directory.addresses.get(nodeId);
+        if (!oldAddresses.equals(addresses))
         {
-            if (!prev.inProgressSequences.isEmpty())
-                return new Rejected(INVALID, "Cannot update address of the node while there are in-progress sequences");
-
+            if (!prev.inProgressSequences.isEmpty() && prev.directory.commonSerializationVersion.isBefore(Version.V10))
+                return new Rejected(INVALID, "Cannot update address of the node while there are in-progress sequences until the whole cluster is running metadata serialization version V10");
             for (Map.Entry<NodeId, NodeAddresses> entry : prev.directory.addresses.entrySet())
             {
                 NodeAddresses existingAddresses = entry.getValue();
@@ -96,37 +94,15 @@ public class Startup implements Transformation
                 if (!nodeId.equals(existingNodeId) && addresses.conflictsWith(existingAddresses))
                     return new Rejected(INVALID, String.format("New addresses %s conflicts with existing node %s with addresses %s", addresses, entry.getKey(), existingAddresses));
             }
-
             next = next.withNewAddresses(nodeId, addresses);
-            Keyspaces allKeyspaces = prev.schema.getKeyspaces().withAddedOrReplaced(prev.schema.getKeyspaces());
-
-            DataPlacements newPlacement = ClusterMetadataService.instance()
-                                                                .placementProvider()
-                                                                .calculatePlacements(prev.nextEpoch(),
-                                                                                     prev.tokenMap.toRanges(),
-                                                                                     next.build().metadata,
-                                                                                     allKeyspaces);
-
-            if (prev.isCMSMember(prev.directory.endpoint(nodeId)))
-            {
-                ReplicationParams metaParams = ReplicationParams.meta(prev);
-                InetAddressAndPort endpoint = prev.directory.endpoint(nodeId);
-                Replica leavingReplica = new Replica(endpoint, entireRange, true);
-                Replica joiningReplica = new Replica(addresses.broadcastAddress, entireRange, true);
-
-                DataPlacement.Builder builder = prev.placements.get(metaParams).unbuild();
-                builder.reads.withoutReplica(prev.nextEpoch(), leavingReplica);
-                builder.writes.withoutReplica(prev.nextEpoch(), leavingReplica);
-                builder.reads.withReplica(prev.nextEpoch(), joiningReplica);
-                builder.writes.withReplica(prev.nextEpoch(), joiningReplica);
-                newPlacement = newPlacement.unbuild().with(metaParams, builder.build()).build();
-            }
-
+            DataPlacements newPlacement = next.build().metadata.placements().changeIp(oldAddresses.broadcastAddress, addresses.broadcastAddress);
             next = next.with(newPlacement);
         }
 
         if (!prev.directory.versions.get(nodeId).equals(nodeVersion))
             next = next.withVersion(nodeId, nodeVersion);
+
+        next = next.populateMissingAccordNodeInfo();
 
         return Transformation.success(next, LockedRanges.AffectedRanges.EMPTY);
     }
@@ -148,6 +124,7 @@ public class Startup implements Transformation
         if (!Objects.equals(directory.addresses.get(localNodeId), NodeAddresses.current()) ||
             !Objects.equals(directory.versions.get(localNodeId), NodeVersion.CURRENT))
         {
+            logger.info("Detected change in node addresses or version, committing updates to Cluster Metadata Service");
             ClusterMetadataService.instance()
                                   .commit(new Startup(localNodeId, NodeAddresses.current(), NodeVersion.CURRENT));
         }

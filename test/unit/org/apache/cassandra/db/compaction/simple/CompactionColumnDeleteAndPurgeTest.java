@@ -62,7 +62,7 @@ public class CompactionColumnDeleteAndPurgeTest extends SimpleCompactionTest
         cfs.forceBlockingFlush(ColumnFamilyStore.FlushReason.USER_FORCED);
 
         Thread.sleep(1000);
-        cfs.forceMajorCompaction();
+        majorCompact(cfs);
         assertTrue(cfs.getLiveSSTables().isEmpty());
     }
 
@@ -99,7 +99,7 @@ public class CompactionColumnDeleteAndPurgeTest extends SimpleCompactionTest
         cfs.forceBlockingFlush(ColumnFamilyStore.FlushReason.USER_FORCED);
 
         Thread.sleep(1000);
-        cfs.forceMajorCompaction();
+        majorCompact(cfs);
         SSTableReader sstable = cfs.getLiveSSTables().iterator().next();
         TestHelper.verifyAndPrint(cfs, sstable);
 
@@ -149,7 +149,7 @@ public class CompactionColumnDeleteAndPurgeTest extends SimpleCompactionTest
         cfs.forceBlockingFlush(ColumnFamilyStore.FlushReason.USER_FORCED);
 
         Thread.sleep(1000);
-        cfs.forceMajorCompaction();
+        majorCompact(cfs);
         SSTableReader sstable = cfs.getLiveSSTables().iterator().next();
         TestHelper.verifyAndPrint(cfs, sstable);
 
@@ -202,7 +202,7 @@ public class CompactionColumnDeleteAndPurgeTest extends SimpleCompactionTest
         cfs.forceBlockingFlush(ColumnFamilyStore.FlushReason.USER_FORCED);
 
         Thread.sleep(2000);
-        cfs.forceMajorCompaction();
+        majorCompact(cfs);
         SSTableReader sstable = cfs.getLiveSSTables().iterator().next();
         TestHelper.verifyAndPrint(cfs, sstable);
         UnfilteredRowIterator partition = sstable.getScanner().next();
@@ -251,7 +251,7 @@ public class CompactionColumnDeleteAndPurgeTest extends SimpleCompactionTest
         cfs.forceBlockingFlush(ColumnFamilyStore.FlushReason.USER_FORCED);
 
         Thread.sleep(1000);
-        cfs.forceMajorCompaction();
+        majorCompact(cfs);
         SSTableReader sstable = cfs.getLiveSSTables().iterator().next();
         TestHelper.verifyAndPrint(cfs, sstable);
         // Expected:{"table kind":"REGULAR","partition":{"key":["0"],"position":31},"rows":[{"type":"static_block",

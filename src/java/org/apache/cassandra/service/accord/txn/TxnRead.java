@@ -55,8 +55,8 @@ import org.apache.cassandra.io.ParameterisedVersionedSerializer;
 import org.apache.cassandra.io.util.DataInputPlus;
 import org.apache.cassandra.io.util.DataOutputPlus;
 import org.apache.cassandra.service.accord.AccordCommandStore;
-import org.apache.cassandra.service.accord.AccordExecutor;
 import org.apache.cassandra.service.accord.api.PartitionKey;
+import org.apache.cassandra.service.accord.execution.AccordExecutor;
 import org.apache.cassandra.service.accord.serializers.TableMetadatas;
 import org.apache.cassandra.service.accord.serializers.TableMetadatasAndKeys;
 import org.apache.cassandra.service.accord.serializers.Version;
@@ -65,8 +65,8 @@ import org.apache.cassandra.utils.ObjectSizes;
 import static accord.primitives.Routables.Slice.Minimal;
 import static accord.utils.Invariants.require;
 import static com.google.common.base.Preconditions.checkArgument;
-import static org.apache.cassandra.service.accord.AccordSerializers.consistencyLevelSerializer;
 import static org.apache.cassandra.service.accord.IAccordService.SUPPORTED_READ_CONSISTENCY_LEVELS;
+import static org.apache.cassandra.service.accord.serializers.AccordSerializers.consistencyLevelSerializer;
 import static org.apache.cassandra.service.accord.txn.TxnData.TxnDataNameKind.CAS_READ;
 import static org.apache.cassandra.service.accord.txn.TxnData.TxnDataNameKind.USER;
 import static org.apache.cassandra.service.accord.txn.TxnData.txnDataName;
@@ -397,8 +397,10 @@ public class TxnRead extends AbstractKeySorted<TxnNamedRead> implements Read
         if (items.length == 1 && key.equals(items[0].key()))
             return items[0].read(executor, tables, cassandraConsistencyLevel, key, executeAt);
 
+        // TODO (expected): if multiple reads touch the same partition, run them both over the same memtable+view snapshot
+        //   this will allow us to use ephemeral reads for multiple single row reads from a single partition
         List<AsyncChain<Data>> results = new ArrayList<>();
-            forEachWithKey(key, read -> results.add(read.read(executor, tables, cassandraConsistencyLevel, key, executeAt)));
+        forEachWithKey(key, read -> results.add(read.read(executor, tables, cassandraConsistencyLevel, key, executeAt)));
 
         if (results.isEmpty())
             return AsyncChains.success(new TxnData());

@@ -77,6 +77,7 @@ import org.apache.cassandra.auth.AuthConfig;
 import org.apache.cassandra.auth.IAuthenticator;
 import org.apache.cassandra.auth.IAuthorizer;
 import org.apache.cassandra.auth.ICIDRAuthorizer;
+import org.apache.cassandra.auth.IDefaultRoleInitializer;
 import org.apache.cassandra.auth.IInternodeAuthenticator;
 import org.apache.cassandra.auth.INetworkAuthorizer;
 import org.apache.cassandra.auth.IRoleManager;
@@ -85,6 +86,7 @@ import org.apache.cassandra.config.Config.DiskAccessMode;
 import org.apache.cassandra.config.Config.PaxosOnLinearizabilityViolation;
 import org.apache.cassandra.config.Config.PaxosStatePurging;
 import org.apache.cassandra.config.DurationSpec.IntMillisecondsBound;
+import org.apache.cassandra.cql3.QueryOptions;
 import org.apache.cassandra.db.ConsistencyLevel;
 import org.apache.cassandra.db.commitlog.AbstractCommitLogSegmentManager;
 import org.apache.cassandra.db.commitlog.CommitLog;
@@ -97,6 +99,7 @@ import org.apache.cassandra.gms.IEndpointStateChangeSubscriber;
 import org.apache.cassandra.gms.IFailureDetector;
 import org.apache.cassandra.gms.VersionedValue;
 import org.apache.cassandra.io.FSWriteError;
+import org.apache.cassandra.io.compress.CompressorRegistry;
 import org.apache.cassandra.io.sstable.format.SSTableFormat;
 import org.apache.cassandra.io.sstable.format.big.BigFormat;
 import org.apache.cassandra.io.util.DiskOptimizationStrategy;
@@ -124,8 +127,11 @@ import org.apache.cassandra.security.JREProvider;
 import org.apache.cassandra.security.SSLFactory;
 import org.apache.cassandra.service.CacheService.CacheType;
 import org.apache.cassandra.service.FileSystemOwnershipCheck;
+import org.apache.cassandra.service.RetryStrategy;
 import org.apache.cassandra.service.StartupChecks;
 import org.apache.cassandra.service.StorageService;
+import org.apache.cassandra.service.TimeoutStrategy;
+import org.apache.cassandra.service.accord.AccordService;
 import org.apache.cassandra.service.accord.api.AccordWaitStrategies;
 import org.apache.cassandra.service.consensus.TransactionalMode;
 import org.apache.cassandra.service.paxos.Paxos;
@@ -174,6 +180,7 @@ import static org.apache.cassandra.io.util.FileUtils.ONE_GIB;
 import static org.apache.cassandra.io.util.FileUtils.ONE_MIB;
 import static org.apache.cassandra.journal.Params.FlushMode.PERIODIC;
 import static org.apache.cassandra.utils.Clock.Global.logInitializationOutcome;
+import static org.apache.cassandra.utils.LocalizeString.toLowerCaseLocalized;
 
 public class DatabaseDescriptor
 {
@@ -223,6 +230,8 @@ public class DatabaseDescriptor
 
     private static DiskAccessMode compactionReadDiskAccessMode;
 
+    private static DiskAccessMode backgroundWriteDiskAccessMode;
+
     private static AbstractCryptoProvider cryptoProvider;
     private static IAuthenticator authenticator;
     private static IAuthorizer authorizer;
@@ -232,6 +241,7 @@ public class DatabaseDescriptor
     // Don't initialize the role manager until applying config. The options supported by CassandraRoleManager
     // depend on the configured IAuthenticator, so defer creating it until that's been set.
     private static IRoleManager roleManager;
+    private static IDefaultRoleInitializer defaultRoleInitializer;
 
     private static long preparedStatementsCacheSizeInMiB;
 
@@ -265,6 +275,17 @@ public class DatabaseDescriptor
     private static final boolean strictRuntimeChecks = TEST_STRICT_RUNTIME_CHECKS.getBoolean();
 
     public static volatile boolean allowUnlimitedConcurrentValidations = ALLOW_UNLIMITED_CONCURRENT_VALIDATIONS.getBoolean();
+
+    private static volatile QueryOptions.DefaultReadThresholds defaultReadThresholds;
+
+    /**
+     * RetryStrategy which provides exponential backoff with full jitter, for use by both CMS and non-CMS members
+     * when submitting a Commit request. The range and increments of the backoff times are defined by
+     * conf.cms_commit_retry_initial_delay and conf.cms_commit_retry_max_delay. Both are hot properties and so
+     * changing either one causes this retry strategy to be reconstructed.
+     */
+    private static volatile RetryStrategy cms_commit_retry_strategy;
+
 
     /**
      * The configuration for guardrails.
@@ -316,6 +337,7 @@ public class DatabaseDescriptor
     private static void clear()
     {
         sstableFormats = null;
+        defaultReadThresholds = null;
         clearMBean("org.apache.cassandra.db:type=DynamicEndpointSnitch");
         clearMBean("org.apache.cassandra.db:type=EndpointSnitchInfo");
         clearMBean("org.apache.cassandra.db:type=LocationInfo");
@@ -372,6 +394,8 @@ public class DatabaseDescriptor
         applyCompatibilityMode();
 
         applySSTableFormats();
+
+        applyCompressorProviders();
 
         applySimpleConfig();
 
@@ -437,6 +461,7 @@ public class DatabaseDescriptor
         applyCompatibilityMode();
         diskOptimizationStrategy = new SpinningDiskOptimizationStrategy();
         applySSTableFormats();
+        applyCompressorProviders();
     }
 
     private static void assertNotDaemonInitialized()
@@ -496,7 +521,7 @@ public class DatabaseDescriptor
         String loaderClass = CONFIG_LOADER.getString();
         ConfigurationLoader loader = loaderClass == null
                                      ? new YamlConfigurationLoader()
-                                     : FBUtilities.construct(loaderClass, "configuration loading");
+                                     : FBUtilities.construct(loaderClass, "configuration loading", ConfigurationLoader.class);
         Config config = loader.loadConfig();
 
         if (!hasLoggedConfig)
@@ -550,6 +575,8 @@ public class DatabaseDescriptor
 
         applySSTableFormats();
 
+        applyCompressorProviders();
+
         applyCryptoProvider();
 
         applySimpleConfig();
@@ -574,9 +601,16 @@ public class DatabaseDescriptor
 
         applyGuardrails();
 
-        applyAccordProgressLog();
+        applyAccord();
+
+        applyCMS();
 
         applyStartupChecks();
+    }
+
+    public static void applyCompressorProviders()
+    {
+        CompressorRegistry.instance.registerProviders(conf.compressor_providers);
     }
 
     private static void applySimpleConfig()
@@ -643,6 +677,9 @@ public class DatabaseDescriptor
             }
         }
 
+        if (conf.accord.durability_flush_interval == null)
+            conf.accord.durability_flush_interval = conf.accord.shard_durability_cycle;
+
         /* evaluate the DiskAccessMode Config directive, which also affects indexAccessMode selection */
         if (conf.disk_access_mode == DiskAccessMode.auto || conf.disk_access_mode == DiskAccessMode.mmap_index_only)
         {
@@ -699,9 +736,6 @@ public class DatabaseDescriptor
         if (conf.concurrent_counter_writes < 2)
             throw new ConfigurationException("concurrent_counter_writes must be at least 2, but was " + conf.concurrent_counter_writes, false);
 
-        if (conf.concurrent_accord_operations < 1)
-            throw new ConfigurationException("concurrent_accord_operations must be at least 1, but was " + conf.concurrent_accord_operations, false);
-
         if (conf.networking_cache_size == null)
             conf.networking_cache_size = new DataStorageSpec.IntMebibytesBound(Math.min(128, (int) (Runtime.getRuntime().maxMemory() / (16 * 1048576))));
 
@@ -712,18 +746,7 @@ public class DatabaseDescriptor
         if (conf.file_cache_round_up == null)
             conf.file_cache_round_up = conf.disk_optimization_strategy == Config.DiskOptimizationStrategy.spinning;
 
-        if (conf.memtable_offheap_space == null)
-            conf.memtable_offheap_space = new DataStorageSpec.IntMebibytesBound((int) (Runtime.getRuntime().maxMemory() / (4 * 1048576)));
-        // for the moment, we default to twice as much on-heap space as off-heap, as heap overhead is very large
-        if (conf.memtable_heap_space == null)
-            conf.memtable_heap_space = new DataStorageSpec.IntMebibytesBound((int) (Runtime.getRuntime().maxMemory() / (4 * 1048576)));
-        if (conf.memtable_heap_space.toMebibytes() == 0)
-            throw new ConfigurationException("memtable_heap_space must be positive, but was " + conf.memtable_heap_space, false);
-        logger.info("Global memtable on-heap threshold is enabled at {}", conf.memtable_heap_space);
-        if (conf.memtable_offheap_space.toMebibytes() == 0)
-            logger.info("Global memtable off-heap threshold is disabled, HeapAllocator will be used instead");
-        else
-            logger.info("Global memtable off-heap threshold is enabled at {}", conf.memtable_offheap_space);
+        applyMemtableSpace(conf);
 
         if (conf.repair_session_max_tree_depth != null)
         {
@@ -898,6 +921,8 @@ public class DatabaseDescriptor
 
         if (conf.hints_directory.equals(conf.saved_caches_directory))
             throw new ConfigurationException("saved_caches_directory must not be the same as the hints_directory", false);
+
+        initializeBackgroundWriteDiskAccessMode();
 
         if (conf.memtable_flush_writers == 0)
         {
@@ -1290,6 +1315,36 @@ public class DatabaseDescriptor
     }
 
     @VisibleForTesting
+    static void applyMemtableSpace(Config conf)
+    {
+        if (conf.memtable_offheap_space == null)
+            conf.memtable_offheap_space = new DataStorageSpec.IntMebibytesBound((int) (Runtime.getRuntime().maxMemory() / (4 * 1048576)));
+        // for the moment, we default to twice as much on-heap space as off-heap, as heap overhead is very large
+        if (conf.memtable_heap_space == null)
+            conf.memtable_heap_space = new DataStorageSpec.IntMebibytesBound((int) (Runtime.getRuntime().maxMemory() / (4 * 1048576)));
+        if (conf.memtable_heap_space.toMebibytes() == 0)
+            throw new ConfigurationException("memtable_heap_space must be positive, but was " + conf.memtable_heap_space, false);
+        logger.info("Global memtable on-heap threshold is enabled at {}", conf.memtable_heap_space);
+
+        if (conf.memtable_offheap_space.toMebibytes() != 0)
+        {
+            logger.info("Global memtable off-heap threshold is enabled at {}", conf.memtable_offheap_space);
+        }
+        else
+        {
+            // offheap_buffers and offheap_objects with a limit of 0 would leave that usage unbounded
+            if (conf.memtable_allocation_type == Config.MemtableAllocationType.offheap_buffers
+                    || conf.memtable_allocation_type == Config.MemtableAllocationType.offheap_objects)
+                throw new ConfigurationException("memtable_offheap_space must be positive when memtable_allocation_type is "
+                                                 + conf.memtable_allocation_type
+                                                 + ", otherwise off-heap memtable memory is not limited", false);
+
+            logger.info("Global memtable off-heap threshold is 0; memtable_allocation_type {} does not allocate off-heap",
+                        conf.memtable_allocation_type);
+        }
+    }
+
+    @VisibleForTesting
     static void applyConcurrentValidations(Config config)
     {
         if (config.concurrent_validations < 1)
@@ -1370,7 +1425,8 @@ public class DatabaseDescriptor
         }
     }
 
-    private static void applyAccordProgressLog()
+    // TODO (expected): move all of the Accord config setup and accessors into AccordConfig
+    private static void applyAccord()
     {
         try
         {
@@ -1381,6 +1437,26 @@ public class DatabaseDescriptor
         catch (IllegalArgumentException e)
         {
             throw new ConfigurationException("Invalid accord progress log configuration: " + e.getMessage(), e);
+        }
+        AccordService.applyProtocolModifiers(getAccord());
+    }
+
+    private static void applyCMS()
+    {
+        try
+        {
+            long initialDelayMs = conf.cms_commit_retry_initial_delay.to(TimeUnit.MILLISECONDS);
+            long maxDelayMs = conf.cms_commit_retry_max_delay.to(TimeUnit.MILLISECONDS);
+            // range of backoff wait time starts at 0ms backing off exponentially at initialDelayMs * 2^attempts
+            String spec = String.format("0ms ... %dms * 2^attempts <= %dms", initialDelayMs, maxDelayMs);
+            logger.debug("Initializing cms_commit_retry_strategy from spec: " + spec);
+            cms_commit_retry_strategy = RetryStrategy.parse(spec,
+                                                            TimeoutStrategy.LatencySourceFactory.none(),
+                                                            RetryStrategy.randomizers.uniform());
+        }
+        catch (Exception e)
+        {
+            throw new ConfigurationException("Invalid configuration for cms_commit_retry_strategy. " + e.getMessage(), e);
         }
     }
 
@@ -1608,7 +1684,8 @@ public class DatabaseDescriptor
         }
         try
         {
-            Class<?> seedProviderClass = Class.forName(conf.seed_provider.class_name);
+            Class<? extends SeedProvider> seedProviderClass =
+                FBUtilities.classForNameWithoutInitialization(conf.seed_provider.class_name, "seed provider", SeedProvider.class);
             seedProvider = (SeedProvider) seedProviderClass.getConstructor(Map.class).newInstance(conf.seed_provider.parameters);
         }
         // there are about 5 checked exceptions that could be thrown here.
@@ -1662,12 +1739,6 @@ public class DatabaseDescriptor
         {
             logInfo("truncate_request_timeout", conf.truncate_request_timeout, LOWEST_ACCEPTED_TIMEOUT);
             conf.truncate_request_timeout = LOWEST_ACCEPTED_TIMEOUT;
-        }
-
-        if (conf.accord_preaccept_timeout.toMilliseconds() < LOWEST_ACCEPTED_TIMEOUT.toMilliseconds())
-        {
-            logInfo("accord_preaccept_timeout", conf.accord_preaccept_timeout, LOWEST_ACCEPTED_TIMEOUT);
-            conf.accord_preaccept_timeout = LOWEST_ACCEPTED_TIMEOUT;
         }
     }
 
@@ -1991,7 +2062,7 @@ public class DatabaseDescriptor
     {
         if (!snitchClassName.contains("."))
             snitchClassName = "org.apache.cassandra.locator." + snitchClassName;
-        IEndpointSnitch snitch = FBUtilities.construct(snitchClassName, "snitch");
+        IEndpointSnitch snitch = FBUtilities.construct(snitchClassName, "snitch", IEndpointSnitch.class);
         return snitch;
     }
 
@@ -1999,7 +2070,7 @@ public class DatabaseDescriptor
     {
         if (!className.contains("."))
             className = "org.apache.cassandra.locator." + className;
-        NodeProximity sorter = FBUtilities.construct(className, "node proximity measurement");
+        NodeProximity sorter = FBUtilities.construct(className, "node proximity measurement", NodeProximity.class);
         return sorter;
     }
 
@@ -2007,7 +2078,7 @@ public class DatabaseDescriptor
     {
         if (!className.contains("."))
             className = "org.apache.cassandra.locator." + className;
-        InitialLocationProvider provider = FBUtilities.construct(className, "initial location provider");
+        InitialLocationProvider provider = FBUtilities.construct(className, "initial location provider", InitialLocationProvider.class);
         return provider;
     }
 
@@ -2015,7 +2086,7 @@ public class DatabaseDescriptor
     {
         if (!className.contains("."))
             className = "org.apache.cassandra.locator." + className;
-        NodeAddressConfig config = FBUtilities.construct(className, "node address config");
+        NodeAddressConfig config = FBUtilities.construct(className, "node address config", NodeAddressConfig.class);
         return config;
     }
 
@@ -2023,7 +2094,7 @@ public class DatabaseDescriptor
     {
         if (!detectorClassName.contains("."))
             detectorClassName = "org.apache.cassandra.gms." + detectorClassName;
-        IFailureDetector detector = FBUtilities.construct(detectorClassName, "failure detector");
+        IFailureDetector detector = FBUtilities.construct(detectorClassName, "failure detector", IFailureDetector.class);
         return detector;
     }
 
@@ -2037,15 +2108,56 @@ public class DatabaseDescriptor
         DatabaseDescriptor.cryptoProvider = cryptoProvider;
     }
 
+    public static Map<String, ParameterizedClass> getCompressionProviders()
+    {
+        return conf.compressor_providers;
+    }
+
+    /**
+     * Returns the authenticator configured for this node.
+     */
     public static IAuthenticator getAuthenticator()
     {
         return authenticator;
     }
 
+    /**
+     * Returns an authenticator configured for this node, if it is of the requested type.
+     * @param clazz The class of the requested authenticator: e.g. PasswordAuthenticator.class.
+     * @return An Optional of the configured authenticator, if it is of the requested type; otherwise
+     *         returns an empty Optional.
+     */
+    public static <T extends IAuthenticator> Optional<T> getAuthenticator(Class<T> clazz)
+    {
+        return hasAuthenticator(clazz) ? Optional.of(clazz.cast(authenticator)) : Optional.empty();
+    }
+
+    /**
+     * Sets the authenticator used by this node to authenticate clients.
+     */
     public static void setAuthenticator(IAuthenticator authenticator)
     {
         DatabaseDescriptor.authenticator = authenticator;
     }
+
+    /**
+     * Indicates if this node uses an authenticator that requires authentication.
+     */
+    public static boolean isAuthenticationRequired()
+    {
+        return authenticator.requireAuthentication();
+    }
+
+    /**
+     * Indicates if this node is configured with an authenticator of the specified type.
+     * @param clazz The class of the authenticator.
+     * @return True if this node has an authenticator of the specified type, false otherwise.
+     */
+    private static boolean hasAuthenticator(Class<? extends IAuthenticator> clazz)
+    {
+        return clazz.isAssignableFrom(authenticator.getClass());
+    }
+
 
     public static IAuthorizer getAuthorizer()
     {
@@ -2137,6 +2249,16 @@ public class DatabaseDescriptor
     public static void setRoleManager(IRoleManager roleManager)
     {
         DatabaseDescriptor.roleManager = roleManager;
+    }
+
+    public static IDefaultRoleInitializer getDefaultRoleInitializer()
+    {
+        return defaultRoleInitializer;
+    }
+
+    public static void setDefaultRoleInitializer(IDefaultRoleInitializer defaultRoleInitializer)
+    {
+        DatabaseDescriptor.defaultRoleInitializer = defaultRoleInitializer;
     }
 
     public static int getPermissionsValidity()
@@ -2286,7 +2408,7 @@ public class DatabaseDescriptor
 
     public static int getMaxValueSize()
     {
-        return Ints.saturatedCast(conf.max_value_size.toMebibytes() * 1024L * 1024);
+        return conf.max_value_size.toBytes();
     }
 
     public static void setMaxValueSize(int maxValueSizeInBytes)
@@ -2868,7 +2990,7 @@ public class DatabaseDescriptor
 
     public static int getAccordConcurrentOps()
     {
-        return conf.concurrent_accord_operations;
+        return conf.accord.queue_thread_count.or(2 * FBUtilities.getAvailableProcessors());
     }
 
     public static void setConcurrentAccordOps(int concurrent_operations)
@@ -2877,7 +2999,21 @@ public class DatabaseDescriptor
         {
             throw new IllegalArgumentException("Concurrent accord operations must be non-negative");
         }
-        conf.concurrent_accord_operations = concurrent_operations;
+        conf.accord.queue_thread_count = new OptionaldPositiveInt(concurrent_operations);
+    }
+
+    public static int getAccordConcurrentMigrationOps()
+    {
+        return conf.accord.migration_concurrency.or(2 * FBUtilities.getAvailableProcessors());
+    }
+
+    public static void setConcurrentAccordMigrationOps(int concurrent_operations)
+    {
+        if (concurrent_operations < 0)
+        {
+            throw new IllegalArgumentException("Concurrent accord operations must be non-negative");
+        }
+        conf.accord.migration_concurrency = new OptionaldPositiveInt(concurrent_operations);
     }
 
     public static int getFlushWriters()
@@ -2985,8 +3121,8 @@ public class DatabaseDescriptor
 
     public static void setCompressedReadAheadBufferSizeInKb(int sizeInKb)
     {
-        if (sizeInKb < 256)
-            throw new IllegalArgumentException("compressed_read_ahead_buffer_size_in_kb must be at least 256KiB");
+        if (sizeInKb < 0 || (sizeInKb > 0 && sizeInKb < 256))
+            throw new IllegalArgumentException("compressed_read_ahead_buffer_size_in_kb must be at least 256KiB (set to 0 to disable)");
 
         conf.compressed_read_ahead_buffer_size = createIntKibibyteBoundAndEnsureItIsValidForByteConversion(sizeInKb, "compressed_read_ahead_buffer_size");
     }
@@ -3375,6 +3511,71 @@ public class DatabaseDescriptor
         Pair<DiskAccessMode, Boolean> accessModeDirectIoPair = resolveCommitLogWriteDiskAccessMode(conf.commitlog_disk_access_mode);
         validateCommitLogWriteDiskAccessMode(accessModeDirectIoPair);
         commitLogWriteDiskAccessMode = accessModeDirectIoPair.left;
+    }
+
+    public static DiskAccessMode getBackgroundWriteDiskAccessMode()
+    {
+        return backgroundWriteDiskAccessMode;
+    }
+
+    @VisibleForTesting
+    public static void setBackgroundWriteDiskAccessMode(DiskAccessMode diskAccessMode)
+    {
+        backgroundWriteDiskAccessMode = diskAccessMode;
+        conf.background_write_disk_access_mode = diskAccessMode;
+    }
+
+    public static DataStorageSpec.IntKibibytesBound getDirectWriteBufferSize()
+    {
+        return conf.direct_write_buffer_size;
+    }
+
+    /**
+     * The directories opened with O_DIRECT for writing. Startup checks that must reason about O_DIRECT
+     * write targets (e.g. the kernel-bug 1057843 check) derive their path set from here.
+     */
+    public static Set<Path> getDirectIOWritePaths()
+    {
+        Set<Path> paths = new HashSet<>();
+
+        if (getCommitLogWriteDiskAccessMode() == DiskAccessMode.direct)
+            paths.add(new File(getCommitLogLocation()).toPath());
+
+        if (getBackgroundWriteDiskAccessMode() == DiskAccessMode.direct)
+            for (String dataDir : getAllDataFileLocations())
+                paths.add(new File(dataDir).toPath());
+
+        return paths;
+    }
+
+    @VisibleForTesting
+    public static void initializeBackgroundWriteDiskAccessMode()
+    {
+        DiskAccessMode providedMode = conf.background_write_disk_access_mode;
+
+        if (providedMode == DiskAccessMode.direct)
+        {
+            // DataStorageSpec already rejects negatives at parse time; zero is the remaining
+            // nonsense value. The writer's Math.max would silently coerce it to minRequiredSize,
+            // which masks a likely operator mistake — fail fast instead.
+            if (conf.direct_write_buffer_size.toBytes() <= 0)
+                throw new ConfigurationException("direct_write_buffer_size must be > 0 when background_write_disk_access_mode is 'direct'. " +
+                                                 "Got: " + conf.direct_write_buffer_size, false);
+
+            // Create the data directories up front (as we do for the commit log) so the kernel-bug 1057843
+            // startup check can stat each O_DIRECT write target. Direct I/O support is validated separately
+            // by the directio_support startup check.
+            if (!toolInitialized)
+                for (String dataDir : getAllDataFileLocations())
+                    PathUtils.createDirectoriesIfNotExists(new File(dataDir).toPath());
+        }
+        else if (providedMode != DiskAccessMode.standard)
+        {
+            throw new ConfigurationException("Unsupported disk access mode for background_write_disk_access_mode " +
+                                             "(options: standard/direct): " + providedMode, false);
+        }
+
+        backgroundWriteDiskAccessMode = providedMode;
     }
 
     public static String getSavedCachesLocation()
@@ -4344,9 +4545,9 @@ public class DatabaseDescriptor
         return conf.trickle_fsync;
     }
 
-    public static int getTrickleFsyncIntervalInKiB()
+    public static long getTrickleFsyncIntervalInBytes()
     {
-        return conf.trickle_fsync_interval.toKibibytes();
+        return conf.trickle_fsync_interval.toBytesInLong();
     }
 
     public static long getKeyCacheSizeInMiB()
@@ -4510,6 +4711,16 @@ public class DatabaseDescriptor
     public static boolean setStreamEntireSSTables(boolean value)
     {
         return conf.stream_entire_sstables = value;
+    }
+
+    public static boolean getEntireSSTableStreamDigestValidationEnabled()
+    {
+        return conf.entire_sstable_stream_digest_validation_enabled;
+    }
+
+    public static void setEntireSSTableStreamDigestValidationEnabled(boolean value)
+    {
+        conf.entire_sstable_stream_digest_validation_enabled = value;
     }
 
     public static DurationSpec.LongMillisecondsBound getStreamTransferTaskTimeout()
@@ -5423,6 +5634,14 @@ public class DatabaseDescriptor
         return conf.invalid_legacy_protocol_magic_no_spam_enabled;
     }
 
+    public static QueryOptions.DefaultReadThresholds getDefaultReadThresholds()
+    {
+        if (defaultReadThresholds == null)
+            defaultReadThresholds = new QueryOptions.DefaultReadThresholds(getCoordinatorReadSizeWarnThreshold(),
+                                                                           getCoordinatorReadSizeFailThreshold());
+        return defaultReadThresholds;
+    }
+
     public static boolean getReadThresholdsEnabled()
     {
         return conf.read_thresholds_enabled;
@@ -5447,6 +5666,7 @@ public class DatabaseDescriptor
     {
         logger.info("updating  coordinator_read_size_warn_threshold to {}", value);
         conf.coordinator_read_size_warn_threshold = value;
+        defaultReadThresholds = null;
     }
 
     @Nullable
@@ -5459,6 +5679,7 @@ public class DatabaseDescriptor
     {
         logger.info("updating  coordinator_read_size_fail_threshold to {}", value);
         conf.coordinator_read_size_fail_threshold = value;
+        defaultReadThresholds = null;
     }
 
     @Nullable
@@ -5598,18 +5819,18 @@ public class DatabaseDescriptor
         }
     }
 
-
-    public static AccordSpec getAccord()
+    public static AccordConfig getAccord()
     {
         return conf.accord;
     }
 
-    public static AccordSpec.TransactionalRangeMigration getTransactionalRangeMigration()
+    // TODO (expected): move all getAccordX into AccordConfig
+    public static AccordConfig.TransactionalRangeMigration getTransactionalRangeMigration()
     {
         return conf.accord.range_migration;
     }
 
-    public static void setTransactionalRangeMigration(AccordSpec.TransactionalRangeMigration val)
+    public static void setTransactionalRangeMigration(AccordConfig.TransactionalRangeMigration val)
     {
         conf.accord.range_migration = Preconditions.checkNotNull(val);
     }
@@ -5632,45 +5853,6 @@ public class DatabaseDescriptor
     public static void setAccordTransactionsEnabled(boolean b)
     {
         conf.accord.enabled = b;
-    }
-
-    public static AccordSpec.QueueShardModel getAccordQueueShardModel()
-    {
-        return conf.accord.queue_shard_model;
-    }
-
-    public static AccordSpec.QueueSubmissionModel getAccordQueueSubmissionModel()
-    {
-        return conf.accord.queue_submission_model;
-    }
-
-    public static int getAccordQueueShardCount()
-    {
-        switch (getAccordQueueShardModel())
-        {
-            default: throw new AssertionError("Unhandled queue_shard_model: " + conf.accord.queue_shard_model);
-            case THREAD_PER_SHARD:
-            case THREAD_PER_SHARD_SYNC_QUEUE:
-                return conf.accord.queue_shard_count.or(DatabaseDescriptor::getAvailableProcessors);
-            case THREAD_POOL_PER_SHARD:
-                int defaultMax = getAccordQueueSubmissionModel() == AccordSpec.QueueSubmissionModel.SYNC ? 8 : 4;
-                return conf.accord.queue_shard_count.or(Math.min(defaultMax, DatabaseDescriptor.getAvailableProcessors()));
-        }
-    }
-
-    public static int getAccordCommandStoreShardCount()
-    {
-        return conf.accord.command_store_shard_count.or(DatabaseDescriptor::getAvailableProcessors);
-    }
-
-    public static int getAccordMaxQueuedLoadCount()
-    {
-        return conf.accord.max_queued_loads.or(getAccordConcurrentOps());
-    }
-
-    public static int getAccordMaxQueuedRangeLoadCount()
-    {
-        return conf.accord.max_queued_range_loads.or(Math.max(4, getAccordConcurrentOps() / 4));
     }
 
     public static DefaultProgressLog.Config getAccordProgressLogConfig()
@@ -5734,6 +5916,11 @@ public class DatabaseDescriptor
     public static long getAccordShardDurabilityCycle(TimeUnit unit)
     {
         return conf.accord.shard_durability_cycle.to(unit);
+    }
+
+    public static long getAccordDurabilityFlushInterval(TimeUnit unit)
+    {
+        return conf.accord.durability_flush_interval.to(unit);
     }
 
     public static boolean getAccordStateCacheListenerJFREnabled()
@@ -6102,6 +6289,81 @@ public class DatabaseDescriptor
         return conf.cms_await_timeout;
     }
 
+    public static Config.CMSCommitMemberPreferencePolicy getCmsCommitMemberPreferencePolicy()
+    {
+        return conf.cms_commit_member_preference_policy;
+    }
+
+    public static void setCmsAwaitTimeout(long timeoutInMillis)
+    {
+        if (timeoutInMillis != conf.cms_await_timeout.to(TimeUnit.MILLISECONDS))
+        {
+            logger.info("Setting cms_await_timeout to {}ms", timeoutInMillis);
+            conf.cms_await_timeout = new DurationSpec.LongMillisecondsBound(timeoutInMillis);
+        }
+    }
+
+    public static void setCmsCommitMemberPreferencePolicy(Config.CMSCommitMemberPreferencePolicy policy)
+    {
+        conf.cms_commit_member_preference_policy = policy;
+    }
+
+    public static void setCmsCommitMemberPreferencePolicy(String policy)
+    {
+        setCmsCommitMemberPreferencePolicy(Config.CMSCommitMemberPreferencePolicy.valueOf(toLowerCaseLocalized(policy)));
+    }
+
+    public static DurationSpec getCmsCommitTimeout()
+    {
+        return conf.cms_commit_timeout;
+    }
+
+    public static void setCmsCommitTimeout(long timeoutInMillis)
+    {
+        if (timeoutInMillis != conf.cms_commit_timeout.to(TimeUnit.MILLISECONDS))
+        {
+            logger.info("Setting cms_commit_timeout to {}ms", timeoutInMillis);
+            conf.cms_commit_timeout = new DurationSpec.LongMillisecondsBound(timeoutInMillis);
+        }
+    }
+
+
+
+    public static DurationSpec getCmsCommitRetryInitialDelay()
+    {
+        return conf.cms_commit_retry_initial_delay;
+    }
+
+    public static void setCmsCommitRetryInitialDelay(long delayInMillis)
+    {
+        if (delayInMillis != conf.cms_commit_retry_initial_delay.to(TimeUnit.MILLISECONDS))
+        {
+            logger.info("Setting cms_commit_retry_initial_delay to {}ms", delayInMillis);
+            conf.cms_commit_retry_initial_delay = new DurationSpec.LongMillisecondsBound(delayInMillis);
+            applyCMS();
+        }
+    }
+
+    public static DurationSpec getCmsCommitRetryMaxDelay()
+    {
+        return conf.cms_commit_retry_max_delay;
+    }
+
+    public static void setCmsCommitRetryMaxDelay(long delayInMillis)
+    {
+        if (delayInMillis != conf.cms_commit_retry_max_delay.to(TimeUnit.MILLISECONDS))
+        {
+            logger.info("Setting cms_commit_retry_max_delay to {}ms", delayInMillis);
+            conf.cms_commit_retry_max_delay = new DurationSpec.LongMillisecondsBound(delayInMillis);
+            applyCMS();
+        }
+    }
+
+    public static RetryStrategy getCmsCommitRetryStrategy()
+    {
+        return cms_commit_retry_strategy;
+    }
+
     public static int getEpochAwareDebounceInFlightTrackerMaxSize()
     {
         return conf.epoch_aware_debounce_inflight_tracker_max_size;
@@ -6157,9 +6419,34 @@ public class DatabaseDescriptor
         return conf.discovery_timeout.to(unit);
     }
 
+    public static int getDiscoveryRounds()
+    {
+        return conf.discovery_rounds;
+    }
+
     public static boolean getUnsafeTCMMode()
     {
         return conf.unsafe_tcm_mode;
+    }
+
+    public static boolean getLegacyStateListenerSyncLocalUpdates()
+    {
+        return conf.legacy_state_listener_sync_local_updates;
+    }
+
+    public static void setLegacyStateListenerSyncLocalUpdates(boolean sync)
+    {
+        if (sync != conf.legacy_state_listener_sync_local_updates)
+        {
+            logger.info("Changing processing mode of state updates to the local node in LegacyStateListener from {} to {}",
+                        sync ? "async" : "sync", sync ? "sync" : "async");
+            conf.legacy_state_listener_sync_local_updates = sync;
+        }
+        else
+        {
+            logger.info("Not changing processing mode of state updates to the local node in LegacyStateListener, already set to {}",
+                        sync ? "sync" : "async");
+        }
     }
 
     public static int getSaiSSTableIndexesPerQueryWarnThreshold()
@@ -6223,7 +6510,7 @@ public class DatabaseDescriptor
 
     public static boolean getAccordEphemeralReadEnabledEnabled()
     {
-        return conf.accord.ephemeralReadEnabled;
+        return conf.accord.ephemeral_reads;
     }
 
     public static AutoRepairConfig getAutoRepairConfig()

@@ -144,15 +144,6 @@ public class ConfigCompatibilityTest
     }
 
     @Test
-    public void diff_4_0() throws IOException
-    {
-        diff(TEST_DIR + "/version=4.0-alpha1.yml", ImmutableSet.<String>builder()
-                                                               .addAll(WINDOWS)
-                                                               .addAll(ALLOW_LIST)
-                                                               .build(), EXPECTED_FOR_50);
-    }
-
-    @Test
     public void diff_4_1() throws IOException
     {
         diff(TEST_DIR + "/version=4.1-alpha1.yml", ImmutableSet.<String>builder()
@@ -173,6 +164,13 @@ public class ConfigCompatibilityTest
     public void diff_6_0() throws IOException
     {
         diff(TEST_DIR + "/version=6.0-alpha1.yml", ImmutableSet.<String>builder()
+                                                               .build(), ImmutableSet.of());
+    }
+
+    @Test
+    public void diff_7_0() throws IOException
+    {
+        diff(TEST_DIR + "/version=7.0-alpha1.yml", ImmutableSet.<String>builder()
                                                                .build(), ImmutableSet.of());
     }
 

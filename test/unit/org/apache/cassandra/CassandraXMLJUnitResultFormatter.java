@@ -338,7 +338,6 @@ public class CassandraXMLJUnitResultFormatter implements JUnitResultFormatter, X
             failedTests.put(test, test);
         }
 
-        final Element nested = doc.createElement(type);
         Element currentTest;
         if (test != null) {
             currentTest = testElements.get(createDescription(test));
@@ -346,6 +345,28 @@ public class CassandraXMLJUnitResultFormatter implements JUnitResultFormatter, X
             currentTest = rootElement;
         }
 
+        // A test can trigger both addFailure and addError (e.g. assertion failure during the test
+        // body followed by an error during teardown). The JUnit XML spec allows only one status
+        // child per <testcase>, so if one already exists we append the new message to it rather
+        // than adding a second child element (which would break XML parsers that enforce this rule).
+        Element existing = (Element) currentTest.getElementsByTagName(FAILURE).item(0);
+        if (existing == null)
+            existing = (Element) currentTest.getElementsByTagName(ERROR).item(0);
+
+        if (existing != null)
+        {
+            final String message = t.getMessage();
+            if (message != null && message.length() > 0)
+            {
+                String prev = existing.getAttribute(ATTR_MESSAGE);
+                existing.setAttribute(ATTR_MESSAGE, prev.isEmpty() ? message : prev + " | " + message);
+            }
+            final String strace = JUnitTestRunner.getFilteredTrace(t);
+            existing.appendChild(doc.createTextNode("\n--- additional error ---\n" + strace));
+            return;
+        }
+
+        final Element nested = doc.createElement(type);
         currentTest.appendChild(nested);
 
         final String message = t.getMessage();

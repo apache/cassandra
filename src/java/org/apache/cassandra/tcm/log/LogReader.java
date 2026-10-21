@@ -79,7 +79,11 @@ public interface LogReader
             if (snapshotEpochs.size() <= 1 || !allowSnapshots)
             {
                 entries = getEntries(startEpoch);
-                if (entries.isContinuous())
+                // Only return entries directly if they are continuous AND they reach at least as far as any
+                // known snapshot. If a node caught up via a ForceSnapshot (which is not written to local_metadata_log),
+                // its log will have a gap between the old entries and the snapshot epoch. In that case entries may
+                // appear continuous up to their last epoch, but there is a snapshot beyond them that is needed.
+                if (entries.isContinuous() && (snapshotEpochs.isEmpty() || !snapshotEpochs.get(0).isAfter(entries.latestEpoch())))
                     return new LogState(null, entries.immutable());
                 else if (!allowSnapshots)
                     throw new IllegalStateException("Can't construct a continuous log since " + startEpoch + " and inclusion of snapshots is disallowed");
@@ -134,6 +138,11 @@ public interface LogReader
         {
             if (entry.epoch.isAfter(since))
                 entries.add(entry);
+        }
+
+        private Epoch latestEpoch()
+        {
+            return entries.isEmpty() ? since : entries.last().epoch;
         }
 
         private boolean isContinuous()

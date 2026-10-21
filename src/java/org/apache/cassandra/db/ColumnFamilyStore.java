@@ -112,6 +112,7 @@ import org.apache.cassandra.dht.Token;
 import org.apache.cassandra.exceptions.ConfigurationException;
 import org.apache.cassandra.exceptions.InvalidRequestException;
 import org.apache.cassandra.exceptions.StartupException;
+import org.apache.cassandra.exceptions.TruncateException;
 import org.apache.cassandra.index.SecondaryIndexManager;
 import org.apache.cassandra.index.internal.CassandraIndex;
 import org.apache.cassandra.index.transactions.UpdateTransaction;
@@ -177,6 +178,7 @@ import org.apache.cassandra.utils.concurrent.UncheckedInterruptedException;
 import static org.apache.cassandra.concurrent.ExecutorFactory.Global.executorFactory;
 import static org.apache.cassandra.config.DatabaseDescriptor.getFlushWriters;
 import static org.apache.cassandra.db.commitlog.CommitLogPosition.NONE;
+import static org.apache.cassandra.db.compaction.CompactionManager.NO_GC;
 import static org.apache.cassandra.utils.Clock.Global.currentTimeMillis;
 import static org.apache.cassandra.utils.Clock.Global.nanoTime;
 import static org.apache.cassandra.utils.Throwables.maybeFail;
@@ -408,8 +410,16 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean, Memtable.Owner
     {
         return () -> {
             for (Keyspace keyspace : Keyspace.all())
+            {
                 for (ColumnFamilyStore cfs : keyspace.getColumnFamilyStores())
+                {
+                    if (SchemaConstants.ACCORD_KEYSPACE_NAME.equals(cfs.keyspace.getName()))
+                        continue;
+
                     CompactionManager.instance.submitBackground(cfs);
+                }
+            }
+
         };
     }
 
@@ -527,6 +537,11 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean, Memtable.Owner
         data.subscribe(StorageService.instance.sstablesTracker);
         data.subscribe(SnapshotManager.instance);
 
+        // Created here, ahead of the `if (data.loadsstables)` block below, because the SSTableReader.openAll()
+        // call in it reads back owner.compressionDictionaryManager() for every dictionary-compressed sstable it
+        // opens. Were this still null by then, each such sstable would leak a dictionary reference (CASSANDRA-21047).
+        compressionDictionaryManager = new CompressionDictionaryManager(this, registerBookeeping);
+
         Collection<SSTableReader> sstables = null;
         // scan for sstables corresponding to this cf and load them
         if (data.loadsstables)
@@ -582,7 +597,6 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean, Memtable.Owner
         streamManager = new CassandraStreamManager(this);
         repairManager = new CassandraTableRepairManager(this);
         sstableImporter = new SSTableImporter(this);
-        compressionDictionaryManager = new CompressionDictionaryManager(this, registerBookeeping);
 
         if (DatabaseDescriptor.isClientOrToolInitialized() || SchemaConstants.isSystemKeyspace(getKeyspaceName()))
             topPartitions = null;
@@ -1144,6 +1158,11 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean, Memtable.Owner
         return postFlushExecutor.submit(current::getCommitLogLowerBound);
     }
 
+    public Future<Void> waitForPriorFlushes()
+    {
+        return postFlushExecutor.submit(() -> null);
+    }
+
     public CommitLogPosition forceBlockingFlush(FlushReason reason)
     {
         return FBUtilities.waitOnFuture(forceFlush(reason));
@@ -1508,7 +1527,23 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean, Memtable.Owner
         {
             Memtable mt = data.getMemtableFor(opGroup, commitLogPosition);
             UpdateTransaction indexer = newUpdateTransaction(update, context, updateIndexes, mt);
-            long timeDelta = mt.put(update, indexer, opGroup);
+            long timeDelta;
+            // Nesting is tracked on the context; updateIndexes cannot identify it, as index build and compaction cleanup also pass false. See Memtable#checkSpaceAndPut.
+            if (context.enterMemtableWrite())
+            {
+                try
+                {
+                    timeDelta = mt.checkSpaceAndPut(update, indexer, opGroup);
+                }
+                finally
+                {
+                    context.exitMemtableWrite();
+                }
+            }
+            else
+            {
+                timeDelta = mt.put(update, indexer, opGroup);
+            }
             DecoratedKey key = update.partitionKey();
             invalidateCachedPartition(key);
             metric.topWritePartitionFrequency.addSample(key.getKey(), 1);
@@ -1516,6 +1551,9 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean, Memtable.Owner
                 metric.topWritePartitionSize.addSample(key.getKey(), update.dataSize());
             StorageHook.instance.reportWrite(metadata.id, update);
             metric.writeLatency.addNano(nanoTime() - start);
+            int affectedRows = update.affectedRowCount();
+            metric.totalRowsMutated.inc(affectedRows);
+            metric.rowsMutatedPerWriteHistogram.update(affectedRows);
             // CASSANDRA-11117 - certain resolution paths on memtable put can result in very
             // large time deltas, either through a variety of sentinel timestamps (used for empty values, ensuring
             // a minimal write, etc). This limits the time delta to the max value the histogram
@@ -1813,7 +1851,15 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean, Memtable.Owner
         if (!isIndex() || !SecondaryIndexManager.isIndexColumnFamilyStore(this))
             return false;
 
-        truncateBlocking();
+        try
+        {
+            truncateBlocking();
+        }
+        catch (TruncateException e)
+        {
+            logger.warn("Unable to truncate {} to rebuild index after scrub failure", name, e);
+            return false;
+        }
 
         logger.warn("Rebuilding index for {} because of <{}>", name, failure.getMessage());
 
@@ -1855,6 +1901,11 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean, Memtable.Owner
     public CompactionManager.AllSSTableOpStatus garbageCollect(TombstoneOption tombstoneOption, int jobs) throws ExecutionException, InterruptedException
     {
         return CompactionManager.instance.performGarbageCollection(this, tombstoneOption, jobs);
+    }
+
+    public CompactionManager.AllSSTableOpStatus partialGarbageCollect(TombstoneOption tombstoneOption, int jobs, Collection<Descriptor> sstables)
+    {
+        return CompactionManager.instance.performGarbageCollection(this, tombstoneOption, jobs, sstables);
     }
 
     public void markObsolete(Collection<SSTableReader> sstables, OperationType compactionType)
@@ -1935,8 +1986,15 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean, Memtable.Owner
                 TimeUUID session = sst.getPendingRepair();
                 return session != null && sessions.contains(session);
             };
-            return runWithCompactionsDisabled(() -> compactionStrategyManager.releaseRepairData(sessions),
-                                              predicate, OperationType.STREAM, false, true, true);
+            CleanupSummary summary = runWithCompactionsDisabled(() -> compactionStrategyManager.releaseRepairData(sessions),
+                                                                 predicate, OperationType.STREAM, false, true, true);
+            if (summary == null)
+            {
+                logger.warn("Unable to cancel in-progress compactions for {}.{}, could not force release repair data for sessions {}",
+                            getKeyspaceName(), name, sessions);
+                return new CleanupSummary(this, Collections.emptySet(), new HashSet<>(sessions));
+            }
+            return summary;
         }
         else
         {
@@ -1998,9 +2056,19 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean, Memtable.Owner
         return paxosRepairHistory.get().getBallotForToken(key.getToken());
     }
 
+    public long getDefaultGcBefore(long nowInSec)
+    {
+        // 2ndary indexes have ExpiringColumns too, so we need to purge tombstones deleted before now. We do not need to
+        // add any GcGrace however since 2ndary indexes are local to a node.
+        return isIndex() ? nowInSec : gcBefore(nowInSec);
+    }
+
     public long gcBefore(long nowInSec)
     {
-        return nowInSec - metadata().params.gcGraceSeconds;
+        TableMetadata metadata = metadata();
+        if (metadata.isAccordEnabled())
+            return NO_GC;
+        return nowInSec - metadata.params.gcGraceSeconds;
     }
 
     public RefViewFragment selectAndReference(Function<View, Iterable<SSTableReader>> filter)
@@ -2595,36 +2663,54 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean, Memtable.Owner
             for (SSTableReader sstable : cfs.getLiveSSTables())
                 now = Math.max(now, sstable.maxDataAge);
         truncatedAt = now;
-
-        Runnable truncateRunnable = new Runnable()
+        Throwable failure = null;
+        try
         {
-            public void run()
-            {
-                logger.info("Truncating {}.{} with truncatedAt={}", getKeyspaceName(), getTableName(), truncatedAt);
-                // since truncation can happen at different times on different nodes, we need to make sure
-                // that any repairs are aborted, otherwise we might clear the data on one node and then
-                // stream in data that is actually supposed to have been deleted
-                ActiveRepairService.instance().abort((prs) -> prs.getTableIds().contains(metadata.id),
-                                                   "Stopping parent sessions {} due to truncation of tableId="+metadata.id);
-                data.notifyTruncated(noSnapshot, truncatedAt, DatabaseDescriptor.getAutoSnapshotTtl());
+            Boolean succeeded = runWithCompactionsDisabled(() -> runTruncate(truncatedAt, noSnapshot, replayAfter), OperationType.P0, true, true);
+            // null means compactions couldn't be disabled, not failure of the truncate work itself
+            if (succeeded == null)
+                failure = new TruncateException("Unable to stop in-progress compactions. Please retry when current compaction tasks have completed or overall system load has decreased.");
+            else if (!succeeded)
+                failure = new TruncateException("Truncate failed.");
+        }
+        catch (Throwable t)
+        {
+            failure = t;
+        }
 
-                discardSSTables(truncatedAt);
+        try
+        {
+            viewManager.build();
+        }
+        catch (Throwable t)
+        {
+            failure = merge(failure, t);
+        }
 
-                indexManager.truncateAllIndexesBlocking(truncatedAt);
-                viewManager.truncateBlocking(replayAfter, truncatedAt);
-
-                SystemKeyspace.saveTruncationRecord(ColumnFamilyStore.this, truncatedAt, replayAfter);
-                logger.trace("cleaning out row cache");
-                invalidateCaches();
-
-            }
-        };
-
-        runWithCompactionsDisabled(FutureTask.callable(truncateRunnable), OperationType.P0, true, true);
-
-        viewManager.build();
+        maybeFail(failure);
 
         logger.info("Truncate of {}.{} is complete", getKeyspaceName(), name);
+    }
+
+    private boolean runTruncate(long truncatedAt, boolean noSnapshot, CommitLogPosition replayAfter)
+    {
+        logger.info("Truncating {}.{} with truncatedAt={}", getKeyspaceName(), getTableName(), truncatedAt);
+        // since truncation can happen at different times on different nodes, we need to make sure
+        // that any repairs are aborted, otherwise we might clear the data on one node and then
+        // stream in data that is actually supposed to have been deleted
+        ActiveRepairService.instance().abort((prs) -> prs.getTableIds().contains(metadata.id),
+                                             "Stopping parent sessions {} due to truncation of tableId=" + metadata.id);
+        data.notifyTruncated(noSnapshot, truncatedAt, DatabaseDescriptor.getAutoSnapshotTtl());
+
+        discardSSTables(truncatedAt);
+
+        indexManager.truncateAllIndexesBlocking(truncatedAt);
+        viewManager.truncateBlocking(replayAfter, truncatedAt);
+
+        SystemKeyspace.saveTruncationRecord(ColumnFamilyStore.this, truncatedAt, replayAfter);
+        logger.trace("cleaning out row cache");
+        invalidateCaches();
+        return true;
     }
 
     /**

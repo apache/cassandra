@@ -18,6 +18,7 @@
 package org.apache.cassandra.auth;
 
 import java.util.Arrays;
+import java.util.Collections;
 import java.util.HashSet;
 import java.util.Set;
 
@@ -34,6 +35,8 @@ import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.cql3.CQLTester;
 import org.apache.cassandra.db.ConsistencyLevel;
 import org.apache.cassandra.db.SystemKeyspace;
+import org.apache.cassandra.distributed.test.log.ClusterMetadataTestHelper;
+import org.apache.cassandra.schema.ReplicationParams;
 import org.apache.cassandra.schema.Schema;
 import org.apache.cassandra.schema.SchemaConstants;
 import org.apache.cassandra.schema.TableMetadata;
@@ -59,6 +62,11 @@ public class GrantAndRevokeTest extends CQLTester
         ServerTestUtils.daemonInitialization();
         DatabaseDescriptor.setPermissionsValidity(0);
         DatabaseDescriptor.setRolesValidity(0);
+        // for the tables in the distributed metadata keyspace to be queryable, there needs to be a valid placement
+        // which is derived from the CMS membership. Most unit tests don't actually need to query those dist tables
+        // which is why this isn't done as a matter of routine
+        ClusterMetadataTestHelper.reconfigureCms(ReplicationParams.ntsMeta(Collections.singletonMap(DatabaseDescriptor.getLocalDataCenter(), 1)));
+        ServerTestUtils.markCMS();
         requireAuthentication();
         requireNetwork();
         CassandraDaemon.getInstanceForTesting().setupVirtualKeyspaces();

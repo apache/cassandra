@@ -21,18 +21,15 @@ package org.apache.cassandra.service.accord.txn;
 import java.util.function.Supplier;
 
 import org.apache.cassandra.db.partitions.PartitionIterator;
-import org.apache.cassandra.db.rows.Row;
-import org.apache.cassandra.db.rows.RowIterator;
-import org.apache.cassandra.utils.ObjectSizes;
 
 public class TxnRangeReadResult implements TxnResult
 {
-    private static final long EMPTY_SIZE = ObjectSizes.measure(new TxnRangeReadResult(null));
-
+    public final long atMicros;
     public final Supplier<PartitionIterator> partitions;
 
-    public TxnRangeReadResult(Supplier<PartitionIterator> partitions)
+    public TxnRangeReadResult(long atMicros, Supplier<PartitionIterator> partitions)
     {
+        this.atMicros = atMicros;
         this.partitions = partitions;
     }
 
@@ -40,23 +37,5 @@ public class TxnRangeReadResult implements TxnResult
     public Kind kind()
     {
         return Kind.range_read;
-    }
-
-    @Override
-    public long estimatedSizeOnHeap()
-    {
-        long size = EMPTY_SIZE;
-        PartitionIterator iterator = partitions.get();
-        while (iterator.hasNext())
-        {
-            RowIterator rowIterator = iterator.next();
-            Row staticRow = rowIterator.staticRow();
-            if (staticRow != null)
-                size += staticRow.unsharedHeapSize();
-            while (rowIterator.hasNext())
-                size += rowIterator.next().unsharedHeapSize();
-        }
-        // TODO: Include the other parts of FilteredPartition after we rebase to pull in BTreePartitionData?
-        return size;
     }
 }

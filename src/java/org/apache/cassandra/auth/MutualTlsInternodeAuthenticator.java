@@ -104,7 +104,8 @@ public class MutualTlsInternodeAuthenticator implements IInternodeAuthenticator
         }
 
         certificateValidator = ParameterizedClass.newInstance(new ParameterizedClass(certificateValidatorClassName),
-                                                              Arrays.asList("", AuthConfig.class.getPackage().getName()));
+                                                              Arrays.asList("", AuthConfig.class.getPackage().getName()),
+                                                              MutualTlsCertificateValidator.class);
         Config config = DatabaseDescriptor.getRawConfig();
 
         if (parameters.containsKey(TRUSTED_PEER_IDENTITIES))

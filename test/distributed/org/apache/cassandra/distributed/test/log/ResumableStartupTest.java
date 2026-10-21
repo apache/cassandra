@@ -146,12 +146,12 @@ public class ResumableStartupTest extends FuzzTestBase
                         KeyspaceMetadata ksm = metadata.schema.getKeyspaceMetadata(keyspace);
                         boolean isWriteReplica = false;
                         boolean isReadReplica = false;
-                        for (InetAddressAndPort readReplica : metadata.placements.get(ksm.params.replication).reads.byEndpoint().keySet())
+                        for (InetAddressAndPort readReplica : metadata.placement(ksm.params.replication).reads.byEndpoint().keySet())
                         {
                             if (readReplica.getHostAddressAndPort().equals(newAddress))
                                 isReadReplica = true;
                         }
-                        for (InetAddressAndPort writeReplica : metadata.placements.get(ksm.params.replication).writes.byEndpoint().keySet())
+                        for (InetAddressAndPort writeReplica : metadata.placement(ksm.params.replication).writes.byEndpoint().keySet())
                         {
                             if (writeReplica.getHostAddressAndPort().equals(newAddress))
                                 isWriteReplica = true;

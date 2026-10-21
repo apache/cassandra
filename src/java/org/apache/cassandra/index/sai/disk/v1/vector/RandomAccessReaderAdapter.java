@@ -46,11 +46,11 @@ public class RandomAccessReaderAdapter extends RandomAccessReader implements io.
     @Override
     public void readFully(float[] dest) throws IOException
     {
-        BufferHolder bh = bufferHolder;
+        BufferHolder bh = getBufferHolder();
         long position = getPosition();
 
         FloatBuffer floatBuffer;
-        if (bh.offset() == 0 && position % Float.BYTES == 0)
+        if (getBufferHolderOffset() == 0 && position % Float.BYTES == 0)
         {
             // this is a separate code path because buffer() and asFloatBuffer() both allocate
             // new and relatively expensive xBuffer objects, so we want to avoid doing that
@@ -63,7 +63,7 @@ public class RandomAccessReaderAdapter extends RandomAccessReader implements io.
             // offset is non-zero, and probably not aligned to Float.BYTES, so
             // set the position before converting to FloatBuffer.
             ByteBuffer bb = bh.buffer();
-            bb.position(Ints.checkedCast(position - bh.offset()));
+            bb.position(Ints.checkedCast(position - getBufferHolderOffset()));
             floatBuffer = bb.asFloatBuffer();
         }
 
@@ -94,11 +94,11 @@ public class RandomAccessReaderAdapter extends RandomAccessReader implements io.
         if (count == 0)
             return;
 
-        BufferHolder bh = bufferHolder;
+        BufferHolder bh = getBufferHolder();
         long position = getPosition();
 
         IntBuffer intBuffer;
-        if (bh.offset() == 0 && position % Integer.BYTES == 0)
+        if (getBufferHolderOffset() == 0 && position % Integer.BYTES == 0)
         {
             // this is a separate code path because buffer() and asIntBuffer() both allocate
             // new and relatively expensive xBuffer objects, so we want to avoid doing that
@@ -111,7 +111,7 @@ public class RandomAccessReaderAdapter extends RandomAccessReader implements io.
             // offset is non-zero, and probably not aligned to Integer.BYTES, so
             // set the position before converting to IntBuffer.
             ByteBuffer bb = bh.buffer();
-            bb.position(Ints.checkedCast(position - bh.offset()));
+            bb.position(Ints.checkedCast(position - getBufferHolderOffset()));
             intBuffer = bb.asIntBuffer();
         }
 

@@ -70,9 +70,11 @@ public class NewGossiperTest
             NewGossiper.ShadowRoundHandler srh = new NewGossiper.ShadowRoundHandler(fakePeers, new NoOpMessageDelivery());
             Future<Map<InetAddressAndPort, EndpointState>> states = srh.doShadowRound();
             Map<InetAddressAndPort, EndpointState> firstResp = buildEpstates(fakePeers, r);
-            srh.onAck(firstResp);
+            srh.onAck(InetAddressAndPort.getByNameUnchecked("127.0.0.1"), firstResp);
             Map<InetAddressAndPort, EndpointState> secondResp = buildEpstates(fakePeers, r);
-            srh.onAck(secondResp);
+            srh.onAck(InetAddressAndPort.getByNameUnchecked("127.0.0.2"), secondResp);
+            srh.onAck(InetAddressAndPort.getByNameUnchecked("127.0.0.3"), secondResp);
+            srh.onAck(InetAddressAndPort.getByNameUnchecked("127.0.0.4"), secondResp);
             Map<InetAddressAndPort, EndpointState> result = states.get();
             verifyResult(result, firstResp, secondResp);
         }

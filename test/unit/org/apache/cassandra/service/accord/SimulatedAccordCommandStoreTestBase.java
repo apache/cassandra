@@ -34,11 +34,15 @@ import org.assertj.core.api.Assertions;
 import org.junit.Before;
 import org.junit.BeforeClass;
 
+import accord.Utils;
 import accord.api.RoutingKey;
 import accord.impl.SizeOfIntersectionSorter;
+import accord.impl.TestAgent;
+import accord.impl.mock.MockCluster;
 import accord.local.Node;
 import accord.messages.BeginRecovery;
 import accord.messages.PreAccept;
+import accord.messages.PreAccept.PreAcceptOk;
 import accord.primitives.Ballot;
 import accord.primitives.Deps;
 import accord.primitives.FullRangeRoute;
@@ -55,6 +59,7 @@ import accord.primitives.Txn;
 import accord.primitives.TxnId;
 import accord.primitives.Unseekables;
 import accord.topology.Topologies;
+import accord.topology.Topology;
 import accord.utils.Gen;
 import accord.utils.Gens;
 import accord.utils.Invariants;
@@ -73,6 +78,7 @@ import org.apache.cassandra.schema.TableId;
 import org.apache.cassandra.schema.TableMetadata;
 import org.apache.cassandra.service.accord.api.PartitionKey;
 import org.apache.cassandra.service.accord.api.TokenKey;
+import org.apache.cassandra.service.accord.topology.AccordTopology;
 import org.apache.cassandra.tcm.ClusterMetadata;
 import org.apache.cassandra.utils.Pair;
 import org.apache.cassandra.utils.RTree;
@@ -94,8 +100,7 @@ public abstract class SimulatedAccordCommandStoreTestBase extends CQLTester
         CassandraRelevantProperties.SAI_TEST_DISABLE_TIMEOUT.setBoolean(true);
     }
 
-    protected enum DepsMessage
-    {PreAccept, BeginRecovery, PreAcceptThenBeginRecovery}
+    protected enum DepsMessage {PreAccept, BeginRecovery, PreAcceptThenBeginRecovery}
 
     protected static final Gen<Gen<Routable.Domain>> mixedDomainGen = Gens.enums().allMixedDistribution(Routable.Domain.class);
     protected static final Gen<Gen.LongGen> mixedTokenGen = top -> {
@@ -114,6 +119,14 @@ public abstract class SimulatedAccordCommandStoreTestBase extends CQLTester
 
     protected static TableMetadata intTbl, reverseTokenTbl;
     protected static Node.Id nodeId;
+    private static Node emptyNode;
+
+    protected static Node emptyNode()
+    {
+         if (emptyNode == null)
+             emptyNode = Utils.createNode(Node.Id.NONE, Topology.EMPTY, null, new MockCluster.Clock(0), new TestAgent());
+         return emptyNode;
+    }
 
     @BeforeClass
     public static void setUpClass()
@@ -281,13 +294,19 @@ public abstract class SimulatedAccordCommandStoreTestBase extends CQLTester
         TxnId txnId = instance.nextTxnId(txn.kind(), txn.keys().domain());
         PreAccept preAccept = new PreAccept(nodeId, new Topologies.Single(SizeOfIntersectionSorter.SUPPLIER, instance.topology), txnId, txn, null, false, route);
 
+        // the reply may not be complete when the task returns (incremental deps computation finishes in a
+        // continuation), so await it rather than casting what the task handed back: see awaitReply
         var preAcceptAsync = instance.processAsync(preAccept, safe -> {
-            var reply = preAccept.apply(safe);
-            Assertions.assertThat(reply.isOk()).isTrue();
-            PreAccept.PreAcceptOk success = (PreAccept.PreAcceptOk) reply;
-            assertDeps(success.txnId, success.deps, cloneKeyConflicts, cloneRangeConflicts);
-            return success;
-        });
+                                         preAccept.unsafeSetNode(emptyNode());
+                                         return preAccept.apply(safe);
+                                     })
+                                     .flatMap(SimulatedAccordCommandStore::awaitReply)
+                                     .map(reply -> {
+                                         Assertions.assertThat(reply).isInstanceOf(PreAcceptOk.class);
+                                         PreAcceptOk success = (PreAcceptOk) reply;
+                                         assertDeps(success.txnId, success.deps, cloneKeyConflicts, cloneRangeConflicts);
+                                         return success;
+                                     });
         var delay = preAcceptAsync.flatMap(ignore -> AsyncChains.chain(instance.unorderedScheduled, () -> {
             Ballot ballot = Ballot.fromValues(instance.storeService.epoch(), instance.storeService.now(), nodeId);
             return new BeginRecovery(nodeId, new Topologies.Single(SizeOfIntersectionSorter.SUPPLIER, instance.topology), txnId, null, 0, txn, route, ballot);

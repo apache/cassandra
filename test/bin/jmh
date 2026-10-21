@@ -136,6 +136,13 @@ CLASSPATH="$CLASSPATH:$CASSANDRA_HOME/test/conf/"
 CLASSPATH="$CLASSPATH:$CASSANDRA_HOME/build/test/classes/"
 CLASSPATH="$CLASSPATH:$CASSANDRA_HOME/build/test/lib/jars/*"
 
-exec $NUMACTL "$JAVA" -Xmx8g -XX:+UseParallelGC -cp "$CLASSPATH" org.openjdk.jmh.Main -jvmArgs="-Djmh.shutdownTimeout=120 $cassandra_parms $JVM_OPTS" "$@"
+if [ -n "${JMH_CLASSPATH_PREFIX:-}" ] ; then
+    CLASSPATH="$JMH_CLASSPATH_PREFIX:$CLASSPATH"
+fi
+
+JMH_OPTS="${JMH_OPTS:-}"
+
+# $JMH_OPTS is deliberately unquoted: it carries several whitespace-separated JMH flags, e.g. JMH_OPTS="-gc true -prof gc".
+exec $NUMACTL "$JAVA" -Xmx8g -XX:+UseParallelGC -cp "$CLASSPATH" org.openjdk.jmh.Main -jvmArgs="-Djmh.shutdownTimeout=120 $cassandra_parms $JVM_OPTS" $JMH_OPTS "$@"
 
 # vi:ai sw=4 ts=4 tw=0 et

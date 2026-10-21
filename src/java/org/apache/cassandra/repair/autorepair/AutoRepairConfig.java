@@ -395,7 +395,10 @@ public class AutoRepairConfig implements Serializable
                 className = parameterizedClass.class_name.contains(".") ?
                             parameterizedClass.class_name :
                             "org.apache.cassandra.repair.autorepair." + parameterizedClass.class_name;
-                tokenRangeSplitterClass = FBUtilities.classForName(className, "token_range_splitter");
+                tokenRangeSplitterClass =
+                    FBUtilities.classForNameWithoutInitialization(className,
+                                                                  "token_range_splitter",
+                                                                  IAutoRepairTokenRangeSplitter.class);
             }
             else
             {

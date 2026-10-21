@@ -1,7 +1,9 @@
 = Create SAI index
 :description: Create SAI index for CQL table schema using `cqlsh`.
 
-To create an SAI index, you must define the index name, table name, and column name for the column to be indexed. 
+To create an SAI index, you must define the index name, table name, and column name for the column to be indexed.
+
+include::cassandra:partial$index-naming.adoc[]
  
 To create a simple SAI index:
 
@@ -15,6 +17,7 @@ The SAI index options are defined in the `WITH OPTIONS` clause.
 The `case_sensitive` option is set to `false` to allow case-insensitive searches.
 The `normalize` option is set to `true` to allow searches to be normalized for Unicode characters.
 The `ascii_only` option is set to `true` to allow searches to be limited to ASCII characters.
+The `shards` option sets the number of in-memory index shards per Memtable. (Set to `'auto'` or leave unspecified for `cassandra.memtable.shard.count` shards. Not supported on vector column indexes.)
 
 The `map` collection data type is the one exception, as shown in the xref:#map-collection-in-sai-index[example below].
 
@@ -74,4 +77,4 @@ include::cassandra:example$CQL/sai/index-sai-similarity-function.cql[]
 '''
 Other resources
 
-See xref:developing/cql/indexing/create-custom-index.adoc[CREATE CUSTOM INDEX] for more information about creating SAI indexes.
+See xref:cassandra:developing/cql/create-custom-index.adoc[CREATE CUSTOM INDEX] for more information about creating SAI indexes.

@@ -23,6 +23,8 @@ def get_extensions():
     if "--no-compile" in sys.argv:
         return []
 
+    assert sys.version_info < (3, 12), "Cython < 3.0 is incompatible with Python 3.12+ C-API changes. See CASSANDRA-21482."
+
     from Cython.Build import cythonize
     return cythonize("cqlshlib/copyutil.py")
 

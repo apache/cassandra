@@ -43,6 +43,9 @@
 *** xref:cassandra:developing/cql/types.adoc[Data types]
 *** xref:cassandra:developing/cql/ddl.adoc[Data definition (DDL)]
 *** xref:cassandra:developing/cql/dml.adoc[Data manipulation (DML)]
+*** xref:cassandra:developing/cql/transactions.adoc[Transactions]
+*** xref:cassandra:developing/cql/transactions-examples.adoc[Transaction patterns]
+*** xref:cassandra:developing/cql/transactions-migration.adoc[Transaction migration]
 *** xref:cassandra:developing/cql/dynamic-data-masking.adoc[]
 *** xref:cassandra:developing/cql/operators.adoc[Operators]
 *** xref:cassandra:developing/cql/indexing/indexing-concepts.adoc[]
@@ -117,7 +120,7 @@
 **** xref:cassandra:managing/tools/cqlsh.adoc[cqlsh: the CQL shell]
 **** xref:cassandra:managing/tools/nodetool/nodetool.adoc[nodetool]
 **** xref:cassandra:managing/tools/sstable/index.adoc[SSTable tools]
-**** xref:cassandra:managing/tools/cassandra_stress.adoc[cassandra-stress]
+**** xref:cassandra:tooling/cassandra-stress.adoc[cassandra-stress]
 
 
 ** xref:cassandra:troubleshooting/index.adoc[Troubleshooting]
@@ -128,7 +131,7 @@
 
 ** xref:reference/index.adoc[]
 *** xref:reference/cql-commands/commands-toc.adoc[CQL commands]
-*** xref:developing/cql/cql_singlefile.html[CQL specification]
+*** xref:cassandra:developing/cql/cql_singlefile.adoc[CQL specification]
 *** xref:reference/java17.adoc[Java 17]
 *** xref:reference/native-protocol.adoc[Native Protocol specification]
 *** xref:reference/sai-virtual-table-indexes.adoc[SAI virtual table]

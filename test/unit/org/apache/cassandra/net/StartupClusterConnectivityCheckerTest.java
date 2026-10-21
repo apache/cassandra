@@ -23,7 +23,6 @@ import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Map;
 import java.util.Set;
-import java.util.function.BiPredicate;
 
 import org.junit.After;
 import org.junit.Assert;
@@ -211,7 +210,7 @@ public class StartupClusterConnectivityCheckerTest
         }
     }
 
-    private static class Sink implements BiPredicate<Message<?>, InetAddressAndPort>
+    private static class Sink implements OutboundSink.Filter
     {
         private final boolean markAliveInGossip;
         private final boolean processConnectAck;
@@ -227,7 +226,7 @@ public class StartupClusterConnectivityCheckerTest
         }
 
         @Override
-        public boolean test(Message message, InetAddressAndPort to)
+        public boolean test(Message message, InetAddressAndPort to, ConnectionType type)
         {
             ConnectionTypeRecorder recorder = seenConnectionRequests.computeIfAbsent(to, inetAddress ->  new ConnectionTypeRecorder());
 

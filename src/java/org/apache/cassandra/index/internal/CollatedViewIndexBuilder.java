@@ -61,8 +61,10 @@ public class CollatedViewIndexBuilder extends SecondaryIndexBuilder
                                   OperationType.INDEX_BUILD,
                                   iter.getBytesRead(),
                                   iter.getTotalBytes(),
+                                  iter.getTotalBytes(),
                                   compactionId,
-                                  sstables);
+                                  sstables
+        );
     }
 
     public void build()

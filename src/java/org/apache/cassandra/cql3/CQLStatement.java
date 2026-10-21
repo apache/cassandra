@@ -74,6 +74,18 @@ public interface CQLStatement
     void validate(ClientState state);
 
     /**
+     * Performs validation specific to the preparation phase of a CQL statement.
+     * <p>
+     * Unlike {@link #validate(ClientState)}, which is invoked during normal execution,
+     * this method is explicitly triggered only when a statement is being prepared by a client.
+     * By default, this is a no-op. Subclasses can override this to enforce preparation-specific
+     * rules or guardrails (e.g., ensuring prepared statements contain bind markers).
+     *
+     * @param state the current client state
+     */
+    default void validatePrepare(ClientState state) {}
+
+    /**
      * Execute the statement and return the resulting result or null if there is no result.
      *
      * @param state the current query state

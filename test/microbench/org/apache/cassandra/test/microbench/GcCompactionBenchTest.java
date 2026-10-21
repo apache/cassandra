@@ -52,6 +52,8 @@ import org.apache.cassandra.utils.FBUtilities;
 import static org.apache.cassandra.utils.Clock.Global.currentTimeMillis;
 import static org.apache.cassandra.utils.Clock.Global.nanoTime;
 
+// FIXME – rewrite to jmh bench classes
+// https://issues.apache.org/jira/browse/CASSANDRA-17964?focusedCommentId=17680480&page=com.atlassian.jira.plugin.system.issuetabpanels:comment-tabpanel#comment-17680480
 public class GcCompactionBenchTest extends CQLTester
 {
     private static final String SIZE_TIERED_STRATEGY = "SizeTieredCompactionStrategy', 'min_sstable_size' : '0";

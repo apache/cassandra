@@ -23,8 +23,9 @@ import java.util.Map;
 
 import com.google.common.collect.ImmutableMap;
 
+import org.apache.cassandra.cql3.FunctionContext;
 import org.apache.cassandra.cql3.QueryOptions;
-import org.apache.cassandra.cql3.UpdateParameters;
+import org.apache.cassandra.cql3.RowUpdateBuilder;
 import org.apache.cassandra.db.DecoratedKey;
 import org.apache.cassandra.db.marshal.TimeUUIDType;
 import org.apache.cassandra.db.partitions.Partition;
@@ -50,11 +51,11 @@ public class AccordUpdateParameters
         this.timestamp = timestamp;
     }
 
-    static class RowUpdateParameters extends UpdateParameters
+    static class AccordUpdateBuilder extends RowUpdateBuilder implements FunctionContext.PartialFunctionContext
     {
         private long timeUuidNanos;
 
-        public RowUpdateParameters(TableMetadata metadata, ClientState clientState, QueryOptions options, long timestamp, long nowInSec, int ttl, Map<DecoratedKey, Partition> prefetchedRows) throws InvalidRequestException
+        public AccordUpdateBuilder(TableMetadata metadata, ClientState clientState, QueryOptions options, long timestamp, long nowInSec, int ttl, Map<DecoratedKey, Partition> prefetchedRows) throws InvalidRequestException
         {
             super(metadata, clientState, options, timestamp, nowInSec, ttl, prefetchedRows);
         }
@@ -64,6 +65,11 @@ public class AccordUpdateParameters
         {
             return TimeUUID.toBytes(Ballot.unixMicrosToMsb(timestamp), TimeUUIDType.signedBytesToNativeLong(timeUuidNanos++));
         }
+
+        public long nowMicros()
+        {
+            return timestamp;
+        }
     }
 
     public TxnData getData()
@@ -71,7 +77,7 @@ public class AccordUpdateParameters
         return data;
     }
 
-    public UpdateParameters updateParameters(TableMetadata metadata, DecoratedKey dk, int rowIndex, long overrideTimestamp)
+    public RowUpdateBuilder updateBuilder(TableMetadata metadata, DecoratedKey dk, int rowIndex, long overrideTimestamp)
     {
         // This is currently only used by Guardrails, but this logically have issues with Accord as drifts in config
         // values could cause unexpected issues in Accord. (ex. some nodes reject writes while others accept)
@@ -79,7 +85,7 @@ public class AccordUpdateParameters
         ClientState disabledGuardrails = null;
 
         int ttl = metadata.params.defaultTimeToLive;
-        return new RowUpdateParameters(metadata,
+        return new AccordUpdateBuilder(metadata,
                                        disabledGuardrails,
                                        options,
                                        overrideTimestamp == TxnWrite.NO_TIMESTAMP ? timestamp : overrideTimestamp,

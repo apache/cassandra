@@ -20,6 +20,7 @@ package org.apache.cassandra.auth;
 
 import java.util.Arrays;
 import java.util.HashSet;
+import java.util.Map;
 import java.util.Set;
 import java.util.stream.Collectors;
 
@@ -118,18 +119,79 @@ public class RolesTest
     public void confirmSuperUserConsistency()
     {
         // Confirm special treatment of superuser
-        ConsistencyLevel readLevel = CassandraRoleManager.consistencyForRoleRead(CassandraRoleManager.DEFAULT_SUPERUSER_NAME);
-        Assert.assertEquals(CassandraRoleManager.DEFAULT_SUPERUSER_CONSISTENCY_LEVEL, readLevel);
+        ConsistencyLevel readLevel = AuthUtils.consistencyForRoleRead(PasswordDefaultRoleInitializer.DEFAULT_SUPERUSER_NAME);
+        Assert.assertEquals(AuthUtils.DEFAULT_SUPERUSER_CONSISTENCY_LEVEL, readLevel);
 
-        ConsistencyLevel writeLevel = CassandraRoleManager.consistencyForRoleWrite(CassandraRoleManager.DEFAULT_SUPERUSER_NAME);
-        Assert.assertEquals(CassandraRoleManager.DEFAULT_SUPERUSER_CONSISTENCY_LEVEL, writeLevel);
+        ConsistencyLevel writeLevel = AuthUtils.consistencyForRoleWrite(PasswordDefaultRoleInitializer.DEFAULT_SUPERUSER_NAME);
+        Assert.assertEquals(AuthUtils.DEFAULT_SUPERUSER_CONSISTENCY_LEVEL, writeLevel);
 
         // Confirm standard config-based treatment of non
-        ConsistencyLevel nonPrivReadLevel = CassandraRoleManager.consistencyForRoleRead("non-privilaged");
+        ConsistencyLevel nonPrivReadLevel = AuthUtils.consistencyForRoleRead("non-privilaged");
         Assert.assertEquals(nonPrivReadLevel, DatabaseDescriptor.getAuthReadConsistencyLevel());
 
-        ConsistencyLevel nonPrivWriteLevel = CassandraRoleManager.consistencyForRoleWrite("non-privilaged");
+        ConsistencyLevel nonPrivWriteLevel = AuthUtils.consistencyForRoleWrite("non-privilaged");
         Assert.assertEquals(nonPrivWriteLevel, DatabaseDescriptor.getAuthWriteConsistencyLevel());
+    }
+
+    @Test
+    public void confirmSuperUserConsistencyWithConfiguredDefaultRoleName()
+    {
+        IRoleManager previousRoleManager = DatabaseDescriptor.getRoleManager();
+        IDefaultRoleInitializer previousInitializer = DatabaseDescriptor.getDefaultRoleInitializer();
+        String customRole = "cassandra_mtls_custom_test_role";
+        try
+        {
+            DatabaseDescriptor.setRoleManager(new CassandraRoleManager());
+            DatabaseDescriptor.setDefaultRoleInitializer(new MutualTlsDefaultRoleInitializer(Map.of(
+            MutualTlsDefaultRoleInitializer.ROLE, customRole,
+            MutualTlsDefaultRoleInitializer.IDENTITY, "spiffe1")));
+
+            ConsistencyLevel readLevel = AuthUtils.consistencyForRoleRead(customRole);
+            Assert.assertEquals(AuthUtils.DEFAULT_SUPERUSER_CONSISTENCY_LEVEL, readLevel);
+
+            ConsistencyLevel writeLevel = AuthUtils.consistencyForRoleWrite(customRole);
+            Assert.assertEquals(AuthUtils.DEFAULT_SUPERUSER_CONSISTENCY_LEVEL, writeLevel);
+
+            ConsistencyLevel legacyReadLevel = AuthUtils.consistencyForRoleRead(PasswordDefaultRoleInitializer.DEFAULT_SUPERUSER_NAME);
+            Assert.assertEquals(legacyReadLevel, DatabaseDescriptor.getAuthReadConsistencyLevel());
+
+            ConsistencyLevel legacyWriteLevel = AuthUtils.consistencyForRoleWrite(PasswordDefaultRoleInitializer.DEFAULT_SUPERUSER_NAME);
+            Assert.assertEquals(legacyWriteLevel, DatabaseDescriptor.getAuthWriteConsistencyLevel());
+        }
+        finally
+        {
+            DatabaseDescriptor.setRoleManager(previousRoleManager);
+            DatabaseDescriptor.setDefaultRoleInitializer(previousInitializer);
+        }
+    }
+
+    @Test
+    public void consistencyForRoleToleratesUnsetRoleManager()
+    {
+        IRoleManager previousRoleManager = DatabaseDescriptor.getRoleManager();
+        IDefaultRoleInitializer previousInitializer = DatabaseDescriptor.getDefaultRoleInitializer();
+        try
+        {
+            // Before auth setup runs, both the role manager and the initializer can be unset. consistencyForRole*
+            // must not NPE: it falls back to the historical default role name (see AuthUtils#defaultRoleName).
+            DatabaseDescriptor.setRoleManager(null);
+            DatabaseDescriptor.setDefaultRoleInitializer(null);
+
+            Assert.assertEquals(AuthUtils.DEFAULT_SUPERUSER_CONSISTENCY_LEVEL,
+                                AuthUtils.consistencyForRoleWrite(PasswordDefaultRoleInitializer.DEFAULT_SUPERUSER_NAME));
+            Assert.assertEquals(AuthUtils.DEFAULT_SUPERUSER_CONSISTENCY_LEVEL,
+                                AuthUtils.consistencyForRoleRead(PasswordDefaultRoleInitializer.DEFAULT_SUPERUSER_NAME));
+
+            Assert.assertEquals(DatabaseDescriptor.getAuthWriteConsistencyLevel(),
+                                AuthUtils.consistencyForRoleWrite("non-privileged"));
+            Assert.assertEquals(DatabaseDescriptor.getAuthReadConsistencyLevel(),
+                                AuthUtils.consistencyForRoleRead("non-privileged"));
+        }
+        finally
+        {
+            DatabaseDescriptor.setRoleManager(previousRoleManager);
+            DatabaseDescriptor.setDefaultRoleInitializer(previousInitializer);
+        }
     }
 
     @Test

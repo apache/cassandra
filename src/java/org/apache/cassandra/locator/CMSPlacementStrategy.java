@@ -90,7 +90,8 @@ public class CMSPlacementStrategy
 
         // Although MetaStrategy has its own entireRange, it uses a custom partitioner which isn't compatible with
         // regular, non-CMS placements. For that reason, we select replicas here using tokens provided by the
-        // globally configured partitioner.
+        // globally configured partitioner. This also has the benefit of making concurrent operations, such as
+        // bounces/upgrades/etc, safe for the CMS if they are replica aware.
         Token minToken = DatabaseDescriptor.getPartitioner().getMinimumToken();
         EndpointsForRange endpoints = NetworkTopologyStrategy.calculateNaturalReplicas(minToken,
                                                                                        new Range<>(minToken, minToken),

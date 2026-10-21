@@ -19,12 +19,14 @@
 package org.apache.cassandra.db.guardrails;
 
 import java.util.Collections;
+import java.util.Map;
 import java.util.Set;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 
 import javax.annotation.Nullable;
 
+import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.core.type.TypeReference;
 import com.google.common.annotations.VisibleForTesting;
 import com.google.common.collect.ImmutableSet;
@@ -572,6 +574,16 @@ public final class Guardrails implements GuardrailsMBean
                                : "Write request failed because disk usage exceeds failure threshold in keyspace datacenter.");
 
     /**
+     * Guardrail on client driver versions. Warns or rejects connections from drivers
+     * whose version is below the configured minimum for that driver name.
+     * Connections that do not report a driver name or version are considered valid.
+     */
+    public static final ClientDriverVersionGuardrail minimumClientDriverVersion =
+    new ClientDriverVersionGuardrail(
+            state -> CONFIG_PROVIDER.getOrCreate(state).getMinimumClientDriverVersionsWarned(),
+            state -> CONFIG_PROVIDER.getOrCreate(state).getMinimumClientDriverVersionsDisallowed());
+
+    /**
      * Guardrail on passwords for CREATE / ALTER ROLE statements.
      */
     public static final PasswordPolicyGuardrail passwordPolicy =
@@ -602,6 +614,12 @@ public final class Guardrails implements GuardrailsMBean
                      (isWarning, what, value, threshold) ->
                      format("The keyspace %s has a replication factor of %s, below the %s threshold of %s.",
                             what, value, isWarning ? "warning" : "failure", threshold));
+
+    /**
+     * Guardrail on the minimum CMS size (aggregate replication factor across DCs).
+     */
+    public static final CMSSizeGuardrail minimumCmsSize =
+    new CMSSizeGuardrail(state -> CONFIG_PROVIDER.getOrCreate(state).getMinimumCmsSizeFailThreshold());
 
     /**
      * Guardrail on the maximum replication factor.
@@ -655,6 +673,18 @@ public final class Guardrails implements GuardrailsMBean
                             what, value, isWarning ? "warning" : "failure", threshold));
 
     /**
+     * Guardrail on the size of a blob term written to SAI index.
+     */
+    public static final MaxThreshold saiBlobTermSize =
+    new MaxThreshold("sai_blob_term_size",
+                     null,
+                     state -> sizeToBytes(CONFIG_PROVIDER.getOrCreate(state).getSaiBlobTermSizeWarnThreshold()),
+                     state -> sizeToBytes(CONFIG_PROVIDER.getOrCreate(state).getSaiBlobTermSizeFailThreshold()),
+                     (isWarning, what, value, threshold) ->
+                     format("Value of column '%s' has size %s, this exceeds the %s threshold of %s.",
+                            what, value, isWarning ? "warning" : "failure", threshold));
+
+    /**
      * Guardrail on the size of a frozen term written to SAI index.
      */
     public static final MaxThreshold saiFrozenTermSize =
@@ -684,7 +714,7 @@ public final class Guardrails implements GuardrailsMBean
                    state -> CONFIG_PROVIDER.getOrCreate(state).getNonPartitionRestrictedQueryEnabled(),
                    "Non-partition key restricted query");
 
-    public static EnableFlag unsetTrainingMinFrequency =
+    public static final EnableFlag unsetTrainingMinFrequency =
     new EnableFlag("unset_training_min_frequency_enabled",
                    format("Table uses ZstdDictionaryCompressor without %s set. Unlimited training frequency may degrade " +
                           "compression quality and accumulate dictionaries in %s.%s. " +
@@ -696,6 +726,19 @@ public final class Guardrails implements GuardrailsMBean
                    state -> CONFIG_PROVIDER.getOrCreate(state).getUnsetTrainingMinFrequencyWarned(),
                    state -> CONFIG_PROVIDER.getOrCreate(state).getUnsetTrainingMinFrequencyEnabled(),
                    "unset minimum frequency of training for dictionary compressor");
+
+    public static final PreparedStatementParameterRequirementGuardrail preparedStatementsRequireParameters =
+    new PreparedStatementParameterRequirementGuardrail();
+
+    public static final MaxThreshold zstdCompressionLevelThreshold =
+    new MaxThreshold("zstd_compression_level",
+                     "Higher Zstd compression levels have detrimental " +
+                     "effects on CPU and memory usage while yielding almost no improvement on compression ratio.",
+                     state -> CONFIG_PROVIDER.getOrCreate(state).getZstdCompressionLevelWarnThreshold(),
+                     state -> CONFIG_PROVIDER.getOrCreate(state).getZstdCompressionLevelFailThreshold(),
+                     (isWarning, what, value, threshold) ->
+                     format("Value of Zstd compression level is '%s', this exceeds the %s threshold of %s.",
+                            value, isWarning ? "warning" : "failure", threshold));
 
     private Guardrails()
     {
@@ -1656,6 +1699,18 @@ public final class Guardrails implements GuardrailsMBean
     }
 
     @Override
+    public int getMinimumCmsSizeFailThreshold()
+    {
+        return DEFAULT_CONFIG.getMinimumCmsSizeFailThreshold();
+    }
+
+    @Override
+    public void setMinimumCmsSizeFailThreshold(int fail)
+    {
+        DEFAULT_CONFIG.setMinimumCmsSizeFailThreshold(fail);
+    }
+
+    @Override
     public boolean getZeroTTLOnTWCSEnabled()
     {
         return DEFAULT_CONFIG.getZeroTTLOnTWCSEnabled();
@@ -1751,6 +1806,26 @@ public final class Guardrails implements GuardrailsMBean
     public void setSaiStringTermSizeThreshold(@Nullable String warnSize, @Nullable String failSize)
     {
         DEFAULT_CONFIG.setSaiStringTermSizeThreshold(sizeFromString(warnSize), sizeFromString(failSize));
+    }
+
+    @Override
+    @Nullable
+    public String getSaiBlobTermSizeWarnThreshold()
+    {
+        return sizeToString(DEFAULT_CONFIG.getSaiBlobTermSizeWarnThreshold());
+    }
+
+    @Override
+    @Nullable
+    public String getSaiBlobTermSizeFailThreshold()
+    {
+        return sizeToString(DEFAULT_CONFIG.getSaiBlobTermSizeFailThreshold());
+    }
+
+    @Override
+    public void setSaiBlobTermSizeThreshold(@Nullable String warnSize, @Nullable String failSize)
+    {
+        DEFAULT_CONFIG.setSaiBlobTermSizeThreshold(sizeFromString(warnSize), sizeFromString(failSize));
     }
 
     @Override
@@ -1851,6 +1926,104 @@ public final class Guardrails implements GuardrailsMBean
     public boolean getUnsetTrainingMinFrequencyEnabled()
     {
         return DEFAULT_CONFIG.getUnsetTrainingMinFrequencyEnabled();
+    }
+
+    @Override
+    public String getMinimumClientDriverVersionsWarned()
+    {
+        try
+        {
+            return JsonUtils.JSON_OBJECT_MAPPER.writeValueAsString(DEFAULT_CONFIG.getMinimumClientDriverVersionsWarned());
+        }
+        catch (Throwable t)
+        {
+            throw new RuntimeException("Unable to serialize minimum_client_driver_versions_warned configuration: " + t.getMessage());
+        }
+    }
+
+    @Override
+    public String getMinimumClientDriverVersionsDisallowed()
+    {
+        try
+        {
+            return JsonUtils.JSON_OBJECT_MAPPER.writeValueAsString(DEFAULT_CONFIG.getMinimumClientDriverVersionsDisallowed());
+        }
+        catch (Throwable t)
+        {
+            throw new RuntimeException("Unable to serialize minimum_client_driver_versions_disallowed configuration: " + t.getMessage());
+        }
+    }
+
+    @Override
+    public void setMinimumClientDriverVersionsWarned(String value)
+    {
+        try
+        {
+            Map<String, String> map = JsonUtils.JSON_OBJECT_MAPPER.readValue(value, new TypeReference<>() {});
+            GuardrailsOptions.validateAndSanitizeClientDriverVersions(map, "minimum_client_driver_versions_warned");
+            DEFAULT_CONFIG.setMinimumClientDriverVersionsWarned(map);
+        }
+        catch (JsonProcessingException t)
+        {
+            throw new RuntimeException("Unable to deserialize payload for minimum_client_driver_versions_warned: " + t.getMessage());
+        }
+    }
+
+    @Override
+    public void setMinimumClientDriverVersionsDisallowed(String value)
+    {
+        try
+        {
+            Map<String, String> map = JsonUtils.JSON_OBJECT_MAPPER.readValue(value, new TypeReference<>() {});
+            GuardrailsOptions.validateAndSanitizeClientDriverVersions(map, "minimum_client_driver_versions_disallowed");
+            DEFAULT_CONFIG.setMinimumClientDriverVersionsDisallowed(map);
+        }
+        catch (JsonProcessingException t)
+        {
+            throw new RuntimeException("Unable to deserialize minimum_client_driver_versions_disallowed: " + t.getMessage());
+        }
+    }
+
+    @Override
+    public boolean getPreparedStatementsRequireParametersWarned()
+    {
+        return DEFAULT_CONFIG.getPreparedStatementsRequireParametersWarned();
+    }
+
+    @Override
+    public boolean getPreparedStatementsRequireParametersEnabled()
+    {
+        return DEFAULT_CONFIG.getPreparedStatementsRequireParametersEnabled();
+    }
+
+    @Override
+    public void setPreparedStatementsRequireParametersWarned(boolean warned)
+    {
+        DEFAULT_CONFIG.setPreparedStatementsRequireParametersWarned(warned);
+    }
+
+    @Override
+    public void setPreparedStatementsRequireParametersEnabled(boolean enabled)
+    {
+        DEFAULT_CONFIG.setPreparedStatementsRequireParametersEnabled(enabled);
+    }
+
+    @Override
+    public int getZstdCompressionLevelWarnThreshold()
+    {
+        return DEFAULT_CONFIG.getZstdCompressionLevelWarnThreshold();
+    }
+
+    @Override
+    public int getZstdCompressionLevelFailThreshold()
+    {
+        return DEFAULT_CONFIG.getZstdCompressionLevelFailThreshold();
+    }
+
+    @Override
+    public void setZstdCompressionLevelThreshold(int warn, int fail)
+    {
+        DEFAULT_CONFIG.setZstdCompressionLevelThreshold(warn, fail);
     }
 
     private static String toCSV(Set<String> values)

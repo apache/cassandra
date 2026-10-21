@@ -22,6 +22,7 @@ import java.util.UUID;
 
 import org.apache.cassandra.cql3.CQL3Type;
 import org.apache.cassandra.cql3.Duration;
+import org.apache.cassandra.cql3.FunctionContext;
 import org.apache.cassandra.cql3.terms.Constants;
 import org.apache.cassandra.cql3.terms.Term;
 import org.apache.cassandra.serializers.MarshalException;
@@ -32,14 +33,13 @@ import org.apache.cassandra.utils.bytecomparable.ByteSource;
 import org.apache.cassandra.utils.bytecomparable.ByteSourceInverse;
 
 import static java.util.concurrent.TimeUnit.MILLISECONDS;
-import static org.apache.cassandra.utils.TimeUUID.Generator.nextTimeUUIDAsBytes;
 
 // Fully compatible with UUID, and indeed is interpreted as UUID for UDF
 public abstract class AbstractTimeUUIDType<T> extends TemporalType<T>
 {
     AbstractTimeUUIDType()
     {
-        super(ComparisonType.CUSTOM);
+        super(ComparisonType.CUSTOM, 16);
     } // singleton
 
     @Override
@@ -194,12 +194,6 @@ public abstract class AbstractTimeUUIDType<T> extends TemporalType<T>
     }
 
     @Override
-    public int valueLengthIfFixed()
-    {
-        return 16;
-    }
-
-    @Override
     public long toTimeInMillis(ByteBuffer value)
     {
         return TimeUUID.deserialize(value).unix(MILLISECONDS);
@@ -218,9 +212,9 @@ public abstract class AbstractTimeUUIDType<T> extends TemporalType<T>
     }
 
     @Override
-    public ByteBuffer now()
+    public ByteBuffer now(FunctionContext context)
     {
-        return ByteBuffer.wrap(nextTimeUUIDAsBytes());
+        return ByteBuffer.wrap(context.nextTimeUUIDAsBytes());
     }
 
     @Override

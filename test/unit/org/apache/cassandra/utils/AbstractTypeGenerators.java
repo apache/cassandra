@@ -94,6 +94,7 @@ import org.apache.cassandra.db.marshal.StringType;
 import org.apache.cassandra.db.marshal.TimeType;
 import org.apache.cassandra.db.marshal.TimeUUIDType;
 import org.apache.cassandra.db.marshal.TimestampType;
+import org.apache.cassandra.db.marshal.TimestampUtf8Type;
 import org.apache.cassandra.db.marshal.TokenUtf8Type;
 import org.apache.cassandra.db.marshal.TupleType;
 import org.apache.cassandra.db.marshal.TxnIdUtf8Type;
@@ -126,6 +127,7 @@ public final class AbstractTypeGenerators
                                                                                                 .put(FrozenType.class, "Fake class only used during parsing... the parsing creates this and the real type under it, then this gets swapped for the real type")
                                                                                                 .put(TxnIdUtf8Type.class, "Used only internally by accord debug virtual tables - could be tested, but class initialisation order prevents easy reuse of the relevant type generators")
                                                                                                 .put(TokenUtf8Type.class, "Used only internally by accord debug virtual tables - could be tested, but class initialisation order prevents easy reuse of the relevant type generators")
+                                                                                                .put(TimestampUtf8Type.class, "Used only internally by accord debug virtual tables - could be tested, but class initialisation order prevents easy reuse of the relevant type generators")
                                                                                                 .build();
 
     /**
@@ -826,16 +828,19 @@ public final class AbstractTypeGenerators
         return userTypeGen(elementGen, sizeGen, ksGen, nameGen, BOOLEAN_GEN);
     }
 
-    private static ThreadLocal<String> OVERRIDE_KEYSPACE = new ThreadLocal<>();
+    private static final ThreadLocal<String> OVERRIDE_KEYSPACE = new ThreadLocal<>();
+    private static final ThreadLocal<Set<String>> SEEN_UDT_NAMES = new ThreadLocal<>();
 
     public static void overrideUDTKeyspace(String ks)
     {
         OVERRIDE_KEYSPACE.set(ks);
+        SEEN_UDT_NAMES.set(new HashSet<>());
     }
 
     public static void clearUDTKeyspace()
     {
         OVERRIDE_KEYSPACE.remove();
+        SEEN_UDT_NAMES.remove();
     }
 
     public interface UserTypeFieldsGen
@@ -874,7 +879,11 @@ public final class AbstractTypeGenerators
             String ks = OVERRIDE_KEYSPACE.get();
             if (ks == null)
                 ks = ksGen.generate(rnd);
-            String name = nameGen.generate(rnd);
+            Set<String> seenNames = SEEN_UDT_NAMES.get();
+            Gen<String> localNameGen = nameGen;
+            if (seenNames != null)
+                localNameGen = Generators.filter(nameGen, seenNames::add);
+            String name = localNameGen.generate(rnd);
             ByteBuffer nameBB = AsciiType.instance.decompose(name);
 
             for (int i = 0; i < numElements; i++)

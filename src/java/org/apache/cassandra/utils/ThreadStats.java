@@ -46,6 +46,11 @@ public class ThreadStats
         threadMxBean = threadMxBeanToInit;
     }
 
+    public static boolean isThreadAllocatedMemorySupported()
+    {
+        return threadMxBean != null && threadMxBean.isThreadAllocatedMemorySupported();
+    }
+
     public static long getCurrentThreadCpuTimeNano()
     {
         return threadMxBean == null || !threadMxBean.isCurrentThreadCpuTimeSupported()

@@ -20,6 +20,15 @@
          xmlns:if="ant:if" xmlns:unless="ant:unless">
 
     <property name="async-profiler.version" value="2.9"/>
+
+    <!-- TODO https://issues.apache.org/jira/browse/CASSANDRA-18873 -->
+    <!-- Blacklist of broken benchmarks -->
+    <property name="microbench.exclude.pattern" value="AtomicBTreePartitionUpdateBench|BTreeSearchIteratorBench|BTreeTransformBench|BTreeUpdateBench|CompactionWideRowBench|FastThreadLocalBench|KeyLookupBench|(instance.*Bench)|LatencyTrackingBench|MessageOutBench|MutationBench|ReadWriteBench|SSTablePipeCursorBench|SSTableReadingCursorBench|SSTableReadingFileBench|SSTableReadingFileCursorBench|ZeroCopyStreamingBench"/>
+
+    <!-- JMH's -foe: stop at the first failed benchmark, with a non-zero exit.  .build/run-tests.sh sets it false,
+         to run every benchmark and report each failed one in JUnit xml, see .build/sh/jmh-junit-report.py -->
+    <property name="jmh.foe" value="true"/>
+
     <condition property="async-profiler.suffix" value="linux-arm64">
         <and>
             <os arch="aarch64"/>
@@ -49,9 +58,11 @@
         <!-- Only used to test jmh classes run without error.  Not to be used for actual performance tests -->
         <jmh>
             <extra-args>
-                <arg value="-f"/><arg value="1"/>
-                <arg value="-wi"/><arg value="0"/>
-                <arg value="-i"/><arg value="1"/>
+                <arg value="-f"/><arg value="1"/>    <!-- forks -->
+                <arg value="-wi"/><arg value="0"/>   <!-- warmup iterations -->
+                <arg value="-i"/><arg value="1"/>    <!-- fork -->
+                <arg value="-r"/><arg value="1"/>    <!-- measurement iteration time -->
+                <arg value="-t"/><arg value="1"/>    <!-- threads -->
             </extra-args>
         </jmh>
     </target>
@@ -81,6 +92,7 @@
     <macrodef name="jmh">
         <element name="extra-args" optional="true"/>
         <sequential>
+            <mkdir dir="${build.test.output.dir}"/>
             <java classname="org.openjdk.jmh.Main" fork="true" failonerror="true" >
                 <classpath>
                     <path refid="cassandra.classpath.test"/>
@@ -93,17 +105,18 @@
                 <jvmarg line="${java-jvmargs}"/>
                 <jvmarg line="${_std-test-jvmargs}"/>
                 <jvmarg line="${test.jvm.args}"/>
+                <jvmarg line="-XX:+UnlockDiagnosticVMOptions -XX:+DebugNonSafepoints"/>
 
                 <!-- total memory must fit within the pod constraints, see comments in .jenkins/Jenkinsfile and dind's container resourceRequestMemory in .jenkins/k8s/jenkins-deployment.yaml -->
                 <!-- note! this is used for both the JMH runner and VMH fork -->
                 <jvmarg value="-Xmx1G"/>
 
                 <arg value="-foe"/>
-                <arg value="true"/>
+                <arg value="${jmh.foe}"/>
                 <arg value="-rf"/>
                 <arg value="json"/>
                 <arg value="-rff"/>
-                <arg value="${build.test.dir}/jmh-result.json"/>
+                <arg value="${build.test.output.dir}/jmh-result.json"/>
                 <arg value="-v"/>
                 <arg value="EXTRA"/>
 
@@ -111,10 +124,9 @@
 
                 <extra-args/>
 
-                <!-- TODO https://issues.apache.org/jira/browse/CASSANDRA-18873 -->
-                <!-- The classes listed below are broken, and so currently ignored, see CASSANDRA-18873 -->
+                <!-- Exclude broken, see CASSANDRA-18873 -->
                 <arg value="-e" if:blank="${benchmark.name}"/>
-                <arg value="AtomicBTreePartitionUpdateBench|BTreeSearchIteratorBench|BTreeTransformBench|BTreeUpdateBench|CompactionWideRowBench|FastThreadLocalBench|KeyLookupBench|(instance.*Bench)|LatencyTrackingBench|MessageOutBench|MutationBench|ReadWriteBench|SSTablePipeCursorBench|SSTableReadingCursorBench|SSTableReadingFileBench|SSTableReadingFileCursorBench|ZeroCopyStreamingBench" if:blank="${benchmark.name}"/>
+                <arg value="${microbench.exclude.pattern}" if:blank="${benchmark.name}"/>
 
                 <arg value=".*microbench.*${benchmark.name}"/>
             </java>

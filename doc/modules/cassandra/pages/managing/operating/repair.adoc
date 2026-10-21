@@ -1,6 +1,6 @@
 = Repair
 
-Cassandra is designed to remain available if one of it's nodes is down
+Cassandra is designed to remain available if one of its nodes is down
 or unreachable. However, when a node is down or unreachable, it needs to
 eventually discover the writes it missed. Hints attempt to inform a node
 of missed writes, but are a best effort, and aren't guaranteed to inform
@@ -104,7 +104,7 @@ providing enough slack to allow for delays.
   default, incremental repairs are estimated, add the `--full` flag to
   estimate a full repair.
 `-vd, --validate`::
-  Verifies that the repaired data is the same across all nodes. Similiar
+  Verifies that the repaired data is the same across all nodes. Similar
   to `--preview`, this builds and compares merkle trees of repaired
   data, but doesn't do any streaming. This is useful for
   troubleshooting. If this shows that the repaired data is out of sync,

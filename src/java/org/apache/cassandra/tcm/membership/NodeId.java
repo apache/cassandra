@@ -32,6 +32,7 @@ import org.apache.cassandra.tcm.serialization.Version;
 
 public class NodeId implements Comparable<NodeId>, MultiStepOperation.SequenceKey
 {
+    public static final NodeId UNREGISTERED = new NodeId(-1);
     private final static long NODE_ID_UUID_MAGIC = 7861390860069061072L;
     public static final Serializer serializer = new Serializer();
 

@@ -52,12 +52,12 @@ import org.apache.cassandra.streaming.StreamOperation;
 import org.apache.cassandra.streaming.StreamResultFuture;
 import org.apache.cassandra.tcm.ClusterMetadata;
 import org.apache.cassandra.tcm.ownership.DataPlacement;
-import org.apache.cassandra.tcm.ownership.DataPlacements;
 import org.apache.cassandra.tcm.ownership.MovementMap;
 import org.apache.cassandra.utils.concurrent.Future;
 import org.apache.cassandra.utils.concurrent.FutureCombiner;
 import org.apache.cassandra.utils.concurrent.UncheckedInterruptedException;
 
+import static org.apache.cassandra.schema.SchemaConstants.METADATA_KEYSPACE_NAME;
 import static org.apache.cassandra.utils.FBUtilities.getBroadcastAddressAndPort;
 
 public class Rebuild
@@ -232,21 +232,23 @@ public class Rebuild
     private static MovementMap movementMap(ClusterMetadata metadata, String keyspace, String tokens)
     {
         MovementMap.Builder movementMapBuilder = MovementMap.builder();
-        DataPlacements placements = metadata.placements;
         if (keyspace == null)
         {
-            placements.forEach((params, placement) -> movementMapBuilder.put(params, addMovementsForParams(placement, null)));
+            metadata.placements().forEach((params, placement) -> movementMapBuilder.put(params, addMovementsForParams(placement, null)));
+            // Special case to include the system metadata keyspace
+            ReplicationParams metaParams = Keyspace.open(METADATA_KEYSPACE_NAME).getMetadata().params.replication;
+            movementMapBuilder.put(metaParams, addMovementsForParams(metadata.placement(metaParams), null));
         }
         else if (tokens == null)
         {
             ReplicationParams params = Keyspace.open(keyspace).getMetadata().params.replication;
-            movementMapBuilder.put(params, addMovementsForParams(placements.get(params), null));
+            movementMapBuilder.put(params, addMovementsForParams(metadata.placement(params), null));
         }
         else
         {
             ReplicationParams params = Keyspace.open(keyspace).getMetadata().params.replication;
             RangesAtEndpoint ranges = rangesForRebuildWithTokens(tokens, keyspace);
-            movementMapBuilder.put(params, addMovementsForParams(placements.get(params), ranges));
+            movementMapBuilder.put(params, addMovementsForParams(metadata.placement(params), ranges));
         }
         return movementMapBuilder.build();
     }

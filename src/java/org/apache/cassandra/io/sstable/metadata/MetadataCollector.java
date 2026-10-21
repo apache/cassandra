@@ -18,7 +18,6 @@
 package org.apache.cassandra.io.sstable.metadata;
 
 import java.nio.ByteBuffer;
-import java.util.Collections;
 import java.util.EnumMap;
 import java.util.Map;
 import java.util.UUID;
@@ -43,6 +42,7 @@ import org.apache.cassandra.db.marshal.AbstractType;
 import org.apache.cassandra.db.partitions.PartitionStatisticsCollector;
 import org.apache.cassandra.db.rows.ArrayCell;
 import org.apache.cassandra.db.rows.Cell;
+import org.apache.cassandra.db.rows.CellLivenessInfo;
 import org.apache.cassandra.db.rows.NativeCell;
 import org.apache.cassandra.db.rows.Unfiltered;
 import org.apache.cassandra.io.sstable.ClusteringDescriptor;
@@ -57,6 +57,8 @@ import org.apache.cassandra.utils.MurmurHash;
 import org.apache.cassandra.utils.TimeUUID;
 import org.apache.cassandra.utils.streamhist.StreamingTombstoneHistogramBuilder;
 import org.apache.cassandra.utils.streamhist.TombstoneHistogram;
+
+import static org.apache.cassandra.db.marshal.AbstractType.EMPTY_ABSTRACT_TYPE_ARRAY;
 
 public class MetadataCollector implements PartitionStatisticsCollector
 {
@@ -96,7 +98,7 @@ public class MetadataCollector implements PartitionStatisticsCollector
                                  NO_COMPRESSION_RATIO,
                                  defaultTombstoneDropTimeHistogram(),
                                  0,
-                                 Collections.emptyList(),
+                                 EMPTY_ABSTRACT_TYPE_ARRAY,
                                  Slice.ALL,
                                  true,
                                  ActiveRepairService.UNREPAIRED_SSTABLE,
@@ -169,7 +171,7 @@ public class MetadataCollector implements PartitionStatisticsCollector
     {
         this.comparator = comparator;
         this.originatingHostId = originatingHostId;
-        AbstractType<?>[] clusteringTypes = comparator.subtypes().toArray(AbstractType[]::new);
+        AbstractType<?>[] clusteringTypes = comparator.subtypes();
         this.minClusteringDescriptor = new ClusteringDescriptor(clusteringTypes).resetMaxStart();
         this.maxClusteringDescriptor = new ClusteringDescriptor(clusteringTypes).resetMinEnd();
     }
@@ -287,12 +289,24 @@ public class MetadataCollector implements PartitionStatisticsCollector
     }
 
     /**
-     * Cell level stats, if we accept that LDT and LET are the same...
+     * Cell level statistics. The local-deletion-time stat covers both a cell's
+     * {@code localDeletionTime} and a liveness's {@code localExpirationTime}.
+     *
+     * Do not delegate to {@link #update(LivenessInfo)}: that overload early-returns on
+     * {@link LivenessInfo#isEmpty()}, a ROW concept, which drops the contributions of a cell
+     * timestamped {@link LivenessInfo#NO_TIMESTAMP}.
+     *
+     * Do not delegate to {@link #update(Cell)} either: it opens with its own
+     * {@code ++currentPartitionCells}, so every cell would count twice.
      */
-    public void updateCellLiveness(LivenessInfo newInfo)
+    public void updateCellLiveness(CellLivenessInfo newInfo)
     {
         ++currentPartitionCells;
-        update(newInfo);
+        updateTimestamp(newInfo.timestamp());
+        updateTTL(newInfo.ttl());
+        updateLocalDeletionTime(newInfo.localDeletionTime());
+        if (!newInfo.isLive(nowInSec))
+            updateTombstoneCount();
     }
 
     public void updatePartitionDeletion(DeletionTime dt)

@@ -72,7 +72,7 @@ public class ReadSpeculationTest extends TestBaseImpl
     {
         try (Cluster cluster = builder().withNodes(3)
                                         .withConfig(config -> config.set("dynamic_snitch", false))
-                                        .withInstanceInitializer(new FixNodeOrderForReads())
+                                        .addInstanceInitializer(new FixNodeOrderForReads())
                                         .start())
         {
             cluster.forEach(instance -> instance.runOnInstance(() -> {

@@ -63,7 +63,7 @@ public class CompactionColumnTest extends SimpleCompactionTest
 
         cfs.forceBlockingFlush(ColumnFamilyStore.FlushReason.USER_FORCED);
 
-        cfs.forceMajorCompaction();
+        majorCompact(cfs);
         SSTableReader sstable = cfs.getLiveSSTables().iterator().next();
         verifyAndPrint(cfs, sstable);
         // Expected: {"table kind":"REGULAR","partition":{"key":["0"],"position":11},"rows":[{"type":"row","position":11,"clustering":[0,0],"cells":[{"name":"c1","deletion_info":{"local_delete_time":"2025-03-12T11:32:18Z"},"tstamp":"1970-01-01T00:00:00.000001Z"}]}]}
@@ -121,7 +121,7 @@ public class CompactionColumnTest extends SimpleCompactionTest
 
         cfs.forceBlockingFlush(ColumnFamilyStore.FlushReason.USER_FORCED);
 
-        cfs.forceMajorCompaction();
+        majorCompact(cfs);
         SSTableReader sstable = cfs.getLiveSSTables().iterator().next();
         verifyAndPrint(cfs, sstable);
 
@@ -196,7 +196,7 @@ public class CompactionColumnTest extends SimpleCompactionTest
 
         cfs.forceBlockingFlush(ColumnFamilyStore.FlushReason.USER_FORCED);
 
-        cfs.forceMajorCompaction();
+        majorCompact(cfs);
         SSTableReader sstable = cfs.getLiveSSTables().iterator().next();
         verifyAndPrint(cfs, sstable);
 
@@ -308,7 +308,7 @@ public class CompactionColumnTest extends SimpleCompactionTest
 
         cfs.forceBlockingFlush(ColumnFamilyStore.FlushReason.USER_FORCED);
 
-        cfs.forceMajorCompaction();
+        majorCompact(cfs);
         SSTableReader sstable = cfs.getLiveSSTables().iterator().next();
         // We expect:
         // 1,1,c1=1,c3=1
@@ -371,7 +371,7 @@ public class CompactionColumnTest extends SimpleCompactionTest
 
         cfs.forceBlockingFlush(ColumnFamilyStore.FlushReason.USER_FORCED);
 
-        cfs.forceMajorCompaction();
+        majorCompact(cfs);
         SSTableReader sstable = cfs.getLiveSSTables().iterator().next();
         verifyAndPrint(cfs, sstable);
         // Expected:{"table kind":"REGULAR","partition":{"key":["0"],"position":31},"rows":[{"type":"static_block","position":31,"cells":[{"name":"sc1","value":111,"tstamp":"1970-01-01T00:00:00.000001Z"},{"name":"sc2","value":222,"tstamp":"1970-01-01T00:00:00.000001Z"}]},{"type":"row","position":31,"clustering":[0,0],"liveness_info":{"tstamp":"1970-01-01T00:00:00.000001Z"},"cells":[{"name":"c1","deletion_info":{"local_delete_time":"2025-01-25T08:48:55Z"},"tstamp":"1970-01-01T00:00:00.000002Z"},{"name":"c2","deletion_info":{"local_delete_time":"2025-01-25T08:48:55Z"},"tstamp":"1970-01-01T00:00:00.000002Z"}]}]}
@@ -422,7 +422,7 @@ public class CompactionColumnTest extends SimpleCompactionTest
 
         cfs.forceBlockingFlush(ColumnFamilyStore.FlushReason.USER_FORCED);
 
-        cfs.forceMajorCompaction();
+        majorCompact(cfs);
         SSTableReader sstable = cfs.getLiveSSTables().iterator().next();
         verifyAndPrint(cfs, sstable);
 
@@ -475,7 +475,7 @@ public class CompactionColumnTest extends SimpleCompactionTest
         cfs.forceBlockingFlush(ColumnFamilyStore.FlushReason.USER_FORCED);
 
         Thread.sleep(2000);
-        cfs.forceMajorCompaction();
+        majorCompact(cfs);
         SSTableReader sstable = cfs.getLiveSSTables().iterator().next();
         verifyAndPrint(cfs, sstable);
         UnfilteredRowIterator partition = sstable.getScanner().next();
@@ -526,7 +526,7 @@ public class CompactionColumnTest extends SimpleCompactionTest
 
         cfs.forceBlockingFlush(ColumnFamilyStore.FlushReason.USER_FORCED);
 
-        cfs.forceMajorCompaction();
+        majorCompact(cfs);
         SSTableReader sstable = cfs.getLiveSSTables().iterator().next();
         verifyAndPrint(cfs, sstable);
         // Expected:{"table kind":"REGULAR","partition":{"key":["0"],"position":31},"rows":[{"type":"static_block","position":31,"cells":[{"name":"sc1","value":111,"tstamp":"1970-01-01T00:00:00.000001Z"},{"name":"sc2","value":222,"tstamp":"1970-01-01T00:00:00.000001Z"}]},{"type":"row","position":31,"clustering":[0,0],"liveness_info":{"tstamp":"1970-01-01T00:00:00.000001Z"},"cells":[{"name":"c1","deletion_info":{"local_delete_time":"2025-01-25T08:48:55Z"},"tstamp":"1970-01-01T00:00:00.000002Z"},{"name":"c2","deletion_info":{"local_delete_time":"2025-01-25T08:48:55Z"},"tstamp":"1970-01-01T00:00:00.000002Z"}]}]}

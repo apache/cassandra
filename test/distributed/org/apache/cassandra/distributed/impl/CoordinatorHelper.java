@@ -52,6 +52,7 @@ public class CoordinatorHelper
     {
         ClientState clientState =  makeFakeClientState();
         CQLStatement prepared = QueryProcessor.getStatement(query, clientState);
+        prepared.getPartitionKeyBindVariableIndexes();
         List<ByteBuffer> boundBBValues = new ArrayList<>();
         for (Object boundValue : boundValues)
             boundBBValues.add(ByteBufferUtil.objectToBytes(boundValue));

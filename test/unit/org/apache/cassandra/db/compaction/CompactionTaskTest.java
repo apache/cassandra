@@ -208,10 +208,14 @@ public class CompactionTaskTest
         Util.flush(gcGraceCfs);
 
         // SSTable 4 (not fully expired - col3 has longer TTL)
+        // col3 must have a higher timestamp than SSTable 3's col3 (ts 7) so it is not
+        // shadowed during compaction. col2's timestamp must stay <= 7 so that SSTable 4's
+        // minTimestamp remains <= SSTable 3's maxTimestamp, preventing SSTable 3 from being
+        // detected as fully expired.
         for (int k = 0; k < numKeys; k++)
         {
-            QueryProcessor.executeInternal("INSERT INTO ks.tbl2 (k, col3, data) VALUES (?, 1, ?) USING TIMESTAMP 6 AND TTL 3", k, data);
-            QueryProcessor.executeInternal("INSERT INTO ks.tbl2 (k, col2, data) VALUES (?, 1, ?) USING TIMESTAMP 8 AND TTL 1", k, data);
+            QueryProcessor.executeInternal("INSERT INTO ks.tbl2 (k, col3, data) VALUES (?, 1, ?) USING TIMESTAMP 8 AND TTL 3", k, data);
+            QueryProcessor.executeInternal("INSERT INTO ks.tbl2 (k, col2, data) VALUES (?, 1, ?) USING TIMESTAMP 6 AND TTL 1", k, data);
         }
         Util.flush(gcGraceCfs);
 

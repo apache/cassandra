@@ -25,6 +25,7 @@ import java.util.Optional;
 import org.junit.Test;
 import org.mindrot.jbcrypt.BCrypt;
 
+import org.apache.cassandra.auth.CassandraRoleManager;
 import org.apache.cassandra.exceptions.SyntaxException;
 import org.apache.cassandra.transport.messages.ResultMessage;
 
@@ -40,6 +41,7 @@ public class GuardrailPasswordPolicyTest extends AbstractGenerationalTest
     @Test
     public void testPasswordGuardrail() throws Throwable
     {
+        CassandraRoleManager.updatePasswordUpdateMinInterval(0);
         // test that by default there is no password guardrail by creating a user with some invalid password
         executeRoleStatement(true, "role1", "abcdefgh", false, null, null, true);
 

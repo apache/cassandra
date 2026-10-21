@@ -19,6 +19,7 @@ package org.apache.cassandra.utils;
 
 import java.io.FileNotFoundException;
 import java.net.SocketException;
+import java.nio.channels.ClosedByInterruptException;
 import java.nio.file.FileSystemException;
 import java.util.ArrayList;
 import java.util.List;
@@ -73,7 +74,9 @@ public final class JVMStabilityInspector
         try { StorageMetrics.uncaughtExceptions.inc(); } catch (Throwable ignore) { /* might not be initialised */ }
         logger.error("Exception in thread {}", thread, t);
         Tracing.trace("Exception in thread {}", thread, t);
-        ExceptionsTable.persist(t);
+        // Recording the exception for observability must never preempt the stability handling below (the
+        // disk_failure_policy / OOM "die" actions in inspectThrowable). Guard it like the StorageMetrics increment above.
+        try { ExceptionsTable.persist(t); } catch (Throwable ignore) { /* observability only, must not throw here */ }
         for (Throwable t2 = t; t2 != null; t2 = t2.getCause())
         {
             // make sure error gets logged exactly once.
@@ -158,7 +161,7 @@ public final class JVMStabilityInspector
             throw (UncheckedInterruptedException)t;
 
         if (DatabaseDescriptor.getDiskFailurePolicy() == Config.DiskFailurePolicy.die)
-            if (t instanceof FSError || t instanceof CorruptSSTableException)
+            if ((t instanceof FSError || t instanceof CorruptSSTableException) && !(t.getCause() instanceof ClosedByInterruptException))
                 isUnstable = true;
 
         // Check for file handle exhaustion

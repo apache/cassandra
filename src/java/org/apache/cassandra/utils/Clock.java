@@ -17,9 +17,12 @@
  */
 package org.apache.cassandra.utils;
 
+import java.time.Instant;
 import java.util.concurrent.TimeUnit;
 
 import org.slf4j.Logger;
+
+import accord.utils.Invariants;
 
 import static org.apache.cassandra.config.CassandraRelevantProperties.CLOCK_GLOBAL;
 import static org.apache.cassandra.utils.Shared.Scope.SIMULATION;
@@ -60,7 +63,7 @@ public interface Clock
                 try
                 {
                     outcome = "Using custom clock implementation: " + classname;
-                    clock = (Clock) Class.forName(classname).newInstance();
+                    clock = FBUtilities.construct(classname, "clock", Clock.class);
                 }
                 catch (Throwable t)
                 {
@@ -109,6 +112,20 @@ public interface Clock
         }
 
         /**
+         * Semantically equivalent to {@link System#currentTimeMillis()},
+         * but yields a time with microseconds granularity
+         */
+        public static long currentTimeMicros()
+        {
+            return instance.currentTimeMicros();
+        }
+
+        public static Instant currentTime()
+        {
+            return instance.currentTime();
+        }
+
+        /**
          * Semantically equivalent to {@link FBUtilities#nowInSeconds()}
          */
         public static long nowInSeconds()
@@ -134,6 +151,24 @@ public interface Clock
         {
             return System.currentTimeMillis(); // checkstyle: permit system clock
         }
+
+        @Override
+        public long currentTimeMicros()
+        {
+            Instant now = currentTime();
+            long seconds = now.getEpochSecond();
+            long nanos = now.getNano();
+            Invariants.require(seconds >= 0);
+            long micros = Math.multiplyExact(seconds, 1000_000);
+            micros = Math.addExact(micros, nanos/1000);
+            return micros;
+        }
+
+        @Override
+        public Instant currentTime()
+        {
+            return Instant.now(); // checkstyle: permit this invocation
+        }
     }
 
     /**
@@ -145,6 +180,16 @@ public interface Clock
      * Semantically equivalent to {@link System#currentTimeMillis()}
      */
     public long currentTimeMillis();
+
+    public default long currentTimeMicros()
+    {
+        return currentTimeMillis() * 1000L;
+    }
+
+    public default Instant currentTime()
+    {
+        return Instant.ofEpochMilli(currentTimeMillis());
+    }
 
     public default long nowInSeconds()
     {

@@ -17,7 +17,6 @@
  */
 package org.apache.cassandra.journal;
 
-import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.List;
@@ -29,6 +28,7 @@ import org.slf4j.LoggerFactory;
 
 import org.apache.cassandra.concurrent.ScheduledExecutorPlus;
 import org.apache.cassandra.concurrent.Shutdownable;
+import org.apache.cassandra.journal.SegmentCompactor.Stopped;
 import org.apache.cassandra.utils.concurrent.WaitQueue;
 
 import static org.apache.cassandra.concurrent.ExecutorFactory.Global.executorFactory;
@@ -100,9 +100,9 @@ public final class Compactor<K, V> implements Runnable, Shutdownable
 
             compacted.signalAll();
         }
-        catch (IOException e)
+        catch (Stopped e)
         {
-            throw new RuntimeException("Could not compact segments: " + toCompact);
+            logger.info("Cancelling compaction of {}", toCompact);
         }
     }
 
@@ -116,13 +116,18 @@ public final class Compactor<K, V> implements Runnable, Shutdownable
     public void shutdown()
     {
         logger.debug("Shutting down " + executor);
+        if (scheduled != null)
+            scheduled.cancel(false);
+        segmentCompactor.stop();
         executor.shutdown();
     }
 
     @Override
     public Object shutdownNow()
     {
-        return executor.shutdownNow();
+        // if we call executor.shutdownNow() we can cause ClosedByInterruptException
+        shutdown();
+        return null;
     }
 
     @Override

@@ -119,6 +119,23 @@ public class Info extends AbstractCommand
                 probe.getCacheMetric("CounterCache", "HitRate"),
                 cacheService.getCounterCacheSavePeriodInSeconds());
 
+        // Prepared Stmt Cache: entries, size, capacity, executions, evictions
+        try
+        {
+            out.printf("%-23s: entries %d, size %s, capacity %s, %d executions, %d evictions%n",
+                       "Prepared Stmt Cache",
+                       probe.getCQLMetric("PreparedStatementsCount"),
+                       FileUtils.stringifyFileSize((long) probe.getCQLMetric("PreparedStatementsCacheSize")),
+                       FileUtils.stringifyFileSize((long) probe.getCQLMetric("PreparedStatementsCacheCapacity")),
+                       probe.getCQLMetric("PreparedStatementsExecuted"),
+                       probe.getCQLMetric("PreparedStatementsEvicted"));
+        }
+        catch (RuntimeException e)
+        {
+            if (!(e.getCause() instanceof InstanceNotFoundException))
+                throw e;
+        }
+
         // Chunk Cache: Hits, Requests, RecentHitRate, SavePeriodInSeconds
         try
         {

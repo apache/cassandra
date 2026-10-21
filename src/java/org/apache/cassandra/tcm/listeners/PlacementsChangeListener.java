@@ -18,23 +18,41 @@
 
 package org.apache.cassandra.tcm.listeners;
 
+import com.google.common.annotations.VisibleForTesting;
+
 import org.apache.cassandra.schema.KeyspaceMetadata;
 import org.apache.cassandra.service.StorageService;
 import org.apache.cassandra.tcm.ClusterMetadata;
 
 public class PlacementsChangeListener implements ChangeListener
 {
+    private final Runnable onChange;
+
+    @VisibleForTesting
+    public PlacementsChangeListener(Runnable onChange)
+    {
+        this.onChange = onChange;
+    }
+
+    public PlacementsChangeListener()
+    {
+        this(StorageService.instance::invalidateLocalRanges);
+    }
+
     @Override
     public void notifyPostCommit(ClusterMetadata prev, ClusterMetadata next, boolean fromSnapshot)
     {
         if (shouldInvalidate(prev, next))
-            StorageService.instance.invalidateLocalRanges();
+            onChange.run();
     }
 
     private boolean shouldInvalidate(ClusterMetadata prev, ClusterMetadata next)
     {
-        if (!prev.placements.lastModified().equals(next.placements.lastModified()) &&
-            !prev.placements.equivalentTo(next.placements)) // <- todo should we update lastModified if the result is the same?
+        if (!prev.placements().lastModified().equals(next.placements().lastModified()) &&
+            !prev.placements().equivalentTo(next.placements())) // <- todo should we update lastModified if the result is the same?
+            return true;
+
+        if (!prev.cmsMembership.equals(next.cmsMembership))
             return true;
 
         if (prev.schema.getKeyspaces().size() != next.schema.getKeyspaces().size())

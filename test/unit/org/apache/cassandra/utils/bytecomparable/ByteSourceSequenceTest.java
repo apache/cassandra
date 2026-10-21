@@ -20,7 +20,6 @@ package org.apache.cassandra.utils.bytecomparable;
 import java.math.BigDecimal;
 import java.math.BigInteger;
 import java.nio.ByteBuffer;
-import java.util.Arrays;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.Random;
@@ -298,35 +297,35 @@ public class ByteSourceSequenceTest
     private static final IntegerType VARINT = IntegerType.instance;
 
     // A regular comparator using the natural ordering for all types.
-    private static final ClusteringComparator COMP = new ClusteringComparator(Arrays.asList(
+    private static final ClusteringComparator COMP = new ClusteringComparator(
             UTF8,
             DECIMAL,
             VARINT
-    ));
+    );
     // A comparator that reverses the ordering for the first unknown length type
-    private static final ClusteringComparator COMP_REVERSED_UNKNOWN_LENGTH = new ClusteringComparator(Arrays.asList(
+    private static final ClusteringComparator COMP_REVERSED_UNKNOWN_LENGTH = new ClusteringComparator(
             ReversedType.getInstance(UTF8),
             DECIMAL,
             VARINT
-    ));
+    );
     // A comparator that reverses the ordering for the second unknown length type
-    private static final ClusteringComparator COMP_REVERSED_UNKNOWN_LENGTH_2 = new ClusteringComparator(Arrays.asList(
+    private static final ClusteringComparator COMP_REVERSED_UNKNOWN_LENGTH_2 = new ClusteringComparator(
             UTF8,
             ReversedType.getInstance(DECIMAL),
             VARINT
-    ));
+    );
     // A comparator that reverses the ordering for the sole known/computable length type
-    private static final ClusteringComparator COMP_REVERSED_KNOWN_LENGTH = new ClusteringComparator(Arrays.asList(
+    private static final ClusteringComparator COMP_REVERSED_KNOWN_LENGTH = new ClusteringComparator(
             UTF8,
             DECIMAL,
             ReversedType.getInstance(VARINT)
-    ));
+    );
     // A comparator that reverses the ordering for all types
-    private static final ClusteringComparator COMP_ALL_REVERSED = new ClusteringComparator(Arrays.asList(
+    private static final ClusteringComparator COMP_ALL_REVERSED = new ClusteringComparator(
             ReversedType.getInstance(UTF8),
             ReversedType.getInstance(DECIMAL),
             ReversedType.getInstance(VARINT)
-    ));
+    );
 
     @Test
     public void testClusteringPrefixBoundNormalAndReversed()
@@ -536,7 +535,7 @@ public class ByteSourceSequenceTest
         AbstractType<String> reversedStringType = ReversedType.getInstance(UTF8);
         AbstractType<BigDecimal> reversedDecimalType = ReversedType.getInstance(DECIMAL);
 
-        final ClusteringComparator comparator = new ClusteringComparator(Arrays.asList(
+        final ClusteringComparator comparator = new ClusteringComparator(
                 // unknown length type
                 UTF8,
                 // known length type
@@ -545,7 +544,7 @@ public class ByteSourceSequenceTest
                 reversedStringType,
                 // reversed known length type
                 reversedDecimalType
-        ));
+        );
         ByteBuffer[] clusteringKeyValues = new ByteBuffer[] {
                 UTF8.decompose(stringValue),
                 DECIMAL.decompose(decimalValue),
@@ -553,7 +552,7 @@ public class ByteSourceSequenceTest
                 DECIMAL.decompose(decimalValue)
         };
 
-        final ClusteringComparator comparator2 = new ClusteringComparator(Arrays.asList(
+        final ClusteringComparator comparator2 = new ClusteringComparator(
                 // known length type
                 DECIMAL,
                 // unknown length type
@@ -562,7 +561,7 @@ public class ByteSourceSequenceTest
                 reversedDecimalType,
                 // reversed unknown length type
                 reversedStringType
-        ));
+        );
         ByteBuffer[] clusteringKeyValues2 = new ByteBuffer[] {
                 DECIMAL.decompose(decimalValue),
                 UTF8.decompose(stringValue),

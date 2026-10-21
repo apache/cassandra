@@ -49,10 +49,17 @@ public interface ICompressionDictionaryCache extends AutoCloseable
 
     /**
      * Stores a compression dictionary in the local cache and updates the current dictionary if the new one is newer.
+     * <p>
+     * Returns the CANONICAL cached instance for this dictionary's id: either {@code compressionDictionary}
+     * itself (when it populates the cache) or the instance already cached for the same id (when a concurrent
+     * add won the race). Callers that go on to reference the dictionary MUST use the returned instance rather
+     * than their argument — referencing a redundant "loser" instance would lazily create a selfRef the cache
+     * never owns and therefore never releases, leaking it (CASSANDRA-21047).
      *
      * @param compressionDictionary the compression dictionary to cache, may be null
+     * @return the canonical cached dictionary for this id, or null if the argument was null
      */
-    void add(@Nullable CompressionDictionary compressionDictionary);
+    CompressionDictionary add(@Nullable CompressionDictionary compressionDictionary);
 
     /**
      * Gives number of bytes cached compression dictionaries occupy in this cache.

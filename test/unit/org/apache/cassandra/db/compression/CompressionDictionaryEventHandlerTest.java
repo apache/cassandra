@@ -135,7 +135,7 @@ public class CompressionDictionaryEventHandlerTest
         AtomicReference<CompressionDictionaryUpdateMessage> capturedMessage = new AtomicReference<>();
 
         // Capture outbound messages
-        MessagingService.instance().outboundSink.add((message, to) -> {
+        MessagingService.instance().outboundSink.add((message, to, type) -> {
             if (message.verb() == Verb.DICTIONARY_UPDATE_REQ)
             {
                 capturedMessage.set((CompressionDictionaryUpdateMessage) message.payload);
@@ -213,7 +213,7 @@ public class CompressionDictionaryEventHandlerTest
     public void testSendNotificationRobustness()
     {
         // Test that sending notifications doesn't throw even if messaging fails
-        MessagingService.instance().outboundSink.add((message, to) -> {
+        MessagingService.instance().outboundSink.add((message, to, type) -> {
             if (message.verb() == Verb.DICTIONARY_UPDATE_REQ)
             {
                 throw new RuntimeException("Simulated messaging failure");

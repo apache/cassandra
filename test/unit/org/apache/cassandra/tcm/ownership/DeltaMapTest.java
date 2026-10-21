@@ -18,83 +18,93 @@
 
 package org.apache.cassandra.tcm.ownership;
 
+import java.util.Collection;
+
+import com.google.common.collect.ImmutableMultimap;
+
 import org.junit.Test;
 
 import org.apache.cassandra.dht.Range;
 import org.apache.cassandra.dht.Token;
-import org.apache.cassandra.locator.InetAddressAndPort;
-import org.apache.cassandra.locator.RangesAtEndpoint;
-import org.apache.cassandra.locator.RangesByEndpoint;
-import org.apache.cassandra.locator.Replica;
 import org.apache.cassandra.schema.ReplicationParams;
+import org.apache.cassandra.tcm.membership.NodeId;
 
-import static org.apache.cassandra.tcm.membership.MembershipUtils.endpoint;
-import static org.apache.cassandra.tcm.ownership.OwnershipUtils.emptyReplicas;
-import static org.apache.cassandra.tcm.ownership.OwnershipUtils.fullReplicas;
 import static org.apache.cassandra.tcm.ownership.OwnershipUtils.token;
-import static org.apache.cassandra.tcm.ownership.OwnershipUtils.transientReplicas;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertTrue;
 
 public class DeltaMapTest
 {
     private static final ReplicationParams key = ReplicationParams.simple(1);
-    private static final InetAddressAndPort P1 = endpoint(1);
-    private static final InetAddressAndPort P2 = endpoint(2);
-    private static final InetAddressAndPort P3 = endpoint(3);
-    private static final InetAddressAndPort P4 = endpoint(4);
+    private static final NodeId N1 = new NodeId(1);
+    private static final NodeId N2 = new NodeId(2);
+    private static final NodeId N3 = new NodeId(3);
+    private static final NodeId N4 = new NodeId(4);
     private static final Range<Token> R1 = new Range<>(token(0), token(100));
     private static final Range<Token> R2 = new Range<>(token(100), token(200));
     private static final Range<Token> R_INT = new Range<>(token(50), token(150));
-
 
     @Test
     public void mergeDisjointDeltas()
     {
         // Combine 2 Deltas with disjoint removals (and no additions), for the same ReplicationParams.
         // Verify that the resulting merged Delta contains the removals/additions from both.
-        RangesByEndpoint group1 = fullReplicas(P1, R1);
-        RangesByEndpoint group2 = fullReplicas(P2, R2);
+        ImmutableMultimap<NodeId, ReplicaNode> group1 = fullNodes(N1, R1);
+        ImmutableMultimap<NodeId, ReplicaNode> group2 = fullNodes(N2, R2);
 
-        Delta d1 = new Delta(group1, emptyReplicas());
-        Delta d2 = new Delta(group2, emptyReplicas());
+        Delta d1 = new NodeIdDelta(group1, emptyNodes());
+        Delta d2 = new NodeIdDelta(group2, emptyNodes());
         PlacementDeltas.PlacementDelta merged = PlacementDeltas.builder(1)
                                                                .put(key, new PlacementDeltas.PlacementDelta(d1, d1))
                                                                .put(key, new PlacementDeltas.PlacementDelta(d2, d2))
                                                                .build()
                                                                .get(key);
-
-        for (Delta delta : new Delta[]{ merged.reads, merged.writes })
+        for (NodeIdDelta delta : new NodeIdDelta[]{ (NodeIdDelta) merged.reads, (NodeIdDelta) merged.writes })
         {
             assertTrue(delta.additions.isEmpty());
-            assertEquals(group1.get(P1), delta.removals.get(P1));
-            assertEquals(group2.get(P2), delta.removals.get(P2));
+            assertEquals(group1.get(N1), delta.removals.get(N1));
+            assertEquals(group2.get(N2), delta.removals.get(N2));
         }
+    }
+
+    private static ImmutableMultimap<NodeId, ReplicaNode> fullNodes(NodeId nodeId, Range<Token> range)
+    {
+        return ImmutableMultimap.of(nodeId, new ReplicaNode(nodeId, range, true));
+    }
+
+    private static ImmutableMultimap<NodeId, ReplicaNode> transientNodes(NodeId nodeId, Range<Token> range)
+    {
+        return ImmutableMultimap.of(nodeId, new ReplicaNode(nodeId, range, false));
+    }
+
+    private static ImmutableMultimap<NodeId, ReplicaNode> emptyNodes()
+    {
+        return ImmutableMultimap.of();
     }
 
     @Test
     public void mergeDisjointReplicasForSameEndpoint()
     {
         // Combine 2 Deltas which both contain removals for the same endpoint, but for disjoint ranges.
-        RangesByEndpoint group1 = fullReplicas(P1, R1);
-        RangesByEndpoint group2 = fullReplicas(P1, R2);
+        ImmutableMultimap<NodeId, ReplicaNode> group1 = fullNodes(N1, R1);
+        ImmutableMultimap<NodeId, ReplicaNode> group2 = fullNodes(N1, R2);
 
-        Delta d1 = new Delta(group1, emptyReplicas());
-        Delta d2 = new Delta(group2, emptyReplicas());
+        NodeIdDelta d1 = new NodeIdDelta(group1, emptyNodes());
+        NodeIdDelta d2 = new NodeIdDelta(group2, emptyNodes());
         PlacementDeltas.PlacementDelta merged = PlacementDeltas.builder(1)
                                                                .put(key, new PlacementDeltas.PlacementDelta(d1, d1))
                                                                .put(key, new PlacementDeltas.PlacementDelta(d2, d2))
                                                                .build()
                                                                .get(key);
 
-        for (Delta delta : new Delta[]{ merged.reads, merged.writes })
+        for (NodeIdDelta delta : new NodeIdDelta[]{ (NodeIdDelta) merged.reads, (NodeIdDelta) merged.writes })
         {
             assertEquals(1, delta.removals.keySet().size());
-            RangesAtEndpoint mergedGroup = delta.removals.get(P1);
+            Collection<ReplicaNode> mergedGroup = delta.removals.get(N1);
 
             assertEquals(2, mergedGroup.size());
-            group1.flattenValues().forEach(r -> assertTrue(mergedGroup.contains(r)));
-            group2.flattenValues().forEach(r -> assertTrue(mergedGroup.contains(r)));
+            group1.values().forEach(r -> assertTrue(mergedGroup.contains(r)));
+            group2.values().forEach(r -> assertTrue(mergedGroup.contains(r)));
         }
     }
 
@@ -103,22 +113,22 @@ public class DeltaMapTest
     {
         // Combine 2 Deltas which both contain identical removals for the same endpoint.
         // Effectively a noop.
-        RangesByEndpoint group1 = fullReplicas(P1, R1);
+        ImmutableMultimap<NodeId, ReplicaNode> group1 = fullNodes(N1, R1);
 
-        Delta d1 = new Delta(group1, emptyReplicas());
-        Delta d2 = new Delta(group1, emptyReplicas());
+        Delta d1 = new NodeIdDelta(group1, emptyNodes());
+        Delta d2 = new NodeIdDelta(group1, emptyNodes());
         PlacementDeltas.PlacementDelta merged = PlacementDeltas.builder(1)
                                                                .put(key, new PlacementDeltas.PlacementDelta(d1, d1))
                                                                .put(key, new PlacementDeltas.PlacementDelta(d2, d2))
                                                                .build()
                                                                .get(key);
 
-        for (Delta delta : new Delta[]{ merged.reads, merged.writes })
+        for (NodeIdDelta delta : new NodeIdDelta[]{ (NodeIdDelta)merged.reads, (NodeIdDelta)merged.writes })
         {
             assertEquals(1, delta.removals.keySet().size());
-            RangesAtEndpoint mergedGroup = delta.removals.get(P1);
+            Collection<ReplicaNode> mergedGroup = delta.removals.get(N1);
             assertEquals(1, mergedGroup.size());
-            group1.flattenValues().forEach(r -> assertTrue(mergedGroup.contains(r)));
+            group1.values().forEach(r -> assertTrue(mergedGroup.contains(r)));
         }
     }
 
@@ -128,34 +138,34 @@ public class DeltaMapTest
         // Combine 2 Deltas which both contain replicas for a common endpoint, but with intersecting ranges.
         // TODO there isn't an obvious reason to support this, so perhaps we should be conservative and
         //      explicitly reject it
-        RangesByEndpoint group1 = fullReplicas(P1, R1);
-        RangesByEndpoint group2 = fullReplicas(P1, R_INT);
+        ImmutableMultimap<NodeId, ReplicaNode> group1 = fullNodes(N1, R1);
+        ImmutableMultimap<NodeId, ReplicaNode> group2 = fullNodes(N1, R_INT);
 
-        Delta d1 = new Delta(group1, emptyReplicas());
-        Delta d2 = new Delta(group2, emptyReplicas());
+        Delta d1 = new NodeIdDelta(group1, emptyNodes());
+        Delta d2 = new NodeIdDelta(group2, emptyNodes());
         PlacementDeltas.PlacementDelta merged = PlacementDeltas.builder(1)
                                                                .put(key, new PlacementDeltas.PlacementDelta(d1, d1))
                                                                .put(key, new PlacementDeltas.PlacementDelta(d2, d2))
                                                                .build().get(key);
 
-        for (Delta delta : new Delta[]{ merged.reads, merged.writes })
+        for (NodeIdDelta delta : new NodeIdDelta[]{ (NodeIdDelta)merged.reads, (NodeIdDelta)merged.writes })
         {
             assertEquals(1, delta.removals.keySet().size());
-            RangesAtEndpoint mergedGroup = delta.removals.get(P1);
+            Collection<ReplicaNode> mergedGroup = delta.removals.get(N1);
             assertEquals(2, mergedGroup.size());
-            group1.flattenValues().forEach(r -> assertTrue(mergedGroup.contains(r)));
-            group2.flattenValues().forEach(r -> assertTrue(mergedGroup.contains(r)));
+            group1.values().forEach(r -> assertTrue(mergedGroup.contains(r)));
+            group2.values().forEach(r -> assertTrue(mergedGroup.contains(r)));
         }
     }
 
     @Test
     public void invertSingleDelta()
     {
-        RangesByEndpoint group1 = fullReplicas(P1, R1);
-        RangesByEndpoint group2 = fullReplicas(P2, R2);
+        ImmutableMultimap<NodeId, ReplicaNode> group1 = fullNodes(N1, R1);
+        ImmutableMultimap<NodeId, ReplicaNode> group2 = fullNodes(N2, R2);
 
-        Delta d1 = new Delta(group1, group2);
-        Delta d2 = new Delta(group2, group1);
+        Delta d1 = new NodeIdDelta(group1, group2);
+        Delta d2 = new NodeIdDelta(group2, group1);
 
         assertEquals(d1, d2.invert());
         assertEquals(d2, d2.invert().invert());
@@ -164,37 +174,37 @@ public class DeltaMapTest
     @Test
     public void invertEmptyDelta()
     {
-        Delta d = Delta.empty();
+        Delta d = NodeIdDelta.empty();
         assertEquals(d, d.invert());
     }
 
     @Test
     public void invertPartiallyEmptyDelta()
     {
-        RangesByEndpoint group1 = fullReplicas(P1, R1);
-        RangesByEndpoint group2 = fullReplicas(P2, R1);
+        ImmutableMultimap<NodeId, ReplicaNode> group1 = fullNodes(N1, R1);
+        ImmutableMultimap<NodeId, ReplicaNode> group2 = fullNodes(N2, R2);
 
-        Delta additions = new Delta(emptyReplicas(), group1);
-        Delta inverted = additions.invert();
-        assertEquals(RangesByEndpoint.EMPTY, inverted.additions);
+        NodeIdDelta additions = new NodeIdDelta(emptyNodes(), group1);
+        NodeIdDelta inverted = (NodeIdDelta)additions.invert();
+        assertEquals(ImmutableMultimap.of(), inverted.additions);
         assertEquals(additions.additions, inverted.removals);
 
-        Delta removals = new Delta(group2, emptyReplicas());
-        inverted = removals.invert();
-        assertEquals(RangesByEndpoint.EMPTY, inverted.removals);
+        NodeIdDelta removals = new NodeIdDelta(group2, emptyNodes());
+        inverted = (NodeIdDelta)removals.invert();
+        assertEquals(ImmutableMultimap.of(), inverted.removals);
         assertEquals(removals.removals, inverted.additions);
     }
 
     @Test
     public void invertPlacementDelta()
     {
-        RangesByEndpoint group1 = fullReplicas(P1, R1);
-        RangesByEndpoint group2 = fullReplicas(P2, R1);
-        Delta d1 = new Delta(group1, group2);
+        ImmutableMultimap<NodeId, ReplicaNode> group1 = fullNodes(N1, R1);
+        ImmutableMultimap<NodeId, ReplicaNode> group2 = fullNodes(N2, R1);
+        Delta d1 = new NodeIdDelta(group1, group2);
 
-        RangesByEndpoint group3 = fullReplicas(P3, R1);
-        RangesByEndpoint group4 = fullReplicas(P4, R2);
-        Delta d2 = new Delta(group3, group4);
+        ImmutableMultimap<NodeId, ReplicaNode> group3 = fullNodes(N3, R1);
+        ImmutableMultimap<NodeId, ReplicaNode> group4 = fullNodes(N4, R2);
+        Delta d2 = new NodeIdDelta(group3, group4);
 
         PlacementDeltas.PlacementDelta pd1 = new PlacementDeltas.PlacementDelta(d1,d2);
         PlacementDeltas.PlacementDelta pd2 = new PlacementDeltas.PlacementDelta(d1.invert(), d2.invert());
@@ -205,13 +215,13 @@ public class DeltaMapTest
     public void testMerge()
     {
         // delta to remove transient replica and add trivial replica
-        Delta toFinal = new Delta(transientReplicas(P1, R1), fullReplicas(P1, R1));
+        NodeIdDelta toFinal = new NodeIdDelta(transientNodes(N1, R1), fullNodes(N1, R1));
         // delta to remove trivial replica
-        Delta toMerge = new Delta(fullReplicas(P1, R1), RangesByEndpoint.EMPTY);
+        NodeIdDelta toMerge = new NodeIdDelta(fullNodes(N1, R1), emptyNodes());
         // merged should contain only the transient replica removal
-        Delta merged = toMerge.merge(toFinal);
-        assertEquals(0, merged.additions.get(P1).size());
-        assertEquals(1, merged.removals.get(P1).size());
-        assertTrue(merged.removals.get(P1).contains(Replica.transientReplica(P1, R1)));
+        NodeIdDelta merged = (NodeIdDelta) toMerge.merge(toFinal);
+        assertEquals(0, merged.additions.get(N1).size());
+        assertEquals(1, merged.removals.get(N1).size());
+        assertTrue(merged.removals.get(N1).contains(new ReplicaNode(N1, R1, false)));
     }
 }

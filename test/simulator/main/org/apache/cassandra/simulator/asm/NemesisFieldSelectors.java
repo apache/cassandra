@@ -18,9 +18,9 @@
 
 package org.apache.cassandra.simulator.asm;
 
-import java.util.Collections;
 import java.util.HashMap;
 import java.util.Map;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.atomic.AtomicIntegerFieldUpdater;
 import java.util.concurrent.atomic.AtomicLongFieldUpdater;
 import java.util.concurrent.atomic.AtomicReferenceFieldUpdater;
@@ -39,10 +39,13 @@ import static org.apache.cassandra.simulator.asm.NemesisFieldKind.SIMPLE;
 /**
  * Define classes that receive special handling.
  * At present all instance methods invoked on such classes have nemesis points inserted either side of them.
+ *
+ * Tests that need nemesis behavior on fields without annotating the source class can use
+ * {@link #register(String, String, NemesisFieldKind)} to dynamically add entries.
  */
 public class NemesisFieldSelectors
 {
-    public static final Map<String, Map<String, NemesisFieldKind>> classToFieldToNemesis;
+    public static final ConcurrentHashMap<String, Map<String, NemesisFieldKind>> classToFieldToNemesis;
 
     static
     {
@@ -53,12 +56,49 @@ public class NemesisFieldSelectors
         Stream.of(AtomicIntegerFieldUpdater.class, AtomicLongFieldUpdater.class, AtomicReferenceFieldUpdater.class)
               .forEach(c -> byClass.put(c, NemesisFieldKind.ATOMICUPDATERX));
 
-        Map<String, Map<String, NemesisFieldKind>> byField = new HashMap<>();
+        ConcurrentHashMap<String, Map<String, NemesisFieldKind>> byField = new ConcurrentHashMap<>();
         new Reflections(ConfigurationBuilder.build("org.apache.cassandra").addScanners(new FieldAnnotationsScanner()))
         .getFieldsAnnotatedWith(Nemesis.class)
-        .forEach(field -> byField.computeIfAbsent(dotsToSlashes(field.getDeclaringClass()), ignore -> new HashMap<>())
+        .forEach(field -> byField.computeIfAbsent(dotsToSlashes(field.getDeclaringClass()), ignore -> new ConcurrentHashMap<>())
                                  .put(field.getName(), byClass.getOrDefault(field.getType(), SIMPLE)));
-        classToFieldToNemesis = Collections.unmodifiableMap(byField);
+        classToFieldToNemesis = byField;
+    }
+
+    /**
+     * Register a field for nemesis handling without requiring a {@link Nemesis} annotation on the source class.
+     * This allows tests to opt-in fields from classes they do not own.
+     *
+     * @param className the internal class name (slashes, e.g. "org/apache/cassandra/index/sai/disk/v1/vector/OnHeapGraph")
+     * @param fieldName the field name as declared in the class
+     * @param kind the nemesis field kind (typically {@link NemesisFieldKind#SIMPLE} for plain volatile fields,
+     *             {@link NemesisFieldKind#ATOMICX} for AtomicInteger/AtomicLong/AtomicReference/AtomicBoolean fields)
+     */
+    public static void register(String className, String fieldName, NemesisFieldKind kind)
+    {
+        classToFieldToNemesis.computeIfAbsent(className, ignore -> new ConcurrentHashMap<>())
+                             .put(fieldName, kind);
+    }
+
+    /**
+     * Register a field for nemesis handling using the class object directly.
+     *
+     * @param clazz the class owning the field
+     * @param fieldName the field name as declared in the class
+     * @param kind the nemesis field kind
+     */
+    public static void register(Class<?> clazz, String fieldName, NemesisFieldKind kind)
+    {
+        register(dotsToSlashes(clazz), fieldName, kind);
+    }
+
+    /**
+     * Remove a previously registered nemesis field. Useful for test cleanup.
+     */
+    public static void unregister(Class<?> clazz, String fieldName)
+    {
+        Map<String, NemesisFieldKind> fields = classToFieldToNemesis.get(dotsToSlashes(clazz));
+        if (fields != null)
+            fields.remove(fieldName);
     }
 
     public static NemesisFieldKind.Selector get()

@@ -54,6 +54,12 @@ public abstract class EncodeAsVInt32<T> implements UnversionedSerializer<T>
         return withNulls(Enum::ordinal, i -> values[i]);
     }
 
+    public static <E extends Enum<?>> EncodeAsVInt32<E> withoutNulls(Class<E> clazz)
+    {
+        E[] values = clazz.getEnumConstants();
+        return withoutNulls(Enum::ordinal, i -> values[i]);
+    }
+
     static class WithNulls<T> extends EncodeAsVInt32<T>
     {
         private WithNulls(ToIntFunction<? super T> encode, IntFunction<? extends T> decode)

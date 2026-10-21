@@ -120,10 +120,15 @@ public class QueriesTableTest extends TestBaseImpl
             String threadId = row.get("thread_id").toString();
             String task = row.get("task").toString();
 
-            readVisible |= threadId.contains("Read") && task.contains("SELECT");
-            coordinatorReadVisible |= threadId.contains("Native-Transport-Requests") && task.contains("SELECT");
-            writeVisible |= threadId.contains("Mutation") && task.contains("Mutation");
-            coordinatorWriteVisible |= threadId.contains("Native-Transport-Requests") && task.contains("INSERT");
+            boolean localReaderThread = threadId.contains("Read") || threadId.contains("SharedPool-Worker");
+            // QUERY in a task name is used as a way to differentiate a local replica read vs a coordinator read
+            readVisible |= localReaderThread && task.contains("SELECT") && !task.contains("QUERY");
+            boolean coordReaderThread = threadId.contains("Native-Transport-Requests") || threadId.contains("SharedPool-Worker");
+            coordinatorReadVisible |= coordReaderThread && task.contains("SELECT") && task.contains("QUERY");
+            boolean localWriterThread = threadId.contains("Mutation") || threadId.contains("SharedPool-Worker");
+            writeVisible |= localWriterThread && task.contains("Mutation") && !task.contains("QUERY");
+            boolean coordWriterThread = threadId.contains("Native-Transport-Requests") || threadId.contains("SharedPool-Worker");
+            coordinatorWriteVisible |= coordWriterThread && task.contains("INSERT") && task.contains("QUERY");
         }
 
         assertTrue(readVisible);
@@ -164,8 +169,11 @@ public class QueriesTableTest extends TestBaseImpl
             String threadId = row.get("thread_id").toString();
             String task = row.get("task").toString();
 
-            readVisible |= threadId.contains("Read") && task.contains("SELECT");
-            coordinatorUpdateVisible |= threadId.contains("Native-Transport-Requests") && task.contains("UPDATE");
+            boolean localReaderThread = threadId.contains("Read") || threadId.contains("SharedPool-Worker");
+            // QUERY in a task name is used as a way to differentiate a local replica read vs a coordinator read
+            readVisible |= localReaderThread && task.contains("SELECT") && !task.contains("QUERY");
+            boolean coordUpdateThread = threadId.contains("Native-Transport-Requests") || threadId.contains("SharedPool-Worker");
+            coordinatorUpdateVisible |= coordUpdateThread && task.contains("UPDATE") && task.contains("QUERY");
         }
 
         assertTrue(readVisible);
@@ -215,8 +223,10 @@ public class QueriesTableTest extends TestBaseImpl
             String threadId = row.get("thread_id").toString();
             String task = row.get("task").toString();
 
-            readVisible |= (threadId.contains("AccordExecutor") || threadId.contains("Read")) && task.contains("SELECT");
-            coordinatorTxnVisible |= threadId.contains("Native-Transport-Requests") && task.contains("BEGIN TRANSACTION");
+            boolean localTxThread = threadId.contains("AccordExecutor") || threadId.contains("Read") || threadId.contains("SharedPool-Worker");
+            readVisible |= localTxThread && task.contains("SELECT");
+            boolean coordTxThread = threadId.contains("Native-Transport-Requests") || threadId.contains("SharedPool-Worker");
+            coordinatorTxnVisible |= coordTxThread && task.contains("BEGIN TRANSACTION");
         }
 
         assertTrue(readVisible);

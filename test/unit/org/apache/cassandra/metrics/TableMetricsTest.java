@@ -24,6 +24,7 @@ import java.util.function.Supplier;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
+import com.codahale.metrics.Counter;
 import com.datastax.driver.core.BatchStatement;
 import com.datastax.driver.core.Cluster;
 import com.datastax.driver.core.PreparedStatement;
@@ -35,6 +36,7 @@ import org.junit.BeforeClass;
 import org.junit.Test;
 
 import org.apache.cassandra.ServerTestUtils;
+import org.apache.cassandra.config.CassandraRelevantProperties;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.db.ColumnFamilyStore;
 import org.apache.cassandra.exceptions.ConfigurationException;
@@ -61,6 +63,7 @@ public class TableMetricsTest
     @BeforeClass
     public static void setup() throws ConfigurationException, IOException
     {
+        CassandraRelevantProperties.VIRTUAL_KEYSPACE_SYSTEM_METRICS_ENABLED.setBoolean(true);
         cassandra = ServerTestUtils.startEmbeddedCassandraService();
 
         cluster = Cluster.builder().addContactPoint("127.0.0.1").withPort(DatabaseDescriptor.getNativeTransportPort()).build();
@@ -211,6 +214,87 @@ public class TableMetricsTest
 
         assertEquals(10, cfs.metric.coordinatorWriteLatency.getCount());
         assertGreaterThan(cfs.metric.coordinatorWriteLatency.getMeanRate(), 0);
+    }
+
+    @Test
+    public void testRowsMutatedCounter()
+    {
+        ColumnFamilyStore cfs = recreateTable();
+        assertEquals(0, cfs.metric.totalRowsMutated.getCount());
+
+        // Each INSERT touches exactly one row
+        session.execute(String.format("INSERT INTO %s.%s (id, val1, val2) VALUES (1, 'a', 'b')", KEYSPACE, TABLE));
+        assertEquals(1, cfs.metric.totalRowsMutated.getCount());
+
+        session.execute(String.format("INSERT INTO %s.%s (id, val1, val2) VALUES (2, 'c', 'd')", KEYSPACE, TABLE));
+        assertEquals(2, cfs.metric.totalRowsMutated.getCount());
+
+        // Batch of 3 rows — counter should jump by 3
+        executeBatch(false, 3, 1);
+        assertEquals(5, cfs.metric.totalRowsMutated.getCount());
+
+        assertMetricRows("TotalRowsMutated", cfs.metric.totalRowsMutated);
+    }
+
+    @Test
+    public void testRowsReadCounter()
+    {
+        ColumnFamilyStore cfs = recreateTable();
+        assertEquals(0, cfs.metric.totalRowsRead.getCount());
+
+        // Seed some rows
+        for (int i = 0; i < 5; i++)
+            session.execute(String.format("INSERT INTO %s.%s (id, val1, val2) VALUES (%d, 'v%d', 'x')", KEYSPACE, TABLE, i, i));
+
+        // Full-table scan should touch all 5 rows
+        session.execute(String.format("SELECT * FROM %s.%s", KEYSPACE, TABLE));
+        assertEquals(5, cfs.metric.totalRowsRead.getCount());
+
+        // Single-partition read touches 1 row
+        session.execute(String.format("SELECT * FROM %s.%s WHERE id = 0", KEYSPACE, TABLE));
+        assertEquals(6, cfs.metric.totalRowsRead.getCount());
+
+        assertMetricRows("TotalRowsRead", cfs.metric.totalRowsRead);
+    }
+
+    private void assertMetricRows(String metricName, Counter counter)
+    {
+        assertRowsContains(cluster, session.execute("SELECT * FROM system_metrics.table_group"),
+                           row("org.apache.cassandra.metrics.Table." + metricName + ".junit.tablemetricstest",
+                               "junit.tablemetricstest",
+                               "counter",
+                               String.valueOf(counter.getCount())));
+        assertRowsContains(cluster, session.execute("SELECT * FROM system_metrics.column_family_group"),
+                           row("org.apache.cassandra.metrics.ColumnFamily." + metricName + ".junit.tablemetricstest",
+                               "junit.tablemetricstest",
+                               "counter",
+                               String.valueOf(counter.getCount())));
+    }
+
+    @Test
+    public void testRowsMutatedPerWriteHistogram()
+    {
+        ColumnFamilyStore cfs = recreateTable();
+        assertEquals(0, cfs.metric.rowsMutatedPerWriteHistogram.cf.getCount());
+
+        session.execute(String.format("INSERT INTO %s.%s (id, val1, val2) VALUES (1, 'a', 'b')", KEYSPACE, TABLE));
+        session.execute(String.format("INSERT INTO %s.%s (id, val1, val2) VALUES (1, 'c', 'd')", KEYSPACE, TABLE));
+
+        assertEquals(2, cfs.metric.rowsMutatedPerWriteHistogram.cf.getCount());
+        assertGreaterThan(cfs.metric.rowsMutatedPerWriteHistogram.cf.getSnapshot().getMax(), 0);
+
+        String histogramMedian = Double.toString(cfs.metric.rowsMutatedPerWriteHistogram.cf.getSnapshot().getMedian());
+
+        assertRowsContains(cluster, session.execute("SELECT * FROM system_metrics.table_group"),
+                           row("org.apache.cassandra.metrics.Table.RowsMutatedPerWriteHistogram.junit.tablemetricstest",
+                               "junit.tablemetricstest",
+                               "histogram",
+                               histogramMedian));
+        assertRowsContains(cluster, session.execute("SELECT * FROM system_metrics.column_family_group"),
+                           row("org.apache.cassandra.metrics.ColumnFamily.RowsMutatedPerWriteHistogram.junit.tablemetricstest",
+                               "junit.tablemetricstest",
+                               "histogram",
+                               histogramMedian));
     }
 
     @Test

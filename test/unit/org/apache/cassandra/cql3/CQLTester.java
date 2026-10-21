@@ -115,6 +115,7 @@ import org.apache.cassandra.auth.AuthSchemaChangeListener;
 import org.apache.cassandra.auth.AuthTestUtils;
 import org.apache.cassandra.auth.IAuthenticator;
 import org.apache.cassandra.auth.IRoleManager;
+import org.apache.cassandra.auth.PasswordDefaultRoleInitializer;
 import org.apache.cassandra.concurrent.Stage;
 import org.apache.cassandra.config.CassandraRelevantProperties;
 import org.apache.cassandra.config.Config;
@@ -188,7 +189,7 @@ import org.apache.cassandra.service.ClientState;
 import org.apache.cassandra.service.ClientWarn;
 import org.apache.cassandra.service.QueryState;
 import org.apache.cassandra.service.StorageService;
-import org.apache.cassandra.service.accord.AccordCache;
+import org.apache.cassandra.service.accord.execution.AccordCache;
 import org.apache.cassandra.service.snapshot.SnapshotManager;
 import org.apache.cassandra.tcm.ClusterMetadataService;
 import org.apache.cassandra.transport.Event;
@@ -645,7 +646,7 @@ public abstract class CQLTester
             {
                 loadRoleStatement();
                 loadIdentityStatement();
-                QueryProcessor.executeInternal(createDefaultRoleQuery());
+                QueryProcessor.executeInternal(PasswordDefaultRoleInitializer.instance.createDefaultRoleQuery());
             }
         };
 
@@ -3758,6 +3759,11 @@ public abstract class CQLTester
             setupFileSystem();
 
             CQLTester.prePrepareServer();
+
+            // The in-memory (jimfs) filesystem installed above cannot do Direct I/O: its FileStore has no
+            // getBlockSize() and it rejects ExtendedOpenOption.DIRECT. cassandra_latest.yaml enables
+            // background_write_disk_access_mode: direct, which would otherwise crash every flush+compact here.
+            DatabaseDescriptor.setBackgroundWriteDiskAccessMode(Config.DiskAccessMode.standard);
         }
 
         protected static void setupFileSystem()

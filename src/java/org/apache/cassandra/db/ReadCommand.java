@@ -198,6 +198,8 @@ public abstract class ReadCommand extends AbstractReadQuery
         SINGLE_PARTITION (SinglePartitionReadCommand.selectionDeserializer, SinglePartitionReadCommand.accordSelectionDeserializer),
         PARTITION_RANGE  (PartitionRangeReadCommand.selectionDeserializer, ignore -> PartitionRangeReadCommand.selectionDeserializer);
 
+        private static final Kind[] VALUES = values();
+
         private final SelectionDeserializer selectionDeserializer;
         private final Function<Seekable, SelectionDeserializer> accordSelectionDeserializer;
 
@@ -205,6 +207,11 @@ public abstract class ReadCommand extends AbstractReadQuery
         {
             this.selectionDeserializer = selectionDeserializer;
             this.accordSelectionDeserializer = accordSelectionDeserializer;
+        }
+
+        public static Kind fromOrdinal(int ordinal)
+        {
+            return VALUES[ordinal];
         }
     }
 
@@ -437,13 +444,26 @@ public abstract class ReadCommand extends AbstractReadQuery
 
     public ReadResponse createResponse(UnfilteredPartitionIterator iterator, RepairedDataInfo rdi)
     {
+        return createResponse(iterator, rdi, false, false);
+    }
+
+    private ReadResponse createResponse(UnfilteredPartitionIterator iterator, RepairedDataInfo rdi, boolean localRead, boolean localReplicaOnly)
+    {
         // validate that the sequence of RT markers is correct: open is followed by close, deletion times for both
         // ends equal, and there are no dangling RT bound in any partition.
         iterator = RTBoundValidator.validate(iterator, Stage.PROCESSED, true);
+        if (isDigestQuery())
+            return ReadResponse.createDigestResponse(iterator, this);
 
-        return isDigestQuery()
-               ? ReadResponse.createDigestResponse(iterator, this)
-               : ReadResponse.createDataResponse(iterator, this, rdi);
+        if (localRead && ReadResponse.inMemoryLocalResponseEnabled(localReplicaOnly))
+            return ReadResponse.createInMemoryDataResponse(iterator, this, rdi, localReplicaOnly);
+
+        return ReadResponse.createDataResponse(iterator, this, rdi);
+    }
+
+    public ReadResponse createLocalObjectResponse(UnfilteredPartitionIterator iterator, RepairedDataInfo rdi, boolean localReplicaOnly)
+    {
+        return createResponse(iterator, rdi, true, localReplicaOnly);
     }
 
     public ReadResponse createEmptyResponse()
@@ -464,7 +484,7 @@ public abstract class ReadCommand extends AbstractReadQuery
 
     static Index.QueryPlan findIndexQueryPlan(TableMetadata table, RowFilter rowFilter)
     {
-        if (table.indexes.isEmpty() || rowFilter.isEmpty())
+        if (table.indexes.isEmpty() || rowFilter.isEmpty() || table.isVirtual())
             return null;
 
         ColumnFamilyStore cfs = Keyspace.openAndGetStore(table);
@@ -644,19 +664,24 @@ public abstract class ReadCommand extends AbstractReadQuery
             public Row applyToRow(Row row)
             {
                 boolean hasTombstones = false;
-                for (Cell<?> cell : row.cells())
+                final long nowInSec = ReadCommand.this.nowInSec();
+                final boolean rowHasDeletion = row.hasDeletion(nowInSec);
+                if (rowHasDeletion) // perf optimization, to avoid iteration if all cells are alive
                 {
-                    if (!cell.isLive(ReadCommand.this.nowInSec()))
+                    for (Cell<?> cell : row.cells())
                     {
-                        countTombstone(row.clustering());
-                        hasTombstones = true; // allows to avoid counting an extra tombstone if the whole row expired
+                        if (!cell.isLive(nowInSec))
+                        {
+                            countTombstone(row.clustering());
+                            hasTombstones = true; // allows to avoid counting an extra tombstone if the whole row expired
+                        }
                     }
                 }
 
-                if (row.hasLiveData(ReadCommand.this.nowInSec(), enforceStrictLiveness))
+                if (row.hasLiveData(nowInSec, enforceStrictLiveness))
                     ++liveRows;
-                else if (!row.primaryKeyLivenessInfo().isLive(ReadCommand.this.nowInSec())
-                        && row.hasDeletion(ReadCommand.this.nowInSec())
+                else if (!row.primaryKeyLivenessInfo().isLive(nowInSec)
+                        && rowHasDeletion
                         && !hasTombstones)
                 {
                     // We're counting primary key deletions only here.
@@ -713,6 +738,7 @@ public abstract class ReadCommand extends AbstractReadQuery
 
                 metric.tombstoneScannedHistogram.update(tombstones);
                 metric.liveScannedHistogram.update(liveRows);
+                metric.totalRowsRead.inc(liveRows);
 
                 boolean warnTombstones = tombstones > warningThreshold && respectTombstoneThresholds;
                 if (warnTombstones)
@@ -889,6 +915,7 @@ public abstract class ReadCommand extends AbstractReadQuery
     /**
      *  A transformation used for simulating slow queries by tests.
      */
+    @VisibleForTesting
     private static class DelayInjector extends Transformation<UnfilteredRowIterator>
     {
         @Override
@@ -919,12 +946,12 @@ public abstract class ReadCommand extends AbstractReadQuery
      */
     public Message<ReadCommand> createMessage(boolean trackRepairedData, Dispatcher.RequestTime requestTime)
     {
-        List<MessageFlag> flags = new ArrayList<>(3);
-        flags.add(MessageFlag.CALL_BACK_ON_FAILURE);
+        int flags = MessageFlag.CALL_BACK_ON_FAILURE.addTo(0);
+
         if (trackWarnings)
-            flags.add(MessageFlag.TRACK_WARNINGS);
+            flags = MessageFlag.TRACK_WARNINGS.addTo(flags);
         if (trackRepairedData)
-            flags.add(MessageFlag.TRACK_REPAIRED_DATA);
+            flags = MessageFlag.TRACK_REPAIRED_DATA.addTo(flags);
 
         return Message.outWithFlags(verb(),
                                     this,
@@ -955,6 +982,9 @@ public abstract class ReadCommand extends AbstractReadQuery
                                                                      ColumnFamilyStore cfs,
                                                                      ReadExecutionController controller)
     {
+        if (nowInSec() == 0)
+            return iterator;
+
         class WithoutPurgeableTombstones extends PurgeFunction
         {
             public WithoutPurgeableTombstones()
@@ -1430,9 +1460,12 @@ public abstract class ReadCommand extends AbstractReadQuery
             if (hasIndex)
             {
                 IndexMetadata index = deserializeIndexMetadata(in, version, tableMetadata);
-                Index.Group indexGroup =  Keyspace.openAndGetStore(tableMetadata).indexManager.getIndexGroup(index);
-                if (indexGroup != null)
-                    indexQueryPlan = indexGroup.queryPlanFor(rowFilter);
+                if (index != null)
+                {
+                    Index.Group indexGroup = Keyspace.openAndGetStore(tableMetadata).indexManager.getIndexGroup(index);
+                    if (indexGroup != null)
+                        indexQueryPlan = indexGroup.queryPlanFor(rowFilter);
+                }
             }
 
             return deserializer.deserialize(in, version, schemaVersion, isDigest, digestVersion, acceptsTransient, potentialTxnConflicts, tableMetadata, nowInSec, columnFilter, rowFilter, limits, indexQueryPlan);
@@ -1440,7 +1473,7 @@ public abstract class ReadCommand extends AbstractReadQuery
 
         public ReadCommand deserialize(DataInputPlus in, int version) throws IOException
         {
-            Kind kind = Kind.values()[in.readByte()];
+            Kind kind = Kind.fromOrdinal(in.readByte());
             int flags = in.readByte();
             // Shouldn't happen or it's a user error (see comment above) but
             // better complain loudly than doing the wrong thing.
@@ -1478,7 +1511,7 @@ public abstract class ReadCommand extends AbstractReadQuery
 
         public ReadCommand deserializeForAccord(Seekable key, TableMetadatas tables, DataInputPlus in, int version) throws IOException
         {
-            Kind kind = Kind.values()[in.readByte()];
+            Kind kind = Kind.fromOrdinal(in.readByte());
             int flags = in.readByte();
             if (isDigest(flags) || isForThrift(flags) || acceptsTransient(flags))
                 throw new IllegalStateException("Received an Accord command with a digest/thrift/transient flag set.");
@@ -1488,6 +1521,10 @@ public abstract class ReadCommand extends AbstractReadQuery
             return deserialize(kind.accordSelectionDeserializer.apply(key), flags, tableMetadata.epoch, 0, 0, tableMetadata, in, version);
         }
 
+        /**
+         * @return the index the command was built with, or {@code null} if this node does not know that index yet
+         */
+        @Nullable
         private IndexMetadata deserializeIndexMetadata(DataInputPlus in, int version, TableMetadata metadata) throws IOException
         {
             try
@@ -1510,7 +1547,7 @@ public abstract class ReadCommand extends AbstractReadQuery
             return 2 // kind + flags
                    + (command.isDigestQuery() ? TypeSizes.sizeofUnsignedVInt(command.digestVersion()) : 0)
                    + command.metadata().id.serializedSize()
-                   + (version >= MessagingService.VERSION_60 ? Epoch.serializer.serializedSize(command.metadata().epoch) : 0)
+                   + (version >= MessagingService.VERSION_60 ? Epoch.serializer.serializedSize(command.serializedAtEpoch) : 0)
                    + TypeSizes.INT_SIZE // command.nowInSec() is serialized as uint
                    + ColumnFilter.serializer.serializedSize(command.columnFilter(), version)
                    + RowFilter.serializer.serializedSize(command.rowFilter(), version)

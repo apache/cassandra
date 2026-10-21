@@ -276,7 +276,7 @@ final class HintsDispatcher implements AutoCloseable
             // Also may need to apply locally because it's possible this is from the batchlog
             // and we never applied it locally
             // TODO (review): Additional error handling necessary? Hints are lossy
-            DataPlacement dataPlacement = cm.placements.get(cm.schema.getKeyspace(mutation.getKeyspaceName()).getMetadata().params.replication);
+            DataPlacement dataPlacement = cm.placement(cm.schema.getKeyspace(mutation.getKeyspaceName()).getMetadata().params.replication);
             VersionedEndpoints.ForToken forToken = dataPlacement.writes.forToken(mutation.key().getToken());
             Replica self = forToken.get().selfIfPresent();
             if (self != null)

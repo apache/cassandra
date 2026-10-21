@@ -49,7 +49,9 @@ public class DataStorageSpecTest
         assertEquals(10240, new DataStorageSpec.LongMebibytesBound("10MiB").toKibibytes());
         assertEquals(1024 * 1024 * 1024, new DataStorageSpec.IntBytesBound("1GiB").toBytes());
         assertEquals(10240, new DataStorageSpec.IntKibibytesBound("10MiB").toKibibytes());
+        assertEquals(10 * 1024 * 1024, new DataStorageSpec.IntKibibytesBound("10MiB").toBytes());
         assertEquals(1024, new DataStorageSpec.IntMebibytesBound("1GiB").toMebibytes());
+        assertEquals(1024 * 1024 * 1024, new DataStorageSpec.IntMebibytesBound("1GiB").toBytes());
 
         assertEquals(10, new DataStorageSpec.LongBytesBound(10, BYTES).toBytes());
         assertEquals(10240, new DataStorageSpec.LongBytesBound(10, KIBIBYTES).toBytes());

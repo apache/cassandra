@@ -17,7 +17,7 @@ Use a unique name for each column in a table.
 To preserve case or use special characters, enclose the name in double-quotes.
 cql_type_definition ::
 Defines the type of data allowed in the column.
-See xref:reference:data-types.adoc[CQL data type] or a xref:reference:user-defined-type.adoc[user-defined type].
+See xref:cassandra:developing/cql/types.adoc#native-types[CQL data type] or a xref:cassandra:developing/cql/types.adoc#udts[user-defined type].
 *STATIC* ::
 Optional, the column has a single value.
 *PRIMARY KEY* ::

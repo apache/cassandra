@@ -24,6 +24,7 @@ import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.AtomicReference;
 
+import org.junit.Ignore;
 import org.junit.Test;
 
 import org.apache.cassandra.concurrent.Interruptible;
@@ -55,6 +56,7 @@ import static org.junit.Assert.assertEquals;
 public class ClusterMetadataUpgradeHarryTest extends UpgradeTestBase
 {
     @Test
+    @Ignore("CASSANDRA-21473")
     public void simpleUpgradeTest()
     {
         AtomicReference<Interruptible> executor = new AtomicReference<>();
@@ -86,7 +88,7 @@ public class ClusterMetadataUpgradeHarryTest extends UpgradeTestBase
             .nodesToUpgrade(1, 2, 3)
             .withConfig((cfg) -> cfg.with(Feature.NETWORK, Feature.GOSSIP)
                                     .set(Constants.KEY_DTEST_FULL_STARTUP, true))
-            .upgradesToCurrentFrom(v41)
+            .singleUpgradeToCurrentFrom(v41)
             .withUpgradeListener(listener)
             .setup((cluster) -> {
                 SchemaSpec schema = new SchemaSpec(rng.next(),

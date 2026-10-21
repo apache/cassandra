@@ -49,7 +49,7 @@ class CustomParamsSerializer implements IVersionedSerializer<Map<String,byte[]>>
     @Override
     public long serializedSize(Map<String, byte[]> t, int version)
     {
-        int size = TypeSizes.sizeofUnsignedVInt(t.size());
+        long size = TypeSizes.sizeofUnsignedVInt(t.size());
         for (Map.Entry<String,byte[]> e : t.entrySet())
         {
             size += TypeSizes.sizeof(e.getKey());

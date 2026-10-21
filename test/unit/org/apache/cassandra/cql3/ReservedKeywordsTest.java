@@ -68,11 +68,42 @@ public class ReservedKeywordsTest
         asserts.assertAll();
     }
 
+    /**
+     * Legacy USER and IDENTITY statements must accept unreserved keywords as names, just like
+     * role statements do ({@code roleName} accepts {@code unreserved_keyword}). Otherwise adding
+     * a new keyword to the grammar breaks existing deployments with a user or identity of that name.
+     */
+    @Test
+    public void testUnreservedKeywordsAsUserNameAndIdentity()
+    {
+        SoftAssertions asserts = new SoftAssertions();
+        for (var f : Cql_Lexer.class.getDeclaredFields())
+        {
+            if (!Modifier.isStatic(f.getModifiers())) continue;
+            if (!f.getName().startsWith("K_")) continue;
+            String keyword = f.getName().replaceFirst("K_", "");
+            if (ReservedKeywords.isReserved(keyword)) continue;
+
+            for (String statement : new String[]{ "DROP USER %s", "DROP IDENTITY %s" })
+            {
+                asserts.assertThat(parses(String.format(statement, keyword)))
+                       .describedAs(String.format(statement, keyword))
+                       .isTrue();
+            }
+        }
+        asserts.assertAll();
+    }
+
     private static boolean isAllowed(String keyword)
+    {
+        return parses(String.format("ALTER TABLE ks.t ADD %s TEXT", keyword));
+    }
+
+    private static boolean parses(String cql)
     {
         try
         {
-            QueryProcessor.parseStatement(String.format("ALTER TABLE ks.t ADD %s TEXT", keyword));
+            QueryProcessor.parseStatement(cql);
             return true;
         }
         catch (SyntaxException ignore)

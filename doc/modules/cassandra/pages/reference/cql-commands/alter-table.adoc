@@ -98,7 +98,7 @@ Enclose the value for a string property in single quotation marks.
 +
 Other table properties are set using a JSON map: `+option_name = { <subproperty_name> : <value> [ , ... ] }+`
 +
-See xref:reference:cql-commands/create-table.adoc#table_options[table_options] for more details.
+See xref:cassandra:reference/cql-commands/create-table.adoc#table_options[table_options] for more details.
 
 == Usage notes
 
@@ -190,7 +190,7 @@ To change an existing table's properties, use `ALTER TABLE` and `WITH`.
 You can specify a:
 
 * Single property name and value.
-* Property map to set the names and values, as shown in the xref:cql-commands/alter-table.adoc#alter-compression[next section on compression and compaction].
+* Property map to set the names and values, as shown in the xref:cassandra:reference/cql-commands/alter-table.adoc#alter-compression[next section on compression and compaction].
 
 For example, to add a comment to the xref:cassandra:cyclist_base-table.adoc[cyclist_base] table using WITH:
 
@@ -204,7 +204,7 @@ Enclose a text property value in single quotation marks.
 [[alter-compression]]
 === Modifying compression and compaction
 
-Use a property map to alter the xref:cassandra:comments-table.adoc[comments] table's compression or compaction setting:
+Use a property map to alter the comments table's compression or compaction setting:
 
 [source,language-cql]
 ----
@@ -223,7 +223,7 @@ For strategies to minimize this disruption, see http://blog.alteroot.org/article
 
 === Changing caching
 
-Set the number of rows per partition to store in the row cache for the xref:cassandra:comments-table.adoc[comments] table to 10 rows:
+Set the number of rows per partition to store in the row cache for the comments table to 10 rows:
 
 [source,language-cql]
 ----
@@ -334,6 +334,17 @@ Lists the number of pending tasks for a compaction strategy.
 ----
 {"type":"pending","keyspace":"test","table":"t",
  "time":1470083447967,"strategyId":"1","pending":200}
+----
+
+== Alter a table with memtable
+
+To alter a table with memtable, a memtable configuration must be enabled in `cassandra.yaml`. See xref:cassandra:architecture/storage-engine.adoc#memtables[Memtable] for more information.
+
+To alter a table with a default memtable:
+
+[source,language-cql]
+----
+include::cassandra:example$CQL/cyclist_id-table.cql[tag=table-alter-memtable]
 ----
 
 === Reviewing the table definition

@@ -32,10 +32,13 @@ import org.slf4j.LoggerFactory;
 
 import org.apache.cassandra.io.util.File;
 import org.apache.cassandra.io.util.FileUtils;
+import org.apache.cassandra.journal.Params.RecoverableCrcFailurePolicy;
 import org.apache.cassandra.utils.Closeable;
 import org.apache.cassandra.utils.Throwables;
 import org.apache.cassandra.utils.concurrent.Ref;
 import org.apache.cassandra.utils.memory.MemoryUtil;
+
+import static org.apache.cassandra.journal.Params.RecoverableCrcFailurePolicy.FAIL;
 
 /**
  * An immutable data segment that is no longer written to.
@@ -76,12 +79,12 @@ public final class StaticSegment<K, V> extends Segment<K, V>
      * @param descriptors descriptors of the segments to load
      * @return list of the loaded segments
      */
-    static <K, V> List<Segment<K, V>> open(Collection<Descriptor> descriptors, KeySupport<K> keySupport)
+    static <K, V> List<Segment<K, V>> open(Collection<Descriptor> descriptors, KeySupport<K> keySupport, RecoverableCrcFailurePolicy crcFailurePolicy)
     {
         List<Segment<K, V>> segments = new ArrayList<>(descriptors.size());
         for (Descriptor descriptor : descriptors)
         {
-            StaticSegment<K, V> segment = open(descriptor, keySupport);
+            StaticSegment<K, V> segment = open(descriptor, keySupport, crcFailurePolicy);
             segments.add(segment);
         }
 
@@ -95,7 +98,7 @@ public final class StaticSegment<K, V> extends Segment<K, V>
      * @return the loaded segment
      */
     @SuppressWarnings({ "resource", "RedundantSuppression" })
-    static <K, V> StaticSegment<K, V> open(Descriptor descriptor, KeySupport<K> keySupport)
+    static <K, V> StaticSegment<K, V> open(Descriptor descriptor, KeySupport<K> keySupport, RecoverableCrcFailurePolicy crcFailurePolicy)
     {
         if (!Component.DATA.existsFor(descriptor))
             throw new IllegalArgumentException("Data file for segment " + descriptor + " doesn't exist");
@@ -115,7 +118,7 @@ public final class StaticSegment<K, V> extends Segment<K, V>
         }
 
         if (metadata == null)
-            metadata = Metadata.rebuildAndPersist(descriptor, keySupport);
+            metadata = Metadata.rebuildAndPersist(descriptor, keySupport, crcFailurePolicy);
 
         OnDiskIndex<K> index = null;
 
@@ -133,7 +136,7 @@ public final class StaticSegment<K, V> extends Segment<K, V>
         }
 
         if (index == null)
-            index = OnDiskIndex.rebuildAndPersist(descriptor, keySupport, metadata.fsyncLimit());
+            index = OnDiskIndex.rebuildAndPersist(descriptor, keySupport, metadata.fsyncLimit(), crcFailurePolicy);
 
         try
         {
@@ -300,7 +303,7 @@ public final class StaticSegment<K, V> extends Segment<K, V>
      */
     public void forEachRecord(RecordConsumer<K> consumer)
     {
-        try (SequentialReader<K> reader = sequentialReader(descriptor, keySupport, fsyncLimit))
+        try (SequentialReader<K> reader = sequentialReader(descriptor, keySupport, fsyncLimit, FAIL))
         {
             while (reader.advance())
             {
@@ -389,9 +392,9 @@ public final class StaticSegment<K, V> extends Segment<K, V>
         }
     }
 
-    static <K> SequentialReader<K> sequentialReader(Descriptor descriptor, KeySupport<K> keySupport, int fsyncedLimit)
+    static <K> SequentialReader<K> sequentialReader(Descriptor descriptor, KeySupport<K> keySupport, int fsyncedLimit, RecoverableCrcFailurePolicy crcFailurePolicy)
     {
-        return new SequentialReader<>(descriptor, keySupport, fsyncedLimit);
+        return new SequentialReader<>(descriptor, keySupport, fsyncedLimit, crcFailurePolicy);
     }
 
     /**
@@ -405,11 +408,13 @@ public final class StaticSegment<K, V> extends Segment<K, V>
     static final class SequentialReader<K> extends Reader<K>
     {
         private final int fsyncedLimit; // exclusive
+        private final RecoverableCrcFailurePolicy crcFailurePolicy;
 
-        SequentialReader(Descriptor descriptor, KeySupport<K> keySupport, int fsyncedLimit)
+        SequentialReader(Descriptor descriptor, KeySupport<K> keySupport, int fsyncedLimit, RecoverableCrcFailurePolicy crcFailurePolicy)
         {
             super(descriptor, keySupport);
             this.fsyncedLimit = fsyncedLimit;
+            this.crcFailurePolicy = crcFailurePolicy;
             if (fsyncedLimit < buffer.limit())
                 buffer.limit(fsyncedLimit);
         }
@@ -426,35 +431,45 @@ public final class StaticSegment<K, V> extends Segment<K, V>
 
         private boolean doAdvance()
         {
-            offset = buffer.position();
-            try
+            while (true)
             {
-                int length = EntrySerializer.tryRead(holder, keySupport, buffer.duplicate(), fsyncedLimit, descriptor.userVersion);
-                if (length < 0)
-                    return eof();
-                buffer.position(offset + length);
-            }
-            catch (EntrySerializer.MaybeRecoverableJournalError e)
-            {
-                logger.warn("Caught a recoverable journal error, skipping bytes", e);
-                int sizeMarker = buffer.getInt(offset);
-                if (e.knownLength <= Integer.BYTES || sizeMarker != offset + e.knownLength)
-                    throw new JournalReadError(descriptor, file,  e.getCause());
+                offset = buffer.position();
+                try
+                {
+                    int length = EntrySerializer.tryRead(holder, keySupport, buffer.duplicate(), fsyncedLimit, descriptor.userVersion);
+                    if (length < 0)
+                        return eof();
+                    buffer.position(offset + length);
+                    state = State.ADVANCED;
+                    return true;
+                }
+                catch (EntrySerializer.MaybeRecoverableJournalError e)
+                {
+                    int sizeMarker = buffer.getInt(offset);
+                    if (e.knownLength <= Integer.BYTES || sizeMarker != offset + e.knownLength)
+                        throw new JournalReadError(descriptor, file, e.getCause());
 
-                if (!areAllBytesZero(buffer, offset + Integer.BYTES, e.knownLength - Integer.BYTES))
-                    throw new JournalReadError(descriptor, file, e.getCause());
+                    switch (crcFailurePolicy)
+                    {
+                        case IGNORE: break;
+                        case IGNORE_ALL_ZERO_RECORDS:
+                            if (areAllBytesZero(buffer, offset + Integer.BYTES, e.knownLength - Integer.BYTES))
+                                break;
+                        case IGNORE_CRC_ZERO_RECORDS:
+                            if (e.readCrc == 0)
+                                break;
+                        case FAIL:
+                            throw new JournalReadError(descriptor, file, e.getCause());
+                    }
 
-                buffer.position(offset + e.knownLength);
-                // Recur here, as we anticipate a corrupt or incompletely written entry to be a very rare case.
-                return doAdvance();
+                    logger.warn("Caught a recoverable journal error, skipping bytes", e);
+                    buffer.position(offset + e.knownLength);
+                }
+                catch (IOException e)
+                {
+                    throw new JournalReadError(descriptor, file, e);
+                }
             }
-            catch (IOException e)
-            {
-                throw new JournalReadError(descriptor, file, e);
-            }
-
-            state = State.ADVANCED;
-            return true;
         }
 
         private void reset()

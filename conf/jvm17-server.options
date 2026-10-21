@@ -91,6 +91,12 @@
 --add-opens java.base/java.nio=ALL-UNNAMED
 
 ### GC logging options -- uncomment to enable
+-Xlog:async
+
+# In async mode JVM writes logs into a circular memory buffer; if the buffer fills up
+# before it is drained, log records are silently dropped
+# the default buffer size can be adjusted using the next option if needed
+# -XX:AsyncLogBufferSize=2m
 
 # Java 11 (and newer) GC logging options:
 # See description of https://bugs.openjdk.java.net/browse/JDK-8046148 for details about the syntax

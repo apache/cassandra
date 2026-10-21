@@ -18,35 +18,36 @@
 package org.apache.cassandra.io.sstable.filter;
 
 import java.util.concurrent.atomic.AtomicLong;
-import java.util.concurrent.atomic.LongAdder;
+
+import org.apache.cassandra.metrics.ThreadLocalCounter;
 
 public class BloomFilterTracker
 {
-    private final LongAdder falsePositiveCount = new LongAdder();
-    private final LongAdder truePositiveCount = new LongAdder();
-    private final LongAdder trueNegativeCount = new LongAdder();
+    private final ThreadLocalCounter falsePositiveCount = new ThreadLocalCounter();
+    private final ThreadLocalCounter truePositiveCount = new ThreadLocalCounter();
+    private final ThreadLocalCounter trueNegativeCount = new ThreadLocalCounter();
     private final AtomicLong lastFalsePositiveCount = new AtomicLong();
     private final AtomicLong lastTruePositiveCount = new AtomicLong();
     private final AtomicLong lastTrueNegativeCount = new AtomicLong();
 
     public void addFalsePositive()
     {
-        falsePositiveCount.increment();
+        falsePositiveCount.inc();
     }
 
     public void addTruePositive()
     {
-        truePositiveCount.increment();
+        truePositiveCount.inc();
     }
 
     public void addTrueNegative()
     {
-        trueNegativeCount.increment();
+        trueNegativeCount.inc();
     }
 
     public long getFalsePositiveCount()
     {
-        return falsePositiveCount.sum();
+        return falsePositiveCount.getCount();
     }
 
     public long getRecentFalsePositiveCount()
@@ -58,7 +59,7 @@ public class BloomFilterTracker
 
     public long getTruePositiveCount()
     {
-        return truePositiveCount.sum();
+        return truePositiveCount.getCount();
     }
 
     public long getRecentTruePositiveCount()
@@ -70,7 +71,7 @@ public class BloomFilterTracker
 
     public long getTrueNegativeCount()
     {
-        return trueNegativeCount.sum();
+        return trueNegativeCount.getCount();
     }
 
     public long getRecentTrueNegativeCount()

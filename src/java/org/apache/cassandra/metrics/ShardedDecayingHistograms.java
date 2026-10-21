@@ -76,6 +76,41 @@ public class ShardedDecayingHistograms
             return shard.histograms.get(histogramIndex);
         }
 
+        public LogLinearSnapshot refresh()
+        {
+            synchronized (ShardedDecayingHistograms.this)
+            {
+                long now = Clock.Global.currentTimeMillis();
+                List<LogLinearSnapshot> snapshot = new ArrayList<>(ShardedDecayingHistograms.this.snapshot);
+                if (snapshot.size() <= histogramIndex)
+                    return ShardedDecayingHistograms.this.refresh(now).get(histogramIndex);
+
+                LogLinearSnapshot result = LogLinearSnapshot.emptyForMax(initialMaxValue);
+                snapshot.set(histogramIndex, result);
+                for (DecayingHistogramsShard shard : shards)
+                    shard.updateSnapshot(histogramIndex, result, now);
+                ShardedDecayingHistograms.this.snapshot = snapshot;
+                // don't update snapshotAt, since we have only refreshed one histogram
+                return result;
+            }
+        }
+
+        public void clear()
+        {
+            for (DecayingHistogramsShard shard : shards)
+            {
+                shard.lock.lock();
+                try
+                {
+                    shard.histograms.get(histogramIndex).clear();
+                }
+                finally
+                {
+                    shard.lock.unlock();
+                }
+            }
+        }
+
         @Override
         public boolean isCumulative()
         {
@@ -101,6 +136,19 @@ public class ShardedDecayingHistograms
             {
                 for (int i = 0 ; i < update.size() ; ++i)
                     histograms.get(i).updateSnapshot(update.get(i), at);
+            }
+            finally
+            {
+                lock.unlock();
+            }
+        }
+
+        private void updateSnapshot(int histogramIndex, LogLinearSnapshot update, long at)
+        {
+            lock.lock();
+            try
+            {
+                histograms.get(histogramIndex).updateSnapshot(update, at);
             }
             finally
             {

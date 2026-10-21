@@ -33,7 +33,7 @@ import com.google.common.collect.AbstractIterator;
 import org.apache.commons.lang3.builder.ToStringBuilder;
 import org.apache.commons.lang3.builder.ToStringStyle;
 
-import org.apache.cassandra.cql3.QueryOptions;
+import org.apache.cassandra.cql3.FunctionContext;
 import org.apache.cassandra.cql3.functions.Function;
 import org.apache.cassandra.db.filter.IndexHints;
 import org.apache.cassandra.db.filter.RowFilter;
@@ -113,10 +113,10 @@ final class RestrictionSet implements Restrictions, Iterable<SingleRestriction>
     }
 
     @Override
-    public void addToRowFilter(RowFilter filter, IndexRegistry indexRegistry, QueryOptions options, IndexHints indexHints) throws InvalidRequestException
+    public void addToRowFilter(RowFilter filter, IndexRegistry indexRegistry, FunctionContext context, IndexHints indexHints) throws InvalidRequestException
     {
         for (Restriction restriction : this)
-            restriction.addToRowFilter(filter, indexRegistry, options, indexHints);
+            restriction.addToRowFilter(filter, indexRegistry, context, indexHints);
     }
 
     @Override

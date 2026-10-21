@@ -228,7 +228,7 @@ public class BlockingReadRepair<E extends Endpoints<E>, P extends ReplicaPlan.Fo
         Keys keys = Keys.of(partitionKey);
         // This is going create a new BlockingReadRepair inside an Accord transaction which will go down
         // the !isEventuallyConsistent path and apply the repairs through Accord command stores using AccordInteropExecution
-        UnrecoverableRepairUpdate<E, P> repairUpdate = new UnrecoverableRepairUpdate(AccordService.instance().nodeId(), this, keys, dk, accordMutations, writePlan);
+        UnrecoverableRepairUpdate<E, P> repairUpdate = new UnrecoverableRepairUpdate(AccordService.nodeId(), this, keys, dk, accordMutations, writePlan);
 
         /*
          * The motivation for using a read to apply read repair is that we want to apply the writes in the execute phase

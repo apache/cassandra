@@ -156,6 +156,7 @@ public abstract class ColumnData implements IMeasurableMemory
                     }
                     cells = BTree.update(existingTree, updateTree, existingComplex.column.cellComparator(), (UpdateFunction) reconciler);
                 }
+                onAllocatedOnHeap(maxComplexDeletion.unsharedHeapSize() - existingDeletion.unsharedHeapSize());
                 return new ComplexColumnData(existingComplex.column, cells, maxComplexDeletion);
             }
         }
@@ -183,7 +184,15 @@ public abstract class ColumnData implements IMeasurableMemory
             return removeShadowed(existing, postReconcile);
         }
 
-        private ColumnData removeShadowed(ColumnData existing)
+        /**
+         * Like {@link #retain} but does NOT notify the {@link PostReconciliationFunction} of removed
+         * data. Use this e.g. when filtering shadowed cells out of the UPDATE (incoming) side of a merge:
+         * that data was never allocated to / owned by the memtable, so recording its removal would
+         * make the memtable allocator under-count what it owns and eventually report a negative
+         * release at flush (CASSANDRA-21469). Recording removals (via {@link #retain}) is only correct
+         * for the EXISTING side, whose data the memtable already owns.
+         */
+        public ColumnData removeShadowed(ColumnData existing)
         {
             return removeShadowed(existing, ColumnData.noOp);
         }
@@ -209,8 +218,28 @@ public abstract class ColumnData implements IMeasurableMemory
                 ComplexColumnData existingComplex = (ComplexColumnData) existing;
                 if (activeDeletion.supersedes(existingComplex.complexDeletion()))
                 {
-                    Object[] cells = BTree.transformAndFilter(existingComplex.tree(), (ColumnData cd) -> removeShadowed(cd, recordDeletion));
-                    return BTree.isEmpty(cells) ? null : new ComplexColumnData(existingComplex.column, cells, DeletionTime.LIVE);
+                    Object[] existingTree = existingComplex.tree();
+                    Object[] cells = BTree.transformAndFilter(existingTree, (ColumnData cd) -> removeShadowed(cd, recordDeletion));
+                    ComplexColumnData result = BTree.isEmpty(cells) ? null
+                                                                    : new ComplexColumnData(existingComplex.column, cells, DeletionTime.LIVE);
+                    // The shadowed inner cells are released through recordDeletion.delete above, but that does not cover
+                    // the complex column's own structure: its cell tree (which can span multiple BTree nodes), its
+                    // complex deletion, and, when the column is dropped entirely, its wrapper. All were counted as
+                    // owned when the column was first written (ComplexColumnData.unsharedHeapSizeExcludingData), so release that
+                    // delta here. The rewritten column carries DeletionTime.LIVE, so the dropped complex
+                    // deletion's heap is released too, matching the swap Reconciler.merge accounts on its path.
+                    // On the update side (recordDeletion == noOp) this is a no-op, so skip it entirely.
+                    if (recordDeletion != ColumnData.noOp)
+                    {
+                        long structureBefore = ComplexColumnData.EMPTY_SIZE
+                                               + existingComplex.complexDeletion().unsharedHeapSize()
+                                               + BTree.sizeOnHeapOf(existingTree);
+                        long structureAfter = result == null ? 0 : ComplexColumnData.EMPTY_SIZE
+                                                                   + DeletionTime.LIVE.unsharedHeapSize()
+                                                                   + BTree.sizeOnHeapOf(cells);
+                        recordDeletion.onAllocatedOnHeap(structureAfter - structureBefore);
+                    }
+                    return result;
                 }
             }
 

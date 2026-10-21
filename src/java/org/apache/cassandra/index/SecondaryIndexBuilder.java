@@ -30,4 +30,12 @@ public abstract class SecondaryIndexBuilder extends CompactionInfo.Holder
     {
         return false;
     }
+
+    /**
+     * Invoked when this builder was created but its {@link #build()} will never run (e.g. because an executor
+     * rejects the submission during shutdown). Implementations must release any resources they reserved during construction.
+     */
+    public void onNotExecuted()
+    {
+    }
 }

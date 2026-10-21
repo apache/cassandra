@@ -28,9 +28,9 @@ import org.apache.cassandra.cql3.AssignmentTestable;
 import org.apache.cassandra.cql3.ColumnIdentifier;
 import org.apache.cassandra.cql3.ColumnSpecification;
 import org.apache.cassandra.cql3.FieldIdentifier;
+import org.apache.cassandra.cql3.FunctionContext;
 import org.apache.cassandra.cql3.Operation;
-import org.apache.cassandra.cql3.QueryOptions;
-import org.apache.cassandra.cql3.UpdateParameters;
+import org.apache.cassandra.cql3.RowUpdateBuilder;
 import org.apache.cassandra.db.DecoratedKey;
 import org.apache.cassandra.db.marshal.AbstractType;
 import org.apache.cassandra.db.marshal.UserType;
@@ -170,7 +170,7 @@ public final class UserTypes
             }
 
             MultiElements.DelayedValue value = new MultiElements.DelayedValue(((UserType)receiver.type.unwrap()), values);
-            return allTerminal ? value.bind(QueryOptions.DEFAULT) : value;
+            return allTerminal ? value.bind(FunctionContext.NONE) : value;
         }
 
         private void validateAssignableTo(String keyspace, ColumnSpecification receiver) throws InvalidRequestException
@@ -220,9 +220,9 @@ public final class UserTypes
             super(column, t);
         }
 
-        public void execute(DecoratedKey partitionKey, UpdateParameters params) throws InvalidRequestException
+        public void execute(DecoratedKey partitionKey, RowUpdateBuilder builder) throws InvalidRequestException
         {
-            Term.Terminal value = t.bind(params.options);
+            Term.Terminal value = t.bind(builder);
             if (value == UNSET_VALUE)
                 return;
 
@@ -230,7 +230,7 @@ public final class UserTypes
             if (type.isMultiCell())
             {
                 // setting a whole UDT at once means we overwrite all cells, so delete existing cells
-                params.setComplexDeletionTimeForOverwrite(column);
+                builder.setComplexDeletionTimeForOverwrite(column);
                 if (value == null)
                     return;
 
@@ -243,16 +243,16 @@ public final class UserTypes
                         continue;
 
                     CellPath fieldPath = type.cellPathForField(fieldName);
-                    params.addCell(column, fieldPath, buffer);
+                    builder.addCell(column, fieldPath, buffer);
                 }
             }
             else
             {
                 // for frozen UDTs, we're overwriting the whole cell value
                 if (value == null)
-                    params.addTombstone(column);
+                    builder.addTombstone(column);
                 else
-                    params.addCell(column, value.get());
+                    builder.addCell(column, value.get());
             }
         }
     }
@@ -267,20 +267,20 @@ public final class UserTypes
             this.field = field;
         }
 
-        public void execute(DecoratedKey partitionKey, UpdateParameters params) throws InvalidRequestException
+        public void execute(DecoratedKey partitionKey, RowUpdateBuilder builder) throws InvalidRequestException
         {
             // we should not get here for frozen UDTs
             assert column.type.isMultiCell() : "Attempted to set an individual field on a frozen UDT";
 
-            Term.Terminal value = t.bind(params.options);
+            Term.Terminal value = t.bind(builder);
             if (value == UNSET_VALUE)
                 return;
 
             CellPath fieldPath = ((UserType) column.type).cellPathForField(field);
             if (value == null)
-                params.addTombstone(column, fieldPath);
+                builder.addTombstone(column, fieldPath);
             else
-                params.addCell(column, fieldPath, value.get());
+                builder.addCell(column, fieldPath, value.get());
         }
     }
 
@@ -294,13 +294,13 @@ public final class UserTypes
             this.field = field;
         }
 
-        public void execute(DecoratedKey partitionKey, UpdateParameters params) throws InvalidRequestException
+        public void execute(DecoratedKey partitionKey, RowUpdateBuilder builder) throws InvalidRequestException
         {
             // we should not get here for frozen UDTs
             assert column.type.isMultiCell() : "Attempted to delete a single field from a frozen UDT";
 
             CellPath fieldPath = ((UserType) column.type).cellPathForField(field);
-            params.addTombstone(column, fieldPath);
+            builder.addTombstone(column, fieldPath);
         }
     }
 }

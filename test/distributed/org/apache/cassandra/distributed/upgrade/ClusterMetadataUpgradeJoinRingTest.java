@@ -54,7 +54,7 @@ public class ClusterMetadataUpgradeJoinRingTest extends UpgradeTestBase
         .withTokenSupplier(ts::tokens)
         .withNodeIdTopology(NetworkTopology.singleDcNetworkTopology(4, "dc0", "rack0"))
         .withConfig((cfg) -> cfg.with(Feature.NETWORK, Feature.GOSSIP))
-        .upgradesToCurrentFrom(v50)
+        .singleUpgradeToCurrentFrom(v50)
         .setup((cluster) -> {
             cluster.schemaChange("CREATE TABLE " + KEYSPACE + ".tbl (pk int, ck int, v int, PRIMARY KEY (pk, ck))");
             IInstanceConfig nodeConfig = cluster.newInstanceConfig();

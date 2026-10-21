@@ -34,7 +34,6 @@ import org.apache.cassandra.distributed.shared.Versions;
 import static org.apache.cassandra.config.ConfigCompatibilityTest.TEST_DIR;
 import static org.apache.cassandra.config.ConfigCompatibilityTest.dump;
 import static org.apache.cassandra.config.ConfigCompatibilityTest.toTree;
-import static org.apache.cassandra.distributed.upgrade.UpgradeTestBase.v40;
 import static org.apache.cassandra.distributed.upgrade.UpgradeTestBase.v41;
 import static org.apache.cassandra.distributed.upgrade.UpgradeTestBase.v50;
 
@@ -47,7 +46,7 @@ public class ConfigCompatibilityTestGenerate
     {
         ICluster.setup();
         Versions versions = Versions.find();
-        for (Semver version : Arrays.asList(v40, v41, v50))
+        for (Semver version : Arrays.asList(v41, v50))
         {
             File path = new File(TEST_DIR, "version=" + version + ".yml");
             path.getParentFile().mkdirs();

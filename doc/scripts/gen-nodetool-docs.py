@@ -14,43 +14,24 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 """
-A script to use nodetool to generate documentation for nodetool
+A script to generate the nodetool AsciiDoc pages from the help text files
+produced by the 'gen-nodetool-text' Ant target.
 """
 from __future__ import print_function
 
 import os
 import re
 import sys
-import subprocess
-from subprocess import PIPE
-from subprocess import Popen
-from itertools import islice
-from threading import Thread
-
-batch_size = 3
 
 if(os.environ.get("SKIP_NODETOOL") == "1"):
     sys.exit(0)
 
 
-nodetool = "../bin/nodetool"
 outdir = "modules/cassandra/pages/managing/tools/nodetool"
 examplesdir = "modules/cassandra/examples/TEXT/NODETOOL"
 helpfilename = outdir + "/nodetool.txt"
 command_re = re.compile("(    )([_a-z]+)")
 commandADOCContent = "= {0}\n\n== Usage\n[source,plaintext]\n----\ninclude::cassandra:example$TEXT/NODETOOL/{0}.txt[]\n----\n"
-
-# https://docs.python.org/3/library/itertools.html#itertools-recipes
-def batched(iterable, n):
-    "Batch data into tuples of length n. The last batch may be shorter."
-    # batched('ABCDEFG', 3) --> ABC DEF G
-    if n < 1:
-        raise ValueError('n must be at least one')
-    it = iter(iterable)
-    batch = tuple(islice(it, n))
-    while (batch):
-        yield batch
-        batch = tuple(islice(it, n))
 
 # create the documentation directory
 if not os.path.exists(outdir):
@@ -58,40 +39,28 @@ if not os.path.exists(outdir):
 
 # create the base help file to use for discovering the commands
 def create_help_file():
+    rootfile = examplesdir + "/nodetool.txt"
+    if not os.path.exists(rootfile):
+        sys.exit("ERROR: '%s' is missing. Run 'ant gen-nodetool-text' (or 'ant gen-asciidoc') first." % rootfile)
+    with open(rootfile, "r") as f:
+        out = f.read()
     with open(helpfilename, "w+") as output_file:
-        try:
-            proc = subprocess.Popen([nodetool, "help"], stdout=subprocess.PIPE, stderr=subprocess.PIPE)
-            out, err = proc.communicate()
-            if proc.returncode != 0:
-                print(
-                    'ERROR: Nodetool failed to run, you likely need to build '
-                    'cassandra using ant jar from the top level directory'
-                )
-                raise subprocess.CalledProcessError(proc.returncode, proc.args, output=out, stderr=err)
+        # Wrap the initial "usage: ..." block
+        usage_block = re.search(r'usage:.*?\n\n', out, re.DOTALL | re.MULTILINE)
+        if usage_block:
+            output_file.write("[source,console]\n----\n")
+            output_file.write(usage_block.group(0))
+            output_file.write("----\n")
+            out = out.replace(usage_block.group(0), '')
+        else:
+            raise ValueError("No usage block matched in nodetool help output")
+        output_file.write(out)
 
-            # Wrap the initial "usage: ..." block
-            usage_block = re.search(r'usage:.*?\n\n', out.decode('utf-8'), re.DOTALL | re.MULTILINE)
-            if usage_block:
-                output_file.write("[source,console]\n----\n")
-                output_file.write(usage_block.group(0))
-                output_file.write("----\n")
-                out = out.decode('utf-8').replace(usage_block.group(0), '')
-            else:
-                raise ValueError("No usage block matched in nodetool help output")
-            output_file.write(out)
-        except subprocess.CalledProcessError as cpe:
-            raise cpe
-
-# for a given command, create the help file and an ADOC file to contain it
+# for a given command, create the ADOC file to contain it
 def create_adoc(command):
     if command:
         cmdName = command.group(0).strip()
-        cmdFilename = examplesdir + "/" + cmdName + ".txt"
         adocFilename = outdir + "/" + cmdName + ".adoc"
-        with open(cmdFilename, "wb+") as cmdFile:
-            proc = Popen([nodetool, "help", cmdName], stdin=PIPE, stdout=PIPE)
-            (out, err) = proc.communicate()
-            cmdFile.write(out)
         with open(adocFilename, "w+") as adocFile:
             adocFile.write(commandADOCContent.format(cmdName,cmdName,cmdName))
 
@@ -108,12 +77,5 @@ with open(outdir + "/nodetool.adoc", "w+") as output:
 
 # create the command usage pages
 with open(helpfilename, "r+") as helpfile:
-    for clis in batched(helpfile, batch_size):
-        threads = []
-        for commandLine in clis:
-            command = command_re.match(commandLine)
-            t = Thread(target=create_adoc, args=[command])
-            threads.append(t)
-            t.start()
-        for t in threads:
-            t.join()
+    for commandLine in helpfile:
+        create_adoc(command_re.match(commandLine))

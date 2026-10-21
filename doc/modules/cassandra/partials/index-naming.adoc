@@ -1,0 +1,6 @@
+[WARNING]
+====
+Index names are unique per keyspace.
+You cannot use the same index name for two different indexes within a keyspace, regardless of which
+table they are on.
+====

@@ -18,14 +18,7 @@
 
 package org.apache.cassandra.tcm;
 
-import com.codahale.metrics.Meter;
-
-import org.apache.cassandra.config.DatabaseDescriptor;
-import org.apache.cassandra.config.DurationSpec;
 import org.apache.cassandra.metrics.TCMMetrics;
-import org.apache.cassandra.service.RetryStrategy;
-import org.apache.cassandra.service.TimeoutStrategy;
-import org.apache.cassandra.service.WaitStrategy;
 import org.apache.cassandra.tcm.log.Entry;
 
 import static java.util.concurrent.TimeUnit.NANOSECONDS;
@@ -33,39 +26,6 @@ import static org.apache.cassandra.config.DatabaseDescriptor.getCmsAwaitTimeout;
 
 public interface Processor
 {
-    /**
-     * Method is _only_ responsible to commit the transformation to the cluster metadata. Implementers _have to ensure_
-     * local visibility and enactment of the metadata!
-     */
-    default Commit.Result commit(Entry.Id entryId, Transformation transform, Epoch lastKnown)
-    {
-        // When the cluster is bounced, it may happen that regular nodes come up earlier than CMS nodes, or CMS
-        // nodes come up and fail to finish the startup since other CMS nodes are not up yet, and therefore can not
-        // submit the STARTUP message. This allows the bounces affecting majority of CMS nodes to finish successfully.
-        if (transform.kind() == Transformation.Kind.STARTUP)
-        {
-            return commit(entryId, transform, lastKnown, unsafeRetryIndefinitely());
-        }
-
-        return commit(entryId, transform, lastKnown,
-                      Retry.untilElapsed(getCmsAwaitTimeout().to(NANOSECONDS), TCMMetrics.instance.commitRetries));
-    }
-
-    /**
-     * To be used only when submitting a STARTUP transformation when a node is restarted with a new set of addresses or
-     * running a new release version.
-     */
-    static Retry unsafeRetryIndefinitely()
-    {
-        Meter retryMeter = TCMMetrics.instance.commitRetries;
-        DurationSpec.IntMillisecondsBound defaultBackoff = DatabaseDescriptor.getDefaultRetryBackoff();
-        DurationSpec.IntMillisecondsBound defaultMaxBackoff = DatabaseDescriptor.getDefaultMaxRetryBackoff();
-        String spec = (defaultBackoff == null ? "100ms" : defaultBackoff.toMilliseconds() + "ms")
-                      + "*attempts <=" + (defaultMaxBackoff == null ? "10s" : defaultMaxBackoff.toMilliseconds() + "ms");
-        WaitStrategy wait = RetryStrategy.parse(spec, TimeoutStrategy.LatencySourceFactory.none());
-        return Retry.withNoTimeLimit(retryMeter, wait);
-    }
-
     Commit.Result commit(Entry.Id entryId, Transformation transform, Epoch lastKnown, Retry retryPolicy);
 
     /**

@@ -44,11 +44,16 @@ import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
 
 import javax.annotation.Nullable;
+import javax.management.AttributeNotFoundException;
 import javax.management.InstanceNotFoundException;
+import javax.management.IntrospectionException;
 import javax.management.JMX;
+import javax.management.MBeanAttributeInfo;
+import javax.management.MBeanException;
 import javax.management.MBeanServerConnection;
 import javax.management.MalformedObjectNameException;
 import javax.management.ObjectName;
+import javax.management.ReflectionException;
 import javax.management.openmbean.CompositeData;
 import javax.management.openmbean.OpenDataException;
 import javax.management.openmbean.TabularData;
@@ -112,7 +117,9 @@ import org.apache.cassandra.locator.DynamicEndpointSnitchMBean;
 import org.apache.cassandra.locator.EndpointSnitchInfoMBean;
 import org.apache.cassandra.locator.LocationInfoMBean;
 import org.apache.cassandra.metrics.CIDRAuthorizerMetrics;
+import org.apache.cassandra.metrics.CQLMetrics;
 import org.apache.cassandra.metrics.CassandraMetricsRegistry;
+import org.apache.cassandra.metrics.DefaultNameFactory;
 import org.apache.cassandra.metrics.StorageMetrics;
 import org.apache.cassandra.metrics.TableMetrics;
 import org.apache.cassandra.metrics.ThreadPoolMetrics;
@@ -418,6 +425,11 @@ public class NodeProbe implements AutoCloseable
         return ssProxy.recompressSSTables(keyspaceName, jobs, tableNames);
     }
 
+    public int userDefinedGarbageCollect(String tombstoneOption, int jobs, List<String> userDefinedTables) throws IOException, ExecutionException, InterruptedException
+    {
+        return ssProxy.userDefinedGarbageCollect(tombstoneOption, jobs, userDefinedTables);
+    }
+
     private void checkJobs(PrintStream out, int jobs)
     {
         int compactors = ssProxy.getConcurrentCompactors();
@@ -489,6 +501,15 @@ public class NodeProbe implements AutoCloseable
         {
             out.println("Aborted garbage collection for at least one table in keyspace " + keyspaceName + ", check server logs for more information.");
             throw new RuntimeException("Aborted garbage collection for at least one table in keyspace " + keyspaceName + ", check server logs for more information.");
+        }
+    }
+
+    public void userDefinedGarbageCollect(PrintStream out, String tombstoneOption, int jobs, List<String> userDefinedTables) throws IOException, ExecutionException, InterruptedException
+    {
+        if (userDefinedGarbageCollect(tombstoneOption, jobs, userDefinedTables) != 0)
+        {
+            out.println("Aborted garbage collection for at least one table, check server logs for more information.");
+            throw new RuntimeException("Aborted garbage collection for at least one table, check server logs for more information.");
         }
     }
 
@@ -1186,14 +1207,14 @@ public class NodeProbe implements AutoCloseable
         ssProxy.setHintedHandoffThrottleInKB(throttleInKB);
     }
 
-    public List<String> getEndpointsWithPort(String keyspace, String cf, String key)
+    public List<String> getReplicasWithPort(String keyspace, String cf, String key)
     {
-        return ssProxy.getNaturalEndpointsWithPort(keyspace, cf, key);
+        return ssProxy.getNaturalReplicasWithPort(keyspace, cf, key);
     }
 
-    public List<InetAddress> getEndpoints(String keyspace, String cf, String key)
+    public List<InetAddress> getReplicas(String keyspace, String cf, String key)
     {
-        return ssProxy.getNaturalEndpoints(keyspace, cf, key);
+        return ssProxy.getNaturalReplicas(keyspace, cf, key);
     }
 
     public List<String> getSSTables(String keyspace, String cf, String key, boolean hexFormat)
@@ -1925,6 +1946,31 @@ public class NodeProbe implements AutoCloseable
         }
     }
 
+    /**
+     * Retrieve a CQL metric value by name. Works generically for any metric registered under
+     * {@code org.apache.cassandra.metrics:type=CQL,name=<metricName>} by inspecting the MBean
+     * attributes at runtime, without requiring knowledge of the underlying metric type.
+     */
+    public Object getCQLMetric(String metricName)
+    {
+        try
+        {
+            ObjectName objectName = new ObjectName(DefaultNameFactory.GROUP_NAME + ":type=" + CQLMetrics.TYPE_NAME + ",name=" + metricName);
+            for (MBeanAttributeInfo attr : mbeanServerConn.getMBeanInfo(objectName).getAttributes())
+            {
+                String name = attr.getName();
+                if ("Value".equals(name) || "Count".equals(name))
+                    return mbeanServerConn.getAttribute(objectName, name);
+            }
+            throw new RuntimeException("No readable value attribute for CQL metric: " + metricName);
+        }
+        catch (MalformedObjectNameException | InstanceNotFoundException | IntrospectionException |
+               ReflectionException | AttributeNotFoundException | MBeanException | IOException e)
+        {
+            throw new RuntimeException(e);
+        }
+    }
+
     private static Multimap<String, String> getJmxThreadPools(MBeanServerConnection mbeanServerConn)
     {
         try
@@ -2211,6 +2257,7 @@ public class NodeProbe implements AutoCloseable
             switch(metricName)
             {
                 case "BytesCompacted":
+                case "CompressedBytesCompacted":
                 case "CompactionsAborted":
                 case "CompactionsReduced":
                 case "SSTablesDroppedFromCompaction":

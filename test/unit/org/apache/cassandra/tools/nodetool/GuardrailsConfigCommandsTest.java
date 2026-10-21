@@ -172,9 +172,12 @@ public class GuardrailsConfigCommandsTest extends CQLTester
             for (Method method : entry.getValue())
             {
                 String guardrailName = GuardrailsConfigCommand.toSnakeCase(method.getName().substring(3));
-                if (entry.getValue().size() == 1)
+                // Thresholds are grouped under a collapsed "<name>_threshold" key that intentionally differs from
+                // the field name (e.g. "<name>_fail_threshold"), whether or not the guardrail has both warn and
+                // fail halves. Everything else keys directly by its field name.
+                boolean isThreshold = method.getName().endsWith("Threshold");
+                if (!isThreshold)
                     assertEquals(entry.getKey(), guardrailName);
-                // else it is threshold, so it does not match the key
 
                 // assert converted snake-case guardrail name is actually in Config / cassandra.yaml
                 assertTrue(configFieldNames.contains(guardrailName));
@@ -209,6 +212,8 @@ public class GuardrailsConfigCommandsTest extends CQLTester
     "intersect_filtering_query_enabled                true\n"  +
     "intersect_filtering_query_warned                 true\n"  +
     "non_partition_restricted_index_query_enabled     true\n"  +
+    "prepared_statements_require_parameters_enabled   false\n"  +
+    "prepared_statements_require_parameters_warned    true\n"  +
     "read_before_write_list_operations_enabled        true\n"  +
     "secondary_indexes_enabled                        true\n"  +
     "simplestrategy_enabled                           true\n"  +
@@ -238,19 +243,22 @@ public class GuardrailsConfigCommandsTest extends CQLTester
     "materialized_views_per_table_threshold       [-1, -1]      \n" +
     "maximum_replication_factor_threshold         [-1, -1]      \n" +
     "maximum_timestamp_threshold                  [null, null]  \n" +
+    "minimum_cms_size_threshold                   -1            \n" +
     "minimum_replication_factor_threshold         [-1, -1]      \n" +
     "minimum_timestamp_threshold                  [null, null]  \n" +
     "page_size_threshold                          [-1, -1]      \n" +
     "partition_keys_in_select_threshold           [-1, -1]      \n" +
     "partition_size_threshold                     [null, null]  \n" +
     "partition_tombstones_threshold               [-1, -1]      \n" +
+    "sai_blob_term_size_threshold                 [8KiB, 1KiB]  \n" +
     "sai_frozen_term_size_threshold               [8KiB, 1KiB]  \n" +
     "sai_sstable_indexes_per_query_threshold      [-1, 32]      \n" +
     "sai_string_term_size_threshold               [8KiB, 1KiB]  \n" +
     "sai_vector_term_size_threshold               [32KiB, 16KiB]\n" +
     "secondary_indexes_per_table_threshold        [-1, -1]      \n" +
     "tables_threshold                             [-1, -1]      \n" +
-    "vector_dimensions_threshold                  [-1, -1]      \n";
+    "vector_dimensions_threshold                  [-1, -1]      \n" +
+    "zstd_compression_level_threshold             [-1, -1]      \n";
 
     private static final String ALL_THRESHOLDS_GETTER_VERBOSE_OUTPUT =
     "collection_list_size_fail_threshold               null \n" +
@@ -287,6 +295,7 @@ public class GuardrailsConfigCommandsTest extends CQLTester
     "maximum_replication_factor_warn_threshold         -1   \n" +
     "maximum_timestamp_fail_threshold                  null \n" +
     "maximum_timestamp_warn_threshold                  null \n" +
+    "minimum_cms_size_fail_threshold                   -1   \n" +
     "minimum_replication_factor_fail_threshold         -1   \n" +
     "minimum_replication_factor_warn_threshold         -1   \n" +
     "minimum_timestamp_fail_threshold                  null \n" +
@@ -299,6 +308,8 @@ public class GuardrailsConfigCommandsTest extends CQLTester
     "partition_size_warn_threshold                     null \n" +
     "partition_tombstones_fail_threshold               -1   \n" +
     "partition_tombstones_warn_threshold               -1   \n" +
+    "sai_blob_term_size_fail_threshold                 8KiB \n" +
+    "sai_blob_term_size_warn_threshold                 1KiB \n" +
     "sai_frozen_term_size_fail_threshold               8KiB \n" +
     "sai_frozen_term_size_warn_threshold               1KiB \n" +
     "sai_sstable_indexes_per_query_fail_threshold      -1   \n" +
@@ -312,7 +323,9 @@ public class GuardrailsConfigCommandsTest extends CQLTester
     "tables_fail_threshold                             -1   \n" +
     "tables_warn_threshold                             -1   \n" +
     "vector_dimensions_fail_threshold                  -1   \n" +
-    "vector_dimensions_warn_threshold                  -1   \n";
+    "vector_dimensions_warn_threshold                  -1   \n" +
+    "zstd_compression_level_fail_threshold             -1   \n" +
+    "zstd_compression_level_warn_threshold             -1   \n";
 
     private static final String ALL_VALUES_GETTER_OUTPUT =
     "keyspace_properties_disallowed               []   \n" +

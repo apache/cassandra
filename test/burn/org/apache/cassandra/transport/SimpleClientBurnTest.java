@@ -20,7 +20,6 @@ package org.apache.cassandra.transport;
 
 import java.net.InetAddress;
 import java.net.ServerSocket;
-import java.nio.ByteBuffer;
 import java.security.SecureRandom;
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -190,11 +189,11 @@ public class SimpleClientBurnTest
                             Assert.assertEquals(expected.result.rows.size(), actual.result.rows.size());
                             for (int i = 0; i < expected.result.rows.size(); i++)
                             {
-                                List<ByteBuffer> expectedRow = expected.result.rows.get(i);
-                                List<ByteBuffer> actualRow = actual.result.rows.get(i);
+                                List<byte[]> expectedRow = expected.result.rows.get(i);
+                                List<byte[]> actualRow = actual.result.rows.get(i);
                                 Assert.assertEquals(expectedRow.size(), actualRow.size());
                                 for (int col = 0; col < expectedRow.size(); col++)
-                                    Assert.assertEquals(expectedRow.get(col), actualRow.get(col));
+                                    Assert.assertArrayEquals(expectedRow.get(col), actualRow.get(col));
                             }
                         }
                         counter++;

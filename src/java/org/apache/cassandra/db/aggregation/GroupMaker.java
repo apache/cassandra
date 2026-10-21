@@ -224,7 +224,8 @@ public abstract class GroupMaker
         {
             input.add(argument);
 
-            // For computing groups we do not need to use the client protocol version.
+            // For computing groups we do not need to use the specific client protocol version.
+            selector.prepare(ProtocolVersion.CURRENT);
             selector.addInput(input);
             ByteBuffer output = selector.getOutput(ProtocolVersion.CURRENT);
             selector.reset();

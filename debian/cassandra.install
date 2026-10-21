@@ -10,6 +10,7 @@ conf/hotspot_compiler etc/cassandra
 conf/cqlshrc.sample etc/cassandra
 conf/credentials.sample etc/cassandra
 conf/triggers/* etc/cassandra/triggers
+conf/cassandra-jaas.config etc/cassandra
 debian/cassandra.conf etc/security/limits.d
 debian/cassandra-sysctl.conf etc/sysctl.d
 bin/cassandra.in.sh usr/share/cassandra
@@ -32,3 +33,5 @@ lib/*.jar usr/share/cassandra/lib
 lib/*.zip usr/share/cassandra/lib
 lib/x86_64/* usr/share/cassandra/lib/x86_64
 lib/aarch64/* usr/share/cassandra/lib/aarch64
+build/html/* usr/share/doc/cassandra/html
+build/man/*.7.gz usr/share/man/man7

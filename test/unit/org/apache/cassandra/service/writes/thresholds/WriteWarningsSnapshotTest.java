@@ -175,11 +175,10 @@ public class WriteWarningsSnapshotTest
 
     private static Gen<WriteThresholdCounter> counter()
     {
-        Gen<Boolean> isEmpty = SourceDSL.booleans().all();
         Constraint maxValue = Constraint.between(1, Long.MAX_VALUE);
         Gen<WriteThresholdCounter> gen = rs ->
         {
-            if (isEmpty.generate(rs))
+            if (rs.next(Constraint.between(0, 3)) == 0)
                 return WriteThresholdCounter.empty();
             Map<TableId, Long> values = new HashMap<>();
             values.put(TABLE1, rs.next(maxValue));

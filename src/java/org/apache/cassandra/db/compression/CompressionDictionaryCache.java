@@ -32,6 +32,7 @@ import com.google.common.annotations.VisibleForTesting;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import org.apache.cassandra.concurrent.ImmediateExecutor;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.db.compression.CompressionDictionary.DictId;
 import org.apache.cassandra.utils.concurrent.Ref;
@@ -81,6 +82,7 @@ public class CompressionDictionaryCache implements ICompressionDictionaryCache
                                      }
                                  }
                              })
+                             .executor(ImmediateExecutor.INSTANCE)
                              .build();
     }
 
@@ -100,14 +102,13 @@ public class CompressionDictionaryCache implements ICompressionDictionaryCache
     }
 
     @Override
-    public void add(@Nullable CompressionDictionary compressionDictionary)
+    public CompressionDictionary add(@Nullable CompressionDictionary compressionDictionary)
     {
         if (compressionDictionary == null)
-            return;
+            return null;
 
-        // Only update cache if not already in the cache
         DictId newDictId = compressionDictionary.dictId();
-        cache.get(newDictId, id -> {
+        CompressionDictionary cached = cache.get(newDictId, id -> {
             Ref<?> ref = compressionDictionary.initRefLazily();
             if (ref == null)
             {
@@ -123,6 +124,8 @@ public class CompressionDictionaryCache implements ICompressionDictionaryCache
         {
             currentId = currentDictId.get();
         }
+
+        return cached;
     }
 
     @Override

@@ -40,7 +40,7 @@ public class DoubleType extends NumberType<Double>
 
     private static final ByteBuffer MASKED_VALUE = instance.decompose(0d);
 
-    DoubleType() {super(ComparisonType.CUSTOM);} // singleton
+    DoubleType() {super(ComparisonType.CUSTOM, 8);} // singleton
 
     @Override
     public boolean allowsEmpty()
@@ -143,12 +143,6 @@ public class DoubleType extends NumberType<Double>
                 mutable.setValue(ByteBufferUtil.toDouble(buffer));
             }
         };
-    }
-
-    @Override
-    public int valueLengthIfFixed()
-    {
-        return 8;
     }
 
     @Override

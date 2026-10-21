@@ -40,7 +40,7 @@
     <byteman.version>4.0.26</byteman.version>
     <netty.version>4.1.130.Final</netty.version>
     <ohc.version>0.5.1</ohc.version>
-    <async-profiler.version>4.2</async-profiler.version>
+    <async-profiler.version>4.5</async-profiler.version>
 
     <!-- These are referenced in build.xml, so need to be propagated from there -->
     <asm.version>@asm.version@</asm.version>
@@ -298,12 +298,31 @@
       <dependency>
         <groupId>at.yawk.lz4</groupId>
         <artifactId>lz4-java</artifactId>
-        <version>1.10.1</version>
+        <version>1.11.2</version>
       </dependency>
       <dependency>
         <groupId>com.github.luben</groupId>
         <artifactId>zstd-jni</artifactId>
         <version>1.5.7-2</version>
+        <classifier>linux_aarch64</classifier>
+      </dependency>
+      <dependency>
+        <groupId>com.github.luben</groupId>
+        <artifactId>zstd-jni</artifactId>
+        <version>1.5.7-2</version>
+        <classifier>linux_amd64</classifier>
+      </dependency>
+      <dependency>
+        <groupId>com.github.luben</groupId>
+        <artifactId>zstd-jni</artifactId>
+        <version>1.5.7-2</version>
+        <classifier>darwin_aarch64</classifier>
+      </dependency>
+      <dependency>
+        <groupId>com.github.luben</groupId>
+        <artifactId>zstd-jni</artifactId>
+        <version>1.5.7-2</version>
+        <classifier>darwin_x86_64</classifier>
       </dependency>
       <dependency>
         <groupId>com.google.guava</groupId>
@@ -548,7 +567,7 @@
       <dependency>
         <groupId>com.puppycrawl.tools</groupId>
         <artifactId>checkstyle</artifactId>
-        <version>10.12.1</version>
+        <version>10.26.1</version>
         <scope>test</scope>
       </dependency>
       <dependency>
@@ -1107,7 +1126,7 @@
       <dependency>
         <groupId>com.github.ben-manes.caffeine</groupId>
         <artifactId>caffeine</artifactId>
-        <version>3.1.8</version>
+        <version>3.2.4</version>
         <exclusions>
           <exclusion>
             <groupId>org.checkerframework</groupId>

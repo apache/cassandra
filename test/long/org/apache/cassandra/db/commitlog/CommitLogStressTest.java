@@ -50,6 +50,7 @@ import org.junit.runners.Parameterized.Parameters;
 import org.apache.cassandra.SchemaLoader;
 import org.apache.cassandra.UpdateBuilder;
 import org.apache.cassandra.Util;
+import org.apache.cassandra.concurrent.CassandraThread;
 import org.apache.cassandra.config.Config;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.config.ParameterizedClass;
@@ -69,8 +70,6 @@ import org.apache.cassandra.io.util.FileInputStreamPlus;
 import org.apache.cassandra.schema.Schema;
 import org.apache.cassandra.security.EncryptionContext;
 import org.apache.cassandra.security.EncryptionContextGenerator;
-
-import io.netty.util.concurrent.FastThreadLocalThread;
 
 import static org.apache.cassandra.utils.Clock.Global.currentTimeMillis;
 
@@ -237,8 +236,8 @@ public abstract class CommitLogStressTest
             for (CommitlogThread t: threads)
             {
                 t.join();
-                if (t.clsp.compareTo(discardedPos) > 0)
-                    discardedPos = t.clsp;
+                if (t.runnable.clsp.compareTo(discardedPos) > 0)
+                    discardedPos = t.runnable.clsp;
             }
             verifySizes(commitLog);
 
@@ -262,8 +261,8 @@ public abstract class CommitLogStressTest
         for (CommitlogThread t: threads)
         {
             t.join();
-            hash += t.hash;
-            cells += t.cells;
+            hash += t.runnable.hash;
+            cells += t.runnable.cells;
         }
         verifySizes(commitLog);
 
@@ -337,7 +336,7 @@ public abstract class CommitLogStressTest
     {
         stop = false;
         for (int ii = 0; ii < NUM_THREADS; ii++) {
-            final CommitlogThread t = new CommitlogThread(commitLog, new Random(ii));
+            final CommitlogThread t = buildCommitlogThread(commitLog, new Random(ii));
             threads.add(t);
             t.start();
         }
@@ -357,8 +356,8 @@ public abstract class CommitLogStressTest
                 long sz = 0;
                 for (CommitlogThread clt : threads)
                 {
-                    temp += clt.counter.get();
-                    sz += clt.dataSize;
+                    temp += clt.runnable.counter.get();
+                    sz += clt.runnable.dataSize;
                 }
                 double time = (currentTimeMillis() - start) / 1000.0;
                 double avg = (temp / time);
@@ -403,7 +402,22 @@ public abstract class CommitLogStressTest
         return slice;
     }
 
-    public class CommitlogThread extends FastThreadLocalThread
+    public class CommitlogThread extends CassandraThread
+    {
+        final CommitlogRunnable runnable;
+        CommitlogThread(CommitlogRunnable runnable)
+        {
+            super(runnable);
+            this.runnable = runnable;
+        }
+    }
+
+    public CommitlogThread buildCommitlogThread(CommitLog commitLog, Random rand)
+    {
+        return new CommitlogThread(new CommitlogRunnable(commitLog, rand));
+    }
+
+    public class CommitlogRunnable implements Runnable
     {
         final AtomicLong counter = new AtomicLong();
         int hash = 0;
@@ -415,10 +429,10 @@ public abstract class CommitLogStressTest
 
         volatile CommitLogPosition clsp;
 
-        CommitlogThread(CommitLog commitLog, Random rand)
+        public CommitlogRunnable(CommitLog commitLog, Random random)
         {
             this.commitLog = commitLog;
-            this.random = rand;
+            this.random = random;
         }
 
         public void run()

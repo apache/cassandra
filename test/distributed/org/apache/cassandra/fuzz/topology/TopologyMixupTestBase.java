@@ -380,7 +380,7 @@ public abstract class TopologyMixupTestBase<S extends TopologyMixupTestBase.Sche
 
     protected void preCheck(Property.StatefulBuilder statefulBuilder)
     {
-
+        statefulBuilder.withSeed(1L);
     }
 
     protected void destroyState(State<S> state, @Nullable Throwable cause) throws Throwable
@@ -524,6 +524,7 @@ public abstract class TopologyMixupTestBase<S extends TopologyMixupTestBase.Sche
                                  .withTokenSupplier(topologyHistory)
                                  .withConfig(c -> {
                                      c.with(Feature.values())
+                                      .set("accord.shutdown_grace_period", "30s")
                                       .set("write_request_timeout", "10s")
                                       .set("read_request_timeout", "10s")
                                       .set("range_request_timeout", "20s")
@@ -725,10 +726,14 @@ public abstract class TopologyMixupTestBase<S extends TopologyMixupTestBase.Sche
         }
 
         private String epochHistory = null;
-
+        private boolean closing;
         @Override
         public void close() throws Exception
         {
+            if (closing)
+                return;
+
+            closing = true;
             var cmsNodesUp = Sets.intersection(asSet(cmsGroup), asSet(topologyHistory.up()));
             int cmsNode = Iterables.getFirst(cmsNodesUp, null);
             try
@@ -940,7 +945,7 @@ public abstract class TopologyMixupTestBase<S extends TopologyMixupTestBase.Sche
         {
             return inst.callOnInstance(() -> {
                 ClusterMetadata current = ClusterMetadata.current();
-                Set<InetAddressAndPort> members = current.placements.get(ReplicationParams.meta(current)).writes.byEndpoint().keySet();
+                Set<InetAddressAndPort> members = current.placement(ReplicationParams.meta(current)).writes.byEndpoint().keySet();
                 // Why not just use 'current.fullCMSMembers()'?  That uses the "read" replicas, so "could" have less endpoints
                 // It would be more consistent to use fullCMSMembers but thought process is knowing the full set is better
                 // than the coordination set.

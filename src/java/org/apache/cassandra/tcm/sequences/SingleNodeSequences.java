@@ -27,6 +27,7 @@ import javax.annotation.Nullable;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import org.apache.cassandra.db.SystemKeyspace;
 import org.apache.cassandra.dht.Token;
 import org.apache.cassandra.gms.Gossiper;
 import org.apache.cassandra.locator.InetAddressAndPort;
@@ -82,10 +83,16 @@ public interface SingleNodeSequences
         if (inProgress == null)
         {
             logger.info("starting decommission with {} {}", metadata.epoch, self);
+            // We reset transferred ranges upon starting a decommission so that we fully stream
+            // anything written since a previous attempt which may not have been persisted to a pending endpoint
+            SystemKeyspace.resetTransferredRanges();
+            logger.info("done resetting transferred ranges {} {}", metadata.epoch, self);
             ClusterMetadataService.instance().commit(new PrepareLeave(self,
                                                                       force,
                                                                       ClusterMetadataService.instance().placementProvider(),
-                                                                      LeaveStreams.Kind.UNBOOTSTRAP));
+                                                                      LeaveStreams.Kind.UNBOOTSTRAP),
+                                                     m -> m,
+                                                     failureHandler("PrepareLeave", StorageService.instance::markDecommissionFailed));
         }
         else if (InProgressSequences.isLeave(inProgress))
         {
@@ -96,6 +103,7 @@ public interface SingleNodeSequences
             throw new IllegalArgumentException("Can not decommission a node that has an in-progress sequence");
         }
 
+        StorageService.instance.clearTransientMode();
         InProgressSequences.finishInProgressSequences(self);
         Gossiper.instance.unsafeBroadcastLeftStatus(FBUtilities.getBroadcastAddressAndPort(),
                                                     tokens,
@@ -182,11 +190,22 @@ public interface SingleNodeSequences
         ClusterMetadataService.instance().commit(new PrepareMove(self,
                                                                  Collections.singleton(newToken),
                                                                  ClusterMetadataService.instance().placementProvider(),
-                                                                 true));
+                                                                 true),
+                                                 m -> m,
+                                                 failureHandler("PrepareMove", StorageService.instance::markMoveFailed));
         InProgressSequences.finishInProgressSequences(self);
 
         if (logger.isDebugEnabled())
             logger.debug("Successfully moved to new token {}", StorageService.instance.getLocalTokens().iterator().next());
+    }
+
+    private static ClusterMetadataService.CommitFailureHandler<ClusterMetadata> failureHandler(String type, Runnable markFailed)
+    {
+        return (code, msg) -> {
+            logger.warn("Got failure committing {} transformation: {} {}", type, code, msg);
+            markFailed.run();
+            throw new IllegalStateException(String.format("Can not commit transformation: \"%s\"(%s).", code, msg));
+        };
     }
 
     static void resumeMove()
@@ -201,6 +220,11 @@ public interface SingleNodeSequences
         {
             String msg = "No move operation in progress, can't resume";
             logger.info(msg);
+            if (StorageService.instance.operationMode() == MOVE_FAILED)
+            {
+                // there is no ongoing move to resume, but operation mode thinks there is
+                StorageService.instance.clearTransientMode();
+            }
             throw new IllegalStateException(msg);
         }
         if (StorageService.instance.operationMode() != MOVE_FAILED)
@@ -221,7 +245,7 @@ public interface SingleNodeSequences
     /**
      *
      * @param nodeId node id to abort the MSO for, null for local node
-     * @param kind the expected kind of the multi step operation to abolt
+     * @param kind the expected kind of the multi step operation to abort
      * @param ssMode the legacy mode we want storage service to be in, null for any
      */
     private static void abortHelper(@Nullable String nodeId, MultiStepOperation.Kind kind, @Nullable StorageService.Mode ssMode)
@@ -234,9 +258,19 @@ public interface SingleNodeSequences
         MultiStepOperation<?> sequence = metadata.inProgressSequences.get(toAbort);
         if (sequence == null || sequence.kind() != kind)
         {
-            String msg = String.format("No %s operation in progress for %s, can't abort (%s)", kind, toAbort, sequence);
-            logger.info(msg);
-            throw new IllegalStateException(msg);
+            if (toAbort.equals(metadata.myNodeId()) && ssMode != null && StorageService.instance.operationMode() == ssMode)
+            {
+                // there is no ongoing sequence with the given kind, but storage service operation mode is set, clear it
+                logger.debug("There is no ongoing {} sequence for this node, but operation mode is {} - clearing transient mode", kind, ssMode);
+                StorageService.instance.clearTransientMode();
+                return;
+            }
+            else
+            {
+                String msg = String.format("No %s operation in progress for %s, can't abort (%s)", kind, toAbort, sequence);
+                logger.info(msg);
+                throw new IllegalStateException(msg);
+            }
         }
         if (toAbort.equals(metadata.myNodeId()))
         {

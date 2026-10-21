@@ -73,7 +73,7 @@ public class AccordInteroperabilityTest extends AccordTestBase
                  assertRowSerial(cluster, "SELECT c, v FROM " + qualifiedAccordTableName + " WHERE k=0 ORDER BY c DESC LIMIT 3", AssertUtils.row(10, 100), AssertUtils.row(9, 90), AssertUtils.row(8, 80));
                  assertRowSerial(cluster, "SELECT c, v FROM " + qualifiedAccordTableName + " WHERE k=0 ORDER BY c DESC LIMIT 4", AssertUtils.row(10, 100), AssertUtils.row(9, 90), AssertUtils.row(8, 80), AssertUtils.row(7, 70));
              }
-         );
+        );
     }
 
     private static Object[][] assertTargetAccordRead(Function<Integer, Object[][]> query, int coordinatorIndex, int key, int expectedAccordReadCount)
@@ -101,12 +101,12 @@ public class AccordInteroperabilityTest extends AccordTestBase
                  {
                      try
                      {
-                         if (cl == ConsistencyLevel.ANY || cl == ConsistencyLevel.NODE_LOCAL)
+                         if (cl == ConsistencyLevel.ANY || cl == ConsistencyLevel.NODE_LOCAL || cl.name().startsWith("UNSAFE_DELAY_"))
                              continue;
+
                          assertTargetAccordRead(key -> cluster.coordinator(1).execute("SELECT * FROM " + qualifiedAccordTableName + " WHERE k = ?", org.apache.cassandra.distributed.api.ConsistencyLevel.valueOf(cl.name()), key), 1, 1, 1);
                          if (!IAccordService.SUPPORTED_READ_CONSISTENCY_LEVELS.contains(cl))
                              fail("Unsupported consistency level succeeded");
-
                      }
                      catch (Throwable t)
                      {
@@ -124,6 +124,9 @@ public class AccordInteroperabilityTest extends AccordTestBase
              cluster -> {
                  for (ConsistencyLevel cl : ConsistencyLevel.values())
                  {
+                     if (cl.name().startsWith("UNSAFE_DELAY_"))
+                         continue;
+
                      try
                      {
                          assertTargetAccordWrite(key -> cluster.coordinator(1).execute("INSERT INTO " + qualifiedAccordTableName + " (k, c, v) VALUES (?, 43, 44)", org.apache.cassandra.distributed.api.ConsistencyLevel.valueOf(cl.name()), key), 1, 1, 1);

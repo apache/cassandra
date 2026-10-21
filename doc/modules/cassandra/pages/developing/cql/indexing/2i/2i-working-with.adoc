@@ -4,8 +4,8 @@
 
 == Prerequisites
 
-* xref:developing/keyspace-create.adoc[Keyspace created]
-* xref:developing/table-create.adoc[Table created]
+* xref:cassandra:developing/cql/ddl.adoc#create-keyspace-statement[Keyspace created]
+* xref:cassandra:developing/cql/ddl.adoc#create-table-statement[Table created]
 
 include::_2i-create.adoc[leveloffset=+1]
 

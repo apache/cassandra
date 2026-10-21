@@ -71,25 +71,27 @@ public class HintedHandoffAddRemoveNodesTest extends TestBaseImpl
         {
             cluster.schemaChange(withKeyspace("CREATE TABLE %s.decom_no_hints_test (key int PRIMARY KEY, value int)"));
 
-            cluster.coordinator(1).execute(withKeyspace("INSERT INTO %s.decom_no_hints_test (key, value) VALUES (?, ?)"), ALL, 0, 0);
-            long hintsBeforeShutdown = countTotalHints(cluster.get(1));
+            int secondNode = 2;
+            cluster.coordinator(secondNode).execute(withKeyspace("INSERT INTO %s.decom_no_hints_test (key, value) VALUES (?, ?)"), ALL, 0, 0);
+            long hintsBeforeShutdown = countTotalHints(cluster.get(secondNode));
             assertThat(hintsBeforeShutdown).isEqualTo(0);
-            long hintsDelivered = countHintsDelivered(cluster.get(1));
+            long hintsDelivered = countHintsDelivered(cluster.get(secondNode));
             assertThat(hintsDelivered).isEqualTo(0);
 
             // Shutdown node 3 so hints can be written against it.
             cluster.get(3).shutdown().get();
 
-            cluster.coordinator(1).execute(withKeyspace("INSERT INTO %s.decom_no_hints_test (key, value) VALUES (?, ?)"), TWO, 0, 0);
-            Awaitility.await().until(() -> countTotalHints(cluster.get(1)) > 0);
-            long hintsAfterShutdown = countTotalHints(cluster.get(1));
+            cluster.coordinator(secondNode).execute(withKeyspace("INSERT INTO %s.decom_no_hints_test (key, value) VALUES (?, ?)"), TWO, 0, 0);
+            Awaitility.await().until(() -> countTotalHints(cluster.get(secondNode)) > 0);
+            long hintsAfterShutdown = countTotalHints(cluster.get(secondNode));
             assertThat(hintsAfterShutdown).isEqualTo(1);
 
-            cluster.get(2).runOnInstance(() -> setProgressBarrierMinConsistencyLevel(org.apache.cassandra.db.ConsistencyLevel.ONE));
+            cluster.get(secondNode).runOnInstance(() -> setProgressBarrierMinConsistencyLevel(org.apache.cassandra.db.ConsistencyLevel.ONE));
+
             ClusterUtils.waitForCMSToQuiesce(cluster, cluster.get(1), 3);
-            cluster.get(2).nodetoolResult("decommission", "--force").asserts().success();
-            long hintsDeliveredByDecom = countHintsDelivered(cluster.get(2));
-            String mode = cluster.get(2).callOnInstance(() -> StorageService.instance.getOperationMode());
+            cluster.get(secondNode).nodetoolResult("decommission", "--force").asserts().success();
+            long hintsDeliveredByDecom = countHintsDelivered(cluster.get(secondNode));
+            String mode = cluster.get(secondNode).callOnInstance(() -> StorageService.instance.getOperationMode());
             assertEquals(StorageService.Mode.DECOMMISSIONED.toString(), mode);
             assertThat(hintsDeliveredByDecom).isEqualTo(0);
         }

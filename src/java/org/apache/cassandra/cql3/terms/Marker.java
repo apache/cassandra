@@ -22,7 +22,7 @@ import java.util.List;
 
 import org.apache.cassandra.cql3.AssignmentTestable;
 import org.apache.cassandra.cql3.ColumnSpecification;
-import org.apache.cassandra.cql3.QueryOptions;
+import org.apache.cassandra.cql3.FunctionContext;
 import org.apache.cassandra.cql3.VariableSpecifications;
 import org.apache.cassandra.cql3.functions.Function;
 import org.apache.cassandra.db.marshal.AbstractType;
@@ -42,7 +42,7 @@ public final class Marker extends Term.NonTerminal
     /**
      * The index of the bind variable within the query options.
      * <p>When a query is executed the value of this placeholder is retrieved from the query options values using
-     * the bindIndex. (see {@link Marker#bind(QueryOptions)}</p>
+     * the bindIndex. (see {@link Term#bind(FunctionContext)}</p>
      */
     private final int bindIndex;
 
@@ -55,9 +55,9 @@ public final class Marker extends Term.NonTerminal
     }
 
     @Override
-    public void collectMarkerSpecification(VariableSpecifications boundNames)
+    public void collectMarkerSpecification(VariableSpecifications boundNames, Object owner)
     {
-        boundNames.add(bindIndex, receiver);
+        boundNames.add(bindIndex, receiver, owner);
     }
 
     @Override
@@ -72,11 +72,11 @@ public final class Marker extends Term.NonTerminal
     }
 
     @Override
-    public Term.Terminal bind(QueryOptions options) throws InvalidRequestException
+    public Term.Terminal bind(FunctionContext context) throws InvalidRequestException
     {
         try
         {
-            ByteBuffer bytes = options.getValue(bindIndex);
+            ByteBuffer bytes = context.options().getValues().get(bindIndex);
             if (bytes == null)
                 return null;
 
@@ -97,11 +97,11 @@ public final class Marker extends Term.NonTerminal
 
     // an optimized version without allocating interim Terminal objects
     @Override
-    public ByteBuffer bindAndGet(QueryOptions options)
+    public ByteBuffer bindAndGet(FunctionContext context)
     {
         try
         {
-            ByteBuffer bytes = options.getValue(bindIndex);
+            ByteBuffer bytes = context.options().getValue(bindIndex);
             if (bytes == null)
                 return null;
 
@@ -122,20 +122,20 @@ public final class Marker extends Term.NonTerminal
         }
     }
 
-    public boolean isByteArrayGetSupported(QueryOptions options)
+    public boolean isByteArrayGetSupported(FunctionContext context)
     {
-        return options.isByteArrayValuesGetSupported();
+        return context.options().isByteArrayValuesGetSupported();
     }
 
     /*
        Same logic as bind() but it returns byte[] instead of ByteBuffer and there is no Value wrapper usage
      */
     @Override
-    public byte[] bindAndGetByteArray(QueryOptions options) throws InvalidRequestException
+    public byte[] bindAndGetByteArray(FunctionContext context) throws InvalidRequestException
     {
         try
         {
-            byte[] bytes = options.getByteArrayValues()[bindIndex];
+            byte[] bytes = context.options().getByteArrayValues()[bindIndex];
             if (bytes == null)
                 return null;
 

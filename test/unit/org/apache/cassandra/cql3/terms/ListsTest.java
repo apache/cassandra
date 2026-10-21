@@ -20,7 +20,6 @@ package org.apache.cassandra.cql3.terms;
 
 import java.nio.ByteBuffer;
 import java.util.ArrayList;
-import java.util.Collections;
 import java.util.List;
 import java.util.UUID;
 
@@ -31,7 +30,8 @@ import org.junit.Test;
 
 import org.apache.cassandra.cql3.CQLTester;
 import org.apache.cassandra.cql3.QueryOptions;
-import org.apache.cassandra.cql3.UpdateParameters;
+import org.apache.cassandra.cql3.RowUpdateBuilder;
+import org.apache.cassandra.cql3.RowUpdateBuilder.RegularRowUpdateBuilder;
 import org.apache.cassandra.cql3.terms.Lists.PrecisionTime;
 import org.apache.cassandra.db.Clustering;
 import org.apache.cassandra.db.DecoratedKey;
@@ -147,13 +147,13 @@ public class ListsTest extends CQLTester
 
         ByteBuffer keyBuf = ByteBufferUtil.bytes("key");
         DecoratedKey key = Murmur3Partitioner.instance.decorateKey(keyBuf);
-        UpdateParameters parameters = new UpdateParameters(metaData,
-                                                           ClientState.forInternalCalls(),
-                                                           QueryOptions.DEFAULT,
-                                                           System.currentTimeMillis(),
-                                                           FBUtilities.nowInSeconds(),
-                                                           1000,
-                                                           Collections.emptyMap());
+        RowUpdateBuilder parameters = new RegularRowUpdateBuilder(metaData,
+                                                                  ClientState.forInternalCalls(),
+                                                                  QueryOptions.DEFAULT,
+                                                                  System.currentTimeMillis(),
+                                                                  FBUtilities.nowInSeconds(),
+                                                                  1000,
+                                                                  null);
         Clustering<?> clustering = Clustering.make(ByteBufferUtil.bytes(1));
         parameters.newRow(clustering);
         prepender.execute(key, parameters);

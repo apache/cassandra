@@ -22,7 +22,7 @@ import java.nio.ByteBuffer;
 import java.util.ArrayList;
 import java.util.List;
 
-import org.apache.cassandra.cql3.QueryOptions;
+import org.apache.cassandra.cql3.FunctionContext;
 import org.apache.cassandra.cql3.VariableSpecifications;
 import org.apache.cassandra.cql3.functions.Function;
 import org.apache.cassandra.db.marshal.MultiElementType;
@@ -116,24 +116,24 @@ public final class MultiElements
         }
 
         @Override
-        public void collectMarkerSpecification(VariableSpecifications boundNames)
+        public void collectMarkerSpecification(VariableSpecifications boundNames, Object owner)
         {
             if (type.supportsElementBindMarkers())
             {
                 for (int i = 0, m = elements.size(); i < m; i++)
-                    elements.get(i).collectMarkerSpecification(boundNames);
+                    elements.get(i).collectMarkerSpecification(boundNames, owner);
             }
         }
 
         @Override
-        public Terminal bind(QueryOptions options)
+        public Terminal bind(FunctionContext context)
         {
             try
             {
                 List<ByteBuffer> buffers = new ArrayList<>(elements.size());
                 for (Term t : elements)
                 {
-                    buffers.add(t.bindAndGet(options));
+                    buffers.add(t.bindAndGet(context));
                 }
 
                 buffers = type.filterSortAndValidateElements(buffers);

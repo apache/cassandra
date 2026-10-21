@@ -55,7 +55,7 @@ public class TokenMap implements MetadataValue<TokenMap>
     private static final Logger logger = LoggerFactory.getLogger(TokenMap.class);
 
     private final SortedBiMultiValMap<Token, NodeId> map;
-    private final List<Token> tokens;
+    private final ImmutableList<Token> tokens;
     private final List<Range<Token>> ranges;
     // TODO: move partitioner to the users (SimpleStrategy and Uniform Range Placement?)
     private final IPartitioner partitioner;
@@ -71,7 +71,7 @@ public class TokenMap implements MetadataValue<TokenMap>
         this.lastModified = lastModified;
         this.partitioner = partitioner;
         this.map = map;
-        this.tokens = tokens();
+        this.tokens = ImmutableList.copyOf(map.keySet());
         this.ranges = toRanges(tokens, partitioner);
     }
 
@@ -101,18 +101,6 @@ public class TokenMap implements MetadataValue<TokenMap>
         return new TokenMap(lastModified, partitioner, finalisedCopy);
     }
 
-    public TokenMap unassignTokens(NodeId id, Collection<Token> tokens)
-    {
-        SortedBiMultiValMap<Token, NodeId> finalisedCopy = SortedBiMultiValMap.create(map);
-        for (Token token : tokens)
-        {
-            NodeId nodeId = finalisedCopy.remove(token);
-            assert nodeId.equals(id);
-        }
-
-        return new TokenMap(lastModified, partitioner, finalisedCopy);
-    }
-
     public SortedBiMultiValMap<Token, NodeId> asMap()
     {
         return SortedBiMultiValMap.create(map);
@@ -130,7 +118,7 @@ public class TokenMap implements MetadataValue<TokenMap>
 
     public ImmutableList<Token> tokens()
     {
-        return ImmutableList.copyOf(map.keySet());
+        return tokens;
     }
 
     public ImmutableList<Token> tokens(NodeId nodeId)

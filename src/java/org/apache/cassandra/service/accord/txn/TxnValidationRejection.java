@@ -44,10 +44,4 @@ public class TxnValidationRejection implements TxnResult
     {
         return Kind.validation_rejection;
     }
-
-    @Override
-    public long estimatedSizeOnHeap()
-    {
-        return 0;
-    }
 }

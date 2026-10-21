@@ -27,14 +27,18 @@ import java.util.List;
 import java.util.Map;
 import java.util.stream.Collectors;
 
+import com.google.common.base.Preconditions;
+
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import org.apache.cassandra.config.DatabaseDescriptor;
+import org.apache.cassandra.db.guardrails.Guardrails;
 import org.apache.cassandra.db.virtual.ClusterMetadataDirectoryTable;
 import org.apache.cassandra.db.virtual.ClusterMetadataLogTable;
 import org.apache.cassandra.schema.ReplicationParams;
 import org.apache.cassandra.schema.TableId;
+import org.apache.cassandra.tcm.membership.EndpointLookup;
 import org.apache.cassandra.tcm.membership.NodeId;
 import org.apache.cassandra.tcm.membership.NodeState;
 import org.apache.cassandra.tcm.membership.NodeVersion;
@@ -46,9 +50,9 @@ import org.apache.cassandra.tcm.sequences.ReconfigureCMS;
 import org.apache.cassandra.tcm.serialization.Version;
 import org.apache.cassandra.tcm.transformations.Unregister;
 import org.apache.cassandra.tcm.transformations.cms.AdvanceCMSReconfiguration;
-import org.apache.cassandra.utils.FBUtilities;
 import org.apache.cassandra.utils.MBeanWrapper;
 
+import static java.util.concurrent.TimeUnit.MILLISECONDS;
 import static org.apache.cassandra.tcm.transformations.cms.PrepareCMSReconfiguration.needsReconfiguration;
 
 public class CMSOperations implements CMSOperationsMBean
@@ -80,6 +84,65 @@ public class CMSOperations implements CMSOperationsMBean
         this.cms = cms;
     }
 
+    // TCM CMS await timeout
+    public long getCmsAwaitTimeoutMillis()
+    {
+        return DatabaseDescriptor.getCmsAwaitTimeout().to(MILLISECONDS);
+    }
+
+    public void setCmsAwaitTimeoutMillis(long timeoutInMillis)
+    {
+        Preconditions.checkState(timeoutInMillis > 0);
+        DatabaseDescriptor.setCmsAwaitTimeout(timeoutInMillis);
+    }
+
+    // CMS commit timeout with exponential backoff
+    public long getCmsCommitTimeoutMillis()
+    {
+        return DatabaseDescriptor.getCmsCommitTimeout().to(MILLISECONDS);
+    }
+
+    public void setCmsCommitTimeoutMillis(long timeoutInMillis)
+    {
+        Preconditions.checkState(timeoutInMillis > 0);
+        DatabaseDescriptor.setCmsCommitTimeout(timeoutInMillis);
+    }
+
+    public long getCmsCommitRetryInitialDelayMillis()
+    {
+        return DatabaseDescriptor.getCmsCommitRetryInitialDelay().to(MILLISECONDS);
+    }
+
+    public void setCmsCommitRetryInitialDelayMillis(long delayInMillis)
+    {
+        Preconditions.checkState(delayInMillis > 0);
+        DatabaseDescriptor.setCmsCommitRetryInitialDelay(delayInMillis);
+    }
+
+    public long getCmsCommitRetryMaxDelayMillis()
+    {
+        return DatabaseDescriptor.getCmsCommitRetryMaxDelay().to(MILLISECONDS);
+    }
+
+    public void setCmsCommitRetryMaxDelayMillis(long delayInMillis)
+    {
+        Preconditions.checkState(delayInMillis > 0);
+        DatabaseDescriptor.setCmsCommitRetryMaxDelay(delayInMillis);
+    }
+
+    @Override
+    public String getCmsCommitMemberPreferencePolicy()
+    {
+        return DatabaseDescriptor.getCmsCommitMemberPreferencePolicy().name();
+    }
+
+    @Override
+    public void setCmsCommitMemberPreferencePolicy(String policy)
+    {
+        DatabaseDescriptor.setCmsCommitMemberPreferencePolicy(policy);
+        logger.info("Set cms_commit_member_preference_policy to {}", policy);
+    }
+
     @Override
     public void initializeCMS(List<String> ignoredEndpoints)
     {
@@ -101,13 +164,44 @@ public class CMSOperations implements CMSOperationsMBean
     @Override
     public void reconfigureCMS(int rf)
     {
-        cms.reconfigureCMS(ReplicationParams.simpleMeta(rf, ClusterMetadata.current().directory.knownDatacenters()));
+        reconfigureCMS(rf, Collections.emptyList());
+    }
+
+    @Override
+    public void reconfigureCMS(int rf, List<String> ignoredEndpoints)
+    {
+        ReplicationParams params = ReplicationParams.simpleMeta(rf, ClusterMetadata.current().directory.knownDatacenters());
+        guardMinimumCmsSize(params);
+        cms.reconfigureCMS(params, ignoredEndpoints);
     }
 
     @Override
     public void reconfigureCMS(Map<String, Integer> rf)
     {
-        cms.reconfigureCMS(ReplicationParams.ntsMeta(rf));
+        reconfigureCMS(rf, Collections.emptyList());
+    }
+
+    @Override
+    public void reconfigureCMS(Map<String, Integer> rf, List<String> ignoredEndpoints)
+    {
+        ReplicationParams params = ReplicationParams.ntsMeta(rf);
+        guardMinimumCmsSize(params);
+        cms.reconfigureCMS(params, ignoredEndpoints);
+    }
+
+    /**
+     * Enforces the minimum CMS size guardrail against an operator-requested reconfiguration. This is only applied to
+     * explicit reconfigure requests (nodetool / JMX), not to the automatic reconfiguration that happens on topology
+     * changes, which reuses the already-committed replication params.
+     */
+    private void guardMinimumCmsSize(ReplicationParams params)
+    {
+        ClusterMetadata metadata = ClusterMetadata.current();
+        int totalNodes = metadata.directory.allJoinedEndpoints().size();
+        int cmsSize = params.options.values().stream()
+                                    .mapToInt(Integer::parseInt)
+                                    .sum();
+        Guardrails.minimumCmsSize.guard(totalNodes, cmsSize);
     }
 
     @Override
@@ -152,16 +246,21 @@ public class CMSOperations implements CMSOperationsMBean
     {
         Map<String, String> info = new HashMap<>();
         ClusterMetadata metadata = ClusterMetadata.current();
-        String members = metadata.fullCMSMembers().stream().sorted().map(Object::toString).collect(Collectors.joining(","));
+        EndpointLookup endpoints = metadata.endpointLookup();
+        String members = metadata.fullCMSMemberIds()
+                                 .stream()
+                                 .sorted()
+                                 .map(id ->  String.format("(nodeid=%s,address=%s)", id.id(), endpoints.endpoint(id)))
+                                 .collect(Collectors.joining(","));
         info.put(MEMBERS, members);
-        info.put(NEEDS_RECONFIGURATION, Boolean.toString(needsReconfiguration(metadata)));
-        info.put(IS_MEMBER, Boolean.toString(cms.isCurrentMember(FBUtilities.getBroadcastAddressAndPort())));
+        info.put(NEEDS_RECONFIGURATION, Boolean.toString(metadata.epoch.isBefore(Epoch.FIRST) || needsReconfiguration(metadata)));
+        info.put(IS_MEMBER, Boolean.toString(metadata.isCMSMember()));
         info.put(SERVICE_STATE, ClusterMetadataService.state(metadata).toString());
         info.put(IS_MIGRATING, Boolean.toString(cms.isMigrating()));
         info.put(EPOCH, Long.toString(metadata.epoch.getEpoch()));
         info.put(LOCAL_PENDING, Integer.toString(cms.log().pendingBufferSize()));
         info.put(COMMITS_PAUSED, Boolean.toString(cms.commitsPaused()));
-        info.put(REPLICATION_FACTOR, ReplicationParams.meta(metadata).toString());
+        info.put(REPLICATION_FACTOR, metadata.epoch.isBefore(Epoch.FIRST) ? "" : ReplicationParams.meta(metadata).toString());
         info.put(CMS_ID, Integer.toString(metadata.metadataIdentifier));
         return info;
     }
@@ -278,6 +377,18 @@ public class CMSOperations implements CMSOperationsMBean
     {
         Map<Long, Map<String, Object>> log = ClusterMetadataLogTable.log(startEpoch, endEpoch);
         return convertToStringValues(log);
+    }
+
+    @Override
+    public boolean getLegacyStateListenerSyncLocalUpdates()
+    {
+        return DatabaseDescriptor.getLegacyStateListenerSyncLocalUpdates();
+    }
+
+    @Override
+    public void setLegacyStateListenerSyncLocalUpdates(boolean sync)
+    {
+        DatabaseDescriptor.setLegacyStateListenerSyncLocalUpdates(sync);
     }
 
     private Map<Long, Map<String, String>> convertToStringValues(Map<Long, Map<String, Object>> log)

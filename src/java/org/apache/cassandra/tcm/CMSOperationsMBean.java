@@ -24,11 +24,37 @@ import java.util.Map;
 
 public interface CMSOperationsMBean
 {
+    // CMS await timeout
+    public long getCmsAwaitTimeoutMillis();
+    public void setCmsAwaitTimeoutMillis(long timeoutInMillis);
+
+    // CMS commit timeout with exponential backoff
+    public long getCmsCommitTimeoutMillis();
+    public void setCmsCommitTimeoutMillis(long timeoutInMillis);
+    public long getCmsCommitRetryInitialDelayMillis();
+    public void setCmsCommitRetryInitialDelayMillis(long delayInMillis);
+    public long getCmsCommitRetryMaxDelayMillis();
+    public void setCmsCommitRetryMaxDelayMillis(long delayInMillis);
+
+    /** Get the CMS commit member preference policy
+     *
+     * @return how to choose the cms member preference order for commits
+     */
+    public String getCmsCommitMemberPreferencePolicy();
+
+    /** Update the CMS commit member preference policy
+     *
+     * @param policy see Config.CMSCommitMemberPreferencePolicy
+     */
+    public void setCmsCommitMemberPreferencePolicy(String policy);
+
     public void initializeCMS(List<String> ignore);
     public void abortInitialization(String initiator);
     public void resumeReconfigureCms();
     public void reconfigureCMS(int rf);
+    public void reconfigureCMS(int rf, List<String> ignoredEndpoints);
     public void reconfigureCMS(Map<String, Integer> rf);
+    public void reconfigureCMS(Map<String, Integer> rf, List<String> ignoredEndpoints);
     public Map<String, List<String>> reconfigureCMSStatus();
     public void cancelReconfigureCms();
 
@@ -50,4 +76,7 @@ public interface CMSOperationsMBean
     public Map<Long, Map<String, String>> dumpLog(long startEpoch, long endEpoch);
 
     public void resumeDropAccordTable(String tableId);
-}
+
+    public boolean getLegacyStateListenerSyncLocalUpdates();
+    public void setLegacyStateListenerSyncLocalUpdates(boolean sync);
+ }

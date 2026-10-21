@@ -30,6 +30,7 @@ import java.util.concurrent.locks.LockSupport;
 import accord.utils.Invariants;
 
 // WARNING: experimental - needs more testing
+// TODO (expected): produces more park() calls than expected, should perhaps assign owner before waking
 public class LockWithAsyncSignal implements Lock
 {
     interface AwaitFunction<T extends Throwable>

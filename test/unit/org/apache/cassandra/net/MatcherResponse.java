@@ -25,7 +25,6 @@ import java.util.Queue;
 import java.util.concurrent.BlockingQueue;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.BiFunction;
-import java.util.function.BiPredicate;
 import java.util.function.Function;
 
 import com.google.common.collect.Multimap;
@@ -45,7 +44,7 @@ public class MatcherResponse implements Closeable
         Multimaps.newListMultimap(new HashMap<>(), ArrayList::new);
     private final MockMessagingSpy spy = new MockMessagingSpy();
     private final AtomicInteger limitCounter = new AtomicInteger(Integer.MAX_VALUE);
-    private BiPredicate<Message<?>, InetAddressAndPort> sink;
+    private OutboundSink.Filter sink;
 
     MatcherResponse(Matcher<?> matcher)
     {
@@ -160,9 +159,10 @@ public class MatcherResponse implements Closeable
 
         assert sink == null: "destroy() must be called first to register new response";
 
-        sink = new BiPredicate<Message<?>, InetAddressAndPort>()
+        sink = new OutboundSink.Filter()
         {
-            public boolean test(Message message, InetAddressAndPort to)
+            @Override
+            public boolean test(Message message, InetAddressAndPort to, ConnectionType type)
             {
                 // prevent outgoing message from being send in case matcher indicates a match
                 // and instead send the mocked response
@@ -188,7 +188,7 @@ public class MatcherResponse implements Closeable
                         Message<?> response = fnResponse.apply(message, to);
                         if (response != null)
                         {
-                            if (response.verb().isResponse())
+                            if (response.verb().isManagedResponse())
                             {
                                 RequestCallbacks.CallbackInfo cb = MessagingService.instance().callbacks.get(message.id(), to);
                                 if (cb != null)

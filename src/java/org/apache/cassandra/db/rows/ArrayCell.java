@@ -31,17 +31,12 @@ import org.apache.cassandra.utils.memory.ByteBufferCloner;
 
 import static org.apache.cassandra.utils.ByteArrayUtil.EMPTY_BYTE_ARRAY;
 
-public class ArrayCell extends AbstractCell<byte[]>
+public class ArrayCell extends HeapAbstractCell<byte[]>
 {
     private static final long EMPTY_SIZE = ObjectSizes.measure(new ArrayCell(ColumnMetadata.regularColumn("", "", "", ByteType.instance, ColumnMetadata.NO_UNIQUE_ID), 0L, 0, 0, EMPTY_BYTE_ARRAY, null));
 
     // Careful: Adding vars here has an impact on memtable size
-    private final long timestamp;
-    private final int ttl;
-    private final int localDeletionTimeUnsignedInteger;
-
     private final byte[] value;
-    private final CellPath path;
 
     // Please keep both int/long overloaded ctros public. Otherwise silent casts will mess timestamps when one is not
     // available.
@@ -52,12 +47,8 @@ public class ArrayCell extends AbstractCell<byte[]>
 
     public ArrayCell(ColumnMetadata column, long timestamp, int ttl, int localDeletionTimeUnsignedInteger, byte[] value, CellPath path)
     {
-        super(column);
-        this.timestamp = timestamp;
-        this.ttl = ttl;
-        this.localDeletionTimeUnsignedInteger = localDeletionTimeUnsignedInteger;
+        super(column, timestamp, ttl, localDeletionTimeUnsignedInteger, path);
         this.value = value;
-        this.path = path;
     }
 
     public static ArrayCell live(ColumnMetadata column, long timestamp, byte[] value, CellPath path)
@@ -71,16 +62,6 @@ public class ArrayCell extends AbstractCell<byte[]>
         return new ArrayCell(column, timestamp, ttl, ExpirationDateOverflowHandling.computeLocalExpirationTime(nowInSec, ttl), value, path);
     }
 
-    public long timestamp()
-    {
-        return timestamp;
-    }
-
-    public int ttl()
-    {
-        return ttl;
-    }
-
     public byte[] value()
     {
         return value;
@@ -91,10 +72,6 @@ public class ArrayCell extends AbstractCell<byte[]>
         return ByteArrayAccessor.instance;
     }
 
-    public CellPath path()
-    {
-        return path;
-    }
 
     public Cell<?> withUpdatedColumn(ColumnMetadata newColumn)
     {
@@ -144,9 +121,4 @@ public class ArrayCell extends AbstractCell<byte[]>
         return EMPTY_SIZE + ObjectSizes.sizeOfArray(value) - value.length + (path == null ? 0 : path.unsharedHeapSizeExcludingData());
     }
 
-    @Override
-    protected int localDeletionTimeAsUnsignedInt()
-    {
-        return localDeletionTimeUnsignedInteger;
-    }
 }

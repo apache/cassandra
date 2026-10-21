@@ -645,6 +645,72 @@ class TestCqlshOutput(BaseTestCase):
                     if do_drop:
                         curs.execute('drop keyspace {}'.format(new_ks_name))
 
+    def test_drop_keyspace_prompt_behavior(self):
+        with cqlsh_testrun() as c:
+            c.send("CREATE KEYSPACE test_normal WITH replication = {'class': 'SimpleStrategy', 'replication_factor': 1};\n")
+            c.read_to_next_prompt()
+            c.send("CREATE KEYSPACE test_other WITH replication = {'class': 'SimpleStrategy', 'replication_factor': 1};\n")
+            c.read_to_next_prompt()
+            c.send("CREATE KEYSPACE \"Test_Quoted\" WITH replication = {'class': 'SimpleStrategy', 'replication_factor': 1};\n")
+            c.read_to_next_prompt()
+
+            c.send("USE test_normal;\n")
+            c.read_to_next_prompt()
+
+            c.send("DROP KEYSPACE test_other;\n")
+            c.read_to_next_prompt()
+            c.send("\n")
+            out_other = c.read_to_next_prompt()
+            self.assertIn('test_normal', out_other.lower())
+
+            c.send("DROP KEYSPACE test_normal;\n")
+            c.read_to_next_prompt()
+            c.send("\n")
+            out_normal = c.read_to_next_prompt()
+            self.assertNotIn('test_normal', out_normal.lower())
+
+            c.send("USE \"Test_Quoted\";\n")
+            c.read_to_next_prompt()
+            c.send("DROP KEYSPACE IF EXISTS \"Test_Quoted\";\n")
+            c.read_to_next_prompt()
+            c.send("\n")
+            out_quoted = c.read_to_next_prompt()
+            self.assertNotIn('test_quoted', out_quoted.lower())
+
+            # Arbitrary whitespace between DROP and KEYSPACE (and around the name) must still reset
+            # the prompt (CASSANDRA-21548: the original startswith('drop keyspace') missed these).
+            c.send("CREATE KEYSPACE test_spaces WITH replication = {'class': 'SimpleStrategy', 'replication_factor': 1};\n")
+            c.read_to_next_prompt()
+            c.send("USE test_spaces;\n")
+            c.read_to_next_prompt()
+            c.send("DROP   KEYSPACE   test_spaces ;\n")
+            c.read_to_next_prompt()
+            c.send("\n")
+            out_spaces = c.read_to_next_prompt()
+            self.assertNotIn('test_spaces', out_spaces.lower())
+
+            # Case-sensitivity: quoted "ABC" and unquoted abc are DIFFERENT keyspaces. While in "ABC",
+            # dropping the other (lower-case) keyspace must NOT reset the prompt (CASSANDRA-21548: the
+            # original case-insensitive comparison reset it by mistake); dropping "ABC" itself must.
+            c.send("CREATE KEYSPACE \"ABC\" WITH replication = {'class': 'SimpleStrategy', 'replication_factor': 1};\n")
+            c.read_to_next_prompt()
+            c.send("CREATE KEYSPACE abc WITH replication = {'class': 'SimpleStrategy', 'replication_factor': 1};\n")
+            c.read_to_next_prompt()
+            c.send("USE \"ABC\";\n")
+            c.read_to_next_prompt()
+
+            c.send("DROP KEYSPACE abc;\n")          # drops the other, lower-case keyspace, not "ABC"
+            c.read_to_next_prompt()
+            c.send("\n")
+            out_false_positive = c.read_to_next_prompt()
+            self.assertIn(':ABC>', out_false_positive)   # still in "ABC" -> prompt must be unchanged
+
+            c.send("DROP KEYSPACE \"ABC\";\n")       # now drop the actual current keyspace
+            c.read_to_next_prompt()
+            c.send("\n")
+            out_abc = c.read_to_next_prompt()
+            self.assertNotIn(':ABC>', out_abc)      # current keyspace dropped -> prompt reset to default
+
     def check_describe_keyspace_output(self, output, qksname):
         expected_bits = [r'(?im)^CREATE KEYSPACE %s WITH\b' % re.escape(qksname),
                          r';\s*$',

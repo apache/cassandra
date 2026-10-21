@@ -33,7 +33,6 @@ import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.io.util.DataInputPlus;
 import org.apache.cassandra.io.util.DataOutputPlus;
 import org.apache.cassandra.locator.DynamicEndpointSnitch;
-import org.apache.cassandra.locator.InetAddressAndPort;
 import org.apache.cassandra.service.StorageService;
 import org.apache.cassandra.tcm.ClusterMetadata;
 import org.apache.cassandra.tcm.ClusterMetadataService;
@@ -41,6 +40,7 @@ import org.apache.cassandra.tcm.Epoch;
 import org.apache.cassandra.tcm.MultiStepOperation;
 import org.apache.cassandra.tcm.Transformation;
 import org.apache.cassandra.tcm.membership.Directory;
+import org.apache.cassandra.tcm.membership.EndpointLookup;
 import org.apache.cassandra.tcm.membership.Location;
 import org.apache.cassandra.tcm.membership.NodeId;
 import org.apache.cassandra.tcm.membership.NodeState;
@@ -92,12 +92,12 @@ public class UnbootstrapAndLeave extends MultiStepOperation<Epoch>
      */
     @VisibleForTesting
     UnbootstrapAndLeave(Epoch latestModification,
-                               LockedRanges.Key lockKey,
-                               Transformation.Kind next,
-                               PrepareLeave.StartLeave startLeave,
-                               PrepareLeave.MidLeave midLeave,
-                               PrepareLeave.FinishLeave finishLeave,
-                               LeaveStreams streams)
+                        LockedRanges.Key lockKey,
+                        Transformation.Kind next,
+                        PrepareLeave.StartLeave startLeave,
+                        PrepareLeave.MidLeave midLeave,
+                        PrepareLeave.FinishLeave finishLeave,
+                        LeaveStreams streams)
     {
         super(nextToIndex(next), latestModification);
         this.lockKey = lockKey;
@@ -163,11 +163,11 @@ public class UnbootstrapAndLeave extends MultiStepOperation<Epoch>
     @Override
     public Set<NodeId> affectedPeers(Directory directory)
     {
-        Set<InetAddressAndPort> affectedEndpoints = new HashSet<>();
-        affectedEndpoints.addAll(startLeave.affectedEndpoints());
-        affectedEndpoints.addAll(midLeave.affectedEndpoints());
-        affectedEndpoints.addAll(finishLeave.affectedEndpoints());
-        return endpointsToIds(affectedEndpoints, directory);
+        Set<NodeId> affectedPeers = new HashSet<>();
+        affectedPeers.addAll(startLeave.affectedPeers(directory::peerId));
+        affectedPeers.addAll(midLeave.affectedPeers(directory::peerId));
+        affectedPeers.addAll(finishLeave.affectedPeers(directory::peerId));
+        return affectedPeers;
     }
 
     @Override
@@ -183,6 +183,7 @@ public class UnbootstrapAndLeave extends MultiStepOperation<Epoch>
                 }
                 catch (Throwable t)
                 {
+                    logger.warn("Exception committing startLeave, will retry", t);
                     JVMStabilityInspector.inspectThrowable(t);
                     return continuable();
                 }
@@ -198,14 +199,15 @@ public class UnbootstrapAndLeave extends MultiStepOperation<Epoch>
                 }
                 catch (ExecutionException e)
                 {
-                    StorageService.instance.markDecommissionFailed();
+                    if (startLeave.nodeId().equals(ClusterMetadata.current().myNodeId()))
+                        StorageService.instance.markDecommissionFailed();
                     JVMStabilityInspector.inspectThrowable(e);
                     logger.error("Error while decommissioning node: {}", e.getCause().getMessage());
                     throw new RuntimeException("Error while decommissioning node: " + e.getCause().getMessage());
                 }
                 catch (Throwable t)
                 {
-                    logger.warn("Error committing midLeave", t);
+                    logger.warn("Exception committing midLeave, will retry", t);
                     JVMStabilityInspector.inspectThrowable(t);
                     return continuable();
                 }
@@ -218,6 +220,7 @@ public class UnbootstrapAndLeave extends MultiStepOperation<Epoch>
                 }
                 catch (Throwable t)
                 {
+                    logger.warn("Exception committing finishLeave, will retry", t);
                     JVMStabilityInspector.inspectThrowable(t);
                     return continuable();
                 }
@@ -250,15 +253,16 @@ public class UnbootstrapAndLeave extends MultiStepOperation<Epoch>
     @Override
     public ClusterMetadata.Transformer cancel(ClusterMetadata metadata)
     {
-        DataPlacements placements = metadata.placements;
+        DataPlacements placements = metadata.placements();
+        EndpointLookup endpointLookup = metadata.directory;
         switch (next)
         {
             // need to undo MID_LEAVE and START_LEAVE, but PrepareLeave doesn't affect placement
             case FINISH_LEAVE:
-                placements = midLeave.inverseDelta().apply(metadata.nextEpoch(), placements);
+                placements = midLeave.inverseDelta().apply(endpointLookup, metadata.nextEpoch(), placements);
             case MID_LEAVE:
             case START_LEAVE:
-                placements = startLeave.inverseDelta().apply(metadata.nextEpoch(), placements);
+                placements = startLeave.inverseDelta().apply(endpointLookup, metadata.nextEpoch(), placements);
                 break;
             default:
                 throw new IllegalStateException("Can't revert leave from " + next);

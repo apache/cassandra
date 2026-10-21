@@ -69,6 +69,7 @@ public class PeerLogFetcher
         catch (ExecutionException | TimeoutException e)
         {
             logger.warn("Could not fetch log entries from peer, remote = {}, await = {}", remote, awaitAtleast);
+            logger.debug("Exception while fetching log entries from peer, remote = {}", remote, e);
         }
         return metadata;
     }
@@ -88,34 +89,35 @@ public class PeerLogFetcher
             return res;
         }
 
-        Promise<LogState> fetchRes = new AsyncPromise<>();
+        Promise<LogState> fetchFromRemote = new AsyncPromise<>();
+        Future<ClusterMetadata> appendToLog = fetchFromRemote.map(logState -> {
+            log.append(logState);
+            ClusterMetadata fetched = log.waitForHighestConsecutive();
+            if (fetched.epoch.isEqualOrAfter(awaitAtleast))
+            {
+                TCMMetrics.instance.peerLogEntriesFetched(before, logState.latestEpoch());
+                return fetched;
+            }
+            else
+            {
+                throw new IllegalStateException(String.format("Queried for epoch %s, but could not catch up. Current epoch: %s", awaitAtleast, fetched.epoch));
+            }
+        });
+
         logger.info("Fetching log from {}, at least {}", remote, awaitAtleast);
         try (Timer.Context ctx = TCMMetrics.instance.fetchPeerLogLatency.time())
         {
-            RemoteProcessor.sendWithCallbackAsync(fetchRes,
-                                                  Verb.TCM_FETCH_PEER_LOG_REQ,
-                                                  new FetchPeerLog(before),
-                                                  new RemoteProcessor.CandidateIterator(Collections.singletonList(remote), false),
-                                                  Retry.untilElapsed(DatabaseDescriptor.getCmsAwaitTimeout().to(TimeUnit.NANOSECONDS), TCMMetrics.instance.fetchLogRetries));
-
-            return fetchRes.map((logState) -> {
-                log.append(logState);
-                ClusterMetadata fetched = log.waitForHighestConsecutive();
-                if (fetched.epoch.isEqualOrAfter(awaitAtleast))
-                {
-                    TCMMetrics.instance.peerLogEntriesFetched(before, logState.latestEpoch());
-                    return fetched;
-                }
-                else
-                {
-                    throw new IllegalStateException(String.format("Queried for epoch %s, but could not catch up. Current epoch: %s", awaitAtleast, fetched.epoch));
-                }
-            });
-
+            RemoteProcessor.sendWithRetries(Verb.TCM_FETCH_PEER_LOG_REQ,
+                                            new FetchPeerLog(before),
+                                            fetchFromRemote,
+                                            new RemoteProcessor.CandidateIterator(Collections.singletonList(remote), false),
+                                            Retry.untilElapsed(DatabaseDescriptor.getCmsAwaitTimeout().to(TimeUnit.NANOSECONDS), TCMMetrics.instance.fetchLogRetries));
+            return appendToLog;
         }
         catch (Throwable t)
         {
-            fetchRes.cancel(true);
+            fetchFromRemote.cancel(true);
+            appendToLog.cancel(true);
             JVMStabilityInspector.inspectThrowable(t);
 
             logger.warn("Unable to fetch log entries from " + remote, t);

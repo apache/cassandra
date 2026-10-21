@@ -25,6 +25,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.TimeUnit;
+import java.util.function.LongSupplier;
 
 import com.google.common.base.Predicate;
 import com.google.common.collect.ImmutableList;
@@ -34,6 +35,12 @@ import com.google.common.util.concurrent.RateLimiter;
 import org.apache.commons.lang3.StringUtils;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+
+import accord.local.CommandStores.StoreFinder;
+import accord.local.CommandStores.StoreSelector;
+import accord.local.Node;
+import accord.primitives.Ranges;
+import accord.utils.Invariants;
 
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.db.ColumnFamilyStore;
@@ -55,14 +62,22 @@ import org.apache.cassandra.io.sstable.ISSTableScanner;
 import org.apache.cassandra.io.sstable.format.SSTableReader;
 import org.apache.cassandra.io.sstable.metadata.MetadataCollector;
 import org.apache.cassandra.io.util.File;
+import org.apache.cassandra.schema.TableMetadata;
 import org.apache.cassandra.service.ActiveRepairService;
+import org.apache.cassandra.service.accord.AccordCommandStore;
+import org.apache.cassandra.service.accord.AccordService;
+import org.apache.cassandra.service.accord.TokenRange;
+import org.apache.cassandra.service.accord.api.TokenKey;
 import org.apache.cassandra.service.snapshot.SnapshotManager;
 import org.apache.cassandra.service.snapshot.SnapshotOptions;
 import org.apache.cassandra.service.snapshot.SnapshotType;
 import org.apache.cassandra.utils.FBUtilities;
+import org.apache.cassandra.utils.JVMStabilityInspector;
 import org.apache.cassandra.utils.TimeUUID;
 import org.apache.cassandra.utils.concurrent.Refs;
 
+import static accord.local.RedundantStatus.Property.LOCALLY_APPLIED;
+import static org.apache.cassandra.db.compaction.CompactionManager.NO_GC;
 import static org.apache.cassandra.utils.Clock.Global.currentTimeMillis;
 import static org.apache.cassandra.utils.Clock.Global.nanoTime;
 
@@ -71,21 +86,29 @@ public class CompactionTask extends AbstractCompactionTask
     private static final int MEGABYTE = 1024 * 1024;
     protected static final Logger logger = LoggerFactory.getLogger(CompactionTask.class);
 
-    protected final long gcBefore;
+    protected final long gcBeforeSeconds;
     protected final boolean keepOriginals;
     protected static long totalBytesCompacted = 0;
     private ActiveCompactionsTracker activeCompactions;
+    private LongSupplier nowInSecondsSupplier = FBUtilities::nowInSeconds;
 
-    public CompactionTask(ColumnFamilyStore cfs, ILifecycleTransaction txn, long gcBefore)
+    public CompactionTask(ColumnFamilyStore cfs, ILifecycleTransaction txn, long gcBeforeSeconds)
     {
-        this(cfs, txn, gcBefore, false);
+        this(cfs, txn, gcBeforeSeconds, false);
     }
 
-    public CompactionTask(ColumnFamilyStore cfs, ILifecycleTransaction txn, long gcBefore, boolean keepOriginals)
+    public CompactionTask(ColumnFamilyStore cfs, ILifecycleTransaction txn, long gcBeforeSeconds, boolean keepOriginals)
     {
         super(cfs, txn);
-        this.gcBefore = gcBefore;
+        this.gcBeforeSeconds = gcBeforeSeconds;
         this.keepOriginals = keepOriginals;
+    }
+
+    /** Test hook: overrides FBUtilities.nowInSeconds() for TTL-expiration decisions during this task's merge. */
+    public CompactionTask setNowInSecondsSupplier(LongSupplier nowInSecondsSupplier)
+    {
+        this.nowInSecondsSupplier = nowInSecondsSupplier;
+        return this;
     }
 
     public static synchronized long addToTotalBytesCompacted(long bytesCompacted)
@@ -245,7 +268,7 @@ public class CompactionTask extends AbstractCompactionTask
             Range<Token> tokenRange = tokenRange();
             List<Range<Token>> rangeList = tokenRange != null ? ImmutableList.of(tokenRange) : null;
 
-            long nowInSec = FBUtilities.nowInSeconds();
+            long nowInSec = nowInSecondsSupplier.getAsLong();
             try (Refs<SSTableReader> refs = Refs.ref(actuallyCompact);
                  AbstractCompactionStrategy.ScannerList scanners = strategy.getScanners(actuallyCompact, rangeList);
                  AbstractCompactionPipeline ci = AbstractCompactionPipeline.create(this, compactionType, scanners, controller, nowInSec, taskId))
@@ -489,7 +512,7 @@ public class CompactionTask extends AbstractCompactionTask
                 for (File directory : newCompactionDatadirs)
                     expectedNewWriteSize.put(directory, writeSizePerOutputDatadir);
 
-                Map<File, Long> expectedWriteSize = CompactionManager.instance.active.estimatedRemainingWriteBytes();
+                Map<File, Long> expectedWriteSize = CompactionManager.instance.active.estimatedRemainingWriteToDiskBytes();
 
                 // todo: abort streams if they block compactions
                 if (cfs.getDirectories().hasDiskSpaceForCompactionsAndStreams(expectedNewWriteSize, expectedWriteSize))
@@ -546,7 +569,33 @@ public class CompactionTask extends AbstractCompactionTask
         return 0;
     }
 
-    protected CompactionController getCompactionController(Set<SSTableReader> toCompact)
+    protected final CompactionController getCompactionController(Set<SSTableReader> toCompact)
+    {
+        long gcBeforeSeconds = this.gcBeforeSeconds;
+        TableMetadata metadata = cfs.metadata();
+        if (metadata.isAccordEnabled())
+        {
+            Invariants.expect(gcBeforeSeconds <= 0);
+            TokenRange[] rs = new TokenRange[toCompact.size()];
+            int i = 0;
+            for (SSTableReader reader : toCompact)
+                rs[i++] = TokenRange.create(TokenKey.before(metadata.id, reader.getFirst().getToken()), TokenKey.after(metadata.id, reader.getLast().getToken()));
+            Ranges ranges = Ranges.of(rs);
+            Node node = AccordService.unsafeInstance().node();
+            // TODO (expected): we shouldn't need to limit to universalBefore, but this is a safety margin esp. against bugs with repairing tombstones or incomplete information in CommandStore;
+            //  we should impose stronger guarantees on incoming streams (that they don't contain tombstones), and validate our CommandStore-derived bounds
+            gcBeforeSeconds = node.durableBefore().foldlWithDefault(ranges, (e, v) -> e == null ? NO_GC : Math.min(e.universal.hlc(), v), null, Long.MAX_VALUE);
+            StoreSelector selector = StoreFinder.selector(ranges, Long.MIN_VALUE, Long.MAX_VALUE);
+            gcBeforeSeconds = node.commandStores().mapReduceUnsafe(selector, (ignore, commandStore) -> ((AccordCommandStore)commandStore).safeGetRedundantBefore().foldl(ranges, (bs, v) -> bs.maxBound(LOCALLY_APPLIED).hlc(), Long.MAX_VALUE), Math::min, gcBeforeSeconds);
+            if (gcBeforeSeconds == Long.MAX_VALUE)
+                gcBeforeSeconds = NO_GC;
+            else
+                gcBeforeSeconds = TimeUnit.MICROSECONDS.toSeconds(gcBeforeSeconds);
+        }
+        return getCompactionController(toCompact, gcBeforeSeconds);
+    }
+
+    protected CompactionController getCompactionController(Set<SSTableReader> toCompact, long gcBefore)
     {
         return new CompactionController(cfs, toCompact, gcBefore);
     }
@@ -584,6 +633,10 @@ public class CompactionTask extends AbstractCompactionTask
 
         for (SSTableReader expiredSSTable : fullyExpiredSSTables)
         {
+            // Notifying indexers is best-effort: the SSTable is fully expired and is going to be obsoleted regardless.
+            // A read error (e.g. a corrupt-but-expired SSTable, which was previously dropped without ever being read) or
+            // a failure in a custom indexer must not silently leave the SSTable undropped, or every subsequent compaction
+            // would hit the same failure, leaving the expired SSTables permanently stuck.
             try (ISSTableScanner scanner = expiredSSTable.getScanner())
             {
                 while (scanner.hasNext())
@@ -610,21 +663,40 @@ public class CompactionTask extends AbstractCompactionTask
                             for (Index.Indexer indexer : indexers)
                                 indexer.begin();
 
-                            while (partition.hasNext())
+                            try
                             {
-                                Unfiltered unfiltered = partition.next();
-                                if (unfiltered instanceof Row)
+                                Row staticRow = partition.staticRow();
+                                if (!staticRow.isEmpty())
                                 {
                                     for (Index.Indexer indexer : indexers)
-                                        indexer.removeRow((Row) unfiltered);
+                                        indexer.removeRow(staticRow);
+                                }
+
+                                while (partition.hasNext())
+                                {
+                                    Unfiltered unfiltered = partition.next();
+                                    if (unfiltered instanceof Row)
+                                    {
+                                        for (Index.Indexer indexer : indexers)
+                                            indexer.removeRow((Row) unfiltered);
+                                    }
                                 }
                             }
-
-                            for (Index.Indexer indexer : indexers)
-                                indexer.finish();
+                            finally
+                            {
+                                for (Index.Indexer indexer : indexers)
+                                    indexer.finish();
+                            }
                         }
                     }
                 }
+            }
+            catch (Throwable t)
+            {
+                JVMStabilityInspector.inspectThrowable(t);
+                logger.warn("Failed to notify secondary indexes about rows in fully expired SSTable {} during compaction {}; " +
+                            "the SSTable will still be dropped, but index cleanup for it may be incomplete.",
+                            expiredSSTable, transaction.opIdString(), t);
             }
         }
     }

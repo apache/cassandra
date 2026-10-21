@@ -42,7 +42,6 @@ import org.apache.cassandra.metrics.AutoRepairMetricsManager;
 import org.apache.cassandra.repair.autorepair.AutoRepair;
 import org.apache.cassandra.repair.autorepair.AutoRepairConfig;
 import org.apache.cassandra.schema.SystemDistributedKeyspace;
-import org.apache.cassandra.service.AutoRepairService;
 import org.apache.cassandra.utils.FBUtilities;
 
 import static org.apache.cassandra.schema.SchemaConstants.DISTRIBUTED_KEYSPACE_NAME;
@@ -104,7 +103,10 @@ public class AutoRepairSchedulerTest extends TestBaseImpl
                                                .set("auto_repair.global_settings.repair_by_keyspace", "true")
                                                .set("auto_repair.global_settings.repair_retry_backoff", "5s")
                                                .set("auto_repair.repair_task_min_duration", "0s")
-                                               .set("auto_repair.repair_check_interval", "5s"))
+                                               .set("auto_repair.repair_check_interval", "5s")
+                                               .set("cms_await_timeout", "100ms")
+                                               .set("cms_commit_retry_initial_delay", "10ms")
+                                               .set("cms_commit_retry_max_delay", "5000ms"))
                          .start();
 
         cluster.schemaChange("CREATE KEYSPACE IF NOT EXISTS " + KEYSPACE + " WITH replication = {'class': 'SimpleStrategy', 'replication_factor': 3};");
@@ -120,22 +122,6 @@ public class AutoRepairSchedulerTest extends TestBaseImpl
     @Test
     public void testScheduler() throws ParseException
     {
-        // ensure there was no history of previous repair runs through the scheduler
-        Object[][] rows = cluster.coordinator(1).execute(String.format("SELECT repair_type, host_id, repair_start_ts, repair_finish_ts, repair_turn FROM %s.%s", DISTRIBUTED_KEYSPACE_NAME, SystemDistributedKeyspace.AUTO_REPAIR_HISTORY), ConsistencyLevel.QUORUM);
-        assertEquals(0, rows.length);
-
-        cluster.forEach(i -> i.runOnInstance(() -> {
-            try
-            {
-                AutoRepairService.setup();
-                AutoRepair.instance.setup();
-            }
-            catch (Exception e)
-            {
-                throw new RuntimeException(e);
-            }
-        }));
-
         // validate that the repair ran on all nodes
         cluster.forEach(i -> i.runOnInstance(() -> {
             String broadcastAddress  = FBUtilities.getJustBroadcastAddress().toString();

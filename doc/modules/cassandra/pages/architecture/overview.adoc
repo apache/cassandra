@@ -4,15 +4,13 @@
 {product} is an open-source, distributed NoSQL database. 
 It implements a partitioned wide-column storage model with eventually consistent semantics.
 
-{cassandra} was initially designed at https://www.cs.cornell.edu/projects/ladis2009/papers/lakshman-ladis2009.pdf[Facebook] using a staged event-driven architecture (http://www.sosp.org/2001/papers/welsh.pdf[SEDA]).
+{cassandra} was created at https://www.cs.cornell.edu/projects/ladis2009/papers/lakshman-ladis2009.pdf[Facebook] using a staged event-driven architecture (http://www.sosp.org/2001/papers/welsh.pdf[SEDA]).
 This initial design implemented a combination of Amazon's https://www.cs.cornell.edu/courses/cs5414/2017fa/papers/dynamo.pdf[Dynamo] distributed storage and replication techniques and Google's https://static.googleusercontent.com/media/research.google.com/en//archive/bigtable-osdi06.pdf[Bigtable] data and storage engine model. 
 Dynamo and Bigtable were both developed to meet emerging requirements for scalable, reliable and highly available storage systems, but each had areas that could be improved.
 
-{product} was designed as a best-in-class combination of both systems to meet emerging large scale, both in data footprint and query volume, storage requirements.
-As applications began to require full global replication and always available low-latency reads and writes, a new kind of database model was required to meet these new requirements.
-Relational database systems at that time struggled to meet the requirements.
+{product} was designed to combine the strengths of both of these distributed database systems to address scalability, both in terms of data volume and query throughput. As applications increasingly demanded global replication, continuous availability, and low-latency reads and writes, a new database model became necessary, one that traditional relational systems of the time were not well suited to support.
 
-{product} was designed to meet these challenges with the following design objectives in mind:
+{product} was created to meet these challenges with the following design objectives:
 
 * Full multi-primary database replication
 * Global availability at low latency
@@ -35,9 +33,7 @@ Keyspaces serve as containers for tables.
 Columns define the typed schema for a single datum in a table.
 Tables are partitioned based on the columns provided in the partition key.
 {cassandra} tables can flexibly add new columns to tables with zero downtime.
-* Partition: Defines the mandatory part of the primary key all rows in
-{cassandra} must have to identify the node in a cluster where the row is stored.
-All performant queries supply the partition key in the query.
+* Partition Key: The required component of the primary key that determines which node in the Cassandra cluster stores a given row. For efficient execution, queries must include the partition key.
 * Row: Contains a collection of columns identified by a unique primary
 key made up of the partition key and optionally additional clustering
 keys.

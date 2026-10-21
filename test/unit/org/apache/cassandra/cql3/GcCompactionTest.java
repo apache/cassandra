@@ -18,6 +18,7 @@
 
 package org.apache.cassandra.cql3;
 
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashSet;
@@ -35,6 +36,7 @@ import org.apache.cassandra.db.rows.ComplexColumnData;
 import org.apache.cassandra.db.rows.Row;
 import org.apache.cassandra.db.rows.Unfiltered;
 import org.apache.cassandra.db.rows.UnfilteredRowIterator;
+import org.apache.cassandra.io.sstable.Descriptor;
 import org.apache.cassandra.io.sstable.ISSTableScanner;
 import org.apache.cassandra.io.sstable.SSTableId;
 import org.apache.cassandra.io.sstable.SSTableIdFactory;
@@ -256,6 +258,70 @@ public class GcCompactionTest extends CQLTester
       assertEquals(KEY_COUNT * CLUSTERING_COUNT, countRows(collected2));
 
       assertEquals(1, collected2.getSSTableLevel()); // garbagecollect should leave the LCS level where it was
+    }
+
+    @Test
+    public void testGarbageCollectPartial()
+    {
+        createTable("CREATE TABLE %s(" +
+                    "  key int," +
+                    "  column int," +
+                    "  data int," +
+                    "  PRIMARY KEY ((key), column)" +
+                    ");");
+
+        ColumnFamilyStore cfs = getCurrentColumnFamilyStore();
+        cfs.disableAutoCompaction();
+
+        execute("INSERT INTO %s (key, column, data) VALUES (1, 1, 1)");
+        flush();
+        execute("INSERT INTO %s (key, column, data) VALUES (1, 2, 1)");
+        flush();
+        execute("INSERT INTO %s (key, column, data) VALUES (2, 1, 2)");
+        flush();
+        execute("INSERT INTO %s (key, column, data) VALUES (2, 2, 2)");
+        flush();
+        execute("DELETE FROM %s where key = 1 and column = 1"); // removes (1, 1, 1)
+        flush();
+        execute("DELETE FROM %s where key = 2 and column = 2"); // removes (2, 2, 2)
+        flush();
+
+        assertEquals(6, cfs.getLiveSSTables().size());
+
+        // Sort live sstables by their SSTableId (oldest first) and pick the first three for
+        // user-defined garbage collection. SSTableIdFactory.COMPARATOR works for both
+        // sequence-based and UUID-based ids.
+        ArrayList<SSTableReader> sorted = new ArrayList<>(cfs.getLiveSSTables());
+        sorted.sort((a, b) -> SSTableIdFactory.COMPARATOR.compare(a.descriptor.id, b.descriptor.id));
+
+        ArrayList<Descriptor> toGc = new ArrayList<>();
+        Set<SSTableId> originalIds = new HashSet<>();
+        for (int i = 0; i < sorted.size(); i++)
+        {
+            SSTableReader table = sorted.get(i);
+            assertEquals(1, countRows(table) + countTombstoneMarkers(table));
+            originalIds.add(table.descriptor.id);
+            if (i < 3)
+                toGc.add(table.descriptor);
+        }
+        assertEquals(6, originalIds.size());
+
+        CompactionManager.AllSSTableOpStatus status =
+            CompactionManager.instance.performGarbageCollection(cfs, TombstoneOption.ROW, 1, toGc);
+        assertEquals(CompactionManager.AllSSTableOpStatus.SUCCESSFUL, status);
+
+        // The three oldest sstables we asked for should have been compacted away; one of the
+        // outputs was empty, so 5 sstables remain (3 untouched + 2 newly written).
+        assertEquals(5, cfs.getLiveSSTables().size());
+        Set<SSTableId> remainingIds = new HashSet<>();
+        for (SSTableReader table : cfs.getLiveSSTables())
+        {
+            remainingIds.add(table.descriptor.id);
+            assertEquals(1, countRows(table) + countTombstoneMarkers(table));
+        }
+        // None of the three GC'd descriptors should still be live.
+        for (Descriptor desc : toGc)
+            assertTrue("GC'd descriptor " + desc.id + " unexpectedly still live", !remainingIds.contains(desc.id));
     }
 
     @Test

@@ -30,6 +30,7 @@ import java.util.Set;
 import java.util.UUID;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.TimeoutException;
 import java.util.function.BiConsumer;
 import java.util.function.Consumer;
 import java.util.function.Supplier;
@@ -55,6 +56,7 @@ import org.apache.cassandra.schema.Tables;
 import org.apache.cassandra.service.AutoRepairService;
 import org.apache.cassandra.service.StorageService;
 import org.apache.cassandra.utils.Clock;
+import org.apache.cassandra.utils.ExecutorUtils;
 import org.apache.cassandra.utils.FBUtilities;
 import org.apache.cassandra.utils.concurrent.Condition;
 import org.apache.cassandra.utils.concurrent.Future;
@@ -132,6 +134,7 @@ public class AutoRepair
             }
 
             AutoRepairUtils.setup();
+            AutoRepairUtils.migrateAutoRepairHistoryForUpgrade();
 
             for (AutoRepairConfig.RepairType repairType : AutoRepairConfig.RepairType.values())
             {
@@ -187,8 +190,9 @@ public class AutoRepair
             //consistency level to use for local query
             UUID myId = StorageService.instance.getHostIdForEndpoint(FBUtilities.getBroadcastAddressAndPort());
 
-            // If it's too soon to run repair, don't bother checking if it's our turn.
-            if (tooSoonToRunRepair(repairType, repairState, config, myId))
+            // Skip this repair cycle if the minimum interval since the last repair has not elapsed,
+            // unless force repair is set for this node, which bypasses the interval check
+            if (shouldSkipRepairDueToInterval(repairType, repairState, config, myId))
             {
                 return;
             }
@@ -292,6 +296,13 @@ public class AutoRepair
         {
             try
             {
+                if (isShutDown)
+                {
+                    logger.info("AutoRepair is shutting down, abandoning the remaining {} repairs for {}",
+                                totalRepairAssignments - totalProcessedAssignments, keyspaceName);
+                    repairState.setRepairInProgress(false);
+                    return;
+                }
                 totalProcessedAssignments++;
                 boolean repairOneTableAtATime = !config.getRepairByKeyspace(repairType);
                 if (previousAssignment != null && repairOneTableAtATime && !previousAssignment.tableNames.equals(curRepairAssignment.tableNames))
@@ -357,6 +368,13 @@ public class AutoRepair
                         {
                             break;
                         }
+                        else if (isShutDown)
+                        {
+                            f.cancel(true);
+                            logger.info("AutoRepair is shutting down, not retrying repair of {}-{}",
+                                        tokenRange.left, tokenRange.right);
+                            break;
+                        }
                         else if (retryCount < config.getRepairMaxRetries(repairType))
                         {
                             boolean cancellationStatus = f.cancel(true);
@@ -403,6 +421,31 @@ public class AutoRepair
         }
     }
 
+    /**
+     * Determines whether the repair should be skipped due to the minimum repair interval.
+     * Force repair bypasses the interval check to ensure immediate repair trigger.
+     *
+     * @return true if repair should be skipped, false if it should proceed
+     */
+    @VisibleForTesting
+    boolean shouldSkipRepairDueToInterval(AutoRepairConfig.RepairType repairType, AutoRepairState repairState, AutoRepairConfig config, UUID myId)
+    {
+        if (AutoRepairUtils.isForceRepairSetForNode(repairType, myId))
+        {
+            logger.info("Force repair is set for this node, bypassing min_repair_interval check");
+            return false;
+        }
+        return tooSoonToRunRepair(repairType, repairState, config, myId);
+    }
+
+    /**
+     * Determines whether it is too soon to run a repair based on the minimum repair interval configured
+     * for the given repair type. If no last repair time is recorded in the state, it fetches the most
+     * recent repair time for this node from the database.
+     *
+     * @return true if the elapsed time since the last repair is less than the configured
+     *         minimum interval
+     */
     @VisibleForTesting
     boolean tooSoonToRunRepair(AutoRepairConfig.RepairType repairType, AutoRepairState repairState, AutoRepairConfig config, UUID myId)
     {
@@ -600,7 +643,19 @@ public class AutoRepair
         }
     }
 
-    public synchronized void shutdownBlocking() throws ExecutionException, InterruptedException
+    public void shutdownBlocking() throws ExecutionException, InterruptedException
+    {
+        try
+        {
+            shutdownBlocking(1L, TimeUnit.MINUTES);
+        }
+        catch (TimeoutException e)
+        {
+            throw new ExecutionException(e);
+        }
+    }
+
+    public synchronized void shutdownBlocking(long timeout, TimeUnit unit) throws InterruptedException, TimeoutException
     {
         if (!isSetupDone)
         {
@@ -613,11 +668,13 @@ public class AutoRepair
             throw new IllegalStateException("AutoRepair has already been shut down");
         }
         isShutDown = true;
+        List<ScheduledExecutorPlus> executors = new ArrayList<>();
         for (AutoRepairConfig.RepairType repairType : AutoRepairConfig.RepairType.values())
         {
-            repairRunnableExecutors.get(repairType).shutdown();
-            repairExecutors.get(repairType).shutdown();
+            executors.add(repairRunnableExecutors.get(repairType));
+            executors.add(repairExecutors.get(repairType));
         }
+        ExecutorUtils.shutdownNowAndWait(timeout, unit, executors);
         logger.info("Paused AutoRepair");
     }
 

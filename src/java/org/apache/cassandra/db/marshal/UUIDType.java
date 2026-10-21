@@ -56,7 +56,7 @@ public class UUIDType extends AbstractType<UUID>
 
     UUIDType()
     {
-        super(ComparisonType.CUSTOM);
+        super(ComparisonType.CUSTOM, 16);
     }
 
     @Override
@@ -250,12 +250,6 @@ public class UUIDType extends AbstractType<UUID>
     static int version(ByteBuffer uuid)
     {
         return (uuid.get(6) & 0xf0) >> 4;
-    }
-
-    @Override
-    public int valueLengthIfFixed()
-    {
-        return 16;
     }
 
     @Override

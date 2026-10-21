@@ -32,6 +32,7 @@ import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicReference;
+import java.util.function.Consumer;
 import java.util.function.Predicate;
 import java.util.stream.Collectors;
 
@@ -57,7 +58,6 @@ import org.apache.cassandra.tcm.Startup;
 import org.apache.cassandra.tcm.Transformation;
 import org.apache.cassandra.tcm.listeners.ChangeListener;
 import org.apache.cassandra.tcm.listeners.ClientNotificationListener;
-import org.apache.cassandra.tcm.listeners.InitializationListener;
 import org.apache.cassandra.tcm.listeners.LegacyStateListener;
 import org.apache.cassandra.tcm.listeners.LogListener;
 import org.apache.cassandra.tcm.listeners.MetadataSnapshotListener;
@@ -103,6 +103,10 @@ public abstract class LocalLog implements Closeable
     // notification to them all.
     private final AtomicBoolean replayComplete = new AtomicBoolean();
 
+    private final AtomicBoolean paused = new AtomicBoolean();
+
+    private volatile boolean closed = false;
+
     public static LogSpec logSpec()
     {
         return new LogSpec();
@@ -121,7 +125,6 @@ public abstract class LocalLog implements Closeable
 
         private final Set<LogListener> listeners = new HashSet<>();
         private final Set<ChangeListener> changeListeners = new HashSet<>();
-        private final Set<ChangeListener.Async> asyncChangeListeners = new HashSet<>();
 
         private LogSpec()
         {
@@ -157,7 +160,7 @@ public abstract class LocalLog implements Closeable
         public LogSpec withDefaultListeners(boolean withDefaultListeners)
         {
             if (withDefaultListeners &&
-                !(listeners.isEmpty() && changeListeners.isEmpty() && asyncChangeListeners.isEmpty()))
+                !(listeners.isEmpty() && changeListeners.isEmpty()))
             {
                 throw new IllegalStateException("LogSpec can only require all listeners OR specific listeners");
             }
@@ -178,10 +181,7 @@ public abstract class LocalLog implements Closeable
         {
             if (defaultListeners)
                 throw new IllegalStateException("LogSpec can only require all listeners OR specific listeners");
-            if (listener instanceof ChangeListener.Async)
-                asyncChangeListeners.add((ChangeListener.Async) listener);
-            else
-                changeListeners.add(listener);
+            changeListeners.add(listener);
             return this;
         }
 
@@ -257,7 +257,6 @@ public abstract class LocalLog implements Closeable
     protected final LogStorage storage;
     protected final Set<LogListener> listeners;
     protected final Set<ChangeListener> changeListeners;
-    protected final Set<ChangeListener.Async> asyncChangeListeners;
     protected final LogSpec spec;
 
     // for testing - used to inject filters which cause entries to be dropped before appending
@@ -277,29 +276,30 @@ public abstract class LocalLog implements Closeable
         this.storage = logSpec.storage;
         listeners = Sets.newConcurrentHashSet();
         changeListeners = Sets.newConcurrentHashSet();
-        asyncChangeListeners = Sets.newConcurrentHashSet();
         entryFilters = Lists.newCopyOnWriteArrayList();
     }
 
     @VisibleForTesting
     public void unsafeBootstrapForTesting(InetAddressAndPort addr)
     {
-        bootstrap(addr, "");
+        bootstrap(addr, "", (p) -> {});
     }
 
     /**
-     *
-     * @param addr
-     * @param datacenter
+     * Set up the initial state of the local ClusterMetadata, enacting the PreInitialize transform which sets up the
+     * distributed metadata log keyspace, its replication, and data placements.
+     * @param addr Address of the first CMS member, this should be the local node address
+     * @param datacenter DC of the first CMS member
      */
-    public void bootstrap(InetAddressAndPort addr, String datacenter)
+    public void bootstrap(InetAddressAndPort addr, String datacenter, Consumer<PreInitialize> postBootstrap)
     {
         ClusterMetadata metadata = metadata();
         assert metadata.epoch.isBefore(FIRST) : String.format("Metadata epoch %s should be before first", metadata.epoch);
-        Transformation transform = PreInitialize.withFirstCMS(addr, datacenter);
+        PreInitialize transform = PreInitialize.withFirstCMS(addr, datacenter);
         append(new Entry(Entry.Id.NONE, FIRST, transform));
         metadata = waitForHighestConsecutive();
         assert metadata.epoch.is(Epoch.FIRST) : String.format("Epoch: %s. CMS: %s", metadata.epoch, metadata.fullCMSMembers());
+        postBootstrap.accept(transform);
     }
 
     public LogStorage storage()
@@ -346,6 +346,20 @@ public abstract class LocalLog implements Closeable
         return false;
     }
 
+    public boolean isClosed()
+    {
+        return closed;
+    }
+
+    @Override
+    public final void close()
+    {
+        closed = true;
+        closeInternal();
+    }
+
+    protected abstract void closeInternal();
+
     public Optional<Epoch> highestPending()
     {
         Map.Entry<Entry, Boolean> e = pending.lastEntry();
@@ -380,6 +394,26 @@ public abstract class LocalLog implements Closeable
             }
             processPending();
         }
+    }
+
+    /**
+     * Temporarily halts processing of the pending buffer. While paused, entries may be appended to the buffer but
+     * they will not be enacted. Currently only used sparingly during startup if any address changes for CMS members are
+     * detected. In this case, we pause just while a mapping from old to new addresses is being built.
+     */
+    public void pause()
+    {
+        paused.set(true);
+    }
+
+    public void unpause()
+    {
+        paused.set(false);
+    }
+
+    public boolean isPaused()
+    {
+        return paused.get();
     }
 
     public void append(Entry entry)
@@ -473,6 +507,12 @@ public abstract class LocalLog implements Closeable
      */
     void processPendingInternal()
     {
+        if (paused.get())
+        {
+            logger.info("Metadata log entry processing is paused, returning without scanning pending buffer");
+            return;
+        }
+
         while (true)
         {
             Entry pendingEntry = peek();
@@ -482,8 +522,15 @@ public abstract class LocalLog implements Closeable
 
             ClusterMetadata prev = committed.get();
             // ForceSnapshot + Bootstrap entries can "jump" epoch
-            boolean isPreInit = pendingEntry.transform.kind() == Transformation.Kind.PRE_INITIALIZE_CMS;
-            boolean isSnapshot = pendingEntry.transform.kind() == Transformation.Kind.FORCE_SNAPSHOT;
+            Transformation.Kind kind = pendingEntry.transform.kind();
+            boolean isPreInit = kind == Transformation.Kind.PRE_INITIALIZE_CMS;
+            boolean isInit = kind == Transformation.Kind.INITIALIZE_CMS;
+            boolean isSnapshot = kind == Transformation.Kind.FORCE_SNAPSHOT ;
+            // only a PRE_INITIALIZE_CMS or a snapshot is allowed to skip over gaps.
+            // Note: INITIALIZE_CMS is not allowed to do this as during upgrades it can allow us to jump over the
+            // PRE_INITIALIZE_CMS entry if the INITIALIZE_CMS is received first. This then creates a gap at Epoch.FIRST
+            // which can never be resolved. In turn, that makes it impossible to build a LogState for replay purposes
+            // with a correct and consecutive set of entries if the node is bounced before applying a later snapshot.
             if (pendingEntry.epoch.isDirectlyAfter(prev.epoch)
                 || ((isPreInit || isSnapshot) && pendingEntry.epoch.isAfter(prev.epoch)))
             {
@@ -519,7 +566,7 @@ public abstract class LocalLog implements Closeable
                     if (replayComplete.get() && pendingEntry.transform.kind() != Transformation.Kind.FORCE_SNAPSHOT)
                         storage.append(pendingEntry.maybeUnwrapExecuted());
 
-                    notifyPreCommit(prev, next, isSnapshot);
+                    notifyPreCommit(prev, next, isSnapshot || isInit);
 
                     if (committed.compareAndSet(prev, next))
                     {
@@ -535,7 +582,7 @@ public abstract class LocalLog implements Closeable
                                                                       next.epoch, prev.epoch, metadata().epoch));
                     }
 
-                    notifyPostCommit(prev, next, isSnapshot);
+                    notifyPostCommit(prev, next, isSnapshot || isInit);
                 }
                 catch (StopProcessingException t)
                 {
@@ -596,10 +643,7 @@ public abstract class LocalLog implements Closeable
 
     public void addListener(ChangeListener listener)
     {
-        if (listener instanceof ChangeListener.Async)
-            this.asyncChangeListeners.add((ChangeListener.Async) listener);
-        else
-            this.changeListeners.add(listener);
+        this.changeListeners.add(listener);
     }
 
     public void removeListener(ChangeListener listener)
@@ -619,16 +663,12 @@ public abstract class LocalLog implements Closeable
     {
         for (ChangeListener listener : changeListeners)
             listener.notifyPreCommit(before, after, fromSnapshot);
-        for (ChangeListener.Async listener : asyncChangeListeners)
-            ScheduledExecutors.optionalTasks.submit(() -> listener.notifyPreCommit(before, after, fromSnapshot));
     }
 
     private void notifyPostCommit(ClusterMetadata before, ClusterMetadata after, boolean fromSnapshot)
     {
         for (ChangeListener listener : changeListeners)
             listener.notifyPostCommit(before, after, fromSnapshot);
-        for (ChangeListener.Async listener : asyncChangeListeners)
-            ScheduledExecutors.optionalTasks.submit(() -> listener.notifyPostCommit(before, after, fromSnapshot));
     }
 
     public void addFilter(Predicate<Entry> filter)
@@ -680,7 +720,6 @@ public abstract class LocalLog implements Closeable
             logger.info("Adding specified listeners to LocalLog");
             spec.listeners.forEach(this::addListener);
             spec.changeListeners.forEach(this::addListener);
-            spec.asyncChangeListeners.forEach(this::addListener);
         }
 
         logger.info("Notifying all registered listeners of both pre and post commit event");
@@ -770,7 +809,7 @@ public abstract class LocalLog implements Closeable
         }
 
         @Override
-        public void close()
+        protected void closeInternal()
         {
             executor.shutdownNow();
 
@@ -908,7 +947,7 @@ public abstract class LocalLog implements Closeable
             return metadata();
         }
 
-        public void close()
+        protected void closeInternal()
         {
         }
     }
@@ -917,10 +956,8 @@ public abstract class LocalLog implements Closeable
     {
         listeners.clear();
         changeListeners.clear();
-        asyncChangeListeners.clear();
 
         addListener(snapshotListener());
-        addListener(new InitializationListener());
         addListener(new SchemaListener(spec.loadSSTables));
         addListener(new LegacyStateListener());
         addListener(new PlacementsChangeListener());
@@ -934,7 +971,7 @@ public abstract class LocalLog implements Closeable
     private LogListener snapshotListener()
     {
         return (entry, metadata) -> {
-            if (ClusterMetadataService.state() != ClusterMetadataService.State.LOCAL)
+            if (entry.epoch.isEqualOrBefore(Epoch.FIRST) || ClusterMetadataService.state() != ClusterMetadataService.State.LOCAL)
                 return;
 
             if ((entry.epoch.getEpoch() % DatabaseDescriptor.getMetadataSnapshotFrequency()) == 0)

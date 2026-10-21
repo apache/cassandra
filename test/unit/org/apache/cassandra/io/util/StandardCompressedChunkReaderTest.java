@@ -19,7 +19,16 @@
 package org.apache.cassandra.io.util;
 
 import java.nio.ByteBuffer;
+import java.nio.channels.FileChannel;
 import java.nio.file.Files;
+import java.nio.file.StandardOpenOption;
+import java.util.ArrayList;
+import java.util.List;
+import java.util.concurrent.CyclicBarrier;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+import java.util.concurrent.Future;
+import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
 
 import org.assertj.core.api.Assertions;
@@ -33,6 +42,7 @@ import org.apache.cassandra.db.ClusteringComparator;
 import org.apache.cassandra.io.compress.CompressedSequentialWriter;
 import org.apache.cassandra.io.compress.CompressionMetadata;
 import org.apache.cassandra.io.filesystem.ListenableFileSystem;
+import org.apache.cassandra.io.sstable.CorruptSSTableException;
 import org.apache.cassandra.io.sstable.metadata.MetadataCollector;
 import org.apache.cassandra.schema.CompressionParams;
 import org.apache.cassandra.utils.memory.MemoryUtil;
@@ -91,25 +101,167 @@ public class StandardCompressedChunkReaderTest extends CompressedChunkReaderTest
             try (CompressedChunkReader reader = new CompressedChunkReader.Standard(channel, metadata, () -> 1d);
                  metadata)
             {
-                if (useReadAhead)
-                    reader.forScan();
-
-                long offset = 0;
-                long maxOffset = length * Long.BYTES;
-                do
+                // forScan() returns a per-scan reader that owns its read-ahead buffer; use it, then close it.
+                CompressedChunkReader scanReader = useReadAhead ? reader.forScan() : reader;
+                try
                 {
-                    reader.readChunk(offset, buffer);
-                    for (long expected = offset / Long.BYTES; buffer.hasRemaining(); expected++)
-                        Assertions.assertThat(buffer.getLong()).isEqualTo(expected);
+                    long offset = 0;
+                    long maxOffset = length * Long.BYTES;
+                    do
+                    {
+                        scanReader.readChunk(offset, buffer);
+                        for (long expected = offset / Long.BYTES; buffer.hasRemaining(); expected++)
+                            Assertions.assertThat(buffer.getLong()).isEqualTo(expected);
 
-                    offset += metadata.chunkLength();
+                        offset += metadata.chunkLength();
+                    }
+                    while (offset < maxOffset);
                 }
-                while (offset < maxOffset);
+                finally
+                {
+                    if (scanReader != reader)
+                        scanReader.close();
+                }
             }
         }
         finally
         {
             MemoryUtil.clean(buffer);
+        }
+    }
+
+    @Test(timeout = 10_000)
+    public void scanReaderShouldNotHangOnTruncatedFile() throws Exception
+    {
+        SequentialWriterOption writerOption = SequentialWriterOption.newBuilder().finishOnClose(false).bufferSize(1 << 10).build();
+        CompressionParams params = CompressionParams.snappy(4096, 1.1);
+
+        FileSystems.newGlobalInMemoryFileSystem();
+        File f = new File("/truncated_hang_repro.db");
+        File offsets = new File("/truncated_hang_repro.offset");
+        File digest = new File("/truncated_hang_repro.digest");
+
+        long longsToWrite = 600; // 4800 uncompressed bytes -> 2 compressed chunks (second one partial)
+        CompressionMetadata metadata;
+        try (CompressedSequentialWriter writer = new CompressedSequentialWriter(f, offsets, digest, writerOption, params, new MetadataCollector(new ClusteringComparator())))
+        {
+            for (long i = 0; i < longsToWrite; i++)
+                writer.writeLong(i);
+
+            writer.sync();
+            metadata = writer.open(0);
+        }
+
+        DatabaseDescriptor.setCompressedReadAheadBufferSizeInKb(256);
+
+        // Truncate file so that chunk metadata expects a chunk to extend further than the actual file size
+        long originalSize = Files.size(f.toPath());
+        long truncatedSize = originalSize - (params.chunkLength() / 2);
+        try (FileChannel fc = FileChannel.open(f.toPath(), StandardOpenOption.WRITE))
+        {
+            fc.truncate(truncatedSize);
+        }
+        long uncompressedTotal = longsToWrite * Long.BYTES;
+        long lastChunkUncompressedStart = ((uncompressedTotal - 1) / metadata.chunkLength()) * metadata.chunkLength();
+
+        ByteBuffer buffer = ByteBuffer.allocateDirect(metadata.chunkLength());
+        try (ChannelProxy channel = new ChannelProxy(f);
+             CompressedChunkReader reader = new CompressedChunkReader.Standard(channel, metadata, () -> 1.1);
+             metadata)
+        {
+            CompressedChunkReader scanReader = reader.forScan();
+            try
+            {
+                Assertions.assertThatThrownBy(() -> scanReader.readChunk(lastChunkUncompressedStart, buffer))
+                          .as("readChunk() reading past truncated EOF via the scan path")
+                          .isInstanceOf(CorruptSSTableException.class);
+            }
+            finally
+            {
+                if (scanReader != reader)
+                    scanReader.close();
+            }
+        }
+        finally
+        {
+            MemoryUtil.clean(buffer);
+        }
+    }
+
+    @Test(timeout = 60_000)
+    public void concurrentScansOfOneReaderAreIndependent() throws Exception
+    {
+        // Two or more scanners over one SSTable (compaction plus an index build sharing the dfile) each open
+        // their own scan reader via forScan(). Under Option A each scan reader owns its read-ahead buffer, so
+        // concurrent scans of one file must not corrupt each other or double-free a shared buffer.
+        SequentialWriterOption writerOption = writerOption(1 << 10);
+        CompressionParams params = CompressionParams.snappy(4096, 1.1);
+
+        FileSystems.newGlobalInMemoryFileSystem();
+        File f = new File("/concurrent_scans.db");
+        File offsets = new File("/concurrent_scans.offset");
+        File digest = new File("/concurrent_scans.digest");
+
+        long longsToWrite = 200_000; // spans many read-ahead blocks
+        CompressionMetadata metadata;
+        try (CompressedSequentialWriter writer = new CompressedSequentialWriter(f, offsets, digest, writerOption, params, new MetadataCollector(new ClusteringComparator())))
+        {
+            for (long i = 0; i < longsToWrite; i++)
+                writer.writeLong(i);
+            writer.sync();
+            metadata = writer.open(0);
+        }
+
+        DatabaseDescriptor.setCompressedReadAheadBufferSizeInKb(256); // minimum allowed; spans many blocks over the test file
+
+        int threads = 4;
+        long maxOffset = longsToWrite * Long.BYTES;
+        try (ChannelProxy channel = new ChannelProxy(f);
+             CompressedChunkReader reader = new CompressedChunkReader.Standard(channel, metadata, () -> 1d);
+             metadata)
+        {
+            ExecutorService pool = Executors.newFixedThreadPool(threads);
+            CyclicBarrier barrier = new CyclicBarrier(threads);
+            List<Future<?>> futures = new ArrayList<>();
+            try
+            {
+                for (int t = 0; t < threads; t++)
+                {
+                    futures.add(pool.submit(() -> {
+                        ByteBuffer buffer = ByteBuffer.allocateDirect(metadata.chunkLength());
+                        CompressedChunkReader scanReader = reader.forScan();
+                        try
+                        {
+                            barrier.await(); // start all scans together to maximise overlap
+                            long offset = 0;
+                            do
+                            {
+                                scanReader.readChunk(offset, buffer);
+                                for (long expected = offset / Long.BYTES; buffer.hasRemaining(); expected++)
+                                    Assertions.assertThat(buffer.getLong()).isEqualTo(expected);
+
+                                offset += metadata.chunkLength();
+                            }
+                            while (offset < maxOffset);
+                            return null;
+                        }
+                        finally
+                        {
+                            if (scanReader != reader)
+                                scanReader.close();
+                            MemoryUtil.clean(buffer);
+                        }
+                    }));
+                }
+
+                // Propagate any assertion failure or corruption from the worker threads.
+                for (Future<?> future : futures)
+                    future.get(45, TimeUnit.SECONDS);
+            }
+            finally
+            {
+                pool.shutdownNow();
+            }
         }
     }
 }

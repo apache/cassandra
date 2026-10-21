@@ -126,8 +126,9 @@ public class GuardrailDiskUsageTest extends GuardrailTester
         // We want to test with very big number, Long.MAX_VALUE is not allowed so it was easy to use Intger.MAX_VALUE
         assertConfigFails(x -> x.setDataDiskUsageMaxDiskSize(Integer.MAX_VALUE + "GiB"), message);
 
-        // warn threshold smaller than lower bound
-        assertConfigFails(x -> x.setDataDiskUsagePercentageThreshold(0, 80), "0 is not allowed");
+        // a warn threshold of zero warns on any disk usage above zero, it does not disable the guardrail
+        assertConfigValid(x -> x.setDataDiskUsagePercentageThreshold(0, 80));
+        assertEquals(0, guardrails().getDataDiskUsagePercentageWarnThreshold());
 
         // fail threshold bigger than upper bound
         assertConfigFails(x -> x.setDataDiskUsagePercentageThreshold(1, 110), "maximum allowed value is 100");

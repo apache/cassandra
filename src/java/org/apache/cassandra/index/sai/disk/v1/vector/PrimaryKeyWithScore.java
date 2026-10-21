@@ -18,6 +18,8 @@
 
 package org.apache.cassandra.index.sai.disk.v1.vector;
 
+import com.google.common.annotations.VisibleForTesting;
+
 import org.apache.cassandra.db.CellSourceIdentifier;
 import org.apache.cassandra.db.rows.Cell;
 import org.apache.cassandra.db.rows.Row;
@@ -50,6 +52,12 @@ public class PrimaryKeyWithScore implements Comparable<PrimaryKeyWithScore>
     public PrimaryKey primaryKey()
     {
         return primaryKey;
+    }
+
+    @VisibleForTesting
+    public float score()
+    {
+        return indexScore;
     }
 
     public boolean isIndexDataValid(Row row, long nowInSecs)

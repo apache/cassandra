@@ -17,10 +17,33 @@ CREATE TABLE IF NOT EXISTS cycling.cyclist_id (
 );
 // end::comp_pk[]
 
+// tag::trie-memtable[]
+CREATE TABLE IF NOT EXISTS cycling.cyclist_id (
+  lastname text,
+  firstname text,
+  age int,
+  id UUID,
+  PRIMARY KEY ((lastname, firstname), age)
+) WITH memtable = {'trie'};
+// end::trie-memtable[]
+
+// tag::skiplist-memtable[]
+CREATE TABLE IF NOT EXISTS cycling.cyclist_id (
+  lastname text,
+  firstname text,
+  age int,
+  id UUID,
+  PRIMARY KEY ((lastname, firstname), age)
+) WITH memtable = {'skiplist'};
+// end::skiplist-memtable[]
+
 // tag::altercdc[]
-ALTER TABLE cycling.cyclist_id
-WITH CDC = false;
+ALTER TABLE cycling.cyclist_id WITH CDC = false;
 // end::altercdc[]
+
+// tag::table-alter-memtable[]
+ALTER TABLE cycling.cyclist_id WITH memtable = 'default';
+// end::table-alter-memtable[]
 
 INSERT INTO cycling.cyclist_id (
   lastname, firstname, age, id

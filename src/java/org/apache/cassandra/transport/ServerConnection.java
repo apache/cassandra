@@ -18,10 +18,9 @@
 package org.apache.cassandra.transport;
 
 import java.security.cert.Certificate;
+import java.util.concurrent.atomic.AtomicLongFieldUpdater;
 
 import javax.net.ssl.SSLPeerUnverifiedException;
-
-import com.codahale.metrics.Counter;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -41,7 +40,12 @@ public class ServerConnection extends Connection
     private volatile IAuthenticator.SaslNegotiator saslNegotiator;
     private final ClientState clientState;
     private volatile ConnectionStage stage;
-    public final Counter requests = new Counter();
+    // Incremented only on this connection's Netty event loop (single writer, see Dispatcher#dispatch);
+    // read from arbitrary threads via requestCount(). lazySet is a release store without a full fence,
+    // the volatile read on the other side is the acquire. See CASSANDRA-21569 / CASSANDRA-21400.
+    private volatile long requests;
+    private static final AtomicLongFieldUpdater<ServerConnection> requestsUpdater =
+    AtomicLongFieldUpdater.newUpdater(ServerConnection.class, "requests");
 
     ServerConnection(Channel channel, ProtocolVersion version, Connection.Tracker tracker)
     {
@@ -54,6 +58,17 @@ public class ServerConnection extends Connection
     public ClientState getClientState()
     {
         return clientState;
+    }
+
+    /** Must only be called on this connection's Netty event loop (single writer). */
+    void incrementRequests()
+    {
+        requestsUpdater.lazySet(this, requests + 1);
+    }
+
+    public long requestCount()
+    {
+        return requests;
     }
 
     ConnectionStage stage()

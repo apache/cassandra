@@ -45,13 +45,13 @@ public class SequentialWriterOption
     private final int bufferSize;
     private final BufferType bufferType;
     private final boolean trickleFsync;
-    private final int trickleFsyncByteInterval;
+    private final long trickleFsyncByteInterval;
     private final boolean finishOnClose;
 
     private SequentialWriterOption(int bufferSize,
                                    BufferType bufferType,
                                    boolean trickleFsync,
-                                   int trickleFsyncByteInterval,
+                                   long trickleFsyncByteInterval,
                                    boolean finishOnClose)
     {
         this.bufferSize = bufferSize;
@@ -81,7 +81,7 @@ public class SequentialWriterOption
         return trickleFsync;
     }
 
-    public int trickleFsyncByteInterval()
+    public long trickleFsyncByteInterval()
     {
         return trickleFsyncByteInterval;
     }
@@ -110,7 +110,7 @@ public class SequentialWriterOption
         /* default: no trickle fsync */
         private boolean trickleFsync = false;
         /* default tricle fsync byte interval: 10MiB */
-        private int trickleFsyncByteInterval = 10 * 1024 * 1024;
+        private long trickleFsyncByteInterval = 10 * 1024 * 1024;
         private boolean finishOnClose = false;
 
         /* construct throguh SequentialWriteOption.newBuilder */
@@ -140,7 +140,7 @@ public class SequentialWriterOption
             return this;
         }
 
-        public Builder trickleFsyncByteInterval(int trickleFsyncByteInterval)
+        public Builder trickleFsyncByteInterval(long trickleFsyncByteInterval)
         {
             this.trickleFsyncByteInterval = trickleFsyncByteInterval;
             return this;

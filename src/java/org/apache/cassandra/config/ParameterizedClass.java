@@ -22,6 +22,8 @@ import java.lang.reflect.InvocationTargetException;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
+import java.util.Map.Entry;
+import java.util.TreeMap;
 import java.util.function.Predicate;
 import java.util.stream.Collectors;
 
@@ -30,6 +32,7 @@ import com.google.common.base.Objects;
 import org.apache.cassandra.exceptions.ConfigurationException;
 import org.apache.cassandra.utils.Shared;
 
+import static org.apache.cassandra.utils.LocalizeString.toLowerCaseLocalized;
 import static org.apache.cassandra.utils.Shared.Scope.SIMULATION;
 
 @Shared(scope = SIMULATION)
@@ -64,7 +67,17 @@ public class ParameterizedClass
              p.containsKey(PARAMETERS) ? (Map<String, String>)((List<?>)p.get(PARAMETERS)).get(0) : null);
     }
 
+    /**
+     * Prefer {@link #newInstance(ParameterizedClass, List, Class)}: passing an {@code expectedType} verifies the
+     * resolved class is the intended extension type before it is instantiated. This overload performs no type
+     * check (it still loads without initialization, so a wrong class name cannot run its static initializer here).
+     */
     static public <K> K newInstance(ParameterizedClass parameterizedClass, List<String> searchPackages)
+    {
+        return newInstance(parameterizedClass, searchPackages, null);
+    }
+
+    static public <K> K newInstance(ParameterizedClass parameterizedClass, List<String> searchPackages, Class<K> expectedType)
     {
         Class<?> providerClass = null;
         if (searchPackages == null || searchPackages.isEmpty())
@@ -76,9 +89,12 @@ public class ParameterizedClass
                 if (!searchPackage.isEmpty() && !searchPackage.endsWith("."))
                     searchPackage = searchPackage + '.';
                 String name = searchPackage + parameterizedClass.class_name;
-                providerClass = Class.forName(name);
+                // Load without initialization so a wrong class name does not run its static initializer here. The
+                // type is verified below (once the search has resolved a class) and the class is only initialized
+                // later, when it is constructed.
+                providerClass = Class.forName(name, false, ParameterizedClass.class.getClassLoader());
             }
-            catch (ClassNotFoundException e)
+            catch (ClassNotFoundException | NoClassDefFoundError e)
             {
                 //no-op
             }
@@ -90,6 +106,13 @@ public class ParameterizedClass
             String error = "Unable to find class " + parameterizedClass.class_name + " in packages " + pkgList;
             throw new ConfigurationException(error);
         }
+
+        // Verify the resolved class is the expected extension type before it is initialized/instantiated. Done once,
+        // after the package search, so a wrong-type match under an earlier search package does not abort the search
+        // before a valid class under a later package is found.
+        if (expectedType != null && !expectedType.isAssignableFrom(providerClass))
+            throw new ConfigurationException("Invalid parameterized class " + providerClass.getName() +
+                                             ": must extend or implement " + expectedType.getName());
 
         try
         {
@@ -148,6 +171,23 @@ public class ParameterizedClass
     @Override
     public String toString()
     {
-        return class_name + parameters;
+        if (parameters == null)
+        {
+            return class_name + "{}";
+        }
+        else
+        {
+            Map<String, String> sanitizedMap = new TreeMap<>();
+            for (Entry<String, String> entry : parameters.entrySet())
+                sanitizedMap.put(entry.getKey(), isSensitive(entry.getKey()) ? "<REDACTED>" : entry.getValue());
+            return class_name + sanitizedMap;
+        }
+    }
+
+    protected boolean isSensitive(String key)
+    {
+        String lowerCaseKey = toLowerCaseLocalized(key);
+        return lowerCaseKey.contains("password")
+               || lowerCaseKey.contains("hash");
     }
 }

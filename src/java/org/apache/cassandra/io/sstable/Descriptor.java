@@ -18,6 +18,7 @@
 package org.apache.cassandra.io.sstable;
 
 import java.util.ArrayList;
+import java.util.Collection;
 import java.util.List;
 import java.util.Set;
 import java.util.regex.Matcher;
@@ -26,19 +27,24 @@ import java.util.regex.Pattern;
 import com.google.common.annotations.VisibleForTesting;
 import com.google.common.base.Objects;
 import com.google.common.base.Splitter;
+import com.google.common.collect.ArrayListMultimap;
 import com.google.common.collect.ImmutableSet;
+import com.google.common.collect.Multimap;
 import com.google.common.collect.Sets;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import org.apache.cassandra.config.DatabaseDescriptor;
+import org.apache.cassandra.db.ColumnFamilyStore;
 import org.apache.cassandra.db.Directories;
+import org.apache.cassandra.db.Keyspace;
 import org.apache.cassandra.io.sstable.format.SSTableFormat;
 import org.apache.cassandra.io.sstable.format.Version;
 import org.apache.cassandra.io.sstable.metadata.IMetadataSerializer;
 import org.apache.cassandra.io.sstable.metadata.MetadataSerializer;
 import org.apache.cassandra.io.util.File;
+import org.apache.cassandra.schema.Schema;
 import org.apache.cassandra.utils.Pair;
 
 import static com.google.common.base.Preconditions.checkNotNull;
@@ -263,6 +269,30 @@ public class Descriptor
     public static Descriptor fromFile(File file)
     {
         return fromFileWithComponent(file).left;
+    }
+
+    /**
+     * Resolve each {@code <SSTable Data.db>} filename in {@code filenames} to its on-disk
+     * {@link Descriptor} and group the results by owning {@link ColumnFamilyStore}. Filenames
+     * whose keyspace/table no longer exists in the schema are logged and skipped.
+     */
+    public static Multimap<ColumnFamilyStore, Descriptor> fromFilenamesGrouped(Collection<String> filenames)
+    {
+        Multimap<ColumnFamilyStore, Descriptor> descriptors = ArrayListMultimap.create();
+        for (String filename : filenames)
+        {
+            Descriptor desc = Descriptor.fromFileWithComponent(new File(filename.trim()), false).left;
+            if (Schema.instance.getTableMetadataRef(desc) == null)
+            {
+                logger.warn("Schema does not exist for file {}. Skipping.", filename);
+                continue;
+            }
+            ColumnFamilyStore cfs = Keyspace.open(desc.ksname).getColumnFamilyStore(desc.cfname);
+            Descriptor onDisk = cfs.getDirectories().find(new File(filename.trim()).name());
+            if (onDisk != null)
+                descriptors.put(cfs, onDisk);
+        }
+        return descriptors;
     }
 
     public static Component componentFromFile(File file)

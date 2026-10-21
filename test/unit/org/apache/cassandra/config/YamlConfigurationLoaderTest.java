@@ -689,7 +689,7 @@ public class YamlConfigurationLoaderTest
                 "durability_txnid_lag", "60s",
                 "shard_durability_cycle", "60s",
                 "global_durability_cycle", "60s");
-        AccordSpec spec = from("accord", accordSpec).accord;
+        AccordConfig spec = from("accord", accordSpec).accord;
         assertThat(spec.fast_path_update_delay.to(TimeUnit.NANOSECONDS)).isEqualTo(60000000000L);
         assertThat(spec.durability_txnid_lag.to(TimeUnit.NANOSECONDS)).isEqualTo(60000000000L);
         assertThat(spec.shard_durability_cycle.to(TimeUnit.NANOSECONDS)).isEqualTo(60000000000L);

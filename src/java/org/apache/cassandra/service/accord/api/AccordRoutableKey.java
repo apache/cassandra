@@ -42,7 +42,7 @@ public abstract class AccordRoutableKey implements RoutableKey
         // -1 means dynamic
         int fixedKeyLengthForPrefix(Object prefix);
         int serializedSizeOfPrefix(Object prefix);
-        int serializedSizeWithoutPrefix(K key);
+        int serializedSizeWithoutPrefixOrLength(K key);
         void serializePrefix(Object prefix, DataOutputPlus out) throws IOException;
         void serializeWithoutPrefixOrLength(K key, DataOutputPlus out) throws IOException;
         Object deserializePrefix(DataInputPlus in) throws IOException;

@@ -18,6 +18,8 @@
 
 package org.apache.cassandra.repair.autorepair;
 
+import java.net.UnknownHostException;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Set;
 import java.util.TreeSet;
@@ -556,5 +558,58 @@ public class AutoRepairUtilsTest extends CQLTester
     public void testSkipSystemTraces()
     {
         assertFalse(AutoRepairUtils.shouldConsiderKeyspace(Keyspace.open(SchemaConstants.TRACE_KEYSPACE_NAME)));
+    }
+
+    /**
+     * Regression test for CASSANDRA-21426: exercises the getMostEligibleHostToRepair code path through
+     * hasReplicaWithOngoingRepair -> getRangeAddresses -> calculateNaturalReplicas when another node
+     * has an ongoing repair. In cassandra-5.0 this triggered an AssertionError in getTopology() when
+     * called on the live TokenMetadata singleton; in trunk (TCM) the code uses ClusterMetadata which
+     * is safe, but this test ensures the code path remains exercised.
+     */
+    @Test
+    public void testGetMostEligibleHostToRepairWithOngoingParallelRepair() throws UnknownHostException
+    {
+        // Register a second endpoint via TCM
+        InetAddressAndPort otherEndpoint = InetAddressAndPort.getByName("127.0.0.2");
+        ClusterMetadataTestHelper.addEndpoint(otherEndpoint,
+                                              new org.apache.cassandra.dht.Murmur3Partitioner.LongToken(1000));
+        UUID otherHostId = StorageService.instance.getHostIdForEndpoint(otherEndpoint);
+        assertNotNull(otherHostId);
+
+        // Create an NTS keyspace so hasReplicaWithOngoingRepair exercises getRangeAddresses
+        QueryProcessor.executeInternal(
+        "CREATE KEYSPACE IF NOT EXISTS ks_nts WITH replication = {'class': 'NetworkTopologyStrategy', 'datacenter1': '2'}");
+
+        try
+        {
+            long currentMillis = System.currentTimeMillis();
+
+            // Build repair histories: other node has ongoing repair, local node is finished
+            AutoRepairHistory otherHistory = new AutoRepairHistory(otherHostId, null, currentMillis, currentMillis - 100,
+                                                                   null, 0, false);
+            AutoRepairHistory myHistory = new AutoRepairHistory(hostId, null, currentMillis - 200, currentMillis - 100,
+                                                                null, 0, false);
+
+            List<AutoRepairHistory> allHistories = new ArrayList<>();
+            allHistories.add(otherHistory);
+            allHistories.add(myHistory);
+            CurrentRepairStatus currentRepairStatus = new CurrentRepairStatus(allHistories, null, hostId);
+
+            // Verify preconditions: otherHostId is repairing, local node is not
+            assertTrue(currentRepairStatus.hostIdsWithOnGoingRepair.contains(otherHostId));
+            assertFalse(currentRepairStatus.hostIdsWithOnGoingRepair.contains(hostId));
+
+            // Exercises: getMostEligibleHostToRepair -> hasReplicaWithOngoingRepair
+            //   -> getRangeAddresses(ClusterMetadata.current()) -> calculateNaturalReplicas
+            AutoRepairHistory result = AutoRepairUtils.getMostEligibleHostToRepair(repairType, currentRepairStatus, hostId);
+            assertNotNull(result);
+            assertEquals(hostId, result.hostId);
+        }
+        finally
+        {
+            QueryProcessor.executeInternal("DROP KEYSPACE IF EXISTS ks_nts");
+            ClusterMetadataTestHelper.removeEndpoint(otherEndpoint, true);
+        }
     }
 }

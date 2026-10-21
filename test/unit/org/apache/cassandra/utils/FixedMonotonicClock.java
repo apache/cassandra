@@ -56,9 +56,9 @@ public final class FixedMonotonicClock implements MonotonicClock
     {
         private static final FakeMonotonicClockTranslation instance = new FakeMonotonicClockTranslation();
 
-        public long fromMillisSinceEpoch(long currentTimeMillis)
+        public long fromMillisSinceEpoch(long millisSinceEpoch)
         {
-            return TimeUnit.MILLISECONDS.toNanos(currentTimeMillis);
+            return TimeUnit.MILLISECONDS.toNanos(millisSinceEpoch);
         }
 
         public long toMillisSinceEpoch(long nanoTime)

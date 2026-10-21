@@ -30,9 +30,9 @@ import java.util.stream.StreamSupport;
 import org.apache.cassandra.cql3.AssignmentTestable;
 import org.apache.cassandra.cql3.ColumnIdentifier;
 import org.apache.cassandra.cql3.ColumnSpecification;
+import org.apache.cassandra.cql3.FunctionContext;
 import org.apache.cassandra.cql3.Operation;
-import org.apache.cassandra.cql3.QueryOptions;
-import org.apache.cassandra.cql3.UpdateParameters;
+import org.apache.cassandra.cql3.RowUpdateBuilder;
 import org.apache.cassandra.db.DecoratedKey;
 import org.apache.cassandra.db.guardrails.Guardrails;
 import org.apache.cassandra.db.marshal.AbstractType;
@@ -172,7 +172,7 @@ public final class Sets
                 values.add(t);
             }
             MultiElements.DelayedValue value = new MultiElements.DelayedValue((MultiElementType<?>) receiver.type.unwrap(), values);
-            return allTerminal ? value.bind(QueryOptions.DEFAULT) : value;
+            return allTerminal ? value.bind(FunctionContext.NONE) : value;
         }
 
         private void validateAssignableTo(String keyspace, ColumnSpecification receiver) throws InvalidRequestException
@@ -227,16 +227,16 @@ public final class Sets
             super(column, t);
         }
 
-        public void execute(DecoratedKey partitionKey, UpdateParameters params) throws InvalidRequestException
+        public void execute(DecoratedKey partitionKey, RowUpdateBuilder builder) throws InvalidRequestException
         {
-            Term.Terminal value = t.bind(params.options);
+            Term.Terminal value = t.bind(builder);
             if (value == UNSET_VALUE)
                 return;
 
             // delete + add
             if (column.type.isMultiCell())
-                params.setComplexDeletionTimeForOverwrite(column);
-            Adder.doAdd(value, column, params);
+                builder.setComplexDeletionTimeForOverwrite(column);
+            Adder.doAdd(value, column, builder);
         }
     }
 
@@ -247,15 +247,15 @@ public final class Sets
             super(column, t);
         }
 
-        public void execute(DecoratedKey partitionKey, UpdateParameters params) throws InvalidRequestException
+        public void execute(DecoratedKey partitionKey, RowUpdateBuilder builder) throws InvalidRequestException
         {
             assert column.type.isMultiCell() : "Attempted to add items to a frozen set";
-            Term.Terminal value = t.bind(params.options);
+            Term.Terminal value = t.bind(builder);
             if (value != UNSET_VALUE)
-                doAdd(value, column, params);
+                doAdd(value, column, builder);
         }
 
-        static void doAdd(Term.Terminal value, ColumnMetadata column, UpdateParameters params) throws InvalidRequestException
+        static void doAdd(Term.Terminal value, ColumnMetadata column, RowUpdateBuilder builder) throws InvalidRequestException
         {
             SetType<?> type = (SetType<?>) column.type;
 
@@ -263,7 +263,7 @@ public final class Sets
             {
                 // for frozen sets, we're overwriting the whole cell
                 if (!type.isMultiCell())
-                    params.addTombstone(column);
+                    builder.addTombstone(column);
 
                 return;
             }
@@ -278,7 +278,7 @@ public final class Sets
                 // Guardrails about collection size are only checked for the added elements without considering
                 // already existent elements. This is done so to avoid read-before-write, having additional checks
                 // during SSTable write.
-                Guardrails.itemsPerCollection.guard(type.collectionSize(elements), column.name.toString(), false, params.clientState);
+                Guardrails.itemsPerCollection.guard(type.collectionSize(elements), column.name.toString(), false, builder.clientState);
 
                 int dataSize = 0;
                 for (ByteBuffer bb : elements)
@@ -286,16 +286,16 @@ public final class Sets
                     if (bb == ByteBufferUtil.UNSET_BYTE_BUFFER)
                         continue;
 
-                    Cell<?> cell = params.addCell(column, CellPath.create(bb), ByteBufferUtil.EMPTY_BYTE_BUFFER);
+                    Cell<?> cell = builder.addCell(column, CellPath.create(bb), ByteBufferUtil.EMPTY_BYTE_BUFFER);
                     dataSize += cell.dataSize();
                 }
-                Guardrails.collectionSetSize.guard(dataSize, column.name.toString(), false, params.clientState);
+                Guardrails.collectionSetSize.guard(dataSize, column.name.toString(), false, builder.clientState);
             }
             else
             {
-                Guardrails.itemsPerCollection.guard(type.collectionSize(elements), column.name.toString(), false, params.clientState);
-                Cell<?> cell = params.addCell(column, value.get());
-                Guardrails.collectionSetSize.guard(cell.dataSize(), column.name.toString(), false, params.clientState);
+                Guardrails.itemsPerCollection.guard(type.collectionSize(elements), column.name.toString(), false, builder.clientState);
+                Cell<?> cell = builder.addCell(column, value.get());
+                Guardrails.collectionSetSize.guard(cell.dataSize(), column.name.toString(), false, builder.clientState);
             }
         }
     }
@@ -308,11 +308,11 @@ public final class Sets
             super(column, t);
         }
 
-        public void execute(DecoratedKey partitionKey, UpdateParameters params) throws InvalidRequestException
+        public void execute(DecoratedKey partitionKey, RowUpdateBuilder builder) throws InvalidRequestException
         {
             assert column.type.isMultiCell() : "Attempted to remove items from a frozen set";
 
-            Term.Terminal value = t.bind(params.options);
+            Term.Terminal value = t.bind(builder);
             if (value == null || value == UNSET_VALUE)
                 return;
 
@@ -320,7 +320,7 @@ public final class Sets
             List<ByteBuffer> toDiscard = value.getElements();
 
             for (ByteBuffer bb : toDiscard)
-                params.addTombstone(column, CellPath.create(bb));
+                builder.addTombstone(column, CellPath.create(bb));
         }
     }
 
@@ -331,14 +331,14 @@ public final class Sets
             super(column, k);
         }
 
-        public void execute(DecoratedKey partitionKey, UpdateParameters params) throws InvalidRequestException
+        public void execute(DecoratedKey partitionKey, RowUpdateBuilder builder) throws InvalidRequestException
         {
             assert column.type.isMultiCell() : "Attempted to delete a single element in a frozen set";
-            Term.Terminal elt = t.bind(params.options);
+            Term.Terminal elt = t.bind(builder);
             if (elt == null)
                 throw new InvalidRequestException("Invalid null set element");
 
-            params.addTombstone(column, CellPath.create(elt.get()));
+            builder.addTombstone(column, CellPath.create(elt.get()));
         }
     }
 }

@@ -170,11 +170,11 @@ public class DriverBurnTest extends CQLTester
 
                             for (int i = 0; i < actualRS.size(); i++)
                             {
-                                List<ByteBuffer> expected = expectedRS.result.rows.get(i);
+                                List<byte[]> expected = expectedRS.result.rows.get(i);
                                 Row actual = actualRS.get(i);
 
                                 for (int col = 0; col < expected.size(); col++)
-                                    Assert.assertEquals(actual.getBytes(col), expected.get(col));
+                                    Assert.assertEquals(actual.getBytes(col), ByteBuffer.wrap(expected.get(col)));
                             }
                         }
                         counter++;
@@ -340,10 +340,10 @@ public class DriverBurnTest extends CQLTester
         SimpleStatement request = generateQueryStatement(0, requestCaps);
         ResultMessage.Rows response = generateRows(0, responseCaps);
         QueryMessage requestMessage = generateQueryMessage(0, requestCaps, version);
-        Envelope message = requestMessage.encode(version);
+        Envelope message = requestMessage.encode(version, 0);
         int requestSize = message.body.readableBytes();
         message.release();
-        message = response.encode(version);
+        message = response.encode(version, 0);
         int responseSize = message.body.readableBytes();
         message.release();
         Message.Type.QUERY.unsafeSetCodec(new Message.Codec<QueryMessage>() {

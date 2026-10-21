@@ -26,6 +26,7 @@ import java.util.Iterator;
 import java.util.List;
 import java.util.Set;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.Consumer;
 
 import com.google.common.annotations.VisibleForTesting;
@@ -42,6 +43,7 @@ import accord.local.cfk.Serialize;
 import accord.primitives.TxnId;
 import accord.utils.Invariants;
 
+import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.cql3.ColumnIdentifier;
 import org.apache.cassandra.cql3.statements.schema.CreateTableStatement;
 import org.apache.cassandra.db.Clustering;
@@ -51,6 +53,7 @@ import org.apache.cassandra.db.Columns;
 import org.apache.cassandra.db.DataRange;
 import org.apache.cassandra.db.DecoratedKey;
 import org.apache.cassandra.db.Keyspace;
+import org.apache.cassandra.db.LivenessInfo;
 import org.apache.cassandra.db.PartitionPosition;
 import org.apache.cassandra.db.ReadExecutionController;
 import org.apache.cassandra.db.RegularAndStaticColumns;
@@ -103,6 +106,7 @@ import org.apache.cassandra.schema.Tables;
 import org.apache.cassandra.schema.Types;
 import org.apache.cassandra.schema.UserFunctions;
 import org.apache.cassandra.schema.Views;
+import org.apache.cassandra.service.accord.api.AccordAgent;
 import org.apache.cassandra.service.accord.api.TokenKey;
 import org.apache.cassandra.service.accord.serializers.CommandSerializers;
 import org.apache.cassandra.utils.AbstractIterator;
@@ -115,9 +119,12 @@ import org.apache.cassandra.utils.vint.VIntCoding;
 
 import static java.lang.String.format;
 import static java.util.Collections.emptyMap;
+import static java.util.concurrent.TimeUnit.MICROSECONDS;
+import static org.apache.cassandra.config.AccordConfig.RangeIndexMode.journal_sai;
 import static org.apache.cassandra.db.partitions.PartitionUpdate.singleRowUpdate;
 import static org.apache.cassandra.db.rows.BTreeRow.singleCellRow;
 import static org.apache.cassandra.schema.SchemaConstants.ACCORD_KEYSPACE_NAME;
+import static org.apache.cassandra.utils.Clock.Global.currentTimeMicros;
 
 public class AccordKeyspace
 {
@@ -154,7 +161,7 @@ public class AccordKeyspace
         return builder.build();
     }
 
-    public static final TableMetadata Journal = journalMetadata(JOURNAL, true);
+    public static final TableMetadata Journal = journalMetadata(JOURNAL, DatabaseDescriptor.getAccord().range_index_mode == journal_sai);
 
     private static ColumnMetadata getColumn(TableMetadata metadata, String name)
     {
@@ -238,7 +245,7 @@ public class AccordKeyspace
 
         public static ByteBuffer makeSystemTableKeyBytes(int commandStore, TokenKey key)
         {
-            ByteBuffer result = ByteBuffer.allocate(4 + TokenKey.serializer.serializedSizeWithoutPrefix(key));
+            ByteBuffer result = ByteBuffer.allocate(4 + TokenKey.serializer.serializedSizeWithoutPrefixOrLength(key));
             result.putInt(commandStore);
             TokenKey.serializer.serializeWithoutPrefixOrLength(key, result);
             result.flip();
@@ -267,7 +274,7 @@ public class AccordKeyspace
         static CommandsForKey unsafeLoad(CommandsForKeyAccessor accessor, int commandStoreId, TokenKey key)
         {
             long timestampMicros = TimeUnit.MILLISECONDS.toMicros(Global.currentTimeMillis());
-            int nowInSeconds = (int) TimeUnit.MICROSECONDS.toSeconds(timestampMicros);
+            int nowInSeconds = (int) MICROSECONDS.toSeconds(timestampMicros);
 
             SinglePartitionReadCommand command = makeRead(accessor, commandStoreId, key, nowInSeconds);
 
@@ -305,7 +312,7 @@ public class AccordKeyspace
                 return null;
 
             // TODO (desired): consider whether better to not compact any validation failures, since we expect is already overwritten
-            CommandsForKey updated = current.withGcBeforeAtLeast(redundantBefore.gcBefore(), false);
+            CommandsForKey updated = current.withCleanCfkBeforeAtLeast(redundantBefore.cleanCfkBefore(), false);
             if (current == updated)
                 return row;
 
@@ -335,7 +342,7 @@ public class AccordKeyspace
         {
             ByteBuffer bytes;
             if (serialized instanceof ByteBuffer) bytes = (ByteBuffer) serialized;
-            else bytes = Serialize.toBytesWithoutKey(commandsForKey.maximalPrune()); // TODO (expected): we only need to strip pruned, not prune additional txns
+            else bytes = Serialize.toBytesWithoutKey(commandsForKey.maybePrune(0, AccordAgent.cfkHlcPruneDelta(DatabaseDescriptor.getAccord()))); // TODO (expected): we only need to strip pruned, not prune additional txns
             return makeUpdate(storeId, key, timestampMicros, bytes);
         }
 
@@ -344,17 +351,26 @@ public class AccordKeyspace
         {
             return singleRowUpdate(CFKAccessor.table,
                                    CommandsForKeyAccessor.makeSystemTableKey(storeId, key),
-                                   singleCellRow(Clustering.EMPTY, BufferCell.live(CFKAccessor.data, timestampMicros, bytes)));
+                                   singleCellRow(Clustering.EMPTY,
+                                                 LivenessInfo.create(timestampMicros),
+                                                 BufferCell.live(CFKAccessor.data, timestampMicros, bytes)));
         }
 
-        public static Runnable systemTableUpdater(int storeId, TokenKey key, CommandsForKey update, Object serialized, long timestampMicros)
+        private static final AtomicLong lastSystemTimestampMicros = new AtomicLong();
+        private static long nextSystemTimestampMicros()
         {
-            PartitionUpdate upd = makeUpdate(storeId, key, update, serialized, timestampMicros);
+            return lastSystemTimestampMicros.accumulateAndGet(currentTimeMicros(), (a, b) -> Math.max(a + 1, b));
+        }
+
+        public static Runnable systemTableUpdater(int storeId, TokenKey key, CommandsForKey update, Object serialized)
+        {
+            long timestamp = nextSystemTimestampMicros();
             return () -> {
+                PartitionUpdate upd = makeUpdate(storeId, key, update, serialized, timestamp);
                 ColumnFamilyStore cfs = AccordColumnFamilyStores.commandsForKey;
                 try (OpOrder.Group group = Keyspace.writeOrder.start())
                 {
-                    cfs.getCurrentMemtable().put(upd, UpdateTransaction.NO_OP, group, true);
+                    cfs.getCurrentMemtable().checkSpaceAndPut(upd, UpdateTransaction.NO_OP, group, true);
                 }
             };
         }

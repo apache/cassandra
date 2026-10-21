@@ -368,7 +368,7 @@ public abstract class SimulatedAction extends Action implements InterceptorOfCon
                 long deadlineNanos = childScheduler.messageDeadlineNanos(fromNum, toNum, protectedMessage);
                 if (deliver == DELIVER && deadlineNanos >= expiresAtNanos)
                 {
-                    if (isReliable) deadlineNanos = verb.isResponse() ? expiresAtNanos : expiresAtNanos / 2;
+                    if (isReliable) deadlineNanos = verb.isManagedResponse() ? expiresAtNanos : expiresAtNanos / 2;
                     else deliver = DELIVER_AND_TIMEOUT;
                 }
                 action.setDeadline(simulated.time, deadlineNanos);
@@ -381,7 +381,7 @@ public abstract class SimulatedAction extends Action implements InterceptorOfCon
             {
                 InetSocketAddress failedOn;
                 IInvokableInstance notify;
-                if (verb.isResponse())
+                if (verb.isManagedResponse())
                 {
                     failedOn = from.broadcastAddress();
                     notify = to;

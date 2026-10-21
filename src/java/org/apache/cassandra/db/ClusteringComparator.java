@@ -20,11 +20,8 @@ package org.apache.cassandra.db;
 import java.nio.ByteBuffer;
 import java.util.Arrays;
 import java.util.Comparator;
-import java.util.List;
-import java.util.Objects;
 
 import com.google.common.base.Joiner;
-import com.google.common.collect.ImmutableList;
 
 import org.apache.cassandra.db.marshal.AbstractType;
 import org.apache.cassandra.db.marshal.ByteBufferAccessor;
@@ -38,6 +35,7 @@ import org.apache.cassandra.utils.bytecomparable.ByteComparable;
 import org.apache.cassandra.utils.bytecomparable.ByteSource;
 import org.apache.cassandra.utils.vint.VIntCoding;
 
+import static org.apache.cassandra.db.marshal.AbstractType.EMPTY_ABSTRACT_TYPE_ARRAY;
 import static org.apache.cassandra.utils.bytecomparable.ByteSource.EXCLUDED;
 import static org.apache.cassandra.utils.bytecomparable.ByteSource.NEXT_COMPONENT;
 import static org.apache.cassandra.utils.bytecomparable.ByteSource.NEXT_COMPONENT_EMPTY;
@@ -54,7 +52,7 @@ import static org.apache.cassandra.utils.bytecomparable.ByteSource.TERMINATOR;
  */
 public class ClusteringComparator implements Comparator<Clusterable>
 {
-    private final List<AbstractType<?>> clusteringTypes;
+    private final AbstractType<?>[] clusteringTypes;
 
     private final Comparator<IndexInfo> indexComparator;
     private final Comparator<IndexInfo> indexReverseComparator;
@@ -65,20 +63,15 @@ public class ClusteringComparator implements Comparator<Clusterable>
 
     public ClusteringComparator(AbstractType<?>... clusteringTypes)
     {
-        this(ImmutableList.copyOf(clusteringTypes));
-    }
-
-    public ClusteringComparator(Iterable<AbstractType<?>> clusteringTypes)
-    {
-        // copy the list to ensure despatch is monomorphic
-        this.clusteringTypes = ImmutableList.copyOf(clusteringTypes);
+        // No defensive copy: callers must not retain/mutate the array after construction
+        this.clusteringTypes = clusteringTypes.length == 0 ? EMPTY_ABSTRACT_TYPE_ARRAY : clusteringTypes;
 
         this.indexComparator = (o1, o2) -> ClusteringComparator.this.compare((ClusteringPrefix<?>) o1.lastName,
                                                                              (ClusteringPrefix<?>) o2.lastName);
         this.indexReverseComparator = (o1, o2) -> ClusteringComparator.this.compare((ClusteringPrefix<?>) o1.firstName,
                                                                                     (ClusteringPrefix<?>) o2.firstName);
         this.reverseComparator = (c1, c2) -> ClusteringComparator.this.compare(c2, c1);
-        for (AbstractType<?> type : clusteringTypes)
+        for (AbstractType<?> type : this.clusteringTypes)
             type.checkComparable(); // this should already be enforced by TableMetadata.Builder.addColumn, but we check again for other constructors
     }
 
@@ -87,14 +80,17 @@ public class ClusteringComparator implements Comparator<Clusterable>
      */
     public int size()
     {
-        return clusteringTypes.size();
+        return clusteringTypes.length;
     }
 
     /**
      * The "subtypes" of this clustering comparator, that is the types of the clustering
      * columns for the table this is a comparator of.
+     *
+     * @return the internal array directly (no copy), shared with every consumer of this comparator
+     * as it is read on the serialization hot path; it must not be mutated.
      */
-    public List<AbstractType<?>> subtypes()
+    public AbstractType<?>[] subtypes()
     {
         return clusteringTypes;
     }
@@ -104,7 +100,7 @@ public class ClusteringComparator implements Comparator<Clusterable>
      */
     public AbstractType<?> subtype(int i)
     {
-        return clusteringTypes.get(i);
+        return clusteringTypes[i];
     }
 
     /**
@@ -183,6 +179,9 @@ public class ClusteringComparator implements Comparator<Clusterable>
         return compare(types, c1, c2, types.length);
     }
 
+    // 2-bit per-component flag in the wire clustering block: 0b00 valued, 0b01 empty, 0b10 null.
+    private static final int CLUSTERING_VALUE_FLAG_NULL = 0b10;
+
     private static int compare(AbstractType<?>[] types, ByteBuffer c1, ByteBuffer c2, int size)
     {
         long clusteringBlock1 = 0;
@@ -245,7 +244,15 @@ public class ClusteringComparator implements Comparator<Clusterable>
                     // compare swapped arguments to reverse the order
                     int cmp = Long.compare(v2Flags, v1Flags);
                     if (cmp != 0)
+                    {
+                        // Nulls are excluded because null ordering is type-independent:
+                        // compareComponent handles a null before it consults the type. Empty
+                        // against valued is not — every base type sorts empty first, so a
+                        // reversed type sorts it last, and the flag-derived order must flip.
+                        if ((v1Flags & CLUSTERING_VALUE_FLAG_NULL) == 0 && (v2Flags & CLUSTERING_VALUE_FLAG_NULL) == 0 && type.isReversed())
+                            cmp = -cmp;
                         return cmp;
+                    }
                     // null/empty == null/empty, continue...
                 }
                 clusteringBlock1 = clusteringBlock1 >>> 2;
@@ -292,7 +299,7 @@ public class ClusteringComparator implements Comparator<Clusterable>
         if (v2 == null)
             return 1;
 
-        return clusteringTypes.get(i).compare(v1, accessor1, v2, accessor2);
+        return clusteringTypes[i].compare(v1, accessor1, v2, accessor2);
     }
 
     public <V1, V2> int compareComponent(int i, ClusteringPrefix<V1> v1, ClusteringPrefix<V2> v2)
@@ -653,12 +660,12 @@ public class ClusteringComparator implements Comparator<Clusterable>
             return false;
 
         ClusteringComparator that = (ClusteringComparator)o;
-        return this.clusteringTypes.equals(that.clusteringTypes);
+        return Arrays.equals(this.clusteringTypes, that.clusteringTypes);
     }
 
     @Override
     public int hashCode()
     {
-        return Objects.hashCode(clusteringTypes);
+        return Arrays.hashCode(clusteringTypes);
     }
 }

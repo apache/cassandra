@@ -69,6 +69,7 @@ import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.db.SystemKeyspace;
 import org.apache.cassandra.dht.IPartitioner;
 import org.apache.cassandra.dht.Token;
+import org.apache.cassandra.exceptions.RequestFailure;
 import org.apache.cassandra.locator.InetAddressAndPort;
 import org.apache.cassandra.net.Message;
 import org.apache.cassandra.net.MessagingService;
@@ -268,7 +269,13 @@ public class Gossiper implements IFailureDetectionEventListener, GossiperMBean, 
                 taskLock.lock();
 
                 /* Update the local heartbeat counter. */
-                endpointStateMap.get(getBroadcastAddressAndPort()).updateHeartBeat();
+                EndpointState epstate = endpointStateMap.get(getBroadcastAddressAndPort());
+                if (epstate == null)
+                {
+                    logger.warn("Node {} is not in gossip, not running GossipTask", getBroadcastAddressAndPort());
+                    return;
+                }
+                epstate.updateHeartBeat();
                 if (logger.isTraceEnabled())
                     logger.trace("My heartbeat is now {}", endpointStateMap.get(FBUtilities.getBroadcastAddressAndPort()).getHeartBeatState().getHeartBeatVersion());
                 final List<GossipDigest> gDigests = new ArrayList<>();
@@ -458,7 +465,7 @@ public class Gossiper implements IFailureDetectionEventListener, GossiperMBean, 
         return isShutdown(epState);
     }
 
-    private static boolean isShutdown(EndpointState epState)
+    public static boolean isShutdown(EndpointState epState)
     {
         VersionedValue versionedValue = epState.getApplicationState(ApplicationState.STATUS_WITH_PORT);
         if (versionedValue == null)
@@ -659,6 +666,7 @@ public class Gossiper implements IFailureDetectionEventListener, GossiperMBean, 
     public void evictFromMembership(InetAddressAndPort endpoint)
     {
         checkProperThreadForStateMutation();
+        inflightEcho.remove(endpoint);
         unreachableEndpoints.remove(endpoint);
         endpointStateMap.remove(endpoint);
         expireTimeEndpointMap.remove(endpoint);
@@ -710,6 +718,17 @@ public class Gossiper implements IFailureDetectionEventListener, GossiperMBean, 
         endpointStateMap.remove(endpoint);
         expireTimeEndpointMap.remove(endpoint);
         unreachableEndpoints.remove(endpoint);
+    }
+
+    /**
+     * determine which endpoint started up earlier
+     */
+    public int compareEndpointStartup(InetAddressAndPort addr1, InetAddressAndPort addr2)
+    {
+        EndpointState ep1 = getEndpointStateForEndpoint(addr1);
+        EndpointState ep2 = getEndpointStateForEndpoint(addr2);
+        assert ep1 != null && ep2 != null;
+        return ep1.getHeartBeatState().getGeneration() - ep2.getHeartBeatState().getGeneration();
     }
 
     /**
@@ -936,7 +955,7 @@ public class Gossiper implements IFailureDetectionEventListener, GossiperMBean, 
         ClusterMetadata metadata = ClusterMetadata.current();
         NodeId nodeId = metadata.directory.peerId(endpoint);
         if (nodeId == null)
-            return false;
+            return true;
         return NodeState.isPreJoin(metadata.directory.states.get(nodeId));
     }
 
@@ -1201,13 +1220,30 @@ public class Gossiper implements IFailureDetectionEventListener, GossiperMBean, 
         {
             Message<NoPayload> echoMessage = Message.out(ECHO_REQ, noPayload);
             logger.trace("Sending ECHO_REQ to {}", addr);
-            RequestCallback echoHandler = msg ->
+            RequestCallback echoHandler = new RequestCallback()
             {
-                runInGossipStageBlocking(() -> {
-                    EndpointState epState = inflightEcho.remove(addr);
-                    if (epState != null)
-                        realMarkAlive(addr, epState);
-                });
+                @Override
+                public void onResponse(Message msg)
+                {
+                    runInGossipStageBlocking(() -> {
+                        EndpointState epState = inflightEcho.remove(addr);
+                        if (epState != null)
+                            realMarkAlive(addr, epState);
+                    });
+                }
+
+                @Override
+                public boolean invokeOnFailure()
+                {
+                    return true;
+                }
+
+                @Override
+                public void onFailure(InetAddressAndPort from, RequestFailure requestFailure)
+                {
+                    logger.trace("ECHO_REQ to {} failed ({})", addr, requestFailure);
+                    inflightEcho.remove(addr);
+                }
             };
             MessagingService.instance().sendWithCallback(echoMessage, addr, echoHandler);
         }
@@ -1739,7 +1775,7 @@ public class Gossiper implements IFailureDetectionEventListener, GossiperMBean, 
         register(DatabaseDescriptor.getLocalAddressReconnectionHelper());
 
         ClusterMetadata metadata = ClusterMetadata.current();
-        if (mergeLocalStates && metadata.myNodeId() != null)
+        if (mergeLocalStates && metadata.myNodeId() != NodeId.UNREGISTERED)
             mergeNodeToGossip(metadata.myNodeId(), metadata);
 
         shutdownAnnounced.set(false);
@@ -2209,7 +2245,9 @@ public class Gossiper implements IFailureDetectionEventListener, GossiperMBean, 
     {
         checkProperThreadForStateMutation();
         assert !endpoint.equals(getBroadcastAddressAndPort()) || epstate.getHeartBeatState().getGeneration() > 0 :
-        "We should not update epstates with generation = 0 for the local host";
+        String.format("We should not update epstates with generation = 0 for the local host " +
+                      "(endpoint: %s, broadcast: %s, generation: %s)",
+                      endpoint, getBroadcastAddressAndPort(), epstate.getHeartBeatState().getGeneration());
         EndpointState old = endpointStateMap.get(endpoint);
         if (old == null)
             endpointStateMap.put(endpoint, epstate);
@@ -2253,6 +2291,9 @@ public class Gossiper implements IFailureDetectionEventListener, GossiperMBean, 
         taskLock.lock();
         try
         {
+            if (nodeId == NodeId.UNREGISTERED)
+                return;
+
             boolean isLocal = nodeId.equals(metadata.myNodeId());
             IPartitioner partitioner = metadata.tokenMap.partitioner();
             NodeAddresses addresses = metadata.directory.getNodeAddresses(nodeId);

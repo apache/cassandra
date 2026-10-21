@@ -440,7 +440,7 @@ public final class SystemDistributedKeyspace
                                  dict.length,
                                  dictionary.checksum());
         noThrow(fmtQuery,
-                () -> QueryProcessor.process(fmtQuery, ConsistencyLevel.ONE,
+                () -> QueryProcessor.process(fmtQuery, ConsistencyLevel.QUORUM,
                                              List.of(ByteBuffer.wrap(dict), ByteBufferUtil.bytes(dictionary.createdAt().toEpochMilli()))));
     }
 
@@ -460,10 +460,19 @@ public final class SystemDistributedKeyspace
         String fmtQuery = format(query, SchemaConstants.DISTRIBUTED_KEYSPACE_NAME, COMPRESSION_DICTIONARIES, keyspaceName, tableName, tableId);
         try
         {
-            return CompressionDictionary.createFromRow(QueryProcessor.execute(fmtQuery, ConsistencyLevel.ONE).one());
+            UntypedResultSet result = QueryProcessor.execute(fmtQuery, ConsistencyLevel.QUORUM);
+            // No row means this table has no dictionary stored, which is an ordinary state and not a read
+            // failure. It must not reach the catch below: one() throws on an empty result, so the warning
+            // would fire on every call for every such table, drowning out the failures it exists to surface.
+            if (result.isEmpty())
+                return null;
+            return CompressionDictionary.createFromRow(result.one());
         }
         catch (Exception e)
         {
+            // Never swallow this silently: callers treat null as "no dictionary" and carry on with a stale
+            // one, so an unavailable replica would otherwise look identical to a table that has none.
+            logger.warn("Could not read the latest compression dictionary for {}.{}", keyspaceName, tableName, e);
             return null;
         }
     }
@@ -485,10 +494,14 @@ public final class SystemDistributedKeyspace
         String fmtQuery = format(query, SchemaConstants.DISTRIBUTED_KEYSPACE_NAME, COMPRESSION_DICTIONARIES, keyspaceName, tableName, tableId);
         try
         {
-            return CompressionDictionary.createFromRowLightweight(QueryProcessor.execute(fmtQuery, ConsistencyLevel.ONE).one());
+            UntypedResultSet result = QueryProcessor.execute(fmtQuery, ConsistencyLevel.QUORUM);
+            if (result.isEmpty())
+                return null;
+            return CompressionDictionary.createFromRowLightweight(result.one());
         }
         catch (Exception e)
         {
+            logger.warn("Could not read the latest compression dictionary metadata for {}.{}", keyspaceName, tableName, e);
             return null;
         }
     }
@@ -511,10 +524,14 @@ public final class SystemDistributedKeyspace
         String fmtQuery = format(query, SchemaConstants.DISTRIBUTED_KEYSPACE_NAME, COMPRESSION_DICTIONARIES, keyspaceName, tableName, tableId, dictionaryId);
         try
         {
-            return CompressionDictionary.createFromRow(QueryProcessor.execute(fmtQuery, ConsistencyLevel.ONE).one());
+            UntypedResultSet result = QueryProcessor.execute(fmtQuery, ConsistencyLevel.QUORUM);
+            if (result.isEmpty())
+                return null;
+            return CompressionDictionary.createFromRow(result.one());
         }
         catch (Exception e)
         {
+            logger.warn("Could not read compression dictionary {} for {}.{}", dictionaryId, keyspaceName, tableName, e);
             return null;
         }
     }
@@ -589,7 +606,7 @@ public final class SystemDistributedKeyspace
                                                      orphanedDict.tableName,
                                                      orphanedDict.tableId,
                                                      orphanedDict.dictId.id),
-                                       ConsistencyLevel.ONE);
+                                       ConsistencyLevel.QUORUM);
             }
             catch (Exception e)
             {
@@ -604,7 +621,7 @@ public final class SystemDistributedKeyspace
     {
         try
         {
-            UntypedResultSet result = QueryProcessor.execute(query, ConsistencyLevel.ONE);
+            UntypedResultSet result = QueryProcessor.execute(query, ConsistencyLevel.QUORUM);
             if (result.isEmpty())
                 return Collections.emptyList();
             List<LightweightCompressionDictionary> dictionaries = new ArrayList<>();

@@ -24,6 +24,7 @@ import java.util.HashMap;
 import java.util.Map;
 import java.util.Objects;
 import java.util.function.BiConsumer;
+import java.util.stream.Collectors;
 
 import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.Maps;
@@ -36,15 +37,19 @@ import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.io.util.DataInputPlus;
 import org.apache.cassandra.io.util.DataOutputPlus;
 import org.apache.cassandra.locator.EndpointsForRange;
+import org.apache.cassandra.locator.InetAddressAndPort;
 import org.apache.cassandra.locator.Replica;
 import org.apache.cassandra.schema.ReplicationParams;
+import org.apache.cassandra.tcm.ClusterMetadata;
 import org.apache.cassandra.tcm.Epoch;
 import org.apache.cassandra.tcm.MetadataValue;
+import org.apache.cassandra.tcm.membership.EndpointLookup;
 import org.apache.cassandra.tcm.serialization.MetadataSerializer;
 import org.apache.cassandra.tcm.serialization.Version;
 import org.apache.cassandra.utils.FBUtilities;
 
 import static org.apache.cassandra.db.TypeSizes.sizeof;
+import static org.apache.cassandra.db.TypeSizes.sizeofUnsignedVInt;
 
 public class DataPlacements extends ReplicationMap<DataPlacement> implements MetadataValue<DataPlacements>
 {
@@ -59,21 +64,6 @@ public class DataPlacements extends ReplicationMap<DataPlacement> implements Met
     {
         super(map);
         this.lastModified = lastModified;
-    }
-
-    public DataPlacements replaceParams(Epoch lastModified, ReplicationParams oldParams, ReplicationParams newParams)
-    {
-        Map<ReplicationParams, DataPlacement> newMap = Maps.newHashMapWithExpectedSize(map.size());
-        assert map.containsKey(oldParams) : String.format("Can't replace key %s, since map doesn't contain it: %s", oldParams, map);
-        for (Map.Entry<ReplicationParams, DataPlacement> e : map.entrySet())
-        {
-            if (e.getKey().equals(oldParams))
-                newMap.put(newParams, e.getValue());
-            else
-                newMap.put(e.getKey(), e.getValue());
-        }
-
-        return new DataPlacements(lastModified, newMap);
     }
 
     protected DataPlacement defaultValue()
@@ -194,9 +184,9 @@ public class DataPlacements extends ReplicationMap<DataPlacement> implements Met
         return builder.build();
     }
 
-    public DataPlacements applyDelta(Epoch epoch, PlacementDeltas deltas)
+    public DataPlacements applyDelta(EndpointLookup endpointLookup, Epoch epoch, PlacementDeltas deltas)
     {
-        return deltas.apply(epoch, this);
+        return deltas.apply(endpointLookup, epoch, this);
     }
 
     public static DataPlacements empty()
@@ -206,7 +196,7 @@ public class DataPlacements extends ReplicationMap<DataPlacement> implements Met
 
     public static Builder builder(int expectedSize)
     {
-        return new Builder(new HashMap<>(expectedSize));
+        return new Builder(Maps.newHashMapWithExpectedSize(expectedSize));
     }
 
     public static Builder builder(Map<ReplicationParams, DataPlacement> map)
@@ -217,6 +207,18 @@ public class DataPlacements extends ReplicationMap<DataPlacement> implements Met
     public Builder unbuild()
     {
         return new Builder(new HashMap<>(this.asMap()));
+    }
+
+    public String conciseToString()
+    {
+        return keys().stream().map(ReplicationParams::toString).collect(Collectors.joining(","));
+    }
+
+    public DataPlacements changeIp(InetAddressAndPort oldEndpoint, InetAddressAndPort newEndpoint)
+    {
+        Builder newPlacements = builder(size());
+        forEach((params, placement) -> newPlacements.with(params, placement.changeIp(oldEndpoint, newEndpoint)));
+        return newPlacements.build();
     }
 
     public static class Builder
@@ -250,7 +252,11 @@ public class DataPlacements extends ReplicationMap<DataPlacement> implements Met
         public void serialize(DataPlacements t, DataOutputPlus out, Version version) throws IOException
         {
             Map<ReplicationParams, DataPlacement> map = t.asMap();
-            out.writeInt(map.size());
+            if (version.isBefore(Version.V9))
+                out.writeInt(map.size());
+            else
+                out.writeUnsignedVInt32(map.size());
+
             for (Map.Entry<ReplicationParams, DataPlacement> entry : map.entrySet())
             {
                 ReplicationParams.serializer.serialize(entry.getKey(), out, version);
@@ -261,7 +267,7 @@ public class DataPlacements extends ReplicationMap<DataPlacement> implements Met
 
         public DataPlacements deserialize(DataInputPlus in, Version version) throws IOException
         {
-            int size = in.readInt();
+            int size = version.isBefore(Version.V9) ? in.readInt() : in.readUnsignedVInt32();
             Map<ReplicationParams, DataPlacement> map = Maps.newHashMapWithExpectedSize(size);
             for (int i = 0; i < size; i++)
             {
@@ -274,8 +280,9 @@ public class DataPlacements extends ReplicationMap<DataPlacement> implements Met
 
         public long serializedSize(DataPlacements t, Version version)
         {
-            long size = sizeof(t.size());
-            for (Map.Entry<ReplicationParams, DataPlacement> entry : t.asMap().entrySet())
+            Map<ReplicationParams, DataPlacement> map = t.asMap();
+            long size = version.isBefore(Version.V9) ? sizeof(map.size()) :  sizeofUnsignedVInt(map.size());
+            for (Map.Entry<ReplicationParams, DataPlacement> entry : map.entrySet())
             {
                 size += ReplicationParams.serializer.serializedSize(entry.getKey(), version);
                 size += DataPlacement.serializerFor(entry.getKey()).serializedSize(entry.getValue(), version);
@@ -311,7 +318,7 @@ public class DataPlacements extends ReplicationMap<DataPlacement> implements Met
             if (!Objects.equals(lv, rv))
             {
                 logger.warn("Values for key {} differ: {} != {}", k, lv, rv);
-                logger.warn("Difference: {}", lv.difference(rv));
+                logger.warn("Difference: {}", lv.difference(ClusterMetadata.current().directory, rv));
             }
         }
         for (ReplicationParams k : Sets.difference(l.keySet(), r.keySet()))

@@ -21,13 +21,16 @@ package org.apache.cassandra.tcm.log;
 import java.io.IOException;
 
 import org.junit.BeforeClass;
+import org.junit.Test;
 
 import org.apache.cassandra.ServerTestUtils;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.cql3.UntypedResultSet;
 import org.apache.cassandra.db.ColumnFamilyStore;
+import org.apache.cassandra.db.SystemKeyspace;
 import org.apache.cassandra.db.commitlog.CommitLog;
 import org.apache.cassandra.dht.Murmur3Partitioner;
+import org.apache.cassandra.distributed.test.log.ClusterMetadataTestHelper;
 import org.apache.cassandra.service.StorageService;
 import org.apache.cassandra.tcm.Epoch;
 import org.apache.cassandra.tcm.MetadataSnapshots;
@@ -37,6 +40,8 @@ import org.apache.cassandra.tcm.transformations.TriggerSnapshot;
 import static org.apache.cassandra.cql3.QueryProcessor.executeInternal;
 import static org.apache.cassandra.db.SystemKeyspace.METADATA_LOG;
 import static org.apache.cassandra.schema.SchemaConstants.SYSTEM_KEYSPACE_NAME;
+import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertTrue;
 
 public class LocalStorageLogStateTest extends LogStateTestBase
 {
@@ -107,6 +112,49 @@ public class LocalStorageLogStateTest extends LogStateTestBase
                 });
             }
         };
+    }
+
+    @Test
+    public void catchUpViaForceSnapshotLeavesGappedLog() throws Exception
+    {
+        // Simulates a non-CMS node that caught up via a ForceSnapshot (real or synthetic).
+        // LocalLog.append(LogState) converts the received baseState into a synthetic ForceSnapshot,
+        // which is processed but not written to local_metadata_log.
+        // The snapshot is stored in metadata_snapshots by MetadataSnapshotListener.
+        // The resulting on-disk state is: entries 1..X in local_metadata_log, snapshot at S sometime after X in
+        // metadata_snapshots, with no entries between X and S.
+        // Any peer requesting log since epoch <= X must receive the snapshot — not just the continuous
+        // run of entries up to X, which would leave it unable to advance past the gap.
+        MetadataSnapshots realSnapshots = new MetadataSnapshots.SystemKeyspaceMetadataSnapshots();
+        LogStateSUT sut = getSystemUnderTest(realSnapshots);
+        sut.cleanup();
+        ColumnFamilyStore.getIfExists(SYSTEM_KEYSPACE_NAME, SystemKeyspace.SNAPSHOT_TABLE_NAME)
+                         .truncateBlockingWithoutSnapshot();
+
+        // insertRegularEntry inserts 2 entries on the first call (epoch 1 and 2) due to the
+        // Epoch.FIRST pre-init entry, then 1 per subsequent call. After 3 calls: epochs 1..4.
+        sut.insertRegularEntry();
+        sut.insertRegularEntry();
+        sut.insertRegularEntry();
+
+        // Simulate ForceSnapshot at epoch 50: snapshot stored, no intermediate log entries written
+        Epoch gapSnapshotEpoch = Epoch.create(50);
+        realSnapshots.storeSnapshot(ClusterMetadataTestHelper.minimalForTesting(Murmur3Partitioner.instance)
+                                                             .forceEpoch(gapSnapshotEpoch));
+
+        // A peer at epoch 3 sees entry [4] which is continuous, but does not bridge to epoch 50.
+        // Must return the snapshot rather than just entry 4, which would leave the peer stuck.
+        LogState state = sut.getLogState(Epoch.create(3));
+        assertEquals(gapSnapshotEpoch, state.baseState.epoch);
+        assertTrue(state.entries.isEmpty());
+
+        // A peer already at epoch 4 (the last log entry) previously got an empty response and stalled.
+        state = sut.getLogState(Epoch.create(4));
+        assertEquals(gapSnapshotEpoch, state.baseState.epoch);
+        assertTrue(state.entries.isEmpty());
+
+        ColumnFamilyStore.getIfExists(SYSTEM_KEYSPACE_NAME, SystemKeyspace.SNAPSHOT_TABLE_NAME)
+                         .truncateBlockingWithoutSnapshot();
     }
 
 }

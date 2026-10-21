@@ -19,6 +19,7 @@
 package org.apache.cassandra.tcm;
 
 import java.io.IOException;
+import java.util.concurrent.TimeUnit;
 import java.util.function.BiConsumer;
 import java.util.function.Supplier;
 
@@ -27,6 +28,9 @@ import com.google.common.annotations.VisibleForTesting;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import accord.utils.Invariants;
+
+import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.db.TypeSizes;
 import org.apache.cassandra.exceptions.ExceptionCode;
 import org.apache.cassandra.io.IVersionedSerializer;
@@ -38,13 +42,17 @@ import org.apache.cassandra.net.IVerbHandler;
 import org.apache.cassandra.net.Message;
 import org.apache.cassandra.net.MessagingService;
 import org.apache.cassandra.net.Verb;
+import org.apache.cassandra.service.RetryStrategy;
 import org.apache.cassandra.tcm.log.Entry;
 import org.apache.cassandra.tcm.log.LogState;
 import org.apache.cassandra.tcm.membership.Directory;
+import org.apache.cassandra.tcm.membership.EndpointLookup;
 import org.apache.cassandra.tcm.membership.NodeId;
+import org.apache.cassandra.tcm.membership.NodeState;
 import org.apache.cassandra.tcm.membership.NodeVersion;
 import org.apache.cassandra.tcm.serialization.Version;
 import org.apache.cassandra.utils.FBUtilities;
+import org.apache.cassandra.utils.MonotonicClock;
 import org.apache.cassandra.utils.vint.VIntCoding;
 
 import static org.apache.cassandra.tcm.ClusterMetadataService.State.LOCAL;
@@ -281,7 +289,7 @@ public class Commit
                 }
                 else
                 {
-                    assert t instanceof Failure;
+                    Invariants.require(t instanceof Failure);
                     Failure failure = (Failure) t;
                     out.writeByte(failure.rejected ? REJECTED : FAILED);
                     out.writeUnsignedVInt32(failure.code.value);
@@ -327,9 +335,10 @@ public class Commit
                 }
                 else
                 {
-                    assert t instanceof Failure;
-                    size += VIntCoding.computeUnsignedVIntSize(((Failure) t).code.value);
-                    size += TypeSizes.sizeof(((Failure)t).message);
+                    Invariants.require(t instanceof Failure);
+                    Failure failure = (Failure) t;
+                    size += VIntCoding.computeUnsignedVIntSize(failure.code.value);
+                    size += TypeSizes.sizeof(failure.message);
                     size += VIntCoding.computeUnsignedVIntSize(serializationVersion.asInt());
                     size += LogState.metadataSerializer.serializedSize(t.logState(), serializationVersion);
                 }
@@ -366,24 +375,39 @@ public class Commit
 
         public void doVerb(Message<Commit> message) throws IOException
         {
-            checkCMSState();
             logger.info("Received commit request {} from {}", message.payload, message.from());
-            Retry retryPolicy = Retry.until(message.expiresAtNanos(), TCMMetrics.instance.commitRetries);
+            checkCMSState();
+            // Reduce our local retry deadline by write_rpc_timeout so we exhaust retries and return an
+            // explicit failure response to the sender before their per-message callback fires to avoid
+            // all the non-CMS nodes being synchronized on their CMS await timeouts expiring at the same time.
+            //
+            // A single tryCommitOne (Paxos CAS) can overshoot its deadline by up to
+            // (cas_contention_timeout + write_rpc_timeout) because reachedMax() is only checked at the top
+            // of the AbstractLocalProcessor retry loop, not mid-CAS so subtracting write_rpc_timeout covers the
+            // overshoot and leaves a window for the failure response to propagate back over the network.
+            //
+            // Explicit failures allow non-CMS senders to immediately reschedule retries, replacing the
+            // thundering herd pattern (all senders TIMEOUT and retry simultaneously every ~cms_await_timeout)
+            // with fast individual retries paced by CMS response speed.
+            //
+            // The floor of casWriteRpcTimeoutNanos ensures at least one attempt window when cms_await_timeout is
+            // misconfigured close to write_rpc_timeout.
+            long casWriteRpcTimeoutNanos = DatabaseDescriptor.getCasContentionTimeout(TimeUnit.NANOSECONDS) +
+                                           DatabaseDescriptor.getWriteRpcTimeout(TimeUnit.NANOSECONDS);
+            long now = MonotonicClock.Global.preciseTime.now();
+            long localDeadlineNanos = Math.max(now + casWriteRpcTimeoutNanos,
+                                               message.expiresAtNanos() - casWriteRpcTimeoutNanos);
+            RetryStrategy backoffWithJitter = DatabaseDescriptor.getCmsCommitRetryStrategy();
+            Retry retryPolicy = Retry.until(localDeadlineNanos, TCMMetrics.instance.commitRetries, backoffWithJitter);
             Result result = processor.commit(message.payload.entryId, message.payload.transform, message.payload.lastKnown, retryPolicy);
             if (result.isSuccess())
             {
                 Result.Success success = result.success();
                 replicator.send(success, message.from());
                 logger.info("Responding with full result {} to sender {}", result, message.from());
-                // TODO: this response message can get lost; how do we re-discover this on the other side?
-                // TODO: what if we have holes after replaying?
-                messagingService.accept(message.responseWith(result), message.from());
             }
-            else
-            {
-                Result.Failure failure = result.failure();
-                messagingService.accept(message.responseWith(failure), message.from());
-            }
+
+            messagingService.accept(message.responseWith(result), message.from());
         }
 
         private void checkCMSState()
@@ -413,11 +437,43 @@ public class Commit
 
     public static class DefaultReplicator implements Replicator
     {
-        private final Supplier<Directory> directorySupplier;
-
-        public DefaultReplicator(Supplier<Directory> directorySupplier)
+        public static class RoutingHelper
         {
-            this.directorySupplier = directorySupplier;
+            private final Directory directory;
+            private final EndpointLookup endpoints;
+
+            public RoutingHelper(ClusterMetadata metadata)
+            {
+                this.directory = metadata.directory;
+                this.endpoints = metadata.endpointLookup();
+            }
+
+            Iterable<NodeId> peerIds()
+            {
+                return directory.peerIds();
+            };
+
+            boolean isUpgraded(NodeId id)
+            {
+                return directory.version(id).isUpgraded();
+            }
+
+            InetAddressAndPort endpoint(NodeId id)
+            {
+                return endpoints.endpoint(id);
+            };
+
+            boolean hasLeft(NodeId id)
+            {
+                return directory.peerState(id) == NodeState.LEFT;
+            }
+        }
+
+        private final Supplier<RoutingHelper> routingSupplier;
+
+        public DefaultReplicator(Supplier<RoutingHelper> routingSupplier)
+        {
+            this.routingSupplier = routingSupplier;
         }
 
         public void send(Result result, InetAddressAndPort source)
@@ -426,27 +482,26 @@ public class Commit
                 return;
 
             Result.Success success = result.success();
-            Directory directory = directorySupplier.get();
+            RoutingHelper routing = routingSupplier.get();
 
             // Filter the log entries from the commit result for the purposes of replicating to members of the cluster
             // other than the original submitter. We only need to include the sublist of entries starting at the one
             // which was newly committed. We exclude entries before that one as the submitter may have been lagging and
-            // supplied a last known epoch arbitrarily in the past. We include entries after the first newly committed
-            // one as there may have been a new period automatically triggered and we'd like to push that out to all
-            // peers too. Of course, there may be other entries interspersed with these but it doesn't harm anything to
-            // include those too, it may simply be redundant.
+            // supplied a last known epoch arbitrarily in the past.
             LogState newlyCommitted = success.logState.retainFrom(success.epoch);
             assert !newlyCommitted.isEmpty() : String.format("Nothing to replicate after retaining epochs since %s from %s",
                                                              success.epoch, success.logState);
 
-            for (NodeId peerId : directory.peerIds())
+            for (NodeId peerId : routing.peerIds())
             {
-                InetAddressAndPort endpoint = directory.endpoint(peerId);
-                boolean upgraded = directory.version(peerId).isUpgraded();
-                // Do not replicate to self and to the peer that has requested to commit this message
+                InetAddressAndPort endpoint = routing.endpoint(peerId);
+                boolean upgraded = routing.isUpgraded(peerId);
+                boolean hasLeft = routing.hasLeft(peerId);
+                // Do not replicate to self, to any left nodes and to the peer that has requested to commit this message
                 if (endpoint.equals(FBUtilities.getBroadcastAddressAndPort()) ||
                     (source != null && source.equals(endpoint)) ||
-                    !upgraded)
+                    !upgraded ||
+                    hasLeft)
                 {
                     continue;
                 }
@@ -456,5 +511,4 @@ public class Commit
             }
         }
     }
-
 }

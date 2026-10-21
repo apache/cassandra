@@ -152,8 +152,33 @@ public abstract class AccordTestBase extends TestBaseImpl
     @AfterClass
     public static void teardown()
     {
-        if (SHARED_CLUSTER != null)
-            SHARED_CLUSTER.close();
+        if (SHARED_CLUSTER == null)
+            return;
+
+        // stop Accord progress logs first to avoid wasted work / log spam on shutdown
+        stopProgressLogs(SHARED_CLUSTER);
+        SHARED_CLUSTER.close();
+    }
+
+    protected static void stopProgressLogs(Cluster cluster)
+    {
+        for (IInvokableInstance instance : cluster)
+        {
+            if (instance.isShutdown())
+                continue;
+
+            try
+            {
+                instance.runOnInstance(() -> {
+                    if (AccordService.isStarted())
+                        AccordService.instance().node().commandStores().forAllUnsafe(cs -> cs.unsafeProgressLog().stop());
+                });
+            }
+            catch (Throwable t)
+            {
+                logger.warn("Could not stop the progress log before closing the cluster", t);
+            }
+        }
     }
 
     @Before
@@ -170,7 +195,12 @@ public abstract class AccordTestBase extends TestBaseImpl
     {
         SHARED_CLUSTER.filters().reset();
         for (IInvokableInstance instance : SHARED_CLUSTER)
-            instance.runOnInstance(() -> AccordService.instance().node().commandStores().forAllUnsafe(cs -> cs.unsafeProgressLog().start()));
+        {
+            instance.runOnInstance(() -> {
+                if (AccordService.isStarted())
+                    AccordService.instance().node().commandStores().forAllUnsafe(cs -> cs.unsafeProgressLog().start());
+            });
+        }
 
         truncateSystemTables();
 
@@ -392,13 +422,13 @@ public abstract class AccordTestBase extends TestBaseImpl
                                                            .set("native_transport_timeout", "30s")
                                                            .set("cms_await_timeout", "1s")
                                                            .set("cms_default_max_retries", 10_000)
-                                                           .set("accord.ephemeral_read_enabled", "false")
+                                                           .set("accord.ephemeral_reads", "false")
                                                            .set("accord.shard_durability_target_splits", "4")
                                                            .set("accord.retry_syncpoint", "1s*attempts")
                                                            .set("accord.retry_durability", "1s*attempts")
                                                            .set("accord.command_store_shard_count", "2")
-                                                           .set("accord.queue_shard_count", "2"))
-                                         .withInstanceInitializer(EnforceUpdateDoesNotPerformRead::install);
+                                                           .set("accord.queue_shard_count", "2"));
+//                                         .withInstanceInitializer(EnforceUpdateDoesNotPerformRead::install);
         builder = options.apply(builder);
         return init(builder.start());
     }

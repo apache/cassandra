@@ -65,6 +65,7 @@ public class StreamRequest
 
     public static class StreamRequestSerializer implements IVersionedSerializer<StreamRequest>
     {
+        @Override
         public void serialize(StreamRequest request, DataOutputPlus out, int version) throws IOException
         {
             out.writeUTF(request.keyspace);
@@ -89,6 +90,7 @@ public class StreamRequest
             }
         }
 
+        @Override
         public StreamRequest deserialize(DataInputPlus in, int version) throws IOException
         {
             String keyspace = in.readUTF();
@@ -126,13 +128,14 @@ public class StreamRequest
             return replicas.build();
         }
 
+        @Override
         public long serializedSize(StreamRequest request, int version)
         {
-            int size = TypeSizes.sizeof(request.keyspace);
+            long size = TypeSizes.sizeof(request.keyspace);
             size += TypeSizes.sizeof(request.columnFamilies.size());
             size += inetAddressAndPortSerializer.serializedSize(request.full.endpoint(), version);
-            size += replicasSerializedSize(request.transientReplicas, version);
             size += replicasSerializedSize(request.full, version);
+            size += replicasSerializedSize(request.transientReplicas, version);
             for (String cf : request.columnFamilies)
                 size += TypeSizes.sizeof(cf);
             return size;

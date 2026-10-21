@@ -55,12 +55,15 @@ import org.apache.cassandra.db.SystemKeyspace;
 import org.apache.cassandra.db.compaction.CompactionManager;
 import org.apache.cassandra.db.compaction.OperationType;
 import org.apache.cassandra.db.marshal.AbstractType;
+import org.apache.cassandra.db.marshal.FloatType;
 import org.apache.cassandra.db.marshal.Int32Type;
 import org.apache.cassandra.db.marshal.UTF8Type;
+import org.apache.cassandra.db.marshal.VectorType;
 import org.apache.cassandra.exceptions.InvalidRequestException;
 import org.apache.cassandra.index.Index;
 import org.apache.cassandra.index.SecondaryIndexManager;
 import org.apache.cassandra.index.sai.SAITester;
+import org.apache.cassandra.index.sai.SSTableContext;
 import org.apache.cassandra.index.sai.StorageAttachedIndex;
 import org.apache.cassandra.index.sai.StorageAttachedIndexBuilder;
 import org.apache.cassandra.index.sai.analyzer.NonTokenizingOptions;
@@ -79,9 +82,12 @@ import org.apache.cassandra.inject.InvokePointBuilder;
 import org.apache.cassandra.io.sstable.format.SSTableReader;
 import org.apache.cassandra.schema.TableMetadata;
 import org.apache.cassandra.service.StorageService;
+import org.apache.cassandra.utils.FBUtilities;
 import org.apache.cassandra.utils.Throwables;
 
 import static java.util.Collections.singletonList;
+import static org.apache.cassandra.config.CassandraRelevantProperties.MEMTABLE_SHARD_COUNT;
+import static org.apache.cassandra.index.sai.StorageAttachedIndex.VECTOR_SHARDING_SUPPORT_MESSAGE;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
@@ -264,6 +270,78 @@ public class StorageAttachedIndexDDLTest extends SAITester
                                                           " USING 'sai'", invalidColumn)))
         .isInstanceOf(InvalidQueryException.class)
         .hasMessage(String.format(CreateIndexStatement.INVALID_CHARS_CUSTOM_INDEX_TARGET, invalidColumn));
+    }
+
+    @Test
+    public void shouldRejectShardsOptionOnVectorIndex()
+    {
+        createTable("CREATE TABLE %s (id text PRIMARY KEY, val vector<float, 3>)");
+
+        assertThatThrownBy(() -> executeNet("CREATE INDEX ON %s(val) USING 'sai' WITH OPTIONS = { 'shards' : '4' }"))
+        .isInstanceOf(InvalidQueryException.class)
+        .hasMessageContaining(VECTOR_SHARDING_SUPPORT_MESSAGE);
+
+        assertThatThrownBy(() -> executeNet("CREATE INDEX ON %s(val) USING 'sai' WITH OPTIONS = { 'shards' : 'auto' }"))
+        .isInstanceOf(InvalidQueryException.class)
+        .hasMessageContaining(VECTOR_SHARDING_SUPPORT_MESSAGE);
+    }
+
+    @Test
+    public void shouldCreateIndexWithValidShardsOption()
+    {
+        createTable("CREATE TABLE %s (id text PRIMARY KEY, val1 text, val2 text)");
+        createIndex("CREATE INDEX ON %s(val1) USING 'sai' WITH OPTIONS = { 'shards' : '1' }");
+        createIndex("CREATE INDEX ON %s(val2) USING 'sai' WITH OPTIONS = { 'shards' : '4' }");
+        assertEquals(2, saiCreationCounter.get());
+    }
+
+    @Test
+    public void shouldRejectNonIntegerShardsOption()
+    {
+        createTable("CREATE TABLE %s (id text PRIMARY KEY, val text)");
+
+        assertThatThrownBy(() -> executeNet("CREATE INDEX ON %s(val) USING 'sai' WITH OPTIONS = { 'shards' : 'abc' }"))
+        .isInstanceOf(InvalidQueryException.class)
+        .hasMessageContaining("Shard count for a storage-attached index must be a valid integer");
+    }
+
+    @Test
+    public void shouldCreateIndexWithAutoShardsOption()
+    {
+        createTable("CREATE TABLE %s (id text PRIMARY KEY, val1 text, val2 text, val3 text)");
+        createIndex("CREATE INDEX auto_idx ON %s(val1) USING 'sai' WITH OPTIONS = { 'shards' : 'auto' }");
+        createIndex("CREATE INDEX ON %s(val2) USING 'sai' WITH OPTIONS = { 'shards' : 'Auto' }");
+        createIndex("CREATE INDEX ON %s(val3) USING 'sai' WITH OPTIONS = { 'shards' : 'AUTO' }");
+        assertEquals(3, saiCreationCounter.get());
+
+        SecondaryIndexManager sim = getCurrentColumnFamilyStore().indexManager;
+        StorageAttachedIndex index = (StorageAttachedIndex) sim.getIndexByName("auto_idx");
+        int expectedShardCount = MEMTABLE_SHARD_COUNT.getInt(FBUtilities.getAvailableProcessors());
+        assertEquals(expectedShardCount, index.shardCount());
+    }
+
+    @Test
+    public void shouldRejectNonPositiveShardsOption()
+    {
+        createTable("CREATE TABLE %s (id text PRIMARY KEY, val text)");
+
+        assertThatThrownBy(() -> executeNet("CREATE INDEX ON %s(val) USING 'sai' WITH OPTIONS = { 'shards' : '0' }"))
+        .isInstanceOf(InvalidQueryException.class)
+        .hasMessageContaining("Shard count for a storage-attached index must be a positive integer");
+
+        assertThatThrownBy(() -> executeNet("CREATE INDEX ON %s(val) USING 'sai' WITH OPTIONS = { 'shards' : '-5' }"))
+        .isInstanceOf(InvalidQueryException.class)
+        .hasMessageContaining("Shard count for a storage-attached index must be a positive integer");
+    }
+
+    @Test
+    public void shouldRejectShardsOptionGreaterThanMaxShardCount()
+    {
+        createTable("CREATE TABLE %s (id text PRIMARY KEY, val text)");
+
+        assertThatThrownBy(() -> executeNet("CREATE INDEX ON %s(val) USING 'sai' WITH OPTIONS = { 'shards' : '257' }"))
+        .isInstanceOf(InvalidQueryException.class)
+        .hasMessageContaining("Shard count for a storage-attached index must not exceed");
     }
 
     @Test
@@ -1003,6 +1081,71 @@ public class StorageAttachedIndexDDLTest extends SAITester
     }
 
     @Test
+    public void rebuildingOneIndexNotRewriteSharedPerSSTableComponents() throws Throwable
+    {
+        Injections.Counter sharedContextBuilds = Injections.newCounter("SharedPerSSTableContextBuilds")
+                                                           .add(InvokePointBuilder.newInvokePoint().onClass(SSTableContext.class).onMethod("create"))
+                                                           .build();
+
+        Injections.inject(sharedContextBuilds);
+
+        createTable(CREATE_TABLE_TEMPLATE);
+        String v1Index = createIndex(String.format(CREATE_INDEX_TEMPLATE, "v1"));
+        createIndex(String.format(CREATE_INDEX_TEMPLATE, "v2"));
+
+        execute("INSERT INTO %s (id1, v1, v2) VALUES ('0', 0, '100')");
+        execute("INSERT INTO %s (id1, v1, v2) VALUES ('1', 1, '101')");
+        flush();
+
+        assertEquals(1, sharedContextBuilds.get());
+
+        assertEquals(1, execute("SELECT id1 FROM %s WHERE v1 = 0").size());
+        assertEquals(1, execute("SELECT id1 FROM %s WHERE v2 = '101'").size());
+
+        sharedContextBuilds.reset();
+
+        rebuildIndexes(v1Index);
+
+        // CASSANDRA-21515: rebuilding one index must NOT rewrite the shared per-SSTable components.
+        assertEquals("Rebuilding of a single SAI index must not rebuild the shared per-SSTable components",
+                     0, sharedContextBuilds.get());
+
+        assertEquals(1, execute("SELECT id1 FROM %s WHERE v2 = '101'").size());
+        assertEquals(1, execute("SELECT id1 FROM %s WHERE v1 = 0").size());
+    }
+
+    @Test
+    public void rebuildRegeneratesCorruptSharedPerSSTableComponents() throws Throwable
+    {
+        Injections.Counter sharedContextBuilds = Injections.newCounter("SharedPerSSTableContextBuilds")
+                                                           .add(InvokePointBuilder.newInvokePoint().onClass(SSTableContext.class).onMethod("create"))
+                                                           .build();
+        Injections.inject(sharedContextBuilds);
+
+        createTable(CREATE_TABLE_TEMPLATE);
+        String v1Index = createIndex(String.format(CREATE_INDEX_TEMPLATE, "v1"));
+        String v2Index = createIndex(String.format(CREATE_INDEX_TEMPLATE, "v2"));
+
+        execute("INSERT INTO %s (id1, v1, v2) VALUES ('0', 0, '100')");
+        execute("INSERT INTO %s (id1, v1, v2) VALUES ('1', 1, '101')");
+        flush();
+
+        assertEquals(1, sharedContextBuilds.get());
+
+        corruptIndexComponent(IndexComponent.ROW_TO_PARTITION, CorruptionType.EMPTY_FILE);
+        sharedContextBuilds.reset();
+        assertEquals(0, sharedContextBuilds.get());
+
+        rebuildIndexes(v1Index, v2Index);
+
+        assertEquals("corrupt shared per-SSTable components must be regenerated on rebuild",
+                     1, sharedContextBuilds.get());
+
+        assertEquals(1, execute("SELECT id1 FROM %s WHERE v1 = 0").size());
+        assertEquals(1, execute("SELECT id1 FROM %s WHERE v2 = '101'").size());
+    }
+
+    @Test
     public void verifyCleanupFailedPerIndexFiles() throws Throwable
     {
         createTable(CREATE_TABLE_TEMPLATE);
@@ -1427,6 +1570,27 @@ public class StorageAttachedIndexDDLTest extends SAITester
         assertEquals(singletonList(4L), toSize.apply(iterator.next()));
         assertEquals(singletonList(3L), toSize.apply(iterator.next()));
         assertEquals(Arrays.asList(2L, 1L), toSize.apply(iterator.next()));
+    }
+
+    @Test
+    public void multiSegmentVectorIndexPassesChecksumValidation()
+    {
+        createTable("CREATE TABLE %s (pk int, val vector<float, 3>, PRIMARY KEY(pk))");
+
+        int vectorCount = 100;
+        for (int pk = 0; pk < vectorCount; pk++)
+            execute("INSERT INTO %s (pk, val) VALUES (" + pk + ", [" + pk + ".0, " + (pk + 1) + ".0, " + (pk + 2) + ".0])");
+
+        flush();
+
+        SegmentBuilder.updateLastValidSegmentRowId(17); // 17 rows per segment -> multi-segment build
+        IndexIdentifier vectorIndexIdentifier = createIndexIdentifier(createIndex("CREATE CUSTOM INDEX ON %s(val) USING 'StorageAttachedIndex'"));
+        IndexTermType vectorIndexTermType = createIndexTermType(VectorType.getInstance(FloatType.instance, 3));
+
+        // A vector index writes CompressedVectors.db, TermsData.db, and PostingLists.db in append
+        // mode with one SAI codec footer per segment (see OnHeapGraph.writeData). Multi-segment
+        // builds therefore need segment-aware checksum validation.
+        assertTrue(verifyChecksum(vectorIndexTermType, vectorIndexIdentifier));
     }
 
     private void assertZeroSegmentBuilderUsage()

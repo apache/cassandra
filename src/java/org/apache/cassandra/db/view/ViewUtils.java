@@ -30,6 +30,7 @@ import org.apache.cassandra.locator.Replica;
 import org.apache.cassandra.schema.KeyspaceMetadata;
 import org.apache.cassandra.tcm.ClusterMetadata;
 import org.apache.cassandra.tcm.membership.Location;
+import org.apache.cassandra.tcm.ownership.DataPlacement;
 
 public final class ViewUtils
 {
@@ -64,8 +65,9 @@ public final class ViewUtils
         Location local = metadata.locator.local();
         KeyspaceMetadata keyspaceMetadata = metadata.schema.getKeyspaces().getNullable(keyspace);
 
-        EndpointsForToken naturalBaseReplicas = metadata.placements.get(keyspaceMetadata.params.replication).reads.forToken(baseToken).get();
-        EndpointsForToken naturalViewReplicas = metadata.placements.get(keyspaceMetadata.params.replication).reads.forToken(viewToken).get();
+        DataPlacement placement = metadata.placement(keyspaceMetadata.params.replication);
+        EndpointsForToken naturalBaseReplicas = placement.reads.forToken(baseToken).get();
+        EndpointsForToken naturalViewReplicas = placement.reads.forToken(viewToken).get();
 
         Optional<Replica> localReplica = Iterables.tryFind(naturalViewReplicas, Replica::isSelf).toJavaUtil();
         if (localReplica.isPresent())

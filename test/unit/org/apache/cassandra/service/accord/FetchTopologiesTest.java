@@ -23,6 +23,7 @@ import org.junit.Test;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.io.Serializers;
 import org.apache.cassandra.io.util.DataOutputBuffer;
+import org.apache.cassandra.service.accord.topology.FetchTopologies;
 import org.apache.cassandra.utils.AccordGenerators;
 
 import static accord.utils.Property.qt;

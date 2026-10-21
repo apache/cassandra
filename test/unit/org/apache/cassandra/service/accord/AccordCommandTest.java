@@ -27,9 +27,8 @@ import org.junit.Test;
 import accord.api.Key;
 import accord.api.RoutingKey;
 import accord.local.Command;
-import accord.local.LoadKeys;
+import accord.local.ExecutionContext;
 import accord.local.Node;
-import accord.local.PreLoadContext;
 import accord.local.SafeCommand;
 import accord.local.SafeCommandStore;
 import accord.local.StoreParticipants;
@@ -37,6 +36,7 @@ import accord.local.cfk.CommandsForKey;
 import accord.messages.Accept;
 import accord.messages.Commit;
 import accord.messages.PreAccept;
+import accord.messages.PreAccept.PreAcceptOk;
 import accord.primitives.Ballot;
 import accord.primitives.FullRoute;
 import accord.primitives.KeyDeps;
@@ -57,8 +57,7 @@ import org.apache.cassandra.service.StorageService;
 import org.apache.cassandra.service.accord.api.PartitionKey;
 import org.apache.cassandra.utils.ByteBufferUtil;
 
-import static accord.api.ProtocolModifiers.Toggles.filterDuplicateDependenciesFromAcceptReply;
-import static accord.local.LoadKeysFor.READ_WRITE;
+import static accord.api.ProtocolModifiers.filterDuplicateDependenciesFromAcceptReply;
 import static accord.messages.Accept.Kind.SLOW;
 import static org.apache.cassandra.cql3.statements.schema.CreateTableStatement.parse;
 import static org.apache.cassandra.service.accord.AccordService.getBlocking;
@@ -67,6 +66,7 @@ import static org.apache.cassandra.service.accord.AccordTestUtils.createWriteTxn
 import static org.apache.cassandra.service.accord.AccordTestUtils.fullRange;
 import static org.apache.cassandra.service.accord.AccordTestUtils.timestamp;
 import static org.apache.cassandra.service.accord.AccordTestUtils.txnId;
+import static org.apache.cassandra.service.accord.SimulatedAccordCommandStoreTestBase.emptyNode;
 
 public class AccordCommandTest
 {
@@ -97,7 +97,7 @@ public class AccordCommandTest
     public void basicCycleTest() throws Throwable
     {
         AccordCommandStore commandStore = createAccordCommandStore(clock::incrementAndGet, "ks", "tbl");
-        getBlocking(commandStore.execute((PreLoadContext.Empty)() -> "Test", unused -> commandStore.executor().cacheUnsafe().setCapacity(0)));
+        getBlocking(commandStore.execute((ExecutionContext.Empty)() -> "Test", unused -> commandStore.executor().setCapacity(0)));
 
         TxnId txnId = txnId(1, clock.incrementAndGet(), 1);
         Txn txn = createWriteTxn(1);
@@ -107,16 +107,17 @@ public class AccordCommandTest
         Route<?> route = fullRoute.overlapping(fullRange(txn));
         PartialTxn partialTxn = txn.intersecting(route, true);
         PreAccept preAccept = PreAccept.SerializerSupport.create(txnId, route, 1, 1, 1, partialTxn, null, false, fullRoute);
+        preAccept.unsafeSetNode(emptyNode());
 
         // Check preaccept
         getBlocking(commandStore.execute(preAccept, safeStore -> {
             SafeCommand safeCommand = safeStore.get(txnId, StoreParticipants.all(route));
             Command before = safeCommand.current();
-            PreAccept.PreAcceptReply reply = preAccept.apply(safeStore);
+            Object reply = preAccept.apply(safeStore);
             Command after = safeCommand.current();
 
-            Assert.assertTrue(reply.isOk());
-            PreAccept.PreAcceptOk ok = (PreAccept.PreAcceptOk) reply;
+            Assert.assertTrue(reply instanceof PreAcceptOk);
+            PreAcceptOk ok = (PreAcceptOk) reply;
             Assert.assertEquals(txnId, ok.witnessedAt);
             Assert.assertTrue(ok.deps.isEmpty());
 
@@ -145,13 +146,15 @@ public class AccordCommandTest
             builder.add(key.toUnseekable(), txnId2);
             deps = builder.build();
         }
-        Accept accept = Accept.SerializerSupport.create(txnId, route, 1, 1, SLOW, Ballot.ZERO, executeAt, deps, false);
+        Accept accept = Accept.SerializerSupport.create(txnId, route, 1, 1, SLOW, Ballot.ZERO, executeAt, deps, 0);
 
         getBlocking(commandStore.execute(accept, safeStore -> {
             Command before = safeStore.ifInitialised(txnId).current();
-            Accept.AcceptReply reply = accept.apply(safeStore);
-            Assert.assertTrue(reply.isOk());
-            Assert.assertEquals(filterDuplicateDependenciesFromAcceptReply() ? KeyDeps.NONE : deps.keyDeps, reply.deps.keyDeps);
+            Object reply = accept.apply(safeStore);
+            Assert.assertTrue(reply instanceof Accept.AcceptReply);
+            Accept.AcceptReply acceptReply = (Accept.AcceptReply) reply;
+            Assert.assertTrue(acceptReply.isOk());
+            Assert.assertEquals(filterDuplicateDependenciesFromAcceptReply() ? KeyDeps.NONE : deps.keyDeps, acceptReply.deps.keyDeps);
             Command after = safeStore.ifInitialised(txnId).current();
             AccordTestUtils.appendCommandsBlocking(commandStore, before, after);
         }));
@@ -172,7 +175,7 @@ public class AccordCommandTest
         Commit commit = Commit.SerializerSupport.create(txnId, route, 1, 1, Commit.Kind.StableWithTxnAndDeps, Ballot.ZERO, executeAt, partialTxn, deps, fullRoute);
         getBlocking(commandStore.execute(commit, commit::apply));
 
-        getBlocking(commandStore.execute(PreLoadContext.contextFor(txnId, Keys.of(key).toParticipants(), LoadKeys.SYNC, READ_WRITE, "Test"), safeStore -> {
+        getBlocking(commandStore.execute(ExecutionContext.unsequencedReadWrite(txnId, Keys.of(key).toParticipants(), "Test"), safeStore -> {
             Command before = safeStore.ifInitialised(txnId).current();
             Assert.assertEquals(commit.executeAt, before.executeAt());
             Assert.assertTrue(before.hasBeen(Status.Committed));
@@ -189,7 +192,7 @@ public class AccordCommandTest
     public void computeDeps() throws Throwable
     {
         AccordCommandStore commandStore = createAccordCommandStore(clock::incrementAndGet, "ks", "tbl");
-        getBlocking(commandStore.execute((PreLoadContext.Empty)()->"Test", unused -> commandStore.executor().cacheUnsafe().setCapacity(0)));
+        getBlocking(commandStore.execute((ExecutionContext.Empty)()->"Test", unused -> commandStore.executor().setCapacity(0)));
 
         TxnId txnId1 = txnId(1, clock.incrementAndGet(), 1);
         Txn txn = createWriteTxn(2);
@@ -199,9 +202,11 @@ public class AccordCommandTest
         Route<?> route = fullRoute.overlapping(fullRange(txn));
         PartialTxn partialTxn = txn.intersecting(route, true);
         PreAccept preAccept1 = PreAccept.SerializerSupport.create(txnId1, route, 1, 1, 1, partialTxn, null, false, fullRoute);
+        preAccept1.unsafeSetNode(emptyNode());
 
         getBlocking(commandStore.execute(preAccept1, safeStore -> {
             persistDiff(commandStore, safeStore, txnId1, route, () -> {
+                preAccept1.unsafeSetNode(emptyNode());
                 preAccept1.apply(safeStore);
             });
         }));
@@ -209,11 +214,12 @@ public class AccordCommandTest
         // second preaccept should identify txnId1 as a dependency
         TxnId txnId2 = txnId(1, clock.incrementAndGet(), 1);
         PreAccept preAccept2 = PreAccept.SerializerSupport.create(txnId2, route, 1, 1, 1, partialTxn, null, false, fullRoute);
+        preAccept2.unsafeSetNode(emptyNode());
         getBlocking(commandStore.execute(preAccept2, safeStore -> {
             persistDiff(commandStore, safeStore, txnId2, route, () -> {
-                PreAccept.PreAcceptReply reply = preAccept2.apply(safeStore);
-                Assert.assertTrue(reply.isOk());
-                PreAccept.PreAcceptOk ok = (PreAccept.PreAcceptOk) reply;
+                Object reply = preAccept2.apply(safeStore);
+                Assert.assertTrue(reply instanceof PreAcceptOk);
+                PreAcceptOk ok = (PreAcceptOk) reply;
                 Assert.assertTrue(ok.deps.contains(txnId1));
             });
         }));

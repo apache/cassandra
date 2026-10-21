@@ -41,7 +41,7 @@ import org.apache.cassandra.cql3.CQLTester;
 import org.apache.cassandra.cql3.UntypedResultSet;
 import org.apache.cassandra.db.ColumnFamilyStore;
 import org.apache.cassandra.db.Keyspace;
-import org.apache.cassandra.db.commitlog.CommitLog;
+import org.apache.cassandra.utils.TestHelper;
 
 /**
  * Benchmarks the performance of CQL functions calls with terminal arguments.
@@ -101,11 +101,9 @@ public class FunctionWithTerminalArgsBench extends CQLTester
     }
 
     @TearDown(Level.Trial)
-    public void teardown() throws InterruptedException
+    public void teardown() throws Exception
     {
-        CommitLog.instance.shutdownBlocking();
-        CQLTester.tearDownClass();
-        CQLTester.cleanup();
+        TestHelper.teardown();
     }
 
     @Benchmark

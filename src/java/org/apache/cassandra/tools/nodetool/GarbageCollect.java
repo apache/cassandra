@@ -32,10 +32,13 @@ import static org.apache.cassandra.tools.nodetool.CommandUtils.concatArgs;
 import static org.apache.cassandra.tools.nodetool.CommandUtils.parseOptionalKeyspace;
 import static org.apache.cassandra.tools.nodetool.CommandUtils.parseOptionalTables;
 
+
 @Command(name = "garbagecollect", description = "Remove deleted data from one or more tables")
 public class GarbageCollect extends AbstractCommand
 {
-    @CassandraUsage(usage = "[<keyspace> <tables>...]", description = "The keyspace followed by one or many tables")
+    @CassandraUsage(usage = "[<keyspace> <tables>...] or <SSTable file>...",
+                    description = "The keyspace followed by one or many tables, " +
+                                  "or a list of SSTable data files when using --user-defined")
     private List<String> args = new ArrayList<>();
 
     @Parameters(index = "0", description = "The keyspace followed by one or many tables to garbage collect", arity = "0..1")
@@ -56,10 +59,28 @@ public class GarbageCollect extends AbstractCommand
                           "and also remove tombstones.")
     private int jobs = 1;
 
+    @Option(names = { "--user-defined" },
+            description = "Submit the listed Data.db files for user-defined garbagecollect instead of " +
+                          "interpreting the positional arguments as keyspace + tables.")
+    private boolean userDefined = false;
+
     @Override
     public void execute(NodeProbe probe)
     {
         args = concatArgs(keyspace, tables);
+
+        if (userDefined)
+        {
+            try
+            {
+                probe.userDefinedGarbageCollect(probe.output().out, tombstoneOption.toString(), jobs, args);
+            }
+            catch (Exception e)
+            {
+                throw new RuntimeException("Error occurred during user defined garbage collection", e);
+            }
+            return;
+        }
 
         List<String> keyspaces = parseOptionalKeyspace(args, probe);
         String[] tableNames = parseOptionalTables(args);

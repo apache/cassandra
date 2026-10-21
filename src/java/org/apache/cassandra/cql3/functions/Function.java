@@ -24,9 +24,9 @@ import java.util.Optional;
 import org.github.jamm.Unmetered;
 
 import org.apache.cassandra.cql3.AssignmentTestable;
+import org.apache.cassandra.cql3.FunctionContext;
 import org.apache.cassandra.db.marshal.AbstractType;
 import org.apache.cassandra.schema.Difference;
-import org.apache.cassandra.transport.ProtocolVersion;
 
 @Unmetered
 public interface Function extends AssignmentTestable
@@ -77,10 +77,10 @@ public interface Function extends AssignmentTestable
     /**
      * Creates some new input arguments for this function.
      *
-     * @param version the protocol version
+     * @param context
      * @return some new input arguments for this function
      */
-    Arguments newArguments(ProtocolVersion version);
+    Arguments newArguments(FunctionContext context);
 
     public default Optional<Difference> compare(Function other)
     {

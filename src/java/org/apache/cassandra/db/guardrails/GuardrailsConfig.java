@@ -18,6 +18,7 @@
 
 package org.apache.cassandra.db.guardrails;
 
+import java.util.Map;
 import java.util.Set;
 
 import javax.annotation.Nullable;
@@ -436,6 +437,19 @@ public interface GuardrailsConfig
     int getDataDiskUsagePercentageFailThreshold();
 
     /**
+     * @return Whether a single node replicating a given keyspace being full should block writes for the entire
+     * keyspace. Returns {@code true} if this behavior is enabled, {@code false} otherwise.
+     */
+    boolean getDataDiskUsageKeyspaceWideProtectionEnabled();
+
+    /**
+     * Enables or disables blocking writes for a keyspace when any node replicating that keyspace is full.
+     *
+     * @param enabled {@code true} to block writes keyspace-wide once a replica is full, {@code false} to disable.
+     */
+    void setDataDiskUsageKeyspaceWideProtectionEnabled(boolean enabled);
+
+    /**
      * @return The max disk size of the data directories when calculating disk usage thresholds, {@code null} means
      * disabled.
      */
@@ -451,6 +465,11 @@ public interface GuardrailsConfig
      * @return The threshold to fail when replication factor is lesser than threshold.
      */
     int getMinimumReplicationFactorFailThreshold();
+
+    /**
+     * @return The threshold to fail when the CMS size (aggregate replication factor across DCs) is below the threshold.
+     */
+    int getMinimumCmsSizeFailThreshold();
 
     /**
      * @return The threshold to warn when replication factor is greater than threshold.
@@ -592,6 +611,24 @@ public interface GuardrailsConfig
     void setSaiStringTermSizeThreshold(@Nullable DataStorageSpec.LongBytesBound warn, @Nullable DataStorageSpec.LongBytesBound fail);
 
     /**
+     * @return the warning threshold for the size of blob terms written to an SAI index
+     */
+    DataStorageSpec.LongBytesBound getSaiBlobTermSizeWarnThreshold();
+
+    /**
+     * @return the failure threshold for the size of blob terms written to an SAI index
+     */
+    DataStorageSpec.LongBytesBound getSaiBlobTermSizeFailThreshold();
+
+    /**
+     * Sets warning and failure thresholds for the size of blob terms written to an SAI index
+     *
+     * @param warn value to set for warn threshold
+     * @param fail value to set for fail threshold
+     */
+    void setSaiBlobTermSizeThreshold(@Nullable DataStorageSpec.LongBytesBound warn, @Nullable DataStorageSpec.LongBytesBound fail);
+
+    /**
      * @return the warning threshold for the size of frozen terms written to an SAI index
      */
     DataStorageSpec.LongBytesBound getSaiFrozenTermSizeWarnThreshold();
@@ -682,4 +719,60 @@ public interface GuardrailsConfig
      * dictionary compressor as frequently as needed, without any limits, false otherwise.
      */
     boolean getUnsetTrainingMinFrequencyEnabled();
+
+    /**
+     * @return a map of driver name to minimum version that triggers a warning when the client's
+     * driver version is below the specified minimum.
+     */
+    Map<String, String> getMinimumClientDriverVersionsWarned();
+
+    /**
+     * @return a map of driver name to minimum version that triggers a failure when the client's
+     * driver version is below the specified minimum.
+     */
+    Map<String, String> getMinimumClientDriverVersionsDisallowed();
+
+    /**
+     * @return {@code true} if a warning is logged when a prepared statement is created without parameters,
+     * {@code false} otherwise.
+     */
+    boolean getPreparedStatementsRequireParametersWarned();
+
+    /**
+     * @return {@code true} if creating a prepared statement without parameters is rejected,
+     * {@code false} otherwise.
+     */
+    boolean getPreparedStatementsRequireParametersEnabled();
+
+    /**
+     * Sets whether to log a warning when a prepared statement is created without parameters.
+     *
+     * @param warned {@code true} to enable the warning, {@code false} to disable it.
+     */
+    void setPreparedStatementsRequireParametersWarned(boolean warned);
+
+    /**
+     * Sets whether to reject creating a prepared statement without parameters.
+     *
+     * @param enabled {@code true} to reject, {@code false} to allow.
+     */
+    void setPreparedStatementsRequireParametersEnabled(boolean enabled);
+
+    /**
+     * @return the warning threshold for the Zstd compressor level
+     */
+    int getZstdCompressionLevelWarnThreshold();
+
+    /**
+     * @return the failure threshold for the Zstd compressor level
+     */
+    int getZstdCompressionLevelFailThreshold();
+
+    /**
+     * Sets warning and failure thresholds for the Zstd compressor levels.
+     *
+     * @param warn value to set for warn threshold
+     * @param fail value to set for fail threshold
+     */
+    void setZstdCompressionLevelThreshold(int warn, int fail);
 }

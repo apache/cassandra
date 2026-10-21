@@ -52,24 +52,12 @@ public abstract class MixedModePaxosTestBase extends UpgradeTestBase
     /**
      * Tests the mixed mode loop bug in CASSANDRA-20493
      * <p>
-     * Paxos uses a 'zero' ballot in place of null when it doesn't find a ballot in system.paxos. CEP-14 changed the lsb
-     * of the zero ballot uuid from the TimeUUID.MIN_CLOCK_SEQ_AND_NODE value of 0x8080808080808080 (-9187201950435737472)
-     * to 0. It also removed the check added in CASSANDRA-12043, since the way it read and filtered ttld paxos data had
-     * been improved.
-     * <p>
-     * In mixed mode with a 4.0 or lower replica and a 4.1 and higher paxos coordinator, and in the absence of existing
-     * paxos metadata for the key being queried, the prepare phase will interpret the mismatched ‘zero’ ballots as the
-     * 4.0 and lower nodes having missed the most recent commit and will attempt to update them using the 4.1 zero ballot
-     * and empty partition update.
-     * <p>
-     * In cases where this is the first paxos operation on a key, or the previously ttl'd paxos data on disk had been purged,
-     * this would just add a retry step as it updated the 4.0 and lower hosts with its zero ballot.
-     * <p>
-     * On nodes where there was ttl'd paxos data though, the ttl'd data on disk would shadow this update. This would
-     * happen because paxos commits are recorded to system.paxos using the ballot timestamp as the write timestamp, so
-     * the more recent write updating the commit with timestamp 0 would be shadowed by the now ttl’d write with a ‘real’
-     * timestamp. When the prepare phase restarted it would again get the old zero value and cause the prepare phase to
-     * get into an infinite loop.
+     * Regression test for mixed-mode paxos with TTL'd paxos data on disk. CEP-14 changed the lsb of the
+     * zero ballot uuid from TimeUUID.MIN_CLOCK_SEQ_AND_NODE (0x8080808080808080) to 0 and removed the
+     * CASSANDRA-12043 check; the historical concern was that pre-CEP-14 replicas paired with newer
+     * coordinators could get stuck in an infinite prepare loop when ttl'd system.paxos data shadowed
+     * the coordinator's zero-ballot update. This test keeps the scenario covered for current upgrade
+     * paths.
      */
     private void ttldPaxosStateTest(boolean legacyAware, boolean upgradeAware) throws Throwable
     {
@@ -81,7 +69,7 @@ public abstract class MixedModePaxosTestBase extends UpgradeTestBase
         .withConfig(c -> c.with(Feature.GOSSIP, Feature.NETWORK))
         .nodes(2)
         .nodesToUpgrade(1)
-        .upgradesToCurrentFrom(v40)
+        .upgradesToCurrentFrom(v41)
         .setup(cluster -> {
             cluster.schemaChange(format("CREATE TABLE %s.%s (k int primary key, v int) " +
                                         "WITH gc_grace_seconds=%s", keyspace, table, gcGrace));

@@ -20,10 +20,21 @@
  */
 package org.apache.cassandra.schema;
 
+import java.util.Collections;
+
 import org.junit.Assert;
 import org.junit.Test;
 
 import org.apache.cassandra.cql3.ColumnIdentifier;
+import org.apache.cassandra.cql3.statements.schema.IndexTarget;
+import org.apache.cassandra.db.marshal.UTF8Type;
+import org.apache.cassandra.exceptions.ConfigurationException;
+import org.apache.cassandra.index.Index;
+import org.apache.cassandra.utils.ClassLoadingTestNonAssignable;
+import org.apache.cassandra.utils.ClassLoadingTestSupport;
+
+import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 public class IndexMetadataTest
 {
@@ -32,5 +43,25 @@ public class IndexMetadataTest
     {
         Assert.assertEquals("aB4__idx", IndexMetadata.generateDefaultIndexName("a B-4@!_+"));
         Assert.assertEquals("34_Ddd_F6_idx", IndexMetadata.generateDefaultIndexName("34_()Ddd", new ColumnIdentifier("#F%6*", true)));
+    }
+
+    @Test
+    public void testRejectsNonCustomIndexWithoutInitializing()
+    {
+        TableMetadata table = TableMetadata.builder("ks", "tbl")
+                                           .addPartitionKeyColumn("pk", UTF8Type.instance)
+                                           .build();
+        IndexMetadata index = IndexMetadata.fromSchemaMetadata("idx",
+                                                               IndexMetadata.Kind.CUSTOM,
+                                                               Collections.singletonMap(IndexTarget.CUSTOM_INDEX_OPTION_NAME,
+                                                                                        ClassLoadingTestNonAssignable.class.getName()));
+
+        ClassLoadingTestSupport.assertNotInitialized(ClassLoadingTestNonAssignable.class);
+
+        assertThatThrownBy(() -> index.validate(table))
+        .isInstanceOf(ConfigurationException.class)
+        .hasMessageContaining("must extend or implement " + Index.class.getName());
+
+        assertThat(ClassLoadingTestSupport.wasInitialized(ClassLoadingTestNonAssignable.class)).isFalse();
     }
 }

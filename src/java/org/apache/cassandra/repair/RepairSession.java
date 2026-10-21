@@ -123,6 +123,7 @@ public class RepairSession extends AsyncFuture<RepairSessionResult> implements I
     public final boolean isIncremental;
     public final boolean allReplicas;
     public final PreviewKind previewKind;
+    // TODO (expected): introduce forceRepairData and ignore repairData for Accord tables
     public final boolean repairData;
     public final boolean repairPaxos;
     public final boolean repairAccord;
@@ -420,12 +421,21 @@ public class RepairSession extends AsyncFuture<RepairSessionResult> implements I
         terminate(reason);
         taskExecutor.shutdown();
     }
+
+    @Override
     public void onRemove(InetAddressAndPort endpoint)
     {
         convict(endpoint, Double.MAX_VALUE);
     }
 
+    @Override
     public void onRestart(InetAddressAndPort endpoint, EndpointState epState)
+    {
+        convict(endpoint, Double.MAX_VALUE);
+    }
+
+    @Override
+    public void onDead(InetAddressAndPort endpoint, EndpointState state)
     {
         convict(endpoint, Double.MAX_VALUE);
     }

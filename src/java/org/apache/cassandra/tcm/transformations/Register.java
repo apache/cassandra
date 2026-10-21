@@ -109,7 +109,7 @@ public class Register implements Transformation
         if (isReplacingSameAddress())
         {
             NodeId self = ClusterMetadata.current().myNodeId();
-            if (self == null)
+            if (self == NodeId.UNREGISTERED)
                 throw new IllegalStateException("Tried to replace same address, but node does not seem to be registered");
 
             return self;
@@ -176,6 +176,9 @@ public class Register implements Transformation
         else
         {
             NodeId nodeId = directory.peerId(FBUtilities.getBroadcastAddressAndPort());
+            if (nodeId == null)
+                throw new IllegalStateException("Node has host id "+localHostId+" in system.local, but is not present in cluster metadata - not allowing this node to register. " +
+                                                "If a bootstrap of this node failed and was aborted with `nodetool abortbootstrap` it should also have its data removed before trying to rebootstrap.");
             NodeVersion dirVersion = directory.version(nodeId);
 
             // If this is a node in the process of upgrading, update the host id in the system.local table

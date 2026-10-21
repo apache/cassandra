@@ -89,11 +89,17 @@ public class CompactionStats extends AbstractCommand
         tableBuilder.add("compactions completed", String.valueOf(totalCompactionsCompletedMetrics.getCount()));
 
         CassandraMetricsRegistry.JmxCounterMBean bytesCompacted = (CassandraMetricsRegistry.JmxCounterMBean) probe.getCompactionMetric("BytesCompacted");
+        CassandraMetricsRegistry.JmxCounterMBean compressedBytesCompacted = (CassandraMetricsRegistry.JmxCounterMBean) probe.getCompactionMetric("CompressedBytesCompacted");
         if (humanReadable)
+        {
             tableBuilder.add("data compacted", FileUtils.stringifyFileSize(Double.parseDouble(Long.toString(bytesCompacted.getCount()))));
+            tableBuilder.add("compressed data compacted", FileUtils.stringifyFileSize(Double.parseDouble(Long.toString(compressedBytesCompacted.getCount()))));
+        }
         else
+        {
             tableBuilder.add("data compacted", Long.toString(bytesCompacted.getCount()));
-
+            tableBuilder.add("compressed data compacted", Long.toString(compressedBytesCompacted.getCount()));
+        }
         CassandraMetricsRegistry.JmxCounterMBean compactionsAborted = (CassandraMetricsRegistry.JmxCounterMBean) probe.getCompactionMetric("CompactionsAborted");
         tableBuilder.add("compactions aborted", Long.toString(compactionsAborted.getCount()));
 
@@ -132,13 +138,14 @@ public class CompactionStats extends AbstractCommand
         long remainingBytes = 0;
 
         if (vtableOutput)
-            table.add("keyspace", "table", "task id", "completion ratio", "kind", "progress", "sstables", "total", "unit", "target directory");
+            table.add("keyspace", "table", "task id", "completion ratio", "kind", "progress", "sstables", "total", "total compressed", "unit", "target directory");
         else
             table.add("id", "compaction type", "keyspace", "table", "completed", "total", "unit", "progress");
 
         for (Map<String, String> c : compactions)
         {
             long total = Long.parseLong(c.get(CompactionInfo.TOTAL));
+            String totalCompressedValue = c.get(CompactionInfo.TOTAL_COMPRESSED);
             long completed = Long.parseLong(c.get(CompactionInfo.COMPLETED));
             String taskType = c.get(CompactionInfo.TASK_TYPE);
             String keyspace = c.get(CompactionInfo.KEYSPACE);
@@ -148,12 +155,22 @@ public class CompactionStats extends AbstractCommand
             String[] tables = c.get(CompactionInfo.SSTABLES).split(",");
             String progressStr = toFileSize ? FileUtils.stringifyFileSize(completed) : Long.toString(completed);
             String totalStr = toFileSize ? FileUtils.stringifyFileSize(total) : Long.toString(total);
+            String totalCompressedStr;
+            if (totalCompressedValue != null)
+            {
+                long totalCompressed = Long.parseLong(totalCompressedValue);
+                totalCompressedStr = toFileSize ? FileUtils.stringifyFileSize(totalCompressed) : Long.toString(totalCompressed);
+            }
+            else
+            {
+                totalCompressedStr = "n/a";
+            }
             String percentComplete = total == 0 ? "n/a" : new DecimalFormat("0.00").format((double) completed / total * 100) + '%';
             String id = c.get(CompactionInfo.COMPACTION_ID);
             if (vtableOutput)
             {
                 String targetDirectory = c.get(CompactionInfo.TARGET_DIRECTORY);
-                table.add(keyspace, columnFamily, id, percentComplete, taskType, progressStr, String.valueOf(tables.length), totalStr, unit, targetDirectory);
+                table.add(keyspace, columnFamily, id, percentComplete, taskType, progressStr, String.valueOf(tables.length), totalStr, totalCompressedStr, unit, targetDirectory);
             }
             else
                 table.add(id, taskType, keyspace, columnFamily, progressStr, totalStr, unit, percentComplete);

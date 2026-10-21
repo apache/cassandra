@@ -18,6 +18,7 @@
 package org.apache.cassandra.auth;
 
 import java.util.Set;
+import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.BooleanSupplier;
 import java.util.stream.Collectors;
 
@@ -26,6 +27,9 @@ import org.apache.cassandra.config.DatabaseDescriptor;
 public class RolesCache extends AuthCache<RoleResource, Set<Role>> implements RolesCacheMBean
 {
     private final IRoleManager roleManager;
+
+    // to track if the cache entries are invalidated or the validity or refresh period is changed
+    private final AtomicLong generation = new AtomicLong();
 
     public RolesCache(IRoleManager roleManager, BooleanSupplier enableCache)
     {
@@ -81,5 +85,38 @@ public class RolesCache extends AuthCache<RoleResource, Set<Role>> implements Ro
     public void invalidateRoles(String roleName)
     {
         invalidate(RoleResource.role(roleName));
+    }
+
+    public long getGeneration()
+    {
+        return generation.get();
+    }
+
+    @Override
+    public void invalidate()
+    {
+        super.invalidate();
+        generation.incrementAndGet();
+    }
+
+    @Override
+    public void invalidate(RoleResource role)
+    {
+        super.invalidate(role);
+        generation.incrementAndGet();
+    }
+
+    @Override
+    public void setValidity(int validityPeriod)
+    {
+        super.setValidity(validityPeriod);
+        generation.incrementAndGet();
+    }
+
+    @Override
+    public void setUpdateInterval(int updateInterval)
+    {
+        super.setUpdateInterval(updateInterval);
+        generation.incrementAndGet();
     }
 }

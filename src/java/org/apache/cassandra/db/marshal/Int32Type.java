@@ -43,7 +43,7 @@ public class Int32Type extends NumberType<Integer>
 
     Int32Type()
     {
-        super(ComparisonType.CUSTOM);
+        super(ComparisonType.CUSTOM, 4);
     } // singleton
 
     @Override
@@ -150,12 +150,6 @@ public class Int32Type extends NumberType<Integer>
                 mutable.setValue(ByteBufferUtil.toInt(buffer));
             }
         };
-    }
-
-    @Override
-    public int valueLengthIfFixed()
-    {
-        return 4;
     }
 
     @Override

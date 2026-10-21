@@ -64,12 +64,13 @@ The most commonly used nodetool commands are:
     getconcurrentcompactors             Get the number of concurrent compactors in the system.
     getconcurrentviewbuilders           Get the number of concurrent view builders in the system
     getdefaultrf                        Gets default keyspace replication factor.
-    getendpoints                        Print the end points that owns the key
+    getendpoints                        Print the end points that owns the key, deprecated, use getreplicas instead
     getfullquerylog                     Print configuration of fql if enabled, otherwise the configuration reflected in cassandra.yaml
     getguardrailsconfig                 Print runtime configuration of guardrails.
     getinterdcstreamthroughput          Print the throughput cap for inter-datacenter streaming and entire SSTable inter-datacenter streaming in the systemin rounded megabits. For precise number, please, use option -d
     getlogginglevels                    Get the runtime logging levels
     getmaxhintwindow                    Print the max hint window in ms
+    getreplicas                         Print the replicas that own the key
     getseeds                            Get the currently in use seed node IP list excluding the node IP
     getsnapshotthrottle                 Print the snapshot_links_per_second throttle for snapshot/clearsnapshot
     getsstables                         Print the sstable filenames that own the key

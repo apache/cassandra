@@ -92,6 +92,7 @@ public class QueryViewBuilder
         public void close()
         {
             referencedIndexes.forEach(SSTableIndex::releaseQuietly);
+            referencedIndexes.clear();
         }
     }
 

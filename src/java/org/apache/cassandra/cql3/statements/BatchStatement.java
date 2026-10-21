@@ -52,6 +52,7 @@ import org.apache.cassandra.cql3.ColumnSpecification;
 import org.apache.cassandra.cql3.QueryOptions;
 import org.apache.cassandra.cql3.ResultSet;
 import org.apache.cassandra.cql3.VariableSpecifications;
+import org.apache.cassandra.cql3.statements.ModificationStatement.DiskUsageCheck;
 import org.apache.cassandra.db.Clustering;
 import org.apache.cassandra.db.ConsistencyLevel;
 import org.apache.cassandra.db.DecoratedKey;
@@ -78,6 +79,7 @@ import org.apache.cassandra.service.PreserveTimestamp;
 import org.apache.cassandra.service.QueryState;
 import org.apache.cassandra.service.StorageProxy;
 import org.apache.cassandra.service.TimestampSource;
+import org.apache.cassandra.tcm.ClusterMetadata;
 import org.apache.cassandra.tracing.Tracing;
 import org.apache.cassandra.transport.Dispatcher;
 import org.apache.cassandra.transport.messages.ResultMessage;
@@ -87,6 +89,7 @@ import org.apache.cassandra.utils.Pair;
 
 import static java.util.function.Predicate.isEqual;
 import static org.apache.cassandra.cql3.statements.RequestValidations.checkFalse;
+import static org.apache.cassandra.service.consensus.migration.ConsensusMigrationMutationHelper.isSingleTokenStatementSpanningAccordAndNonAccordTables;
 
 /**
  * A <code>BATCH</code> statement parsed from a CQL query.
@@ -220,7 +223,7 @@ public class BatchStatement implements CQLStatement.CompositeCQLStatement
         // multiple tables, we won't send partition key bind indexes.
         return (affectsMultipleTables || statements.isEmpty())
              ? null
-             : bindVariables.getPartitionKeyBindVariableIndexes(statements.get(0).metadata());
+             : bindVariables.getPartitionKeyBindVariableIndexes(statements.get(0).metadata(), statements.get(0).attrs);
     }
 
     @Override
@@ -241,8 +244,9 @@ public class BatchStatement implements CQLStatement.CompositeCQLStatement
     @Override
     public void authorize(ClientState state) throws InvalidRequestException, UnauthorizedException
     {
+        ModificationStatement.TableAuthorizationState authorizationState = new ModificationStatement.TableAuthorizationState();
         for (ModificationStatement statement : statements)
-            statement.authorize(state);
+            statement.authorize(state, authorizationState);
     }
 
     // Validates a prepared batch statement without validating its nested statements.
@@ -334,6 +338,15 @@ public class BatchStatement implements CQLStatement.CompositeCQLStatement
     {
         for (ModificationStatement statement : statements)
             statement.validate(state);
+    }
+
+    @Override
+    public void validatePrepare(ClientState state)
+    {
+        for (ModificationStatement statement : statements)
+        {
+            statement.validatePrepare(state);
+        }
     }
 
     @Override
@@ -500,8 +513,11 @@ public class BatchStatement implements CQLStatement.CompositeCQLStatement
                                                                options.getSerialConsistency()),
                                                     clientState);
 
-        for (int i = 0; i < statements.size(); i++ )
-            statements.get(i).validateDiskUsage(options.forStatement(i), clientState);
+        // resolved once for the whole batch, the guardrail checks are not cheap enough to repeat per statement
+        DiskUsageCheck diskUsageCheck = ModificationStatement.diskUsageCheck(clientState);
+        if (diskUsageCheck != DiskUsageCheck.NONE)
+            for (int i = 0; i < statements.size(); i++)
+                statements.get(i).validateDiskUsage(options.forStatement(i), clientState, diskUsageCheck);
 
         if (hasConditions)
             return executeWithConditions(options, queryState, requestTime);
@@ -541,7 +557,10 @@ public class BatchStatement implements CQLStatement.CompositeCQLStatement
 
         updatePartitionsPerBatchMetrics(mutations.size());
 
-        boolean mutateAtomic = (isLogged() && mutations.size() > 1);
+        // We special case single token batch statements that span both Accord and non-Accord
+        // tables to go through the batch log in order to preserve all or nothing application
+        // see CASSANDRA-20588 for more details
+        boolean mutateAtomic = (isLogged() && mutations.size() > 1) || (isSingleTokenStatementSpanningAccordAndNonAccordTables(ClusterMetadata.current(), mutations.get(0)));
         StorageProxy.mutateWithTriggers(mutations, cl, mutateAtomic, requestTime, preserveTimestamp);
         ClientRequestSizeMetrics.recordRowAndColumnCountMetrics(mutations);
     }

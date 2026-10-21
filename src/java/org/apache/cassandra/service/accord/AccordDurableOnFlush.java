@@ -18,8 +18,11 @@
 
 package org.apache.cassandra.service.accord;
 
+import java.util.Collections;
 import java.util.Map;
-import java.util.function.Consumer;
+import java.util.Set;
+import java.util.concurrent.ConcurrentHashMap;
+import java.util.function.BiConsumer;
 
 import org.agrona.collections.Int2ObjectHashMap;
 import org.slf4j.Logger;
@@ -27,51 +30,207 @@ import org.slf4j.LoggerFactory;
 
 import accord.local.CommandStore;
 import accord.local.CommandStores;
-import accord.local.PreLoadContext;
 import accord.local.RedundantBefore;
 
+import org.apache.cassandra.db.ColumnFamilyStore;
+import org.apache.cassandra.db.lifecycle.View;
+import org.apache.cassandra.db.memtable.Memtable;
+import org.apache.cassandra.schema.Schema;
 import org.apache.cassandra.schema.TableMetadata;
+import org.apache.cassandra.service.accord.execution.Unstoppable;
 
-class AccordDurableOnFlush implements Consumer<TableMetadata>
+import static org.apache.cassandra.utils.Clock.Global.nanoTime;
+
+public class AccordDurableOnFlush implements BiConsumer<Long, TableMetadata>
 {
     private static final Logger logger = LoggerFactory.getLogger(AccordDurableOnFlush.class);
 
-    private Int2ObjectHashMap<RedundantBefore> commandStores = new Int2ObjectHashMap<>();
+    private static final Set<ColumnFamilyStore> awaitingFlush = Collections.newSetFromMap(new ConcurrentHashMap<>());
+
+    public static class ReportDurable
+    {
+        public static final int COMMAND_STORE_FLUSH = 1;
+        public static final int DATA_STORE_FLUSH = 2;
+
+        public final RedundantBefore redundantBefore;
+        final int flags;
+
+        private ReportDurable(RedundantBefore redundantBefore, int flags)
+        {
+            this.redundantBefore = redundantBefore;
+            this.flags = flags;
+        }
+
+        public boolean isDataStoreFlush()
+        {
+            return isDataStoreFlush(flags);
+        }
+
+        public static boolean isDataStoreFlush(int flags)
+        {
+            return 0 != (flags & DATA_STORE_FLUSH);
+        }
+
+        public boolean isCommandStoreFlush()
+        {
+            return isCommandStoreFlush(flags);
+        }
+
+        public static boolean isCommandStoreFlush(int flags)
+        {
+            return 0 != (flags & COMMAND_STORE_FLUSH);
+        }
+
+        public static ReportDurable of(RedundantBefore redundantBefore)
+        {
+            return of(redundantBefore, 0);
+        }
+
+        public static ReportDurable of(RedundantBefore redundantBefore, int flags)
+        {
+            return new ReportDurable(redundantBefore, flags);
+        }
+
+        public static ReportDurable commandStoreFlush()
+        {
+            return new ReportDurable(RedundantBefore.EMPTY, COMMAND_STORE_FLUSH);
+        }
+
+        static ReportDurable merge(ReportDurable a, ReportDurable b)
+        {
+            return new ReportDurable(RedundantBefore.merge(a.redundantBefore, b.redundantBefore), a.flags | b.flags);
+        }
+
+        @Override
+        public String toString()
+        {
+            return redundantBefore.toString();
+        }
+
+        public static void reportMaybeTerminate(AccordCommandStore commandStore, int flags)
+        {
+            commandStore.maybeTerminated(ReportDurable.isCommandStoreFlush(flags), ReportDurable.isDataStoreFlush(flags));
+        }
+    }
+
+    private Int2ObjectHashMap<ReportDurable> commandStores = new Int2ObjectHashMap<>();
 
     AccordDurableOnFlush()
     {
     }
 
-    synchronized boolean add(int commandStoreId, RedundantBefore reportOnFlush)
+    synchronized boolean add(int commandStoreId, ReportDurable reportOnFlush)
     {
         if (commandStores == null)
             return false;
-        commandStores.merge(commandStoreId, reportOnFlush, RedundantBefore::merge);
+        commandStores.merge(commandStoreId, reportOnFlush, ReportDurable::merge);
         return true;
     }
 
     @Override
-    public void accept(TableMetadata metadata)
+    public void accept(Long memtableId, TableMetadata metadata)
     {
-        Int2ObjectHashMap<RedundantBefore> notify;
+        Int2ObjectHashMap<ReportDurable> notify;
         synchronized (this)
         {
             notify = commandStores;
             commandStores = null;
         }
         CommandStores commandStores = AccordService.unsafeInstance().node().commandStores();
-        for (Map.Entry<Integer, RedundantBefore> e : notify.entrySet())
+        for (Map.Entry<Integer, ReportDurable> e : notify.entrySet())
         {
-            RedundantBefore durable = e.getValue();
-            notify(metadata, commandStores.forId(e.getKey()), durable);
+            ReportDurable durable = e.getValue();
+            CommandStore commandStore = commandStores.forId(e.getKey());
+            if (commandStore != null)
+                notifyInOrder(memtableId, metadata, commandStore, durable);
         }
     }
 
-    static void notify(TableMetadata metadata, CommandStore commandStore, RedundantBefore report)
+    public static void notifyOnDurable(ColumnFamilyStore cfs, CommandStore commandStore, ReportDurable onDurable)
     {
-        logger.debug("Reporting flush of {}/{}; reporting {} to {}", metadata.id, metadata, report, commandStore);
-        commandStore.execute((PreLoadContext.Empty) () -> "Report Durable", safeStore -> {
-            safeStore.upsertRedundantBefore(report);
-        });
+        if (cfs == null)
+        {
+            // TODO (required): is this correct? Revisit when we improve DROP TABLE
+            notifyNow(commandStore, onDurable);
+            return;
+        }
+        View view = cfs.getTracker().getView();
+        for (int i = view.liveMemtables.size() - 1; i >= 0 ; --i)
+        {
+            Memtable candidate = view.liveMemtables.get(i);
+            if (candidate.isClean())
+                continue;
+
+            AccordDurableOnFlush onFlush = candidate.ensureFlushListener(AccordDataStore.FlushListenerKey.KEY, AccordDurableOnFlush::new);
+            if (onFlush != null && onFlush.add(commandStore.id(), onDurable))
+            {
+                awaitingFlush.add(cfs);
+                return;
+            }
+        }
+
+        for (int i = view.flushingMemtables.size() - 1; i >= 0 ; --i)
+        {
+            Memtable candidate = view.flushingMemtables.get(i);
+            AccordDurableOnFlush onFlush = candidate.ensureFlushListener(AccordDataStore.FlushListenerKey.KEY, AccordDurableOnFlush::new);
+            if (onFlush != null && onFlush.add(commandStore.id(), onDurable))
+                return;
+        }
+
+        notifyNow(commandStore, onDurable);
+    }
+
+    public static void flushWaitingCfs(long flushIfOlderThanNanos)
+    {
+        long flushIfCreatedBeforeNanos = nanoTime() - flushIfOlderThanNanos;
+        for (ColumnFamilyStore cfs : awaitingFlush)
+        {
+            Memtable memtable = cfs.getTracker().getView().getCurrentMemtable();
+            if (memtable.createdAtNanos() >= flushIfCreatedBeforeNanos)
+                continue;
+
+            try
+            {
+                if (!memtable.hasFlushListener())
+                    continue;
+
+                logger.debug("Flushing {}.{} as a durability report is waiting on it", cfs.getKeyspaceName(), cfs.name);
+                cfs.switchMemtableIfCurrent(memtable, ColumnFamilyStore.FlushReason.ACCORD);
+            }
+            catch (Throwable t)
+            {
+                logger.warn("Failed to flush {}.{} for a waiting durability report", cfs.getKeyspaceName(), cfs.name, t);
+            }
+            finally
+            {
+                awaitingFlush.remove(cfs);
+            }
+        }
+    }
+
+    static void notifyInOrder(long memtableId, TableMetadata metadata, CommandStore commandStore, ReportDurable report)
+    {
+        ColumnFamilyStore cfs = Schema.instance.getColumnFamilyStoreInstance(metadata.id);
+        if (cfs == null)
+        {
+            notifyNow(commandStore, report);
+            return;
+        }
+        View view = cfs.getTracker().getView();
+        boolean notifyNow = true;
+        for (Memtable memtable : view.liveMemtables)
+            notifyNow &= memtable.getMemtableId() > memtableId;
+        for (Memtable memtable : view.flushingMemtables)
+            notifyNow &= memtable.getMemtableId() > memtableId;
+        if (notifyNow) notifyNow(commandStore, report);
+        else cfs.waitForPriorFlushes().addListener(() -> notifyNow(commandStore, report));
+    }
+
+    static void notifyNow(CommandStore commandStore, ReportDurable report)
+    {
+        logger.debug("{} reporting flush with {}", commandStore, report);
+        commandStore.execute((Unstoppable) () -> "Report Durable", safeStore -> {
+            safeStore.reportDurable(report.redundantBefore, report.flags);
+        }, commandStore.agent());
     }
 }

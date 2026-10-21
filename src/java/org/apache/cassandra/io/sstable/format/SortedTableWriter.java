@@ -23,6 +23,7 @@ import java.nio.BufferOverflowException;
 import java.util.Collection;
 import java.util.Set;
 import java.util.function.Consumer;
+import java.util.function.DoubleSupplier;
 import java.util.function.Supplier;
 
 import com.google.common.collect.ImmutableList;
@@ -87,7 +88,7 @@ public abstract class SortedTableWriter<P extends SortedTablePartitionWriter, I 
     private DecoratedKey lastWrittenKey;
     private DataPosition dataMark;
     private long lastEarlyOpenLength;
-    private final Supplier<Double> crcCheckChanceSupplier;
+    private final DoubleSupplier crcCheckChanceSupplier;
 
     private final boolean isPartitionSizeGuardEnabled;
     private final boolean isPartitionTombstonesGuardEnabled;

@@ -51,7 +51,7 @@ public class Ec2ConnectorTest
 
         assertTrue(ec2Connector instanceof V1Connector);
 
-        assertEquals(DEFAULT_EC2_METADATA_URL, ec2Connector.metadataServiceUrl);
+        assertEquals(DEFAULT_EC2_METADATA_URL, ec2Connector.serviceUrl);
     }
 
     @Test
@@ -61,7 +61,7 @@ public class Ec2ConnectorTest
 
         // v2 connector by default
         assertTrue(ec2Connector instanceof V2Connector);
-        assertEquals(DEFAULT_EC2_METADATA_URL, ec2Connector.metadataServiceUrl);
+        assertEquals(DEFAULT_EC2_METADATA_URL, ec2Connector.serviceUrl);
         assertEquals(Duration.ofSeconds(MAX_TOKEN_TIME_IN_SECONDS), ((V2Connector) ec2Connector).tokenTTL);
     }
 

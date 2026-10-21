@@ -96,11 +96,11 @@ public class AccordTopologyMixupTest extends TopologyMixupTestBase<AccordTopolog
 
     static
     {
-        CassandraRelevantProperties.ACCORD_AGENT_CLASS.setString(InterceptAgent.class.getName());
+        CassandraRelevantProperties.ACCORD_TEST_AGENT_CLASS.setString(InterceptAgent.class.getName());
         // enable most expensive debugging checks
-        CassandraRelevantProperties.ACCORD_KEY_PARANOIA_CPU.setString(Invariants.Paranoia.QUADRATIC.name());
-        CassandraRelevantProperties.ACCORD_KEY_PARANOIA_MEMORY.setString(Invariants.Paranoia.QUADRATIC.name());
-        CassandraRelevantProperties.ACCORD_KEY_PARANOIA_COSTFACTOR.setString(Invariants.ParanoiaCostFactor.HIGH.name());
+        CassandraRelevantProperties.ACCORD_PARANOIA_CPU.setString(Invariants.Paranoia.QUADRATIC.name());
+        CassandraRelevantProperties.ACCORD_PARANOIA_MEMORY.setString(Invariants.Paranoia.QUADRATIC.name());
+        CassandraRelevantProperties.ACCORD_PARANOIA_COSTFACTOR.setString(Invariants.ParanoiaCostFactor.HIGH.name());
 
         overridePrimitiveTypeSupport(AsciiType.instance, AbstractTypeGenerators.TypeSupport.of(AsciiType.instance, SourceDSL.strings().ascii().ofLengthBetween(1, 10), stringComparator(AsciiType.instance)));
         overridePrimitiveTypeSupport(UTF8Type.instance, AbstractTypeGenerators.TypeSupport.of(UTF8Type.instance, Generators.utf8(1, 10), stringComparator(UTF8Type.instance)));
@@ -276,7 +276,7 @@ public class AccordTopologyMixupTest extends TopologyMixupTestBase<AccordTopolog
             c.set("accord.command_store_shard_count", 1)
              .set("accord.queue_shard_count", 1)
              .set("accord.shard_durability_target_splits", 4)
-             .set("concurrent_accord_operations", 1)
+             .set("accord.queue_thread_count", 1)
              .set("paxos_variant", Config.PaxosVariant.v2.name());
         }
 

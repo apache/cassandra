@@ -27,12 +27,20 @@ import java.util.Set;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.atomic.AtomicBoolean;
 
+import javax.annotation.Nullable;
+
 import com.google.common.annotations.VisibleForTesting;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import accord.api.TopologyListener;
+import accord.primitives.Ranges;
+import accord.topology.ActiveEpoch;
 import accord.topology.EpochReady;
+import accord.topology.Topology;
+import accord.topology.TopologyManager;
+import accord.topology.TopologyManager.RegainingEpochRange;
 
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.db.SystemKeyspace;
@@ -44,7 +52,6 @@ import org.apache.cassandra.gms.IFailureDetector;
 import org.apache.cassandra.io.util.DataInputPlus;
 import org.apache.cassandra.io.util.DataOutputPlus;
 import org.apache.cassandra.locator.EndpointsByReplica;
-import org.apache.cassandra.locator.InetAddressAndPort;
 import org.apache.cassandra.locator.RangesAtEndpoint;
 import org.apache.cassandra.locator.RangesByEndpoint;
 import org.apache.cassandra.locator.Replica;
@@ -54,6 +61,7 @@ import org.apache.cassandra.schema.ReplicationParams;
 import org.apache.cassandra.schema.Schema;
 import org.apache.cassandra.service.StorageService;
 import org.apache.cassandra.service.accord.AccordService;
+import org.apache.cassandra.service.accord.topology.AccordTopology;
 import org.apache.cassandra.streaming.StreamOperation;
 import org.apache.cassandra.streaming.StreamPlan;
 import org.apache.cassandra.streaming.StreamResultFuture;
@@ -63,6 +71,7 @@ import org.apache.cassandra.tcm.Epoch;
 import org.apache.cassandra.tcm.MultiStepOperation;
 import org.apache.cassandra.tcm.Transformation;
 import org.apache.cassandra.tcm.membership.Directory;
+import org.apache.cassandra.tcm.membership.EndpointLookup;
 import org.apache.cassandra.tcm.membership.NodeId;
 import org.apache.cassandra.tcm.membership.NodeState;
 import org.apache.cassandra.tcm.ownership.DataPlacements;
@@ -75,10 +84,13 @@ import org.apache.cassandra.tcm.serialization.Version;
 import org.apache.cassandra.tcm.transformations.PrepareMove;
 import org.apache.cassandra.utils.FBUtilities;
 import org.apache.cassandra.utils.JVMStabilityInspector;
+import org.apache.cassandra.utils.concurrent.Condition;
 import org.apache.cassandra.utils.concurrent.Future;
 import org.apache.cassandra.utils.concurrent.FutureCombiner;
 import org.apache.cassandra.utils.vint.VIntCoding;
 
+import static accord.primitives.AbstractRanges.UnionMode.MERGE_ADJACENT;
+import static accord.primitives.Routables.Slice.Minimal;
 import static com.google.common.collect.ImmutableList.of;
 import static org.apache.cassandra.tcm.MultiStepOperation.Kind.MOVE;
 import static org.apache.cassandra.tcm.Transformation.Kind.FINISH_MOVE;
@@ -86,6 +98,7 @@ import static org.apache.cassandra.tcm.Transformation.Kind.MID_MOVE;
 import static org.apache.cassandra.tcm.Transformation.Kind.START_MOVE;
 import static org.apache.cassandra.tcm.sequences.SequenceState.continuable;
 import static org.apache.cassandra.tcm.sequences.SequenceState.error;
+import static org.apache.cassandra.utils.concurrent.Condition.newOneTimeCondition;
 
 public class Move extends MultiStepOperation<Epoch>
 {
@@ -196,14 +209,52 @@ public class Move extends MultiStepOperation<Epoch>
         return applyMultipleTransformations(metadata, next, of(startMove, midMove, finishMove));
     }
 
+    static class WaitForEpochAndRangeRetirement implements TopologyListener
+    {
+        final Condition condition = newOneTimeCondition();
+        final long waitingForEpoch;
+        final Ranges waitingForRanges;
+        Ranges retiredRanges;
+
+        public WaitForEpochAndRangeRetirement(long waitingForEpoch, Ranges waitingForRanges)
+        {
+            this.waitingForEpoch = waitingForEpoch;
+            this.waitingForRanges = waitingForRanges;
+            this.retiredRanges = Ranges.EMPTY;
+        }
+
+        synchronized void updateRetiredRanges(Ranges ranges)
+        {
+            ranges = ranges.slice(waitingForRanges, Minimal).without(retiredRanges);
+            if (!ranges.isEmpty())
+            {
+                retiredRanges = retiredRanges.union(MERGE_ADJACENT, ranges);
+                if (retiredRanges.containsAll(waitingForRanges))
+                    condition.signal();
+            }
+        }
+
+        @Override
+        public synchronized void onEpochRetired(Ranges ranges, long epoch, @Nullable Topology topology)
+        {
+            if (epoch >= waitingForEpoch)
+                updateRetiredRanges(ranges);
+        }
+
+        public void waitForRetirement()
+        {
+            condition.awaitThrowUncheckedOnInterrupt();
+        }
+    }
+
     @Override
     public Set<NodeId> affectedPeers(Directory directory)
     {
-        Set<InetAddressAndPort> affectedEndpoints = new HashSet<>();
-        affectedEndpoints.addAll(startMove.affectedEndpoints());
-        affectedEndpoints.addAll(midMove.affectedEndpoints());
-        affectedEndpoints.addAll(finishMove.affectedEndpoints());
-        return endpointsToIds(affectedEndpoints, directory);
+        Set<NodeId> affectedPeers = new HashSet<>();
+        affectedPeers.addAll(startMove.affectedPeers(directory::peerId));
+        affectedPeers.addAll(midMove.affectedPeers(directory::peerId));
+        affectedPeers.addAll(finishMove.affectedPeers(directory::peerId));
+        return affectedPeers;
     }
 
     @Override
@@ -212,9 +263,38 @@ public class Move extends MultiStepOperation<Epoch>
         switch (next)
         {
             case START_MOVE:
+                WaitForEpochAndRangeRetirement wait = null;
+
                 try
                 {
                     ClusterMetadata metadata = ClusterMetadata.current();
+                    if (AccordService.isStarted() && metadata.schema.hasAccordKeyspaces())
+                    {
+                        TopologyManager topologyManager = AccordService.instance().topology();
+                        AccordService.toFuture(topologyManager.await(metadata.epoch.getEpoch(), null))
+                                     .awaitThrowUncheckedOnInterrupt().rethrowIfFailed();
+                        Topology current = topologyManager.active().globalForEpoch(metadata.epoch.getEpoch());
+                        RegainingEpochRange regaining = topologyManager.computeRegaining(current, AccordTopology.createAccordTopology(applyTo(metadata).success().metadata));
+
+                        if (regaining != null)
+                        {
+                            wait = new WaitForEpochAndRangeRetirement(regaining.epoch(), regaining.ranges());
+                            topologyManager.addListener(wait);
+                            ActiveEpoch e = topologyManager.active().ifExists(regaining.epoch());
+
+                            // We have already checked that our activeEpochs is caught up to metadata.epoch.getEpoch()
+                            // which is greater than regaining.epoch() so if e == null then the only case we can fall
+                            // in is that regaining.epoch() is already retired
+                            if (e != null)
+                            {
+                                wait.updateRetiredRanges(e.retired());
+                                logger.info("Waiting for previous ownership of ranges {} to retire before regaining", regaining.ranges());
+                                wait.waitForRetirement();
+                                logger.info("Previously owned ranges {} now retired", regaining.ranges());
+                            }
+                        }
+                    }
+
                     logger.info("Moving {} from {} to {}.",
                                 metadata.directory.endpoint(startMove.nodeId()),
                                 metadata.tokenMap.tokens(startMove.nodeId()),
@@ -223,8 +303,14 @@ public class Move extends MultiStepOperation<Epoch>
                 }
                 catch (Throwable t)
                 {
+                    logger.warn("Exception committing startMove, will retry on next TCM epoch advance", t);
                     JVMStabilityInspector.inspectThrowable(t);
                     return continuable();
+                }
+                finally
+                {
+                    if (wait != null)
+                        AccordService.instance().topology().removeListener(wait);
                 }
                 break;
             case MID_MOVE:
@@ -235,7 +321,8 @@ public class Move extends MultiStepOperation<Epoch>
                     StreamPlan streamPlan = new StreamPlan(StreamOperation.RELOCATION);
                     Keyspaces keyspaces = Schema.instance.getNonLocalStrategyKeyspaces();
                     Map<ReplicationParams, EndpointsByReplica> movementMap = movementMap(FailureDetector.instance,
-                                                                                         metadata.placements,
+                                                                                         metadata.placements(),
+                                                                                         metadata.directory,
                                                                                          toSplitRanges,
                                                                                          startMove.delta(),
                                                                                          midMove.delta(),
@@ -299,6 +386,7 @@ public class Move extends MultiStepOperation<Epoch>
                 }
                 catch (Throwable t)
                 {
+                    logger.warn("Exception committing midMove, will retry on next TCM epoch advance", t);
                     JVMStabilityInspector.inspectThrowable(t);
                     return continuable();
                 }
@@ -312,6 +400,7 @@ public class Move extends MultiStepOperation<Epoch>
                 }
                 catch (Throwable t)
                 {
+                    logger.warn("Exception committing finishMove, will retry on next TCM epoch advance", t);
                     JVMStabilityInspector.inspectThrowable(t);
                     return continuable();
                 }
@@ -342,16 +431,15 @@ public class Move extends MultiStepOperation<Epoch>
     @Override
     public ClusterMetadata.Transformer cancel(ClusterMetadata metadata)
     {
-        DataPlacements placements = metadata.placements;
-
+        DataPlacements placements = metadata.placements();
         switch (next)
         {
             case FINISH_MOVE:
-                placements = midMove.inverseDelta().apply(metadata.nextEpoch(), placements);
+                placements = midMove.inverseDelta().apply(metadata.directory, metadata.nextEpoch(), placements);
             case MID_MOVE:
-                placements = startMove.inverseDelta().apply(metadata.nextEpoch(), placements);
+                placements = startMove.inverseDelta().apply(metadata.directory, metadata.nextEpoch(), placements);
             case START_MOVE:
-                placements = toSplitRanges.invert().apply(metadata.nextEpoch(), placements);
+                placements = toSplitRanges.invert().apply(metadata.directory, metadata.nextEpoch(), placements);
                 break;
             default:
                 throw new IllegalStateException("Can't revert move from " + next);
@@ -369,19 +457,21 @@ public class Move extends MultiStepOperation<Epoch>
      *
      * there can be multiple sources for each destination
      */
-    private static MovementMap movementMap(IFailureDetector fd, DataPlacements placements, PlacementDeltas toSplitRanges, PlacementDeltas toStart, PlacementDeltas midDeltas, boolean strictConsistency)
+    private static MovementMap movementMap(IFailureDetector fd, DataPlacements placements, EndpointLookup endpointLookup, PlacementDeltas toSplitRanges, PlacementDeltas toStart, PlacementDeltas midDeltas, boolean strictConsistency)
     {
         MovementMap.Builder allMovements = MovementMap.builder();
         toStart.forEach((params, delta) -> {
-            RangesByEndpoint targets = delta.writes.additions;
+            RangesByEndpoint targets = delta.writes.additions(endpointLookup);
             ReplicaGroups oldOwners = placements.get(params).reads;
             EndpointsByReplica.Builder movements = new EndpointsByReplica.Builder();
+            Iterable<Replica> replicaRemovals = midDeltas.get(params).reads.removals(endpointLookup).flattenValues();
+            RangesByEndpoint writeAdditions = toSplitRanges.get(params).writes.additions(endpointLookup);
             targets.flattenValues().forEach(destination -> {
-                SourceHolder sources = new SourceHolder(fd, destination, toSplitRanges.get(params), strictConsistency);
+                SourceHolder sources = new SourceHolder(fd, destination, writeAdditions, strictConsistency);
                 AtomicBoolean needsRelaxedSources = new AtomicBoolean();
                 // first, try to find strict sources for the ranges we need to stream - these are the ranges that
                 // instances are losing.
-                midDeltas.get(params).reads.removals.flattenValues().forEach(strictSource -> {
+                replicaRemovals.forEach(strictSource -> {
                     if (strictSource.range().equals(destination.range()) && !strictSource.endpoint().equals(destination.endpoint()))
                         if (!sources.addSource(strictSource))
                         {
@@ -390,7 +480,6 @@ public class Move extends MultiStepOperation<Epoch>
                             needsRelaxedSources.set(true);
                         }
                 });
-
                 // if we are not running with strict consistency, try to find other sources for streaming
                 if (needsRelaxedSources.get())
                 {
@@ -420,18 +509,18 @@ public class Move extends MultiStepOperation<Epoch>
     private static class SourceHolder
     {
         private final IFailureDetector fd;
-        private final PlacementDeltas.PlacementDelta splitDelta;
         private final boolean strict;
         private Replica fullSource;
         private Replica transientSource;
         private final Replica destination;
+        private final RangesByEndpoint writeAdditions;
 
-        public SourceHolder(IFailureDetector fd, Replica destination, PlacementDeltas.PlacementDelta splitDelta, boolean strict)
+        public SourceHolder(IFailureDetector fd, Replica destination, RangesByEndpoint writeAdditions, boolean strict)
         {
             this.fd = fd;
-            this.splitDelta = splitDelta;
             this.strict = strict;
             this.destination = destination;
+            this.writeAdditions = writeAdditions;
         }
 
         private boolean addSource(Replica source)
@@ -450,7 +539,7 @@ public class Move extends MultiStepOperation<Epoch>
                     {
                         // a transient replica is being removed, now, to be able to safely skip streaming from this
                         // replica we need to make sure it remains a replica for the range after the move has finished:
-                        if (splitDelta.writes.additions.get(source.endpoint()).byRange().get(destination.range()) == null)
+                        if (writeAdditions.get(source.endpoint()).byRange().get(destination.range()) == null)
                         {
                             if (strict)
                                 throw new IllegalStateException(String.format("Source %s for %s is not remaining as a replica after the move, can't do a consistent range movement, retry with that disabled", source, destination));
