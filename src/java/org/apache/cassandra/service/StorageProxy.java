@@ -1700,7 +1700,7 @@ public class StorageProxy implements StorageProxyMBean
                 if (accordMutations != null && preserveTimestamps == PreserveTimestamp.mixedTimeSource)
                     checkMixedTimeSourceHandling();
 
-                List<AbstractWriteResponseHandler<?>> trackedHandlers = startTrackedWrites(trackedMutations, consistencyLevel, requestTime);
+                List<AbstractWriteResponseHandler<?>> trackedHandlers = startTrackedWrites(trackedMutations, untrackedMutations != null, consistencyLevel, requestTime);
 
                 IAccordResult<TxnResult> accordResult = accordMutations != null ? mutateWithAccordAsync(cm, accordMutations, consistencyLevel, requestTime, preserveTimestamps) : null;
                 Tracing.trace("Split mutations into tracked {}, Accord {}, and untracked {}", trackedMutations, accordMutations, untrackedMutations);
@@ -1726,7 +1726,7 @@ public class StorageProxy implements StorageProxyMBean
 
                 try
                 {
-                    awaitTrackedWrites(trackedHandlers);
+                    awaitTrackedWrites(trackedHandlers, trackedMutations, untrackedMutations != null, consistencyLevel, requestTime);
                 }
                 catch (Exception e)
                 {
@@ -1775,25 +1775,67 @@ public class StorageProxy implements StorageProxyMBean
      * @return the handlers to pass to {@link #awaitTrackedWrites}, or null if there are no tracked mutations
      */
     @Nullable
-    private static List<AbstractWriteResponseHandler<?>> startTrackedWrites(@Nullable List<? extends IMutation> trackedMutations, ConsistencyLevel consistencyLevel, Dispatcher.RequestTime requestTime)
+    private static List<AbstractWriteResponseHandler<?>> startTrackedWrites(@Nullable List<? extends IMutation> trackedMutations, boolean alsoWritingUntracked, ConsistencyLevel consistencyLevel, Dispatcher.RequestTime requestTime)
     {
         if (trackedMutations == null)
             return null;
 
         List<AbstractWriteResponseHandler<?>> handlers = new ArrayList<>(trackedMutations.size());
-        for (IMutation trackedMutation : trackedMutations)
-            handlers.add(TrackedWriteRequest.perform(trackedMutation, consistencyLevel, requestTime));
+        try
+        {
+            for (IMutation trackedMutation : trackedMutations)
+                handlers.add(TrackedWriteRequest.perform(trackedMutation, consistencyLevel, requestTime));
+        }
+        catch (RuntimeException e)
+        {
+            // awaitTrackedWrites is not reached if starting the writes fails
+            markWriteError(e, consistencyLevel);
+            recordTrackedWriteLatency(trackedMutations, alsoWritingUntracked, consistencyLevel, requestTime);
+            throw e;
+        }
         return handlers;
     }
 
-    private static void awaitTrackedWrites(@Nullable List<AbstractWriteResponseHandler<?>> trackedHandlers)
+    private static void awaitTrackedWrites(@Nullable List<AbstractWriteResponseHandler<?>> trackedHandlers,
+                                           @Nullable List<? extends IMutation> trackedMutations,
+                                           boolean alsoWritingUntracked,
+                                           ConsistencyLevel consistencyLevel,
+                                           Dispatcher.RequestTime requestTime)
     {
         if (trackedHandlers == null)
             return;
 
-        for (AbstractWriteResponseHandler<?> handler : trackedHandlers)
-            handler.get();
+        try
+        {
+            for (AbstractWriteResponseHandler<?> handler : trackedHandlers)
+                handler.get();
+        }
+        catch (WriteTimeoutException | WriteFailureException | UnavailableException | OverloadedException e)
+        {
+            markWriteError(e, consistencyLevel);
+            throw e;
+        }
+        finally
+        {
+            recordTrackedWriteLatency(trackedMutations, alsoWritingUntracked, consistencyLevel, requestTime);
+        }
         Tracing.trace("Successfully wrote tracked mutations");
+    }
+
+    /**
+     * Records coordinator write latency for tracked mutations. If untracked mutations are also written,
+     * mutate() records the request latency in the aggregate write metrics, so only the per-table
+     * metrics are updated here.
+     */
+    private static void recordTrackedWriteLatency(List<? extends IMutation> trackedMutations, boolean alsoWritingUntracked, ConsistencyLevel consistencyLevel, Dispatcher.RequestTime requestTime)
+    {
+        long latency = nanoTime() - requestTime.startedAtNanos();
+        if (!alsoWritingUntracked)
+        {
+            writeMetrics.addNano(latency);
+            writeMetricsForLevel(consistencyLevel).addNano(latency);
+        }
+        updateCoordinatorWriteLatencyTableMetric(trackedMutations, latency);
     }
 
     private static void checkMixedTimeSourceHandling()

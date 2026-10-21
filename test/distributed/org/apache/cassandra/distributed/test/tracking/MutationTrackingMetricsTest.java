@@ -28,12 +28,14 @@ import org.apache.cassandra.distributed.Cluster;
 import org.apache.cassandra.distributed.api.ConsistencyLevel;
 import org.apache.cassandra.distributed.api.Feature;
 import org.apache.cassandra.distributed.test.TestBaseImpl;
+import org.apache.cassandra.metrics.ClientRequestsMetricsHolder;
 import org.apache.cassandra.metrics.MutationTrackingMetrics;
 import org.apache.cassandra.net.Verb;
 import org.apache.cassandra.replication.MutationJournal;
 import org.apache.cassandra.replication.MutationTrackingService;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 public class MutationTrackingMetricsTest extends TestBaseImpl
 {
@@ -380,6 +382,67 @@ public class MutationTrackingMetricsTest extends TestBaseImpl
             assertThat(afterReadLatencyCount)
                 .as("Local read latency metric should count tracked reads")
                 .isEqualTo(initialReadLatencyCount + 1);
+        }
+    }
+
+    @Test(timeout = 60000)
+    public void testCoordinatorWriteLatencyMetric() throws Throwable
+    {
+        try (Cluster cluster = Cluster.build(1)
+                .withConfig(cfg -> cfg.with(Feature.NETWORK))
+                .start())
+        {
+            cluster.schemaChange(withKeyspace(CREATE_KEYSPACE));
+            cluster.schemaChange(String.format(CREATE_TABLE, KEYSPACE));
+
+            long initialCount = cluster.get(1).callOnInstance(() ->
+                ClientRequestsMetricsHolder.writeMetrics.latency.getCount());
+            long initialTableCount = cluster.get(1).callOnInstance(() ->
+                Keyspace.open(KEYSPACE).getColumnFamilyStore("tbl").metric.coordinatorWriteLatency.getCount());
+
+            cluster.coordinator(1).execute(withKeyspace("INSERT INTO %s.tbl (pk, val) VALUES (?, ?)"),
+                                           ConsistencyLevel.ONE, 1, "test1");
+
+            long afterCount = cluster.get(1).callOnInstance(() ->
+                ClientRequestsMetricsHolder.writeMetrics.latency.getCount());
+            long afterTableCount = cluster.get(1).callOnInstance(() ->
+                Keyspace.open(KEYSPACE).getColumnFamilyStore("tbl").metric.coordinatorWriteLatency.getCount());
+            assertThat(afterCount)
+                .as("Coordinator write latency metric should count tracked writes")
+                .isEqualTo(initialCount + 1);
+            assertThat(afterTableCount)
+                .as("Per-table coordinator write latency metric should count tracked writes")
+                .isEqualTo(initialTableCount + 1);
+        }
+    }
+
+    @Test(timeout = 60000)
+    public void testWriteUnavailableMetric() throws Throwable
+    {
+        try (Cluster cluster = Cluster.build(2)
+                .withConfig(cfg -> cfg.with(Feature.NETWORK, Feature.GOSSIP))
+                .start())
+        {
+            cluster.schemaChange(withKeyspace("CREATE KEYSPACE %s WITH replication = " +
+                                              "{'class': 'SimpleStrategy', 'replication_factor': 2} " +
+                                              "AND replication_type = 'tracked'"));
+            cluster.schemaChange(String.format(CREATE_TABLE, KEYSPACE));
+            cluster.get(2).shutdown().get();
+            Awaitility.await().atMost(Duration.ofSeconds(30)).until(() ->
+                cluster.get(1).callOnInstance(() -> org.apache.cassandra.gms.Gossiper.instance.getLiveMembers().size()) == 1);
+
+            long initial = cluster.get(1).callOnInstance(() ->
+                ClientRequestsMetricsHolder.writeMetrics.unavailables.getCount());
+
+            assertThatThrownBy(() -> cluster.coordinator(1).execute(withKeyspace("INSERT INTO %s.tbl (pk, val) VALUES (?, ?)"),
+                                                                    ConsistencyLevel.ALL, 1, "test1"))
+                .hasMessageContaining("Cannot achieve consistency level");
+
+            long after = cluster.get(1).callOnInstance(() ->
+                ClientRequestsMetricsHolder.writeMetrics.unavailables.getCount());
+            assertThat(after)
+                .as("Unavailable write metric should count tracked writes")
+                .isEqualTo(initial + 1);
         }
     }
 }
