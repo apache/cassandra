@@ -41,13 +41,13 @@ public class FlusherTest
     }
 
     @Test
-    public void testUnframedResponseIsReleasedWhenChannelIsClosed()
+    public void testPreV5ResponseIsReleasedWhenChannelIsClosed()
     {
         EmbeddedChannel channel = new EmbeddedChannel();
         channel.close().syncUninterruptibly();
 
-        Envelope request = envelope(16);
-        Envelope response = envelope(1024);
+        Envelope request = envelope(ProtocolVersion.V4, 16);
+        Envelope response = envelope(ProtocolVersion.V4, 1024);
         AtomicInteger cleanups = new AtomicInteger();
 
         Flusher flusher = Flusher.immediate(channel.eventLoop());
@@ -66,8 +66,8 @@ public class FlusherTest
         EmbeddedChannel channel = new EmbeddedChannel();
         channel.close().syncUninterruptibly();
 
-        Envelope request = envelope(16);
-        Envelope response = envelope(1024);
+        Envelope request = envelope(ProtocolVersion.V5, 16);
+        Envelope response = envelope(ProtocolVersion.V5, 1024);
         List<FrameEncoder.Payload> allocated = new ArrayList<>();
 
         Flusher flusher = Flusher.immediate(channel.eventLoop());
@@ -89,8 +89,8 @@ public class FlusherTest
     {
         EmbeddedChannel channel = new EmbeddedChannel();
 
-        Envelope request = envelope(16);
-        Envelope response = envelope(1024);
+        Envelope request = envelope(ProtocolVersion.V5, 16);
+        Envelope response = envelope(ProtocolVersion.V5, 1024);
         List<FrameEncoder.Payload> allocated = new ArrayList<>();
 
         // the legacy flusher defers flushWrittenChannels(), so the response is staged in a FlushBuffer while
@@ -123,9 +123,13 @@ public class FlusherTest
         request.release();
     }
 
-    private static Envelope envelope(int bodySize)
+    private static Envelope envelope(ProtocolVersion version, int bodySize)
     {
-        return Envelope.create(Message.Type.RESULT, 1, ProtocolVersion.V5, 0, CBUtil.allocator.buffer(bodySize));
+        return Envelope.create(Message.Type.RESULT,
+                               1,
+                               version,
+                               0,
+                               CBUtil.allocator.buffer(bodySize));
     }
 
     private static FrameEncoder.PayloadAllocator recordingAllocator(List<FrameEncoder.Payload> allocated)
