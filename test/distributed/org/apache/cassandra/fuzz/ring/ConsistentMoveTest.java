@@ -73,7 +73,7 @@ public class ConsistentMoveTest extends FuzzTestBase
         try (Cluster cluster = builder().withNodes(3)
                                         .withTokenSupplier(TokenSupplier.evenlyDistributedTokens(3))
                                         .withNodeIdTopology(NetworkTopology.singleDcNetworkTopology(3, "dc0", "rack0"))
-                                        .appendConfig(c -> c.with(Feature.NETWORK))
+                                        .appendConfig(c -> c.set("mutation_tracking.enabled", false).with(Feature.NETWORK))
                                         .start())
         {
             IInvokableInstance cmsInstance = cluster.get(1);

@@ -127,6 +127,7 @@ public class FetchLogFromPeersTest extends TestBaseImpl
         // depends on the number of tokens but this is set externally to the test. The actual behaviour
         // under test is completely orthogonal to the actual number of tokens though.
         try (Cluster cluster = init(builder().withNodes(4)
+                                             .appendConfig(c -> c.set("mutation_tracking.enabled", false))
                                              .withoutVNodes()
                                              .start()))
         {
@@ -156,6 +157,7 @@ public class FetchLogFromPeersTest extends TestBaseImpl
         // depends on the number of tokens but this is set externally to the test. The actual behaviour
         // under test is completely orthogonal to the actual number of tokens though.
         try (Cluster cluster = init(builder().withNodes(4)
+                                             .appendConfig(c -> c.set("mutation_tracking.enabled", false))
                                              .withoutVNodes()
                                              .start()))
         {

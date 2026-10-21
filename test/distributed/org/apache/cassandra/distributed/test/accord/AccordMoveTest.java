@@ -55,7 +55,7 @@ public class AccordMoveTest extends AccordBootstrapTestBase
                                       .withoutVNodes()
                                       .withTokenSupplier(TokenSupplier.evenlyDistributedTokens(3))
                                       .withNodeIdTopology(NetworkTopology.singleDcNetworkTopology(3, "dc0", "rack0"))
-                                      .withConfig(config -> config
+                                      .withConfig(config -> config.set("mutation_tracking.enabled", false)
                                                             .set("accord.shard_durability_target_splits", "1")
                                                             .set("accord.shard_durability_cycle", "20s")
                                                             .with(NETWORK, GOSSIP))

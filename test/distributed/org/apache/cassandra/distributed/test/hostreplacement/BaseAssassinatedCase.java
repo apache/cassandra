@@ -54,7 +54,7 @@ public abstract class BaseAssassinatedCase extends TestBaseImpl
     {
         TokenSupplier even = TokenSupplier.evenlyDistributedTokens(3);
         try (Cluster cluster = Cluster.build(3)
-                                      .withConfig(c -> c.with(Feature.GOSSIP, Feature.NETWORK))
+                                      .withConfig(c -> c.set("mutation_tracking.enabled", false).with(Feature.GOSSIP, Feature.NETWORK))
                                       .withTokenSupplier(node -> even.token(node == 4 || node == 5 ? NODE_TO_REMOVE_NUM : node))
                                       .start())
         {

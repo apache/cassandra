@@ -39,7 +39,7 @@ public class CMSPlacementAfterMoveTest extends TestBaseImpl
     public void testMoveToCMS() throws IOException
     {
         try (Cluster cluster = init(Cluster.build(4)
-                                           .withConfig(c -> c.with(Feature.GOSSIP, Feature.NETWORK))
+                                           .withConfig(c -> c.set("mutation_tracking.enabled", false).with(Feature.GOSSIP, Feature.NETWORK))
                                            .withoutVNodes()
                                            .start()))
         {

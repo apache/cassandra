@@ -93,6 +93,7 @@ public abstract class GossipExpiryTestBase extends TestBaseImpl
              Cluster cluster = builder().withNodes(5)
                                         .withInstanceInitializer(GossipExpiryTestBase.BB::install)
                                         .withConfig(config -> config.with(NETWORK, GOSSIP)
+                                                                    .set("mutation_tracking.enabled", false)
                                                                     .set("gossip_quarantine_disabled", withQuarantineDisabled))
                                         .start())
         {

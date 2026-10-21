@@ -56,7 +56,7 @@ public class FailingMoveTest extends TestBaseImpl
     {
         try (Cluster cluster = init(Cluster.build(3)
                                            .withoutVNodes()
-                                           .withConfig(c -> c.with(Feature.GOSSIP, Feature.NETWORK))
+                                           .withConfig(c -> c.set("mutation_tracking.enabled", false).with(Feature.GOSSIP, Feature.NETWORK))
                                            .withInstanceInitializer(BB::install)
                                            .start()))
         {
@@ -84,7 +84,7 @@ public class FailingMoveTest extends TestBaseImpl
     {
         try (Cluster cluster = init(Cluster.build(3)
                                            .withoutVNodes()
-                                           .withConfig(c -> c.with(Feature.GOSSIP, Feature.NETWORK))
+                                           .withConfig(c -> c.set("mutation_tracking.enabled", false).with(Feature.GOSSIP, Feature.NETWORK))
                                            .withInstanceInitializer(BB::install)
                                            .start()))
         {
@@ -112,7 +112,7 @@ public class FailingMoveTest extends TestBaseImpl
     {
         try (Cluster cluster = init(Cluster.build(3)
                                            .withoutVNodes()
-                                           .withConfig(c -> c.with(Feature.GOSSIP, Feature.NETWORK))
+                                           .withConfig(c -> c.set("mutation_tracking.enabled", false).with(Feature.GOSSIP, Feature.NETWORK))
                                            .withInstanceInitializer(BB::install)
                                            .start()))
         {

@@ -42,7 +42,7 @@ public class LCSStreamingKeepLevelTest extends TestBaseImpl
     public void testDecom() throws IOException
     {
         try (Cluster cluster = builder().withNodes(4)
-                                        .withConfig(config -> config.with(NETWORK, GOSSIP, NATIVE_PROTOCOL))
+                                        .withConfig(config -> config.set("mutation_tracking.enabled", false).with(NETWORK, GOSSIP, NATIVE_PROTOCOL))
                                         .withoutVNodes()
                                         .withDataDirCount(1)
                                         .start())
@@ -59,7 +59,7 @@ public class LCSStreamingKeepLevelTest extends TestBaseImpl
     public void testMove() throws IOException
     {
         try (Cluster cluster = builder().withNodes(4)
-                                        .withConfig(config -> config.with(NETWORK, GOSSIP, NATIVE_PROTOCOL))
+                                        .withConfig(config -> config.set("mutation_tracking.enabled", false).with(NETWORK, GOSSIP, NATIVE_PROTOCOL))
                                         .withoutVNodes()
                                         .withDataDirCount(1)
                                         .start())

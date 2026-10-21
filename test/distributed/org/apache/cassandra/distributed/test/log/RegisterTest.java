@@ -49,6 +49,7 @@ import org.apache.cassandra.tcm.sequences.UnbootstrapAndLeave;
 import org.apache.cassandra.tcm.serialization.Version;
 import org.apache.cassandra.tcm.transformations.PrepareLeave;
 import org.apache.cassandra.tcm.transformations.Register;
+import org.apache.cassandra.tcm.transformations.RetireSingleNodeSequence;
 import org.apache.cassandra.tcm.transformations.TriggerSnapshot;
 import org.apache.cassandra.tcm.transformations.Unregister;
 import org.apache.cassandra.utils.CassandraVersion;
@@ -84,6 +85,7 @@ public class RegisterTest extends TestBaseImpl
                     ClusterMetadataService.instance().commit(unbootstrapAndLeave.startLeave);
                     ClusterMetadataService.instance().commit(unbootstrapAndLeave.midLeave);
                     ClusterMetadataService.instance().commit(unbootstrapAndLeave.finishLeave);
+                    ClusterMetadataService.instance().commit(new RetireSingleNodeSequence(ClusterMetadata.current().myNodeId(), unbootstrapAndLeave.lockKey));
                     ClusterMetadataService.instance().commit(new Unregister(ClusterMetadata.current().myNodeId(), EnumSet.of(NodeState.LEFT), pp));
                 });
 

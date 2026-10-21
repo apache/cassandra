@@ -46,7 +46,6 @@ import org.apache.cassandra.locator.SimpleSeedProvider;
 import org.apache.cassandra.net.Verb;
 import org.apache.cassandra.tcm.ClusterMetadata;
 import org.apache.cassandra.tcm.Epoch;
-import org.apache.cassandra.tcm.sequences.BootstrapAndJoin;
 import org.apache.cassandra.tcm.sequences.InProgressSequences;
 import org.apache.cassandra.utils.FBUtilities;
 
@@ -861,8 +860,8 @@ public class CASTest extends CASCommonTestCases
     private void finishJoin(Cluster cluster, int node)
     {
         cluster.get(node).runOnInstance(() -> {
-            BootstrapAndJoin plan = ClusterMetadataTestHelper.getBootstrapPlan(ClusterMetadata.current().myNodeId());
-            InProgressSequences.resume(plan);
+            // runs every remaining step, including the trailing step that retires the sequence and unlocks its ranges
+            InProgressSequences.finishInProgressSequences(ClusterMetadata.current().myNodeId());
         });
     }
 

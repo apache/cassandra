@@ -59,7 +59,7 @@ public class GossipDeadlockTest extends TestBaseImpl
     {
 
         try (Cluster cluster = init(builder().withNodes(4)
-                                             .withConfig(config -> config.with(NETWORK, GOSSIP)
+                                             .withConfig(config -> config.set("mutation_tracking.enabled", false).with(NETWORK, GOSSIP)
                                                                          .set("progress_barrier_default_consistency_level", "NODE_LOCAL")
                                                                          .set("progress_barrier_min_consistency_level", "NODE_LOCAL"))
                                              .withoutVNodes()

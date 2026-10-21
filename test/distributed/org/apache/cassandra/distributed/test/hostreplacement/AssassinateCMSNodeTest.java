@@ -39,7 +39,7 @@ public class AssassinateCMSNodeTest extends TestBaseImpl
     public void assassinateCMSNodeTest() throws IOException, ExecutionException, InterruptedException
     {
         try (Cluster cluster = init(builder().withNodes(3)
-                                        .withConfig(config -> config.with(GOSSIP).with(NETWORK))
+                                        .withConfig(config -> config.set("mutation_tracking.enabled", false).with(GOSSIP).with(NETWORK))
                                         .start()))
         {
             cluster.get(1).nodetoolResult("cms", "reconfigure", "3").asserts().success();
