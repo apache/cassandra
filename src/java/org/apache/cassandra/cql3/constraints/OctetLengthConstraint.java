@@ -27,7 +27,6 @@ import org.apache.cassandra.db.marshal.AsciiType;
 import org.apache.cassandra.db.marshal.BytesType;
 import org.apache.cassandra.db.marshal.Int32Type;
 import org.apache.cassandra.db.marshal.UTF8Type;
-import org.apache.cassandra.schema.ColumnMetadata;
 import org.apache.cassandra.utils.ByteBufferUtil;
 
 import static java.lang.String.format;
@@ -69,9 +68,8 @@ public class OctetLengthConstraint extends ConstraintFunction
     }
 
     @Override
-    public void validate(ColumnMetadata columnMetadata, String term) throws InvalidConstraintDefinitionException
+    public void prepare(String term) throws InvalidConstraintDefinitionException
     {
-        super.validate(columnMetadata, term);
         try
         {
             // parsint the int every single time upon evaluation is not performance friendly

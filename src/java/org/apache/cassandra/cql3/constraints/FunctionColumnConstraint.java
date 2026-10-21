@@ -80,6 +80,7 @@ public class FunctionColumnConstraint extends AbstractFunctionConstraint<Functio
     {
         super(relationType, term);
         this.function = function;
+        this.function.prepare(term);
         this.columnName = function.columnName;
     }
 
