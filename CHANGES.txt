@@ -58,6 +58,7 @@
  * Avoid megamorphic calls when serializing and deserializing fixed-length values (CASSANDRA-21536)
  * Avoid megamorphic calls for Cell.timestamp/ttl/path/localDeletionTimeAsUnsignedInt methods (CASSANDRA-21526)
 Merged from 5.0:
+ * Write an sstable with the compression its components were chosen for when ALTER TABLE changes it (CASSANDRA-21780)
  * Clarify the unset, true and false behaviours of cassandra.reset_bootstrap_progress in the abort message and docs (CASSANDRA-21595)
  * Isolate SAI index rebuilds from ZCS (CASSANDRA-21520)
  * Bound and chunk the BTI partition index preload (CASSANDRA-21632)
