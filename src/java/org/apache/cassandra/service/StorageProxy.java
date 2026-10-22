@@ -1700,7 +1700,7 @@ public class StorageProxy implements StorageProxyMBean
                 if (accordMutations != null && preserveTimestamps == PreserveTimestamp.mixedTimeSource)
                     checkMixedTimeSourceHandling();
 
-                List<AbstractWriteResponseHandler<?>> trackedHandlers = startTrackedWrites(trackedMutations, untrackedMutations != null, consistencyLevel, requestTime);
+                List<AbstractWriteResponseHandler<?>> trackedHandlers = startTrackedWrites(trackedMutations, consistencyLevel, requestTime);
 
                 IAccordResult<TxnResult> accordResult = accordMutations != null ? mutateWithAccordAsync(cm, accordMutations, consistencyLevel, requestTime, preserveTimestamps) : null;
                 Tracing.trace("Split mutations into tracked {}, Accord {}, and untracked {}", trackedMutations, accordMutations, untrackedMutations);
@@ -1775,7 +1775,7 @@ public class StorageProxy implements StorageProxyMBean
      * @return the handlers to pass to {@link #awaitTrackedWrites}, or null if there are no tracked mutations
      */
     @Nullable
-    private static List<AbstractWriteResponseHandler<?>> startTrackedWrites(@Nullable List<? extends IMutation> trackedMutations, boolean alsoWritingUntracked, ConsistencyLevel consistencyLevel, Dispatcher.RequestTime requestTime)
+    private static List<AbstractWriteResponseHandler<?>> startTrackedWrites(@Nullable List<? extends IMutation> trackedMutations, ConsistencyLevel consistencyLevel, Dispatcher.RequestTime requestTime)
     {
         if (trackedMutations == null)
             return null;
@@ -1790,7 +1790,7 @@ public class StorageProxy implements StorageProxyMBean
         {
             // awaitTrackedWrites is not reached if starting the writes fails
             markWriteError(e, consistencyLevel);
-            recordTrackedWriteLatency(trackedMutations, alsoWritingUntracked, consistencyLevel, requestTime);
+            recordTrackedWriteLatency(trackedMutations, false, consistencyLevel, requestTime);
             throw e;
         }
         return handlers;
