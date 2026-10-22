@@ -80,6 +80,11 @@ Upgrading
     - The hostname column in system_views.clients will no longer perform a reverse DNS lookup and will instead
       return the same value as the address column. This avoids the risk of client connections overwhelming
       DNS. (CASSANDRA-21539)
+    - Do not set the UnifiedCompactionStrategy table option max_sstables_per_shard_factor until every node runs
+      5.0.10 or later. Earlier versions do not recognize the option. When one of them coordinates a schema change
+      that validates the whole table definition, such as ALTER TABLE ... ADD, it rejects the change for any table
+      that sets the option. Before downgrading, remove the option from those tables with ALTER TABLE ... WITH
+      compaction = {...} listing the other options only. (CASSANDRA-21615)
 
 5.0.9
 =====
