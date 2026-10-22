@@ -350,7 +350,7 @@ public class TrackedRepairFailureTest extends TrackedRepairTransferTestBase
             long mark = receiver.logs().mark();
             coordinator.nodetoolResult("repair", "--full", keyspace).asserts().failure();
 
-            assertThat(receiver.logs().grep(mark, "the migration of these ranges completed while the repair was running").getResult())
+            assertThat(receiver.logs().grep(mark, "migration of these ranges completed while the repair was running").getResult())
                       .describedAs("the receiver did not report the rejection as a migration that completed mid-repair")
                       .isNotEmpty();
             assertThat(receiver.logs().grep(mark, "Cannot add SSTables to the live set").getResult())
