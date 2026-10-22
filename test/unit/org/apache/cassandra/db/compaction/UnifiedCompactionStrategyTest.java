@@ -561,6 +561,7 @@ public class UnifiedCompactionStrategyTest
         when(controller.maxThroughput()).thenReturn(Double.MAX_VALUE);
         when(controller.maxSSTablesToCompact()).thenReturn(1000);
         when(controller.getIgnoreOverlapsInExpirationCheck()).thenReturn(false);
+        when(controller.getExpiredSSTableCheckFrequency()).thenReturn(Long.MIN_VALUE); // check expiration on every pick
         when(controller.random()).thenCallRealMethod();
         UnifiedCompactionStrategy strategy = new UnifiedCompactionStrategy(cfs, new HashMap<>(), controller);
         strategy.startup();
@@ -603,6 +604,7 @@ public class UnifiedCompactionStrategyTest
         when(controller.maxConcurrentCompactions()).thenReturn(1000); // let it generate as many candidates as it can
         when(controller.maxThroughput()).thenReturn(Double.MAX_VALUE);
         when(controller.getIgnoreOverlapsInExpirationCheck()).thenReturn(false);
+        when(controller.getExpiredSSTableCheckFrequency()).thenReturn(Long.MIN_VALUE); // check expiration on every pick
         when(controller.maxSSTablesToCompact()).thenReturn(1000);
 
         when(controller.random()).thenCallRealMethod();
