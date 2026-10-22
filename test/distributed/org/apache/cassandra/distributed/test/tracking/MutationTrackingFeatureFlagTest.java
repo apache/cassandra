@@ -35,6 +35,7 @@ import org.apache.cassandra.db.virtual.MutationTrackingTables;
 import org.apache.cassandra.db.virtual.SystemViewsKeyspace;
 import org.apache.cassandra.db.virtual.VirtualTable;
 import org.apache.cassandra.distributed.Cluster;
+import org.apache.cassandra.distributed.api.ConsistencyLevel;
 import org.apache.cassandra.distributed.api.Feature;
 import org.apache.cassandra.distributed.api.IInvokableInstance;
 import org.apache.cassandra.distributed.api.IIsolatedExecutor;
@@ -49,7 +50,7 @@ import static org.apache.cassandra.distributed.api.Feature.NETWORK;
 import static org.apache.cassandra.replication.MutationTrackingService.DISABLED_MESSAGE;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
-import static org.junit.Assert.assertNull;
+import static org.junit.Assert.assertNotNull;
 
 public class MutationTrackingFeatureFlagTest extends TestBaseImpl
 {
@@ -72,10 +73,10 @@ public class MutationTrackingFeatureFlagTest extends TestBaseImpl
                       .has(AssertionUtils.isThrowableInstanceof(InvalidRequestException.class))
                       .hasMessage(DISABLED_MESSAGE);
 
-            // Mutation tracking system keyspace tables should not be present:
-            assertNull(cluster.get(1).callOnInstance(() -> Schema.instance.getTableMetadata(SchemaConstants.SYSTEM_KEYSPACE_NAME, SystemKeyspace.HOST_LOG_ID)));
-            assertNull(cluster.get(1).callOnInstance(() -> Schema.instance.getTableMetadata(SchemaConstants.SYSTEM_KEYSPACE_NAME, SystemKeyspace.SHARDS)));
-            assertNull(cluster.get(1).callOnInstance(() -> Schema.instance.getTableMetadata(SchemaConstants.SYSTEM_KEYSPACE_NAME, SystemKeyspace.COORDINATOR_LOGS)));
+            // Mutation tracking system keyspace tables always exist, so commit log replay works if the flag is toggled:
+            assertNotNull(cluster.get(1).callOnInstance(() -> Schema.instance.getTableMetadata(SchemaConstants.SYSTEM_KEYSPACE_NAME, SystemKeyspace.HOST_LOG_ID)));
+            assertNotNull(cluster.get(1).callOnInstance(() -> Schema.instance.getTableMetadata(SchemaConstants.SYSTEM_KEYSPACE_NAME, SystemKeyspace.SHARDS)));
+            assertNotNull(cluster.get(1).callOnInstance(() -> Schema.instance.getTableMetadata(SchemaConstants.SYSTEM_KEYSPACE_NAME, SystemKeyspace.COORDINATOR_LOGS)));
 
             // Make sure virtual tables don't exist:
             IIsolatedExecutor.SerializableCallable<Stream<VirtualTable>> hasMutationTrackingTables =
@@ -91,7 +92,7 @@ public class MutationTrackingFeatureFlagTest extends TestBaseImpl
     }
 
     @Test
-    public void shouldFailOnBounceWhenDisabledAfterEnabled() throws Exception
+    public void shouldStartOnBounceWhenDisabledAfterEnabled() throws Exception
     {
         try (Cluster cluster = builder().withNodes(1)
                                         .withConfig(c -> c.with(Feature.NETWORK).set("mutation_tracking.enabled", true))
@@ -101,15 +102,20 @@ public class MutationTrackingFeatureFlagTest extends TestBaseImpl
             cluster.schemaChange(withKeyspace("CREATE KEYSPACE %s WITH replication = {'class': 'SimpleStrategy', 'replication_factor': 1} AND replication_type='tracked'"));
             cluster.schemaChange(withKeyspace("CREATE TABLE %s.tbl (k int primary key, v int)"));
 
+            cluster.coordinator(1).execute(withKeyspace("INSERT INTO %s.tbl (k, v) VALUES (1, 1)"), ConsistencyLevel.ALL);
+            cluster.get(1).flush(KEYSPACE);
+
             IInvokableInstance bouncingNode = cluster.get(1);
             bouncingNode.shutdown().get();
             bouncingNode.config().set("mutation_tracking.enabled", false);
             Config badConfig = YamlConfigurationLoader.fromMap(bouncingNode.config().getParams(), true, Config.class);
             Config.setOverrideLoadConfig(() -> badConfig);
 
-            Assertions.assertThatThrownBy(() -> bouncingNode.startup(cluster))
-                      .has(AssertionUtils.isThrowableInstanceof(IllegalStateException.class))
-                      .hasMessage(DISABLED_MESSAGE);
+            bouncingNode.startup(cluster);
+
+            // Flushed data written while tracking was enabled stays on disk. Unflushed data lives in the journal, which is not replayed while disabled.
+            Object[][] rows = bouncingNode.executeInternal(withKeyspace("SELECT k, v FROM %s.tbl WHERE k = 1"));
+            assertEquals(1, rows.length);
         }
     }
 }

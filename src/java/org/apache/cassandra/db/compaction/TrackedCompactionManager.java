@@ -424,7 +424,7 @@ public class TrackedCompactionManager extends AbstractStrategyHolder
     @VisibleForTesting
     boolean isPromotable(SSTableReader sstable)
     {
-        if (!MutationTrackingService.instance().isStarted())
+        if (!MutationTrackingService.isEnabled() || !MutationTrackingService.instance().isStarted())
             return false;
 
         if (sstable.isRepaired() || sstable.isPendingRepair())
