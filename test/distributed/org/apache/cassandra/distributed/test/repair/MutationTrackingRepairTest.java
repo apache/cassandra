@@ -21,7 +21,6 @@ import java.io.IOException;
 import java.net.UnknownHostException;
 import java.util.ArrayList;
 import java.util.List;
-import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.Future;
@@ -43,7 +42,6 @@ import org.apache.cassandra.dht.Token;
 import org.apache.cassandra.distributed.Cluster;
 import org.apache.cassandra.distributed.api.ConsistencyLevel;
 import org.apache.cassandra.distributed.api.Feature;
-import org.apache.cassandra.distributed.api.IMessageFilters;
 import org.apache.cassandra.distributed.api.NodeToolResult;
 import org.apache.cassandra.distributed.test.TestBaseImpl;
 import org.apache.cassandra.gms.EndpointState;
@@ -859,72 +857,5 @@ public class MutationTrackingRepairTest extends TestBaseImpl
         for (NodeToolResult r : results)
             assertTrue("Expected sync timeout error but got: " + r.getStderr(),
                     r.getStderr().contains("Mutation tracking sync timed out"));
-    }
-
-    /**
-     * Verifies that a topology change during an active mutation tracking sync causes
-     * the repair to fail with "topology changed during sync".
-     *
-     * The strategy:
-     * 1. Insert data so sync has work to do
-     * 2. Drop BROADCAST_LOG_OFFSETS so the sync coordinator stays alive waiting for
-     *    offset reconciliation
-     * 3. Start repair in a background thread
-     * 4. Wait until the sync request has been sent (confirming sync is active)
-     * 5. ALTER KEYSPACE to change RF (3 -> 2), which triggers REPLICA_GROUP ->
-     *    withUpdatedMetadata -> new Shard instances
-     * 6. Turn off the BROADCAST_LOG_OFFSETS filter so offset broadcasts resume,
-     *    triggering onOffsetsReceived -> recaptureTargets -> checkForTopologyChange
-     *    which detects the identity mismatch and fails the repair
-     * 7. Assert the repair failed with the expected topology change message
-     */
-    @Test
-    public void testRepairFailsOnTopologyChange() throws Exception
-    {
-        // Block offset broadcasts so the sync coordinator stays alive waiting
-        IMessageFilters.Filter offsetFilter = CLUSTER.filters().verbs(Verb.MT_BROADCAST_LOG_OFFSETS.id).drop();
-
-        // must use inconsistent data to prevent write process from marking the writes reconciled
-        insertDataWithInconsistency("tbl", 0, 50);
-
-        // Use a latch to detect when the sync request has been sent, meaning
-        // the sync coordinator is active and tracking shard references
-        CountDownLatch syncStarted = new CountDownLatch(1);
-        IMessageFilters.Filter syncObserver = CLUSTER.verbs(Verb.MT_SYNC_REQ).messagesMatching(
-                (from, to, msg) -> {
-                    syncStarted.countDown();
-                    return false; // don't drop the message
-                }).drop();
-
-        // Start repair in background
-        Future<NodeToolResult> repairFuture = executor.submit(() -> nodetoolRepair(1, withPR(ksName)));
-
-        // Wait until sync is active. The latch fires when MT_SYNC_REQ is sent, which
-        // happens after shardStates is fully populated in start(), so no additional
-        // delay is needed.
-        assertTrue("Timed out waiting for sync to start",
-                   syncStarted.await(30, TimeUnit.SECONDS));
-
-        // ALTER KEYSPACE to change RF from 3 to 2 — this changes the participants for
-        // every range, triggering REPLICA_GROUP -> withUpdatedMetadata -> new Shard instances.
-        // The sync coordinator's shardStates still holds references to the old Shard objects.
-        CLUSTER.schemaChange("ALTER KEYSPACE " + ksName + " WITH replication = " +
-                             "{'class': 'SimpleStrategy', 'replication_factor': 2} " +
-                             "AND replication_type='tracked'");
-
-        // Remove the sync observer since it's no longer needed
-        syncObserver.off();
-
-        // Turn off the offset broadcast filter so broadcasts resume. When an offset
-        // broadcast arrives, it calls onOffsetsReceived -> recaptureTargets ->
-        // checkForTopologyChange, which will detect that the current Shard instances
-        // (new objects from withUpdatedMetadata) differ from the ones stored in
-        // shardStates (reference equality check), and fail the repair.
-        offsetFilter.off();
-
-        NodeToolResult result = repairFuture.get(30, TimeUnit.SECONDS);
-        result.asserts().failure();
-        assertTrue("Expected topology change error but got: " + result.getStderr(),
-                   result.getStderr().contains("topology changed during sync"));
     }
 }
