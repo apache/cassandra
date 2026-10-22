@@ -469,6 +469,42 @@ public class AutoRepairConfigTest extends CQLTester
     }
 
     @Test
+    public void testGetRepairMaxRetriesInheritsGlobalSettings()
+    {
+        config.global_settings.repair_max_retries = 5;
+
+        assertEquals(5, config.getRepairMaxRetries(repairType));
+    }
+
+    @Test
+    public void testSetRepairMaxRetriesOverridesGlobalSettings()
+    {
+        config.global_settings.repair_max_retries = 5;
+        config.setRepairMaxRetries(repairType, 7);
+
+        assertEquals(7, config.getOptions(repairType).repair_max_retries.intValue());
+        assertEquals(7, config.getRepairMaxRetries(repairType));
+    }
+    
+    @Test
+    public void testGetRepairRetryBackoffInheritsGlobalSettings()
+    {
+        config.global_settings.repair_retry_backoff = new DurationSpec.LongSecondsBound("5s");
+
+        assertEquals(5L, config.getRepairRetryBackoff(repairType).toSeconds());
+    }
+
+    @Test
+    public void testSetRepairRetryBackoffOverridesGlobalSettings()
+    {
+        config.global_settings.repair_retry_backoff = new DurationSpec.LongSecondsBound("5s");
+        config.setRepairRetryBackoff(repairType, "1m");
+
+        assertEquals(60L, config.getOptions(repairType).repair_retry_backoff.toSeconds());
+        assertEquals(60L, config.getRepairRetryBackoff(repairType).toSeconds());
+    }
+
+    @Test
     public void testDefaultOptions()
     {
         Map<AutoRepairConfig.RepairType, Options> defaultOptions = Options.getDefaultOptionsMap();
@@ -488,6 +524,8 @@ public class AutoRepairConfigTest extends CQLTester
         assertEquals(new DurationSpec.IntSecondsBound("5m"), options.initial_scheduler_delay);
         assertEquals(new DurationSpec.IntSecondsBound("3h"), options.repair_session_timeout);
         assertEquals(new DurationSpec.IntSecondsBound("24h"), options.min_repair_interval);
+        assertEquals(Integer.valueOf(3), options.repair_max_retries);
+        assertEquals(new DurationSpec.LongSecondsBound("30s"), options.repair_retry_backoff);
     }
 
     @Test
@@ -509,6 +547,8 @@ public class AutoRepairConfigTest extends CQLTester
         assertEquals(new DurationSpec.IntSecondsBound("5m"), config.global_settings.initial_scheduler_delay);
         assertEquals(new DurationSpec.IntSecondsBound("3h"), config.global_settings.repair_session_timeout);
         assertEquals(new DurationSpec.IntSecondsBound("24h"), config.global_settings.min_repair_interval);
+        assertEquals(Integer.valueOf(3), config.global_settings.repair_max_retries);
+        assertEquals(new DurationSpec.LongSecondsBound("30s"), config.global_settings.repair_retry_backoff);
     }
 
     @Test
