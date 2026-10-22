@@ -428,6 +428,21 @@ public final class SchemaKeyspace
     }
 
     /**
+     * Starts a flush of every {@code system_schema} table without waiting for it to complete. The coalesced flush
+     * task runs on {@link ScheduledExecutors#nonPeriodicTasks}, a single thread shared with sstable deletions, the
+     * {@code LifecycleTransaction.waitForDeletions()} barrier that dropping a table waits on, and TCM commit retries,
+     * so it must not block there on flush completion.
+     */
+    private static void flushAsync()
+    {
+        ALL.forEach(table -> getSchemaCFS(table).forceFlush(ColumnFamilyStore.FlushReason.INTERNALLY_FORCED)
+                                                .addCallback((position, failure) -> {
+                                                    if (failure != null)
+                                                        logger.warn("Failed to flush system_schema.{}", table, failure);
+                                                }));
+    }
+
+    /**
      * Tracks whether a coalesced flush is currently scheduled, so that concurrent/rapid schema changes do not
      * each schedule their own task on {@link ScheduledExecutors#nonPeriodicTasks}.
      */
@@ -503,7 +518,7 @@ public final class SchemaKeyspace
                     {
                         // Check shutdown state again in case shutdown happened while the task was queued
                         if (!coalescingShutdown.get() && !DatabaseDescriptor.isUnsafeSystem())
-                            flushBlocking();
+                            flushAsync();
                     }
                     catch (Throwable t)
                     {
