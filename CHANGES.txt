@@ -79,6 +79,8 @@ Merged from 5.0:
  * Allow setCompressedReadAheadBufferSizeInKb(0) to disable read-ahead buffer (CASSANDRA-21522)
  * Fix ThreadLocalReadAheadBuffer#fill() to throw a CorruptBlockException if chunk metadata and file size are out of sync (CASSANDRA-21519)
  * Fix memtable on-heap accounting drift in BTree.update and BTreeRow.merge (CASSANDRA-21472)
+Merged from 4.1:
+ * PreV5Handlers.toFlushItem may leak memory on disconnected channel (CASSANDRA-21766)
 Merged from 4.0:
  * Fix incorrect fsync usage (CASSANDRA-21673)
  * Validate Digest.crc32 when zero-copy streaming SSTables (CASSANDRA-21694)
