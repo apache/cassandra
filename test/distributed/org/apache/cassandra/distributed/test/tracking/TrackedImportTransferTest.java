@@ -208,7 +208,8 @@ public class TrackedImportTransferTest extends TrackedTransferTestBase
 
             // Run after compaction, to enforce offset persistence + broadcast
             assertSummary(Collections.singleton(instance), keyspace, summary -> {
-                assertThat(summary).isNull();
+                // No shard covers the key on this node, so the summary has no entries
+                assertThat(summary == null || summary.size() == 0).isTrue();
             });
         }
     }
