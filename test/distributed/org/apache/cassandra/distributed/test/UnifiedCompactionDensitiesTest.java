@@ -42,6 +42,8 @@ import org.apache.cassandra.db.compaction.ShardManager;
 import org.apache.cassandra.db.compaction.UnifiedCompactionStrategy;
 import org.apache.cassandra.db.marshal.LongType;
 import org.apache.cassandra.dht.Murmur3Partitioner;
+import org.apache.cassandra.dht.Range;
+import org.apache.cassandra.dht.Token;
 import org.apache.cassandra.distributed.Cluster;
 import org.apache.cassandra.distributed.api.ConsistencyLevel;
 import org.apache.cassandra.io.sstable.format.SSTableReader;
@@ -207,6 +209,89 @@ public class UnifiedCompactionDensitiesTest extends TestBaseImpl
         {
             throw new RuntimeException(e);
         }
+    }
+
+    /**
+     * On a live node that owns part of the ring, a shard holding more than max_sstables_per_shard_factor times the
+     * fanout sstables is compacted when no overlap bucket forms, with the factor set through CQL. With the factor at
+     * 0 the same sstables are left alone.
+     */
+    @Test
+    public void testOversizeShardCompactedWithPartialOwnership() throws IOException
+    {
+        // One data directory, as each directory has its own strategy and would get only some of the sstables.
+        try (Cluster cluster = init(builder().withNodes(2).withDataDirCount(1).start()))
+        {
+            cluster.schemaChange(withKeyspace("alter keyspace %s with replication = {'class': 'SimpleStrategy', 'replication_factor':1}"));
+            double[] owned = cluster.get(1).callOnInstance(UnifiedCompactionDensitiesTest::largestOwnedRange);
+
+            assertEquals(6, liveSSTablesAfterCompaction(cluster, owned, "tbl_off", 0));
+            assertThat(liveSSTablesAfterCompaction(cluster, owned, "tbl_on", 1), Matchers.lessThanOrEqualTo(4));
+        }
+    }
+
+    // Creates the table, then writes six batches of keys, each inside its own sixth of node1's owned range and flushed
+    // on its own, which gives node1 six disjoint sstables of similar density in one shard. With T4 they never form an
+    // overlap bucket, and with a factor of 1 the shard limit is 4, so only the shard check can compact them. Returns
+    // the live sstable count after background compaction has run.
+    private static int liveSSTablesAfterCompaction(Cluster cluster, double[] owned, String table, int factor)
+    {
+        cluster.schemaChange(withKeyspace("create table %s." + table + " (id bigint primary key, value text) with compaction = " +
+                                          "{'class':'UnifiedCompactionStrategy', 'scaling_parameters':'T4', " +
+                                          "'max_sstables_per_shard_factor':'" + factor + "'}"));
+        cluster.get(1).nodetool("disableautocompaction", KEYSPACE, table);
+        for (List<Long> ids : idsInSlices(owned, 6, 200))
+        {
+            for (long id : ids)
+                cluster.coordinator(1).execute(withKeyspace("insert into %s." + table + " (id, value) values (?, ?)"),
+                                               ConsistencyLevel.ONE, id, makeRandomString(100));
+            cluster.get(1).flush(KEYSPACE);
+        }
+        assertEquals(6, (int) cluster.get(1).callOnInstance(() -> Keyspace.open(KEYSPACE).getColumnFamilyStore(table).getLiveSSTables().size()));
+
+        return cluster.get(1).callOnInstance(() -> {
+            ColumnFamilyStore cfs = Keyspace.open(KEYSPACE).getColumnFamilyStore(table);
+            // Let background compaction run several rounds.
+            for (int i = 0; i < 5; i++)
+                cfs.enableAutoCompaction(true);
+            return cfs.getLiveSSTables().size();
+        });
+    }
+
+    // The largest unwrapped piece of the ranges this node owns, as token values. The end of the ring is reported as
+    // the maximum token so that the pair can be used for arithmetic.
+    private static double[] largestOwnedRange()
+    {
+        Range<Token> largest = null;
+        for (Range<Token> range : StorageService.instance.getLocalReplicas(KEYSPACE).ranges())
+            for (Range<Token> unwrapped : range.unwrap())
+                if (largest == null || largest.left.size(largest.right) < unwrapped.left.size(unwrapped.right))
+                    largest = unwrapped;
+        long left = (Long) largest.left.getTokenValue();
+        long right = largest.right.isMinimum() ? Long.MAX_VALUE : (Long) largest.right.getTokenValue();
+        return new double[]{ left, right };
+    }
+
+    // Ids whose tokens fall in each of the given number of equal slices of the range, perSlice ids per slice.
+    private static List<List<Long>> idsInSlices(double[] range, int slices, int perSlice)
+    {
+        List<List<Long>> result = new ArrayList<>();
+        for (int i = 0; i < slices; i++)
+            result.add(new ArrayList<>());
+        int filled = 0;
+        for (long id = 0; filled < slices; id++)
+        {
+            double token = (Long) Murmur3Partitioner.instance.getToken(LongType.instance.decompose(id)).getTokenValue();
+            if (token <= range[0] || token > range[1])
+                continue;
+            List<Long> slice = result.get(Math.min(slices - 1, (int) ((token - range[0]) / (range[1] - range[0]) * slices)));
+            if (slice.size() == perSlice)
+                continue;
+            slice.add(id);
+            if (slice.size() == perSlice)
+                filled++;
+        }
+        return result;
     }
 
     @Test

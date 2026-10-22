@@ -1076,6 +1076,28 @@ public class UnifiedCompactionStrategyTest
         assertEquals(ImmutableSet.copyOf(sstables.subList(0, 3)), ImmutableSet.copyOf(pick));
     }
 
+    // A level with a higher overlap that is still below its own threshold has no pick and must not discard the pick
+    // of a lower level (CASSANDRA-21615). This needs per level scaling parameters: level 0 has F=T=4 and four
+    // overlapping sstables, level 1 has F=T=10 and six.
+    @Test
+    public void testLevelWithoutPickDoesNotDiscardLowerLevelPick()
+    {
+        Controller controller = mockOversizeShardController(2, 1, 0); // shard check off
+        when(controller.getScalingParameter(1)).thenReturn(8);
+        UnifiedCompactionStrategy strategy = new UnifiedCompactionStrategy(cfs, new HashMap<>(), controller);
+        List<SSTableReader> lower = createSStables(partitioner, mapFromPair(Pair.create(99 * ONE_MB, 4)));
+        List<SSTableReader> higher = createSStables(partitioner, mapFromPair(Pair.create(700 * ONE_MB, 6)));
+        strategy.addSSTables(lower);
+        strategy.addSSTables(higher);
+        dataTracker.addInitialSSTables(lower);
+        dataTracker.addInitialSSTables(higher);
+
+        UnifiedCompactionStrategy.CompactionPick pick = strategy.getNextCompactionPick(0);
+        assertNotNull(pick);
+        assertEquals(0, pick.level);
+        assertEquals(ImmutableSet.copyOf(lower), ImmutableSet.copyOf(pick));
+    }
+
     // Expired sstables leave the candidate set before levels form, so they do not count toward the per-shard limit,
     // and they are added to the oversize shard pick like to any other pick.
     @Test
