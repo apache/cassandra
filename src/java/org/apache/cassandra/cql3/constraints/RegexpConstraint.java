@@ -28,7 +28,6 @@ import org.apache.cassandra.cql3.functions.types.ParseUtils;
 import org.apache.cassandra.db.marshal.AbstractType;
 import org.apache.cassandra.db.marshal.AsciiType;
 import org.apache.cassandra.db.marshal.UTF8Type;
-import org.apache.cassandra.schema.ColumnMetadata;
 
 import static java.lang.String.format;
 import static org.apache.cassandra.cql3.Operator.EQ;
@@ -81,18 +80,17 @@ public class RegexpConstraint extends ConstraintFunction
     }
 
     @Override
-    public void validate(ColumnMetadata columnMetadata, String regexp) throws InvalidConstraintDefinitionException
+    public void prepare(String term) throws InvalidConstraintDefinitionException
     {
-        super.validate(columnMetadata, regexp);
         try
         {
-            // compilation of a regexp every single time upon evaluation is not performance friendly
-            // so we "cache" the compiled regexp for further reuse upon actual validation
-            pattern = Pattern.compile(ParseUtils.unquote(regexp));
+            // parsint the int every single time upon evaluation is not performance friendly
+            // so we "cache" the compiled int for further reuse upon actual validation
+            pattern = Pattern.compile(ParseUtils.unquote(term));
         }
         catch (Exception e)
         {
-            throw new InvalidConstraintDefinitionException(format("String '%s' is not a valid regular expression", ParseUtils.unquote(regexp)));
+            throw new InvalidConstraintDefinitionException(format("String '%s' is not a valid regular expression", ParseUtils.unquote(term)));
         }
     }
 
