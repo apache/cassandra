@@ -150,6 +150,7 @@ import static org.apache.cassandra.tools.nodetool.Help.printTopCommandUsage;
                          Move.class,
                          NetStats.class,
                          PauseHandoff.class,
+                         PlacementAdmin.class,
                          ProfileLoad.class,
                          ProxyHistograms.class,
                          RangeKeySample.class,

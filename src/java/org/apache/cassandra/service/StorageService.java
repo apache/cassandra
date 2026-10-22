@@ -281,6 +281,7 @@ import static org.apache.cassandra.tcm.membership.NodeState.REGISTERED;
 import static org.apache.cassandra.utils.Clock.Global.currentTimeMillis;
 import static org.apache.cassandra.utils.FBUtilities.getBroadcastAddressAndPort;
 import static org.apache.cassandra.utils.PojoToString.pojoMapToString;
+import static org.apache.cassandra.utils.PojoToString.validateFormat;
 
 /**
  * This abstraction contains the token/identifier of this node
@@ -1760,6 +1761,21 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
         ConsensusMigrationState snapshot = cm.consensusMigrationState;
         Map<String, Object> snapshotAsMap = snapshot.toMap(keyspaceNames, tableNames);
         return pojoMapToString(snapshotAsMap, format);
+    }
+
+    @Override
+    public String getReplicaPeers(@Nullable String node,
+                                  @Nullable Set<String> datacenters,
+                                  @Nullable Set<String> keyspaces,
+                                  @Nullable Set<String> excludedKeyspaces,
+                                  boolean catchUpWithCMS,
+                                  @Nonnull String format)
+    {
+        validateFormat(format);
+        return pojoMapToString(ClusterMetadataService.instance()
+                                                     .replicaPeers(node, datacenters, keyspaces,
+                                                                   excludedKeyspaces, catchUpWithCMS),
+                               format);
     }
 
     public Map<String,List<Integer>> getConcurrency(List<String> stageNames)

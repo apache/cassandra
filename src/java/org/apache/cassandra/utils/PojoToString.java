@@ -103,6 +103,14 @@ public class PojoToString
     );
 
     /**
+     * @throws IllegalArgumentException if the format is not supported by {@link #pojoMapToString}
+     */
+    public static void validateFormat(String formatString)
+    {
+        Format.fromString(formatString);
+    }
+
+    /**
      * Helper to convert POJOs from a restricted set (primitive Java types and collections) to a human/machine readable
      * format that is specified by the format parameter.
      *
