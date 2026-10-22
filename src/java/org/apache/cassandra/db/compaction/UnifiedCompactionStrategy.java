@@ -711,7 +711,7 @@ public class UnifiedCompactionStrategy extends AbstractCompactionStrategy
                 return null;
 
             List<Set<SSTableReader>> groups = context.shardManager.splitSSTablesInShards(sstables,
-                                                                                         controller.getNumShards(max),
+                                                                                         controller.getNumShards(max * context.shardManager.shardSetCoverage()),
                                                                                          (sstableShard, shardRange) -> Sets.newHashSet(sstableShard));
             Set<SSTableReader> sstablesInOversizeGroup = new HashSet<>();
             for (Set<SSTableReader> shard : groups)

@@ -44,6 +44,7 @@ import org.apache.cassandra.db.ColumnFamilyStore;
 import org.apache.cassandra.db.DecoratedKey;
 import org.apache.cassandra.db.Directories;
 import org.apache.cassandra.db.DiskBoundaries;
+import org.apache.cassandra.db.PartitionPosition;
 import org.apache.cassandra.db.compaction.unified.Controller;
 import org.apache.cassandra.db.compaction.unified.UnifiedCompactionTask;
 import org.apache.cassandra.db.lifecycle.SSTableSet;
@@ -51,6 +52,7 @@ import org.apache.cassandra.db.lifecycle.Tracker;
 import org.apache.cassandra.db.marshal.AsciiType;
 import org.apache.cassandra.dht.IPartitioner;
 import org.apache.cassandra.dht.Murmur3Partitioner;
+import org.apache.cassandra.dht.Range;
 import org.apache.cassandra.dht.Splitter;
 import org.apache.cassandra.dht.Token;
 import org.apache.cassandra.io.sstable.format.SSTableReader;
@@ -936,6 +938,142 @@ public class UnifiedCompactionStrategyTest
         assertEquals("factor " + maxSstablesPerShardFactor + " with " + numSSTables + " sstables", expectPick, pick != null);
         if (expectPick)
             assertEquals(numSSTables, pick.size());
+    }
+
+    // getOversizeShardPick scales the level density by the shard set coverage before asking the controller for a
+    // shard count, as compaction tasks do. The node owns 1/8 of the ring and level 0 has a maximum density of 8.8 GiB.
+    // Scaled, that is 1.1 GiB, one shard at a 1 GiB target holding all eight sstables. Unscaled, it would be eight
+    // shards with one sstable each and no pick.
+    @Test
+    public void testOversizeShardPickScalesDensityToShardSetCoverage()
+    {
+        Token ownedEnd = partitioner.split(partitioner.getMinimumToken(), partitioner.getMaximumToken(), 1.0 / 8);
+        ColumnFamilyStore.VersionedLocalRanges ownedRanges = new ColumnFamilyStore.VersionedLocalRanges(ColumnFamilyStore.RING_VERSION_IRRELEVANT, 1);
+        ownedRanges.add(new Splitter.WeightedRange(1.0, new Range<>(partitioner.getMinimumToken(), ownedEnd)));
+        when(cfs.localRangesWeighted()).thenReturn(ownedRanges);
+
+        Map<String, String> options = new HashMap<>();
+        options.put("scaling_parameters", "T2"); // F=T=2, with a factor of 1 a shard may hold 2 sstables
+        options.put("max_sstables_per_shard_factor", "1");
+        options.put("flush_size_override", "1GiB"); // level 0 maximum density 1 GiB * 0.55 * 8 * 2 = 8.8 GiB
+        options.put("target_sstable_size", "1GiB");
+        options.put("base_shard_count", "1");
+        options.put("sstable_growth", "0");
+        options.put("min_sstable_size", "0B");
+        Controller controller = Controller.fromOptions(cfs, options);
+        UnifiedCompactionStrategy strategy = new UnifiedCompactionStrategy(cfs, new HashMap<>(), controller);
+
+        // Eight disjoint sstables, each inside its own eighth of the owned range, with a density of 4 GiB.
+        ByteBuffer emptyBuffer = ByteBuffer.allocate(0);
+        long timestamp = System.currentTimeMillis();
+        List<SSTableReader> sstables = new ArrayList<>();
+        for (int i = 0; i < 8; i++)
+        {
+            DecoratedKey first = new BufferDecoratedKey(boundary(64, i).nextValidToken(), emptyBuffer);
+            DecoratedKey last = new BufferDecoratedKey(boundary(128, 2 * i + 1), emptyBuffer);
+            sstables.add(mockSSTable(0, 32 * ONE_MB, timestamp + i, 0.0, first, last));
+        }
+        strategy.addSSTables(sstables);
+        dataTracker.addInitialSSTables(sstables);
+
+        UnifiedCompactionStrategy.CompactionPick pick = strategy.getNextCompactionPick(0);
+        assertEquals(1.0 / 8, strategy.getShardManager().shardSetCoverage(), 0.001); // shard manager is built by the pick
+        assertNotNull(pick);
+        assertEquals(0, pick.level);
+        assertEquals(ImmutableSet.copyOf(sstables), ImmutableSet.copyOf(pick));
+    }
+
+    // With two disks each disk is a shard set, so the level density is scaled to one disk's share of the ring. The
+    // node owns 1/4 of the ring, each disk 1/8, and level 0 has a maximum density of 4.4 GiB. Scaled to a disk, that
+    // is 0.55 GiB, one shard per disk at a 512 MiB target. Scaled to the node's share it would give two shards per
+    // disk, and unscaled eight. In both cases no shard holds more than two sstables.
+    @Test
+    public void testOversizeShardPickScalesDensityToShardSetCoverageWithDisks()
+    {
+        Token diskEnd = partitioner.split(partitioner.getMinimumToken(), partitioner.getMaximumToken(), 1.0 / 8);
+        Token ownedEnd = partitioner.split(partitioner.getMinimumToken(), partitioner.getMaximumToken(), 1.0 / 4);
+        ColumnFamilyStore.VersionedLocalRanges ownedRanges = new ColumnFamilyStore.VersionedLocalRanges(ColumnFamilyStore.RING_VERSION_IRRELEVANT, 1);
+        ownedRanges.add(new Splitter.WeightedRange(1.0, new Range<>(partitioner.getMinimumToken(), ownedEnd)));
+        when(cfs.localRangesWeighted()).thenReturn(ownedRanges);
+        List<PartitionPosition> diskPositions = new ArrayList<>();
+        diskPositions.add(diskEnd.maxKeyBound());
+        diskPositions.add(ownedEnd.maxKeyBound());
+        when(cfs.getDiskBoundaries()).thenReturn(new DiskBoundaries(cfs, null, diskPositions, ColumnFamilyStore.RING_VERSION_IRRELEVANT, 0));
+
+        Map<String, String> options = new HashMap<>();
+        options.put("scaling_parameters", "T2"); // F=T=2, with a factor of 1 a shard may hold 2 sstables
+        options.put("max_sstables_per_shard_factor", "1");
+        options.put("flush_size_override", "1GiB"); // level 0 maximum density 1 GiB * 0.55 * 4 * 2 = 4.4 GiB
+        options.put("target_sstable_size", "512MiB");
+        options.put("base_shard_count", "1");
+        options.put("sstable_growth", "0");
+        options.put("min_sstable_size", "0B");
+        Controller controller = Controller.fromOptions(cfs, options);
+        UnifiedCompactionStrategy strategy = new UnifiedCompactionStrategy(cfs, new HashMap<>(), controller);
+
+        // Positions in 256ths of the ring: the first disk ends at 32 and the second at 64. Three disjoint sstables on
+        // the first disk, two in its first half and one in its second, and two on the second disk. Each spans 1/128 of
+        // the ring with a density of 2 GiB.
+        int[] starts = { 1, 5, 17, 33, 41 };
+        ByteBuffer emptyBuffer = ByteBuffer.allocate(0);
+        long timestamp = System.currentTimeMillis();
+        List<SSTableReader> sstables = new ArrayList<>();
+        for (int i = 0; i < starts.length; i++)
+        {
+            DecoratedKey first = new BufferDecoratedKey(boundary(256, starts[i]).nextValidToken(), emptyBuffer);
+            DecoratedKey last = new BufferDecoratedKey(boundary(256, starts[i] + 2), emptyBuffer);
+            sstables.add(mockSSTable(0, 16 * ONE_MB, timestamp + i, 0.0, first, last));
+        }
+        strategy.addSSTables(sstables);
+        dataTracker.addInitialSSTables(sstables);
+
+        UnifiedCompactionStrategy.CompactionPick pick = strategy.getNextCompactionPick(0);
+        assertEquals(1.0 / 8, strategy.getShardManager().shardSetCoverage(), 0.001); // shard manager is built by the pick
+        assertNotNull(pick);
+        assertEquals(0, pick.level);
+        assertEquals(ImmutableSet.copyOf(sstables.subList(0, 3)), ImmutableSet.copyOf(pick));
+    }
+
+    // getOversizeShardPick scales the level density with the default sharding options (base shard count 4, minimum
+    // sstable size 100 MiB, growth 0.333). The node owns 1/8 of the ring and level 0 has a maximum density of
+    // 1760 MiB. Scaled, that is 220 MiB, which the minimum size turns into two shards. Unscaled, it takes the growth
+    // path and gives four shards, and no shard holds more than two sstables.
+    @Test
+    public void testOversizeShardPickScalesDensityToShardSetCoverageWithDefaultOptions()
+    {
+        Token ownedEnd = partitioner.split(partitioner.getMinimumToken(), partitioner.getMaximumToken(), 1.0 / 8);
+        ColumnFamilyStore.VersionedLocalRanges ownedRanges = new ColumnFamilyStore.VersionedLocalRanges(ColumnFamilyStore.RING_VERSION_IRRELEVANT, 1);
+        ownedRanges.add(new Splitter.WeightedRange(1.0, new Range<>(partitioner.getMinimumToken(), ownedEnd)));
+        when(cfs.localRangesWeighted()).thenReturn(ownedRanges);
+
+        Map<String, String> options = new HashMap<>();
+        options.put("scaling_parameters", "T2"); // F=T=2, with a factor of 1 a shard may hold 2 sstables
+        options.put("max_sstables_per_shard_factor", "1");
+        options.put("flush_size_override", "200MiB"); // level 0 maximum density 200 MiB * 0.55 * 8 * 2 = 1760 MiB
+        Controller controller = Controller.fromOptions(cfs, options);
+        UnifiedCompactionStrategy strategy = new UnifiedCompactionStrategy(cfs, new HashMap<>(), controller);
+
+        // Positions in 256ths of the ring: the owned range ends at 32, two shards split it at 16 and four at 8, 16
+        // and 24. Two sstables in the first quarter of the owned range and one in each of the other three, so the
+        // first half holds three. Each spans 1/256 of the ring with a density of 1 GiB.
+        int[] starts = { 1, 3, 9, 17, 25 };
+        ByteBuffer emptyBuffer = ByteBuffer.allocate(0);
+        long timestamp = System.currentTimeMillis();
+        List<SSTableReader> sstables = new ArrayList<>();
+        for (int i = 0; i < starts.length; i++)
+        {
+            DecoratedKey first = new BufferDecoratedKey(boundary(256, starts[i]).nextValidToken(), emptyBuffer);
+            DecoratedKey last = new BufferDecoratedKey(boundary(256, starts[i] + 1), emptyBuffer);
+            sstables.add(mockSSTable(0, 4 * ONE_MB, timestamp + i, 0.0, first, last));
+        }
+        strategy.addSSTables(sstables);
+        dataTracker.addInitialSSTables(sstables);
+
+        UnifiedCompactionStrategy.CompactionPick pick = strategy.getNextCompactionPick(0);
+        assertEquals(1.0 / 8, strategy.getShardManager().shardSetCoverage(), 0.001); // shard manager is built by the pick
+        assertNotNull(pick);
+        assertEquals(0, pick.level);
+        assertEquals(ImmutableSet.copyOf(sstables.subList(0, 3)), ImmutableSet.copyOf(pick));
     }
 
     // Expired sstables leave the candidate set before levels form, so they do not count toward the per-shard limit,
