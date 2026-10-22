@@ -18,6 +18,8 @@
  * Propagate trickle_fsync settings to compressed SSTable writers (CASSANDRA-21487)
  * Allow DatabaseDescriptor.setCompressedReadAheadBufferSizeInKb(0) to disable read-ahead buffer (CASSANDRA-21522)
  * Return CorruptSSTableException if chunk metadata and file size are out of sync (CASSANDRA-21519)
+Merged from 4.1:
+ * PreV5Handlers.toFlushItem may leak memory on disconnected channel (CASSANDRA-21766)
 Merged from 4.0:
  * Fix incorrect fsync usage (CASSANDRA-21673)
  * Validate Digest.crc32 when zero-copy streaming SSTables (CASSANDRA-21694)
