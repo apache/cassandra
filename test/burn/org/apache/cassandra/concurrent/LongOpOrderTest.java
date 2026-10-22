@@ -22,6 +22,7 @@ package org.apache.cassandra.concurrent;
 
 
 import java.util.Map;
+import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledExecutorService;
@@ -64,6 +65,8 @@ public class LongOpOrderTest
 
     final OpOrder order = new OpOrder();
     final AtomicInteger errors = new AtomicInteger();
+    // counted down by each checker when it completes its run; a barrier that never completes would block it
+    final CountDownLatch checkersDone = new CountDownLatch(CONSUMERS);
 
     class TestOrdering implements Runnable
     {
@@ -94,7 +97,10 @@ public class LongOpOrderTest
             {
                 long now = currentTimeMillis();
                 if (now > until)
+                {
+                    checkersDone.countDown();
                     break;
+                }
                 if (now > lastReport + REPORT_INTERVAL)
                 {
                     lastReport = now;
@@ -232,8 +238,8 @@ public class LongOpOrderTest
         for (int i = 0 ; i < CONSUMERS ; i++)
             new TestOrdering(exec, checker);
         exec.shutdown();
-        exec.awaitTermination((long) (RUNTIME * 1.1), TimeUnit.MILLISECONDS);
-        assertTrue(exec.isShutdown());
+        // The producers never stop, so the executor does not terminate; check that all checkers completed instead.
+        assertTrue("A barrier did not complete", checkersDone.await((long) (RUNTIME * 1.1), TimeUnit.MILLISECONDS));
         assertTrue(errors.get() == 0);
     }
 
