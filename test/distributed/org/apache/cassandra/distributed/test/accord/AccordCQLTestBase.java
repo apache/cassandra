@@ -3478,6 +3478,16 @@ public abstract class AccordCQLTestBase extends AccordTestBase
         });
     }
 
+    @Test
+    public void testTxnSetStaticListElementOnMissingRow() throws Exception
+    {
+        test("CREATE TABLE " + qualifiedAccordTableName + " (k int, c int, sl list<int> static, v int, PRIMARY KEY (k, c)) WITH " + transactionalMode.asCqlParam(), cluster -> {
+            cluster.coordinator(1).execute("INSERT INTO " + qualifiedAccordTableName + " (k, sl) VALUES (0, [1, 2])", ConsistencyLevel.ALL);
+            cluster.coordinator(1).execute(wrapInTxn("UPDATE " + qualifiedAccordTableName + " SET sl[0] = 5, v = 1 WHERE k = 0 AND c = 1"), ConsistencyLevel.ALL);
+            assertRowSerial(cluster, "SELECT c, sl, v FROM " + qualifiedAccordTableName + " WHERE k = 0", row(1, Arrays.asList(5, 2), 1));
+        });
+    }
+
     // Reproduces some bugs that simulator finds
     @Test
     public void testCASSimulatorLite() throws Exception

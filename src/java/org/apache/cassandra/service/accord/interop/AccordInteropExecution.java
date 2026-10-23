@@ -102,6 +102,7 @@ import static accord.utils.Invariants.illegalState;
 import static accord.utils.Invariants.requireArgument;
 import static org.apache.cassandra.metrics.ClientRequestsMetricsHolder.accordReadMetrics;
 import static org.apache.cassandra.metrics.ClientRequestsMetricsHolder.accordWriteMetrics;
+import static org.apache.cassandra.service.accord.txn.TxnData.TxnDataNameKind.AUTO_READ;
 import static org.apache.cassandra.service.accord.txn.TxnData.TxnDataNameKind.CAS_READ;
 import static org.apache.cassandra.service.accord.txn.TxnData.txnDataName;
 
@@ -291,7 +292,7 @@ public class AccordInteropExecution implements ReadCoordinator
                                          {
                                              TxnDataKeyValue value = new TxnDataKeyValue(partition);
                                              // We need to put the value of the static row
-                                             if (value.hasRows() || command.selectsFullPartition() || (!value.staticRow().isEmpty() && fragment.txnDataName() == txnDataName(CAS_READ)))
+                                             if (value.hasRows() || command.selectsFullPartition() || (!value.staticRow().isEmpty() && (fragment.txnDataName() == txnDataName(CAS_READ) || fragment.txnDataName() == txnDataName(AUTO_READ))))
                                                  result.put(fragment.txnDataName(), value);
                                          }
                                      }
