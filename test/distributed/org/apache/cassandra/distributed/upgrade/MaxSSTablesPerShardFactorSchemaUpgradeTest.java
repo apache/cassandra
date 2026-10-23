@@ -18,7 +18,9 @@
 
 package org.apache.cassandra.distributed.upgrade;
 
+import java.time.Duration;
 import java.util.UUID;
+import java.util.regex.Pattern;
 
 import com.vdurmont.semver4j.Semver;
 import com.vdurmont.semver4j.Semver.SemverType;
@@ -45,6 +47,9 @@ import static org.junit.Assert.assertNotNull;
  * ALTER TABLE ... WITH, but rejects ALTER TABLE ... ADD, because that path validates the whole table definition.
  * Setting the compaction options again without the option removes it, after which node 1 is rolled back to 5.0.7
  * and both nodes accept ALTER TABLE ... ADD.
+ * <p>
+ * Without the option on any table, the upgraded node compacts an oversize shard using the default factor. Node 1 then
+ * rolls back to 5.0.7 with no schema change and reads the sstables it wrote.
  */
 public class MaxSSTablesPerShardFactorSchemaUpgradeTest extends UpgradeTestBase
 {
@@ -146,6 +151,93 @@ public class MaxSSTablesPerShardFactorSchemaUpgradeTest extends UpgradeTestBase
             assertEquals("Data should be readable from node 1 after rollback", 2,
                          cluster.coordinator(1).execute("SELECT * FROM " + KEYSPACE + ".tbl", ConsistencyLevel.ALL).length);
             assertEquals("Data should be readable from node 2 after rollback", 2,
+                         cluster.coordinator(2).execute("SELECT * FROM " + KEYSPACE + ".tbl", ConsistencyLevel.ALL).length);
+        }
+    }
+
+    @Test
+    public void testDefaultFactorUpgradeAndRollback() throws Throwable
+    {
+        // Disable auto-repair feature to ensure no auto-repair schema changes are made
+        CassandraRelevantProperties.AUTOREPAIR_ENABLE.setBoolean(false);
+
+        Versions versions = find();
+        Version from = versions.get(v507);
+        Version to = AbstractCluster.CURRENT_VERSION;
+
+        assertNotNull("5.0.7 version not available, ensure dtest-5.0.7.jar is built", from);
+
+        // One data directory, as each directory has its own compaction strategy and would get only some of the sstables
+        try (UpgradeableCluster cluster = init(UpgradeableCluster.create(2, from,
+                config -> config.with(Feature.GOSSIP, Feature.NETWORK),
+                builder -> builder.withDataDirCount(1))))
+        {
+            // Both options are known to 5.0.7. With T2 and the default factor of 10 a shard may hold 20 sstables, and
+            // the flush size override keeps every tiny sstable on level 0, which counts as one shard
+            cluster.schemaChange("CREATE TABLE " + KEYSPACE + ".tbl (pk int PRIMARY KEY, v int) " +
+                                 "WITH compaction = {'class': 'UnifiedCompactionStrategy', 'scaling_parameters': 'T2', " +
+                                 "'flush_size_override': '16MiB'}");
+
+            // Verify initial schema agreement before upgrade
+            UUID schemaBefore1 = cluster.get(1).schemaVersion();
+            UUID schemaBefore2 = cluster.get(2).schemaVersion();
+            assertEquals("Schema versions should match before upgrade", schemaBefore1, schemaBefore2);
+
+            // Upgrade only node 1 to current version
+            cluster.get(1).shutdown().get();
+            cluster.get(1).setVersion(to);
+            cluster.get(1).startup();
+
+            // Wait for schema to settle
+            Thread.sleep(5000);
+
+            // Verify schema agreement after upgrade
+            UUID schemaAfter1 = cluster.get(1).schemaVersion();
+            UUID schemaAfter2 = cluster.get(2).schemaVersion();
+            assertNotNull("Node 1 schema version should not be null after upgrade", schemaAfter1);
+            assertNotNull("Node 2 schema version should not be null after upgrade", schemaAfter2);
+            assertEquals("Schema versions should match between upgraded and non-upgraded nodes", schemaAfter1, schemaAfter2);
+
+            // 21 single row flushes on node 1 give 21 disjoint sstables in one shard, one more than the default allows
+            cluster.get(1).nodetool("disableautocompaction", KEYSPACE, "tbl");
+            for (int pk = 0; pk < 21; pk++)
+            {
+                cluster.coordinator(1).execute("INSERT INTO " + KEYSPACE + ".tbl (pk, v) VALUES (?, ?)", ConsistencyLevel.ALL, pk, pk);
+                cluster.get(1).flush(KEYSPACE);
+            }
+
+            // The sstables never overlap, so with T2 only the oversize shard pick can compact all 21 of them together
+            long mark = cluster.get(1).logs().mark();
+            cluster.get(1).nodetool("enableautocompaction", KEYSPACE, "tbl");
+            cluster.get(1).logs().watchFor(mark, Duration.ofMinutes(2), Pattern.compile("Compacted \\(.*\\) 21 sstables to"));
+
+            // Rollback: downgrade node 1 back to 5.0.7
+            cluster.get(1).shutdown().get();
+            cluster.get(1).setVersion(from);
+            cluster.get(1).startup();
+
+            // Wait for schema to settle
+            Thread.sleep(5000);
+
+            // Verify schema agreement after rollback
+            UUID schemaRollback1 = cluster.get(1).schemaVersion();
+            UUID schemaRollback2 = cluster.get(2).schemaVersion();
+            assertNotNull("Node 1 schema version should not be null after rollback", schemaRollback1);
+            assertNotNull("Node 2 schema version should not be null after rollback", schemaRollback2);
+            assertEquals("Schema versions should match after rollback to 5.0.7", schemaRollback1, schemaRollback2);
+
+            // Without the option in the schema both 5.0.7 nodes accept ALTER TABLE ... ADD
+            cluster.schemaChange("ALTER TABLE " + KEYSPACE + ".tbl ADD x int", false, cluster.get(1));
+            cluster.schemaChange("ALTER TABLE " + KEYSPACE + ".tbl ADD y int", false, cluster.get(2));
+
+            // The sstables written by the upgraded node are read by 5.0.7, and node 1 keeps writing and flushing
+            assertEquals("Node 1 should still hold every row after rollback", 21,
+                         cluster.get(1).executeInternal("SELECT * FROM " + KEYSPACE + ".tbl").length);
+            cluster.coordinator(1).execute("INSERT INTO " + KEYSPACE + ".tbl (pk, v) VALUES (?, ?)", ConsistencyLevel.ALL, 21, 21);
+            cluster.get(1).flush(KEYSPACE);
+            assertEquals("Data should be readable from node 1 after rollback", 22,
+                         cluster.coordinator(1).execute("SELECT * FROM " + KEYSPACE + ".tbl", ConsistencyLevel.ALL).length);
+            assertEquals("Data should be readable from node 2 after rollback", 22,
                          cluster.coordinator(2).execute("SELECT * FROM " + KEYSPACE + ".tbl", ConsistencyLevel.ALL).length);
         }
     }
