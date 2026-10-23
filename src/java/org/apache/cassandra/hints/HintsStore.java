@@ -20,12 +20,10 @@ package org.apache.cassandra.hints;
 import java.io.IOException;
 import java.nio.channels.ClosedChannelException;
 import java.util.Deque;
-import java.util.HashSet;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 import java.util.Queue;
-import java.util.Set;
 import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentLinkedDeque;
@@ -253,23 +251,27 @@ final class HintsStore
 
     private void deleteHints(Predicate<HintsDescriptor> predicate)
     {
-        Set<HintsDescriptor> removeSet = new HashSet<>();
-        try
+        for (HintsDescriptor descriptor : Iterables.concat(dispatchDequeue, corruptedFiles))
         {
-            for (HintsDescriptor descriptor : Iterables.concat(dispatchDequeue, corruptedFiles))
+            if (!predicate.test(descriptor))
+                continue;
+
+            // A dispatch running concurrently claims a descriptor by polling it off the dequeue, and then reads the
+            // file it points at. Take the descriptor out of the queues before touching the file, so that a dispatch
+            // either wins the claim and reads a file that is still there, or never sees the descriptor at all.
+            boolean claimed = dispatchDequeue.remove(descriptor);
+            claimed |= corruptedFiles.remove(descriptor);
+            if (!claimed)
             {
-                if (predicate.test(descriptor))
-                {
-                    cleanUp(descriptor);
-                    removeSet.add(descriptor);
-                    delete(descriptor);
-                }
+                // The predicate above may have just cached an expiration for a descriptor that somebody else owns
+                // now, so drop it rather than let it outlive the descriptor. The dispatch offset is left alone,
+                // the new owner may be part way through the file.
+                hintsExpirations.remove(descriptor);
+                continue;
             }
-        }
-        finally // remove the already deleted hints from internal queues in case of exception
-        {
-            dispatchDequeue.removeAll(removeSet);
-            corruptedFiles.removeAll(removeSet);
+
+            cleanUp(descriptor);
+            delete(descriptor);
         }
     }
 
