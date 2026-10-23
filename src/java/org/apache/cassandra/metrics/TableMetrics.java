@@ -221,6 +221,7 @@ public class TableMetrics
     private final MetricNameFactory aliasFactory;
 
     public final Counter speculativeRetries;
+    public final Counter overloadSpeculativeRetries;
     public final Counter speculativeFailedRetries;
     public final Counter speculativeInsufficientReplicas;
     public final Gauge<Long> speculativeSampleLatencyNanos;
@@ -823,6 +824,7 @@ public class TableMetrics
             }
         });
         speculativeRetries = createTableCounter("SpeculativeRetries");
+        overloadSpeculativeRetries = createTableCounter("OverloadSpeculativeRetries");
         speculativeFailedRetries = createTableCounter("SpeculativeFailedRetries");
         speculativeInsufficientReplicas = createTableCounter("SpeculativeInsufficientReplicas");
         speculativeSampleLatencyNanos = createTableGauge("SpeculativeSampleLatencyNanos", () -> MICROSECONDS.toNanos(cfs.sampleReadLatencyMicros));
