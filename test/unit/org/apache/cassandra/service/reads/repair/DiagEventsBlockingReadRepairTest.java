@@ -184,7 +184,7 @@ public class DiagEventsBlockingReadRepairTest extends AbstractReadRepairTest
 
         DiagnosticPartitionReadRepairHandler(DecoratedKey key, Map<Replica, Mutation> repairs, ReplicaPlan.ForWrite forReadRepair)
         {
-            super(ReadCoordinator.DEFAULT, key, repairs, null, forReadRepair);
+            super(ReadCoordinator.DEFAULT, key, repairs, forReadRepair);
             DiagnosticEventService.instance().subscribe(PartitionRepairEvent.class, this::onRepairEvent);
         }
 

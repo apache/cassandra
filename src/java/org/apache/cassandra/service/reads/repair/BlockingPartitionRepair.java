@@ -71,17 +71,15 @@ public class BlockingPartitionRepair
     private final CountDownLatch latch;
     private final int blockFor;
     private volatile long mutationsSentTime;
-    private final EndpointsForToken uptodateEndpoints;
     private final Set<Replica> toBeRepaired;
 
     @VisibleForTesting
-    public BlockingPartitionRepair(ReadCoordinator coordinator, DecoratedKey key, Map<Replica, Mutation> repairs, EndpointsForToken uptodateEndpoints, ReplicaPlan.ForWrite repairPlan)
+    public BlockingPartitionRepair(ReadCoordinator coordinator, DecoratedKey key, Map<Replica, Mutation> repairs, ReplicaPlan.ForWrite repairPlan)
     {
         this.coordinator = coordinator;
         this.key = key;
         this.pendingRepairs = new ConcurrentHashMap<>(repairs);
         this.repairPlan = repairPlan;
-        this.uptodateEndpoints = uptodateEndpoints;
         this.toBeRepaired = new HashSet<>(repairs.keySet());
 
         // make sure all the read repair targets are contact of the repair write plan

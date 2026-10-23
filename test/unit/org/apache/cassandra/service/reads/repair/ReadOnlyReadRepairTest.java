@@ -97,6 +97,6 @@ public class ReadOnlyReadRepairTest extends AbstractReadRepairTest
         ReplicaPlan.SharedForRangeRead readPlan = ReplicaPlan.shared(replicaPlan(replicas, replicas));
         ReplicaPlan.ForWrite writePlan = repairPlan(replicas, replicas);
         InstrumentedReadRepair repair = createInstrumentedReadRepair(readPlan);
-        repair.repairPartition(null, Collections.emptyMap(), null, writePlan, ReadRepairSource.OTHER);
+        repair.repairPartition(null, Collections.emptyMap(), writePlan, ReadRepairSource.OTHER);
     }
 }

@@ -80,7 +80,7 @@ public class ReadRepairTest
     {
         public InstrumentedReadRepairHandler(Map<Replica, Mutation> repairs, ReplicaPlan.ForWrite writePlan)
         {
-            super(ReadCoordinator.DEFAULT, Util.dk("not a valid key"), repairs, null, writePlan);
+            super(ReadCoordinator.DEFAULT, Util.dk("not a valid key"), repairs, writePlan);
         }
 
         Map<InetAddressAndPort, Mutation> mutationsSent = new HashMap<>();

@@ -51,7 +51,6 @@ import org.apache.cassandra.db.rows.RowDiffListener;
 import org.apache.cassandra.db.rows.Rows;
 import org.apache.cassandra.db.rows.UnfilteredRowIterators;
 import org.apache.cassandra.locator.Endpoints;
-import org.apache.cassandra.locator.EndpointsForToken;
 import org.apache.cassandra.locator.InetAddressAndPort;
 import org.apache.cassandra.locator.Replica;
 import org.apache.cassandra.locator.ReplicaPlan;
@@ -409,11 +408,6 @@ public class RowIteratorMergeListener<E extends Endpoints<E>>
 
             mutations.put(replica, mutation);
         }
-        EndpointsForToken uptodateEndpoints = uptodateReplicas == null
-                                              ? null
-                                              : EndpointsForToken.builder(partitionKey.getToken(), uptodateReplicas.size())
-                                                                 .addAll(uptodateReplicas)
-                                                                 .build();
-        readRepair.repairPartition(partitionKey, mutations, uptodateEndpoints, repairPlan, ReadRepairSource.OTHER);
+        readRepair.repairPartition(partitionKey, mutations, repairPlan, ReadRepairSource.OTHER);
     }
 }
