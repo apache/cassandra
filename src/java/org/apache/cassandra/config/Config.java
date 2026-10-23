@@ -147,7 +147,7 @@ public class Config
     @Replaces(oldName = "native_transport_idle_timeout_in_ms", converter = Converters.MILLIS_DURATION_LONG, deprecated = true)
     public DurationSpec.LongMillisecondsBound native_transport_idle_timeout = new DurationSpec.LongMillisecondsBound("0ms");
 
-    public DurationSpec.LongMillisecondsBound native_transport_auth_timeout = new DurationSpec.LongMillisecondsBound("10000ms");
+    public DurationSpec.LongMillisecondsBound native_transport_auth_timeout = new DurationSpec.LongMillisecondsBound("12000ms");
 
     @Replaces(oldName = "request_timeout_in_ms", converter = Converters.MILLIS_DURATION_LONG, deprecated = true)
     public volatile DurationSpec.LongMillisecondsBound request_timeout = new DurationSpec.LongMillisecondsBound("10000ms");
