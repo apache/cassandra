@@ -861,6 +861,25 @@ public class RangeTest extends CassandraTestBase
     }
 
     @Test
+    @UseMurmur3Partitioner
+    public void testNormalizedRangesWithMinToken()
+    {
+        Token min = t(Long.MIN_VALUE);
+
+        for (NormalizedRanges<Token> ranges : ImmutableList.of(
+            normalizedRanges(ImmutableList.of(r(Long.MIN_VALUE, Long.MIN_VALUE))),
+            normalizedRanges(ImmutableList.of(r(Long.MIN_VALUE, 100))),
+            normalizedRanges(ImmutableList.of(r(100, Long.MIN_VALUE))),
+            normalizedRanges(ImmutableList.of(r(-500, -100), r(100, 500))),
+            normalizedRanges(ImmutableList.of(r(Long.MIN_VALUE, -100), r(100, 500))),
+            normalizedRanges(ImmutableList.of(r(Long.MIN_VALUE, -100), r(100, Long.MIN_VALUE))),
+            normalizedRanges(ImmutableList.of(r(100, 500)))))
+        {
+            assertEquals(Range.isInRanges(min, ranges), ranges.intersects(min));
+        }
+    }
+
+    @Test
     public void testExpensiveChecksBurn()
     {
         long seed = System.nanoTime();

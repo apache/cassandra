@@ -462,10 +462,17 @@ public class TransactionStatement implements CQLStatement.CompositeCQLStatement,
     private static void validateOnlyModifyPrimaryKeyColumnPairOnce(HashMap<Object, Columns> seenColumns,
                                                                    ModificationStatement statement, List<TxnWrite.Fragment> writeFragments)
     {
-        Columns regularColumns = statement.updatedColumns().columns(false);
+        // A row deletion has no updated columns, but it deletes all regular columns
+        Columns regularColumns = isRowDeletion(statement) ? statement.metadata().regularAndStaticColumns().columns(false)
+                                                          : statement.updatedColumns().columns(false);
         statement.forEachRowKey(writeFragments, seenColumns, regularColumns, TransactionStatement::mergeColumnsIfNoDuplicates);
         Columns staticColumns = statement.updatedColumns().columns(true);
         statement.forEachPartitionKey(writeFragments, seenColumns, staticColumns, TransactionStatement::mergeColumnsIfNoDuplicates);
+    }
+
+    private static boolean isRowDeletion(ModificationStatement statement)
+    {
+        return statement.type.isDelete() && statement.getRegularOperations().isEmpty() && statement.getStaticOperations().isEmpty();
     }
 
     private static Columns mergeColumnsIfNoDuplicates(Columns existing, Columns add)

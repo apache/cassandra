@@ -238,7 +238,7 @@ public class CommandChanges extends CommandChange.Builder implements Merger
         for (CommandChange.Field field = nextSetField(iterable); field != null; field = nextSetField(iterable = unsetIterable(field, iterable)))
         {
             // Since we are iterating in reverse order, we skip the fields that were
-            // set by entries written later (i.e. already read ones).
+            // set by entries written later (i.e. already read ones) or if the mask did not include the field.
             if (isChanged(field, flags | mask) && field != CLEANUP)
                 skip(txnId, field, in, userVersion);
             else
