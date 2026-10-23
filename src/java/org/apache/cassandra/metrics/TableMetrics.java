@@ -457,7 +457,7 @@ public class TableMetrics
         // MemtableOffHeapSize naming deprecated in 4.0
         memtableOffHeapDataSize = createTableGaugeWithDeprecation("MemtableOffHeapDataSize", "MemtableOffHeapSize", 
                                                                   () -> Memtable.getMemoryUsage(cfs.getTracker().getView().getCurrentMemtable()).ownsOffHeap,
-                                                                  new GlobalTableGauge("MemtableOnHeapDataSize"));
+                                                                  new GlobalTableGauge("MemtableOffHeapDataSize"));
         
         memtableLiveDataSize = createTableGauge("MemtableLiveDataSize", 
                                                 () -> cfs.getTracker().getView().getCurrentMemtable().getLiveDataSize());
