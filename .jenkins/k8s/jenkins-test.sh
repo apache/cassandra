@@ -18,6 +18,7 @@
 #
 # Validates the CI declarations under .jenkins/ without deploying anything:
 #  - the Jenkinsfile parses as groovy
+#  - job parameters survive redeploys and have nonblank branch/profile defaults
 #  - jenkins-deployment.yaml renders through the jenkins helm chart
 #  - the yaml embedded in it (agent pod templates, JCasC config scripts) parses
 #
@@ -50,12 +51,25 @@ args.each { cu.addSource(new File(it)) }
 cu.compile(Phases.CONVERSION)
 println "  ${args.join(', ')} parses"
 EOF
+python3 - "${JENKINS_DIR}/k8s/jenkins-deployment.yaml" "${syntax_check_dir}/job-seeds.json" << 'EOF'
+import json, sys, yaml
+from pathlib import Path
+
+values = yaml.safe_load(Path(sys.argv[1]).read_text(encoding="utf-8"))
+jobs = yaml.safe_load(values["controller"]["JCasC"]["configScripts"]["test-job"])["jobs"]
+Path(sys.argv[2]).write_text(json.dumps([job["script"] for job in jobs]), encoding="utf-8")
+EOF
 if command -v groovy > /dev/null ; then
   groovy "${syntax_check}" "${JENKINS_DIR}/Jenkinsfile" || status=1
+  groovy "${JENKINS_DIR}/k8s/jenkins-parameters-test.groovy" "${syntax_check_dir}/job-seeds.json" \
+      "${JENKINS_DIR}/Jenkinsfile" || status=1
 elif command -v docker > /dev/null ; then
   # absolute paths, the image's working directory is not where the script was mounted
   docker run --rm -v "${syntax_check_dir}:/check:ro" -v "${JENKINS_DIR}:/jenkins:ro" \
       groovy:4.0-jdk17 groovy /check/syntax-check.groovy /jenkins/Jenkinsfile || status=1
+  docker run --rm -v "${syntax_check_dir}:/check:ro" -v "${JENKINS_DIR}:/jenkins:ro" \
+      groovy:4.0-jdk17 groovy /jenkins/k8s/jenkins-parameters-test.groovy /check/job-seeds.json \
+      /jenkins/Jenkinsfile || status=1
 else
   echo "  SKIPPED: neither groovy nor docker found"
 fi

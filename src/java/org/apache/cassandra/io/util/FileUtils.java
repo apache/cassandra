@@ -514,6 +514,8 @@ public final class FileUtils
                 writer.newLine();
             }
 
+            writer.flush();
+
             if (sync)
             {
                 SyncUtil.force(fc, true);
