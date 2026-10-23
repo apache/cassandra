@@ -14,6 +14,7 @@
  * Allow nodetool garbagecollect to take a user defined list of SSTables (CASSANDRA-16767)
  * Add a guardrail for misprepared statements (CASSANDRA-21139)
 Merged from 6.0:
+ * Serialise local metadata proposals so concurrent DDL keeps its retry budget (CASSANDRA-21537)
  * Support skipping fsync in LogReplica.syncDirectory for tests (CASSANDRA-21785)
  * Avoid codec lookup in Cassandra Stress (CASSANDRA-21702)
  * Fix use-after-free when Zstd dictionary compressor cache evicts concurrently with in-flight compression (CASSANDRA-21714)
