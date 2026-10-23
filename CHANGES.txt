@@ -1,4 +1,5 @@
 7.0
+ * Change OpOrder group unlinking to clear the next pointer (CASSANDRA-21799)
  * FQLTool Replay support for full set of login options (CASSANDRA-17559)
  * Extract reusable HttpService from cloud metadata connector (CASSANDRA-21195)
  * Redact hash and _hash suffixed parameters in system_views.settings (CASSANDRA-21686)
