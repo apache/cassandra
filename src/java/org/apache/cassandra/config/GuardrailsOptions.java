@@ -369,6 +369,34 @@ public class GuardrailsOptions implements GuardrailsConfig
     }
 
     @Override
+    public boolean getDDLEnabled()
+    {
+        return config.ddl_enabled;
+    }
+
+    public void setDDLEnabled(boolean enabled)
+    {
+        updatePropertyWithLogging("ddl_enabled",
+                                  enabled,
+                                  () -> config.ddl_enabled,
+                                  x -> config.ddl_enabled = x);
+    }
+
+    @Override
+    public boolean getDCLEnabled()
+    {
+        return config.dcl_enabled;
+    }
+
+    public void setDCLEnabled(boolean enabled)
+    {
+        updatePropertyWithLogging("dcl_enabled",
+                                  enabled,
+                                  () -> config.dcl_enabled,
+                                  x -> config.dcl_enabled = x);
+    }
+
+    @Override
     public boolean getSecondaryIndexesEnabled()
     {
         return config.secondary_indexes_enabled;
@@ -408,20 +436,6 @@ public class GuardrailsOptions implements GuardrailsConfig
                                   enabled,
                                   () -> config.compact_tables_enabled,
                                   x -> config.compact_tables_enabled = x);
-    }
-
-    @Override
-    public boolean getAlterTableEnabled()
-    {
-        return config.alter_table_enabled;
-    }
-
-    public void setAlterTableEnabled(boolean enabled)
-    {
-        updatePropertyWithLogging("alter_table_enabled",
-                                  enabled,
-                                  () -> config.alter_table_enabled,
-                                  x -> config.alter_table_enabled = x);
     }
 
     @Override
