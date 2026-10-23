@@ -23,6 +23,8 @@ import java.nio.channels.FileChannel;
 import java.nio.file.NoSuchFileException;
 import java.nio.file.Path;
 
+import org.apache.cassandra.utils.SyncUtil;
+
 import static org.apache.cassandra.io.util.File.WriteMode.OVERWRITE;
 
 public class FileOutputStreamPlus extends BufferedDataOutputStreamPlus
@@ -59,7 +61,7 @@ public class FileOutputStreamPlus extends BufferedDataOutputStreamPlus
 
     public void sync() throws IOException
     {
-        ((FileChannel)channel).force(true);
+        SyncUtil.force((FileChannel) channel, true);
     }
 
     public FileChannel getChannel()
