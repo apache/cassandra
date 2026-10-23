@@ -60,6 +60,7 @@
  * Avoid megamorphic calls when serializing and deserializing fixed-length values (CASSANDRA-21536)
  * Avoid megamorphic calls for Cell.timestamp/ttl/path/localDeletionTimeAsUnsignedInt methods (CASSANDRA-21526)
 Merged from 5.0:
+ * Fail sstableloader when no replicas are found for the target keyspace (CASSANDRA-20096)
  * Fix ignored global auto repair settings repair_max_retries and repair_retry_backoff (CASSANDRA-21748)
  * Replica filtering protection resurrects rows deleted by a range tombstone that spans pages (CASSANDRA-21781)
  * Write an sstable with the compression its components were chosen for when ALTER TABLE changes it (CASSANDRA-21780)
