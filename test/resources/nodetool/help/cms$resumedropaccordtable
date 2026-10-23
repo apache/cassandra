@@ -6,8 +6,8 @@ SYNOPSIS
         nodetool [(-h <host> | --host <host>)] [(-p <port> | --port <port>)]
                 [(-pw <password> | --password <password>)]
                 [(-pwf <passwordFilePath> | --password-file <passwordFilePath>)]
-                [(-u <username> | --username <username>)] cms resumedropaccordtable
-                [--] <tableId>
+                [(-u <username> | --username <username>)] cms resumedropaccordtable [--]
+                <tableId>
 
 OPTIONS
         -h <host>, --host <host>
@@ -32,3 +32,7 @@ OPTIONS
 
         <tableId>
             Table id of the table being dropped
+
+EXAMPLES
+        Resume a stalled drop of an Accord table:
+            nodetool cms resumedropaccordtable <table_id>

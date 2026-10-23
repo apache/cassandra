@@ -33,7 +33,11 @@ import picocli.CommandLine;
 import picocli.CommandLine.Command;
 import picocli.CommandLine.Option;
 
-@Command(name = "tablestats", description = "Print statistics on tables")
+@Command(name = "tablestats", description = "Print statistics on tables",
+         footerHeading = "%n",
+         footer = { "EXAMPLES",
+                    "        Show stats for one table and for a whole keyspace:",
+                    "            nodetool tablestats ks1.table1 ks2" })
 public class TableStats extends AbstractCommand
 {
     @CassandraUsage(usage = "[<keyspace.table>...]", description = "List of tables (or keyspace) names")

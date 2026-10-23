@@ -5,8 +5,8 @@ SYNOPSIS
         nodetool [(-h <host> | --host <host>)] [(-p <port> | --port <port>)]
                 [(-pw <password> | --password <password>)]
                 [(-pwf <passwordFilePath> | --password-file <passwordFilePath>)]
-                [(-u <username> | --username <username>)] cms dumplog
-                [--end <endEpoch>] [--start <startEpoch>]
+                [(-u <username> | --username <username>)] cms dumplog [--end <endEpoch>]
+                [--start <startEpoch>]
 
 OPTIONS
         --end <endEpoch>
@@ -29,3 +29,7 @@ OPTIONS
 
         -u <username>, --username <username>
             Remote jmx agent username
+
+EXAMPLES
+        Dump the metadata log from epoch 10 to epoch 20:
+            nodetool cms dumplog --start 10 --end 20

@@ -35,7 +35,11 @@ import static org.apache.cassandra.tools.nodetool.CommandUtils.concatArgs;
 import static org.apache.cassandra.tools.nodetool.CommandUtils.parseOptionalKeyspace;
 import static org.apache.cassandra.tools.nodetool.CommandUtils.parseOptionalTables;
 
-@Command(name = "upgradesstables", description = "Rewrite sstables (for the requested tables) that are not on the current version (thus upgrading them to said current version)")
+@Command(name = "upgradesstables", description = "Rewrite sstables (for the requested tables) that are not on the current version (thus upgrading them to said current version)",
+         footerHeading = "%n",
+         footer = { "EXAMPLES",
+                    "        Rewrite SSTables of ks1.table1 older than a time (epoch milliseconds):",
+                    "            nodetool upgradesstables -a -t 1735689600000 ks1 table1" })
 public class UpgradeSSTable extends AbstractCommand
 {
     @CassandraUsage(usage = "[<keyspace> <tables>...]", description = "The keyspace followed by one or many tables")

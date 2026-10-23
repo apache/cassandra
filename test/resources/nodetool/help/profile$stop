@@ -27,3 +27,7 @@ OPTIONS
 
         -u <username>, --username <username>
             Remote jmx agent username
+
+EXAMPLES
+        Stop profiling and save the result as profile1.jfr:
+            nodetool profile stop -o profile1.jfr

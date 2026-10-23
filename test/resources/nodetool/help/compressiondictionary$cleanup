@@ -29,3 +29,7 @@ OPTIONS
 
         -u <username>, --username <username>
             Remote jmx agent username
+
+EXAMPLES
+        List orphaned dictionaries without removing them:
+            nodetool compressiondictionary cleanup --dry

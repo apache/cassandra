@@ -19,7 +19,11 @@ package org.apache.cassandra.tools.nodetool;
 
 import picocli.CommandLine.Command;
 
-@Command(name = "toppartitions", description = "Sample and print the most active partitions")
+@Command(name = "toppartitions", description = "Sample and print the most active partitions",
+         footerHeading = "%n",
+         footer = { "EXAMPLES",
+                    "        Sample ks1.table1 for 10 seconds (duration in milliseconds):",
+                    "            nodetool toppartitions ks1 table1 10000" })
 /** @deprecated See CASSANDRA-14436 */
 @Deprecated(since = "4.0")
 public class TopPartitions extends ProfileLoad

@@ -45,3 +45,7 @@ OPTIONS
 
         [<keyspace> <tables>...]
             The keyspace followed by one or many tables
+
+EXAMPLES
+        Clean up data of completed sessions for ks1.table1:
+            nodetool repair_admin cleanup ks1 table1

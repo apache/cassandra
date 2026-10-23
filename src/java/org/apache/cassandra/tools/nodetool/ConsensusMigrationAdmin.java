@@ -57,7 +57,11 @@ public class ConsensusMigrationAdmin extends AbstractCommand
         cmd.run();
     }
 
-    @Command(name = "list", description = "List migrating tables and ranges")
+    @Command(name = "list", description = "List migrating tables and ranges",
+             footerHeading = "%n",
+             footer = { "EXAMPLES",
+                        "        List migration state of ks1 as JSON:",
+                        "            nodetool consensus_admin list -f json ks1" })
     public static class ListCmd extends AbstractCommand
     {
         @Parameters(index = "0", arity = "0..1", description = "The keyspace followed by one or many tables")

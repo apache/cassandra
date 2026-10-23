@@ -5,8 +5,7 @@ SYNOPSIS
         nodetool [(-h <host> | --host <host>)] [(-p <port> | --port <port>)]
                 [(-pw <password> | --password <password>)]
                 [(-pwf <passwordFilePath> | --password-file <passwordFilePath>)]
-                [(-u <username> | --username <username>)] disablebinary
-                [(-f | --force)]
+                [(-u <username> | --username <username>)] disablebinary [(-f | --force)]
 
 OPTIONS
         -f, --force

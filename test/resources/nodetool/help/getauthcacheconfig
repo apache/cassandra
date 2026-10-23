@@ -6,11 +6,13 @@ SYNOPSIS
                 [(-pw <password> | --password <password>)]
                 [(-pwf <passwordFilePath> | --password-file <passwordFilePath>)]
                 [(-u <username> | --username <username>)] getauthcacheconfig
-                [--cache-name <cache-name>]
+                --cache-name <cache-name>
 
 OPTIONS
         --cache-name <cache-name>
-            Name of Auth cache (required)
+            Name of Auth cache (required), one of: CredentialsCache,
+            JmxPermissionsCache, NetworkPermissionsCache, PermissionsCache,
+            RolesCache
 
         -h <host>, --host <host>
             Node hostname or ip address

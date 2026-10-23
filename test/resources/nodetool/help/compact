@@ -62,3 +62,10 @@ OPTIONS
         [<keyspace> <tables>...] or <SSTable file>...
             The keyspace followed by one or many tables or list of SSTable data
             files when using --user-defined
+
+EXAMPLES
+        Compact one SSTable (give the absolute path of any of its files):
+            nodetool compact --user-defined <data_dir>/ks1/table1-<id>/<file>
+
+        Compact two SSTables into one (paths separated by spaces or commas):
+            nodetool compact --user-defined <file1> <file2>

@@ -32,7 +32,14 @@ import static org.apache.cassandra.tools.nodetool.CommandUtils.parseOptionalTabl
 import static org.apache.commons.lang3.StringUtils.EMPTY;
 
 // TODO CASSANDRA-20793 Types of input aguments shouldn't be mixed in the same command. The keyspace, table and SSTable file arguments should have their own commands.
-@Command(name = "compact", description = "Force a (major) compaction on one or more tables or user-defined compaction on given SSTables")
+@Command(name = "compact", description = "Force a (major) compaction on one or more tables or user-defined compaction on given SSTables",
+         footerHeading = "%n",
+         footer = { "EXAMPLES",
+                    "        Compact one SSTable (give the absolute path of any of its files):",
+                    "            nodetool compact --user-defined <data_dir>/ks1/table1-<id>/<file>",
+                    "",
+                    "        Compact two SSTables into one (paths separated by spaces or commas):",
+                    "            nodetool compact --user-defined <file1> <file2>" })
 public class Compact extends AbstractCommand
 {
     @CassandraUsage(usage = "[<keyspace> <tables>...] or <SSTable file>...",

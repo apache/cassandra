@@ -68,7 +68,11 @@ import static org.apache.cassandra.io.compress.IDictionaryCompressor.TRAINING_MA
 public class CompressionDictionaryCommandGroup
 {
     @Command(name = "train",
-             description = "Manually trigger compression dictionary training for a table. If no SSTables are available, the memtable will be flushed first.")
+             description = "Manually trigger compression dictionary training for a table. If no SSTables are available, the memtable will be flushed first.",
+             footerHeading = "%n",
+             footer = { "EXAMPLES",
+                        "        Train a dictionary of at most 1 MiB for ks1.table1:",
+                        "            nodetool compressiondictionary train --max-dict-size 1MiB ks1 table1" })
     public static class TrainDictionary extends AbstractCommand
     {
         private static final String MAX_DICT_SIZE_PARAM_NAME = "--max-dict-size";
@@ -207,7 +211,11 @@ public class CompressionDictionaryCommandGroup
     }
 
     @Command(name = "list",
-             description = "List available dictionaries of specific keyspace and table.")
+             description = "List available dictionaries of specific keyspace and table.",
+             footerHeading = "%n",
+             footer = { "EXAMPLES",
+                        "        List the dictionaries of ks1.table1:",
+                        "            nodetool compressiondictionary list ks1 table1" })
     public static class ListDictionaries extends AbstractCommand
     {
         @Parameters(index = "0", description = "The keyspace name", arity = "1")
@@ -238,7 +246,11 @@ public class CompressionDictionaryCommandGroup
 
     @Command(name = "cleanup", description = "Clean up orphaned dictionaries by deleting them from " + SystemDistributedKeyspace.NAME
                                              + '.' + SystemDistributedKeyspace.COMPRESSION_DICTIONARIES +
-                                             " table, these are ones for which a table they were trained for was dropped.")
+                                             " table, these are ones for which a table they were trained for was dropped.",
+             footerHeading = "%n",
+             footer = { "EXAMPLES",
+                        "        List orphaned dictionaries without removing them:",
+                        "            nodetool compressiondictionary cleanup --dry" })
     public static class CleanupDictionaries extends AbstractCommand
     {
         @Option(names = {"-d", "--dry"}, description = "Only display orphaned dictionaries, do not remove them.")
@@ -261,7 +273,11 @@ public class CompressionDictionaryCommandGroup
     }
 
     @Command(name = "export",
-             description = "Export dictionary from Cassandra to local file.")
+             description = "Export dictionary from Cassandra to local file.",
+             footerHeading = "%n",
+             footer = { "EXAMPLES",
+                        "        Save the current dictionary of ks1.table1 to a local file:",
+                        "            nodetool compressiondictionary export ks1 table1 dict.json" })
     public static class ExportDictionary extends AbstractCommand
     {
         @Parameters(index = "0", description = "The keyspace name", arity = "1")
@@ -320,7 +336,11 @@ public class CompressionDictionaryCommandGroup
     }
 
     @Command(name = "import",
-             description = "Import local dictionary to Cassandra.")
+             description = "Import local dictionary to Cassandra.",
+             footerHeading = "%n",
+             footer = { "EXAMPLES",
+                        "        Import a dictionary file saved by export:",
+                        "            nodetool compressiondictionary import dict.json" })
     public static class ImportDictionary extends AbstractCommand
     {
         @Parameters(index = "0", description = "The path to a dictionary JSON", arity = "1")

@@ -26,3 +26,7 @@ OPTIONS
 
         -u <username>, --username <username>
             Remote jmx agent username
+
+EXAMPLES
+        Dump the directory, including the tokens of each node:
+            nodetool cms dumpdirectory --tokens

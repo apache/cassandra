@@ -7,8 +7,7 @@ SYNOPSIS
         nodetool [(-h <host> | --host <host>)] [(-p <port> | --port <port>)]
                 [(-pw <password> | --password <password>)]
                 [(-pwf <passwordFilePath> | --password-file <passwordFilePath>)]
-                [(-u <username> | --username <username>)]
-                repair_admin summarize-pending
+                [(-u <username> | --username <username>)] repair_admin summarize-pending
                 [(-et <end_token> | --end-token <end_token>)]
                 [(-st <start_token> | --start-token <start_token>)] [(-v | --verbose)]
                 [--] [<keyspace> <tables>...]
@@ -45,3 +44,7 @@ OPTIONS
 
         [<keyspace> <tables>...]
             The keyspace followed by one or many tables
+
+EXAMPLES
+        Show data pending repair for ks1.table1, with details:
+            nodetool repair_admin summarize-pending -v ks1 table1

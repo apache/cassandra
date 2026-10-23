@@ -26,3 +26,7 @@ OPTIONS
 
         -u <username>, --username <username>
             Remote jmx agent username
+
+EXAMPLES
+        Show status of incremental auto repair:
+            nodetool autorepairstatus -t incremental

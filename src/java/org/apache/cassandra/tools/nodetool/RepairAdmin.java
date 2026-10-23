@@ -66,7 +66,11 @@ public class RepairAdmin extends AbstractCommand
         cmd.run();
     }
 
-    @Command(name = "list", description = "list repair sessions")
+    @Command(name = "list", description = "list repair sessions",
+             footerHeading = "%n",
+             footer = { "EXAMPLES",
+                        "        List all sessions, including completed and failed ones:",
+                        "            nodetool repair_admin list --all" })
     public static class ListCmd extends AbstractCommand
     {
         @Option(paramLabel = "all", names = { "-a", "--all" }, description = "include completed and failed sessions")
@@ -113,7 +117,11 @@ public class RepairAdmin extends AbstractCommand
         }
     }
     @Command(name = "summarize-pending", description = "report the amount of data marked pending repair for the given token " +
-                                                       "range (or all replicated range if no tokens are provided")
+                                                       "range (or all replicated range if no tokens are provided",
+             footerHeading = "%n",
+             footer = { "EXAMPLES",
+                        "        Show data pending repair for ks1.table1, with details:",
+                        "            nodetool repair_admin summarize-pending -v ks1 table1" })
     public static class SummarizePendingCmd extends AbstractCommand
     {
         @Option(paramLabel = "verbose", names = { "-v", "--verbose" }, description = "print additional info ")
@@ -179,7 +187,11 @@ public class RepairAdmin extends AbstractCommand
     }
 
     @Command(name = "summarize-repaired", description = "return the most recent repairedAt timestamp for the given token range " +
-                                                        "(or all replicated ranges if no tokens are provided)")
+                                                        "(or all replicated ranges if no tokens are provided)",
+             footerHeading = "%n",
+             footer = { "EXAMPLES",
+                        "        Show when each range of ks1.table1 was last repaired:",
+                        "            nodetool repair_admin summarize-repaired ks1 table1" })
     public static class SummarizeRepairedCmd extends AbstractCommand
     {
         @Option(paramLabel = "verbose", names = {"-v", "--verbose"}, description = "print additional info ")
@@ -250,7 +262,11 @@ public class RepairAdmin extends AbstractCommand
     @Command(name = "cleanup", description = "cleans up pending data from completed sessions. " +
                                              "This happens automatically, but the command is provided " +
                                              "for situations where it needs to be expedited." +
-                                            " Use --force to cancel compactions that are preventing promotion")
+                                            " Use --force to cancel compactions that are preventing promotion",
+             footerHeading = "%n",
+             footer = { "EXAMPLES",
+                        "        Clean up data of completed sessions for ks1.table1:",
+                        "            nodetool repair_admin cleanup ks1 table1" })
     public static class CleanupDataCmd extends AbstractCommand
     {
         @Option(paramLabel = "force", names = { "-f", "--force" }, description = "Force a cleanup.")
@@ -314,7 +330,11 @@ public class RepairAdmin extends AbstractCommand
 
     @Command(name = "cancel", description = "cancel an incremental repair session." +
                                             " Use --force to cancel from a node other than the repair coordinator" +
-                                            " Attempting to cancel FINALIZED or FAILED sessions is an error.")
+                                            " Attempting to cancel FINALIZED or FAILED sessions is an error.",
+             footerHeading = "%n",
+             footer = { "EXAMPLES",
+                        "        Cancel a session (ids are shown by repair_admin list):",
+                        "            nodetool repair_admin cancel -s <session_id>" })
     public static class CancelCmd extends AbstractCommand
     {
         @Option(paramLabel = "force", names = { "-f", "--force" }, description = "Force a cancellation.")

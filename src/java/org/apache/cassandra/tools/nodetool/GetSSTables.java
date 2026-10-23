@@ -32,7 +32,14 @@ import picocli.CommandLine.Parameters;
 import static com.google.common.base.Preconditions.checkArgument;
 import static org.apache.cassandra.tools.nodetool.CommandUtils.concatArgs;
 
-@Command(name = "getsstables", description = "Print the sstable filenames that own the key")
+@Command(name = "getsstables", description = "Print the sstable filenames that own the key",
+         footerHeading = "%n",
+         footer = { "EXAMPLES",
+                    "        Find SSTables of ks1.table1 for compound key with values pk1 and pk2:",
+                    "            nodetool getsstables ks1 table1 pk1:pk2",
+                    "",
+                    "        Find SSTables of ks1.table1 holding text key 'key1', given in hex:",
+                    "            nodetool getsstables -hf ks1 table1 6b657931" })
 public class GetSSTables extends AbstractCommand
 {
     @Option(paramLabel = "hex_format",
