@@ -3419,6 +3419,21 @@ public abstract class AccordCQLTestBase extends AccordTestBase
         });
     }
 
+    @Test
+    public void testCASBatchIfExistsFailsWhenOneRowIsMissing() throws Exception
+    {
+        test("CREATE TABLE " + qualifiedAccordTableName + " (p int, k int, v int, PRIMARY KEY (p, k)) WITH " + transactionalMode.asCqlParam(), cluster -> {
+            cluster.coordinator(1).execute("INSERT INTO " + qualifiedAccordTableName + " (p, k, v) VALUES (0, 0, 0)", ConsistencyLevel.ALL);
+            String query = "BEGIN BATCH\n" +
+                           "  UPDATE " + qualifiedAccordTableName + " SET v = 1 WHERE p = 0 AND k = 0 IF EXISTS;\n" +
+                           "  UPDATE " + qualifiedAccordTableName + " SET v = 1 WHERE p = 0 AND k = 1 IF EXISTS;\n" +
+                           "APPLY BATCH";
+            Object[][] result = cluster.coordinator(1).execute(query, ConsistencyLevel.ALL);
+            assertEquals(false, result[0][0]);
+            assertRowSerial(cluster, "SELECT k, v FROM " + qualifiedAccordTableName + " WHERE p = 0", row(0, 0));
+        });
+    }
+
     // Reproduces some bugs that simulator finds
     @Test
     public void testCASSimulatorLite() throws Exception

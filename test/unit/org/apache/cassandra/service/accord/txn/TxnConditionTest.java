@@ -487,8 +487,8 @@ public class TxnConditionTest
 
     private static void assertExists(TxnData data, TxnReference ref, boolean exists)
     {
-        Assertions.assertThat(new TxnCondition.Exists(ref, TxnCondition.Kind.IS_NULL).applies(data)).describedAs("ref=%s %s", ref, exists ? "exists but shouldn't have applied" : "does not exist but should have applied").isEqualTo(!exists);
-        Assertions.assertThat(new TxnCondition.Exists(ref, TxnCondition.Kind.IS_NOT_NULL).applies(data)).describedAs("ref=%s %s", ref, exists ? "exists but should have applied" : "does not exist but shouldn't have applied").isEqualTo(exists);
+        Assertions.assertThat(new TxnCondition.Exists(ref, null, TxnCondition.Kind.IS_NULL).applies(data)).describedAs("ref=%s %s", ref, exists ? "exists but shouldn't have applied" : "does not exist but should have applied").isEqualTo(!exists);
+        Assertions.assertThat(new TxnCondition.Exists(ref, null, TxnCondition.Kind.IS_NOT_NULL).applies(data)).describedAs("ref=%s %s", ref, exists ? "exists but should have applied" : "does not exist but shouldn't have applied").isEqualTo(exists);
     }
 
     private Gen<TxnCondition> txnConditionGen()
@@ -497,7 +497,7 @@ public class TxnConditionTest
             switch (rs.nextInt(1, 6))
             {
                 case 0: return TxnCondition.none();
-                case 1: return new TxnCondition.Exists(TXN_REF_GEN.next(rs), EXISTS_KIND_GEN.next(rs));
+                case 1: return new TxnCondition.Exists(TXN_REF_GEN.next(rs), rs.nextBoolean() ? CLUSTERING_GEN.next(rs) : null, EXISTS_KIND_GEN.next(rs));
                 case 2: return new TxnCondition.Value(TXN_REF_GEN.next(rs).asColumn(), VALUE_KIND_GEN.next(rs), BYTES_GEN.next(rs), PROTOCOL_VERSION_GEN.next(rs));
                 case 3: return new TxnCondition.ColumnConditionsAdapter(CLUSTERING_GEN.next(rs), Gens.lists(BOUND_GEN).ofSizeBetween(0, 3).next(rs));
                 case 4: return new TxnCondition.BooleanGroup(BOOLEAN_KIND_GEN.next(rs), Gens.lists(txnConditionGen()).ofSizeBetween(0, 3).next(rs));
