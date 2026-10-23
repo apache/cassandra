@@ -40,6 +40,7 @@ import org.apache.cassandra.db.Mutation;
 import org.apache.cassandra.io.util.DataInputPlus;
 import org.apache.cassandra.io.util.DataOutputPlus;
 import org.apache.cassandra.locator.Endpoints;
+import org.apache.cassandra.locator.EndpointsForToken;
 import org.apache.cassandra.locator.Replica;
 import org.apache.cassandra.locator.ReplicaPlan;
 import org.apache.cassandra.service.accord.serializers.TableMetadatasAndKeys;
@@ -109,9 +110,10 @@ public class UnrecoverableRepairUpdate<E extends Endpoints<E>, P extends Replica
     public final Map<Replica, Mutation> mutations;
     public final ReplicaPlan.ForWrite writePlan;
     public final Key updateKey;
+    public final EndpointsForToken uptodateEndpoints;
 
     public UnrecoverableRepairUpdate(Node.Id nodeId, BlockingReadRepair<E, P> parent,
-                                      Seekables<?, ?> keys, DecoratedKey dk, Map<Replica, Mutation> mutations, ReplicaPlan.ForWrite writePlan)
+                                     Seekables<?, ?> keys, DecoratedKey dk, Map<Replica, Mutation> mutations, EndpointsForToken uptodateEndpoints, ReplicaPlan.ForWrite writePlan)
     {
         this.parent = parent;
         this.keys = keys;
@@ -120,6 +122,7 @@ public class UnrecoverableRepairUpdate<E extends Endpoints<E>, P extends Replica
         mutations.values().forEach(Mutation::allowPotentialTransactionConflicts);
         this.writePlan = writePlan;
         this.updateKey = new Key(nodeId.id, nextCounter.getAndIncrement());
+        this.uptodateEndpoints = uptodateEndpoints;
     }
 
     @Override
@@ -178,7 +181,7 @@ public class UnrecoverableRepairUpdate<E extends Endpoints<E>, P extends Replica
         // to generate the mutations, but since we already have the mutations we can go ahead and apply them
         // now that we are inside a transaction that guarantees that the contents of the mutations consist
         // of committed data everywhere we go to apply it
-        parent.repairPartitionDirectly(readCoordinator, dk, mutations, writePlan);
+        parent.repairPartitionDirectly(readCoordinator, dk, mutations, uptodateEndpoints, writePlan);
     }
 
     // Only the original coordinator ever needs to access an UnrecoverableRepairUpdate
