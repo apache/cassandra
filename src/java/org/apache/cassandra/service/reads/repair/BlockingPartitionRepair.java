@@ -18,8 +18,10 @@
 
 package org.apache.cassandra.service.reads.repair;
 
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.TimeUnit;
 
@@ -70,6 +72,7 @@ public class BlockingPartitionRepair
     private final int blockFor;
     private volatile long mutationsSentTime;
     private final EndpointsForToken uptodateEndpoints;
+    private final Set<Replica> toBeRepaired;
 
     @VisibleForTesting
     public BlockingPartitionRepair(ReadCoordinator coordinator, DecoratedKey key, Map<Replica, Mutation> repairs, EndpointsForToken uptodateEndpoints, ReplicaPlan.ForWrite repairPlan)
@@ -79,6 +82,7 @@ public class BlockingPartitionRepair
         this.pendingRepairs = new ConcurrentHashMap<>(repairs);
         this.repairPlan = repairPlan;
         this.uptodateEndpoints = uptodateEndpoints;
+        this.toBeRepaired = new HashSet<>(repairs.keySet());
 
         // make sure all the read repair targets are contact of the repair write plan
         Preconditions.checkState(all(repairs.keySet(), (r) -> repairPlan.contacts().contains(r)),
@@ -262,9 +266,10 @@ public class BlockingPartitionRepair
             return;
         // just copy the repair plan
         ReplicaPlan.ForWrite r = repairPlan.withContacts(repairPlan.contacts());
-        // consider replicas that were already up to date as successfully read-repaired
-        if (uptodateEndpoints != null)
-            for (Replica replica : uptodateEndpoints)
+        // consider replicas from repairPlan.contacts which were not sent mutations as already up to date
+        // and here treat them as successfully read-repaired
+        for (Replica replica : r.contacts())
+            if (!toBeRepaired.contains(replica))
                 r.collectSuccess(replica.endpoint());
         // make sure we meet the consistency level of read repairs
         r.stillAppliesTo(metadata);
