@@ -55,7 +55,7 @@ public class BlockingReadRepairTest extends AbstractReadRepairTest
     {
         public InstrumentedReadRepairHandler(Map<Replica, Mutation> repairs, ReplicaPlan.ForWrite writePlan)
         {
-            super(ReadCoordinator.DEFAULT, Util.dk("not a real usable value"), repairs, writePlan);
+            super(ReadCoordinator.DEFAULT, Util.dk("not a real usable value"), repairs, null, writePlan);
         }
 
         Map<InetAddressAndPort, Mutation> mutationsSent = new HashMap<>();

@@ -47,7 +47,7 @@ import org.apache.cassandra.net.RequestCallback;
 import org.apache.cassandra.schema.TableId;
 import org.apache.cassandra.service.reads.ReadCoordinator;
 import org.apache.cassandra.service.reads.repair.BlockingReadRepair.PendingPartitionRepair;
-import org.apache.cassandra.tcm.Epoch;
+import org.apache.cassandra.tcm.ClusterMetadata;
 import org.apache.cassandra.tracing.Tracing;
 import org.apache.cassandra.utils.concurrent.AsyncFuture;
 import org.apache.cassandra.utils.concurrent.CountDownLatch;
@@ -69,18 +69,16 @@ public class BlockingPartitionRepair
     private final CountDownLatch latch;
     private final int blockFor;
     private volatile long mutationsSentTime;
-    private final EndpointsForToken repairedEndpoints;
+    private final EndpointsForToken uptodateEndpoints;
 
     @VisibleForTesting
-    public BlockingPartitionRepair(ReadCoordinator coordinator, DecoratedKey key, Map<Replica, Mutation> repairs, ReplicaPlan.ForWrite repairPlan)
+    public BlockingPartitionRepair(ReadCoordinator coordinator, DecoratedKey key, Map<Replica, Mutation> repairs, EndpointsForToken uptodateEndpoints, ReplicaPlan.ForWrite repairPlan)
     {
         this.coordinator = coordinator;
         this.key = key;
         this.pendingRepairs = new ConcurrentHashMap<>(repairs);
         this.repairPlan = repairPlan;
-        this.repairedEndpoints = EndpointsForToken.builder(key.getToken(), repairs.size())
-                                                  .addAll(repairs.keySet())
-                                                  .build();
+        this.uptodateEndpoints = uptodateEndpoints;
 
         // make sure all the read repair targets are contact of the repair write plan
         Preconditions.checkState(all(repairs.keySet(), (r) -> repairPlan.contacts().contains(r)),
@@ -107,18 +105,6 @@ public class BlockingPartitionRepair
         // of empty mutations would be greater than blockFor, causing the latch ctor to throw
         // an illegal argument exception due to a negative start value. So here we clamp it 0
         latch = newCountDownLatch(Math.max(blockFor, 0));
-    }
-
-    @Override
-    public Epoch epoch()
-    {
-        return repairPlan.epoch();
-    }
-
-    @Override
-    public EndpointsForToken repairedEndpoints()
-    {
-        return repairedEndpoints;
     }
 
     @Override
@@ -270,6 +256,20 @@ public class BlockingPartitionRepair
     }
 
     @Override
+    public void checkPlacements(ClusterMetadata metadata)
+    {
+        if (repairPlan.epoch().equals(metadata.epoch))
+            return;
+        // just copy the repair plan
+        ReplicaPlan.ForWrite r = repairPlan.withContacts(repairPlan.contacts());
+        // consider replicas that were already up to date as successfully read-repaired
+        if (uptodateEndpoints != null)
+            for (Replica replica : uptodateEndpoints)
+                r.collectSuccess(replica.endpoint());
+        // make sure we meet the consistency level of read repairs
+        r.stillAppliesTo(metadata);
+    }
+
     public Keyspace getKeyspace()
     {
         return repairPlan.keyspace();

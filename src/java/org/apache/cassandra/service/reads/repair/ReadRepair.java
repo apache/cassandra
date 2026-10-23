@@ -30,6 +30,7 @@ import org.apache.cassandra.db.partitions.PartitionIterator;
 import org.apache.cassandra.db.partitions.UnfilteredPartitionIterators;
 import org.apache.cassandra.exceptions.ReadTimeoutException;
 import org.apache.cassandra.locator.Endpoints;
+import org.apache.cassandra.locator.EndpointsForToken;
 import org.apache.cassandra.locator.Replica;
 import org.apache.cassandra.locator.ReplicaPlan;
 import org.apache.cassandra.service.reads.DigestResolver;
@@ -105,12 +106,12 @@ public interface ReadRepair<E extends Endpoints<E>, P extends ReplicaPlan.ForRea
      * Repairs a partition _after_ receiving data responses. This method receives replica list, since
      * we will block repair only on the replicas that have responded.
      */
-    void repairPartition(DecoratedKey partitionKey, Map<Replica, Mutation> mutations, ReplicaPlan.ForWrite writePlan, ReadRepairSource rrSource);
+    void repairPartition(DecoratedKey partitionKey, Map<Replica, Mutation> mutations, EndpointsForToken uptodateEndpoints, ReplicaPlan.ForWrite writePlan, ReadRepairSource rrSource);
 
     /**
      * Repairs a partition using the provided read coordinator
      */
-    void repairPartitionDirectly(ReadCoordinator coordinator, DecoratedKey partitionKey, Map<Replica, Mutation> mutations, ReplicaPlan.ForWrite writePlan);
+    void repairPartitionDirectly(ReadCoordinator coordinator, DecoratedKey partitionKey, Map<Replica, Mutation> mutations, EndpointsForToken uptodateEndpoints, ReplicaPlan.ForWrite writePlan);
 
     default PotentialTxnConflicts coordinatorPotentialTxnConflicts()
     {

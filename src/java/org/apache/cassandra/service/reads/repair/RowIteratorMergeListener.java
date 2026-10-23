@@ -20,7 +20,9 @@ package org.apache.cassandra.service.reads.repair;
 
 import java.util.Arrays;
 import java.util.BitSet;
+import java.util.HashSet;
 import java.util.Map;
+import java.util.Set;
 import java.util.function.Consumer;
 
 import com.carrotsearch.hppc.ObjectIntHashMap;
@@ -49,6 +51,7 @@ import org.apache.cassandra.db.rows.RowDiffListener;
 import org.apache.cassandra.db.rows.Rows;
 import org.apache.cassandra.db.rows.UnfilteredRowIterators;
 import org.apache.cassandra.locator.Endpoints;
+import org.apache.cassandra.locator.EndpointsForToken;
 import org.apache.cassandra.locator.InetAddressAndPort;
 import org.apache.cassandra.locator.Replica;
 import org.apache.cassandra.locator.ReplicaPlan;
@@ -383,6 +386,7 @@ public class RowIteratorMergeListener<E extends Endpoints<E>>
         for (int i = 0 ; i < readPlan.contacts().size() ; ++i)
             sourceIds.put(readPlan.contacts().get(i).endpoint(), 1 + i);
 
+        Set<Replica> uptodateReplicas = null;
         for (Replica replica : repairPlan.contacts())
         {
             PartitionUpdate update = null;
@@ -392,13 +396,24 @@ public class RowIteratorMergeListener<E extends Endpoints<E>>
             else if (repairs[i] != null)
                 update = repairs[i].build();
 
+            if (update == null)
+            {
+                if (uptodateReplicas == null)
+                    uptodateReplicas = new HashSet<>();
+                uptodateReplicas.add(replica);
+            }
+
             Mutation mutation = BlockingReadRepairs.createRepairMutation(update, readPlan.consistencyLevel(), replica.endpoint(), false, readRepair.coordinatorPotentialTxnConflicts());
             if (mutation == null)
                 continue;
 
             mutations.put(replica, mutation);
         }
-
-        readRepair.repairPartition(partitionKey, mutations, repairPlan, ReadRepairSource.OTHER);
+        EndpointsForToken uptodateEndpoints = uptodateReplicas == null
+                                              ? null
+                                              : EndpointsForToken.builder(partitionKey.getToken(), uptodateReplicas.size())
+                                                                 .addAll(uptodateReplicas)
+                                                                 .build();
+        readRepair.repairPartition(partitionKey, mutations, uptodateEndpoints, repairPlan, ReadRepairSource.OTHER);
     }
 }
