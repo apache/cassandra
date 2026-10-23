@@ -3434,6 +3434,50 @@ public abstract class AccordCQLTestBase extends AccordTestBase
         });
     }
 
+    @Test
+    public void testCASBatchPartitionDeleteKeepsInsertedRows() throws Exception
+    {
+        test("CREATE TABLE " + qualifiedAccordTableName + " (k int, c int, v int, w int, s int static, PRIMARY KEY (k, c)) WITH " + transactionalMode.asCqlParam(), cluster -> {
+            String batch = "BEGIN BATCH\n" +
+                           "  DELETE FROM " + qualifiedAccordTableName + " WHERE k = 0;\n" +
+                           "  INSERT INTO " + qualifiedAccordTableName + " (k, c, v, s) VALUES (0, 5, 1, 7);\n" +
+                           "  UPDATE " + qualifiedAccordTableName + " SET w = 1 WHERE k = 0 AND c = 20 IF w = null;\n" +
+                           "APPLY BATCH";
+            assertRowEquals(cluster, new Object[]{ true }, batch);
+            assertRowSerial(cluster, "SELECT c, v, w, s FROM " + qualifiedAccordTableName + " WHERE k = 0", row(5, 1, null, 7), row(20, null, 1, 7));
+        });
+    }
+
+    @Test
+    public void testCASBatchRangeDeleteKeepsInsertedRow() throws Exception
+    {
+        test("CREATE TABLE " + qualifiedAccordTableName + " (k int, c int, v int, w int, PRIMARY KEY (k, c)) WITH " + transactionalMode.asCqlParam(), cluster -> {
+            String batch =  "BEGIN BATCH\n" +
+                            "  DELETE FROM " + qualifiedAccordTableName + " WHERE k = 0 AND c >= 0 AND c <= 10;\n" +
+                            "  INSERT INTO " + qualifiedAccordTableName + " (k, c, v) VALUES (0, 5, 1);\n" +
+                            "  UPDATE " + qualifiedAccordTableName + " SET w = 1 WHERE k = 0 AND c = 20 IF w = null;\n" +
+                            "APPLY BATCH";
+
+            assertRowEquals(cluster, new Object[]{ true }, batch);
+            assertRowSerial(cluster, "SELECT c, v, w FROM " + qualifiedAccordTableName + " WHERE k = 0", row(5, 1, null), row(20, null, 1));
+        });
+    }
+
+    @Test
+    public void testCASBatchRangeDeleteRemovesExistingRow() throws Exception
+    {
+        test("CREATE TABLE " + qualifiedAccordTableName + " (k int, c int, v int, w int, PRIMARY KEY (k, c)) WITH " + transactionalMode.asCqlParam(), cluster -> {
+            cluster.coordinator(1).execute("INSERT INTO " + qualifiedAccordTableName + " (k, c, v) VALUES (0, 3, 9)", ConsistencyLevel.ALL);
+            String batch = "BEGIN BATCH\n" +
+                           "  DELETE FROM " + qualifiedAccordTableName + " WHERE k = 0 AND c >= 0 AND c <= 10;\n" +
+                           "  INSERT INTO " + qualifiedAccordTableName + " (k, c, v) VALUES (0, 5, 1);\n" +
+                           "  UPDATE " + qualifiedAccordTableName + " SET w = 1 WHERE k = 0 AND c = 20 IF w = null;\n" +
+                           "APPLY BATCH";
+            assertRowEquals(cluster, new Object[]{ true }, batch);
+            assertRowSerial(cluster, "SELECT c, v, w FROM " + qualifiedAccordTableName + " WHERE k = 0", row(5, 1, null), row(20, null, 1));
+        });
+    }
+
     // Reproduces some bugs that simulator finds
     @Test
     public void testCASSimulatorLite() throws Exception
