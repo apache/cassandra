@@ -19,11 +19,14 @@
 package org.apache.cassandra.metrics;
 
 import java.io.IOException;
+import java.util.ArrayList;
 import java.util.concurrent.TimeUnit;
+import java.util.function.Function;
 import java.util.function.Supplier;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
+import com.codahale.metrics.Gauge;
 import com.google.common.util.concurrent.Uninterruptibles;
 import org.junit.AfterClass;
 import org.junit.BeforeClass;
@@ -34,13 +37,20 @@ import com.datastax.driver.core.Cluster;
 import com.datastax.driver.core.PreparedStatement;
 import com.datastax.driver.core.Session;
 import org.apache.cassandra.ServerTestUtils;
+import org.apache.cassandra.config.CassandraRelevantProperties;
+import org.apache.cassandra.config.Config;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.db.ColumnFamilyStore;
+import org.apache.cassandra.db.compaction.CompactionManager;
 import org.apache.cassandra.exceptions.ConfigurationException;
 import org.apache.cassandra.service.EmbeddedCassandraService;
 import org.apache.cassandra.service.StorageService;
 
+import static org.apache.cassandra.utils.Throwables.maybeFail;
+import static org.apache.cassandra.utils.Throwables.merge;
 import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertNotEquals;
+import static org.junit.Assert.assertNotNull;
 import static org.junit.Assert.assertTrue;
 
 public class TableMetricsTest
@@ -58,6 +68,12 @@ public class TableMetricsTest
     @BeforeClass
     public static void setup() throws ConfigurationException, IOException
     {
+        CassandraRelevantProperties.SIZE_RECORDER_INTERVAL.setInt(0);
+        DatabaseDescriptor.daemonInitialization(() -> {
+            Config config = DatabaseDescriptor.loadConfig();
+            config.memtable_allocation_type = Config.MemtableAllocationType.offheap_objects;
+            return config;
+        });
         cassandra = ServerTestUtils.startEmbeddedCassandraService();
 
         cluster = Cluster.builder().addContactPoint("127.0.0.1").withPort(DatabaseDescriptor.getNativeTransportPort()).build();
@@ -273,6 +289,95 @@ public class TableMetricsTest
         session.execute(String.format("UPDATE %s.%s SET id_c = id_c + 1 WHERE id = 1 AND val = 'val1'", KEYSPACE, COUNTER_TABLE));
         assertEquals(1, cfs.metric.coordinatorWriteLatency.getCount());
         assertGreaterThan(cfs.metric.coordinatorWriteLatency.getMeanRate(), 0);
+    }
+
+    @Test
+    public void testGlobalMemtableDataSizeIsSumOfTables()
+    {
+        final String secondTable = TABLE + "_second";
+        ColumnFamilyStore first = recreateTable();
+        ColumnFamilyStore second = recreateTable(secondTable);
+        String value = "x".repeat(1024);
+        for (String table : new String[]{ TABLE, secondTable })
+        {
+            PreparedStatement ps = session.prepare(String.format("INSERT INTO %s.%s (id, val1, val2) VALUES (?, ?, ?)", KEYSPACE, table));
+            for (int i = 0; i < 100; i++)
+                session.execute(ps.bind(i, "a", value));
+        }
+
+        assertGreaterThan(first.metric.memtableOnHeapDataSize.getValue(), 0);
+        assertGreaterThan(second.metric.memtableOffHeapDataSize.getValue(), 0);
+
+        Iterable<ColumnFamilyStore> allCfs = ColumnFamilyStore.all();
+        try (CompactionManager.CompactionPauser globalPause = CompactionManager.instance.pauseGlobalCompaction();
+             CompactionManager.CompactionPauser strategiesPause = pauseAllCompactionStrategies(allCfs))
+        {
+            CompactionManager.instance.waitForCessation(allCfs, sstable -> true);
+
+            assertNotEquals("on-heap and off-heap usage must differ to tell the gauges apart",
+                            sumOfTables(m -> m.memtableOnHeapDataSize),
+                            sumOfTables(m -> m.memtableOffHeapDataSize));
+            assertGlobalIsSumOfTables("MemtableOnHeapDataSize", m -> m.memtableOnHeapDataSize);
+            assertGlobalIsSumOfTables("MemtableOffHeapDataSize", m -> m.memtableOffHeapDataSize);
+        }
+    }
+
+    private static void assertGlobalIsSumOfTables(String name, Function<TableMetrics, Gauge<Long>> perTable)
+    {
+        Gauge<?> global = CassandraMetricsRegistry.Metrics.getGauges().get(String.format("org.apache.cassandra.metrics.Table.%s.all", name));
+        assertNotNull(String.format("global gauge %s is not registered", name), global);
+        assertEquals(String.format("global %s must equal the sum of per-table values", name),
+                     sumOfTables(perTable),
+                     ((Number) global.getValue()).longValue());
+    }
+
+    private static long sumOfTables(Function<TableMetrics, Gauge<Long>> perTable)
+    {
+        long total = 0;
+        for (ColumnFamilyStore cfs : ColumnFamilyStore.all())
+            for (ColumnFamilyStore store : cfs.concatWithIndexes())
+                total += perTable.apply(store.metric).getValue();
+        return total;
+    }
+
+    /**
+     * Pauses compaction strategies for all given ColumnFamilyStores.
+     * Pattern matches {@link ColumnFamilyStore#pauseCompactionStrategies}.
+     */
+    private static CompactionManager.CompactionPauser pauseAllCompactionStrategies(Iterable<ColumnFamilyStore> toPause)
+    {
+        ArrayList<ColumnFamilyStore> successfullyPaused = new ArrayList<>();
+        try
+        {
+            for (ColumnFamilyStore cfs : toPause)
+            {
+                successfullyPaused.ensureCapacity(successfullyPaused.size() + 1); // to avoid OOM after pausing the strategies
+                cfs.getCompactionStrategyManager().pause();
+                successfullyPaused.add(cfs);
+            }
+            return () -> maybeFail(resumeAll(null, toPause));
+        }
+        catch (Throwable t)
+        {
+            resumeAll(t, successfullyPaused);
+            throw t;
+        }
+    }
+
+    private static Throwable resumeAll(Throwable accumulate, Iterable<ColumnFamilyStore> cfss)
+    {
+        for (ColumnFamilyStore cfs : cfss)
+        {
+            try
+            {
+                cfs.getCompactionStrategyManager().resume();
+            }
+            catch (Throwable t)
+            {
+                accumulate = merge(accumulate, t);
+            }
+        }
+        return accumulate;
     }
 
     private static void assertGreaterThan(double actual, double expectedLessThan) {
