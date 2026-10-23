@@ -35,6 +35,7 @@ import org.apache.cassandra.net.Message;
 import org.apache.cassandra.net.ParamType;
 import org.apache.cassandra.service.writes.thresholds.WriteWarningContext;
 import org.apache.cassandra.transport.Dispatcher;
+import org.apache.cassandra.utils.FBUtilities;
 
 /**
  * This class blocks for a quorum of responses _in all datacenters_ (CL.EACH_QUORUM).
@@ -89,11 +90,13 @@ public class DatacenterSyncWriteResponseHandler<T> extends AbstractWriteResponse
             {
                 params = message.header.params();
                 dataCenter = locator.location(message.from()).datacenter;
+                replicaPlan.collectSuccess(message.from());
             }
             else
             {
                 params = MessageParams.capture();
                 dataCenter = locator.local().datacenter;
+                replicaPlan.collectSuccess(FBUtilities.getBroadcastAddressAndPort());
             }
 
             if (WriteWarningContext.isSupported(params.keySet()))

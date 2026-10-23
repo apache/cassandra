@@ -44,6 +44,7 @@ import org.apache.cassandra.db.ReadCommand.PotentialTxnConflicts;
 import org.apache.cassandra.db.partitions.UnfilteredPartitionIterators;
 import org.apache.cassandra.exceptions.ReadTimeoutException;
 import org.apache.cassandra.locator.Endpoints;
+import org.apache.cassandra.locator.EndpointsForToken;
 import org.apache.cassandra.locator.Replica;
 import org.apache.cassandra.locator.ReplicaPlan;
 import org.apache.cassandra.locator.ReplicaPlan.ForWrite;
@@ -132,7 +133,7 @@ public class BlockingReadRepair<E extends Endpoints<E>, P extends ReplicaPlan.Fo
             return -1;
         }
 
-        ForWrite repairPlan();
+        void checkPlacements(ClusterMetadata metadata);
     }
 
     BlockingReadRepair(ReadCoordinator coordinator, ReadCommand command, ReplicaPlan.Shared<E, P> replicaPlan, Dispatcher.RequestTime requestTime)
@@ -165,8 +166,9 @@ public class BlockingReadRepair<E extends Endpoints<E>, P extends ReplicaPlan.Fo
     public void awaitWrites()
     {
         PendingPartitionRepair timedOut = null;
-        ReplicaPlan.ForWrite repairPlan = null;
 
+        if (repairs.isEmpty())
+            return;
         for (PendingPartitionRepair repair : repairs)
         {
             long deadline = requestTime.computeDeadline(DatabaseDescriptor.getReadRpcTimeout(NANOSECONDS));
@@ -176,7 +178,6 @@ public class BlockingReadRepair<E extends Endpoints<E>, P extends ReplicaPlan.Fo
                 timedOut = repair;
                 break;
             }
-            repairPlan = repair.repairPlan();
         }
         if (timedOut != null)
         {
@@ -192,12 +193,13 @@ public class BlockingReadRepair<E extends Endpoints<E>, P extends ReplicaPlan.Fo
             throw new ReadTimeoutException(replicaPlan().consistencyLevel(), received, blockFor, true);
         }
 
-        if (repairs.isEmpty() || repairPlan.stillAppliesTo(ClusterMetadata.current()))
-            return;
+        ClusterMetadata metadata = ClusterMetadata.current();
+        for (PendingPartitionRepair repair : repairs)
+            repair.checkPlacements(metadata);
     }
 
     @Override
-    public void repairPartition(DecoratedKey dk, Map<Replica, Mutation> mutations, ReplicaPlan.ForWrite writePlan, ReadRepairSource rrSource)
+    public void repairPartition(DecoratedKey dk, Map<Replica, Mutation> mutations, EndpointsForToken uptodateEndpoints, ReplicaPlan.ForWrite writePlan, ReadRepairSource rrSource)
     {
         // non-Accord reads only ever touch one table and key so all mutations need to be applied either transactionally
         // or non-transactionally (not a mix). There is no retry loop here because read repair is relatively rare so it racing
@@ -210,9 +212,9 @@ public class BlockingReadRepair<E extends Endpoints<E>, P extends ReplicaPlan.Fo
         // which will ensure the repair mutation runs in the command store thread after preceding transactions are done
         ClusterMetadata cm = ClusterMetadata.current();
         if (coordinator.isEventuallyConsistent() && ConsensusMigrationMutationHelper.tokenShouldBeWrittenThroughAccord(cm, command.metadata().id, dk.getToken(), TransactionalMode::readRepairsThroughAccord, TransactionalMigrationFromMode::readRepairsThroughAccord))
-            repairViaAccordTransaction(dk, mutations, writePlan);
+            repairViaAccordTransaction(dk, mutations, uptodateEndpoints, writePlan);
         else
-            repairViaReadCoordinator(dk, mutations, writePlan, rrSource);
+            repairViaReadCoordinator(dk, mutations, uptodateEndpoints, writePlan, rrSource);
     }
 
     /*
@@ -220,7 +222,7 @@ public class BlockingReadRepair<E extends Endpoints<E>, P extends ReplicaPlan.Fo
      * consists of already committed Accord writes just by virtue of creating a new transaction which must occur
      * after any already partially applied transactions whose writes might be present in the repair mutation.
      */
-    private void repairViaAccordTransaction(DecoratedKey dk, Map<Replica, Mutation> accordMutations, ForWrite writePlan)
+    private void repairViaAccordTransaction(DecoratedKey dk, Map<Replica, Mutation> accordMutations, EndpointsForToken uptodateEndpoints, ForWrite writePlan)
     {
         checkState(coordinator.isEventuallyConsistent(), "Should only repair transactionally for an eventually consistent read coordinator");
         ReadRepairMetrics.repairedBlockingViaAccord.mark();
@@ -228,7 +230,7 @@ public class BlockingReadRepair<E extends Endpoints<E>, P extends ReplicaPlan.Fo
         Keys keys = Keys.of(partitionKey);
         // This is going create a new BlockingReadRepair inside an Accord transaction which will go down
         // the !isEventuallyConsistent path and apply the repairs through Accord command stores using AccordInteropExecution
-        UnrecoverableRepairUpdate<E, P> repairUpdate = new UnrecoverableRepairUpdate(AccordService.nodeId(), this, keys, dk, accordMutations, writePlan);
+        UnrecoverableRepairUpdate<E, P> repairUpdate = new UnrecoverableRepairUpdate(AccordService.nodeId(), this, keys, dk, accordMutations, uptodateEndpoints, writePlan);
 
         /*
          * The motivation for using a read to apply read repair is that we want to apply the writes in the execute phase
@@ -262,16 +264,12 @@ public class BlockingReadRepair<E extends Endpoints<E>, P extends ReplicaPlan.Fo
                 }
                 catch (TimeoutException e)
                 {
-
                     return false;
                 }
             }
 
             @Override
-            public ForWrite repairPlan()
-            {
-                return writePlan;
-            }
+            public void checkPlacements(ClusterMetadata metadata) {}
         });
     }
 
@@ -281,20 +279,20 @@ public class BlockingReadRepair<E extends Endpoints<E>, P extends ReplicaPlan.Fo
      * is an Accord transaction and the Accord read coordinator will take care of proxying the mutations through command
      * stores
      */
-    private void repairViaReadCoordinator(DecoratedKey dk, Map<Replica, Mutation> mutations, ForWrite writePlan, ReadRepairSource rrSource)
+    private void repairViaReadCoordinator(DecoratedKey dk, Map<Replica, Mutation> mutations, EndpointsForToken uptodateEndpoints, ForWrite writePlan, ReadRepairSource rrSource)
     {
         // Accord read at QUORUM and found it needed to read repair, this means txn recovery is non-deterministic
         if (rrSource == ReadRepairSource.OTHER && !coordinator.isEventuallyConsistent())
             ReadRepairMetrics.repairedBlockingFromAccord.mark();
-        BlockingPartitionRepair blockingRepair = new BlockingPartitionRepair(coordinator, dk, mutations, writePlan);
+        BlockingPartitionRepair blockingRepair = new BlockingPartitionRepair(coordinator, dk, mutations, uptodateEndpoints, writePlan);
         blockingRepair.sendInitialRepairs();
         repairs.add(blockingRepair);
     }
 
-    public void repairPartitionDirectly(ReadCoordinator readCoordinator, DecoratedKey dk, Map<Replica, Mutation> mutations, ForWrite writePlan)
+    public void repairPartitionDirectly(ReadCoordinator readCoordinator, DecoratedKey dk, Map<Replica, Mutation> mutations, EndpointsForToken uptodateEndpoints, ForWrite writePlan)
     {
         ReadRepair delegateRR = ReadRepairStrategy.BLOCKING.create(readCoordinator, command, replicaPlan, requestTime);
-        delegateRR.repairPartition(dk, mutations, writePlan, ReadRepairSource.REPAIR_VIA_ACCORD);
+        delegateRR.repairPartition(dk, mutations, uptodateEndpoints, writePlan, ReadRepairSource.REPAIR_VIA_ACCORD);
         delegateRR.maybeSendAdditionalWrites();
         delegateRR.awaitWrites();
     }
