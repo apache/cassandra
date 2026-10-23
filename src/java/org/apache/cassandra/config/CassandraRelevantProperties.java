@@ -430,6 +430,8 @@ public enum CassandraRelevantProperties
     MX4JPORT("mx4jport"),
     NANOTIMETOMILLIS_TIMESTAMP_UPDATE_INTERVAL("cassandra.NANOTIMETOMILLIS_TIMESTAMP_UPDATE_INTERVAL", "10000"),
     NATIVE_EPOLL_ENABLED("cassandra.native.epoll.enabled", "true"),
+    /** How many consecutive runs without work the legacy native transport flusher (native_transport_flush_in_batches_legacy) makes before it stops rescheduling itself. */
+    NATIVE_TRANSPORT_LEGACY_FLUSHER_MAX_IDLE_RUNS("cassandra.native_transport_legacy_flusher_max_idle_runs", "5"),
     /** This is the port used with RPC address for the native protocol to communicate with clients. Now that thrift RPC is no longer in use there is no RPC port. */
     NATIVE_TRANSPORT_PORT("cassandra.native_transport_port"),
     NEVER_PURGE_TOMBSTONES("cassandra.never_purge_tombstones"),

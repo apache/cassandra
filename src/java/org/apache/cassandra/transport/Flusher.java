@@ -44,6 +44,7 @@ import io.netty.buffer.ByteBuf;
 import io.netty.channel.Channel;
 import io.netty.channel.EventLoop;
 
+import static org.apache.cassandra.config.CassandraRelevantProperties.NATIVE_TRANSPORT_LEGACY_FLUSHER_MAX_IDLE_RUNS;
 import static org.apache.cassandra.transport.CQLMessageHandler.envelopeSize;
 
 abstract class Flusher implements Runnable
@@ -118,7 +119,11 @@ abstract class Flusher implements Runnable
     protected final EventLoop eventLoop;
     // Many request threads produce, but only the event loop this flusher belongs to consumes, so an MPSC queue is enough.
     private final MpscUnboundedArrayQueue<FlushItem<?>> queued = new MpscUnboundedArrayQueue<>(queuedChunkSize());
-    // we use it to establish a happens-before relation between an MPSC queue element submission and a subsequent Flusher process queue consumption
+    /* {@link #queued} adds entries with {@link VarHandle#setRelease} semantics,
+     * so to ensure this happens-before a Flusher tries to consume the entry
+     * we maintain a counter that is updated unconditionally,
+     * this provides volatile write semantics to each entry independently (whereas CAS only ensures volatile write semantics on success)
+     */
     protected final AtomicInteger scheduledCount = new AtomicInteger();
     protected final List<FlushItem<?>> processed = new ArrayList<>();
     private final HashSet<Channel> channels = new HashSet<>();
@@ -154,11 +159,6 @@ abstract class Flusher implements Runnable
         // MpscUnboundedArrayQueue.poll() busy-spins if a producer has claimed a slot but not yet written it.
         // It could stall the Netty event loop, so we use relaxedPoll here
         return queued.relaxedPoll();
-    }
-
-    boolean isEmpty()
-    {
-        return queued.isEmpty();
     }
 
     private void processUnframedResponse(FlushItem.Unframed flush)
@@ -348,6 +348,8 @@ abstract class Flusher implements Runnable
 
     private static final class LegacyFlusher extends Flusher
     {
+        private static final int MAX_IDLE_RUNS = NATIVE_TRANSPORT_LEGACY_FLUSHER_MAX_IDLE_RUNS.getInt();
+
         int runsSinceFlush = 0;
         int runsWithNoWork = 0;
 
@@ -358,6 +360,9 @@ abstract class Flusher implements Runnable
 
         public void run()
         {
+            // read every producer increment so far, so everything they offered is visible to the relaxedPoll below;
+            // 1 rather than 0 so start() see the logic as scheduled
+            scheduledCount.getAndSet(1);
             boolean doneWork = processQueue();
             runsSinceFlush++;
 
@@ -374,11 +379,9 @@ abstract class Flusher implements Runnable
             else
             {
                 // either reschedule or cancel
-                if (++runsWithNoWork > 5)
+                if (++runsWithNoWork > MAX_IDLE_RUNS && scheduledCount.compareAndSet(1, 0))
                 {
-                    scheduledCount.getAndSet(0);
-                    if (isEmpty() || scheduledCount.getAndIncrement() != 0)
-                        return;
+                    return;
                 }
             }
 
