@@ -38,6 +38,7 @@ import com.google.common.base.Preconditions;
 import org.apache.cassandra.db.ConsistencyLevel;
 import org.apache.cassandra.utils.ByteArrayUtil;
 import org.apache.cassandra.utils.ByteBufferUtil;
+import org.apache.cassandra.utils.FBUtilities;
 import org.apache.cassandra.utils.LazyToString;
 import org.apache.cassandra.utils.Pair;
 import org.apache.cassandra.utils.TimeUUID;
@@ -167,8 +168,8 @@ public abstract class CBUtil
     public static void writeString(String str, ByteBuf cb)
     {
         int length = encodedUTF8Length(str);
-        Preconditions.checkArgument(length <= Short.MAX_VALUE,
-                                    LazyToString.lazy(() -> String.format("String too large; expected %d <= %d", length, Short.MAX_VALUE)));
+        Preconditions.checkArgument(length <= FBUtilities.MAX_UNSIGNED_SHORT,
+                                    LazyToString.lazy(() -> String.format("String too large; expected %d <= %d", length, FBUtilities.MAX_UNSIGNED_SHORT)));
         cb.writeShort(length);
         ByteBufUtil.reserveAndWriteUtf8(cb, str, length);
     }
