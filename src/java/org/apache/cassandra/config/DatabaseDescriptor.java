@@ -2707,8 +2707,7 @@ public class DatabaseDescriptor
 
     public static void setNativeTransportAuthTimeout(long nativeTransportAuthTimeout)
     {
-        conf.native_transport_auth_timeout =
-        new DurationSpec.LongMillisecondsBound(nativeTransportAuthTimeout);
+        conf.native_transport_auth_timeout = new DurationSpec.LongMillisecondsBound(nativeTransportAuthTimeout);
     }
 
     public static long nativeTransportIdleTimeout()

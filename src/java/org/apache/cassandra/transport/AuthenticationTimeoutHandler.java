@@ -59,12 +59,6 @@ final class AuthenticationTimeoutHandler extends ChannelInboundHandlerAdapter
 
     void markAuthenticationComplete(ChannelHandlerContext ctx)
     {
-        if (timeoutFuture != null)
-        {
-            timeoutFuture.cancel(false);
-            timeoutFuture = null;
-        }
-
         ctx.pipeline().remove(this);
     }
 

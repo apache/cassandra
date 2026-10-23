@@ -104,8 +104,7 @@ public class ServerConnection extends Connection
     {
         Channel channel = channel();
         Runnable completion = () -> {
-            AuthenticationTimeoutHandler handler =
-            channel.pipeline().get(AuthenticationTimeoutHandler.class);
+            AuthenticationTimeoutHandler handler = channel.pipeline().get(AuthenticationTimeoutHandler.class);
 
         if (handler != null)
             handler.markAuthenticationComplete(channel.pipeline().context(handler));
