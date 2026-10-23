@@ -51,6 +51,8 @@ public class CompressionDictionaryCache implements ICompressionDictionaryCache
 
     private final Cache<DictId, CompressionDictionary> cache;
     private final AtomicReference<DictId> currentDictId = new AtomicReference<>();
+    // set when the table is dropped, nothing would release a dictionary cached afterwards
+    private volatile boolean closed;
 
     public CompressionDictionaryCache()
     {
@@ -75,6 +77,9 @@ public class CompressionDictionaryCache implements ICompressionDictionaryCache
                                          // The dictionary's selfRef should never be null when evicting from cache
                                          // but using close() to have better resiliency
                                          dictionary.close();
+                                         // the compressor cached for this object would keep it alive until the
+                                         // compressor cache evicts it, e.g. long after the table was dropped
+                                         dictionary.kind().invalidateCompressor(dictionary);
                                      }
                                      catch (Exception e)
                                      {
@@ -92,6 +97,15 @@ public class CompressionDictionaryCache implements ICompressionDictionaryCache
     {
         DictId dictId = currentDictId.get();
         return dictId == null ? null : get(dictId);
+    }
+
+    @Nullable
+    @Override
+    public Ref<? extends CompressionDictionary> refCurrent()
+    {
+        CompressionDictionary dictionary = getCurrent();
+        // released since it was looked up, i.e. evicted, it is not the current one anymore
+        return dictionary == null ? null : dictionary.tryRef();
     }
 
     @Nullable
@@ -117,6 +131,15 @@ public class CompressionDictionaryCache implements ICompressionDictionaryCache
             return compressionDictionary;
         });
 
+        // A refresh, training or notification which read the dictionary before the table was dropped adds it after
+        // close() released the cached ones. close() sets closed before it invalidates the cache, this reads closed
+        // after caching, so close() or this removes the dictionary, which releases it.
+        if (closed)
+        {
+            cache.invalidate(newDictId);
+            return cached;
+        }
+
         // Update current dictionary if we don't have one or the new one has a higher ID (newer)
         DictId currentId = currentDictId.get();
         while ((currentId == null || newDictId.id > currentId.id)
@@ -129,6 +152,34 @@ public class CompressionDictionaryCache implements ICompressionDictionaryCache
     }
 
     @Override
+    public Ref<? extends CompressionDictionary> refForReading(CompressionDictionary compressionDictionary)
+    {
+        Ref<? extends CompressionDictionary> ref = add(compressionDictionary).tryRef();
+        if (ref != null)
+            return ref;
+
+        // the cached instance was released before it could be referenced, e.g. evicted right after it was cached or
+        // looked up; a fresh instance is not cached, its self-reference is the caller's
+        return unreferenced(compressionDictionary).initRefLazily();
+    }
+
+    /**
+     * @return the dictionary when it has no self-reference yet, otherwise a fresh instance of it. An instance with
+     *         a self-reference was referenced before, e.g. cached and then evicted, which released the self-reference;
+     *         taking that self-reference over, e.g. by caching the instance again, would release it twice.
+     */
+    private static CompressionDictionary unreferenced(CompressionDictionary dictionary)
+    {
+        if (dictionary.selfRef() == null)
+            return dictionary;
+
+        return dictionary.kind().createDictionary(dictionary.dictId(),
+                                                  dictionary.rawDictionary(),
+                                                  dictionary.checksum(),
+                                                  dictionary.createdAt());
+    }
+
+    @Override
     public long cachedDictionariesMemoryUsed()
     {
         AtomicInteger value = new AtomicInteger();
@@ -136,13 +187,27 @@ public class CompressionDictionaryCache implements ICompressionDictionaryCache
         return value.get();
     }
 
-    @Override
-    public synchronized void close()
+    /**
+     * Releases the cached dictionaries, e.g. when dictionary compression is disabled for the table. Dictionaries are
+     * cached again when they are added afterwards, e.g. when dictionary compression is enabled again.
+     */
+    public synchronized void clear()
     {
         currentDictId.set(null);
         // Invalidate cache will trigger removalListener to close all cached dictionaries, including the currentDictionary
         cache.invalidateAll();
         // Force synchronous cleanup to ensure removal listener executes immediately
         cache.cleanUp();
+    }
+
+    /**
+     * Releases the cached dictionaries when the table is dropped. A dictionary added afterwards is released right
+     * away instead of being cached.
+     */
+    @Override
+    public synchronized void close()
+    {
+        closed = true;
+        clear();
     }
 }

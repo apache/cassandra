@@ -183,6 +183,47 @@ public class CompressionDictionaryCacheTest
     }
 
     @Test
+    public void testRefCurrent()
+    {
+        assertThat(cache.refCurrent()).as("No current dictionary").isNull();
+
+        cache.add(testDict1);
+        Ref<? extends CompressionDictionary> ref = cache.refCurrent();
+        assertThat(ref.get()).isSameAs(testDict1);
+        // neither current nor cached anymore
+        cache.close();
+        Ref<? extends CompressionDictionary> another = testDict1.tryRef();
+        assertThat(another).as("Referenced by the caller").isNotNull();
+        another.release();
+        ref.release();
+        assertThat(testDict1.tryRef()).as("Released with the caller's reference").isNull();
+    }
+
+    @Test
+    public void testRefForReading()
+    {
+        Ref<? extends CompressionDictionary> ref = cache.refForReading(testDict1);
+        assertThat(ref.get()).isSameAs(testDict1).isSameAs(cache.get(testDict1.dictId()));
+        assertThat(testDict1.selfRef().globalCount()).as("References of the cache and the caller").isEqualTo(2);
+        ref.release();
+        assertThat(testDict1.selfRef().globalCount()).isEqualTo(1);
+    }
+
+    @Test
+    public void testRefForReadingReleasedBeforeReferenced()
+    {
+        CompressionDictionaryCache releasing = releasingCache();
+        Ref<? extends CompressionDictionary> ref = releasing.refForReading(testDict1);
+        CompressionDictionary referenced = ref.get();
+        assertThat(testDict1.tryRef()).as("Released dictionary").isNull();
+        assertThat(referenced).isNotSameAs(testDict1);
+        assertThat(referenced.dictId()).isEqualTo(testDict1.dictId());
+        assertThat(releasing.get(testDict1.dictId())).as("Fresh instance is not cached").isNull();
+        ref.release();
+        assertThat(referenced.tryRef()).as("The caller held the only reference").isNull();
+    }
+
+    @Test
     public void testCacheClose()
     {
         cache.add(testDict1);
@@ -224,6 +265,35 @@ public class CompressionDictionaryCacheTest
         assertThat(cache.get(testDict1.dictId()))
         .as("Cache should remain empty")
         .isNull();
+    }
+
+    @Test
+    public void testAddAfterClose()
+    {
+        cache.close();
+        // e.g. a refresh which read the dictionary before the table was dropped
+        assertThat(cache.add(testDict1).tryRef()).as("Released right away").isNull();
+        assertThat(cache.get(testDict1.dictId())).as("Not cached").isNull();
+        assertThat(cache.getCurrent()).as("Not current").isNull();
+
+        Ref<? extends CompressionDictionary> ref = cache.refForReading(testDict2);
+        CompressionDictionary referenced = ref.get();
+        assertThat(referenced.dictId()).isEqualTo(testDict2.dictId());
+        assertThat(cache.get(testDict2.dictId())).as("Not cached").isNull();
+        ref.release();
+        assertThat(referenced.tryRef()).as("The caller held the only reference").isNull();
+    }
+
+    @Test
+    public void testAddAfterClear()
+    {
+        cache.add(testDict1);
+        // e.g. dictionary compression was disabled and is enabled again
+        cache.clear();
+        assertThat(cache.get(testDict1.dictId())).isNull();
+        cache.add(testDict2);
+        assertThat(cache.get(testDict2.dictId())).isSameAs(testDict2);
+        assertThat(cache.getCurrent()).isSameAs(testDict2);
     }
 
     @Test
@@ -487,6 +557,21 @@ public class CompressionDictionaryCacheTest
         {
             pool.shutdownNow();
         }
+    }
+
+    /** cache which releases what it caches right after caching it, as an eviction does */
+    private static CompressionDictionaryCache releasingCache()
+    {
+        return new CompressionDictionaryCache()
+        {
+            @Override
+            public CompressionDictionary add(CompressionDictionary dictionary)
+            {
+                CompressionDictionary cached = super.add(dictionary);
+                close();
+                return cached;
+            }
+        };
     }
 
     private static ZstdCompressionDictionary createTestDictionary(long id)
