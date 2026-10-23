@@ -17,8 +17,14 @@
  */
 package org.apache.cassandra.transport.messages;
 
+import java.nio.charset.StandardCharsets;
 import java.util.HashMap;
 import java.util.Map;
+
+import com.google.common.annotations.VisibleForTesting;
+
+import org.apache.commons.lang3.StringEscapeUtils;
+import org.apache.commons.lang3.StringUtils;
 
 import org.apache.cassandra.auth.IAuthenticator;
 import org.apache.cassandra.config.DatabaseDescriptor;
@@ -51,6 +57,9 @@ public class StartupMessage extends Message.Request
     public static final String DRIVER_NAME = "DRIVER_NAME";
     public static final String DRIVER_VERSION = "DRIVER_VERSION";
     public static final String THROW_ON_OVERLOAD = "THROW_ON_OVERLOAD";
+    public static final int MAX_OPTION_KEY_LENGTH = 256;
+    public static final int MAX_OPTION_VALUE_LENGTH = 1024;
+    public static final int MAX_OPTION_COUNT = 64;
 
     public static final Message.Codec<StartupMessage> codec = new Message.Codec<StartupMessage>()
     {
@@ -83,6 +92,7 @@ public class StartupMessage extends Message.Request
     @Override
     protected Message.Response execute(QueryState state, Dispatcher.RequestTime requestTime, boolean traceRequest)
     {
+        validateOptions(options);
         String cqlVersion = options.get(CQL_VERSION);
         if (cqlVersion == null)
             throw new ProtocolException("Missing value CQL_VERSION in STARTUP message");
@@ -173,6 +183,73 @@ public class StartupMessage extends Message.Request
         for (Map.Entry<String, String> entry : options.entrySet())
             newMap.put(toUpperCaseLocalized(entry.getKey()), entry.getValue());
         return newMap;
+    }
+
+    /**
+     * Validates and sanitizes a startup option key or value string.
+     * Enforces byte-length bounds, blocks ISO control characters, newlines,
+     * and ensures keys are non-null.
+     *
+     * @param str the string to validate
+     * @param isKey true if validating a key, false if validating a value
+     * @throws ProtocolException if the string violates validation constraints
+     */
+    private static void validateString(String str, boolean isKey)
+    {
+        if (str == null)
+        {
+            if (isKey)
+                throw new ProtocolException("Startup option keys cannot be null");
+            return;
+        }
+
+        for (int i = 0; i < str.length(); )
+        {
+            int cp = str.codePointAt(i);
+            char c = (char) cp;
+
+            if (c == '\n' || c == '\r')
+                throw new ProtocolException(String.format("Startup option %s contains a newline character at index %d", isKey ? "key" : "value", i));
+
+            if ((Character.isISOControl(cp) && cp != '\t') ||
+                Character.getType(cp) == Character.SURROGATE ||
+                Character.getType(cp) == Character.FORMAT ||
+                Character.getType(cp) == Character.LINE_SEPARATOR ||
+                Character.getType(cp) == Character.PARAGRAPH_SEPARATOR)
+            {
+                throw new ProtocolException(String.format("Startup option %s contains a forbidden control or formatting character at index %d", isKey ? "key" : "value", i));
+            }
+            i += Character.charCount(cp);
+        }
+
+        // 2. Check length AFTER character scan is complete
+        int maxLength = isKey ? MAX_OPTION_KEY_LENGTH : MAX_OPTION_VALUE_LENGTH;
+        byte[] utf8Bytes = str.getBytes(StandardCharsets.UTF_8);
+        if (utf8Bytes.length > maxLength)
+        {
+            String target = isKey
+                            ? String.format("key '%s'", StringEscapeUtils.escapeJava(StringUtils.abbreviate(str, 23)))
+                            : "value";
+
+            throw new ProtocolException(String.format("Startup option %s exceeds maximum byte length: %d (maximum allowed is %d)",
+                                                      target, utf8Bytes.length, maxLength));
+        }
+    }
+
+    @VisibleForTesting
+    static void validateOptions(Map<String, String> options)
+    {
+        if (options == null || options.isEmpty())
+            return;
+
+        if (options.size() > MAX_OPTION_COUNT)
+            throw new ProtocolException(String.format("Too many startup options provided: %d (maximum allowed is %d)", options.size(), MAX_OPTION_COUNT));
+
+        for (Map.Entry<String, String> entry : options.entrySet())
+        {
+            validateString(entry.getKey(), true);
+            validateString(entry.getValue(), false);
+        }
     }
 
     @Override
