@@ -357,6 +357,16 @@ public class Config
 
     public String saved_caches_directory;
 
+    /**
+     * Optional. When set, Cassandra will store snapshots in this directory
+     * instead of under data_file_directories. This uses file copies instead
+     * of hardlinks. Useful when snapshot data risks filling the data disk
+     * during backup upload windows.
+     *
+     * Structure: <snapshot_directory>/<keyspace>/<table-id>/snapshots/<tag>/
+     */
+    public String snapshot_directory;
+
     // Commit Log
     public String commitlog_directory;
     @Replaces(oldName = "commitlog_total_space_in_mb", converter = Converters.MEBIBYTES_DATA_STORAGE_INT, deprecated = true)

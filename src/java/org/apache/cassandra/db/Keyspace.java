@@ -326,7 +326,7 @@ public class Keyspace
         RateLimiter clearSnapshotRateLimiter = DatabaseDescriptor.getSnapshotRateLimiter();
 
         List<File> tableDirectories = Directories.getKSChildDirectories(keyspace);
-        Directories.clearSnapshot(snapshotName, tableDirectories, clearSnapshotRateLimiter);
+        Directories.clearSnapshot(snapshotName, tableDirectories, clearSnapshotRateLimiter, true);
     }
 
     /**
