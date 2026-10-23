@@ -20,7 +20,11 @@ package org.apache.cassandra.db.lifecycle;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
+
+import com.google.common.base.Function;
+import com.google.common.base.Predicate;
 
 import org.junit.After;
 import org.junit.Before;
@@ -181,6 +185,40 @@ public class LifecycleTransactionTest extends AbstractTransactionalTest
         Assert.assertTrue(all(of(readers.get(1), fresh), idIn(tracker.getView().compacting)));
     }
 
+    /** A batch cancel is one View update, and is validated in full before anything changes. */
+    @Test
+    public void testBatchCancellation()
+    {
+        ColumnFamilyStore cfs = MockSchema.newCFS();
+        AtomicInteger viewUpdates = new AtomicInteger();
+        Tracker tracker = new Tracker(null, false)
+        {
+            @Override
+            Pair<View, View> apply(Predicate<View> permit, Function<View, View> function)
+            {
+                viewUpdates.incrementAndGet();
+                return super.apply(permit, function);
+            }
+        };
+        List<SSTableReader> readers = readers(0, 5, cfs);
+        tracker.addInitialSSTables(readers);
+        LifecycleTransaction txn = tracker.tryModify(readers, OperationType.UNKNOWN);
+        SSTableReader notPresent = readers(5, 6, cfs).get(0);
+
+        viewUpdates.set(0);
+        testBadCancel(txn, of(readers.get(0), notPresent));
+        Assert.assertEquals(0, viewUpdates.get());
+        Assert.assertEquals(5, txn.originals().size());
+
+        txn.cancel(readers.subList(0, 4));
+        Assert.assertEquals(1, viewUpdates.get());
+        Assert.assertEquals(1, txn.originals().size());
+        Assert.assertEquals(1, tracker.getView().compacting.size());
+        Assert.assertTrue(all(readers.subList(4, 5), idIn(tracker.getView().compacting)));
+        for (SSTableReader cancelled : readers.subList(0, 4))
+            testBadCancel(txn, cancelled);
+    }
+
     @Test
     public void testSplit()
     {
@@ -237,6 +275,20 @@ public class LifecycleTransactionTest extends AbstractTransactionalTest
     }
 
     private static void testBadCancel(LifecycleTransaction txn, SSTableReader cancel)
+    {
+        boolean failed = false;
+        try
+        {
+            txn.cancel(cancel);
+        }
+        catch (Throwable t)
+        {
+            failed = true;
+        }
+        Assert.assertTrue(failed);
+    }
+
+    private static void testBadCancel(LifecycleTransaction txn, Iterable<SSTableReader> cancel)
     {
         boolean failed = false;
         try
