@@ -130,6 +130,10 @@ public abstract class TrackedTransferTestBase extends TestBaseImpl
     protected final static Token TOKEN_300 = new Murmur3Partitioner.LongToken(TOKEN_VALUE_300);
     protected final static ByteBuffer KEY_300 = Murmur3Partitioner.LongToken.keyForToken(TOKEN_300.getLongValue());
 
+     protected final static long TOKEN_VALUE_400 = Long.MAX_VALUE;
+     protected final static Token TOKEN_400 = new Murmur3Partitioner.LongToken(TOKEN_VALUE_400);
+     protected final static ByteBuffer KEY_400 = Murmur3Partitioner.LongToken.keyForToken(TOKEN_400.getLongValue());
+
     protected final static Range<Token> SHARD_ALIGNED_RANGE_2 = new Range<>(new Murmur3Partitioner.LongToken(TOKEN_VALUE_200 - 10), new Murmur3Partitioner.LongToken(TOKEN_VALUE_200 + 10));
 
     static
@@ -145,6 +149,9 @@ public abstract class TrackedTransferTestBase extends TestBaseImpl
 
         reversed = Murmur3Partitioner.instance.decorateKey(KEY_300);
         Assertions.assertThat(reversed.getToken()).isEqualTo(TOKEN_300);
+
+        reversed = Murmur3Partitioner.instance.decorateKey(KEY_400);
+        Assertions.assertThat(reversed.getToken()).isEqualTo(TOKEN_400);
     }
 
     protected static Cluster cluster() throws IOException
