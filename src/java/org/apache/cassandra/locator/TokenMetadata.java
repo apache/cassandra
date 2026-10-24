@@ -44,6 +44,7 @@ import org.apache.cassandra.dht.Range;
 import org.apache.cassandra.dht.Token;
 import org.apache.cassandra.gms.FailureDetector;
 import org.apache.cassandra.locator.ReplicaCollection.Builder.Conflict;
+import org.apache.cassandra.metrics.SlotGroupingMetrics;
 import org.apache.cassandra.service.StorageService;
 import org.apache.cassandra.utils.BiMultiValMap;
 import org.apache.cassandra.utils.Pair;
@@ -99,6 +100,10 @@ public class TokenMetadata
     // this is a cache of the calculation from {tokenToEndpointMap, bootstrapTokens, leavingEndpoints}
     // NOTE: this may contain ranges that conflict with the those implied by sortedTokens when a range is changing its transient status
     private final ConcurrentMap<String, PendingRangeMaps> pendingRanges = new ConcurrentHashMap<String, PendingRangeMaps>();
+
+    // Pre-computed slot groups for replica slot grouping feature.
+    // Maps keyspace name -> SlotGroupMaps (token-indexed slot groups).
+    private final ConcurrentMap<String, SlotGroupMaps> slotGroupMaps = new ConcurrentHashMap<>();
 
     // nodes which are migrating to the new tokens in the ring
     private final Set<Pair<Token, InetAddressAndPort>> movingEndpoints = new HashSet<>();
@@ -890,6 +895,99 @@ public class TokenMetadata
             if (logger.isTraceEnabled())
                 logger.trace("Calculated pending ranges for {}:\n{}", keyspaceName, (pendingRanges.isEmpty() ? "<empty>" : printPendingRanges()));
         }
+    }
+
+    /**
+     * Calculate slot groups for the given keyspace and strategy.
+     * Slot groups map each token boundary to a set of ReplicaSlotGroups,
+     * enabling O(1) response counting during topology changes.
+     *
+     * This is computed separately from pending ranges and controlled by feature flag.
+     *
+     * If validation fails (multiple pending for same token), slot groups are NOT stored
+     * and the feature falls back to existing behavior for this keyspace.
+     */
+    public void calculateSlotGroups(AbstractReplicationStrategy strategy, String keyspaceName)
+    {
+        if (!DatabaseDescriptor.isReplicaSlotGroupingEnabled())
+        {
+            slotGroupMaps.remove(keyspaceName);  // Ensure clean state when disabled
+            return;
+        }
+
+        long startedAt = currentTimeMillis();
+        synchronized (slotGroupMaps)
+        {
+            // Create clone of current state
+            BiMultiValMap<Token, InetAddressAndPort> bootstrapTokensClone;
+            Set<InetAddressAndPort> leavingEndpointsClone;
+            Set<Pair<Token, InetAddressAndPort>> movingEndpointsClone;
+            TokenMetadata beforeMetadata;
+
+            lock.readLock().lock();
+            try
+            {
+                if (bootstrapTokens.isEmpty() && leavingEndpoints.isEmpty() && movingEndpoints.isEmpty())
+                {
+                    if (logger.isTraceEnabled())
+                        logger.trace("No bootstrapping, leaving or moving nodes -> no slot groups for {}",
+                                     keyspaceName);
+                    slotGroupMaps.remove(keyspaceName);
+                    return;
+                }
+
+                bootstrapTokensClone = new BiMultiValMap<>(this.bootstrapTokens);
+                leavingEndpointsClone = new HashSet<>(this.leavingEndpoints);
+                movingEndpointsClone = new HashSet<>(this.movingEndpoints);
+                beforeMetadata = this.cloneOnlyTokenMap();
+            }
+            finally
+            {
+                lock.readLock().unlock();
+            }
+
+            // Delegate transit pair derivation to extracted calculator
+            TokenMetadataTransitPairCalculator calculator = new TokenMetadataTransitPairCalculator(
+                strategy, beforeMetadata, bootstrapTokensClone, leavingEndpointsClone, movingEndpointsClone);
+            TokenMetadataTransitPairCalculator.TransitPairResult result = calculator.computeTransitPairs(keyspaceName);
+
+            if (!result.valid)
+            {
+                SlotGroupingMetrics.constraintViolations.inc();
+                logger.warn("Slot group calculation for {} failed due to" +
+                            " constraint violation, falling back to" +
+                            " existing behavior", keyspaceName);
+                slotGroupMaps.remove(keyspaceName);
+                return;
+            }
+
+            SlotGroupMaps newSlotGroups = SlotGroupMaps.Builder.build(
+                result.allTokens,
+                result.tokenToPendingSlot,
+                token -> strategy.calculateNaturalReplicas(token, beforeMetadata));
+
+            slotGroupMaps.put(keyspaceName, newSlotGroups);
+
+            long took = currentTimeMillis() - startedAt;
+            if (logger.isDebugEnabled())
+                logger.debug("Slot group calculation for {} completed (took: {}ms, {} token boundaries)",
+                             keyspaceName, took, newSlotGroups.size());
+        }
+    }
+
+    public SlotGroupMaps.SlotGroupInfo getSlotInfoForToken(Token token, String keyspaceName)
+    {
+        SlotGroupMaps maps = slotGroupMaps.get(keyspaceName);
+        if (maps == null)
+        {
+            return null;  // No slot groups computed (feature disabled or no topology change)
+        }
+        return maps.getSlotInfoForToken(token);
+    }
+
+    public SlotGroupMaps getSlotGroupMaps(String keyspaceName)
+    {
+        return slotGroupMaps.get(keyspaceName);
     }
 
     public void unsafeCalculatePendingRanges(AbstractReplicationStrategy strategy, String keyspaceName)
