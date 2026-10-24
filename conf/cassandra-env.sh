@@ -112,11 +112,12 @@ else
 fi
 
 # Check what parameters were defined on jvm-server.options file to avoid conflicts
-echo $JVM_OPTS | grep -q Xmn
+# Match whole options only: JVM_OPTS also holds paths (e.g. the gc log) which may contain these strings
+echo $JVM_OPTS | grep -qE '(^| )-Xmn'
 DEFINED_XMN=$?
-echo $JVM_OPTS | grep -q Xmx
+echo $JVM_OPTS | grep -qE '(^| )-Xmx'
 DEFINED_XMX=$?
-echo $JVM_OPTS | grep -q Xms
+echo $JVM_OPTS | grep -qE '(^| )-Xms'
 DEFINED_XMS=$?
 echo $JVM_OPTS | grep -q UseConcMarkSweepGC
 USING_CMS=$?
