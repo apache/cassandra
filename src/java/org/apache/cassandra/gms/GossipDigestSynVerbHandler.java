@@ -23,6 +23,7 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
+import com.google.common.annotations.VisibleForTesting;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -30,7 +31,9 @@ import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.locator.InetAddressAndPort;
 import org.apache.cassandra.net.Message;
 import org.apache.cassandra.net.MessagingService;
+import org.apache.cassandra.utils.FBUtilities;
 
+import static org.apache.cassandra.gms.Gossiper.removeForeignClusterNodes;
 import static org.apache.cassandra.net.Verb.GOSSIP_DIGEST_ACK;
 
 public class GossipDigestSynVerbHandler extends GossipVerbHandler<GossipDigestSyn>
@@ -112,11 +115,29 @@ public class GossipDigestSynVerbHandler extends GossipVerbHandler<GossipDigestSy
         super.doVerb(message);
     }
 
+    @VisibleForTesting
+    public static Message<GossipDigestAck> createNormalReplyUnsafeForTest(List<GossipDigest> gDigestList)
+    {
+        return createNormalReply(gDigestList);
+    }
+
     private static Message<GossipDigestAck> createNormalReply(List<GossipDigest> gDigestList)
     {
         List<GossipDigest> deltaGossipDigestList = new ArrayList<>();
         Map<InetAddressAndPort, EndpointState> deltaEpStateMap = new HashMap<>();
         Gossiper.instance.examineGossiper(gDigestList, deltaGossipDigestList, deltaEpStateMap);
+
+        InetAddressAndPort nodeAddress = FBUtilities.getBroadcastAddressAndPort();
+        // Send cluster and partitioner names for cluster foreign node checks
+        if (deltaEpStateMap.get(nodeAddress) != null)
+        {
+            if (!deltaEpStateMap.get(nodeAddress).containsApplicationState(ApplicationState.JSON_PAYLOAD))
+                deltaEpStateMap.get(nodeAddress).addApplicationState(ApplicationState.JSON_PAYLOAD,
+                                                                     ApplicationState.serializeJsonPayload(ApplicationState.initialJsonPayload));
+
+        }
+        deltaEpStateMap = removeForeignClusterNodes(deltaEpStateMap);
+
         logger.trace("sending {} digests and {} deltas", deltaGossipDigestList.size(), deltaEpStateMap.size());
 
         return Message.out(GOSSIP_DIGEST_ACK, new GossipDigestAck(deltaGossipDigestList, deltaEpStateMap));
@@ -125,6 +146,18 @@ public class GossipDigestSynVerbHandler extends GossipVerbHandler<GossipDigestSy
     private static Message<GossipDigestAck> createShadowReply()
     {
         Map<InetAddressAndPort, EndpointState> stateMap = Gossiper.instance.examineShadowState();
+
+        InetAddressAndPort nodeAddress = FBUtilities.getBroadcastAddressAndPort();
+        // Send cluster and partitioner names for cluster foreign node checks
+        if (stateMap.get(nodeAddress) != null)
+        {
+            if (!stateMap.get(nodeAddress).containsApplicationState(ApplicationState.JSON_PAYLOAD))
+                stateMap.get(nodeAddress).addApplicationState(ApplicationState.JSON_PAYLOAD,
+                                                              ApplicationState.serializeJsonPayload(ApplicationState.initialJsonPayload));
+
+        }
+        stateMap = removeForeignClusterNodes(stateMap);
+
         logger.trace("sending 0 digests and {} deltas", stateMap.size());
         return Message.out(GOSSIP_DIGEST_ACK, new GossipDigestAck(Collections.emptyList(), stateMap));
     }
