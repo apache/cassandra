@@ -45,6 +45,7 @@ import org.apache.cassandra.index.internal.CassandraIndex;
 import org.apache.cassandra.io.compress.BufferType;
 import org.apache.cassandra.io.sstable.format.big.BigFormat;
 import org.apache.cassandra.repair.autorepair.AutoRepairConfig;
+import org.apache.cassandra.service.storage.StorageProviderConfig;
 import org.apache.cassandra.utils.StorageCompatibilityMode;
 
 import static org.apache.cassandra.config.CassandraRelevantProperties.AUTOCOMPACTION_ON_STARTUP_ENABLED;
@@ -91,6 +92,8 @@ public class Config
     public ParameterizedClass network_authorizer;
     public ParameterizedClass cidr_authorizer;
     public Map<String, ParameterizedClass> compressor_providers = new HashMap<>();
+
+    public StorageProviderConfig storageProviderConfig;
 
     @Replaces(oldName = "permissions_validity_in_ms", converter = Converters.MILLIS_DURATION_INT, deprecated = true)
     public volatile DurationSpec.IntMillisecondsBound permissions_validity = new DurationSpec.IntMillisecondsBound("2s");

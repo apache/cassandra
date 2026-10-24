@@ -90,6 +90,7 @@ import org.apache.cassandra.service.accord.AccordOperations;
 import org.apache.cassandra.service.accord.AccordService;
 import org.apache.cassandra.service.paxos.PaxosState;
 import org.apache.cassandra.service.snapshot.SnapshotManager;
+import org.apache.cassandra.service.storage.StorageProviders;
 import org.apache.cassandra.streaming.StreamManager;
 import org.apache.cassandra.tcm.CMSOperations;
 import org.apache.cassandra.tcm.ClusterMetadata;
@@ -269,6 +270,8 @@ public class CassandraDaemon
         NativeLibrary.tryMlockall();
 
         AsyncProfilerService.instance();
+
+        StorageProviders.initialize();
 
         Keyspace.setInitialized();
         CommitLog.instance.start();

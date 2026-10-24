@@ -27,6 +27,7 @@ import com.google.common.util.concurrent.RateLimiter;
 import org.apache.cassandra.cache.ChunkCache;
 import org.apache.cassandra.io.compress.BufferType;
 import org.apache.cassandra.io.compress.CompressionMetadata;
+import org.apache.cassandra.service.storage.StorageProviders;
 import org.apache.cassandra.utils.NativeLibrary;
 import org.apache.cassandra.utils.Throwables;
 import org.apache.cassandra.utils.concurrent.Ref;
@@ -449,7 +450,7 @@ public class FileHandle extends SharedCloseableImpl
          */
         public FileHandle complete()
         {
-            return complete(file -> new ChannelProxy(file, ioMode()));
+            return complete(file -> StorageProviders.factory().create(file, ioMode()));
         }
 
         private ChannelProxy.IOMode ioMode()
