@@ -79,4 +79,8 @@ public interface ActiveRepairServiceMBean
     public double getIncrementalRepairDiskHeadroomRejectRatio();
 
     public void setIncrementalRepairDiskHeadroomRejectRatio(double value);
+
+    public int getIncrementalRepairL0SSTableCountRejectThreshold();
+
+    public void setIncrementalRepairL0SSTableCountRejectThreshold(int value);
 }
