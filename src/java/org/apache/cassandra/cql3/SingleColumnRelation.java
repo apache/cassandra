@@ -274,8 +274,8 @@ public final class SingleColumnRelation extends Relation
     {
         ColumnSpecification receiver = columnDef;
 
-        checkFalse(isContainsKey() && !(receiver.type instanceof MapType), "Cannot use CONTAINS KEY on non-map column %s", receiver.name);
-        checkFalse(isContains() && !(receiver.type.isCollection()), "Cannot use CONTAINS on non-collection column %s", receiver.name);
+        checkFalse(isContainsKey() && !(receiver.type.unwrap() instanceof MapType), "Cannot use CONTAINS KEY on non-map column %s", receiver.name);
+        checkFalse(isContains() && !(receiver.type.unwrap().isCollection()), "Cannot use CONTAINS on non-collection column %s", receiver.name);
 
         if (mapKey != null)
         {
@@ -291,7 +291,7 @@ public final class SingleColumnRelation extends Relation
                    receiver.name,
                    receiver.type.asCQL3Type());
 
-        if (receiver.type.isCollection())
+        if (receiver.type.unwrap().isCollection())
         {
             // We don't support relations against entire collections (unless they're frozen), like "numbers = {1, 2, 3}"
             checkFalse(receiver.type.isMultiCell() && !isLegalRelationForNonFrozenCollection(),
@@ -318,7 +318,7 @@ public final class SingleColumnRelation extends Relation
 
     private static ColumnSpecification makeCollectionReceiver(ColumnSpecification receiver, boolean forKey)
     {
-        return ((CollectionType<?>) receiver.type).makeCollectionReceiver(receiver, forKey);
+        return ((CollectionType<?>) receiver.type.unwrap()).makeCollectionReceiver(receiver, forKey);
     }
 
     private boolean isLegalRelationForNonFrozenCollection()
