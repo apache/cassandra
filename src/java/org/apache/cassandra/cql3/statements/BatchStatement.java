@@ -578,6 +578,8 @@ public class BatchStatement implements CQLStatement.CompositeCQLStatement
 
     private ResultMessage executeWithConditions(BatchQueryOptions options, QueryState state, Dispatcher.RequestTime requestTime)
     {
+        Guardrails.serialConsistency.guard(options.serialConsistencyNotProvided(), state.getClientState());
+
         Pair<CQL3CasRequest, Set<ColumnMetadata>> p = makeCasRequest(options, state, requestTime);
         CQL3CasRequest casRequest = p.left;
         Set<ColumnMetadata> columnsWithConditions = p.right;
