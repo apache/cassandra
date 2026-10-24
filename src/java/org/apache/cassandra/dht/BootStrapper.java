@@ -33,6 +33,7 @@ import org.apache.cassandra.gms.Gossiper;
 import org.apache.cassandra.locator.AbstractReplicationStrategy;
 import org.apache.cassandra.locator.InetAddressAndPort;
 import org.apache.cassandra.locator.TokenMetadata;
+import org.apache.cassandra.service.BootstrapOptionsParser;
 import org.apache.cassandra.service.StorageService;
 import org.apache.cassandra.streaming.*;
 import org.apache.cassandra.utils.FBUtilities;
@@ -73,6 +74,8 @@ public class BootStrapper extends ProgressEventNotifierSupport
                                                    stateStore,
                                                    true,
                                                    DatabaseDescriptor.getStreamingConnectionsPerHost());
+        BootstrapSourceFilter filter = BootstrapOptionsParser.parse(tokenMetadata, DatabaseDescriptor.getEndpointSnitch());
+        streamer.addSourceFilter(filter);
         final Collection<String> nonLocalStrategyKeyspaces = Schema.instance.distributedKeyspaces().names();
         if (nonLocalStrategyKeyspaces.isEmpty())
             logger.debug("Schema does not contain any non-local keyspaces to stream on bootstrap");
