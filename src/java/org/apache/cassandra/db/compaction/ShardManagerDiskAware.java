@@ -39,9 +39,9 @@ public class ShardManagerDiskAware extends ShardManagerNoDisks
     private final int[] diskStartRangeIndex;
     private final List<Token> diskBoundaries;
 
-    public ShardManagerDiskAware(ColumnFamilyStore.VersionedLocalRanges localRanges, List<Token> diskBoundaries)
+    public ShardManagerDiskAware(ColumnFamilyStore.VersionedLocalRanges localRanges, List<Token> diskBoundaries, long estimatedPartitionCount)
     {
-        super(localRanges);
+        super(localRanges, estimatedPartitionCount);
         assert diskBoundaries != null && !diskBoundaries.isEmpty();
         this.diskBoundaries = diskBoundaries;
 
