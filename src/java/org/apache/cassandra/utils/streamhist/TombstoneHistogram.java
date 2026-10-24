@@ -193,4 +193,15 @@ public class TombstoneHistogram
                    : (int) value;
         }
     }
+
+    /**
+     * Concatenating TombstoneHistogram prints Object.toString(). That is hashCode()-based on a
+     * plain JVM but identityHashCode-based under the simulator agent (InterceptAgent rewrites Object.toString), which
+     * made the summaries of equal histograms differ when run from the IDE.
+     */
+    @Override
+    public String toString()
+    {
+        return bin.toString();
+    }
 }

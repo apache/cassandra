@@ -38,7 +38,6 @@ import org.apache.cassandra.io.util.ChecksummedSequentialWriter;
 import org.apache.cassandra.io.util.SequentialWriter;
 import org.apache.cassandra.io.util.SequentialWriterOption;
 import org.apache.cassandra.schema.CompressionParams;
-import org.apache.cassandra.schema.TableMetadata;
 
 import static org.apache.cassandra.io.DirectIoSupport.NOT_A_WRITER;
 import static org.apache.cassandra.io.DirectIoSupport.SUPPORTED;
@@ -96,16 +95,16 @@ public class DataComponent
     }
 
     public static SequentialWriter buildWriter(Descriptor descriptor,
-                                               TableMetadata metadata,
+                                               CompressionParams compression,
                                                SequentialWriterOption options,
                                                MetadataCollector metadataCollector,
                                                OperationType operationType,
                                                FlushCompression flushCompression,
                                                CompressionDictionaryManager compressionDictionaryManager)
     {
-        if (metadata.params.compression.isEnabled())
+        if (compression.isEnabled())
         {
-            CompressionParams compressionParams = buildCompressionParams(metadata, operationType, flushCompression);
+            CompressionParams compressionParams = buildCompressionParams(compression, operationType, flushCompression);
 
             if (DatabaseDescriptor.getBackgroundWriteDiskAccessMode() == DiskAccessMode.direct
                 && isDirectWriteSupported(operationType))
@@ -143,9 +142,9 @@ public class DataComponent
      *
      * @return {@link CompressionParams}
      */
-    private static CompressionParams buildCompressionParams(TableMetadata metadata, OperationType operationType, FlushCompression flushCompression)
+    private static CompressionParams buildCompressionParams(CompressionParams compression, OperationType operationType, FlushCompression flushCompression)
     {
-        CompressionParams compressionParams = metadata.params.compression;
+        CompressionParams compressionParams = compression;
         final ICompressor compressor = compressionParams.getSstableCompressor();
 
         if (null != compressor && operationType == OperationType.FLUSH)

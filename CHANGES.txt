@@ -1,5 +1,7 @@
 7.0
  * Reject decimal values without an unscaled part (CASSANDRA-21751)
+ * Clarify off-heap OOM error message in JVMStabilityInspector (CASSANDRA-19831)
+ * FQLTool Replay support for full set of login options (CASSANDRA-17559)
  * Extract reusable HttpService from cloud metadata connector (CASSANDRA-21195)
  * Redact hash and _hash suffixed parameters in system_views.settings (CASSANDRA-21686)
  * Allow CQLSSTableWriter to specify SSTable id generator to use (CASSANDRA-21012)
@@ -13,6 +15,8 @@
  * Allow nodetool garbagecollect to take a user defined list of SSTables (CASSANDRA-16767)
  * Add a guardrail for misprepared statements (CASSANDRA-21139)
 Merged from 6.0:
+ * Support skipping fsync in LogReplica.syncDirectory for tests (CASSANDRA-21785)
+ * Avoid codec lookup in Cassandra Stress (CASSANDRA-21702)
  * Fix use-after-free when Zstd dictionary compressor cache evicts concurrently with in-flight compression (CASSANDRA-21714)
  * Accord: Torn Single Partition Reads (CASSANDRA-21741)
  * Accord: Add support for ELSE/ELSE IF (CASSANDRA-21484)
@@ -71,6 +75,11 @@ Merged from 6.0:
  * Avoid megamorphic calls when serializing and deserializing fixed-length values (CASSANDRA-21536)
  * Avoid megamorphic calls for Cell.timestamp/ttl/path/localDeletionTimeAsUnsignedInt methods (CASSANDRA-21526)
 Merged from 5.0:
+ * Respect cassandra.skip_sync in FileOutputStreamPlus.sync and ChecksumWriter (CASSANDRA-21800)
+ * Fail sstableloader when no replicas are found for the target keyspace (CASSANDRA-20096)
+ * Fix ignored global auto repair settings repair_max_retries and repair_retry_backoff (CASSANDRA-21748)
+ * Replica filtering protection resurrects rows deleted by a range tombstone that spans pages (CASSANDRA-21781)
+ * Write an sstable with the compression its components were chosen for when ALTER TABLE changes it (CASSANDRA-21780)
  * Clarify the unset, true and false behaviours of cassandra.reset_bootstrap_progress in the abort message and docs (CASSANDRA-21595)
  * Isolate SAI index rebuilds from ZCS (CASSANDRA-21520)
  * Bound and chunk the BTI partition index preload (CASSANDRA-21632)
@@ -86,7 +95,13 @@ Merged from 5.0:
  * Allow setCompressedReadAheadBufferSizeInKb(0) to disable read-ahead buffer (CASSANDRA-21522)
  * Fix ThreadLocalReadAheadBuffer#fill() to throw a CorruptBlockException if chunk metadata and file size are out of sync (CASSANDRA-21519)
  * Fix memtable on-heap accounting drift in BTree.update and BTreeRow.merge (CASSANDRA-21472)
+Merged from 4.1:
+ * PreV5Handlers.toFlushItem may leak memory on disconnected channel (CASSANDRA-21766)
 Merged from 4.0:
+ * Fix global MemtableOffHeapDataSize metric reporting on-heap memtable usage (CASSANDRA-21762)
+ * Fix function inference for arithmetic on DESC clustering columns (CASSANDRA-19919)
+ * Fix incorrect fsync usage (CASSANDRA-21673)
+ * Validate Digest.crc32 when zero-copy streaming SSTables (CASSANDRA-21694)
  * Avoid DNS lookup for hostname column in ClientsTable and GossipInfoTable (CASSANDRA-21539)
  * Separate memtable memory usage tracking from limit checking, and fixes a a flush writeBarrier deadlock (CASSANDRA-21019)
  * Fixes for fully-expired SSTable index notification in compaction (CASSANDRA-21577)
