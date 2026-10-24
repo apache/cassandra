@@ -33,11 +33,10 @@ public class GossipDigestAck2VerbHandler extends GossipVerbHandler<GossipDigestA
 
     public void doVerb(Message<GossipDigestAck2> message)
     {
+        InetAddressAndPort from = message.from();
         if (logger.isTraceEnabled())
-        {
-            InetAddressAndPort from = message.from();
             logger.trace("Received a GossipDigestAck2Message from {}", from);
-        }
+
         if (!Gossiper.instance.isEnabled())
         {
             if (logger.isTraceEnabled())
@@ -45,6 +44,12 @@ public class GossipDigestAck2VerbHandler extends GossipVerbHandler<GossipDigestA
             return;
         }
         Map<InetAddressAndPort, EndpointState> remoteEpStateMap = message.payload.epStateMap;
+
+        // Cross-cluster safety checks
+        if (!Gossiper.maybeBelongsInCluster(from, remoteEpStateMap.get(from)))
+            return;
+        remoteEpStateMap = Gossiper.removeForeignClusterNodes(remoteEpStateMap);
+
         /* Notify the Failure Detector */
         Gossiper.instance.notifyFailureDetector(remoteEpStateMap);
         Gossiper.instance.applyStateLocally(remoteEpStateMap);

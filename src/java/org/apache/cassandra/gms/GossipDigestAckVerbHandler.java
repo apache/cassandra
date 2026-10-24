@@ -55,6 +55,11 @@ public class GossipDigestAckVerbHandler extends GossipVerbHandler<GossipDigestAc
         Map<InetAddressAndPort, EndpointState> epStateMap = gDigestAckMessage.getEndpointStateMap();
         logger.trace("Received ack with {} digests and {} states", gDigestList.size(), epStateMap.size());
 
+        // Cross-cluster safety checks
+        if (!Gossiper.maybeBelongsInCluster(from, epStateMap.get(from)))
+            return;
+        epStateMap = Gossiper.removeForeignClusterNodes(epStateMap);
+
         if (Gossiper.instance.isInShadowRound())
         {
             if (logger.isDebugEnabled())
