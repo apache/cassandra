@@ -227,12 +227,8 @@ public abstract class AbstractKeySorted<T> implements Iterable<T>
     {
         int idx = Arrays.binarySearch(items, range, (l, r) -> {
             Range itemRange = (Range)getKey((T) l);
-            if (itemRange.compareIntersecting((TokenRange)r) == 0)
-                return 1;
-            if (((TokenRange) r).end().compareTo(itemRange.end()) > 0)
-                return 1;
-            else
-                return -1;
+            int cmp = (itemRange.compareIntersecting((TokenRange)r));
+            return cmp != 0 ? cmp : 1;
         });
 
         return -1 - idx;
