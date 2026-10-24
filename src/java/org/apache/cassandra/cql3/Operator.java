@@ -382,16 +382,17 @@ public enum Operator
             if (leftOperand == null)
                 return false;
 
-            switch(((CollectionType<?>) type).kind)
+            AbstractType<?> unwrapped = type.unwrap();
+            switch(((CollectionType<?>) unwrapped).kind)
             {
                 case LIST:
-                    ListType<?> listType = (ListType<?>) type;
+                    ListType<?> listType = (ListType<?>) unwrapped;
                     return listType.compose(leftOperand).contains(listType.getElementsType().compose(rightOperand));
                 case SET:
-                    SetType<?> setType = (SetType<?>) type;
+                    SetType<?> setType = (SetType<?>) unwrapped;
                     return setType.compose(leftOperand).contains(setType.getElementsType().compose(rightOperand));
                 case MAP:
-                    MapType<?, ?> mapType = (MapType<?, ?>) type;
+                    MapType<?, ?> mapType = (MapType<?, ?>) unwrapped;
                     return mapType.compose(leftOperand).containsValue(mapType.getValuesType().compose(rightOperand));
             }
             throw new AssertionError();
@@ -434,7 +435,7 @@ public enum Operator
         public boolean isSatisfiedBy(AbstractType<?> type, ByteBuffer leftOperand, ByteBuffer rightOperand)
         {
             checkTrue(rightOperand != null, "Invalid comparison with null for operator \"%s\"", this);
-            MapType<?, ?> mapType = (MapType<?, ?>) type;
+            MapType<?, ?> mapType = (MapType<?, ?>) type.unwrap();
             return leftOperand != null && mapType.compose(leftOperand).containsKey(mapType.getKeysType().compose(rightOperand));
         }
 
@@ -994,8 +995,9 @@ public enum Operator
                 }
                 else
                 {
-                    checkFalse(appliesToMapKeys() && !(columnType instanceof MapType), "Cannot use %s on non-map column %s", this, firstColumn.name);
-                    checkFalse(appliesToCollectionElements() && !columnType.isCollection(), "Cannot use %s on non-collection column %s", this, firstColumn.name);
+                    AbstractType<?> baseType = columnType.unwrap();
+                    checkFalse(appliesToMapKeys() && !(baseType instanceof MapType), "Cannot use %s on non-map column %s", this, firstColumn.name);
+                    checkFalse(appliesToCollectionElements() && !baseType.isCollection(), "Cannot use %s on non-collection column %s", this, firstColumn.name);
                 }
 
             // intentional fallthrough - missing break statement
