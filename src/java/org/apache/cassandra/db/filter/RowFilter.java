@@ -813,8 +813,8 @@ public class RowFilter implements Iterable<RowFilter.Expression>
             }
             else if (operator.appliesToCollectionElements() || operator.appliesToMapKeys())
             {
-                assert column.type.isCollection();
-                CollectionType<?> type = (CollectionType<?>) column.type;
+                assert column.type.unwrap().isCollection();
+                CollectionType<?> type = (CollectionType<?>) column.type.unwrap();
                 if (column.isComplex())
                 {
                     ComplexColumnData complexData = row.getComplexColumnData(column);
@@ -837,14 +837,14 @@ public class RowFilter implements Iterable<RowFilter.Expression>
             {
                 case CONTAINS:
                 case NOT_CONTAINS:
-                    assert type instanceof CollectionType;
-                    CollectionType<?> ct = (CollectionType<?>)type;
+                    assert type.unwrap() instanceof CollectionType;
+                    CollectionType<?> ct = (CollectionType<?>)type.unwrap();
                     type = ct.kind == CollectionType.Kind.SET ? ct.nameComparator() : ct.valueComparator();
                     break;
                 case CONTAINS_KEY:
                 case NOT_CONTAINS_KEY:
-                    assert type instanceof MapType;
-                    type = ((MapType<?, ?>)type).nameComparator();
+                    assert type.unwrap() instanceof MapType;
+                    type = ((MapType<?, ?>)type.unwrap()).nameComparator();
                     break;
                 case IN:
                 case NOT_IN:
