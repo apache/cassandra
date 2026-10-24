@@ -109,19 +109,16 @@ public abstract class SSTable
     public static boolean delete(Descriptor desc, Set<Component> components)
     {
         logger.info("Deleting sstable: {}", desc);
-        // remove the DATA component first if it exists
-        if (components.contains(Component.DATA))
-            FileUtils.deleteWithConfirm(desc.filenameFor(Component.DATA));
-        for (Component component : components)
-        {
-            if (component.equals(Component.DATA) || component.equals(Component.SUMMARY))
-                continue;
 
-            FileUtils.deleteWithConfirm(desc.filenameFor(component));
-        }
+        // delete older files first so the overall SSTable timestamp stays the same on partial deletes
+        List<Component> sorted = new ArrayList<>(components);
+        Map<Component, Long> lastModified = new HashMap<>();
+        for (Component component : sorted)
+            lastModified.put(component, new File(desc.filenameFor(component)).lastModified());
+        sorted.sort(Comparator.comparingLong(lastModified::get));
 
-        if (components.contains(Component.SUMMARY))
-            FileUtils.delete(desc.filenameFor(Component.SUMMARY));
+        for (Component component : sorted)
+            FileUtils.delete(desc.filenameFor(component));
 
         return true;
     }
