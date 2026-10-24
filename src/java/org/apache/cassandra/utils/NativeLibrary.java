@@ -226,15 +226,26 @@ public final class NativeLibrary
 
     public static void trySkipCache(int fd, long offset, long len, String path)
     {
+        trySkipCache(offset, len, (subOffset, subLength) -> trySkipCache(fd, subOffset, subLength, path));
+    }
+
+    @FunctionalInterface
+    interface SkipCache
+    {
+        void skip(long offset, int len);
+    }
+
+    static void trySkipCache(long offset, long len, SkipCache skipCache)
+    {
         if (len == 0)
-            trySkipCache(fd, 0, 0, path);
+            skipCache.skip(0, 0);
 
         while (len > 0)
         {
             int sublen = (int) Math.min(Integer.MAX_VALUE, len);
-            trySkipCache(fd, offset, sublen, path);
+            skipCache.skip(offset, sublen);
             len -= sublen;
-            offset -= sublen;
+            offset += sublen;
         }
     }
 
