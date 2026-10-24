@@ -379,6 +379,8 @@ class LogTransaction extends Transactional.AbstractTransactional implements Tran
         private final Object lock;
         private final Ref<LogTransaction> parentRef;
         private final Counter totalDiskSpaceUsed;
+        private final OperationType operationType;
+        private final TimeUUID operationId;
 
         public SSTableTidier(SSTableReader referent, boolean wasNew, LogTransaction parent)
         {
@@ -387,6 +389,8 @@ class LogTransaction extends Transactional.AbstractTransactional implements Tran
             this.wasNew = wasNew;
             this.lock = parent.lock;
             this.parentRef = parent.selfRef.tryRef();
+            this.operationType = parent.type();
+            this.operationId = parent.id();
 
             if (this.parentRef == null)
                 throw new IllegalStateException("Transaction already completed");
@@ -417,6 +421,7 @@ class LogTransaction extends Transactional.AbstractTransactional implements Tran
                     if (!desc.fileFor(Components.DATA).exists() && !wasNew)
                         logger.error("SSTableTidier ran with no existing data file for an sstable that was not new");
 
+                    logger.info("Deleting sstable: {}, operation type: {}, id: {}", desc, operationType, operationId);
                     desc.getFormat().delete(desc);
                 }
                 catch (Throwable t)
