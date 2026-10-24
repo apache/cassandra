@@ -57,8 +57,13 @@ public class WriteResponseHandler<T> extends AbstractWriteResponseHandler<T>
 
     public void onResponse(Message<T> m)
     {
-        if (responsesUpdater.decrementAndGet(this) == 0)
-            signal();
+        // Only decrement if we're waiting for this response
+        // if m is null, it means the response is from local
+        if (m == null || waitingFor(m.from()))
+        {
+            if (responsesUpdater.decrementAndGet(this) == 0)
+                signal();
+        }
         //Must be last after all subclass processing
         //The two current subclasses both assume logResponseToIdealCLDelegate is called
         //here.
