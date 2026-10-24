@@ -79,7 +79,13 @@ fi
 
 # Set up venv with dtest dependencies
 set -e # enable immediate exit if venv setup fails
-virtualenv --python=$PYTHON_VERSION venv
+# Use the stdlib venv module (python3.X-venv is installed for every python in the image)
+# instead of the `virtualenv` tool: the image's apt virtualenv is distro-patched to never
+# download wheels and is too old to seed the newest pythons, and mixing a pip-installed
+# virtualenv with the image's own dist-info entrypoints is version-minefield.  ensurepip
+# seeds a usable pip without any network access; the get-pip step below then brings the
+# venv's pip up to the newest release supporting this python.
+$PYTHON_VERSION -m venv venv
 source venv/bin/activate
 # 3.11 needs the newest pip, 3.8 and older have specific legacy get-pip urls
 PYTHON_MAJOR_MINOR=$($PYTHON_VERSION -V 2>&1 | awk '{print $2}' | cut -d. -f1,2)
@@ -89,7 +95,18 @@ else
     curl -sS https://bootstrap.pypa.io/get-pip.py | $PYTHON_VERSION
 fi
 
-pip install -r ${CASSANDRA_DIR}/pylib/requirements.txt
+# current setuptools no longer ships pkg_resources, which these old-style (setup.py +
+# ez_setup.py) git packages need: build against a venv-local setuptools that still has it,
+# instead of pip's isolated build env (which would fetch the latest, broken-for-this one).
+# The git requirements are also installed non-editable: cassandra-driver predates PEP 660,
+# and old pips (3.8's get-pip) fall back to `setup.py develop` for editable VCS installs,
+# which breaks against ccm's packaging<21 pin.  pbr and Cython are the packages' declared
+# build requirements (normally fetched into pip's isolated build env, which we bypass).
+pip install "setuptools>=64,<81" pbr "Cython>=0.29.15,<3.0"
+while IFS= read -r git_req ; do
+    [ -n "${git_req}" ] && pip install --no-build-isolation "$(echo "${git_req}" | sed 's/^-e[[:space:]]*//')"
+done < <(grep '^-e git' ${CASSANDRA_DIR}/pylib/requirements.txt)
+pip install --no-build-isolation -r <(grep -v '^-e git' ${CASSANDRA_DIR}/pylib/requirements.txt)
 pip freeze
 
 if [ "$cython" = "yes" ]; then
