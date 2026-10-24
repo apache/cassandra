@@ -33,6 +33,12 @@
     <property file="${user.home}/.ant/build.properties"/>
     <property name="debuglevel" value="source,lines,vars"/>
 
+    <!-- JDKs supported (4.x runs on 8 and 11).
+        Used by the dockerised CI scripts (`.build/docker/`, run-ci-local).
+    -->
+    <property name="java.default" value="11" />
+    <property name="java.supported" value="8,11" />
+
     <!-- default version and SCM information -->
     <property name="base.version" value="4.1.13"/>
     <property name="scm.connection" value="scm:https://gitbox.apache.org/repos/asf/cassandra.git"/>
