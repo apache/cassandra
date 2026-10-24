@@ -792,8 +792,8 @@ public class RowFilter implements Iterable<RowFilter.Expression>
                         return foundValue != null && operator.isSatisfiedBy(column.type, foundValue, value);
                     }
                 case CONTAINS:
-                    assert column.type.isCollection();
-                    CollectionType<?> type = (CollectionType<?>)column.type;
+                    assert column.type.unwrap().isCollection();
+                    CollectionType<?> type = (CollectionType<?>)column.type.unwrap();
                     if (column.isComplex())
                     {
                         ComplexColumnData complexData = row.getComplexColumnData(column);
@@ -836,8 +836,8 @@ public class RowFilter implements Iterable<RowFilter.Expression>
                         throw new AssertionError();
                     }
                 case CONTAINS_KEY:
-                    assert column.type.isCollection() && column.type instanceof MapType;
-                    MapType<?, ?> mapType = (MapType<?, ?>)column.type;
+                    assert column.type.unwrap() instanceof MapType;
+                    MapType<?, ?> mapType = (MapType<?, ?>)column.type.unwrap();
                     if (column.isComplex())
                     {
                          return row.getCell(column, CellPath.create(value)) != null;
