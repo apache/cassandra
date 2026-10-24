@@ -21,13 +21,14 @@ package org.apache.cassandra.distributed.test;
 import java.net.InetAddress;
 import java.util.Collections;
 
-import com.google.common.collect.ImmutableList;
 import com.google.common.collect.ImmutableMap;
 import org.junit.Assert;
 import org.junit.Test;
 
 import org.apache.cassandra.distributed.Cluster;
 import org.apache.cassandra.distributed.api.Feature;
+
+import static org.junit.Assert.assertTrue;
 
 public class InternodeEncryptionOptionsTest extends AbstractEncryptionOptionsImpl
 {
@@ -213,7 +214,7 @@ public class InternodeEncryptionOptionsTest extends AbstractEncryptionOptionsImp
                 Object[][] result = cluster.get(i).executeInternal("SELECT successful_connection_attempts, address, port FROM system_views.internode_outbound");
                 Assert.assertEquals(1, result.length);
                 long successfulConnectionAttempts = (long) result[0][0];
-                Assert.assertTrue("At least one connection: " + successfulConnectionAttempts, successfulConnectionAttempts > 0);
+                assertTrue("At least one connection: " + successfulConnectionAttempts, successfulConnectionAttempts > 0);
             }
         }
     }
@@ -236,33 +237,12 @@ public class InternodeEncryptionOptionsTest extends AbstractEncryptionOptionsImp
             c.set("server_encryption_options",
                   ImmutableMap.builder().putAll(validKeystore)
                               .put("internode_encryption", "all")
-                              .put("accepted_protocols", ImmutableList.of("TLSv1.1", "TLSv1.2", "TLSv1.3"))
+                              .put("accepted_protocols", getAcceptedProtocolsForNegotationTest())
                               .build());
         }).start())
         {
-            InetAddress address = cluster.get(1).config().broadcastAddress().getAddress();
             int port = cluster.get(1).config().broadcastAddress().getPort();
-
-            // deprecated
-            TlsConnection tls10Connection = new TlsConnection(address.getHostAddress(), port, Collections.singletonList("TLSv1"));
-            Assert.assertEquals("Should not be possible to establish a TLSv1 connection",
-                                ConnectResult.FAILED_TO_NEGOTIATE, tls10Connection.connect());
-            tls10Connection.assertReceivedHandshakeException();
-
-            TlsConnection tls11Connection = new TlsConnection(address.getHostAddress(), port, Collections.singletonList("TLSv1.1"));
-            Assert.assertEquals("Should be possible to establish a TLSv1.1 connection",
-                                ConnectResult.NEGOTIATED, tls11Connection.connect());
-            Assert.assertEquals("TLSv1.1", tls11Connection.lastProtocol());
-
-            TlsConnection tls12Connection = new TlsConnection(address.getHostAddress(), port, Collections.singletonList("TLSv1.2"));
-            Assert.assertEquals("Should be possible to establish a TLSv1.2 connection",
-                                ConnectResult.NEGOTIATED, tls12Connection.connect());
-            Assert.assertEquals("TLSv1.2", tls12Connection.lastProtocol());
-
-            TlsConnection tls13Connection = new TlsConnection(address.getHostAddress(), port, Collections.singletonList("TLSv1.3"));
-            Assert.assertEquals("Should be possible to establish a TLSv1.3 connection",
-                                ConnectResult.NEGOTIATED, tls13Connection.connect());
-            Assert.assertEquals("TLSv1.3", tls13Connection.lastProtocol());
+            testProtocolNegotation(cluster, port);
         }
     }
 
