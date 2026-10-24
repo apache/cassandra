@@ -362,6 +362,7 @@ public class AutoRepair
                         }
                         catch (InterruptedException e)
                         {
+                            Thread.currentThread().interrupt();
                             logger.error("Exception in cond await:", e);
                         }
                         if (success)
