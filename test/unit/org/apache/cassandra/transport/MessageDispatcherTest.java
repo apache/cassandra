@@ -172,7 +172,7 @@ public class MessageDispatcherTest
     {
         public AuthTestDispatcher()
         {
-            super(false);
+            super(false, false);
         }
 
         @Override

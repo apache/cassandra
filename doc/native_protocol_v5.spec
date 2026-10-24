@@ -1498,6 +1498,15 @@ Table of Contents
                            acknowledged the request.
                 <blockfor> is an [int] representing the number of replicas whose
                            acknowledgement is required to achieve <cl>.
+    0x1800    COMMAND_FAILED: An exception occurred during command execution. This error is returned
+              when a command executed via the native management interface fails during execution.
+              The exception may or may not include more detail in the accompanying error message.
+              The rest of the ERROR message body will be
+                <execution_id>
+              where:
+                <execution_id> is a [uuid] representing the unique identifier for the command
+                              execution that failed. This identifier can be used to correlate the
+                              error with command execution logs on the server.
 
     0x2000    Syntax_error: The submitted query has a syntax error.
     0x2100    Unauthorized: The logged user doesn't have the right to perform

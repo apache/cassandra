@@ -39,9 +39,13 @@ import org.apache.cassandra.config.CassandraRelevantProperties;
 import org.apache.cassandra.exceptions.ConfigurationException;
 import org.apache.cassandra.io.util.File;
 import org.apache.cassandra.io.util.FileWriter;
+import org.apache.cassandra.tools.nodetool.CqlConnect;
 import org.apache.cassandra.tools.nodetool.JmxConnect;
 import org.apache.cassandra.tools.nodetool.NodetoolCommand;
 import org.apache.cassandra.tools.nodetool.layout.CassandraCliHelpLayout;
+import org.apache.cassandra.tools.nodetool.strategy.CommandExecutionStrategy;
+import org.apache.cassandra.tools.nodetool.strategy.NodetoolConnectionException;
+import org.apache.cassandra.tools.nodetool.strategy.ProtocolAwareExecutionStrategy;
 import org.apache.cassandra.utils.FBUtilities;
 
 import picocli.CommandLine;
@@ -104,7 +108,7 @@ public class NodeTool
             commandLine.setErr(new PrintWriter(output.err, true));
 
             configureCliLayout(commandLine);
-            commandLine.setExecutionStrategy(JmxConnect::executionStrategy)
+            commandLine.setExecutionStrategy(ProtocolAwareExecutionStrategy::executionStrategy)
                        .setExecutionExceptionHandler((ex, c, arg) -> {
                            // Used for backward compatibility, some commands are validated when a command is run.
                            if (ex instanceof IllegalArgumentException |
@@ -114,7 +118,25 @@ public class NodeTool
                                return 1;
                            }
 
-                           err(Throwables.getRootCause(ex));
+                           NodetoolConnectionException connectFailure = Throwables.getCausalChain(ex).stream()
+                                                                                  .filter(NodetoolConnectionException.class::isInstance)
+                                                                                  .map(NodetoolConnectionException.class::cast)
+                                                                                  .findFirst().orElse(null);
+                           if (connectFailure != null)
+                           {
+                               output.err.println("nodetool: " + connectFailure.getMessage());
+                               return 1;
+                           }
+
+                           // CASSANDRA-11537 friendly error message when server is not ready
+                           Throwable root = Throwables.getRootCause(ex);
+                           if (root instanceof InstanceNotFoundException)
+                           {
+                               badUse(new IllegalArgumentException("Server is not initialized yet, cannot run nodetool."));
+                               return 1;
+                           }
+
+                           err(root);
                            return 2;
                        })
                        .setParameterExceptionHandler((ex, arg) -> {
@@ -195,8 +217,18 @@ public class NodeTool
 
     public static CommandLine createCommandLine(CommandLine.IFactory factory) throws Exception
     {
-        return new CommandLine(new NodetoolCommand(), factory)
-                   .addMixin(JmxConnect.MIXIN_KEY, factory.create(JmxConnect.class));
+        CommandLine commandLine = new CommandLine(new NodetoolCommand(), factory);
+        CommandExecutionStrategy.Type strategyType = ProtocolAwareExecutionStrategy.getExecutionStrategyTypeFromEnvAndSys();
+        switch (strategyType)
+        {
+            case CQL:
+                return commandLine.addMixin(strategyType.toString(), factory.create(CqlConnect.class));
+            case STATIC_MBEAN:
+            case COMMAND_MBEAN:
+                return commandLine.addMixin(strategyType.toString(), factory.create(JmxConnect.class));
+            default:
+                throw new IllegalStateException("Unknown execution strategy: " + strategyType);
+        }
     }
 
     private static void configureCliLayout(CommandLine commandLine)
@@ -229,10 +261,6 @@ public class NodeTool
 
     protected void err(Throwable e)
     {
-        // CASSANDRA-11537: friendly error message when server is not ready
-        if (e instanceof InstanceNotFoundException)
-            throw new IllegalArgumentException("Server is not initialized yet, cannot run nodetool.");
-
         output.err.println("error: " + e.getMessage());
         output.err.println("-- StackTrace --");
         output.err.println(getStackTraceAsString(e));

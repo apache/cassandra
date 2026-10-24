@@ -48,6 +48,7 @@ public enum ExceptionCode
     WRITE_FAILURE       (0x1500),
     CDC_WRITE_FAILURE   (0x1600),
     CAS_WRITE_UNKNOWN   (0x1700),
+    COMMAND_FAILED      (0x1800),
 
     // 2xx: problem validating the request
     SYNTAX_ERROR    (0x2000),

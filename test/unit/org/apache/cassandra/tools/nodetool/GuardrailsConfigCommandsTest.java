@@ -27,28 +27,36 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 
+import org.junit.After;
 import org.junit.BeforeClass;
 import org.junit.Test;
 
 import org.apache.cassandra.config.Config;
-import org.apache.cassandra.cql3.CQLTester;
+import org.apache.cassandra.cql3.CQLNodetoolProtocolTester;
 import org.apache.cassandra.db.guardrails.GuardrailsMBean;
 import org.apache.cassandra.tools.ToolRunner.ToolResult;
 import org.apache.cassandra.tools.nodetool.GuardrailsConfigCommand.GetGuardrailsConfig;
 
-import static org.apache.cassandra.tools.ToolRunner.invokeNodetool;
 import static org.junit.Assert.assertArrayEquals;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertTrue;
 
-public class GuardrailsConfigCommandsTest extends CQLTester
+public class GuardrailsConfigCommandsTest extends CQLNodetoolProtocolTester
 {
     @BeforeClass
     public static void setup() throws Exception
     {
         requireNetwork();
         startJMXServer();
+    }
+
+    @After
+    public void tearDown()
+    {
+        setFlag("allow_filtering_enabled", true);
+        setValues("table_properties_warned", "null");
+        setThresholds("keyspaces_threshold", "-1", "-1");
     }
 
     @Test
