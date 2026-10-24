@@ -17,6 +17,10 @@
  */
 package org.apache.cassandra.cache;
 
+import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.TimeUnit;
+
 import org.junit.Assert;
 import org.junit.Assume;
 import org.junit.BeforeClass;
@@ -71,6 +75,62 @@ public class AutoSavingCacheTest
     {
         DatabaseDescriptor.setColumnIndexCacheSize(8);
         doTestSerializeAndLoadKeyCache();
+    }
+
+    @Test
+    public void testWriterSkipsConcurrentSave() throws Exception
+    {
+        AutoSavingCache<KeyCacheKey, AbstractRowIndexEntry> keyCache = CacheService.instance.keyCache;
+        AutoSavingCache<KeyCacheKey, AbstractRowIndexEntry>.Writer first = keyCache.getWriter(keyCache.size());
+        AutoSavingCache<KeyCacheKey, AbstractRowIndexEntry>.Writer second = keyCache.getWriter(keyCache.size());
+
+        try (AutoSavingCache<KeyCacheKey, AbstractRowIndexEntry>.SaveOperation operation = first.tryStartSave())
+        {
+            Assert.assertNotNull(operation);
+            Assert.assertNull(second.tryStartSave());
+        }
+    }
+
+    @Test
+    public void testBlockingWriterWaitsForConcurrentSave() throws Exception
+    {
+        AutoSavingCache<KeyCacheKey, AbstractRowIndexEntry> keyCache = CacheService.instance.keyCache;
+        AutoSavingCache<KeyCacheKey, AbstractRowIndexEntry>.Writer first = keyCache.getWriter(keyCache.size());
+        AutoSavingCache<KeyCacheKey, AbstractRowIndexEntry>.Writer second = keyCache.getWriter(keyCache.size());
+        CountDownLatch started = new CountDownLatch(1);
+        CountDownLatch acquired = new CountDownLatch(1);
+        CountDownLatch release = new CountDownLatch(1);
+
+        try (AutoSavingCache<KeyCacheKey, AbstractRowIndexEntry>.SaveOperation ignored = first.startSaveBlocking())
+        {
+            CompletableFuture<Void> waiter = CompletableFuture.runAsync(() -> {
+                started.countDown();
+                try (AutoSavingCache<KeyCacheKey, AbstractRowIndexEntry>.SaveOperation operation =
+                         second.startSaveBlocking())
+                {
+                    acquired.countDown();
+                    release.await();
+                }
+                catch (InterruptedException e)
+                {
+                    throw new AssertionError(e);
+                }
+            });
+
+            try
+            {
+                Assert.assertTrue(started.await(10, TimeUnit.SECONDS));
+                Assert.assertFalse(acquired.await(100, TimeUnit.MILLISECONDS));
+
+                ignored.close();
+                Assert.assertTrue(acquired.await(10, TimeUnit.SECONDS));
+            }
+            finally
+            {
+                release.countDown();
+            }
+            waiter.get(10, TimeUnit.SECONDS);
+        }
     }
 
     private static void doTestSerializeAndLoadKeyCache() throws Exception
