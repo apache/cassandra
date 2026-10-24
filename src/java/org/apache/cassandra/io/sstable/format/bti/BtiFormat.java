@@ -36,6 +36,7 @@ import org.apache.cassandra.db.DecoratedKey;
 import org.apache.cassandra.db.lifecycle.LifecycleTransaction;
 import org.apache.cassandra.dht.IPartitioner;
 import org.apache.cassandra.io.sstable.Component;
+import org.apache.cassandra.io.sstable.CursorIndexWriter;
 import org.apache.cassandra.io.sstable.Descriptor;
 import org.apache.cassandra.io.sstable.GaugeProvider;
 import org.apache.cassandra.io.sstable.IScrubber;
@@ -125,6 +126,12 @@ public class BtiFormat extends AbstractSSTableFormat<BtiTableReader, BtiTableWri
     public static boolean isSelected()
     {
         return is(DatabaseDescriptor.getSelectedSSTableFormat());
+    }
+
+    @Override
+    public CursorIndexWriter.Factory cursorIndexWriterFactory()
+    {
+        return (writer, header) -> ((BtiTableWriter) writer).createCursorIndexWriter(header);
     }
 
     @Override

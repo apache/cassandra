@@ -63,6 +63,7 @@ public class CompactionDeleteAndPurgeRowTest extends SimpleCompactionTest
         );
 
         cfs.forceBlockingFlush(ColumnFamilyStore.FlushReason.USER_FORCED);
+        // Deliberately keeps the real forceMajorCompaction path (strategy task, executor, wall clock).
         Thread.sleep(1000);
         majorCompact(cfs);
         assertTrue(cfs.getLiveSSTables().isEmpty());
@@ -95,9 +96,7 @@ public class CompactionDeleteAndPurgeRowTest extends SimpleCompactionTest
         );
 
         cfs.forceBlockingFlush(ColumnFamilyStore.FlushReason.USER_FORCED);
-        Thread.sleep(1000);
-
-        majorCompact(cfs);
+        majorCompactAt(cfs, anHourFromNow());
 
         SSTableReader sstable = cfs.getLiveSSTables().iterator().next();
         verifyAndPrint(cfs, sstable);
@@ -136,8 +135,7 @@ public class CompactionDeleteAndPurgeRowTest extends SimpleCompactionTest
 
         cfs.forceBlockingFlush(ColumnFamilyStore.FlushReason.USER_FORCED);
 
-        Thread.sleep(2000);
-        majorCompact(cfs);
+        majorCompactAt(cfs, anHourFromNow());
         SSTableReader sstable = cfs.getLiveSSTables().iterator().next();
         verifyAndPrint(cfs, sstable);
 
@@ -182,8 +180,7 @@ public class CompactionDeleteAndPurgeRowTest extends SimpleCompactionTest
         );
 
         cfs.forceBlockingFlush(ColumnFamilyStore.FlushReason.USER_FORCED);
-        Thread.sleep(1000);
-        majorCompact(cfs);
+        majorCompactAt(cfs, anHourFromNow());
 
         assertTrue(cfs.getLiveSSTables().isEmpty());
     }
@@ -224,8 +221,7 @@ public class CompactionDeleteAndPurgeRowTest extends SimpleCompactionTest
 
         cfs.forceBlockingFlush(ColumnFamilyStore.FlushReason.USER_FORCED);
 
-        Thread.sleep(1000);
-        majorCompact(cfs);
+        majorCompactAt(cfs, anHourFromNow());
         assertTrue(cfs.getLiveSSTables().isEmpty());
     }
 
@@ -266,8 +262,7 @@ public class CompactionDeleteAndPurgeRowTest extends SimpleCompactionTest
                 Long.valueOf(12), Integer.valueOf(2));//c1,c2
 
         cfs.forceBlockingFlush(ColumnFamilyStore.FlushReason.USER_FORCED);
-        Thread.sleep(1000);
-        majorCompact(cfs);
+        majorCompactAt(cfs, anHourFromNow());
         SSTableReader sstable = cfs.getLiveSSTables().iterator().next();
         verifyAndPrint(cfs, sstable);
 
@@ -339,8 +334,7 @@ public class CompactionDeleteAndPurgeRowTest extends SimpleCompactionTest
         );
 
         cfs.forceBlockingFlush(ColumnFamilyStore.FlushReason.USER_FORCED);
-        Thread.sleep(1000);
-        majorCompact(cfs);
+        majorCompactAt(cfs, anHourFromNow());
         SSTableReader sstable = cfs.getLiveSSTables().iterator().next();
         verifyAndPrint(cfs, sstable);
         try(ISSTableScanner scanner = sstable.getScanner())
@@ -442,8 +436,7 @@ public class CompactionDeleteAndPurgeRowTest extends SimpleCompactionTest
 
         cfs.forceBlockingFlush(ColumnFamilyStore.FlushReason.USER_FORCED);
 
-        Thread.sleep(1000);
-        majorCompact(cfs);
+        majorCompactAt(cfs, anHourFromNow());
         SSTableReader sstable = cfs.getLiveSSTables().iterator().next();
         verifyAndPrint(cfs, sstable);
         try(ISSTableScanner scanner = sstable.getScanner())
@@ -552,8 +545,7 @@ public class CompactionDeleteAndPurgeRowTest extends SimpleCompactionTest
 
         cfs.forceBlockingFlush(ColumnFamilyStore.FlushReason.USER_FORCED);
 
-        Thread.sleep(1000);
-        majorCompact(cfs);
+        majorCompactAt(cfs, anHourFromNow());
         SSTableReader sstable = cfs.getLiveSSTables().iterator().next();
         verifyAndPrint(cfs, sstable);
         try(ISSTableScanner scanner = sstable.getScanner())
@@ -629,8 +621,7 @@ public class CompactionDeleteAndPurgeRowTest extends SimpleCompactionTest
         }
         cfs.forceBlockingFlush(ColumnFamilyStore.FlushReason.USER_FORCED);
 
-        Thread.sleep(1000);
-        majorCompact(cfs);
+        majorCompactAt(cfs, anHourFromNow());
         SSTableReader sstable = cfs.getLiveSSTables().iterator().next();
         verifyAndPrint(cfs, sstable);
     }

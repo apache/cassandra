@@ -24,18 +24,13 @@ import org.apache.cassandra.db.DecoratedKey;
 import org.apache.cassandra.db.Directories;
 import org.apache.cassandra.db.compaction.LeveledManifest;
 import org.apache.cassandra.db.lifecycle.ILifecycleTransaction;
-import org.apache.cassandra.db.rows.UnfilteredRowIterator;
 import org.apache.cassandra.io.sstable.format.SSTableReader;
-import org.apache.cassandra.io.sstable.format.SSTableWriter;
 
 public class MajorLeveledCompactionWriter extends CompactionAwareWriter
 {
     private final long maxSSTableSize;
     private int currentLevel = 1;
-    private long averageEstimatedKeysPerSSTable;
-    private long partitionsWritten = 0;
     private long totalWrittenInLevel = 0;
-    private int sstablesWritten = 0;
     private final long keysPerSSTable;
     private final int levelFanoutSize;
 
@@ -63,13 +58,6 @@ public class MajorLeveledCompactionWriter extends CompactionAwareWriter
     }
 
     @Override
-    public boolean realAppend(UnfilteredRowIterator partition)
-    {
-        partitionsWritten++;
-        return super.realAppend(partition);
-    }
-
-    @Override
     protected boolean shouldSwitchWriterInCurrentLocation(DecoratedKey key)
     {
         long totalWrittenInCurrentWriter = sstableWriter.currentWriter().getEstimatedOnDiskBytesWritten();
@@ -85,15 +73,6 @@ public class MajorLeveledCompactionWriter extends CompactionAwareWriter
         }
         return false;
 
-    }
-
-    @Override
-    public SSTableWriter switchCompactionWriter(Directories.DataDirectory location, DecoratedKey nextKey)
-    {
-        averageEstimatedKeysPerSSTable = Math.round(((double) averageEstimatedKeysPerSSTable * sstablesWritten + partitionsWritten) / (sstablesWritten + 1));
-        partitionsWritten = 0;
-        sstablesWritten = 0;
-        return super.switchCompactionWriter(location, nextKey);
     }
 
     protected int sstableLevel()
