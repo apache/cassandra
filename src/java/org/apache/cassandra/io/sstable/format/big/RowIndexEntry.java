@@ -323,21 +323,32 @@ public class RowIndexEntry extends AbstractRowIndexEntry
             }
         }
 
-        public static void skipForCache(DataInputPlus in, Version version) throws IOException
+        /**
+         * @param idxInfoSerializer used to step over the IndexInfo list of an indexed entry; may be null
+         *                          when the table is unknown, in which case an indexed entry cannot be skipped
+         */
+        public static void skipForCache(DataInputPlus in,
+                                        Version version,
+                                        IndexInfo.Serializer idxInfoSerializer) throws IOException
         {
             in.readUnsignedVInt();
-            switch (in.readByte())
+            int kind = in.readByte();
+            switch (kind)
             {
                 case CACHE_NOT_INDEXED:
                     break;
                 case CACHE_INDEXED:
-                    IndexedEntry.skipForCache(in, version);
+                    if (idxInfoSerializer == null)
+                    {
+                        throw new IOException("Cannot skip indexed key cache entry without table metadata");
+                    }
+                    IndexedEntry.skipForCache(in, version, idxInfoSerializer);
                     break;
                 case CACHE_INDEXED_SHALLOW:
                     ShallowIndexedEntry.skipForCache(in, version);
                     break;
                 default:
-                    assert false;
+                    throw new IOException("Unknown key cache entry kind " + kind);
             }
         }
 
@@ -661,13 +672,18 @@ public class RowIndexEntry extends AbstractRowIndexEntry
                 idxInfoSerializer.serialize(indexInfo, out);
         }
 
-        static void skipForCache(DataInputPlus in, Version version) throws IOException
+        static void skipForCache(DataInputPlus in,
+                                 Version version,
+                                 IndexInfo.Serializer idxInfoSerializer) throws IOException
         {
             in.readUnsignedVInt();
             DeletionTime.getSerializer(version).skip(in);
-            in.readUnsignedVInt();
+            int columnsIndexCount = in.readUnsignedVInt32();
 
-            in.readUnsignedVInt();
+            for (int i = 0; i < columnsIndexCount; i++)
+            {
+                idxInfoSerializer.skip(in);
+            }
         }
 
         @Override
