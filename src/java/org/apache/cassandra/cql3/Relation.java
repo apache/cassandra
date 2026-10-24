@@ -217,7 +217,7 @@ public final class Relation
 
         ColumnSpecification receiver = columnsExpression.columnSpecification();
         if (!operator.appliesToColumnValues())
-            receiver = ((CollectionType<?>) receiver.type).makeCollectionReceiver(receiver, operator.appliesToMapKeys());
+            receiver = ((CollectionType<?>) receiver.type.unwrap()).makeCollectionReceiver(receiver, operator.appliesToMapKeys());
 
         Terms terms = rawTerms.prepare(table.keyspace, receiver);
         terms.collectMarkerSpecification(boundNames, owner);
