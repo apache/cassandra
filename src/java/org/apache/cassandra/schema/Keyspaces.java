@@ -17,8 +17,10 @@
  */
 package org.apache.cassandra.schema;
 
+import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Iterator;
+import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
@@ -50,6 +52,18 @@ public final class Keyspaces implements Iterable<KeyspaceMetadata>
     public static Keyspaces none()
     {
         return NONE;
+    }
+
+    public static Keyspaces of(Iterable<KeyspaceMetadata> keyspaces)
+    {
+        BTreeMap<String, KeyspaceMetadata> newKeyspaces = BTreeMap.empty();
+        BTreeMap<TableId, TableMetadata> newTables = BTreeMap.empty();
+        for (KeyspaceMetadata ks : keyspaces)
+        {
+            newKeyspaces = newKeyspaces.with(ks.name, ks);
+            newTables = withTablesViews(newTables, ks);
+        }
+        return new Keyspaces(newKeyspaces, newTables);
     }
 
     public static Keyspaces of(KeyspaceMetadata... keyspaces)
@@ -169,10 +183,77 @@ public final class Keyspaces implements Iterable<KeyspaceMetadata>
         return filter(k -> !names.contains(k.name));
     }
 
+    /**
+     * Returns a new {@link Keyspaces} equivalent to this one, but with the provided keyspace metadata either added
+     * (if this {@link Keyspaces} does not have that keyspace), or updated to the provided definition.
+     *
+     * <p>When the keyspace already exists, this computes the delta between the old and new {@link KeyspaceMetadata}
+     * by {@link TableId} rather than removing every one of the old keyspace's tables and views and re-adding every
+     * one of the new keyspace's - {@link Tables.Builder} (and the equivalent for views) stores {@link TableMetadata}
+     * instances verbatim, so reference identity exactly captures "this table/view did not change" (the same argument
+     * {@link KeyspacesDiff#diff} relies on). Only tables/views that were added, removed, or
+     * whose instance actually changed touch the by-{@link TableId} map.
+     */
     public Keyspaces withAddedOrUpdated(KeyspaceMetadata keyspace)
     {
-        Keyspaces updated = keyspaces.containsKey(keyspace.name) ? without(keyspace.name) : this;
-        return updated.with(keyspace);
+        KeyspaceMetadata existing = getNullable(keyspace.name);
+        if (existing == null)
+            return with(keyspace);
+
+        return new Keyspaces(keyspaces.withForce(keyspace.name, keyspace),
+                             deltaTablesViews(tables, existing, keyspace));
+    }
+
+    /**
+     * Computes {@code tables} updated from {@code before}'s set of tables/views to {@code after}'s: entries whose
+     * {@link TableId} is no longer present are removed, entries whose instance differs from what is already in
+     * {@code tables} are added or replaced, and everything else is left untouched.
+     *
+     * <p>Membership in {@code before}/{@code after} is tested against their own {@link Tables}/{@link Views}
+     * (each an O(log n), non-allocating lookup) rather than by collecting ids into a new set first - the latter
+     * would allocate in proportion to the keyspace size on every call, defeating the point.
+     *
+     * <p>An id that is new to this keyspace (not present in {@code before}) but already present in {@code tables}
+     * (i.e. belongs to some other keyspace) is added with {@link BTreeMap#with}, preserving the same
+     * already-exists guard {@link #withTablesViews} relies on; an id that is being replaced within this same
+     * keyspace uses {@link BTreeMap#withForce} instead, since it is expected to already be present.
+     */
+    private static BTreeMap<TableId, TableMetadata> deltaTablesViews(BTreeMap<TableId, TableMetadata> tables,
+                                                                      KeyspaceMetadata before,
+                                                                      KeyspaceMetadata after)
+    {
+        BTreeMap<TableId, TableMetadata> tbls = tables;
+
+        for (TableMetadata table : after.tablesAndViews())
+        {
+            if (tbls.get(table.id) == table)
+                continue;
+
+            boolean existedBefore = before.tables.containsTable(table.id) || containsViewId(before.views, table.id);
+            tbls = existedBefore ? tbls.withForce(table.id, table) : tbls.with(table.id, table);
+        }
+
+        for (TableMetadata table : before.tablesAndViews())
+        {
+            boolean stillExists = after.tables.containsTable(table.id) || containsViewId(after.views, table.id);
+            if (!stillExists)
+                tbls = tbls.without(table.id);
+        }
+
+        return tbls;
+    }
+
+    /**
+     * {@link Views} has no by-{@link TableId} index (unlike {@link Tables}), so this is a linear scan - acceptable
+     * since it is only reached for entries {@link Tables#containsTable} did not already resolve, i.e. views, and a
+     * keyspace's view count does not grow with the size of the schema the way its table count does.
+     */
+    private static boolean containsViewId(Views views, TableId id)
+    {
+        for (ViewMetadata view : views)
+            if (view.metadata.id.equals(id))
+                return true;
+        return false;
     }
 
     private static BTreeMap<TableId, TableMetadata> withoutKsTablesViews(BTreeMap<TableId, TableMetadata> tables, KeyspaceMetadata ks)
@@ -281,18 +362,43 @@ public final class Keyspaces implements Iterable<KeyspaceMetadata>
             if (before == after)
                 return NONE;
 
-            Keyspaces created = after.filter(k -> !before.containsKeyspace(k.name));
-            Keyspaces dropped = before.filter(k -> !after.containsKeyspace(k.name));
-
+            // Collect created and dropped keyspaces directly. filter() removes non-matching keyspaces from a copy of
+            // the by-TableId map one table at a time, so building these by filtering costs one BTreeMap removal per
+            // table in the cluster - on every diff, and several diffs are performed per schema change.
+            List<KeyspaceMetadata> created = null;
+            List<KeyspaceMetadata> dropped = null;
             ImmutableList.Builder<KeyspaceDiff> altered = ImmutableList.builder();
-            before.forEach(keyspaceBefore ->
+
+            for (KeyspaceMetadata keyspaceAfter : after)
+            {
+                if (!before.containsKeyspace(keyspaceAfter.name))
+                {
+                    if (created == null)
+                        created = new ArrayList<>();
+                    created.add(keyspaceAfter);
+                }
+            }
+
+            for (KeyspaceMetadata keyspaceBefore : before)
             {
                 KeyspaceMetadata keyspaceAfter = after.getNullable(keyspaceBefore.name);
-                if (null != keyspaceAfter)
+                if (null == keyspaceAfter)
+                {
+                    if (dropped == null)
+                        dropped = new ArrayList<>();
+                    dropped.add(keyspaceBefore);
+                }
+                else if (keyspaceAfter != keyspaceBefore)
+                {
+                    // Identity means nothing in this keyspace changed; KeyspaceDiff.diff would reach the same
+                    // conclusion, but only after walking the keyspace.
                     KeyspaceMetadata.diff(keyspaceBefore, keyspaceAfter).ifPresent(altered::add);
-            });
+                }
+            }
 
-            return new KeyspacesDiff(created, dropped, altered.build());
+            return new KeyspacesDiff(created == null ? Keyspaces.none() : Keyspaces.of(created),
+                                     dropped == null ? Keyspaces.none() : Keyspaces.of(dropped),
+                                     altered.build());
         }
 
         public boolean isEmpty()
