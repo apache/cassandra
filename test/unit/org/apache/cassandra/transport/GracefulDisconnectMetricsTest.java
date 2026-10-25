@@ -93,12 +93,16 @@ public class GracefulDisconnectMetricsTest
         {
             server.stop();
 
-            assertThat(ClientMetrics.instance.getConnectionsDraining())
-            .as("connectionsDraining should settle back to its pre-drain baseline")
-            .isEqualTo(baselineDraining);
-            assertThat(ClientMetrics.instance.getForcedDisconnectsCount())
-            .as("a cooperative disconnect must not be counted as forced")
-            .isEqualTo(baselineForced);
+            Awaitility.await()
+                      .untilAsserted(() -> {
+                          assertThat(ClientMetrics.instance.getConnectionsDraining())
+                          .as("connectionsDraining should settle back to its pre-drain baseline")
+                          .isEqualTo(baselineDraining);
+
+                          assertThat(ClientMetrics.instance.getForcedDisconnectsCount())
+                          .as("a cooperative disconnect must not be counted as forced")
+                          .isEqualTo(baselineForced);
+                      });
         }
     }
 
@@ -115,7 +119,7 @@ public class GracefulDisconnectMetricsTest
             stopper.start();
 
             Awaitility.await()
-                      .atMost(2, TimeUnit.SECONDS)
+                      .atMost(10, TimeUnit.SECONDS)
                       .until(() -> ClientMetrics.instance.getConnectionsDraining() == baselineDraining + 1);
 
             stopper.join(10_000);

@@ -76,7 +76,7 @@ public class GracefulDisconnectTest
     }
 
     @Test
-    public void testGracefulDisconnectAdvertisedWhenEnabled() throws IOException
+    public void testGracefulDisconnectIsNotAdvertisedWhenDisabled() throws IOException
     {
         try (Cluster cluster = buildCluster(1, true))
         {

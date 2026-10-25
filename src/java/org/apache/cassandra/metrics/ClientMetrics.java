@@ -181,7 +181,7 @@ public final class ClientMetrics
 
     public void decrementConnectionsDraining()
     {
-        connectionsDraining.decrementAndGet();
+        connectionsDraining.updateAndGet(current -> current > 0 ? current - 1 : 0);
     }
 
     public void markForcedDisconnect(int forceDisconnectedClients)

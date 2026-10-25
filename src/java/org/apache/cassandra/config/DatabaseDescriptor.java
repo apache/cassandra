@@ -618,7 +618,6 @@ public class DatabaseDescriptor
         InetAddressAndPort.initializeDefaultPort(getStoragePort());
 
         validateUpperBoundStreamingConfig();
-        
         if (conf.graceful_disconnect_enabled && conf.graceful_disconnect_grace_period.toMilliseconds() <= 0)
             throw new ConfigurationException("graceful_disconnect_grace_period must be positive, but was " + conf.graceful_disconnect_grace_period, false);
 

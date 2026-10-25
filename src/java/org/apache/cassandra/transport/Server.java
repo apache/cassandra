@@ -147,8 +147,6 @@ public class Server implements CassandraDaemon.Server
     {
         if (isRunning.compareAndSet(true, false))
         {
-            if (!force && DatabaseDescriptor.getGracefulDisconnectEnabled())
-                gracefulDisconnect();
             close(force);
         }
     }
@@ -219,8 +217,19 @@ public class Server implements CassandraDaemon.Server
         if (bindChannel != null && bindChannel.isOpen())
         {
             logger.info("Stopping native transport acceptor on {}", bindChannel.localAddress());
-            // syncUninterruptibly ensures we wait for the port to actually close
-            bindChannel.close().syncUninterruptibly();
+            ChannelFuture closeFuture = bindChannel.close();
+            if (bindChannel.eventLoop().inEventLoop())
+            {
+                closeFuture.addListener(future -> {
+                    if (!future.isSuccess())
+                        logger.warn("Failed to close native transport acceptor on {}", bindChannel.localAddress(), future.cause());
+                });
+            }
+            else
+            {
+                // syncUninterruptibly ensures we wait for the port to actually close
+                closeFuture.syncUninterruptibly();
+            }
         }
     }
 
@@ -269,10 +278,7 @@ public class Server implements CassandraDaemon.Server
     {
         if (!force)
         {
-            if (DatabaseDescriptor.getGracefulDisconnectEnabled())
-                gracefulDisconnect();
-            else
-                stopAcceptingNewConnections();
+            stopAcceptingNewConnections();
             acceptingRequests.set(false);
             long deadline = nanoTime() + DatabaseDescriptor.getNativeTransportTimeout(TimeUnit.NANOSECONDS);
             while (!dispatcher.isDone())
@@ -438,7 +444,7 @@ public class Server implements CassandraDaemon.Server
                   therefore excluded.
             */
             return (int) allChannels.stream()
-                                    .filter(channel -> channel.pipeline().get(String.valueOf(ServerConnection.class)) != null)
+                                    .filter(channel -> channel.attr(Connection.attributeKey).get() instanceof ServerConnection)
                                     .count();
         }
 
