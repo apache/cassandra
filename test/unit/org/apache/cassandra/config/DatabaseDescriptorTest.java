@@ -827,7 +827,7 @@ public class DatabaseDescriptorTest
     public void testGracefulDisconnectGracePeriod()
     {
         long originalValue = DatabaseDescriptor.getGracefulDisconnectGracePeriod();
-        Assertions.assertThat(originalValue).as("Default value of graceful_disconnect_grace_period must be 5000").isEqualTo(5000);
+        Assertions.assertThat(originalValue).as("Default value of graceful_disconnect_grace_period must be 15000").isEqualTo(15000);
         try
         {
             DatabaseDescriptor.setGracefulDisconnectGracePeriod(3000);
