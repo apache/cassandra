@@ -144,13 +144,12 @@ public class ShortReadPartitionsProtection extends Transformation<UnfilteredRowI
         partitionsFetched = false;
 
         /*
-         * We are going to fetch one partition at a time for thrift and potentially more for CQL.
-         * The row limit will either be set to the per partition limit - if the command has no total row limit set, or
-         * the total # of rows remaining - if it has some. If we don't grab enough rows in some of the partitions,
-         * then future ShortReadRowsProtection.moreContents() calls will fetch the missing ones.
+         * Request one row per remaining result, or use the per-partition limit if there is no total limit.
+         * For GROUP BY, count() and counted() measure groups. ShortReadRowsProtection fetches any additional
+         * rows needed to complete those groups.
          */
         int toQuery = command.limits().count() != DataLimits.NO_LIMIT
-                      ? command.limits().count() - mergedResultCounter.rowsCounted()
+                      ? command.limits().count() - mergedResultCounter.counted()
                       : command.limits().perPartitionCount();
 
         ColumnFamilyStore.metricsFor(command.metadata().id).shortReadProtectionRequests.mark();
