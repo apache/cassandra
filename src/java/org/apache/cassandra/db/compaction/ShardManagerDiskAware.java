@@ -117,6 +117,8 @@ public class ShardManagerDiskAware extends ShardManagerNoDisks
         void enterDisk(int diskIndex)
         {
             this.diskIndex = diskIndex;
+            // advanceTo can enter a later disk directly, so start at the previous disk's boundary
+            currentStart = diskIndex > 0 ? diskBoundaries.get(diskIndex - 1) : localRanges.get(0).left();
             currentRange = 0;
             diskStart = diskIndex > 0 ? diskBoundaryPositions[diskIndex - 1] : 0;
             shardStep = (diskBoundaryPositions[diskIndex] - diskStart) / countPerDisk;
