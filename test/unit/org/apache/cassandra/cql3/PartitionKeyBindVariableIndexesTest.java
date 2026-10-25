@@ -68,6 +68,71 @@ public class PartitionKeyBindVariableIndexesTest extends CQLTester
         assertPartitionKeyBindIndexes(null, "SELECT * FROM %s WHERE pk1 = ? AND pk2 NOT IN (?) ALLOW FILTERING");
     }
 
+    @Test
+    public void testTwoSlicesOnSamePartitionKeyColumnAreNotReported() throws Throwable
+    {
+        createTable("CREATE TABLE %s (k int PRIMARY KEY, v int)");
+        assertPartitionKeyBindIndexes(null, "SELECT * FROM %s WHERE k > ? AND k < ? ALLOW FILTERING");
+        assertPartitionKeyBindIndexes(null, "SELECT * FROM %s WHERE k >= ? AND k <= ? ALLOW FILTERING");
+    }
+
+    @Test
+    public void testPartitionKeySliceWithClusteringColumn() throws Throwable
+    {
+        createTable("CREATE TABLE %s (k int, c int, v int, PRIMARY KEY (k, c))");
+        assertPartitionKeyBindIndexes(new short[]{ 0 }, "SELECT * FROM %s WHERE k = ? AND c > ?");
+        assertPartitionKeyBindIndexes(new short[]{ 1 }, "SELECT * FROM %s WHERE c > ? AND k = ? ALLOW FILTERING");
+        assertPartitionKeyBindIndexes(null, "SELECT * FROM %s WHERE k > ? ALLOW FILTERING");
+        assertPartitionKeyBindIndexes(null, "SELECT * FROM %s WHERE k > ? AND k < ? ALLOW FILTERING");
+        assertPartitionKeyBindIndexes(null, "SELECT * FROM %s WHERE k > ? AND c = ? ALLOW FILTERING");
+    }
+
+    @Test
+    public void testCompositePartitionKeyWithSliceIsNotReported() throws Throwable
+    {
+        createTable("CREATE TABLE %s (pk1 int, pk2 int, v int, PRIMARY KEY ((pk1, pk2)))");
+        assertPartitionKeyBindIndexes(new short[]{ 1, 0 }, "SELECT * FROM %s WHERE pk2 = ? AND pk1 = ?");
+        assertPartitionKeyBindIndexes(null, "SELECT * FROM %s WHERE pk1 = ? AND pk2 > ? ALLOW FILTERING");
+        assertPartitionKeyBindIndexes(null, "SELECT * FROM %s WHERE pk1 > ? AND pk2 = ? ALLOW FILTERING");
+        assertPartitionKeyBindIndexes(null, "SELECT * FROM %s WHERE pk1 > ? AND pk2 > ? ALLOW FILTERING");
+        assertPartitionKeyBindIndexes(null, "SELECT * FROM %s WHERE pk1 = ? AND pk2 != ? ALLOW FILTERING");
+        assertPartitionKeyBindIndexes(null, "SELECT * FROM %s WHERE pk1 = ? AND pk2 BETWEEN ? AND ? ALLOW FILTERING");
+    }
+
+    @Test
+    public void testNamedMarkers() throws Throwable
+    {
+        createTable("CREATE TABLE %s (k int PRIMARY KEY, v int)");
+        assertPartitionKeyBindIndexes(new short[]{ 0 }, "SELECT * FROM %s WHERE k = :a");
+        assertPartitionKeyBindIndexes(null, "SELECT * FROM %s WHERE k > :a ALLOW FILTERING");
+        assertPartitionKeyBindIndexes(null, "SELECT * FROM %s WHERE k > :lo AND k < :hi ALLOW FILTERING");
+    }
+
+    @Test
+    public void testTokenRestrictionIsNotReported() throws Throwable
+    {
+        createTable("CREATE TABLE %s (pk1 int, pk2 int, v int, PRIMARY KEY ((pk1, pk2)))");
+        assertPartitionKeyBindIndexes(null, "SELECT * FROM %s WHERE token(pk1, pk2) > ?");
+        assertPartitionKeyBindIndexes(null, "SELECT * FROM %s WHERE token(pk1, pk2) = ?");
+    }
+
+    @Test
+    public void testModificationStatements() throws Throwable
+    {
+        createTable("CREATE TABLE %s (k int, c int, v int, PRIMARY KEY (k, c))");
+        assertPartitionKeyBindIndexes(new short[]{ 1 }, "UPDATE %s SET v = ? WHERE k = ? AND c = ?");
+        assertPartitionKeyBindIndexes(new short[]{ 0 }, "DELETE FROM %s WHERE k = ? AND c > ?");
+        assertPartitionKeyBindIndexes(new short[]{ 0 }, "INSERT INTO %s (k, c, v) VALUES (?, ?, ?)");
+    }
+
+    @Test
+    public void testLikeOnTextPartitionKeyIsNotReported() throws Throwable
+    {
+        createTable("CREATE TABLE %s (k text PRIMARY KEY, v int)");
+        assertPartitionKeyBindIndexes(new short[]{ 0 }, "SELECT * FROM %s WHERE k = ?");
+        assertPartitionKeyBindIndexes(null, "SELECT * FROM %s WHERE k LIKE ? ALLOW FILTERING");
+    }
+
     private void assertPartitionKeyBindIndexes(short[] expected, String query) throws Throwable
     {
         QueryProcessor.Prepared prepared = QueryProcessor.prepareInternal(formatQuery(query));
