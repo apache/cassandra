@@ -147,6 +147,8 @@ public class Server implements CassandraDaemon.Server
     {
         if (isRunning.compareAndSet(true, false))
         {
+            if (!force && DatabaseDescriptor.getGracefulDisconnectEnabled())
+                gracefulDisconnect();
             close(force);
         }
     }
