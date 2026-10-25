@@ -21,7 +21,13 @@ package org.apache.cassandra.db.compaction;
 import java.nio.ByteBuffer;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Collections;
+import java.util.HashSet;
+import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Map;
+import java.util.Random;
+import java.util.Set;
 import java.util.stream.Collectors;
 
 import com.google.common.collect.ImmutableList;
@@ -338,6 +344,96 @@ public class ShardManagerTest
         assertEquals(ImmutableList.of(ImmutableList.of(e)), shards);
         assertEquals(tokenAt(0.75), shardRanges.get(0).left);
         assertEquals(minimumToken, shardRanges.get(0).right);
+    }
+
+    @Test
+    public void testSplitSSTablesInShardsEnteringFirstShardOnSecondDisk()
+    {
+        ColumnFamilyStore.VersionedLocalRanges ranges = localRangesFull();
+        List<Token> disks = splitRanges(ranges, 2);
+        ShardManager manager = new ShardManagerDiskAware(ranges, disks, 10000L);
+        SSTableReader table = mockedTable(0.6, 0.65, Double.NaN);
+
+        List<Range<Token>> actual = manager.splitSSTablesInShards(ImmutableList.of(table), 2, (sstables, range) -> range);
+        assertEquals(ImmutableList.of(new Range<>(disks.get(0), tokenAt(0.75))), actual);
+    }
+
+    @Test
+    public void testSplitSSTablesInShardsFuzz()
+    {
+        long seed = 21615L;
+        Random random = new Random(seed);
+        for (int iteration = 0; iteration < 300; ++iteration)
+        {
+            int diskCount = 1 + random.nextInt(4);
+            int shardCount = 1 + random.nextInt(8);
+            ColumnFamilyStore.VersionedLocalRanges ranges = localRangesFull();
+
+            ShardManager manager = 1 == diskCount
+                                   ? new ShardManagerNoDisks(ranges, 10000L)
+                                   : new ShardManagerDiskAware(ranges, splitRanges(ranges, diskCount), 10000L);
+
+            // Sequential traversal provides a reference for the assignment sweep's direct entry into a disk.
+            List<Range<Token>> shards = new ArrayList<>();
+            List<Token> endpoints = new ArrayList<>();
+            ShardTracker tracker = manager.boundaries(shardCount);
+            tracker.advanceTo(minimumToken);
+            while (true)
+            {
+                shards.add(tracker.shardSpan());
+                Token end = tracker.shardEnd();
+                if (null == end)
+                    break;
+                endpoints.add(end);
+                endpoints.add(end.nextValidToken());
+                tracker.advanceTo(end.nextValidToken());
+            }
+            for (int i = 0; i < 20; ++i)
+                endpoints.add(tokenAt(0.001 + random.nextDouble() * 0.998));
+
+            List<SSTableReader> tables = new ArrayList<>();
+            int tableCount = random.nextInt(50);
+            for (int i = 0; i < tableCount; ++i)
+            {
+                Token first = endpoints.get(random.nextInt(endpoints.size()));
+                Token last = random.nextBoolean() ? first : endpoints.get(random.nextInt(endpoints.size()));
+                if (first.compareTo(last) > 0)
+                {
+                    Token swap = first;
+                    first = last;
+                    last = swap;
+                }
+                SSTableReader table = Mockito.mock(SSTableReader.class);
+                when(table.getFirst()).thenReturn(new BufferDecoratedKey(first, ByteBuffer.allocate(0)));
+                when(table.getLast()).thenReturn(new BufferDecoratedKey(last, ByteBuffer.allocate(0)));
+                tables.add(table);
+            }
+            Collections.shuffle(tables, random);
+
+            Map<Range<Token>, Set<SSTableReader>> expected = new LinkedHashMap<>();
+            for (Range<Token> shard : shards)
+            {
+                Set<SSTableReader> intersecting = new HashSet<>();
+                for (SSTableReader table : tables)
+                    if (table.getLast().getToken().compareTo(shard.left) > 0 &&
+                        (shard.right.isMinimum() || table.getFirst().getToken().compareTo(shard.right) <= 0))
+                        intersecting.add(table);
+
+                if (!intersecting.isEmpty())
+                    expected.put(shard, intersecting);
+            }
+            Map<Range<Token>, Set<SSTableReader>> actual = new LinkedHashMap<>();
+            String context = "seed=" + seed + " iteration=" + iteration + " disks=" + diskCount + " shards=" + shardCount;
+
+            manager.splitSSTablesInShards(tables, shardCount, (sstables, range) -> {
+                assertFalse(context + " duplicate shard " + range, actual.containsKey(range));
+                actual.put(range, new HashSet<>(sstables));
+                return null;
+            });
+
+            assertEquals(context, expected, actual);
+            assertEquals(context, new ArrayList<>(expected.keySet()), new ArrayList<>(actual.keySet()));
+        }
     }
 
     @Test
