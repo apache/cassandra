@@ -356,6 +356,14 @@ docker exec --user cassandra ${container_name} bash -c "${docker_command}" | tee
 status=$?
 set +o pipefail
 
+# the container's own memory cgroup counts OOM kills of anything inside it (e.g. a forked test JVM, which is otherwise
+# reported only as "exited abnormally"); read it now, the container is removed once stopped
+memory_events="${build_dir}/test/logs/memory_events_${container_name}.txt"
+docker exec ${container_name} sh -c "cat /sys/fs/cgroup/memory.events 2>/dev/null || cat /sys/fs/cgroup/memory/memory.oom_control" > "${memory_events}" 2>/dev/null || rm -f "${memory_events}"
+if grep -qE '^oom_kill [1-9]' "${memory_events}" 2>/dev/null ; then
+    echo "WARNING: OOM killer was active in ${container_name}: $(grep '^oom_kill ' "${memory_events}")" | tee -a ${logfile}
+fi
+
 if [ "$status" -ne 0 ] && [ -z $SKIP_DOCKER_DEBUG_ON_FAIL ] ; then
     echo "${docker_id} failed (${status}), debug… (set SKIP_DOCKER_DEBUG_ON_FAIL to quiet)"
     docker inspect ${docker_id}
