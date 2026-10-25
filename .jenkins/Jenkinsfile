@@ -748,10 +748,17 @@ def organiseTestResultFiles(cell, cell_suffix) {
 }
 
 def debugOomKiller() {
-  // check if we had Linux OOM killer active within the test container which could kill forked JUnit JVM processes
+  // check if we had Linux OOM killer active within the test container which could kill forked JUnit JVM processes.
+  // .build/docker/run-tests.sh saves the container's memory.events before the container is removed
   sh label: "checking for oom kills...", script: """
-      # docker memory/oomkiller debug:
-      cat /sys/fs/cgroup/docker/memory.events || true
+      { set +x; } 2>/dev/null
+      for f in test/logs/memory_events_*.txt ; do
+        [ -f "\${f}" ] || continue
+        echo "\${f}:"
+        cat "\${f}"
+        grep -qE '^oom_kill [1-9]' "\${f}" && echo "WARNING: OOM killer was active in the test container"
+      done
+      true
     """
 }
 
