@@ -21,6 +21,7 @@ package org.apache.cassandra.tcm;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.concurrent.atomic.AtomicReference;
 
 import org.junit.BeforeClass;
 import org.junit.Test;
@@ -29,6 +30,9 @@ import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.dht.Murmur3Partitioner;
 import org.apache.cassandra.exceptions.ExceptionCode;
 import org.apache.cassandra.metrics.TCMMetrics;
+import org.apache.cassandra.service.RetryStrategy;
+import org.apache.cassandra.service.TimeoutStrategy;
+import org.apache.cassandra.service.WaitStrategy;
 import org.apache.cassandra.tcm.log.Entry;
 import org.apache.cassandra.tcm.log.LocalLog;
 import org.apache.cassandra.tcm.sequences.LockedRanges;
@@ -37,32 +41,7 @@ import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertTrue;
 
-/**
- * Unit coverage for the {@code REJECTED}, {@code FAILED}, {@code NOT_APPLIED} and {@code APPLIED} outcomes of
- * {@link AbstractLocalProcessor#commit}'s per-cycle handling, complementing
- * {@link AbstractLocalProcessorLockTest}, which covers only the ways a commit can give up while queued for the
- * proposal lock:
- *
- * <ol>
- *     <li>a transformation which is rejected, and stays rejected after catching up to the latest log, must return
- *     the rejection rather than looping or claiming a generic failure;</li>
- *     <li>a transformation which is rejected, but whose catch-up discovers a newer epoch, must retry against that
- *     newer state rather than returning the stale rejection;</li>
- *     <li>a proposal whose {@code tryCommitOne} throws must be retried as a plain failure, recovering once a later
- *     cycle's {@code tryCommitOne} succeeds;</li>
- *     <li>a proposal whose {@code tryCommitOne} keeps throwing must eventually give up with the generic
- *     retry-exhaustion failure, not a rejection or an admission-timeout message;</li>
- *     <li>a proposal which does not win its epoch must back off, catch up to the distributed log and retry
- *     against the epoch the winner took, rather than being treated as a failure or re-proposing the stale one;</li>
- *     <li>a proposal which wins its epoch and is appended locally, but whose subsequent
- *     {@link LocalLog#awaitAtLeast} fails, must retry as a plain failure rather than losing track of - or
- *     re-corrupting - the epoch that was already committed.</li>
- * </ol>
- *
- * All six drive the real {@link LocalLog} (in {@code sync} mode) and a real, minimal {@link AbstractLocalProcessor}
- * subclass rather than mocking either, so that what is being verified is this class's actual control flow rather
- * than a model of it.
- */
+/** Commit outcome and recovery tests; queued admission is covered by AbstractLocalProcessorLockTest. */
 public class AbstractLocalProcessorCycleTest
 {
     private static final long TIMEOUT_SECONDS = 30;
@@ -73,13 +52,6 @@ public class AbstractLocalProcessorCycleTest
         DatabaseDescriptor.daemonInitialization();
     }
 
-    /**
-     * A transformation which is rejected, and whose {@code fetchLogAndWait} catch-up afterwards reports no epoch
-     * change (nothing was ever proposed, so the local log genuinely never advances), must return the rejection
-     * itself - carrying its original {@link ExceptionCode} and reason - rather than falling through to the generic
-     * retry-exhaustion failure, and must not loop: {@link AbstractLocalProcessor#handleRejected} decides the
-     * outcome from a single catch-up fetch.
-     */
     @Test
     public void transformationRejectedWithNoEpochChangeReturnsRejection() throws Exception
     {
@@ -100,10 +72,6 @@ public class AbstractLocalProcessorCycleTest
                        failure.message.contains("permanently rejected for testing"));
             assertEquals("a rejection with no epoch change must not loop back for a second catch-up fetch",
                         1, processor.fetchLogAndWaitCalls.get());
-            // A regression that routed a rejected result into tryCommitOne would otherwise be caught only
-            // indirectly, and slowly: it would grind through a real retry-exhaustion backoff before failing on the
-            // assertions above with a misleading "must be reported as a rejection" message. Catch it here, first,
-            // pointing at the actual defect.
             assertEquals("a rejected transformation must never reach tryCommitOne",
                         0, processor.tryCommitOneCalls.get());
         }
@@ -113,12 +81,7 @@ public class AbstractLocalProcessorCycleTest
         }
     }
 
-    /**
-     * A transformation which is rejected because this node has not yet observed a proposal made concurrently by
-     * another CMS member must, once {@code fetchLogAndWait} catches up and reveals that newer epoch, retry rather
-     * than returning the now-stale rejection - and the retried cycle must actually execute against the caught-up
-     * state, not the epoch it started at.
-     */
+    // A rejection against stale metadata must be reconsidered after discovering a remote commit.
     @Test
     public void transformationRejectedTriggersCatchUpThenRetries() throws Exception
     {
@@ -144,12 +107,6 @@ public class AbstractLocalProcessorCycleTest
         }
     }
 
-    /**
-     * A proposal whose {@code tryCommitOne} throws is reported as a plain failure and retried - via
-     * {@link AbstractLocalProcessor#handleFailure} - rather than as a rejection or an admission-timeout: a fresh
-     * cycle re-derives and re-proposes the transformation from scratch, and the commit succeeds once that later
-     * cycle's {@code tryCommitOne} does not throw.
-     */
     @Test
     public void tryCommitOneThrowsIsReportedAsFailedThenRetries() throws Exception
     {
@@ -166,8 +123,7 @@ public class AbstractLocalProcessorCycleTest
             assertEquals("exactly two cycles should have reached tryCommitOne: the one that threw, and the one " +
                         "that succeeded after retrying",
                         2, processor.tryCommitOneCalls.get());
-            // The throw happens before log.append, so the failed first cycle must leave no trace: the retry
-            // re-derives the transformation from the same, unchanged previous metadata and lands on epoch 1, not 2.
+            // The exception precedes append, so the retry must still use epoch 1.
             assertEquals("the failed first cycle must leave no trace in the log", 1L, result.success().epoch.getEpoch());
         }
         finally
@@ -176,12 +132,6 @@ public class AbstractLocalProcessorCycleTest
         }
     }
 
-    /**
-     * A proposal whose {@code tryCommitOne} keeps throwing must eventually give up, once
-     * {@link Retry#maybeSleep()} refuses to back off further, with the same generic retry-exhaustion message that
-     * closes {@link AbstractLocalProcessor#commit} - not a rejection (nothing was ever rejected) and not an
-     * admission-timeout message (every cycle was admitted and reached {@code tryCommitOne}).
-     */
     @Test
     public void tryCommitOneThrowsRepeatedlyExhaustsAsGenericFailure() throws Exception
     {
@@ -201,12 +151,9 @@ public class AbstractLocalProcessorCycleTest
             assertEquals(ExceptionCode.SERVER_ERROR, failure.code);
             assertTrue("must be the generic retry-exhaustion message, but was: " + failure.message,
                       failure.message.startsWith("Could not perform commit after"));
-            // Exact, not just "more than one": the default retry policy allows getCmsDefaultRetryMaxTries() retries
-            // after the first attempt, so exactly that many plus one cycles must reach tryCommitOne before
-            // Retry#maybeSleep refuses to back off further - no more (would mean the attempt cap wasn't enforced)
-            // and no fewer (would mean giving up too early, or spinning past the cap to the 30s deadline instead).
+            // Exhaust the configured attempt cap, not the much longer deadline.
             assertEquals("must exhaust exactly the default retry policy's attempt budget, no more, no fewer",
-                        DatabaseDescriptor.getCmsDefaultRetryMaxTries() + 1, processor.tryCommitOneCalls.get());
+                        3, processor.tryCommitOneCalls.get());
         }
         finally
         {
@@ -214,13 +161,6 @@ public class AbstractLocalProcessorCycleTest
         }
     }
 
-    /**
-     * A proposal which is admitted and made, but does not win its epoch - the ordinary outcome for the loser of a
-     * race against another CMS member - must be handled by {@link AbstractLocalProcessor#handleNotApplied} rather
-     * than as a failure: back off, catch up to the distributed log, then retry. The catch-up is what separates this
-     * outcome from {@code FAILED}, which backs off without fetching, and it is load-bearing: the retried cycle has
-     * to propose against the epoch the winner took, not the stale one this cycle started from.
-     */
     @Test
     public void proposalLosingItsEpochBacksOffCatchesUpThenRetries() throws Exception
     {
@@ -237,13 +177,10 @@ public class AbstractLocalProcessorCycleTest
             assertEquals("exactly two cycles should have reached tryCommitOne: the one that lost its epoch, and the " +
                         "one that won after catching up",
                         2, processor.tryCommitOneCalls.get());
-            // The distinction from a FAILED outcome, which backs off without fetching at all: losing an epoch means
-            // this node's view of the log is behind, so handleNotApplied must refetch before retrying - and exactly
-            // once, since the second cycle wins outright and never reaches the handler again.
+            // Unlike a thrown proposal, a lost epoch requires catch-up before retrying.
             assertEquals("a lost epoch must be followed by exactly one catch-up fetch",
                         1, processor.fetchLogAndWaitCalls.get());
-            // Had the retry re-proposed against the epoch it originally read rather than the caught-up one, it would
-            // have contended for epoch 1 - the slot the winner already took - and landed here at 1 instead of 2.
+            // Reusing the original epoch would contend with the winner again.
             assertEquals("the retried cycle must propose against the caught-up epoch, one past the epoch the winner took",
                         2L, result.success().epoch.getEpoch());
         }
@@ -253,38 +190,58 @@ public class AbstractLocalProcessorCycleTest
         }
     }
 
-    /**
-     * A proposal which wins its epoch and is appended to the local log, but whose subsequent
-     * {@link LocalLog#awaitAtLeast} fails (here: the append is dropped from the pending buffer by a log filter,
-     * exactly as if the local follower had not yet caught up), must be retried as a plain failure via
-     * {@link AbstractLocalProcessor#handleApplied}'s catch, rather than the commit hanging, losing the epoch, or
-     * silently reporting success. On retry, the second cycle re-derives and re-proposes the same transformation from
-     * scratch; once its append is not dropped, {@code awaitAtLeast} succeeds and the commit completes normally.
-     */
     @Test
-    public void awaitAtLeastFailureAfterAppliedRetriesAsFailureThenSucceeds() throws Exception
+    public void enactmentFailureDoesNotReportSuccess() throws Exception
     {
         LocalLog log = newLog();
         LossyAppendProcessor processor = new LossyAppendProcessor(log);
-        // Drops exactly the first entry appended to the log - i.e. the first cycle's winning proposal - so that its
-        // epoch never reaches `committed` and the first handleApplied's awaitAtLeast(nextEpoch) genuinely fails.
-        AtomicBoolean dropNextAppend = new AtomicBoolean(true);
-        log.addFilter(entry -> dropNextAppend.compareAndSet(true, false));
+        // A durable proposal whose local append is lost must not be acknowledged as enacted.
+        log.addFilter(entry -> true);
         try
         {
-            Commit.Result result = processor.commit(new Entry.Id(1),
-                                                     executableTransformation(),
-                                                     null,
-                                                     retryFor(TIMEOUT_SECONDS, TimeUnit.SECONDS));
+            Retry retry = Retry.untilElapsed(TimeUnit.SECONDS.toNanos(TIMEOUT_SECONDS), TCMMetrics.instance.commitRetries,
+                                             WaitStrategy.None.INSTANCE);
+            Commit.Result result = processor.commit(new Entry.Id(1), executableTransformation(), null, retry);
+            assertTrue(result.isFailure());
+            assertEquals(1, processor.tryCommitOneCalls.get());
+            assertEquals(Epoch.EMPTY, log.metadata().epoch);
+        }
+        finally
+        {
+            log.close();
+        }
+    }
 
-            assertTrue("commit must eventually succeed once the second attempt's append is not dropped",
-                      result.isSuccess());
-            assertEquals("exactly two cycles should have reached tryCommitOne: the one whose append was lost, and " +
-                        "the one that succeeded after retrying",
-                        2, processor.tryCommitOneCalls.get());
-            // Guards against the dropped first entry being resurrected rather than genuinely superseded by the
-            // retry's own append: both cycles derive the same epoch 1 from the same unchanged previous metadata.
-            assertEquals("must commit at epoch 1, not skip ahead", 1L, result.success().epoch.getEpoch());
+    @Test
+    public void lostLocalAppendIsRecoveredFromTheDurableLog() throws Exception
+    {
+        LocalLog log = newLog();
+        LossyAppendProcessor processor = new LossyAppendProcessor(log);
+        AtomicBoolean dropFirst = new AtomicBoolean(true);
+        log.addFilter(entry -> dropFirst.compareAndSet(true, false));
+        Transformation once = new Transformation()
+        {
+            public Kind kind()
+            {
+                return Kind.CUSTOM;
+            }
+
+            public Result execute(ClusterMetadata metadata)
+            {
+                if (!metadata.epoch.is(Epoch.EMPTY))
+                    return new Rejected(ExceptionCode.INVALID, "already applied");
+                return Transformation.success(metadata.transformer(), LockedRanges.AffectedRanges.EMPTY);
+            }
+        };
+        try
+        {
+            Entry.Id id = new Entry.Id(1);
+            Commit.Result result = processor.commit(id, once, Epoch.EMPTY, retryFor(TIMEOUT_SECONDS, TimeUnit.SECONDS));
+            assertTrue(result.isSuccess());
+            assertEquals(Epoch.create(1), result.success().epoch);
+            assertEquals(2, processor.tryCommitOneCalls.get());
+            assertEquals(1, result.success().logState.entries.size());
+            assertEquals(id, result.success().logState.entries.get(0).id);
         }
         finally
         {
@@ -296,6 +253,7 @@ public class AbstractLocalProcessorCycleTest
     {
         LocalLog log = LocalLog.logSpec()
                                .sync()
+                               .withStorage(new AtomicLongBackedProcessor.InMemoryStorage())
                                .withInitialState(new ClusterMetadata(Murmur3Partitioner.instance))
                                .createLog();
         log.readyUnchecked();
@@ -304,14 +262,11 @@ public class AbstractLocalProcessorCycleTest
 
     private static Retry retryFor(long timeout, TimeUnit unit)
     {
-        return Retry.untilElapsed(unit.toNanos(timeout), TCMMetrics.instance.commitRetries);
+        return Retry.untilElapsed(unit.toNanos(timeout), TCMMetrics.instance.commitRetries,
+                                  RetryStrategy.parse("1ms,retries=2", TimeoutStrategy.LatencySourceFactory.none()));
     }
 
-    /**
-     * Unlike a transformation which is only ever rejected before executing, this one actually runs, so it must not
-     * derive its affected ranges from the metadata keyspace via {@code MetaStrategy.affectedRanges}: the bare
-     * {@link ClusterMetadata} used by these tests has no such keyspace in its schema.
-     */
+    // Bare test metadata has no metadata keyspace from which to derive affected ranges.
     private static Transformation executableTransformation()
     {
         return new Transformation()
@@ -348,10 +303,6 @@ public class AbstractLocalProcessorCycleTest
         };
     }
 
-    /**
-     * Rejects while the local metadata is still at its initial, empty epoch, and succeeds once it is not - i.e.
-     * once this node has caught up to at least one entry appended by someone else.
-     */
     private static Transformation rejectAtEmptyEpoch()
     {
         return new Transformation()
@@ -372,7 +323,6 @@ public class AbstractLocalProcessorCycleTest
         };
     }
 
-    /** Accepts every commit, but its transformation always rejects, so {@code tryCommitOne} must never be reached. */
     private static class RejectingProcessor extends AbstractLocalProcessor
     {
         final AtomicInteger fetchLogAndWaitCalls = new AtomicInteger();
@@ -405,11 +355,7 @@ public class AbstractLocalProcessorCycleTest
         }
     }
 
-    /**
-     * Accepts every commit and always wins its proposal. On the first {@code fetchLogAndWait} call, simulates
-     * discovering a proposal committed concurrently by another CMS member by appending and enacting a foreign entry
-     * directly on the log, advancing it one epoch, before returning the now-caught-up state.
-     */
+    /** Catch-up discovers an entry committed by another CMS member. */
     private static class CatchUpProcessor extends AbstractLocalProcessor
     {
         final AtomicInteger fetchLogAndWaitCalls = new AtomicInteger();
@@ -443,7 +389,6 @@ public class AbstractLocalProcessorCycleTest
         }
     }
 
-    /** Accepts every commit; its {@code tryCommitOne} throws once, then succeeds on every later call. */
     private static class ThrowThenSucceedProcessor extends AbstractLocalProcessor
     {
         final AtomicInteger tryCommitOneCalls = new AtomicInteger();
@@ -474,7 +419,6 @@ public class AbstractLocalProcessorCycleTest
         }
     }
 
-    /** Accepts every commit; its {@code tryCommitOne} always throws. */
     private static class AlwaysThrowingProcessor extends AbstractLocalProcessor
     {
         final AtomicInteger tryCommitOneCalls = new AtomicInteger();
@@ -504,12 +448,7 @@ public class AbstractLocalProcessorCycleTest
         }
     }
 
-    /**
-     * Accepts every commit; its first {@code tryCommitOne} loses the epoch and every later one wins. The
-     * {@code fetchLogAndWait} which follows that loss simulates discovering the winning proposal by appending and
-     * enacting a foreign entry at the contested epoch, so the caught-up state the retry executes against is one
-     * epoch ahead of the state the losing cycle read.
-     */
+    /** Loses the first proposal and discovers the winning entry during catch-up. */
     private static class LostEpochProcessor extends AbstractLocalProcessor
     {
         final AtomicInteger tryCommitOneCalls = new AtomicInteger();
@@ -544,10 +483,11 @@ public class AbstractLocalProcessorCycleTest
         }
     }
 
-    /** Accepts every commit and always wins its proposal; whether that proposal is actually observable is up to the log. */
+    /** Keeps the durable proposal independently of the local append, which the tests can discard. */
     private static class LossyAppendProcessor extends AbstractLocalProcessor
     {
         final AtomicInteger tryCommitOneCalls = new AtomicInteger();
+        final AtomicReference<Entry> durable = new AtomicReference<>();
 
         LossyAppendProcessor(LocalLog log)
         {
@@ -564,12 +504,13 @@ public class AbstractLocalProcessorCycleTest
         protected boolean tryCommitOne(Entry.Id entryId, Transformation transform, Epoch previousEpoch, Epoch nextEpoch)
         {
             tryCommitOneCalls.incrementAndGet();
-            return true;
+            return durable.compareAndSet(null, new Entry(entryId, nextEpoch, transform));
         }
 
         @Override
         public ClusterMetadata fetchLogAndWait(Epoch waitFor, Retry retryPolicy)
         {
+            log.append(durable.get());
             return log.waitForHighestConsecutive();
         }
     }
