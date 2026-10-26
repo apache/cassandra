@@ -59,7 +59,6 @@ import org.apache.cassandra.distributed.api.TokenSupplier;
 import org.apache.cassandra.distributed.shared.ClusterUtils;
 import org.apache.cassandra.distributed.shared.NetworkTopology;
 import org.apache.cassandra.distributed.test.accord.AccordTestBase;
-import org.apache.cassandra.locator.EndpointsForToken;
 import org.apache.cassandra.locator.Replica;
 import org.apache.cassandra.locator.ReplicaPlan;
 import org.apache.cassandra.service.consensus.TransactionalMode;
@@ -675,7 +674,7 @@ public class ReadRepairTest extends TestBaseImpl
         // on timestamp tie of RT and partition deletion: we should not generate RT bounds in such case,
         // since monotonicity is already ensured by the partition deletion, and RT is unnecessary there.
         // For details, see CASSANDRA-16453.
-        public static Object repairPartition(DecoratedKey partitionKey, Map<Replica, Mutation> mutations, EndpointsForToken uptodateEndpoints, ReplicaPlan.ForWrite writePlan, @SuperCall Callable<Void> r) throws Exception
+        public static Object repairPartition(DecoratedKey partitionKey, Map<Replica, Mutation> mutations, ReplicaPlan.ForWrite writePlan, @SuperCall Callable<Void> r) throws Exception
         {
             Assert.assertEquals(2, mutations.size());
             for (Mutation value : mutations.values())
