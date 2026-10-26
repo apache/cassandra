@@ -262,8 +262,7 @@ public class BlockingPartitionRepair
     {
         if (repairPlan.epoch().equals(metadata.epoch))
             return;
-        // just copy the repair plan
-        ReplicaPlan.ForWrite r = repairPlan.withContacts(repairPlan.contacts());
+        ReplicaPlan.ForWrite r = repairPlan.copyForPlacementCheck();
         // consider replicas from repairPlan.contacts which were not sent mutations as already up to date
         // and here treat them as successfully read-repaired
         for (Replica replica : r.contacts())

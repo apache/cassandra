@@ -356,6 +356,10 @@ public interface ReplicaPlan<E extends Endpoints<E>, P extends ReplicaPlan<E, P>
 
         ForWrite withConsistencyLevel(ConsistencyLevel newConsistencylevel) { return copy(newConsistencylevel, contacts()); }
         public ForWrite withContacts(EndpointsForToken newContact) { return copy(consistencyLevel, newContact); }
+        public ForWrite copyForPlacementCheck()
+        {
+            return copy(consistencyLevel, contacts());
+        }
 
         // TODO: this method can return a collection of received responses that apply, and an explanation on why
         // contacts are not enough to satisfy the replicaplan.
