@@ -36,7 +36,8 @@ public abstract class Event
         TOPOLOGY_CHANGE(ProtocolVersion.V3),
         STATUS_CHANGE(ProtocolVersion.V3),
         SCHEMA_CHANGE(ProtocolVersion.V3),
-        TRACE_COMPLETE(ProtocolVersion.V4);
+        TRACE_COMPLETE(ProtocolVersion.V4),
+        GRACEFUL_DISCONNECT(ProtocolVersion.V4);
 
         public final ProtocolVersion minimumVersion;
 
@@ -66,6 +67,8 @@ public abstract class Event
                 return StatusChange.deserializeEvent(cb, version);
             case SCHEMA_CHANGE:
                 return SchemaChange.deserializeEvent(cb, version);
+            case GRACEFUL_DISCONNECT:
+                return GracefulDisconnect.deserializeEvent(cb, version);
         }
         throw new AssertionError();
     }
@@ -440,6 +443,28 @@ public abstract class Event
                 && Objects.equal(keyspace, scc.keyspace)
                 && Objects.equal(name, scc.name)
                 && Objects.equal(argTypes, scc.argTypes);
+        }
+    }
+
+    public static class GracefulDisconnect extends Event
+    {
+        public GracefulDisconnect()
+        {
+            super(Type.GRACEFUL_DISCONNECT);
+        }
+
+        @Override
+        protected int eventSerializedSize(ProtocolVersion version)
+        {
+            return 0;
+        }
+
+        @Override
+        protected void serializeEvent(ByteBuf dest, ProtocolVersion version) {}
+
+        public static GracefulDisconnect deserializeEvent(ByteBuf cb, ProtocolVersion version)
+        {
+            return new GracefulDisconnect();
         }
     }
 }
