@@ -27,16 +27,21 @@ public interface INodeProbeFactory
     NodeProbe create(String host, int port, String username, String password) throws IOException;
 }
 
+/** Connects eagerly, so that connection failures are reported by {@code JmxConnect} before the command runs. */
 class NodeProbeFactory implements INodeProbeFactory
 {
 
     public NodeProbe create(String host, int port) throws IOException
     {
-        return new NodeProbe(host, port);
+        RemoteJmxMBeanAccessor accessor = new RemoteJmxMBeanAccessor(host, port);
+        accessor.connect();
+        return new NodeProbe(accessor);
     }
 
     public NodeProbe create(String host, int port, String username, String password) throws IOException
     {
-        return new NodeProbe(host, port, username, password);
+        RemoteJmxMBeanAccessor accessor = new RemoteJmxMBeanAccessor(host, port, username, password);
+        accessor.connect();
+        return new NodeProbe(accessor);
     }
 }

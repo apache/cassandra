@@ -18,7 +18,6 @@
 
 package org.apache.cassandra.tools.nodetool;
 
-import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
@@ -42,6 +41,7 @@ import org.apache.cassandra.schema.TableMetadata;
 import org.apache.cassandra.service.snapshot.SnapshotManager;
 import org.apache.cassandra.service.snapshot.SnapshotManifest;
 import org.apache.cassandra.tools.NodeProbe;
+import org.apache.cassandra.tools.RemoteJmxMBeanAccessor;
 import org.apache.cassandra.tools.ToolRunner.ToolResult;
 
 import static java.lang.String.format;
@@ -65,7 +65,7 @@ public class ClearSnapshotTest extends CQLTester
     {
         startJMXServer();
         requireNetwork();
-        probe = new NodeProbe(jmxHost, jmxPort);
+        probe = new NodeProbe(new RemoteJmxMBeanAccessor(jmxHost, jmxPort));
     }
 
     @Before
@@ -75,7 +75,7 @@ public class ClearSnapshotTest extends CQLTester
     }
 
     @AfterClass
-    public static void teardown() throws IOException
+    public static void teardown() throws Exception
     {
         probe.close();
     }

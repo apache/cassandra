@@ -32,6 +32,7 @@ import com.google.common.base.Throwables;
 import org.apache.cassandra.io.util.File;
 import org.apache.cassandra.tools.INodeProbeFactory;
 import org.apache.cassandra.tools.NodeProbe;
+import org.apache.cassandra.tools.NodetoolConnectionException;
 
 import picocli.CommandLine;
 import picocli.CommandLine.Command;
@@ -46,7 +47,7 @@ import picocli.CommandLine.RunLast;
 import picocli.CommandLine.Spec;
 
 import static java.lang.Integer.parseInt;
-import static org.apache.cassandra.tools.NodeProbe.defaultPort;
+import static org.apache.cassandra.tools.RemoteJmxMBeanAccessor.defaultPort;
 import static org.apache.commons.lang3.StringUtils.EMPTY;
 import static org.apache.commons.lang3.StringUtils.isEmpty;
 import static org.apache.commons.lang3.StringUtils.isNotEmpty;
@@ -126,7 +127,7 @@ public class JmxConnect extends AbstractCommand implements AutoCloseable
             probe(username.isEmpty() ? nodeProbeFactory.create(host, parseInt(port))
                                      : nodeProbeFactory.create(host, parseInt(port), username, password));
         }
-        catch (IOException | SecurityException e)
+        catch (IOException | SecurityException | NodetoolConnectionException e)
         {
             Throwable rootCause = Throwables.getRootCause(e);
             output.printError("nodetool: Failed to connect to '%s:%s' - %s: '%s'.%n", host, port,
