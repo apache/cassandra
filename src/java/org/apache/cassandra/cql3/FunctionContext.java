@@ -22,6 +22,7 @@ import java.time.Instant;
 
 import org.apache.cassandra.cql3.functions.Arguments;
 import org.apache.cassandra.cql3.functions.FunctionArguments;
+import org.apache.cassandra.cql3.terms.Lists;
 import org.apache.cassandra.db.marshal.TimeUUIDType;
 import org.apache.cassandra.transport.ProtocolVersion;
 import org.apache.cassandra.utils.Clock.Global;
@@ -34,6 +35,7 @@ public interface FunctionContext
     interface RealTimeFunctionContext extends FunctionContext
     {
         @Override default byte[] nextTimeUUIDAsBytes() { return TimeUUID.Generator.nextTimeUUIDAsBytes(); }
+        @Override default byte[] nextDecreasingTimeUUIDAsBytes() { throw new UnsupportedOperationException(); }
         @Override default Instant now() { return Global.currentTime(); }
         @Override default long nowMicros() { return Global.currentTimeMicros(); }
         @Override default long nowMillis() { return Global.currentTimeMillis(); }
@@ -42,6 +44,7 @@ public interface FunctionContext
     interface NoTimeFunctionContext extends FunctionContext
     {
         @Override default byte[] nextTimeUUIDAsBytes() { throw new UnsupportedOperationException(); }
+        @Override default byte[] nextDecreasingTimeUUIDAsBytes() { throw new UnsupportedOperationException(); }
         @Override default Instant now() { throw new UnsupportedOperationException(); }
         @Override default long nowMicros() { throw new UnsupportedOperationException(); }
         @Override default long nowMillis() { throw new UnsupportedOperationException(); }
@@ -79,6 +82,12 @@ public interface FunctionContext
         {
             return TimeUUID.toBytes(TimeUUID.unixMicrosToMsb(atMicros), TimeUUIDType.signedBytesToNativeLong(timeUuidNanos++));
         }
+
+        @Override
+        public byte[] nextDecreasingTimeUUIDAsBytes()
+        {
+            return TimeUUID.toBytes(Lists.prependMsb(TimeUUID.unixMicrosToMsb(atMicros)), TimeUUIDType.signedBytesToNativeLong(-(timeUuidNanos++)));
+        }
     }
 
     QueryOptions options();
@@ -86,6 +95,7 @@ public interface FunctionContext
     long nowMillis();
     long nowMicros();
     byte[] nextTimeUUIDAsBytes();
+    byte[] nextDecreasingTimeUUIDAsBytes();
 
     default ProtocolVersion getProtocolVersion() { return options().getProtocolVersion(); }
 

@@ -26,6 +26,7 @@ import com.google.common.collect.ImmutableMap;
 import org.apache.cassandra.cql3.FunctionContext;
 import org.apache.cassandra.cql3.QueryOptions;
 import org.apache.cassandra.cql3.RowUpdateBuilder;
+import org.apache.cassandra.cql3.terms.Lists;
 import org.apache.cassandra.db.DecoratedKey;
 import org.apache.cassandra.db.marshal.TimeUUIDType;
 import org.apache.cassandra.db.partitions.Partition;
@@ -43,6 +44,7 @@ public class AccordUpdateParameters
     private final TxnData data;
     private final QueryOptions options;
     private final long timestamp;
+    private long timeUuidNanos;
 
     public AccordUpdateParameters(TxnData data, QueryOptions options, long timestamp)
     {
@@ -53,17 +55,29 @@ public class AccordUpdateParameters
 
     static class AccordUpdateBuilder extends RowUpdateBuilder implements FunctionContext.PartialFunctionContext
     {
-        private long timeUuidNanos;
+        private final AccordUpdateParameters parameters;
 
-        public AccordUpdateBuilder(TableMetadata metadata, ClientState clientState, QueryOptions options, long timestamp, long nowInSec, int ttl, Map<DecoratedKey, Partition> prefetchedRows) throws InvalidRequestException
+        public AccordUpdateBuilder(TableMetadata metadata, ClientState clientState, QueryOptions options, long timestamp, long nowInSec, int ttl, Map<DecoratedKey, Partition> prefetchedRows, AccordUpdateParameters parameters) throws InvalidRequestException
         {
             super(metadata, clientState, options, timestamp, nowInSec, ttl, prefetchedRows);
+            this.parameters = parameters;
+        }
+
+        private long nextTimeUuidNanos()
+        {
+            return parameters.timeUuidNanos++;
         }
 
         @Override
         public byte[] nextTimeUUIDAsBytes()
         {
-            return TimeUUID.toBytes(Ballot.unixMicrosToMsb(timestamp), TimeUUIDType.signedBytesToNativeLong(timeUuidNanos++));
+            return TimeUUID.toBytes(Ballot.unixMicrosToMsb(timestamp), TimeUUIDType.signedBytesToNativeLong(nextTimeUuidNanos()));
+        }
+
+        @Override
+        public byte[] nextDecreasingTimeUUIDAsBytes()
+        {
+            return TimeUUID.toBytes(Lists.prependMsb(Ballot.unixMicrosToMsb(timestamp)), TimeUUIDType.signedBytesToNativeLong(-nextTimeUuidNanos()));
         }
 
         public long nowMicros()
@@ -91,7 +105,8 @@ public class AccordUpdateParameters
                                        overrideTimestamp == TxnWrite.NO_TIMESTAMP ? timestamp : overrideTimestamp,
                                        MICROSECONDS.toSeconds(timestamp),
                                        ttl,
-                                       prefetchRow(dk, rowIndex));
+                                       prefetchRow(dk, rowIndex),
+                                       this);
     }
 
     private Map<DecoratedKey, Partition> prefetchRow(DecoratedKey dk, int index)

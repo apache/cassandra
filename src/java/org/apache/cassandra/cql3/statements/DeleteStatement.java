@@ -77,7 +77,7 @@ public class DeleteStatement extends ModificationStatement
         List<Operation> regularDeletions = getRegularOperations();
         List<Operation> staticDeletions = getStaticOperations();
 
-        if (regularDeletions.isEmpty() && staticDeletions.isEmpty())
+        if (regularDeletions.isEmpty() && staticDeletions.isEmpty() && getSubstitutions().isEmpty())
         {
             // We're not deleting any specific columns so it's either a full partition deletion ....
             if (clustering.size() == 0)
