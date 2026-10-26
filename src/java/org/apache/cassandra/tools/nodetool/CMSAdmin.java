@@ -33,11 +33,11 @@ import org.apache.cassandra.tcm.serialization.Version;
 import org.apache.cassandra.tools.NodeProbe;
 import org.apache.cassandra.tools.nodetool.layout.CassandraUsage;
 
-import picocli.CommandLine.ArgGroup;
 import picocli.CommandLine.Command;
 import picocli.CommandLine.Option;
 import picocli.CommandLine.Parameters;
 
+import static com.google.common.base.Preconditions.checkArgument;
 import static org.apache.cassandra.tcm.CMSOperations.CMS_ID;
 import static org.apache.cassandra.tcm.CMSOperations.COMMITS_PAUSED;
 import static org.apache.cassandra.tcm.CMSOperations.EPOCH;
@@ -315,41 +315,30 @@ public class CMSAdmin extends AbstractCommand
     @Command(name = "dump", description = "Dumps cluster metadata into a file")
     public static class DumpClusterMetadata extends AbstractCommand
     {
-        @ArgGroup(exclusive = false, multiplicity = "0..1")
-        DumpOptions dumpOptions;
+        @Option(names = { "-e", "--epoch" }, paramLabel = "epoch",
+        description = "Epoch at which cluster metadata should be dumped")
+        Long epoch;
 
-        static class DumpOptions
-        {
-            @Option(names = { "-e", "--epoch" }, paramLabel = "epoch",
-            description = "Epoch at which cluster metadata should be dumped", required = true)
-            Long epoch;
+        @Option(names = { "-te", "--transform-epoch" }, paramLabel = "transform_epoch",
+        description = "Force metadata to given X epoch while dumping")
+        Long transformEpoch;
 
-            @Option(names = { "-te", "--transform-epoch" }, paramLabel = "transform_epoch",
-            description = "Force metadata to given X epoch while dumping", required = true)
-            Long transformEpoch;
-
-            @Option(names = { "-sv", "--serialization-version" }, paramLabel = "serialization_version",
-            description = "Serialization Version", required = true)
-            Version version;
-        }
+        @Option(names = { "-sv", "--serialization-version" }, paramLabel = "serialization_version",
+        description = "Serialization Version")
+        Version version;
 
         @Override
         protected void execute(NodeProbe probe)
         {
+            boolean noneSet = epoch == null && transformEpoch == null && version == null;
+            boolean allSet = epoch != null && transformEpoch != null && version != null;
+            checkArgument(noneSet || allSet,
+                          "Options --epoch, --transform-epoch and --serialization-version must be set together or not at all");
             try
             {
-                if (dumpOptions == null)
-                {
-                    String fileLocation = probe.getCMSOperationsProxy().dumpClusterMetadata();
-                    printCMSDumpLocation(probe, fileLocation);
-                }
-                else
-                {
-                    String fileLocation = probe.getCMSOperationsProxy().dumpClusterMetadata(dumpOptions.epoch,
-                                                                                            dumpOptions.transformEpoch,
-                                                                                            dumpOptions.version.name());
-                    printCMSDumpLocation(probe, fileLocation);
-                }
+                String fileLocation = noneSet ? probe.getCMSOperationsProxy().dumpClusterMetadata()
+                                              : probe.getCMSOperationsProxy().dumpClusterMetadata(epoch, transformEpoch, version.name());
+                printCMSDumpLocation(probe, fileLocation);
             }
             catch (IOException e)
             {
