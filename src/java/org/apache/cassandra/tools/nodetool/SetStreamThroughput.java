@@ -18,11 +18,13 @@
 package org.apache.cassandra.tools.nodetool;
 
 import org.apache.cassandra.tools.NodeProbe;
+import org.apache.cassandra.tools.nodetool.layout.WithoutExample;
 
 import picocli.CommandLine.Command;
 import picocli.CommandLine.Option;
 import picocli.CommandLine.Parameters;
 
+@WithoutExample
 @Command(name = "setstreamthroughput", description = "Set throughput cap for streaming and entire SSTable streaming in the system, or 0 to disable throttling")
 public class SetStreamThroughput extends AbstractCommand
 {

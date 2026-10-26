@@ -35,6 +35,9 @@ import picocli.CommandLine.ExecutionException;
  * being executed, or common methods that are shared across multiple commands.
  * <p>
  * Commands must work only with the API provided by the {@link NodeProbe} instance.
+ * <p>
+ * Commands must show a usage example in an EXAMPLES footer of their {@code @Command}, or be annotated
+ * with {@code @WithoutExample}.
  */
 public abstract class AbstractCommand implements Runnable
 {

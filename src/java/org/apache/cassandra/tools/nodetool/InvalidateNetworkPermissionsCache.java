@@ -22,10 +22,12 @@ import java.util.List;
 
 import org.apache.cassandra.tools.NodeProbe;
 import org.apache.cassandra.tools.nodetool.layout.CassandraUsage;
+import org.apache.cassandra.tools.nodetool.layout.WithoutExample;
 
 import picocli.CommandLine.Command;
 import picocli.CommandLine.Parameters;
 
+@WithoutExample
 @Command(name = "invalidatenetworkpermissionscache", description = "Invalidate the network permissions cache")
 public class InvalidateNetworkPermissionsCache extends AbstractCommand
 {

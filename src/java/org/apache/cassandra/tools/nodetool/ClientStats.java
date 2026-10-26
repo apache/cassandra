@@ -29,12 +29,14 @@ import com.google.common.collect.ImmutableList;
 
 import org.apache.cassandra.tools.NodeProbe;
 import org.apache.cassandra.tools.nodetool.formatter.TableBuilder;
+import org.apache.cassandra.tools.nodetool.layout.WithoutExample;
 import org.apache.cassandra.transport.ClientStat;
 import org.apache.cassandra.transport.ConnectedClient;
 
 import picocli.CommandLine.Command;
 import picocli.CommandLine.Option;
 
+@WithoutExample
 @Command(name = "clientstats", description = "Print information about connected clients")
 public class ClientStats extends AbstractCommand
 {

@@ -34,7 +34,6 @@ import static org.apache.cassandra.tools.nodetool.CommandUtils.parseOptionalTabl
 
 
 @Command(name = "garbagecollect", description = "Remove deleted data from one or more tables",
-         footerHeading = "%n",
          footer = { "EXAMPLES",
                     "        Remove deleted cells, not only deleted rows, from ks1.table1:",
                     "            nodetool garbagecollect -g CELL ks1 table1",

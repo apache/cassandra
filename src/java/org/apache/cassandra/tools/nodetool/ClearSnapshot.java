@@ -38,7 +38,6 @@ import static org.apache.commons.lang3.StringUtils.EMPTY;
 import static org.apache.commons.lang3.StringUtils.join;
 
 @Command(name = "clearsnapshot", description = "Remove the snapshot with the given name from the given keyspaces",
-         footerHeading = "%n",
          footer = { "EXAMPLES",
                     "        Clear all snapshots of ks1 older than 7 days:",
                     "            nodetool clearsnapshot --all --older-than 7d ks1" })

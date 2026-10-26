@@ -22,6 +22,7 @@ import java.util.List;
 
 import org.apache.cassandra.tools.NodeProbe;
 import org.apache.cassandra.tools.nodetool.layout.CassandraUsage;
+import org.apache.cassandra.tools.nodetool.layout.WithoutExample;
 import org.apache.cassandra.tools.nodetool.stats.DataPathsHolder;
 import org.apache.cassandra.tools.nodetool.stats.DataPathsPrinter;
 import org.apache.cassandra.tools.nodetool.stats.StatsPrinter;
@@ -30,6 +31,7 @@ import picocli.CommandLine.Command;
 import picocli.CommandLine.Option;
 import picocli.CommandLine.Parameters;
 
+@WithoutExample
 @Command(name = "datapaths", description = "Print all directories where data of tables are stored")
 public class DataPaths extends AbstractCommand
 {

@@ -23,12 +23,14 @@ import java.util.Optional;
 
 import org.apache.cassandra.tools.NodeProbe;
 import org.apache.cassandra.tools.nodetool.layout.CassandraUsage;
+import org.apache.cassandra.tools.nodetool.layout.WithoutExample;
 
 import picocli.CommandLine.Command;
 import picocli.CommandLine.Parameters;
 
 import static com.google.common.base.Preconditions.checkArgument;
 
+@WithoutExample
 @Command(name = "setcachecapacity", description = "Set global key, row, and counter cache capacities (in MB units)")
 public class SetCacheCapacity extends AbstractCommand
 {

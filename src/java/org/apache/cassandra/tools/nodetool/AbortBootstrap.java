@@ -26,7 +26,6 @@ import static org.apache.commons.lang3.StringUtils.EMPTY;
 import static org.apache.commons.lang3.StringUtils.isEmpty;
 
 @Command(name = "abortbootstrap", description = "Abort a failed bootstrap",
-         footerHeading = "%n",
          footer = { "EXAMPLES",
                     "        Abort a failed bootstrap (give --node or --ip, not both):",
                     "            nodetool abortbootstrap --ip 127.0.0.2" })

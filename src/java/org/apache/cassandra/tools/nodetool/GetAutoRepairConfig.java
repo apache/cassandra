@@ -22,12 +22,14 @@ import java.io.PrintStream;
 import com.google.common.annotations.VisibleForTesting;
 
 import org.apache.cassandra.tools.NodeProbe;
+import org.apache.cassandra.tools.nodetool.layout.WithoutExample;
 
 import picocli.CommandLine.Command;
 
 /**
  * Prints all the configurations for AutoRepair through nodetool.
  */
+@WithoutExample
 @Command(name = "getautorepairconfig", description = "Print autorepair configurations")
 public class GetAutoRepairConfig extends AbstractCommand
 {

@@ -41,6 +41,7 @@ import org.apache.cassandra.locator.EndpointSnitchInfoMBean;
 import org.apache.cassandra.locator.InetAddressAndPort;
 import org.apache.cassandra.tools.NodeProbe;
 import org.apache.cassandra.tools.nodetool.formatter.TableBuilder;
+import org.apache.cassandra.tools.nodetool.layout.WithoutExample;
 import org.apache.cassandra.utils.LocalizeString;
 
 import picocli.CommandLine.Command;
@@ -50,6 +51,7 @@ import picocli.CommandLine.Parameters;
 
 import static java.util.stream.Collectors.toMap;
 
+@WithoutExample
 @Command(name = "status", description = "Print cluster information (state, load, IDs, ...)")
 public class Status extends AbstractCommand
 {

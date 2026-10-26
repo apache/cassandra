@@ -24,6 +24,7 @@ import java.util.List;
 
 import org.apache.cassandra.tools.NodeProbe;
 import org.apache.cassandra.tools.nodetool.layout.CassandraUsage;
+import org.apache.cassandra.tools.nodetool.layout.WithoutExample;
 
 import picocli.CommandLine.Command;
 import picocli.CommandLine.Mixin;
@@ -32,6 +33,7 @@ import picocli.CommandLine.Parameters;
 import static com.google.common.base.Preconditions.checkArgument;
 import static org.apache.cassandra.tools.nodetool.CommandUtils.concatArgs;
 
+@WithoutExample
 @Command(name = "getreplicas", description = "Print the replicas that own the key")
 public class GetReplicas extends AbstractCommand
 {

@@ -48,7 +48,6 @@ import static org.apache.cassandra.utils.LocalizeString.toUpperCaseLocalized;
 import static org.apache.commons.lang3.StringUtils.join;
 
 @Command(name = "profileload", description = "Low footprint profiling of activity for a period of time",
-         footerHeading = "%n",
          footer = { "EXAMPLES",
                     "        Sample reads and writes of all tables for 10 seconds:",
                     "            nodetool profileload -a READS,WRITES 10000" })

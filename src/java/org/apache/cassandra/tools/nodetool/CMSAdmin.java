@@ -32,6 +32,7 @@ import org.apache.cassandra.tcm.Epoch;
 import org.apache.cassandra.tcm.serialization.Version;
 import org.apache.cassandra.tools.NodeProbe;
 import org.apache.cassandra.tools.nodetool.layout.CassandraUsage;
+import org.apache.cassandra.tools.nodetool.layout.WithoutExample;
 
 import picocli.CommandLine.ArgGroup;
 import picocli.CommandLine.Command;
@@ -71,6 +72,7 @@ public class CMSAdmin extends AbstractCommand
         cmd.run();
     }
 
+    @WithoutExample
     @Command(name = "describe", description = "Describe the current Cluster Metadata Service")
     public static class DescribeCMS extends AbstractCommand
     {
@@ -93,7 +95,6 @@ public class CMSAdmin extends AbstractCommand
     }
 
     @Command(name = "initialize", description = "Upgrade from gossip and initialize CMS",
-             footerHeading = "%n",
              footer = { "EXAMPLES",
                         "        Initialize the CMS while two nodes are down:",
                         "            nodetool cms initialize -i 127.0.0.2 -i 127.0.0.3" })
@@ -110,7 +111,6 @@ public class CMSAdmin extends AbstractCommand
     }
 
     @Command(name = "reconfigure", description = "Reconfigure replication factor of CMS",
-             footerHeading = "%n",
              footer = { "EXAMPLES",
                         "        Use 3 CMS members in dc1 and 3 in dc2:",
                         "            nodetool cms reconfigure dc1:3 dc2:3" })
@@ -224,6 +224,7 @@ public class CMSAdmin extends AbstractCommand
         }
     }
 
+    @WithoutExample
     @Command(name = "snapshot", description = "Request a checkpointing snapshot of cluster metadata")
     public static class Snapshot extends AbstractCommand
     {
@@ -235,7 +236,6 @@ public class CMSAdmin extends AbstractCommand
     }
 
     @Command(name = "unregister", description = "Unregister nodes in LEFT state",
-             footerHeading = "%n",
              footer = { "EXAMPLES",
                         "        Unregister two nodes in LEFT state:",
                         "            nodetool cms unregister 4 5" })
@@ -252,7 +252,6 @@ public class CMSAdmin extends AbstractCommand
     }
 
     @Command(name = "abortinitialization", description = "Abort an incomplete initialization",
-             footerHeading = "%n",
              footer = { "EXAMPLES",
                         "        Abort the CMS initialization started on 127.0.0.1:",
                         "            nodetool cms abortinitialization --initiator 127.0.0.1" })
@@ -269,7 +268,6 @@ public class CMSAdmin extends AbstractCommand
     }
 
     @Command(name = "dumpdirectory", description = "Dump the directory from the current ClusterMetadata",
-             footerHeading = "%n",
              footer = { "EXAMPLES",
                         "        Dump the directory, including the tokens of each node:",
                         "            nodetool cms dumpdirectory --tokens" })
@@ -286,7 +284,6 @@ public class CMSAdmin extends AbstractCommand
     }
 
     @Command(name = "dumplog", description = "Dump the metadata log",
-             footerHeading = "%n",
              footer = { "EXAMPLES",
                         "        Dump the metadata log from epoch 10 to epoch 20:",
                         "            nodetool cms dumplog --start 10 --end 20" })
@@ -324,7 +321,6 @@ public class CMSAdmin extends AbstractCommand
     }
 
     @Command(name = "resumedropaccordtable", description = "Resume a drop accord table operation which has stalled",
-             footerHeading = "%n",
              footer = { "EXAMPLES",
                         "        Resume a stalled drop of an Accord table:",
                         "            nodetool cms resumedropaccordtable <table_id>" })
@@ -341,7 +337,6 @@ public class CMSAdmin extends AbstractCommand
     }
 
     @Command(name = "dump", description = "Dumps cluster metadata into a file",
-             footerHeading = "%n",
              footer = { "EXAMPLES",
                         "        Dump cluster metadata at an epoch (give all three options or none):",
                         "            nodetool cms dump -e <epoch> -te <transform_epoch> -sv <version>" })

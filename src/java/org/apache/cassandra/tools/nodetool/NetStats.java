@@ -29,11 +29,13 @@ import org.apache.cassandra.streaming.ProgressInfo;
 import org.apache.cassandra.streaming.SessionInfo;
 import org.apache.cassandra.streaming.StreamState;
 import org.apache.cassandra.tools.NodeProbe;
+import org.apache.cassandra.tools.nodetool.layout.WithoutExample;
 
 import picocli.CommandLine.Command;
 import picocli.CommandLine.Mixin;
 import picocli.CommandLine.Option;
 
+@WithoutExample
 @Command(name = "netstats", description = "Print network information on provided host (connecting node by default)")
 public class NetStats extends AbstractCommand
 {

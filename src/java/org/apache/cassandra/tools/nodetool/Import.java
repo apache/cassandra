@@ -26,6 +26,7 @@ import com.google.common.collect.Lists;
 
 import org.apache.cassandra.tools.NodeProbe;
 import org.apache.cassandra.tools.nodetool.layout.CassandraUsage;
+import org.apache.cassandra.tools.nodetool.layout.WithoutExample;
 
 import picocli.CommandLine.Command;
 import picocli.CommandLine.Option;
@@ -34,6 +35,7 @@ import picocli.CommandLine.Parameters;
 import static com.google.common.base.Preconditions.checkArgument;
 import static org.apache.cassandra.tools.nodetool.CommandUtils.concatArgs;
 
+@WithoutExample
 @Command(name = "import", description = "Import new SSTables to the system")
 public class Import extends AbstractCommand
 {

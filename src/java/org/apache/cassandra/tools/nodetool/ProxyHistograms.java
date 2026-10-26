@@ -20,11 +20,13 @@ package org.apache.cassandra.tools.nodetool;
 import java.io.PrintStream;
 
 import org.apache.cassandra.tools.NodeProbe;
+import org.apache.cassandra.tools.nodetool.layout.WithoutExample;
 
 import picocli.CommandLine.Command;
 
 import static java.lang.String.format;
 
+@WithoutExample
 @Command(name = "proxyhistograms", description = "Print statistic histograms for network operations")
 public class ProxyHistograms extends AbstractCommand
 {

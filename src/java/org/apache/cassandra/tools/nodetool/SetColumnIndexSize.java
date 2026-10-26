@@ -19,10 +19,12 @@
 package org.apache.cassandra.tools.nodetool;
 
 import org.apache.cassandra.tools.NodeProbe;
+import org.apache.cassandra.tools.nodetool.layout.WithoutExample;
 
 import picocli.CommandLine.Command;
 import picocli.CommandLine.Parameters;
 
+@WithoutExample
 @Command(name = "setcolumnindexsize", description = "Set the granularity of the collation index of rows within a partition in KiB")
 public class SetColumnIndexSize extends AbstractCommand
 {

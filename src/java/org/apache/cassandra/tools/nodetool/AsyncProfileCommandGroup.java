@@ -32,6 +32,7 @@ import org.apache.cassandra.profiler.AsyncProfilerMBean;
 import org.apache.cassandra.service.AsyncProfilerService.AsyncProfilerEvent;
 import org.apache.cassandra.service.AsyncProfilerService.AsyncProfilerFormat;
 import org.apache.cassandra.tools.NodeProbe;
+import org.apache.cassandra.tools.nodetool.layout.WithoutExample;
 import org.apache.cassandra.utils.FBUtilities;
 
 import picocli.CommandLine.Command;
@@ -104,7 +105,6 @@ public class AsyncProfileCommandGroup extends AbstractCommand
     }
 
     @Command(name = "start", description = "Run Async-Profiler on a Cassandra process",
-             footerHeading = "%n",
              footer = { "EXAMPLES",
                         "        Profile CPU and allocations for 5 minutes (JFR output):",
                         "            nodetool profile start -e cpu,alloc -f jfr -d 5m -o profile1.jfr" })
@@ -151,7 +151,6 @@ public class AsyncProfileCommandGroup extends AbstractCommand
     }
 
     @Command(name = "stop", description = "Stop Async-Profiler on a Cassandra process",
-             footerHeading = "%n",
              footer = { "EXAMPLES",
                         "        Stop profiling and save the result as profile1.jfr:",
                         "            nodetool profile stop -o profile1.jfr" })
@@ -177,7 +176,6 @@ public class AsyncProfileCommandGroup extends AbstractCommand
     }
 
     @Command(name = "execute", description = "Execute an arbitrary command on Async-Profiler on a Cassandra process.",
-             footerHeading = "%n",
              footer = { "EXAMPLES",
                         "        Run a raw async-profiler command (needs unsafe mode):",
                         "            nodetool profile execute status" })
@@ -205,6 +203,7 @@ public class AsyncProfileCommandGroup extends AbstractCommand
         }
     }
 
+    @WithoutExample
     @Command(name = "purge", description = "Remove all profiling results from node's disk")
     public static class AsyncProfilePurgeCommand extends AbstractCommand
     {
@@ -215,6 +214,7 @@ public class AsyncProfileCommandGroup extends AbstractCommand
         }
     }
 
+    @WithoutExample
     @Command(name = "list", description = "List profiling result files of a node")
     public static class AsyncProfileListCommand extends AbstractCommand
     {
@@ -229,7 +229,6 @@ public class AsyncProfileCommandGroup extends AbstractCommand
     }
 
     @Command(name = "fetch", description = "Copy profiler result file from a node to a local file",
-             footerHeading = "%n",
              footer = { "EXAMPLES",
                         "        Copy a result file from the node to this machine:",
                         "            nodetool profile fetch profile1.jfr /tmp/profile1.jfr" })
@@ -268,6 +267,7 @@ public class AsyncProfileCommandGroup extends AbstractCommand
         }
     }
 
+    @WithoutExample
     @Command(name = "status", description = "Get status of profiling")
     public static class AsyncProfileStatusCommand extends AbstractCommand
     {

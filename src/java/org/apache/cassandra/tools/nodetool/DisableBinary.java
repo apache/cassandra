@@ -18,10 +18,12 @@
 package org.apache.cassandra.tools.nodetool;
 
 import org.apache.cassandra.tools.NodeProbe;
+import org.apache.cassandra.tools.nodetool.layout.WithoutExample;
 
 import picocli.CommandLine.Command;
 import picocli.CommandLine.Option;
 
+@WithoutExample
 @Command(name = "disablebinary", description = "Disable native transport (binary protocol)")
 public class DisableBinary extends AbstractCommand
 {

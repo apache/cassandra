@@ -19,6 +19,7 @@ package org.apache.cassandra.tools.nodetool;
 
 import org.apache.cassandra.auth.AuthKeyspace;
 import org.apache.cassandra.tools.NodeProbe;
+import org.apache.cassandra.tools.nodetool.layout.WithoutExample;
 
 import picocli.CommandLine.Command;
 import picocli.CommandLine.Parameters;
@@ -26,6 +27,7 @@ import picocli.CommandLine.Parameters;
 /**
  * Nodetool command to drop a CIDR group and associated mapping from the table {@link AuthKeyspace#CIDR_GROUPS}
  */
+@WithoutExample
 @Command(name = "dropcidrgroup", description = "Drop an existing cidr group")
 public class DropCIDRGroup extends AbstractCommand
 {

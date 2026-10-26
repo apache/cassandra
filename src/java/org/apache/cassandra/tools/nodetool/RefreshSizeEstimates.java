@@ -19,9 +19,11 @@
 package org.apache.cassandra.tools.nodetool;
 
 import org.apache.cassandra.tools.NodeProbe;
+import org.apache.cassandra.tools.nodetool.layout.WithoutExample;
 
 import picocli.CommandLine.Command;
 
+@WithoutExample
 @Command(name = "refreshsizeestimates", description = "Refresh system.size_estimates")
 public class RefreshSizeEstimates extends AbstractCommand
 {

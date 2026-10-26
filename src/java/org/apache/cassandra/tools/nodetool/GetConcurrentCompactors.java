@@ -19,9 +19,11 @@
 package org.apache.cassandra.tools.nodetool;
 
 import org.apache.cassandra.tools.NodeProbe;
+import org.apache.cassandra.tools.nodetool.layout.WithoutExample;
 
 import picocli.CommandLine.Command;
 
+@WithoutExample
 @Command(name = "getconcurrentcompactors", description = "Get the number of concurrent compactors in the system.")
 public class GetConcurrentCompactors extends AbstractCommand
 {

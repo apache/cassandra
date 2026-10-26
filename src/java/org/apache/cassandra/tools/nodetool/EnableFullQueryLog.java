@@ -24,7 +24,6 @@ import picocli.CommandLine.Command;
 import picocli.CommandLine.Option;
 
 @Command(name = "enablefullquerylog", description = "Enable full query logging, defaults for the options are configured in cassandra.yaml",
-         footerHeading = "%n",
          footer = { "EXAMPLES",
                     "        Log all queries to an empty directory:",
                     "            nodetool enablefullquerylog --path <dir>" })

@@ -28,6 +28,7 @@ import com.google.common.base.Strings;
 
 import org.apache.cassandra.tools.nodetool.layout.CassandraCliHelpLayout;
 import org.apache.cassandra.tools.nodetool.layout.CassandraUsage;
+import org.apache.cassandra.tools.nodetool.layout.WithoutExample;
 
 import picocli.CommandLine;
 import picocli.CommandLine.Command;
@@ -45,6 +46,7 @@ import static picocli.CommandLine.Model.UsageMessageSpec.SECTION_KEY_HEADER;
 import static picocli.CommandLine.Model.UsageMessageSpec.SECTION_KEY_HEADER_HEADING;
 import static picocli.CommandLine.Model.UsageMessageSpec.SECTION_KEY_SYNOPSIS;
 
+@WithoutExample
 @Command(name = "help",
          helpCommand = true,
          description = "Display help information")

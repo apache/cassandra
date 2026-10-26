@@ -18,9 +18,11 @@
 package org.apache.cassandra.tools.nodetool;
 
 import org.apache.cassandra.tools.NodeProbe;
+import org.apache.cassandra.tools.nodetool.layout.WithoutExample;
 
 import picocli.CommandLine.Command;
 
+@WithoutExample
 @Command(name = "invalidaterowcache", description = "Invalidate the row cache")
 public class InvalidateRowCache extends AbstractCommand
 {

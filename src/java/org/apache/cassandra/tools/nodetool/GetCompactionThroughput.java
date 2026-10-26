@@ -22,10 +22,12 @@ import java.util.Map;
 import com.google.common.math.DoubleMath;
 
 import org.apache.cassandra.tools.NodeProbe;
+import org.apache.cassandra.tools.nodetool.layout.WithoutExample;
 
 import picocli.CommandLine.Command;
 import picocli.CommandLine.Option;
 
+@WithoutExample
 @Command(name = "getcompactionthroughput", description = "Print the MiB/s throughput cap for compaction in the system as a rounded number")
 public class GetCompactionThroughput extends AbstractCommand
 {

@@ -18,12 +18,14 @@
 package org.apache.cassandra.tools.nodetool;
 
 import org.apache.cassandra.tools.NodeProbe;
+import org.apache.cassandra.tools.nodetool.layout.WithoutExample;
 import org.apache.cassandra.tools.nodetool.stats.GcStatsHolder;
 import org.apache.cassandra.tools.nodetool.stats.GcStatsPrinter;
 
 import picocli.CommandLine.Command;
 import picocli.CommandLine.Option;
 
+@WithoutExample
 @Command(name = "gcstats", description = "Print GC Statistics")
 public class GcStats extends AbstractCommand
 {

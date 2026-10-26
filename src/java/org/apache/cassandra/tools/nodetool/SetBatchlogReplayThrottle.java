@@ -18,10 +18,12 @@
 package org.apache.cassandra.tools.nodetool;
 
 import org.apache.cassandra.tools.NodeProbe;
+import org.apache.cassandra.tools.nodetool.layout.WithoutExample;
 
 import picocli.CommandLine.Command;
 import picocli.CommandLine.Parameters;
 
+@WithoutExample
 @Command(name = "setbatchlogreplaythrottle", description = "Set batchlog replay throttle in KB per second, or 0 to disable throttling. " +
                                                            "This will be reduced proportionally to the number of nodes in the cluster.")
 public class SetBatchlogReplayThrottle extends AbstractCommand

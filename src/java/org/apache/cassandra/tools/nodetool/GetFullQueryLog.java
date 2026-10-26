@@ -21,9 +21,11 @@ package org.apache.cassandra.tools.nodetool;
 import org.apache.cassandra.fql.FullQueryLoggerOptions;
 import org.apache.cassandra.tools.NodeProbe;
 import org.apache.cassandra.tools.nodetool.formatter.TableBuilder;
+import org.apache.cassandra.tools.nodetool.layout.WithoutExample;
 
 import picocli.CommandLine.Command;
 
+@WithoutExample
 @Command(name = "getfullquerylog", description = "Print configuration of fql if enabled, otherwise the configuration reflected in cassandra.yaml")
 public class GetFullQueryLog extends AbstractCommand
 {

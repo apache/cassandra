@@ -32,7 +32,6 @@ import static org.apache.cassandra.tools.nodetool.CommandUtils.concatArgs;
 import static org.apache.cassandra.tools.nodetool.CommandUtils.parsePartitionKeys;
 
 @Command(name = "forcecompact", description = "Force a (major) compaction on a table",
-         footerHeading = "%n",
          footer = { "EXAMPLES",
                     "        Force compaction of two partition keys of ks1.table1:",
                     "            nodetool forcecompact ks1 table1 key1 key2" })

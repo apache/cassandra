@@ -34,7 +34,6 @@ import static org.apache.cassandra.tools.nodetool.CommandUtils.concatArgs;
  * Nodetool command to insert/update a CIDR group and associated mapping in the table {@link AuthKeyspace#CIDR_GROUPS}
  */
 @Command(name = "updatecidrgroup", description = "Insert/Update a cidr group",
-         footerHeading = "%n",
          footer = { "EXAMPLES",
                     "        Map two CIDRs to group group1:",
                     "            nodetool updatecidrgroup group1 10.0.0.0/8 192.168.1.0/24" })

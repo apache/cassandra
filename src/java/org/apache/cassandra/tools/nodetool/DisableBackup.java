@@ -18,9 +18,11 @@
 package org.apache.cassandra.tools.nodetool;
 
 import org.apache.cassandra.tools.NodeProbe;
+import org.apache.cassandra.tools.nodetool.layout.WithoutExample;
 
 import picocli.CommandLine.Command;
 
+@WithoutExample
 @Command(name = "disablebackup", description = "Disable incremental backup")
 public class DisableBackup extends AbstractCommand
 {

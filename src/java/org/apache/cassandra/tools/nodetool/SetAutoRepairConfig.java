@@ -40,7 +40,6 @@ import static com.google.common.base.Preconditions.checkArgument;
  * Allows to set AutoRepair configuration through nodetool.
  */
 @Command(name = "setautorepairconfig", description = "sets the autorepair configuration",
-         footerHeading = "%n",
          footer = { "EXAMPLES",
                     "        Run full auto repair on each table at most once a day:",
                     "            nodetool setautorepairconfig -t full min_repair_interval 24h" })

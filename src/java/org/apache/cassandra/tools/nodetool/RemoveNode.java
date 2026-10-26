@@ -18,6 +18,7 @@
 package org.apache.cassandra.tools.nodetool;
 
 import org.apache.cassandra.tools.NodeProbe;
+import org.apache.cassandra.tools.nodetool.layout.WithoutExample;
 
 import picocli.CommandLine.Command;
 import picocli.CommandLine.Mixin;
@@ -46,7 +47,6 @@ public class RemoveNode extends AbstractCommand
     }
 
     @Command(name = "abortremovenode", description = "Abort a removenode command",
-             footerHeading = "%n",
              footer = { "EXAMPLES",
                         "        Abort the removal of node 4 (--node is required):",
                         "            nodetool abortremovenode --node 4" })
@@ -62,6 +62,7 @@ public class RemoveNode extends AbstractCommand
         }
     }
 
+    @WithoutExample
     @Command(name = "status", description = "Show status of the current node removal operation")
     public static class Status extends AbstractCommand
     {

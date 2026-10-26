@@ -25,7 +25,6 @@ import picocli.CommandLine.Option;
 import picocli.CommandLine.Parameters;
 
 @Command(name = "rebuild", description = "Rebuild data by streaming from other nodes (similarly to bootstrap)",
-         footerHeading = "%n",
          footer = { "EXAMPLES",
                     "        Rebuild one token range of ks1 owned by this node, streaming from dc1:",
                     "            nodetool rebuild -ks ks1 -ts \"(<start_token>,<end_token>]\" dc1" })

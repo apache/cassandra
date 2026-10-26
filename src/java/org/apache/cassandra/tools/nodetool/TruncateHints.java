@@ -19,12 +19,14 @@ package org.apache.cassandra.tools.nodetool;
 
 import org.apache.cassandra.tools.NodeProbe;
 import org.apache.cassandra.tools.nodetool.layout.CassandraUsage;
+import org.apache.cassandra.tools.nodetool.layout.WithoutExample;
 
 import picocli.CommandLine.Command;
 import picocli.CommandLine.Parameters;
 
 import static org.apache.commons.lang3.StringUtils.EMPTY;
 
+@WithoutExample
 @Command(name = "truncatehints", description = "Truncate all hints on the local node, or truncate hints for the endpoint specified.")
 public class TruncateHints extends AbstractCommand
 {

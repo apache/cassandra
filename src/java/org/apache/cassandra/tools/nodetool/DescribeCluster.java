@@ -29,10 +29,12 @@ import org.apache.cassandra.locator.DynamicEndpointSnitch;
 import org.apache.cassandra.locator.InetAddressAndPort;
 import org.apache.cassandra.locator.LocationInfoMBean;
 import org.apache.cassandra.tools.NodeProbe;
+import org.apache.cassandra.tools.nodetool.layout.WithoutExample;
 
 import picocli.CommandLine.Command;
 import picocli.CommandLine.Mixin;
 
+@WithoutExample
 @Command(name = "describecluster", description = "Print the name, snitch, partitioner and schema version of a cluster")
 public class DescribeCluster extends AbstractCommand
 {

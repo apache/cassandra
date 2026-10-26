@@ -36,7 +36,6 @@ import static org.apache.cassandra.tools.nodetool.CommandUtils.parseOptionalKeys
 import static org.apache.cassandra.tools.nodetool.CommandUtils.parseOptionalTables;
 
 @Command(name = "upgradesstables", description = "Rewrite sstables (for the requested tables) that are not on the current version (thus upgrading them to said current version)",
-         footerHeading = "%n",
          footer = { "EXAMPLES",
                     "        Rewrite SSTables of ks1.table1 older than a time (epoch milliseconds):",
                     "            nodetool upgradesstables -a -t 1735689600000 ks1 table1" })

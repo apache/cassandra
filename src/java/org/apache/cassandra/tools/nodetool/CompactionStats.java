@@ -30,12 +30,14 @@ import org.apache.cassandra.io.util.FileUtils;
 import org.apache.cassandra.metrics.CassandraMetricsRegistry;
 import org.apache.cassandra.tools.NodeProbe;
 import org.apache.cassandra.tools.nodetool.formatter.TableBuilder;
+import org.apache.cassandra.tools.nodetool.layout.WithoutExample;
 
 import picocli.CommandLine.Command;
 import picocli.CommandLine.Option;
 
 import static java.lang.String.format;
 
+@WithoutExample
 @Command(name = "compactionstats", description = "Print statistics on compactions")
 public class CompactionStats extends AbstractCommand
 {

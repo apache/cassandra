@@ -20,9 +20,11 @@ package org.apache.cassandra.tools.nodetool;
 import java.util.Map;
 
 import org.apache.cassandra.tools.NodeProbe;
+import org.apache.cassandra.tools.nodetool.layout.WithoutExample;
 
 import picocli.CommandLine.Command;
 
+@WithoutExample
 @Command(name = "getlogginglevels", description = "Get the runtime logging levels")
 public class GetLoggingLevels extends AbstractCommand
 {

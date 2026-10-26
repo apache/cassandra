@@ -38,7 +38,6 @@ import static org.apache.cassandra.utils.Clock.Global.currentTimeMillis;
 import static org.apache.commons.lang3.StringUtils.join;
 
 @Command(name = "snapshot", description = "Take a snapshot of specified keyspaces or a snapshot of the specified table",
-         footerHeading = "%n",
          footer = { "EXAMPLES",
                     "        Snapshot two tables under one tag, kept for one day:",
                     "            nodetool snapshot -t tag1 --ttl 1d -kt ks1.table1,ks2.table2" })

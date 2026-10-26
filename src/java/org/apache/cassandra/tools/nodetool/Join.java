@@ -20,12 +20,14 @@ package org.apache.cassandra.tools.nodetool;
 import java.io.IOException;
 
 import org.apache.cassandra.tools.NodeProbe;
+import org.apache.cassandra.tools.nodetool.layout.WithoutExample;
 
 import picocli.CommandLine.Command;
 
 import static com.google.common.base.Preconditions.checkState;
 
 
+@WithoutExample
 @Command(name = "join", description = "Join the ring")
 public class Join extends AbstractCommand
 {

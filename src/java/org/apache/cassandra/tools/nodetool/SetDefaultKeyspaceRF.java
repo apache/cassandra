@@ -19,10 +19,12 @@
 package org.apache.cassandra.tools.nodetool;
 
 import org.apache.cassandra.tools.NodeProbe;
+import org.apache.cassandra.tools.nodetool.layout.WithoutExample;
 
 import picocli.CommandLine.Command;
 import picocli.CommandLine.Parameters;
 
+@WithoutExample
 @Command(name = "setdefaultrf", description = "Sets default keyspace replication factor.")
 public class SetDefaultKeyspaceRF extends AbstractCommand
 {

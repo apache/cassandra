@@ -22,6 +22,7 @@ import java.util.List;
 
 import org.apache.cassandra.tools.NodeProbe;
 import org.apache.cassandra.tools.nodetool.layout.CassandraUsage;
+import org.apache.cassandra.tools.nodetool.layout.WithoutExample;
 
 import picocli.CommandLine.Command;
 import picocli.CommandLine.Option;
@@ -31,6 +32,7 @@ import static org.apache.cassandra.tools.nodetool.CommandUtils.concatArgs;
 import static org.apache.cassandra.tools.nodetool.CommandUtils.parseOptionalKeyspace;
 import static org.apache.cassandra.tools.nodetool.CommandUtils.parseOptionalTables;
 
+@WithoutExample
 @Command(name = "relocatesstables", description = "Relocates sstables to the correct disk")
 public class RelocateSSTables extends AbstractCommand
 {

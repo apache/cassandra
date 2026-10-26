@@ -19,9 +19,11 @@ package org.apache.cassandra.tools.nodetool;
 
 
 import org.apache.cassandra.tools.NodeProbe;
+import org.apache.cassandra.tools.nodetool.layout.WithoutExample;
 
 import picocli.CommandLine.Command;
 
+@WithoutExample
 @Command(name = "statushandoff", description = "Status of storing future hints on the current node")
 public class StatusHandoff extends AbstractCommand
 {

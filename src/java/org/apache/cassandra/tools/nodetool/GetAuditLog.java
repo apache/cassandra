@@ -21,9 +21,11 @@ package org.apache.cassandra.tools.nodetool;
 import org.apache.cassandra.audit.AuditLogOptions;
 import org.apache.cassandra.tools.NodeProbe;
 import org.apache.cassandra.tools.nodetool.formatter.TableBuilder;
+import org.apache.cassandra.tools.nodetool.layout.WithoutExample;
 
 import picocli.CommandLine.Command;
 
+@WithoutExample
 @Command(name = "getauditlog", description = "Print configuration of audit log if enabled, otherwise the configuration reflected in cassandra.yaml")
 public class GetAuditLog extends AbstractCommand
 {

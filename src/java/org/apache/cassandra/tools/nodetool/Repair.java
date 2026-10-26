@@ -47,7 +47,6 @@ import static org.apache.cassandra.tools.nodetool.CommandUtils.parseOptionalTabl
 import static org.apache.commons.lang3.StringUtils.EMPTY;
 
 @Command(name = "repair", description = "Repair one or more tables",
-         footerHeading = "%n",
          footer = { "EXAMPLES",
                     "        Repair one token range of ks1:",
                     "            nodetool repair -st <start_token> -et <end_token> ks1",

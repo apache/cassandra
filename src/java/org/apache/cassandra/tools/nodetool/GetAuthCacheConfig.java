@@ -20,10 +20,12 @@ package org.apache.cassandra.tools.nodetool;
 
 import org.apache.cassandra.auth.AuthCacheMBean;
 import org.apache.cassandra.tools.NodeProbe;
+import org.apache.cassandra.tools.nodetool.layout.WithoutExample;
 
 import picocli.CommandLine.Command;
 import picocli.CommandLine.Option;
 
+@WithoutExample
 @Command(name = "getauthcacheconfig", description = "Get configuration of Auth cache")
 public class GetAuthCacheConfig extends AbstractCommand
 {

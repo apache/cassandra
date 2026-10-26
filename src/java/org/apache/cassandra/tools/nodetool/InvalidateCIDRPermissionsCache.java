@@ -22,6 +22,7 @@ import java.util.List;
 
 import org.apache.cassandra.tools.NodeProbe;
 import org.apache.cassandra.tools.nodetool.layout.CassandraUsage;
+import org.apache.cassandra.tools.nodetool.layout.WithoutExample;
 
 import picocli.CommandLine.Command;
 import picocli.CommandLine.Parameters;
@@ -29,6 +30,7 @@ import picocli.CommandLine.Parameters;
 /**
  * Nodetool command to invalidate CIDR permissions cache, for a give role or for all roles in the cache.
  */
+@WithoutExample
 @Command(name = "invalidatecidrpermissionscache", description = "Invalidate the cidr permissions cache")
 public class InvalidateCIDRPermissionsCache extends AbstractCommand
 {

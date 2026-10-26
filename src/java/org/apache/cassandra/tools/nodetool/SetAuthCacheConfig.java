@@ -19,12 +19,14 @@ package org.apache.cassandra.tools.nodetool;
 
 import org.apache.cassandra.auth.AuthCacheMBean;
 import org.apache.cassandra.tools.NodeProbe;
+import org.apache.cassandra.tools.nodetool.layout.WithoutExample;
 
 import picocli.CommandLine.Command;
 import picocli.CommandLine.Option;
 
 import static com.google.common.base.Preconditions.checkArgument;
 
+@WithoutExample
 @Command(name = "setauthcacheconfig", description = "Set configuration for Auth cache")
 public class SetAuthCacheConfig extends AbstractCommand
 {

@@ -26,7 +26,6 @@ import picocli.CommandLine.Command;
 import picocli.CommandLine.Option;
 
 @Command(name = "enableauditlog", description = "Enable the audit log",
-         footerHeading = "%n",
          footer = { "EXAMPLES",
                     "        Log only DDL and DCL queries:",
                     "            nodetool enableauditlog --included-categories DDL,DCL" })

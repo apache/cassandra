@@ -36,7 +36,6 @@ import picocli.CommandLine.Parameters;
 import static com.google.common.base.Preconditions.checkArgument;
 
 @Command(name = "invalidatepermissionscache", description = "Invalidate the permissions cache",
-         footerHeading = "%n",
          footer = { "EXAMPLES",
                     "        Invalidate permissions of role1 on keyspace ks1:",
                     "            nodetool invalidatepermissionscache --keyspace ks1 role1" })

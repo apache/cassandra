@@ -22,6 +22,7 @@ import java.util.List;
 
 import org.apache.cassandra.tools.NodeProbe;
 import org.apache.cassandra.tools.nodetool.layout.CassandraUsage;
+import org.apache.cassandra.tools.nodetool.layout.WithoutExample;
 
 import picocli.CommandLine.Command;
 import picocli.CommandLine.Parameters;
@@ -31,6 +32,7 @@ import static org.apache.cassandra.tools.nodetool.CommandUtils.concatArgs;
 
 /** @deprecated See CASSANDRA-6719 */
 @Deprecated(since = "4.0")
+@WithoutExample
 @Command(name = "refresh", description = "Load newly placed SSTables to the system without restart")
 public class Refresh extends AbstractCommand
 {

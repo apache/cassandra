@@ -36,9 +36,12 @@ import org.apache.cassandra.cql3.CQLTester;
 import org.apache.cassandra.tools.INodeProbeFactory;
 import org.apache.cassandra.tools.NodeTool;
 import org.apache.cassandra.tools.Output;
+import org.apache.cassandra.tools.nodetool.layout.WithoutExample;
 
 import picocli.CommandLine;
+import picocli.CommandLine.Command;
 
+import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertTrue;
 
 public class NodetoolClassHierarchyTest extends CQLTester
@@ -172,6 +175,62 @@ public class NodetoolClassHierarchyTest extends CQLTester
                    "paramLabel:\n" +
                    buildAffectedCommandMessage(affected),
                    affected.isEmpty());
+    }
+
+    /**
+     * Every command must show a usage example in an EXAMPLES footer of its {@code @Command}, or be annotated
+     * with {@link WithoutExample}. The root command and command groups are skipped, their subcommands show
+     * the examples.
+     */
+    @Test
+    public void testCommandsHaveExampleOrExclusion() throws Exception
+    {
+        Map<String, List<String>> affected = collectMissingExamples(NodeTool.createCommandLine(CommandLine.defaultFactory()));
+
+        assertTrue("The following commands must have a usage example or be excluded from it. Add an EXAMPLES " +
+                   "footer to @Command (see compact), or annotate the class with @WithoutExample:\n" +
+                   buildAffectedCommandMessage(affected),
+                   affected.isEmpty());
+    }
+
+    @Test
+    public void testExampleRuleOnTestCommands()
+    {
+        Map<String, List<String>> affected = collectMissingExamples(new CommandLine(new ExampleRoot()));
+
+        assertEquals(Set.of("root.noexample", "root.noheading", "root.stale"), affected.keySet());
+    }
+
+    private static Map<String, List<String>> collectMissingExamples(CommandLine root)
+    {
+        Map<String, List<String>> affected = new TreeMap<>();
+
+        commandTreeWalker(root, cmd -> {
+            if (cmd.getParent() == null || !cmd.getSubcommands().isEmpty())
+                return;
+
+            String[] footer = cmd.getCommandSpec().usageMessage().footer();
+            boolean hasExample = hasExample(footer);
+            boolean excluded = cmd.getCommandSpec().userObject().getClass().isAnnotationPresent(WithoutExample.class);
+            if (hasExample && excluded)
+                affected.put(fullCommandName(cmd), List.of("has an EXAMPLES footer, remove @WithoutExample"));
+            else if (!hasExample && !excluded)
+                affected.put(fullCommandName(cmd), List.of(footer.length == 0 ? "no EXAMPLES footer and no @WithoutExample" :
+                                                           "footer must start with EXAMPLES and have a line starting with 'nodetool '"));
+        });
+        return affected;
+    }
+
+    private static boolean hasExample(String[] footer)
+    {
+        if (footer.length == 0 || !"EXAMPLES".equals(footer[0]))
+            return false;
+        for (int i = 1; i < footer.length; i++)
+        {
+            if (footer[i].trim().startsWith("nodetool "))
+                return true;
+        }
+        return false;
     }
 
     private static List<String> collectAmbiguousArgumentKeys(CommandLine cmd)
@@ -328,5 +387,55 @@ public class NodetoolClassHierarchyTest extends CQLTester
                 sb.append("    - ").append(detail).append('\n');
         }
         return sb.toString();
+    }
+
+    @Command(name = "root", subcommands = { WithExample.class, NoExample.class, Excluded.class, Stale.class,
+                                            NoHeading.class, Group.class, InheritedExample.class })
+    public static class ExampleRoot implements Runnable
+    {
+        public void run() {}
+    }
+
+    @Command(name = "withexample", footer = { "EXAMPLES", "        Run it:", "            nodetool withexample" })
+    public static class WithExample implements Runnable
+    {
+        public void run() {}
+    }
+
+    @Command(name = "noexample")
+    public static class NoExample implements Runnable
+    {
+        public void run() {}
+    }
+
+    @WithoutExample
+    @Command(name = "excluded")
+    public static class Excluded implements Runnable
+    {
+        public void run() {}
+    }
+
+    @WithoutExample
+    @Command(name = "stale", footer = { "EXAMPLES", "        Run it:", "            nodetool stale" })
+    public static class Stale implements Runnable
+    {
+        public void run() {}
+    }
+
+    @Command(name = "noheading", footer = { "        Run it:", "            nodetool noheading" })
+    public static class NoHeading implements Runnable
+    {
+        public void run() {}
+    }
+
+    @Command(name = "group", subcommands = { Excluded.class })
+    public static class Group implements Runnable
+    {
+        public void run() {}
+    }
+
+    @Command(name = "inherited")
+    public static class InheritedExample extends WithExample
+    {
     }
 }

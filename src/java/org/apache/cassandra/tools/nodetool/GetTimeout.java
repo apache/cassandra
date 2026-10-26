@@ -22,10 +22,12 @@ import java.util.List;
 
 import org.apache.cassandra.tools.NodeProbe;
 import org.apache.cassandra.tools.nodetool.layout.CassandraUsage;
+import org.apache.cassandra.tools.nodetool.layout.WithoutExample;
 
 import picocli.CommandLine.Command;
 import picocli.CommandLine.Parameters;
 
+@WithoutExample
 @Command(name = "gettimeout", description = "Print the timeout of the given type in ms")
 public class GetTimeout extends AbstractCommand
 {

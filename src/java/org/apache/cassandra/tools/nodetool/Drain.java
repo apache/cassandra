@@ -22,9 +22,11 @@ import java.io.IOException;
 import java.util.concurrent.ExecutionException;
 
 import org.apache.cassandra.tools.NodeProbe;
+import org.apache.cassandra.tools.nodetool.layout.WithoutExample;
 
 import picocli.CommandLine.Command;
 
+@WithoutExample
 @Command(name = "drain", description = "Drain the node (stop accepting writes and flush all tables)")
 public class Drain extends AbstractCommand
 {

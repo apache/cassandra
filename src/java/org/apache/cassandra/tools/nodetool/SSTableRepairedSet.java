@@ -37,7 +37,6 @@ import static org.apache.cassandra.tools.nodetool.CommandUtils.parseOptionalTabl
  * Provides a way to set the repaired state of SSTables without any downtime through nodetool.
  */
 @Command(name = "sstablerepairedset", description = "Set the repaired state of SSTables for given keyspace/tables",
-         footerHeading = "%n",
          footer = { "EXAMPLES",
                     "        Mark SSTables of ks1.table1 as repaired (drop --really-set to dry run):",
                     "            nodetool sstablerepairedset --really-set --is-repaired ks1 table1" })

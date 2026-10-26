@@ -195,8 +195,19 @@ public class NodeTool
 
     public static CommandLine createCommandLine(CommandLine.IFactory factory) throws Exception
     {
-        return new CommandLine(new NodetoolCommand(), factory)
-                   .addMixin(JmxConnect.MIXIN_KEY, factory.create(JmxConnect.class));
+        CommandLine commandLine = new CommandLine(new NodetoolCommand(), factory)
+                                  .addMixin(JmxConnect.MIXIN_KEY, factory.create(JmxConnect.class));
+        setFooterHeading(commandLine);
+        return commandLine;
+    }
+
+    private static void setFooterHeading(CommandLine cli)
+    {
+        CommandLine.Model.UsageMessageSpec usageMessage = cli.getCommandSpec().usageMessage();
+        if (usageMessage.footer().length > 0)
+            usageMessage.footerHeading("%n");
+        for (CommandLine sub : cli.getSubcommands().values())
+            setFooterHeading(sub);
     }
 
     private static void configureCliLayout(CommandLine commandLine)

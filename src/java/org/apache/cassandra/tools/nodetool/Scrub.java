@@ -23,6 +23,7 @@ import java.util.List;
 import org.apache.cassandra.tools.NodeProbe;
 import org.apache.cassandra.tools.StandaloneScrubber;
 import org.apache.cassandra.tools.nodetool.layout.CassandraUsage;
+import org.apache.cassandra.tools.nodetool.layout.WithoutExample;
 
 import picocli.CommandLine.Command;
 import picocli.CommandLine.Option;
@@ -30,6 +31,7 @@ import picocli.CommandLine.Parameters;
 
 import static org.apache.cassandra.tools.nodetool.CommandUtils.concatArgs;
 
+@WithoutExample
 @Command(name = "scrub", description = "Scrub (rebuild sstables for) one or more tables")
 public class Scrub extends AbstractCommand
 {

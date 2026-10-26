@@ -26,12 +26,14 @@ import org.apache.cassandra.db.virtual.CIDRFilteringMetricsTable.CIDRFilteringMe
 import org.apache.cassandra.db.virtual.CIDRFilteringMetricsTable.CIDRFilteringMetricsLatenciesTable;
 import org.apache.cassandra.tools.NodeProbe;
 import org.apache.cassandra.tools.nodetool.formatter.TableBuilder;
+import org.apache.cassandra.tools.nodetool.layout.WithoutExample;
 
 import picocli.CommandLine.Command;
 
 /**
  * Nodetool command to view stats related to CIDR filtering
  */
+@WithoutExample
 @Command(name = "cidrfilteringstats", description = "Print statistics on CIDR filtering")
 public class CIDRFilteringStats extends AbstractCommand
 {

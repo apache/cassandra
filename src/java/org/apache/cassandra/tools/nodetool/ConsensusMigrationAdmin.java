@@ -27,6 +27,7 @@ import java.util.Set;
 import org.apache.cassandra.service.consensus.migration.ConsensusMigrationTarget;
 import org.apache.cassandra.tools.NodeProbe;
 import org.apache.cassandra.tools.RepairRunner.RepairCmd;
+import org.apache.cassandra.tools.nodetool.layout.WithoutExample;
 
 import picocli.CommandLine;
 import picocli.CommandLine.Command;
@@ -58,7 +59,6 @@ public class ConsensusMigrationAdmin extends AbstractCommand
     }
 
     @Command(name = "list", description = "List migrating tables and ranges",
-             footerHeading = "%n",
              footer = { "EXAMPLES",
                         "        List migration state of ks1 as JSON:",
                         "            nodetool consensus_admin list -f json ks1" })
@@ -83,6 +83,7 @@ public class ConsensusMigrationAdmin extends AbstractCommand
         }
     }
 
+    @WithoutExample
     @Command(name = "begin-migration", description = "Mark the range as migrating for the specified token range and tables")
     public static class BeginMigration extends AbstractCommand
     {
@@ -110,6 +111,7 @@ public class ConsensusMigrationAdmin extends AbstractCommand
         }
     }
 
+    @WithoutExample
     @Command(name = "finish-migration", description = "Complete the migration for a range that has already begun migration")
     public static class FinishMigration extends AbstractCommand
     {

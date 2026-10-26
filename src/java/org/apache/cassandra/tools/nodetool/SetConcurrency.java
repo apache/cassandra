@@ -30,7 +30,6 @@ import static com.google.common.base.Preconditions.checkArgument;
 
 // TODO CASSANDRA-20791 Types of input aguments shouldn't depend on the number of arguments. Commands should be split into separate commands.
 @Command(name = "setconcurrency", description = "Set maximum concurrency for processing stage",
-         footerHeading = "%n",
          footer = { "EXAMPLES",
                     "        Allow up to 64 threads in the mutation stage:",
                     "            nodetool setconcurrency MutationStage 64",

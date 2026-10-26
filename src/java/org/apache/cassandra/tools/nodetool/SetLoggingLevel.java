@@ -33,7 +33,6 @@ import static org.apache.cassandra.tools.nodetool.CommandUtils.concatArgs;
 import static org.apache.commons.lang3.StringUtils.EMPTY;
 
 @Command(name = "setlogginglevel", description = "Set the log level threshold for a given component or class. Will reset to the initial configuration if called with no parameters.",
-         footerHeading = "%n",
          footer = { "EXAMPLES",
                     "        Set compaction logging to DEBUG:",
                     "            nodetool setlogginglevel compaction DEBUG",
