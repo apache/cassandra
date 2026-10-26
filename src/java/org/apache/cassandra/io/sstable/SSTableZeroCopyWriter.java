@@ -61,6 +61,9 @@ public class SSTableZeroCopyWriter extends SSTable implements SSTableMultiWriter
                                  SSTable.Owner owner)
     {
         super(builder, owner);
+
+        checkExistingSStables();
+
         txn.trackNew(this);
         this.componentWriters = new HashMap<>();
 

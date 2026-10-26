@@ -153,6 +153,19 @@ public abstract class SSTable
                   .forEach(c -> FileUtils.createHardLinkWithoutConfirm(tmpdesc.fileFor(c), newdesc.fileFor(c)));
     }
 
+    protected void checkExistingSStables()
+    {
+        // We need to ensure that no sstable components exist before the lifecycle transaction starts tracking it.
+        // Otherwise, it means that we either want to overwrite some existing sstable, which is not allowed, or some
+        // sstable files were created before the sstable is registered in the lifecycle transaction, which may lead
+        // to a race such that the sstable is listed as completed due to the lack of the transaction file before
+        // anything is actually written to it.
+        Set<Component> existingComponents = Sets.filter(components, c -> descriptor.fileFor(c).exists());
+        assert existingComponents.isEmpty() : String.format("Cannot create a new SSTable in directory %s as component files %s already exist there",
+                                                            descriptor.directory,
+                                                            existingComponents);
+    }
+
     public abstract DecoratedKey getFirst();
 
     public abstract DecoratedKey getLast();

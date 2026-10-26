@@ -203,12 +203,7 @@ final class LogRecord
     {
         String absoluteTablePath = absolutePath(table.descriptor.baseFile());
         List<String> allFilePaths = table.getAllFilePaths();
-        List<File> expectedFiles = new ArrayList<>(allFilePaths.size());
-        for (String expectedPath : allFilePaths)
-        {
-            expectedFiles.add(new File(expectedPath));
-        }
-        return make(Type.ADD, expectedFiles, allFilePaths.size(), absoluteTablePath);
+        return make(Type.ADD, Collections.emptyList(), allFilePaths.size(), absoluteTablePath);
     }
 
     public static Map<SSTable, LogRecord> make(Type type, Iterable<SSTableReader> tables)

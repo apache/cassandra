@@ -1671,7 +1671,7 @@ public class LogTransactionTest extends AbstractTransactionalTest
 
     /**
      * The state {@link LogRecord#makeAdd} is actually called in: a writer that has just been created, with none of its
-     * components written yet - see the assertion in the SSTableWriter constructor.
+     * components written yet - see {@link SSTable#checkExistingSStables}.
      */
     @Test
     public void testMakeAddWithNoFilesOnDisk()
