@@ -118,6 +118,7 @@ public abstract class AbstractLocalProcessor implements Processor
                     try
                     {
                         Epoch nextEpoch = result.success().metadata.epoch;
+                        // If metadata applies, try committing it to the log
                         long casStart = nanoTime();
                         proposalAttempted = true;
                         applied = tryCommitOne(entryId, transform, previous.epoch, nextEpoch);
@@ -125,6 +126,7 @@ public abstract class AbstractLocalProcessor implements Processor
                         logger.debug("tryCommitOne for {} epoch {}->{}: applied={}, took {}us",
                                      transform.kind(), previous.epoch, nextEpoch, applied, casElapsedUs);
 
+                        // Application here semantically means "succeeded in committing to the distributed log".
                         if (applied)
                         {
                             logger.info("Committed {}. New epoch is {}. Took {} attempts in {}us total.",
@@ -144,10 +146,13 @@ public abstract class AbstractLocalProcessor implements Processor
                 proposalLock.unlock();
             }
 
-            // A stale local epoch can cause a rejection; catch up before deciding it is final.
+            // If we got a rejection, it could be that _we_ are not aware of the highest epoch.
+            // Just try to catch up to the latest distributed state.
             if (result.isRejected())
             {
-                // Fetches have their own retry metric and attempt cap, including during STARTUP.
+                // Use a dedicated retry policy here as the one for the commit itself may not be appropriate.
+                // It uses the wrong metric and for STARTUP transformations will retry indefinitely, which is not
+                // what we want here.
                 Retry fetchLogRetry = Retry.until(retryPolicy.deadlineNanos, TCMMetrics.instance.fetchLogRetries);
                 ClusterMetadata replayed = fetchLogAndWait(null, fetchLogRetry);
 
@@ -186,6 +191,10 @@ public abstract class AbstractLocalProcessor implements Processor
                         break;
 
                     logger.info("Backed off after failure to commit to log, fetching latest log entries before retry");
+                    // TODO: could also add epoch from mis-application from [applied].
+                    // Use a dedicated retry policy here as the one for the commit itself may not be appropriate.
+                    // It uses the wrong metric and for STARTUP transformations will retry indefinitely, which is not
+                    // what we want here.
                     Retry fetchLogRetry = Retry.until(retryPolicy.deadlineNanos, TCMMetrics.instance.fetchLogRetries);
                     fetchLogAndWait(null, fetchLogRetry);
                     logger.info("Fetched latest log entries, re-entering commit retry loop with {}ms remaining until deadline",
