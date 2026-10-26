@@ -114,8 +114,8 @@ public class FormatTimeFctTest extends AbstractFormatFctTest implements WithQuic
     @Test
     public void testAcceptsAsciiAndTextUnits()
     {
-        createTable(of(INT, BIGINT, ASCII, TEXT),
-                    new Object[][]{ { 1, 1073741826L, "us", "µs" } });
+        createTable(of(BIGINT, ASCII, TEXT),
+                    new Object[][]{ { 1, 1073741826L, "'us'", "'µs'" } });
 
         assertRows(execute("select format_time(col1, col2, 'ns') from %s where pk = 1"),
                    row("1073741826000 ns"));
