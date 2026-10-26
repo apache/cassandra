@@ -1,4 +1,5 @@
 5.0.10
+ * Prevent negative BufferPool overflow memory accounting (CASSANDRA-21815)
  * Respect cassandra.skip_sync in FileOutputStreamPlus.sync and ChecksumWriter (CASSANDRA-21800)
  * Fail sstableloader when no replicas are found for the target keyspace (CASSANDRA-20096)
  * Fix ignored global auto repair settings repair_max_retries and repair_retry_backoff (CASSANDRA-21748)
