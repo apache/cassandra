@@ -33,6 +33,7 @@ import com.google.common.collect.HashMultimap;
 import com.google.common.collect.Multimap;
 import com.google.common.collect.SetMultimap;
 
+import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.db.ColumnFamilyStore;
 import org.apache.cassandra.db.DecoratedKey;
 import org.apache.cassandra.db.Directories;
@@ -45,6 +46,8 @@ import org.apache.cassandra.io.sstable.format.SSTableReader;
 import org.apache.cassandra.io.util.File;
 import org.apache.cassandra.schema.Schema;
 import org.apache.cassandra.tcm.ClusterMetadataService;
+
+import static org.apache.cassandra.config.CassandraRelevantProperties.TEST_UTIL_ALLOW_TOOL_REINIT_FOR_TEST;
 
 /**
  * Create a decent leveling for the given keyspace/column family
@@ -88,7 +91,14 @@ public class SSTableOfflineRelevel
             System.exit(1);
         }
 
-        Util.initDatabaseDescriptor();
+        if (TEST_UTIL_ALLOW_TOOL_REINIT_FOR_TEST.getBoolean())
+        {
+            DatabaseDescriptor.toolInitialization(false);
+        }
+        else
+        {
+            Util.initDatabaseDescriptor();
+        }
         ClusterMetadataService.initializeForTools(false);
         boolean dryRun = args[0].equals("--dry-run");
         String keyspace = args[args.length - 2];
