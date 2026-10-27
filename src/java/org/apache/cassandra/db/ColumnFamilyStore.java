@@ -3398,7 +3398,7 @@ public <T> T withAllSSTables(final OperationType operationType, Function<Lifecyc
         return neverPurgeTombstones;
     }
 
-    void onTableDroppedBeforeCommitlogSegmentRecycling()
+    void onTableDroppedPreCommitlogSegmentRecycling()
     {
         indexManager.markAllIndexesRemoved();
 
@@ -3407,7 +3407,7 @@ public <T> T withAllSSTables(final OperationType operationType, Function<Lifecyc
         data.notifyDropped(DatabaseDescriptor.getAutoSnapshotTtl());
     }
 
-    void onTableDroppedAfterCommitlogSegmentRecycling()
+    void onTableDroppedPostCommitlogSegmentRecycling()
     {
         compactionStrategyManager.shutdown();
 

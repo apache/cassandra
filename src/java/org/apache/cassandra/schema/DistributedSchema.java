@@ -349,7 +349,7 @@ public class DistributedSchema implements MetadataValue<DistributedSchema>
             SchemaDiagnostics.tableDropping(Schema.instance, metadata);
             tableIds.add(metadata.id);
         });
-        keyspace.dropCfs(tableIds, dropData);
+        keyspace.removeAndUnloadColumnFamilyStores(tableIds, dropData);
     }
 
 

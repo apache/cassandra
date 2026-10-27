@@ -311,7 +311,7 @@ public class Keyspace
     }
 
     // best invoked on the compaction manager.
-    public void dropCfs(Collection<TableId> tableIds, boolean dropData)
+    public void removeAndUnloadColumnFamilyStores(Collection<TableId> tableIds, boolean dropData)
     {
         Set<ColumnFamilyStore> cfss = new HashSet<>();
         for (TableId tableId : tableIds)
@@ -320,14 +320,14 @@ public class Keyspace
             if (cfs != null)
             {
                 cfss.add(cfs);
-                cfs.onTableDroppedBeforeCommitlogSegmentRecycling();
+                cfs.onTableDroppedPreCommitlogSegmentRecycling();
             }
         }
         if (cfss.isEmpty())
             return;
         CommitLog.instance.forceRecycleAllSegments(tableIds);
         cfss.forEach((cfs) -> {
-            cfs.onTableDroppedAfterCommitlogSegmentRecycling();
+            cfs.onTableDroppedPostCommitlogSegmentRecycling();
             unloadCf(cfs, dropData);
         });
     }
