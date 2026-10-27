@@ -820,10 +820,12 @@ syntax_rules += r'''
 
 <identifiers> ::= "{" <identifier> ( "," <identifier> )* "}"
                   ;
+<identifiersOrStars> ::= "{" ( <identifier> | <star> ) ( "," ( <identifier> | <star> ) )* "}"
+                  ;
 <options> ::= <option> ( "AND" <option> )*
                   ;
 <option> ::= "included_indexes" "=" <identifiers>
-           | "excluded_indexes" "=" <identifiers>
+           | "excluded_indexes" "=" <identifiersOrStars>
            ;
 
 <aggregateMathFunctions> ::= "COUNT" "(" star=( "*" | "1" ) ")"
