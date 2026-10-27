@@ -194,7 +194,7 @@ public class ShardManagerTest
     public void testRangeSpannedWithSingleToken()
     {
         weightedRanges.add(new Splitter.WeightedRange(1.0, new Range<>(minimumToken, minimumToken)));
-        ShardManager shardManager = new ShardManagerNoDisks(weightedRanges);
+        ShardManager shardManager = new ShardManagerNoDisks(weightedRanges, 10000L);
 
         Token singleToken = tokenAt(0.5);
         double rangeSpannedForSingleToken = shardManager.rangeSpanned(singleToken.minKeyBound(), singleToken.minKeyBound());
