@@ -878,11 +878,10 @@ public class BufferPool
         {
             Chunk chunk = Chunk.getParentChunk(buffer);
             int originalCapacity = buffer.capacity();
-            int size = originalCapacity - buffer.limit();
 
             if (chunk == null)
             {
-                updateOverflowMemoryUsage(-size);
+                // unpooled buffers are not shrunk; put() releases their full capacity
                 return;
             }
 
