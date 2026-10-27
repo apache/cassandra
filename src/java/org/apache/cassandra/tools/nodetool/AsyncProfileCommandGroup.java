@@ -32,6 +32,7 @@ import org.apache.cassandra.profiler.AsyncProfilerMBean;
 import org.apache.cassandra.service.AsyncProfilerService.AsyncProfilerEvent;
 import org.apache.cassandra.service.AsyncProfilerService.AsyncProfilerFormat;
 import org.apache.cassandra.tools.NodeProbe;
+import org.apache.cassandra.tools.nodetool.layout.WithoutExample;
 import org.apache.cassandra.utils.FBUtilities;
 
 import picocli.CommandLine.Command;
@@ -103,10 +104,13 @@ public class AsyncProfileCommandGroup extends AbstractCommand
         doWithProfiler(probe, consumer, true);
     }
 
-    @Command(name = "start", description = "Run Async-Profiler on a Cassandra process")
+    @Command(name = "start", description = "Run Async-Profiler on a Cassandra process",
+             footer = { "EXAMPLES",
+                        "        Profile CPU and allocations for 5 minutes (JFR output):",
+                        "            nodetool profile start -e cpu,alloc -f jfr -d 5m -o profile1.jfr" })
     public static class AsyncProfileStartCommand extends AbstractCommand
     {
-        @Option(names = { "-e", "--event" },
+        @Option(names = { "-e", "--event" }, split = ",",
         description = "Event(s) to profile, one of or combination of 'cpu', 'alloc', " +
                       "'lock', 'wall', 'nativemem', 'cache_misses', delimited by comma, defaults to 'cpu'")
         public List<AsyncProfilerEvent> event = List.of(AsyncProfilerEvent.cpu);
@@ -146,7 +150,10 @@ public class AsyncProfileCommandGroup extends AbstractCommand
         }
     }
 
-    @Command(name = "stop", description = "Stop Async-Profiler on a Cassandra process")
+    @Command(name = "stop", description = "Stop Async-Profiler on a Cassandra process",
+             footer = { "EXAMPLES",
+                        "        Stop profiling and save the result as profile1.jfr:",
+                        "            nodetool profile stop -o profile1.jfr" })
     public static class AsyncProfileStopCommand extends AbstractCommand
     {
         @Option(names = { "-o", "--output" }, description = "File name to save profiling results into, defaults to a " +
@@ -168,7 +175,10 @@ public class AsyncProfileCommandGroup extends AbstractCommand
         }
     }
 
-    @Command(name = "execute", description = "Execute an arbitrary command on Async-Profiler on a Cassandra process.")
+    @Command(name = "execute", description = "Execute an arbitrary command on Async-Profiler on a Cassandra process.",
+             footer = { "EXAMPLES",
+                        "        Run a raw async-profiler command (needs unsafe mode):",
+                        "            nodetool profile execute status" })
     public static class AsyncProfileExecuteCommand extends AbstractCommand
     {
         @Parameters(index = "0", description = "Raw command to execute. There has to be 'unsafe' profiler configured " +
@@ -193,6 +203,7 @@ public class AsyncProfileCommandGroup extends AbstractCommand
         }
     }
 
+    @WithoutExample
     @Command(name = "purge", description = "Remove all profiling results from node's disk")
     public static class AsyncProfilePurgeCommand extends AbstractCommand
     {
@@ -203,6 +214,7 @@ public class AsyncProfileCommandGroup extends AbstractCommand
         }
     }
 
+    @WithoutExample
     @Command(name = "list", description = "List profiling result files of a node")
     public static class AsyncProfileListCommand extends AbstractCommand
     {
@@ -216,7 +228,10 @@ public class AsyncProfileCommandGroup extends AbstractCommand
         }
     }
 
-    @Command(name = "fetch", description = "Copy profiler result file from a node to a local file")
+    @Command(name = "fetch", description = "Copy profiler result file from a node to a local file",
+             footer = { "EXAMPLES",
+                        "        Copy a result file from the node to this machine:",
+                        "            nodetool profile fetch profile1.jfr /tmp/profile1.jfr" })
     public static class AsyncProfileFetchCommand extends AbstractCommand
     {
 
@@ -252,6 +267,7 @@ public class AsyncProfileCommandGroup extends AbstractCommand
         }
     }
 
+    @WithoutExample
     @Command(name = "status", description = "Get status of profiling")
     public static class AsyncProfileStatusCommand extends AbstractCommand
     {

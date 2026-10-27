@@ -5,7 +5,8 @@ SYNOPSIS
         nodetool [(-h <host> | --host <host>)] [(-p <port> | --port <port>)]
                 [(-pw <password> | --password <password>)]
                 [(-pwf <passwordFilePath> | --password-file <passwordFilePath>)]
-                [(-u <username> | --username <username>)] cms unregister [--] <nodeId>
+                [(-u <username> | --username <username>)] cms unregister [--]
+                <nodeId>...
 
 OPTIONS
         -h <host>, --host <host>
@@ -30,3 +31,7 @@ OPTIONS
 
         <nodeId>
             One or more nodeIds to unregister, they all need to be in LEFT state
+
+EXAMPLES
+        Unregister two nodes in LEFT state:
+            nodetool cms unregister 4 5

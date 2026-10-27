@@ -20,12 +20,14 @@ package org.apache.cassandra.tools.nodetool;
 import java.net.UnknownHostException;
 
 import org.apache.cassandra.tools.NodeProbe;
+import org.apache.cassandra.tools.nodetool.layout.WithoutExample;
 
 import picocli.CommandLine.Command;
 import picocli.CommandLine.Parameters;
 
 import static org.apache.commons.lang3.StringUtils.EMPTY;
 
+@WithoutExample
 @Command(name = "assassinate", description = "Forcefully remove a dead node without re-replicating any data.  Use as a last resort if you cannot removenode")
 public class Assassinate extends AbstractCommand
 {

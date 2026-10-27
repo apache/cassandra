@@ -18,6 +18,7 @@
 package org.apache.cassandra.tools.nodetool;
 
 import org.apache.cassandra.tools.NodeProbe;
+import org.apache.cassandra.tools.nodetool.layout.WithoutExample;
 import org.apache.cassandra.tools.nodetool.stats.CompactionHistoryHolder;
 import org.apache.cassandra.tools.nodetool.stats.CompactionHistoryPrinter;
 import org.apache.cassandra.tools.nodetool.stats.StatsHolder;
@@ -26,6 +27,7 @@ import org.apache.cassandra.tools.nodetool.stats.StatsPrinter;
 import picocli.CommandLine.Command;
 import picocli.CommandLine.Option;
 
+@WithoutExample
 @Command(name = "compactionhistory", description = "Print history of compaction")
 public class CompactionHistory extends AbstractCommand
 {

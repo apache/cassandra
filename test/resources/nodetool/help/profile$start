@@ -43,3 +43,7 @@ OPTIONS
 
         -u <username>, --username <username>
             Remote jmx agent username
+
+EXAMPLES
+        Profile CPU and allocations for 5 minutes (JFR output):
+            nodetool profile start -e cpu,alloc -f jfr -d 5m -o profile1.jfr

@@ -19,9 +19,11 @@
 package org.apache.cassandra.tools.nodetool;
 
 import org.apache.cassandra.tools.NodeProbe;
+import org.apache.cassandra.tools.nodetool.layout.WithoutExample;
 
 import picocli.CommandLine.Command;
 
+@WithoutExample
 @Command(name = "getconcurrentviewbuilders", description = "Get the number of concurrent view builders in the system")
 public class GetConcurrentViewBuilders extends AbstractCommand
 {

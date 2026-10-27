@@ -20,10 +20,12 @@ package org.apache.cassandra.tools.nodetool;
 import com.google.common.math.DoubleMath;
 
 import org.apache.cassandra.tools.NodeProbe;
+import org.apache.cassandra.tools.nodetool.layout.WithoutExample;
 
 import picocli.CommandLine.Command;
 import picocli.CommandLine.Option;
 
+@WithoutExample
 @Command(name = "getinterdcstreamthroughput", description = "Print the throughput cap for inter-datacenter streaming and entire SSTable inter-datacenter streaming in the system" +
                                                             "in rounded megabits. For precise number, please, use option -d")
 public class GetInterDCStreamThroughput extends AbstractCommand

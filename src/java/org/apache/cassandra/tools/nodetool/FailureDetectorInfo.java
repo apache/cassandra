@@ -23,10 +23,12 @@ import javax.management.openmbean.CompositeData;
 import javax.management.openmbean.TabularData;
 
 import org.apache.cassandra.tools.NodeProbe;
+import org.apache.cassandra.tools.nodetool.layout.WithoutExample;
 
 import picocli.CommandLine.Command;
 import picocli.CommandLine.Mixin;
 
+@WithoutExample
 @Command(name = "failuredetector", description = "Shows the failure detector information for the cluster")
 public class FailureDetectorInfo extends AbstractCommand
 {

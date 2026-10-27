@@ -19,9 +19,11 @@
 package org.apache.cassandra.tools.nodetool;
 
 import org.apache.cassandra.tools.NodeProbe;
+import org.apache.cassandra.tools.nodetool.layout.WithoutExample;
 
 import picocli.CommandLine.Command;
 
+@WithoutExample
 @Command(name = "disablefullquerylog", description = "Disable the full query log")
 public class DisableFullQueryLog extends AbstractCommand
 {

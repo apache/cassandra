@@ -21,6 +21,7 @@ import org.apache.commons.lang3.StringUtils;
 
 import org.apache.cassandra.auth.AuthKeyspace;
 import org.apache.cassandra.tools.NodeProbe;
+import org.apache.cassandra.tools.nodetool.layout.WithoutExample;
 
 import picocli.CommandLine.Command;
 import picocli.CommandLine.Parameters;
@@ -30,6 +31,7 @@ import static org.apache.cassandra.tools.nodetool.CommandUtils.printSet;
 /**
  * Nodetool command to list available CIDR groups, in the table {@link AuthKeyspace#CIDR_GROUPS}
  */
+@WithoutExample
 @Command(name = "listcidrgroups", description = "List existing cidr groups")
 public class ListCIDRGroups extends AbstractCommand
 {

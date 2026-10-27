@@ -32,6 +32,7 @@ import com.google.common.collect.LinkedHashMultimap;
 
 import org.apache.cassandra.locator.EndpointSnitchInfoMBean;
 import org.apache.cassandra.tools.NodeProbe;
+import org.apache.cassandra.tools.nodetool.layout.WithoutExample;
 
 import picocli.CommandLine.Command;
 import picocli.CommandLine.Mixin;
@@ -40,6 +41,7 @@ import picocli.CommandLine.Parameters;
 
 import static java.lang.String.format;
 
+@WithoutExample
 @Command(name = "ring", description = "Print information about the token ring")
 public class Ring extends AbstractCommand
 {

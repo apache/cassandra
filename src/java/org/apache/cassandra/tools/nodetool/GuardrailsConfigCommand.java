@@ -53,7 +53,10 @@ import static java.util.stream.Collectors.toList;
 
 public abstract class GuardrailsConfigCommand extends AbstractCommand
 {
-    @Command(name = "getguardrailsconfig", description = "Print runtime configuration of guardrails.")
+    @Command(name = "getguardrailsconfig", description = "Print runtime configuration of guardrails.",
+             footer = { "EXAMPLES",
+                        "        Show the fail and warn values of the keyspaces threshold:",
+                        "            nodetool getguardrailsconfig keyspaces_threshold" })
     public static class GetGuardrailsConfig extends GuardrailsConfigCommand
     {
         @Option(names = { "--category", "-c" },
@@ -166,7 +169,10 @@ public abstract class GuardrailsConfigCommand extends AbstractCommand
         }
     }
 
-    @Command(name = "setguardrailsconfig", description = "Modify runtime configuration of guardrails.")
+    @Command(name = "setguardrailsconfig", description = "Modify runtime configuration of guardrails.",
+             footer = { "EXAMPLES",
+                        "        Set the keyspaces threshold, fail value first, then warn value:",
+                        "            nodetool setguardrailsconfig keyspaces_threshold 200 150" })
     public static class SetGuardrailsConfig extends GuardrailsConfigCommand
     {
         private static final Pattern SETTER_PATTERN = Pattern.compile("^set");

@@ -18,10 +18,12 @@
 package org.apache.cassandra.tools.nodetool;
 
 import org.apache.cassandra.tools.NodeProbe;
+import org.apache.cassandra.tools.nodetool.layout.WithoutExample;
 
 import picocli.CommandLine.Command;
 import picocli.CommandLine.Parameters;
 
+@WithoutExample
 @Command(name = "sethintedhandoffthrottlekb", description =  "Set hinted handoff throttle in KiB per second, per delivery thread.")
 public class SetHintedHandoffThrottleInKB extends AbstractCommand
 {

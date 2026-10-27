@@ -15,8 +15,8 @@ SYNOPSIS
                 [(-u <username> | --username <username>)]
                 consensus_admin begin-migration
                 [(-et <end_token> | --end-token <end_token>)]
-                [(-st <start_token> | --start-token <start_token>)] [--] <keyspace>
-                <tables>
+                [(-st <start_token> | --start-token <start_token>)] [--] [<keyspace>]
+                [<tables>...]
 
         nodetool [(-h <host> | --host <host>)] [(-p <port> | --port <port>)]
                 [(-pw <password> | --password <password>)]
@@ -24,14 +24,14 @@ SYNOPSIS
                 [(-u <username> | --username <username>)]
                 consensus_admin finish-migration
                 [(-et <end_token> | --end-token <end_token>)]
-                [(-st <start_token> | --start-token <start_token>)] [--] <keyspace>
-                <tables>
+                [(-st <start_token> | --start-token <start_token>)] [--] [<keyspace>]
+                [<tables>...]
 
         nodetool [(-h <host> | --host <host>)] [(-p <port> | --port <port>)]
                 [(-pw <password> | --password <password>)]
                 [(-pwf <passwordFilePath> | --password-file <passwordFilePath>)]
                 [(-u <username> | --username <username>)] consensus_admin list
-                [(-f <format> | --format <format>)] [--] <keyspace> <tables>
+                [(-f <format> | --format <format>)] [--] [<keyspace>] [<tables>...]
 
 OPTIONS
         -h <host>, --host <host>

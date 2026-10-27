@@ -21,12 +21,14 @@ import java.io.IOError;
 import java.io.IOException;
 
 import org.apache.cassandra.tools.NodeProbe;
+import org.apache.cassandra.tools.nodetool.layout.WithoutExample;
 
 import picocli.CommandLine.Command;
 import picocli.CommandLine.Option;
 
 import static org.apache.cassandra.config.CassandraRelevantProperties.RESET_BOOTSTRAP_PROGRESS;
 
+@WithoutExample
 @Command(name = "resume", description = "Resume bootstrap streaming")
 public class BootstrapResume extends AbstractCommand
 {

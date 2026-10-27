@@ -18,11 +18,13 @@
 package org.apache.cassandra.tools.nodetool;
 
 import org.apache.cassandra.tools.NodeProbe;
+import org.apache.cassandra.tools.nodetool.layout.WithoutExample;
 
 import picocli.CommandLine.Command;
 import picocli.CommandLine.Mixin;
 import picocli.CommandLine.Option;
 
+@WithoutExample
 @Command(name = "gossipinfo", description = "Shows the gossip information for the cluster")
 public class GossipInfo extends AbstractCommand
 {

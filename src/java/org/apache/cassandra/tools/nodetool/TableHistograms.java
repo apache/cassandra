@@ -32,6 +32,7 @@ import org.apache.cassandra.db.ColumnFamilyStoreMBean;
 import org.apache.cassandra.metrics.CassandraMetricsRegistry;
 import org.apache.cassandra.tools.NodeProbe;
 import org.apache.cassandra.tools.nodetool.layout.CassandraUsage;
+import org.apache.cassandra.tools.nodetool.layout.WithoutExample;
 import org.apache.cassandra.utils.EstimatedHistogram;
 import org.apache.cassandra.utils.Pair;
 
@@ -42,6 +43,7 @@ import static com.google.common.base.Preconditions.checkArgument;
 import static java.lang.String.format;
 import static org.apache.cassandra.tools.nodetool.CommandUtils.concatArgs;
 
+@WithoutExample
 @Command(name = "tablehistograms", description = "Print statistic histograms for a given table")
 public class TableHistograms extends AbstractCommand
 {

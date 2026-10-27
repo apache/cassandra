@@ -20,9 +20,11 @@ package org.apache.cassandra.tools.nodetool;
 import java.io.IOException;
 
 import org.apache.cassandra.tools.NodeProbe;
+import org.apache.cassandra.tools.nodetool.layout.WithoutExample;
 
 import picocli.CommandLine.Command;
 
+@WithoutExample
 @Command(name = "reloadssl", description = "Signals Cassandra to reload SSL certificates")
 public class ReloadSslCertificates extends AbstractCommand
 {

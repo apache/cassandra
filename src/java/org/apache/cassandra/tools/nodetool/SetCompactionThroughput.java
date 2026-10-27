@@ -18,10 +18,12 @@
 package org.apache.cassandra.tools.nodetool;
 
 import org.apache.cassandra.tools.NodeProbe;
+import org.apache.cassandra.tools.nodetool.layout.WithoutExample;
 
 import picocli.CommandLine.Command;
 import picocli.CommandLine.Parameters;
 
+@WithoutExample
 @Command(name = "setcompactionthroughput", description = "Set the MiB/s throughput cap for compaction in the system, or 0 to disable throttling")
 public class SetCompactionThroughput extends AbstractCommand
 {

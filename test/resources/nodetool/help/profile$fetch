@@ -35,3 +35,7 @@ OPTIONS
 
         <localFile>
             Local file name
+
+EXAMPLES
+        Copy a result file from the node to this machine:
+            nodetool profile fetch profile1.jfr /tmp/profile1.jfr

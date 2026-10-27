@@ -17,9 +17,12 @@
  */
 package org.apache.cassandra.tools.nodetool;
 
+import org.apache.cassandra.tools.nodetool.layout.WithoutExample;
+
 import picocli.CommandLine.Command;
 
 @Deprecated(since = "7.0") // this is alias to getreplicas
+@WithoutExample
 @Command(name = "getendpoints", description = "Print the end points that owns the key, deprecated, use getreplicas instead")
 public class GetEndpoints extends GetReplicas
 {

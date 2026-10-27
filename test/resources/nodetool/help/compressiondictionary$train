@@ -55,3 +55,7 @@ OPTIONS
 
         <table>
             The table name
+
+EXAMPLES
+        Train a dictionary of at most 1 MiB for ks1.table1:
+            nodetool compressiondictionary train --max-dict-size 1MiB ks1 table1

@@ -23,6 +23,7 @@ import java.util.List;
 import org.apache.cassandra.schema.SchemaConstants;
 import org.apache.cassandra.tools.NodeProbe;
 import org.apache.cassandra.tools.nodetool.layout.CassandraUsage;
+import org.apache.cassandra.tools.nodetool.layout.WithoutExample;
 
 import picocli.CommandLine.Command;
 import picocli.CommandLine.Option;
@@ -32,6 +33,7 @@ import static org.apache.cassandra.tools.nodetool.CommandUtils.concatArgs;
 import static org.apache.cassandra.tools.nodetool.CommandUtils.parseOptionalKeyspaceNonLocal;
 import static org.apache.cassandra.tools.nodetool.CommandUtils.parseOptionalTables;
 
+@WithoutExample
 @Command(name = "cleanup", description = "Triggers the immediate cleanup of keys no longer belonging to a node. By default, clean all keyspaces")
 public class Cleanup extends AbstractCommand
 {

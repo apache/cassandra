@@ -19,10 +19,12 @@
 package org.apache.cassandra.tools.nodetool;
 
 import org.apache.cassandra.tools.NodeProbe;
+import org.apache.cassandra.tools.nodetool.layout.WithoutExample;
 
 import picocli.CommandLine.Command;
 import picocli.CommandLine.Parameters;
 
+@WithoutExample
 @Command(name = "setmaxhintwindow", description = "Set the specified max hint window in ms")
 public class SetMaxHintWindow extends AbstractCommand
 {

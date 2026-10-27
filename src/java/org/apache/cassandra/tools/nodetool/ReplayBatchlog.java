@@ -22,9 +22,11 @@ import java.io.IOError;
 import java.io.IOException;
 
 import org.apache.cassandra.tools.NodeProbe;
+import org.apache.cassandra.tools.nodetool.layout.WithoutExample;
 
 import picocli.CommandLine.Command;
 
+@WithoutExample
 @Command(name = "replaybatchlog", description = "Kick off batchlog replay and wait for finish")
 public class ReplayBatchlog extends AbstractCommand
 {

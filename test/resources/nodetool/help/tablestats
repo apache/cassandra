@@ -75,3 +75,7 @@ OPTIONS
 
         [<keyspace.table>...]
             List of tables (or keyspace) names
+
+EXAMPLES
+        Show stats for one table and for a whole keyspace:
+            nodetool tablestats ks1.table1 ks2

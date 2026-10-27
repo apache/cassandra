@@ -30,10 +30,12 @@ import org.apache.cassandra.db.ColumnFamilyStoreMBean;
 import org.apache.cassandra.io.util.FileUtils;
 import org.apache.cassandra.service.CacheServiceMBean;
 import org.apache.cassandra.tools.NodeProbe;
+import org.apache.cassandra.tools.nodetool.layout.WithoutExample;
 
 import picocli.CommandLine.Command;
 import picocli.CommandLine.Option;
 
+@WithoutExample
 @Command(name = "info", description = "Print node information (uptime, load, ...)")
 public class Info extends AbstractCommand
 {

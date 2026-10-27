@@ -18,6 +18,7 @@
 package org.apache.cassandra.tools.nodetool;
 
 import org.apache.cassandra.tools.NodeProbe;
+import org.apache.cassandra.tools.nodetool.layout.WithoutExample;
 import org.apache.cassandra.tools.nodetool.stats.StatsHolder;
 import org.apache.cassandra.tools.nodetool.stats.StatsPrinter;
 import org.apache.cassandra.tools.nodetool.stats.TpStatsHolder;
@@ -26,6 +27,7 @@ import org.apache.cassandra.tools.nodetool.stats.TpStatsPrinter;
 import picocli.CommandLine.Command;
 import picocli.CommandLine.Option;
 
+@WithoutExample
 @Command(name = "tpstats", description = "Print usage statistics of thread pools")
 public class TpStats extends AbstractCommand
 {

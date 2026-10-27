@@ -21,6 +21,7 @@ import java.io.IOException;
 import java.io.PrintStream;
 
 import org.apache.cassandra.tools.NodeProbe;
+import org.apache.cassandra.tools.nodetool.layout.WithoutExample;
 
 import picocli.CommandLine.Command;
 import picocli.CommandLine.Mixin;
@@ -28,6 +29,7 @@ import picocli.CommandLine.Parameters;
 
 import static org.apache.commons.lang3.StringUtils.EMPTY;
 
+@WithoutExample
 @Command(name = "describering", description = "Shows the token ranges info of a given keyspace")
 public class DescribeRing extends AbstractCommand
 {

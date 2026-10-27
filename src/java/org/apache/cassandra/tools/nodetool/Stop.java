@@ -19,16 +19,22 @@ package org.apache.cassandra.tools.nodetool;
 
 import org.apache.cassandra.db.compaction.OperationType;
 import org.apache.cassandra.tools.NodeProbe;
+import org.apache.cassandra.tools.nodetool.layout.CassandraUsage;
+import org.apache.cassandra.tools.nodetool.layout.WithoutExample;
 
 import picocli.CommandLine.Command;
 import picocli.CommandLine.Option;
 import picocli.CommandLine.Parameters;
 
+@WithoutExample
 @Command(name = "stop", description = "Stop compaction")
 public class Stop extends AbstractCommand
 {
+    private static final String COMPACTION_TYPES = "Supported types are COMPACTION, VALIDATION, CLEANUP, SCRUB, UPGRADE_SSTABLES, INDEX_BUILD, TOMBSTONE_COMPACTION, ANTICOMPACTION, VERIFY, VIEW_BUILD, INDEX_SUMMARY, RELOCATE, GARBAGE_COLLECT";
+
+    @CassandraUsage(usage = "<compaction_type>", description = COMPACTION_TYPES)
     @Parameters(paramLabel = "compaction_type",
-                description = "Supported types are COMPACTION, VALIDATION, CLEANUP, SCRUB, UPGRADE_SSTABLES, INDEX_BUILD, TOMBSTONE_COMPACTION, ANTICOMPACTION, VERIFY, VIEW_BUILD, INDEX_SUMMARY, RELOCATE, GARBAGE_COLLECT",
+                description = COMPACTION_TYPES,
                 arity = "0..1")
     private OperationType compactionType = OperationType.UNKNOWN;
 

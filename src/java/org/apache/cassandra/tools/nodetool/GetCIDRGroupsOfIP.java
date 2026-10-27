@@ -18,6 +18,7 @@
 package org.apache.cassandra.tools.nodetool;
 
 import org.apache.cassandra.tools.NodeProbe;
+import org.apache.cassandra.tools.nodetool.layout.WithoutExample;
 
 import picocli.CommandLine.Command;
 import picocli.CommandLine.Parameters;
@@ -27,6 +28,7 @@ import static org.apache.cassandra.tools.nodetool.CommandUtils.printSet;
 /**
  * Nodetool command to get CIDR groups(s) of given IP
  */
+@WithoutExample
 @Command(name = "getcidrgroupsofip", description = "Print CIDR groups associated with given IP")
 public class GetCIDRGroupsOfIP extends AbstractCommand
 {

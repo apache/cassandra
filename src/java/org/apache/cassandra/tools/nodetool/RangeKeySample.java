@@ -20,9 +20,11 @@ package org.apache.cassandra.tools.nodetool;
 import java.util.List;
 
 import org.apache.cassandra.tools.NodeProbe;
+import org.apache.cassandra.tools.nodetool.layout.WithoutExample;
 
 import picocli.CommandLine.Command;
 
+@WithoutExample
 @Command(name = "rangekeysample", description = "Shows the sampled keys held across all keyspaces")
 public class RangeKeySample extends AbstractCommand
 {

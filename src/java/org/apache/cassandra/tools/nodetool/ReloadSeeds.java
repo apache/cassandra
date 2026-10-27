@@ -21,9 +21,11 @@ import java.io.PrintStream;
 import java.util.List;
 
 import org.apache.cassandra.tools.NodeProbe;
+import org.apache.cassandra.tools.nodetool.layout.WithoutExample;
 
 import picocli.CommandLine.Command;
 
+@WithoutExample
 @Command(name = "reloadseeds", description = "Reload the seed node list from the seed node provider")
 public class ReloadSeeds extends AbstractCommand
 {

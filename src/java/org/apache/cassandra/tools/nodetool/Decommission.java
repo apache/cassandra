@@ -18,10 +18,12 @@
 package org.apache.cassandra.tools.nodetool;
 
 import org.apache.cassandra.tools.NodeProbe;
+import org.apache.cassandra.tools.nodetool.layout.WithoutExample;
 
 import picocli.CommandLine.Command;
 import picocli.CommandLine.Option;
 
+@WithoutExample
 @Command(name = "decommission", description = "Decommission the *node I am connecting to*")
 public class Decommission extends AbstractCommand
 {
@@ -56,7 +58,10 @@ public class Decommission extends AbstractCommand
         }
     }
 
-    @Command(name = "abortdecommission", description = "Abort an ongoing, failed decommission")
+    @Command(name = "abortdecommission", description = "Abort an ongoing, failed decommission",
+             footer = { "EXAMPLES",
+                        "        Abort a failed decommission of node 4 (default: this node):",
+                        "            nodetool abortdecommission --node 4" })
     public static class Abort extends AbstractCommand
     {
         @Option(paramLabel = "nodeId", names = { "--node" })

@@ -19,9 +19,11 @@
 package org.apache.cassandra.tools.nodetool;
 
 import org.apache.cassandra.tools.NodeProbe;
+import org.apache.cassandra.tools.nodetool.layout.WithoutExample;
 
 import picocli.CommandLine.Command;
 
+@WithoutExample
 @Command(name = "getcolumnindexsize", description = "Print the granularity of the collation index of rows within a partition in KiB")
 public class GetColumnIndexSize extends AbstractCommand
 {

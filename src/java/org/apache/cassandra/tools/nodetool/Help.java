@@ -27,6 +27,8 @@ import com.google.common.base.Preconditions;
 import com.google.common.base.Strings;
 
 import org.apache.cassandra.tools.nodetool.layout.CassandraCliHelpLayout;
+import org.apache.cassandra.tools.nodetool.layout.CassandraUsage;
+import org.apache.cassandra.tools.nodetool.layout.WithoutExample;
 
 import picocli.CommandLine;
 import picocli.CommandLine.Command;
@@ -44,6 +46,7 @@ import static picocli.CommandLine.Model.UsageMessageSpec.SECTION_KEY_HEADER;
 import static picocli.CommandLine.Model.UsageMessageSpec.SECTION_KEY_HEADER_HEADING;
 import static picocli.CommandLine.Model.UsageMessageSpec.SECTION_KEY_SYNOPSIS;
 
+@WithoutExample
 @Command(name = "help",
          helpCommand = true,
          description = "Display help information")
@@ -53,6 +56,7 @@ public class Help implements IHelpCommandInitializable2, Runnable
             description = "Show usage help for the help command and exit.")
     private boolean helpRequested;
 
+    @CassandraUsage(usage = "[<command>...]", description = "The COMMAND to display the usage help message for.")
     @Parameters(paramLabel = "command", arity = "1..*", descriptionKey = "helpCommand.command",
                 description = "The COMMAND to display the usage help message for.")
     private List<String> commands;

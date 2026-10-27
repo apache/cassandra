@@ -34,7 +34,10 @@ import static com.google.common.base.Preconditions.checkArgument;
 /**
  * Provides currently running auto-repair tasks.
  */
-@Command(name = "autorepairstatus", description = "Print autorepair status")
+@Command(name = "autorepairstatus", description = "Print autorepair status",
+         footer = { "EXAMPLES",
+                    "        Show status of incremental auto repair:",
+                    "            nodetool autorepairstatus -t incremental" })
 public class AutoRepairStatus extends AbstractCommand
 {
     @VisibleForTesting

@@ -20,9 +20,11 @@ package org.apache.cassandra.tools.nodetool;
 import java.io.IOException;
 
 import org.apache.cassandra.tools.NodeProbe;
+import org.apache.cassandra.tools.nodetool.layout.WithoutExample;
 
 import picocli.CommandLine.Command;
 
+@WithoutExample
 @Command(name = "resetlocalschema", description = "Reset node's local schema and resync")
 public class ResetLocalSchema extends AbstractCommand
 {

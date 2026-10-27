@@ -23,7 +23,10 @@ import org.apache.cassandra.tools.NodeProbe;
 import picocli.CommandLine.Command;
 import picocli.CommandLine.Option;
 
-@Command(name = "enablefullquerylog", description = "Enable full query logging, defaults for the options are configured in cassandra.yaml")
+@Command(name = "enablefullquerylog", description = "Enable full query logging, defaults for the options are configured in cassandra.yaml",
+         footer = { "EXAMPLES",
+                    "        Log all queries to an empty directory:",
+                    "            nodetool enablefullquerylog --path <dir>" })
 public class EnableFullQueryLog extends AbstractCommand
 {
     @Option(paramLabel = "roll_cycle", names = { "--roll-cycle" }, description = "How often to roll the log file (FAST_MINUTELY, FAST_HOURLY, FAST_DAILY).")

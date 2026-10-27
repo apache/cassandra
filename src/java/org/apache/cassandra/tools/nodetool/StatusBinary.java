@@ -19,9 +19,11 @@ package org.apache.cassandra.tools.nodetool;
 
 
 import org.apache.cassandra.tools.NodeProbe;
+import org.apache.cassandra.tools.nodetool.layout.WithoutExample;
 
 import picocli.CommandLine.Command;
 
+@WithoutExample
 @Command(name = "statusbinary", description = "Status of native transport (binary protocol)")
 public class StatusBinary extends AbstractCommand
 {

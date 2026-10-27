@@ -47,6 +47,7 @@ import org.gridkit.jvmtool.cli.CommandLauncher;
 import org.apache.cassandra.io.util.File;
 import org.apache.cassandra.tools.NodeProbe;
 import org.apache.cassandra.tools.Output;
+import org.apache.cassandra.tools.nodetool.layout.WithoutExample;
 
 import picocli.CommandLine;
 import picocli.CommandLine.Command;
@@ -54,6 +55,7 @@ import picocli.CommandLine.ExecutionException;
 import picocli.CommandLine.IParameterPreprocessor;
 import picocli.CommandLine.Parameters;
 
+@WithoutExample
 @Command(name = "sjk", description = "Run commands of 'Swiss Java Knife'. Run 'nodetool sjk --help' for more information.",
          preprocessor = Sjk.ParameterPreprocessor.class)
 public class Sjk extends AbstractCommand

@@ -25,7 +25,10 @@ import picocli.CommandLine.Option;
 import static org.apache.commons.lang3.StringUtils.EMPTY;
 import static org.apache.commons.lang3.StringUtils.isEmpty;
 
-@Command(name = "abortbootstrap", description = "Abort a failed bootstrap")
+@Command(name = "abortbootstrap", description = "Abort a failed bootstrap",
+         footer = { "EXAMPLES",
+                    "        Abort a failed bootstrap (give --node or --ip, not both):",
+                    "            nodetool abortbootstrap --ip 127.0.0.2" })
 public class AbortBootstrap extends AbstractCommand
 {
     @Option(paramLabel = "node_id", names = "--node", description = "Node ID of the node that failed bootstrap")
