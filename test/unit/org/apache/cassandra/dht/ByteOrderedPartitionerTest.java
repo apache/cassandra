@@ -20,8 +20,11 @@ package org.apache.cassandra.dht;
 import java.util.Arrays;
 
 import org.junit.Assert;
+import org.junit.Test;
 
 import org.apache.cassandra.dht.ByteOrderedPartitioner.BytesToken;
+
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 public class ByteOrderedPartitionerTest extends PartitionerTestCase
 {
@@ -43,5 +46,17 @@ public class ByteOrderedPartitionerTest extends PartitionerTestCase
         Assert.assertArrayEquals(orig.token, Arrays.copyOf(rt.token, orig.token.length));
         for (int i = orig.token.length ; i < rt.token.length ; ++i)
             Assert.assertEquals((byte)0, rt.token[i]);
+    }
+
+    @Test
+    public void testNextValidToken()
+    {
+        assertThatThrownBy(() -> tok("b").nextValidToken()).hasMessageContaining("not support token allocation");
+    }
+
+    @Test
+    public void testPrevValidToken()
+    {
+        assertThatThrownBy(() -> tok("b").prevValidToken()).hasMessageContaining("not support token allocation");
     }
 }
