@@ -432,18 +432,6 @@ public class IndexHints
         return guardrail > 0 ? guardrail : 128;
     }
 
-    /**
-     * Resolves the specified set of CQL index names into their {@link IndexMetadata}.
-     *
-     * @param indexNames the CQL names to resolve, possibly containing the {@code *} wildcard
-     * @param table the queried table
-     * @param indexRegistry the index registry of the queried table
-     * @param allowWildcard whether the {@code *} wildcard is allowed in {@code indexNames}. If it's present and
-     * allowed, it's expanded to all the indexes currently registered for the table.
-     * @return the resolved indexes
-     * @throws InvalidRequestException if the wildcard is present but not allowed, or if any of the named indexes
-     * do not exist in the specified index registry
-     */
     private static Set<IndexMetadata> fetchIndexes(Set<QualifiedName> indexNames,
                                                    TableMetadata table,
                                                    IndexRegistry indexRegistry,
