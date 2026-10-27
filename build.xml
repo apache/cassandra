@@ -1439,6 +1439,9 @@
       <junit-timeout fork="on" forkmode="@{forkmode}" failureproperty="testfailed" maxmemory="@{maxmemory}" timeout="@{timeout}" showoutput="@{showoutput}">
         <formatter classname="org.apache.cassandra.CassandraXMLJUnitResultFormatter" extension=".xml" usefile="true"/>
         <formatter classname="org.apache.cassandra.CassandraBriefJUnitResultFormatter" usefile="false"/>
+        <!-- Same as cassandra-env.sh: glibc otherwise creates up to 8 arenas per host core, and the native memory they
+             retain (netty/direct buffer chunks) can push a test JVM past the CI container memory limit -->
+        <env key="MALLOC_ARENA_MAX" value="4"/>
         <jvmarg value="-Dstorage-config=${test.conf}"/>
         <jvmarg value="-Dfile.encoding=UTF-8"/>
         <jvmarg value="-Djava.awt.headless=true"/>
