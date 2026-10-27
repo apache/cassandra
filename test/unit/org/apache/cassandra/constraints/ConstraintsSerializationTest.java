@@ -35,6 +35,7 @@ import org.apache.cassandra.cql3.constraints.ColumnConstraint.ConstraintType;
 import org.apache.cassandra.cql3.constraints.ColumnConstraints;
 import org.apache.cassandra.cql3.constraints.ConstraintResolver;
 import org.apache.cassandra.cql3.constraints.ConstraintViolationException;
+import org.apache.cassandra.db.marshal.Int32Type;
 import org.apache.cassandra.io.util.DataInputBuffer;
 import org.apache.cassandra.io.util.DataOutputBuffer;
 import org.apache.cassandra.schema.ColumnMetadata;
@@ -44,9 +45,11 @@ import org.apache.cassandra.schema.UserFunctions;
 import org.apache.cassandra.tcm.ClusterMetadata;
 import org.apache.cassandra.tcm.membership.NodeVersion;
 import org.apache.cassandra.tcm.serialization.Version;
+import org.apache.cassandra.utils.ByteBufferUtil;
 
 import static java.lang.String.format;
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 /**
  * Constraints are serialized with the schema in cluster metadata, e.g. in a snapshot a node sends to another one which
@@ -204,5 +207,25 @@ public class ConstraintsSerializationTest extends CQLTester
                                                                                     "\"Json\" text CHECK JSON",
                                                                                     "\"Other\" text CHECK NOT NULL AND LENGTH() < 10");
         assertRowsIgnoringOrder(execute("SELECT pk FROM %s"), row(1), row(3));
+    }
+
+    /**
+     * A scalar constraint read back from cluster metadata, as on a restart, has to enforce its value.
+     */
+    @Test
+    public void scalarConstraintEnforcedAfterDeserialization() throws Throwable
+    {
+        createTable("CREATE TABLE %s (pk int PRIMARY KEY, b int CHECK b > 0)");
+        Version version = NodeVersion.CURRENT_METADATA_VERSION;
+        DataOutputBuffer out = new DataOutputBuffer();
+        ClusterMetadata.serializer.serialize(ClusterMetadata.current(), out, version);
+        ClusterMetadata read = ClusterMetadata.serializer.deserialize(new DataInputBuffer(out.getData()), version);
+
+        TableMetadata table = read.schema.getKeyspaceMetadata(KEYSPACE).getTableOrViewNullable(currentTable());
+        ColumnConstraints constraints = table.getColumn(ByteBufferUtil.bytes("b")).getColumnConstraints();
+
+        constraints.evaluate(Int32Type.instance, Int32Type.instance.decompose(1));
+        assertThatThrownBy(() -> constraints.evaluate(Int32Type.instance, Int32Type.instance.decompose(-1)))
+        .isInstanceOf(ConstraintViolationException.class);
     }
 }
