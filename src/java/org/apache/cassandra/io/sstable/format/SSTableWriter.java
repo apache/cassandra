@@ -110,7 +110,7 @@ public abstract class SSTableWriter extends SSTable implements Transactional
         this.mmappedRegionsCache = builder.getMmappedRegionsCache();
         this.txn = txn;
 
-        checkExistingSStables();
+        assertNoExistingSSTable();
 
         txn.trackNew(this);
 

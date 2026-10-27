@@ -153,7 +153,7 @@ public abstract class SSTable
                   .forEach(c -> FileUtils.createHardLinkWithoutConfirm(tmpdesc.fileFor(c), newdesc.fileFor(c)));
     }
 
-    protected void checkExistingSStables()
+    protected void assertNoExistingSSTable()
     {
         // We need to ensure that no sstable components exist before the lifecycle transaction starts tracking it.
         // Otherwise, it means that we either want to overwrite some existing sstable, which is not allowed, or some
