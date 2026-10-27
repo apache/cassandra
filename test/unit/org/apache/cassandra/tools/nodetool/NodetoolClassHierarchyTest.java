@@ -174,6 +174,42 @@ public class NodetoolClassHierarchyTest extends CQLTester
                    affected.isEmpty());
     }
 
+    /**
+     * Commands must not declare {@code @ArgGroup} fields. Picocli creates the group object only when
+     * it parses a command line, so the field is {@code null} if the command gets its values another way.
+     * Declare the options on the command itself and check how they combine in {@code execute}.
+     */
+    @Test
+    public void testNoCommandDeclaresArgGroups()
+    {
+        CommandLine root = new CommandLine(NodetoolCommand.class);
+        Map<String, List<String>> affected = new TreeMap<>();
+
+        commandTreeWalker(root, cmd -> {
+            List<String> groups = collectArgGroups(cmd);
+            if (!groups.isEmpty())
+                affected.put(fullCommandName(cmd), groups);
+        });
+
+        assertTrue("These commands declare @ArgGroup fields. Declare the options on the command itself " +
+                   "and check how they combine in execute():\n" +
+                   buildAffectedCommandMessage(affected),
+                   affected.isEmpty());
+    }
+
+    private static List<String> collectArgGroups(CommandLine cmd)
+    {
+        List<String> groups = new ArrayList<>();
+        for (CommandLine.Model.ArgGroupSpec group : cmd.getCommandSpec().argGroups())
+        {
+            List<String> members = new ArrayList<>();
+            for (CommandLine.Model.OptionSpec option : group.allOptionsNested())
+                members.add(String.join("/", option.names()));
+            groups.add("group [" + String.join(", ", members) + ']');
+        }
+        return groups;
+    }
+
     private static List<String> collectAmbiguousArgumentKeys(CommandLine cmd)
     {
         List<String> violations = new ArrayList<>();
