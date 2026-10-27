@@ -40,6 +40,7 @@ import org.apache.cassandra.cql3.statements.schema.IndexTarget;
 import org.apache.cassandra.db.ColumnFamilyStore;
 import org.apache.cassandra.db.ReadCommand;
 import org.apache.cassandra.db.SinglePartitionReadCommand;
+import org.apache.cassandra.db.guardrails.Guardrails;
 import org.apache.cassandra.exceptions.InvalidRequestException;
 import org.apache.cassandra.exceptions.SyntaxException;
 import org.apache.cassandra.index.CustomIndexTest;
@@ -1128,6 +1129,37 @@ public class IndexHintsTest extends CQLTester
         // a wildcard exclusion conflicts with an included index that exists on the table
         assertConflictingHints("SELECT * FROM %s WHERE v1=0 WITH included_indexes={idx1} AND excluded_indexes={*}", "idx1");
         assertConflictingHints("SELECT * FROM %s WHERE v2=0 WITH included_indexes={idx2} AND excluded_indexes={*}", "idx2");
+    }
+
+    /**
+     * Tests that the size limit is also enforced on the set of excluded indexes that results from expanding the
+     * {@code *} wildcard, since the check on the raw CQL names doesn't catch it.
+     */
+    @Test
+    public void testWildcardExcludedIndexesOverGuardrailLimit()
+    {
+        createTable("CREATE TABLE %s (k int PRIMARY KEY, v1 int, v2 int, v3 int)");
+        createIndex("CREATE INDEX idx1 ON %s(v1)");
+        createIndex("CREATE INDEX idx2 ON %s(v2)");
+        createIndex("CREATE INDEX idx3 ON %s(v3)");
+
+        ColumnFamilyStore cfs = getCurrentColumnFamilyStore();
+        int warn = Guardrails.instance.getSecondaryIndexesPerTableWarnThreshold();
+        int fail = Guardrails.instance.getSecondaryIndexesPerTableFailThreshold();
+        try
+        {
+            // lower the guardrail below the table's existing index count
+            Guardrails.instance.setSecondaryIndexesPerTableThreshold(-1, 2);
+
+            Set<QualifiedName> excluded = Collections.singleton(QualifiedName.WILDCARD);
+            Assertions.assertThatThrownBy(() -> IndexHints.fromCQLNames(null, excluded, cfs.metadata(), cfs.indexManager))
+                      .isInstanceOf(InvalidRequestException.class)
+                      .hasMessageContaining(TOO_MANY_INDEXES_ERROR + 3);
+        }
+        finally
+        {
+            Guardrails.instance.setSecondaryIndexesPerTableThreshold(warn, fail);
+        }
     }
 
     /**
