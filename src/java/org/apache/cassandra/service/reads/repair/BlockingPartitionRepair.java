@@ -272,7 +272,7 @@ public class BlockingPartitionRepair
         r.stillAppliesTo(metadata);
     }
 
-    public Keyspace getKeyspace()
+    Keyspace getKeyspace()
     {
         return repairPlan.keyspace();
     }
