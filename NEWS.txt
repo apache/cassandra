@@ -117,6 +117,17 @@ Deprecation
 
 New features
 ------------
+    - Query paging supports byte budgets for client fetch pages and internal replica reads (CASSANDRA-11745).
+      Set a byte fetch size through a supporting client using native protocol v5 or later; replica reads inherit
+      that budget. For aggregation queries without a client page size, configure aggregation_subpage_size in
+      cassandra.yaml (default 2MiB; 0B disables the limit). Explicit client row page sizes take precedence;
+      aggregation queries reject explicit client byte page sizes.
+      Configure page_size_in_bytes_warn_threshold and page_size_in_bytes_fail_threshold in cassandra.yaml
+      to warn or reject oversized client page requests. Both accept storage units and default to null (disabled).
+      Byte paging requires all cluster members to run Cassandra 6.0-alpha3 or later; until then, reads use row pages.
+      Byte budgets measure internal row data and can be exceeded to include the last row of a page.
+      See "Result paging" in doc/modules/cassandra/pages/developing/cql/dml.adoc for usage and upgrade details,
+      and doc/native_protocol_v5.spec for client capability discovery and request encoding.
     - JDK21 and Generational ZGC are now officially supported and generational ZGC is now the default Garbage Collector
     when using JDK21. See jvm21-server.options for more details and configuration parameters. We do not recommend using
     non-generational ZGC with Apache Cassandra.

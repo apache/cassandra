@@ -318,6 +318,8 @@ PAGING OFF
 PAGING <page size in rows>
 ----
 
+`PAGING` accepts row counts only. Requesting xref:cassandra:developing/cql/dml.adoc#result-paging[byte paging] requires a client or driver that supports that feature.
+
 === `EXPAND`
 
 Enables or disables vertical printing of rows. Enabling `EXPAND` is
