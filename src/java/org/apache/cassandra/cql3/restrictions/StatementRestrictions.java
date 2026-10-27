@@ -870,14 +870,19 @@ public class StatementRestrictions
         return !tableNullable.allowFilteringImplicitly();
     }
 
-    public boolean hasIndxBasedOrdering()
+    private boolean hasAnnOrdering()
+    {
+        return nonPrimaryKeyRestrictions.restrictions().stream().anyMatch(r -> r instanceof SingleColumnRestriction.AnnRestriction);
+    }
+
+    public boolean hasIndexBasedOrdering()
     {
         return nonPrimaryKeyRestrictions.restrictions().stream().anyMatch(SingleRestriction::isIndexBasedOrdering);
     }
 
     public void throwRequiresAllowFilteringError(TableMetadata table, ClientState state)
     {
-        if (hasIndxBasedOrdering())
+        if (hasIndexBasedOrdering())
             throw invalidRequest(StatementRestrictions.NON_CLUSTER_ORDERING_REQUIRES_ALL_RESTRICTED_NON_PARTITION_KEY_COLUMNS_INDEXED_MESSAGE);
 
         throwRequiresAllowFilteringError(table, indexHints, allColumnRestrictions(clusteringColumnsRestrictions, nonPrimaryKeyRestrictions), state);
@@ -1152,6 +1157,9 @@ public class StatementRestrictions
             return RowFilter.none();
         }
 
+        if (hasAnnOptions && !hasAnnOrdering())
+            throw new InvalidRequestException(ANN_OPTIONS_WITHOUT_ORDER_BY_ANN);
+
         // If there is only one replica, we don't need reconciliation at any consistency level.
         boolean needsReconciliation = !table.isVirtual()
                                       && options.getConsistency().needsReconciliation()
@@ -1161,12 +1169,7 @@ public class StatementRestrictions
         OptimizerOptions optimizerOptions = selectOptions.parseOptimizerOptions();
 
         RowFilter.Builder filterBuilder = new RowFilter.Builder(needsReconciliation, indexRegistry, indexHints, optimizerOptions);
-        RowFilter rowFilter = filterBuilder.buildFromRestrictions(this, table, options, clientState, annOptions);
-
-        if (hasAnnOptions && !rowFilter.hasANN())
-            throw new InvalidRequestException(ANN_OPTIONS_WITHOUT_ORDER_BY_ANN);
-
-        return rowFilter;
+        return filterBuilder.buildFromRestrictions(this, table, options, clientState, annOptions);
     }
 
     /**

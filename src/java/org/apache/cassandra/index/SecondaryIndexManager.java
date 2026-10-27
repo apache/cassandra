@@ -58,6 +58,7 @@ import com.google.common.util.concurrent.FutureCallback;
 import com.google.common.util.concurrent.Futures;  //checkstyle: permit this import
 import com.google.common.util.concurrent.ListenableFuture;  //checkstyle: permit this import
 import com.google.common.util.concurrent.SettableFuture;
+import org.apache.cassandra.index.sai.StorageAttachedIndex;
 import org.apache.commons.lang3.StringUtils;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -1447,6 +1448,11 @@ public class SecondaryIndexManager implements IndexRegistry, INotificationConsum
     public Optional<Index> getBestIndexFor(ColumnMetadata column, Operator operator, IndexHints hints)
     {
         return hints.getBestIndexFor(indexes.values(), i -> i.supportsExpression(column, operator), operator.isAnyContains());
+    }
+
+    public boolean isSaiIndexed(RowFilter.Expression expression, IndexHints hints)
+    {
+        return getBestIndexFor(expression, hints, StorageAttachedIndex.class).isPresent();
     }
 
     public <T extends Index> Optional<T> getBestIndexFor(RowFilter.Expression expression, IndexHints hints, Class<T> indexType)

@@ -1211,19 +1211,16 @@ public class SelectSingleColumnRelationTest extends CQLTester
         execute("INSERT INTO %s (pk, c, v) VALUES (?, ?, ?)", 1, 4, 4);
         execute("INSERT INTO %s (pk, c, v) VALUES (?, ?, ?)", 1, 5, 5);
 
-        assertRows(execute("SELECT * FROM %s WHERE v = ? OR v not in ? ALLOW FILTERING", 0, list()),
-                   row(1, 1, 1),
-                   row(1, 2, 2),
-                   row(1, 3, 3),
-                   row(1, 4, 4),
-                   row(1, 5, 5));
+        Object[][] allRows = new Object[][]{
+                row(1, 1, 1),
+                row(1, 2, 2),
+                row(1, 3, 3),
+                row(1, 4, 4),
+                row(1, 5, 5)};
 
-        assertRows(execute("SELECT * FROM %s WHERE v NOT IN ? OR v NOT IN ? ALLOW FILTERING", list(), list(1, 2)),
-                   row(1, 1, 1),
-                   row(1, 2, 2),
-                   row(1, 3, 3),
-                   row(1, 4, 4),
-                   row(1, 5, 5));
+        assertRows(execute("SELECT * FROM %s WHERE v = ? OR v not in ? ALLOW FILTERING", 0, list()), allRows);
+
+        assertRows(execute("SELECT * FROM %s WHERE v NOT IN ? OR v NOT IN ? ALLOW FILTERING", list(), list(1, 2)), allRows);
 
         assertRows(execute("SELECT * FROM %s WHERE v = ? OR v NOT IN ? ALLOW FILTERING", 0, list(1, 2, 3)),
                    row(1, 4, 4),
@@ -1235,19 +1232,8 @@ public class SelectSingleColumnRelationTest extends CQLTester
                    row(1, 5, 5));
 
         // Multiple NOT IN:
-        assertRows(execute("SELECT * FROM %s WHERE v NOT IN ? OR v NOT IN ? ALLOW FILTERING", list(1, 2), list(3, 4)),
-                   row(1, 1, 1),
-                   row(1, 2, 2),
-                   row(1, 3, 3),
-                   row(1, 4, 4),
-                   row(1, 5, 5));
-        assertRows(execute("SELECT * FROM %s WHERE v NOT IN ? OR v NOT IN ? ALLOW FILTERING", list(1, 2, 3, 4), list()),
-                   row(1, 1, 1),
-                   row(1, 2, 2),
-                   row(1, 3, 3),
-                   row(1, 4, 4),
-                   row(1, 5, 5));
-
+        assertRows(execute("SELECT * FROM %s WHERE v NOT IN ? OR v NOT IN ? ALLOW FILTERING", list(1, 2), list(3, 4)), allRows);
+        assertRows(execute("SELECT * FROM %s WHERE v NOT IN ? OR v NOT IN ? ALLOW FILTERING", list(1, 2, 3, 4), list()), allRows);
 
         // Mixed IN / NOT IN with AND and OR:
         assertRows(execute("SELECT * FROM %s WHERE v IN ? OR v NOT IN ? AND v NOT IN ? ALLOW FILTERING", list(1), list(1, 2, 3), list(2, 3, 4)),
@@ -1270,6 +1256,21 @@ public class SelectSingleColumnRelationTest extends CQLTester
         assertRows(execute("SELECT * FROM %s WHERE v IN ? AND (v IN ? OR v NOT IN ?) ALLOW FILTERING", list(1, 3), list(5), list()),
                    row(1, 1, 1),
                    row(1, 3, 3));
+
+        // `OR TRUE` swallows all other restrictions in disjunctions.
+        assertRows(execute("SELECT * FROM %s WHERE v = ? OR (v NOT IN ? AND v NOT IN ?) ALLOW FILTERING", 0, list(), list()), allRows);
+        assertRows(execute("SELECT * FROM %s WHERE v = ? OR (v NOT IN ? AND v NOT IN ?) ALLOW FILTERING", 1, list(), list()), allRows);
+        assertRows(execute("SELECT * FROM %s WHERE v IN ? OR (v NOT IN ? AND v NOT IN ?) ALLOW FILTERING", list(1, 2), list(), list()), allRows);
+
+        // `OR TRUE` does not trigger when the AND sub-expression has non-empty NOT IN lists.
+        assertRows(execute("SELECT * FROM %s WHERE v = ? OR (v NOT IN ? AND v NOT IN ?) ALLOW FILTERING", 1, list(2), list(3)),
+                   row(1, 1, 1),
+                   row(1, 4, 4),
+                   row(1, 5, 5));
+
+        // Nested: inner (v = ? OR (v NOT IN ? AND v NOT IN ?)) is always-true (OR-TRUE fires for the inner OR),
+        // making that inner group an always-true child of the outer OR, which then fires OR-TRUE again for the outer OR.
+        assertRows(execute("SELECT * FROM %s WHERE v IN ? OR (v = ? OR (v NOT IN ? AND v NOT IN ?)) ALLOW FILTERING", list(1), 0, list(), list()), allRows);
     }
 
 

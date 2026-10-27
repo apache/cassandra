@@ -325,7 +325,7 @@ public class QueryController implements Plan.Executor, Plan.CostEstimator
         SinglePartitionReadCommand partition = SinglePartitionReadCommand.create(cfs.metadata(),
                                                                                  command.nowInSec(),
                                                                                  command.columnFilter(),
-                                                                                 RowFilter.NONE,
+                                                                                 RowFilter.REJECT_NONE,
                                                                                  DataLimits.NONE,
                                                                                  keys.get(0).partitionKey(),
                                                                                  makeFilter(keys));

@@ -17,15 +17,11 @@
 package org.apache.cassandra.index.sai.cql;
 
 import java.math.BigDecimal;
-import java.util.Collection;
-import java.util.stream.Collectors;
 
 import org.junit.After;
 import org.junit.Assume;
 import org.junit.Before;
 import org.junit.Test;
-import org.junit.runner.RunWith;
-import org.junit.runners.Parameterized;
 
 import org.apache.cassandra.index.sai.SAITester;
 import org.apache.cassandra.index.sai.SAIUtil;
@@ -36,18 +32,8 @@ import org.apache.cassandra.index.sai.disk.format.Version;
  * ranges with equal bounds and at least one exclusive side, return no rows regardless of whether the data is in the
  * memtable, on disk, or both.
  */
-@RunWith(Parameterized.class)
-public class EmptyRangeQueryTest extends SAITester
+public class EmptyRangeQueryTest extends SAITester.Versioned
 {
-    @Parameterized.Parameter
-    public Version version;
-
-    @Parameterized.Parameters(name = "{0}")
-    public static Collection<Object[]> data()
-    {
-        return Version.ALL.stream().map(v -> new Object[]{ v }).collect(Collectors.toList());
-    }
-
     @Before
     public void setup() throws Throwable
     {
@@ -69,7 +55,10 @@ public class EmptyRangeQueryTest extends SAITester
 
         execute("INSERT INTO %s (pk, ck, v) VALUES (1, 1, 4)");
 
-        beforeAndAfterFlush(() -> assertEmpty(execute("SELECT * FROM %s WHERE v > 5 AND v < 3")));
+        beforeAndAfterFlush(() -> {
+            assertEmpty(execute("SELECT * FROM %s WHERE v > 5 AND v < 3"));
+            assertRows(execute("SELECT COUNT(*) FROM %s WHERE v > 5 AND v < 3"), row(0L));
+        });
     }
 
     @Test
@@ -100,6 +89,30 @@ public class EmptyRangeQueryTest extends SAITester
         assertRowsIgnoringOrder(execute("SELECT pk, ck FROM %s WHERE v >= 5 AND v <= 5 AND w = 0"), row(1, 2), row(2, 2));
         assertRows(execute("SELECT pk, ck FROM %s WHERE pk = 1 AND v >= 5 AND v <= 5"), row(1, 2));
         assertRowsIgnoringOrder(execute("SELECT pk, ck FROM %s WHERE v > 3 AND v < 5"), row(1, 3));
+    }
+
+    @Test
+    public void testInequality() throws Throwable
+    {
+        // A range with equal inclusive bounds that excludes its only value with an inequality can't match anything.
+        createTable("CREATE TABLE %s (pk int, ck int, v bigint, PRIMARY KEY (pk, ck))");
+        createIndex("CREATE INDEX ON %s(v) USING 'sai'");
+        disableCompaction();
+
+        execute("INSERT INTO %s (pk, ck, v) VALUES (1, 1, 3)");
+        execute("INSERT INTO %s (pk, ck, v) VALUES (1, 2, 5)");
+
+        beforeAndAfterFlush(() -> {
+            assertEmpty(execute("SELECT * FROM %s WHERE v >= 5 AND v <= 5 AND v != 5"));
+            assertEmpty(execute("SELECT * FROM %s WHERE v != 5 AND v >= 5 AND v <= 5"));
+            assertEmpty(execute("SELECT * FROM %s WHERE v >= 5 AND v <= 5 AND v != 5 AND v != 3"));
+            assertRows(execute("SELECT pk, ck FROM %s WHERE v >= 5 AND v <= 5 AND v != 3"), row(1, 2));
+            assertRows(execute("SELECT pk, ck FROM %s WHERE v >= 3 AND v <= 5 AND v != 5"), row(1, 1));
+        });
+
+        execute("INSERT INTO %s (pk, ck, v) VALUES (2, 1, 5)");
+        assertEmpty(execute("SELECT * FROM %s WHERE v >= 5 AND v <= 5 AND v != 5"));
+        assertRowsIgnoringOrder(execute("SELECT pk, ck FROM %s WHERE v >= 5 AND v <= 5 AND v != 3"), row(1, 2), row(2, 1));
     }
 
     @Test

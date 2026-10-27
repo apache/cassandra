@@ -26,6 +26,7 @@ import org.apache.cassandra.db.filter.RowFilter;
 import org.apache.cassandra.db.partitions.*;
 import org.apache.cassandra.exceptions.RequestExecutionException;
 import org.apache.cassandra.index.Index;
+import org.apache.cassandra.index.IndexRegistry;
 import org.apache.cassandra.schema.TableMetadata;
 import org.apache.cassandra.service.ClientState;
 import org.apache.cassandra.service.pager.QueryPager;
@@ -39,7 +40,10 @@ import org.apache.cassandra.utils.FBUtilities;
  */
 public interface ReadQuery
 {
-    public static ReadQuery empty(final TableMetadata metadata)
+    /**
+     * @return a read query that returns no rows
+     */
+    static ReadQuery empty(final TableMetadata metadata, DataLimits limits)
     {
         return new ReadQuery()
         {
@@ -112,13 +116,19 @@ public interface ReadQuery
             @Override
             public RowFilter rowFilter()
             {
-                return RowFilter.none();
+                return RowFilter.REJECT_ALL; // filters out all rows, so no rows are returned
             }
 
             @Override
             public ColumnFilter columnFilter()
             {
                 return ColumnFilter.NONE;
+            }
+
+            @Override
+            public void validateSelectOptions(SelectOptions selectOptions, ClientState state)
+            {
+                selectOptions.validate(state, metadata(), limits.count(), IndexRegistry.obtain(metadata()), null);
             }
         };
     }
