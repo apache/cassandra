@@ -133,6 +133,13 @@ Applying in this scenario (with base count 4) will reduce the potential number o
 The balance between the two can be further tweaked by increasing to get fewer but bigger sstables on the top level, and decreasing it to favour a higher count of smaller sstables. 
 The default value is 0.333 meaning the sstable size grows with the square root of the growth of the shard count.
 
+max_sstables_per_shard_factor::
+Limits the number of SSTables in each shard of a level.
+When a level has no overlapping SSTables to compact and one of its shards holds more SSTables than this factor times the level's fanout, all SSTables in that shard are compacted together.
+The value must be a number greater than or equal to 1, or 0 to disable this check.
++
+Default: `10`
+
 [[STCS]]
 ==== SizeTieredCompactionStrategy
 
