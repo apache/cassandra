@@ -1,4 +1,5 @@
 4.1.13
+ * Prevent negative BufferPool overflow memory accounting (CASSANDRA-21815)
  * PreV5Handlers.toFlushItem may leak memory on disconnected channel (CASSANDRA-21766)
 Merged from 4.0:
  * Fix global MemtableOffHeapDataSize metric reporting on-heap memtable usage (CASSANDRA-21762)
