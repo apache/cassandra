@@ -30,7 +30,6 @@ import org.apache.cassandra.auth.AuthenticatedUser;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.config.EncryptionOptions;
 import org.apache.cassandra.metrics.ClientMetrics;
-import org.apache.cassandra.transport.Dispatcher;
 import org.apache.cassandra.transport.Server;
 import org.apache.cassandra.utils.NativeLibrary;
 
@@ -45,7 +44,7 @@ import static org.apache.cassandra.config.CassandraRelevantProperties.NATIVE_EPO
 /**
  * Handles native transport server lifecycle and associated resources. Lazily initialized.
  */
-public class NativeTransportService
+public class NativeTransportService implements CassandraDaemon.Server
 {
 
     private static final Logger logger = LoggerFactory.getLogger(NativeTransportService.class);
@@ -126,8 +125,6 @@ public class NativeTransportService
         // shutdown executors used by netty for native transport server
         if (workerGroup != null)
             workerGroup.shutdownGracefully(3, 5, TimeUnit.SECONDS).awaitUninterruptibly();
-
-        Dispatcher.shutdown();
     }
 
     /**

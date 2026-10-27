@@ -20,15 +20,18 @@ package org.apache.cassandra.tools.nodetool;
 
 import java.nio.file.Files;
 import java.time.Instant;
+import java.util.HashSet;
+import java.util.Set;
 
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.node.ObjectNode;
 
+import org.junit.After;
 import org.junit.Assert;
 import org.junit.BeforeClass;
 import org.junit.Test;
 
-import org.apache.cassandra.cql3.CQLTester;
+import org.apache.cassandra.cql3.CQLNodetoolProtocolTester;
 import org.apache.cassandra.db.compression.CompressionDictionaryDetailsTabularData.CompressionDictionaryDataObject;
 import org.apache.cassandra.io.util.File;
 import org.apache.cassandra.io.util.FileUtils;
@@ -37,18 +40,28 @@ import org.apache.cassandra.utils.JsonUtils;
 import org.apache.cassandra.utils.Pair;
 
 import static java.lang.String.format;
-import static org.apache.cassandra.tools.ToolRunner.invokeNodetool;
 import static org.apache.cassandra.utils.JsonUtils.serializeToJsonFile;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.junit.Assert.assertTrue;
 
-public class ExportImportListCompressionDictionaryTest extends CQLTester
+public class ExportImportListCompressionDictionaryTest extends CQLNodetoolProtocolTester
 {
+    private final Set<String> createdTables = new HashSet<>();
+
     @BeforeClass
     public static void setup() throws Throwable
     {
         requireNetwork();
         startJMXServer();
+    }
+
+    @After
+    public void afterTest() throws Throwable
+    {
+        for (String table : createdTables)
+            execute(String.format("DROP TABLE IF EXISTS %s.%s", keyspace(), table));
+        createdTables.clear();
+        super.afterTest();
     }
 
     @Test
@@ -97,7 +110,7 @@ public class ExportImportListCompressionDictionaryTest extends CQLTester
                                                                 Instant.now()), pair.right);
 
         ToolResult result = invokeNodetool("compressiondictionary", "import", pair.right.absolutePath());
-        assertTrue(result.getStderr().contains("Unable to import dictionary JSON: Table abc.def does not exist or does not support dictionary compression"));
+        assertTrue(result.getStdout().contains("Table abc.def does not exist"));
     }
 
     @Test
@@ -117,7 +130,7 @@ public class ExportImportListCompressionDictionaryTest extends CQLTester
         JsonUtils.JSON_OBJECT_MAPPER.writeValue(jsonWithoutTable.toJavaIOFile(), node);
 
         ToolResult result = invokeNodetool("compressiondictionary", "import", jsonWithoutTable.absolutePath());
-        assertTrue(result.getStderr().contains("Unable to import dictionary JSON: Table not specified."));
+        assertTrue(result.getStderr().contains("Table not specified."));
     }
 
     @Test
@@ -136,7 +149,7 @@ public class ExportImportListCompressionDictionaryTest extends CQLTester
         result.assertOnCleanExit();
         // older will not be possible to import
         result = invokeNodetool("compressiondictionary", "import", pair.right.absolutePath());
-        assertTrue(result.getStderr().contains(format("Unable to import dictionary JSON: Dictionary to import has older dictionary id " +
+        assertTrue(result.getStdout().contains(format("Dictionary to import has older dictionary id " +
                                                       "(%s) than the latest compression dictionary (%s) " +
                                                       "for table %s.%s",
                                                       pair.left.dictId,
@@ -154,9 +167,16 @@ public class ExportImportListCompressionDictionaryTest extends CQLTester
 
         ToolResult result = invokeNodetool("compressiondictionary", "import", pair.right.absolutePath());
         Assert.assertEquals(1, result.getExitCode());
-        assertTrue(result.getStderr().contains(format("Unable to import dictionary JSON: Table %s.%s does not exist or does not support dictionary compression",
+        assertTrue(result.getStdout().contains(format("The compression on table %s.%s is not enabled or SSTable compressor is not a dictionary compressor",
                                                       keyspace(),
                                                       table)));
+    }
+
+    protected String createTable(String query)
+    {
+        String table = createTable(KEYSPACE, query);
+        createdTables.add(table);
+        return table;
     }
 
     private void importDictionary(File dictFile)
@@ -193,8 +213,11 @@ public class ExportImportListCompressionDictionaryTest extends CQLTester
 
     private Pair<CompressionDictionaryDataObject, File> trainAndExport(String table) throws Throwable
     {
+        disableCompaction();
         trainDictionary(table);
-        return export(table, null);
+        Pair<CompressionDictionaryDataObject, File> pair = export(table, null);
+        enableCompaction();
+        return pair;
     }
 
     private Pair<CompressionDictionaryDataObject, File> export(String table, Long id) throws Throwable

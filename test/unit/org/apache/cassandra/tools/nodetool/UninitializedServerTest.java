@@ -21,12 +21,12 @@ package org.apache.cassandra.tools.nodetool;
 import org.junit.BeforeClass;
 import org.junit.Test;
 
-import org.apache.cassandra.cql3.CQLTester;
+import org.apache.cassandra.cql3.CQLNodetoolProtocolTester;
 import org.apache.cassandra.tools.ToolRunner;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
-public class UninitializedServerTest extends CQLTester
+public class UninitializedServerTest extends CQLNodetoolProtocolTester
 {
     @BeforeClass
     public static void setup() throws Exception
@@ -39,7 +39,7 @@ public class UninitializedServerTest extends CQLTester
     {
         // CASSANDRA-11537
         // fails, not finished initializing node because test never calls requireNetwork()
-        ToolRunner.ToolResult tool = ToolRunner.invokeNodetool("status");
+        ToolRunner.ToolResult tool = invokeNodetool("status");
         assertThat(tool.getException() instanceof IllegalArgumentException);
         assertThat(tool.getStderr().contains("Server is not initialized yet, cannot run nodetool."));
     }
