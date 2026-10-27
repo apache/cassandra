@@ -133,7 +133,18 @@ public class BigTableReader extends SSTableReaderWithFilter implements IndexSumm
                                              boolean reversed,
                                              SSTableReadsListener listener)
     {
-        RowIndexEntry rie = getRowIndexEntry(key, SSTableReader.Operator.EQ, true, listener);
+        return rowIterator(key, slices, selectedColumns, reversed, listener, false);
+    }
+
+    @Override
+    public UnfilteredRowIterator rowIterator(DecoratedKey key,
+                                             Slices slices,
+                                             ColumnFilter selectedColumns,
+                                             boolean reversed,
+                                             SSTableReadsListener listener,
+                                             boolean skipBloomFilterCheck)
+    {
+        RowIndexEntry rie = getRowIndexEntry(key, SSTableReader.Operator.EQ, true, listener, skipBloomFilterCheck);
         return rowIterator(null, key, rie, slices, selectedColumns, reversed);
     }
 
@@ -253,6 +264,15 @@ public class BigTableReader extends SSTableReaderWithFilter implements IndexSumm
                                           boolean updateStats,
                                           SSTableReadsListener listener)
     {
+        return getRowIndexEntry(key, operator, updateStats, listener, false);
+    }
+
+    private RowIndexEntry getRowIndexEntry(PartitionPosition key,
+                                           Operator operator,
+                                           boolean updateStats,
+                                           SSTableReadsListener listener,
+                                           boolean skipBloomFilterCheck)
+    {
         // Having no index file is impossible in a normal operation. The only way it might happen is running
         // Scrubber that does not really rely on this method.
         if (ifile == null)
@@ -288,7 +308,7 @@ public class BigTableReader extends SSTableReaderWithFilter implements IndexSumm
             return null;
         }
 
-        if (searchOp == Operator.EQ)
+        if (searchOp == Operator.EQ && !skipBloomFilterCheck)
         {
             assert key instanceof DecoratedKey; // EQ only make sense if the key is a valid row key
             if (!isPresentInFilter((IFilter.FilterKey) key))
