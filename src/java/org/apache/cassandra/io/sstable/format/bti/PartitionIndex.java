@@ -255,6 +255,13 @@ public class PartitionIndex implements SharedCloseable
                 int read = fh.channel.read(buffer, pos);
                 if (read < 0)
                     throw new EOFException("Failed to read " + fh.path() + " at position " + pos);
+                else if (read == 0)
+                {
+                    // Shouldn't happen on a blocking file channel with space remaining, but stop rather than spin.
+                    logger.warn("Read 0 bytes from {} at position {}, partition index partially warmed ({} of {} bytes)",
+                                fh.path(), pos, pos - start, firstPos - start);
+                    break;
+                }
 
                 pos += read;
             }
