@@ -43,6 +43,7 @@ import com.google.common.collect.ImmutableList;
 import com.google.common.collect.Sets;
 import com.google.common.util.concurrent.Uninterruptibles;
 
+import org.awaitility.Awaitility;
 import org.junit.After;
 import org.junit.AfterClass;
 import org.junit.Assert;
@@ -641,6 +642,7 @@ public class ConnectionTest
 
                 // Simulate disconnect
                 inbound.close().get(10, SECONDS);
+                Awaitility.await().atMost(10, SECONDS).until(() -> !outbound.isConnected());
                 MessagingService.instance().removeInbound(endpoint);
                 inbound = new InboundSockets(settings.inbound.apply(new InboundConnectionSettings()));
                 inbound.open().sync();
