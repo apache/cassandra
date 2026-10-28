@@ -576,9 +576,9 @@ public class MutationTrackingPendingReadTest
             // the read stage rethrows the augment failure after failing the read's promise
             cluster.setUncaughtExceptionsFilter(t -> t.getMessage() != null && t.getMessage().startsWith("Missing mutation"));
 
-            // node 2 is the read's only summary node; while it is down the reconciliation stays pending until the
-            // test acknowledges it by hand
-            cluster.get(2).shutdown().get();
+            // node 2 is the read's only summary node; drop summary requests so the reconciliation stays pending until
+            // the test acknowledges it by hand
+            cluster.filters().verbs(Verb.MT_SUMMARY_REQ.id).from(1).to(2).drop();
 
             cluster.get(1).runOnInstance(() -> {
                 TableMetadata metadata = Schema.instance.getTableMetadata(keyspaceName, tableName);
@@ -593,7 +593,7 @@ public class MutationTrackingPendingReadTest
                     MutationTrackingService.instance().localReads().beginRead(readId,
                                                                              clusterMetadata,
                                                                              command,
-                                                                             org.apache.cassandra.db.ConsistencyLevel.ONE,
+                                                                             org.apache.cassandra.db.ConsistencyLevel.ALL,
                                                                              new int[]{ summaryNode.id() },
                                                                              Dispatcher.RequestTime.forImmediateExecution(),
                                                                              TrackedLocalReads.Completer.DEFAULT);
