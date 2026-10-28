@@ -546,6 +546,8 @@ def buildJVMDTestJars(cell, script_vars, logfile) {
     try {
       unstash name: "jvm_dtests_${cell.arch}_${cell.jdk}"
     } catch (error) {
+      // a failed unstash can leave partially extracted jars behind
+      sh label: "removing partially unstashed dtest jars...", script: "rm -f build/dtest-*.jar"
       sh label: "RUNNING build_dtest_jars...", script: filterConsoleOutput("${script_vars} .build/docker/run-tests.sh -a build_dtest_jars -j ${cell.jdk} 2>&1 | tee >( xz -c > build/${logfile} )")
       stash name: "jvm_dtests_${cell.arch}_${cell.jdk}", includes: '**/dtest*.jar'
     }
