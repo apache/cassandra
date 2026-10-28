@@ -57,6 +57,15 @@ public class AuthMessageSizeLimitTest extends NativeProtocolLimitsTestBase
         ClientResourceLimits.setEndpointLimit(MAX_CQL_MESSAGE_SIZE);
     }
 
+    // The server rejects a multi-frame auth message on its first frame and resets the connection, possibly
+    // while the client is still writing the remaining frames. Keep the channel open after that write fails,
+    // otherwise the error response already received from the server is dropped unread.
+    @Override
+    protected SimpleClient.Builder clientBuilder()
+    {
+        return super.clientBuilder().closeOnWriteFailure(false);
+    }
+
     @Test
     public void sendSmallAuthMessage()
     {
