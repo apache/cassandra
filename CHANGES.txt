@@ -1,4 +1,5 @@
 4.1.13
+ * Fix NullPointerException in nodetool listpendinghints when a hint is pending for a host id no longer in the ring (CASSANDRA-21538)
 Merged from 4.0:
  * Validate Digest.crc32 when zero-copy streaming SSTables (CASSANDRA-21694)
  * Avoid DNS lookup for hostname column in ClientsTable and GossipInfoTable (CASSANDRA-21539)

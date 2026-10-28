@@ -37,6 +37,8 @@ import org.apache.cassandra.tools.nodetool.formatter.TableBuilder;
 @Command(name = "listpendinghints", description = "Print all pending hints that this node has")
 public class ListPendingHints extends NodeTool.NodeToolCmd
 {
+    private static final String UNKNOWN = "Unknown";
+
     @Override
     public void execute(NodeProbe probe)
     {
@@ -65,26 +67,31 @@ public class ListPendingHints extends NodeTool.NodeToolCmd
                 LocalDateTime oldest = Instant.ofEpochMilli(Long.parseLong(hintInfo.get(PendingHintsInfo.OLDEST_TIMESTAMP)))
                                               .atZone(ZoneId.of("UTC"))
                                               .toLocalDateTime();
+                // Defaults match PendingHintsTable: unresolved location fields report as Unknown.
+                // Address can be null when a hint is still pending for a host id that is no longer
+                // part of the ring (removed / decommissioned / replaced); skip snitch and gossip
+                // lookups in that case to avoid an NPE on the null address.
                 String address = endpointMap.get(endpoint);
-                String rack = null;
-                String dc = null;
-                String status = null;
-                try
+                String rack = UNKNOWN;
+                String dc = UNKNOWN;
+                String status = UNKNOWN;
+                if (address != null)
                 {
-                    rack = epSnitchInfo.getRack(address);
-                    dc = epSnitchInfo.getDatacenter(address);
-                    status = simpleStates.getOrDefault(InetAddressAndPort.getByName(address).toString(),
-                                                       "Unknown");
-                }
-                catch (UnknownHostException e)
-                {
-                    rack = rack != null ? rack : "Unknown";
-                    dc = dc != null ? dc : "Unknown";
-                    status = "Unknown";
+                    try
+                    {
+                        rack = epSnitchInfo.getRack(address);
+                        dc = epSnitchInfo.getDatacenter(address);
+                        status = simpleStates.getOrDefault(InetAddressAndPort.getByName(address).toString(),
+                                                           status);
+                    }
+                    catch (UnknownHostException e)
+                    {
+                        // Keep any fields already resolved above; unresolved ones stay Unknown.
+                    }
                 }
 
                 tableBuilder.add(endpoint,
-                                 address,
+                                 address != null ? address : UNKNOWN,
                                  rack,
                                  dc,
                                  status,
