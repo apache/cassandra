@@ -1,6 +1,7 @@
 4.1.13
  * PreV5Handlers.toFlushItem may leak memory on disconnected channel (CASSANDRA-21766)
 Merged from 4.0:
+ * Prepared statement metadata no longer reports slice bind markers on a partition key as partition key bind indexes (CASSANDRA-21740)
  * Fix global MemtableOffHeapDataSize metric reporting on-heap memtable usage (CASSANDRA-21762)
  * Fix function inference for arithmetic on DESC clustering columns (CASSANDRA-19919)
  * Fix incorrect fsync usage (CASSANDRA-21673)
