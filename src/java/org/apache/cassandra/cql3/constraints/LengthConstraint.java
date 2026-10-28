@@ -92,7 +92,7 @@ public class LengthConstraint extends ConstraintFunction
         }
         catch (Exception e)
         {
-            throw new InvalidConstraintDefinitionException(format("String '%s' is not a valid int", Integer.parseInt(term)));
+            throw new InvalidConstraintDefinitionException(format("String '%s' is not a valid int", term));
         }
     }
 
