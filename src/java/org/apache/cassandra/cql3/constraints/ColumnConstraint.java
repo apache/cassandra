@@ -132,6 +132,18 @@ public abstract class ColumnConstraint<T>
     protected abstract void internalEvaluate(AbstractType<?> valueType, ByteBuffer columnValue);
 
     /**
+     * Pre-computes state that depends on the type of the column. Called when the column is created, whether from CQL or
+     * read back from cluster metadata, which is not validated. A constraint that cannot be prepared is rejected later
+     * by {@link #validate(ColumnMetadata)}.
+     *
+     * @param columnType type of the column in which the constraint is defined.
+     */
+    public void prepare(AbstractType<?> columnType)
+    {
+        // Do nothing
+    }
+
+    /**
      * Method to validate the condition. This method is called when creating constraint via CQL.
      * A {@link InvalidConstraintDefinitionException} is thrown for invalid consrtaint definition.
      *
