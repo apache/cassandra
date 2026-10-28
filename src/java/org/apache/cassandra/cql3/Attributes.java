@@ -94,6 +94,9 @@ public class Attributes
         if (tval == ByteBufferUtil.UNSET_BYTE_BUFFER)
             return now;
 
+        if (ByteBufferUtil.EMPTY_BYTE_BUFFER.equals(tval))
+            throw new InvalidRequestException("Invalid null value of timestamp");
+
         try
         {
             LongType.instance.validate(tval);
@@ -187,3 +190,4 @@ public class Attributes
         return ToStringBuilder.reflectionToString(this, ToStringStyle.SHORT_PREFIX_STYLE);
     }
 }
+
