@@ -323,6 +323,13 @@ public final class SingleColumnRelation extends Relation
             }
         }
 
+        // Only EQ and IN bind markers identify a value the column must equal, so only those are safe to report as
+        // partition-key bind indexes for token-aware routing (see VariableSpecifications#getPartitionKeyBindVariableIndexes).
+        // Every other operator (slices, LIKE, ...) binds a range bound or a pattern, not a value identifying the
+        // restricted column, so we must not hand it the real ColumnMetadata.
+        if (receiver instanceof ColumnMetadata && !isEQ() && !isIN())
+            receiver = new ColumnSpecification(receiver.ksName, receiver.cfName, receiver.name, receiver.type);
+
         return Collections.singletonList(receiver);
     }
 
