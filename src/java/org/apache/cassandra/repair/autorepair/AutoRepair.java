@@ -430,6 +430,9 @@ public class AutoRepair
     @VisibleForTesting
     boolean shouldSkipRepairDueToInterval(AutoRepairConfig.RepairType repairType, AutoRepairState repairState, AutoRepairConfig config, UUID myId)
     {
+        // Load the repair times even when force repair skips the interval check: the end of the run measures
+        // ClusterRepairTimeInSec from the previous finish time.
+        maybeLoadRepairTimes(repairType, repairState, myId);
         if (AutoRepairUtils.isForceRepairSetForNode(repairType, myId))
         {
             logger.info("Force repair is set for this node, bypassing min_repair_interval check");
@@ -449,13 +452,7 @@ public class AutoRepair
     @VisibleForTesting
     boolean tooSoonToRunRepair(AutoRepairConfig.RepairType repairType, AutoRepairState repairState, AutoRepairConfig config, UUID myId)
     {
-        if (repairState.getLastRepairFinishTime() == 0)
-        {
-            // the node has either just booted or has not run repair before,
-            // we should check for the node's repair history in the DB
-            repairState.setLastRepairFinishTime(AutoRepairUtils.getLastRepairFinishTimeForNode(repairType, myId));
-            repairState.setLastRepairStartTime(AutoRepairUtils.getLastRepairStartTimeForNode(repairType, myId));
-        }
+        maybeLoadRepairTimes(repairType, repairState, myId);
 
         // If repair has not completed (start >= finish), don't skip - allow it to continue/resume
         if (repairState.getLastRepairStartTime() >= repairState.getLastRepairFinishTime())
@@ -478,6 +475,19 @@ public class AutoRepair
             return true;
         }
         return false;
+    }
+
+    /**
+     * Load the repair times when the value is not set. This can happen when the node just started or repair
+     * has not run before.
+     */
+    private void maybeLoadRepairTimes(AutoRepairConfig.RepairType repairType, AutoRepairState repairState, UUID myId)
+    {
+        if (repairState.getLastRepairFinishTime() == 0)
+        {
+            repairState.setLastRepairFinishTime(AutoRepairUtils.getLastRepairFinishTimeForNode(repairType, myId));
+            repairState.setLastRepairStartTime(AutoRepairUtils.getLastRepairStartTimeForNode(repairType, myId));
+        }
     }
 
     private List<String> retrieveTablesToBeRepaired(Keyspace keyspace, AutoRepairConfig config, AutoRepairConfig.RepairType repairType, AutoRepairState repairState, CollectedRepairStats collectedRepairStats)

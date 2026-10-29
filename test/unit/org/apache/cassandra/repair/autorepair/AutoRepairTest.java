@@ -21,6 +21,7 @@ package org.apache.cassandra.repair.autorepair;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.UUID;
+import java.util.concurrent.TimeUnit;
 
 import org.junit.Assert;
 import org.junit.Before;
@@ -309,6 +310,46 @@ public class AutoRepairTest extends CQLTester
     }
 
     @Test
+    public void testForceRepairAfterRestartUpdatesClusterRepairTime()
+    {
+        RepairType repairType = RepairType.FULL;
+        UUID myId = StorageService.instance.getHostIdForEndpoint(FBUtilities.getBroadcastAddressAndPort());
+        long now = System.currentTimeMillis();
+        long previousFinish = now - TimeUnit.HOURS.toMillis(1);
+
+        DurationSpec.LongSecondsBound repairTaskMinDuration = DatabaseDescriptor.getAutoRepairConfig().getRepairTaskMinDuration();
+        // Ensure repair tasks don't artificially sleep
+        DatabaseDescriptor.getAutoRepairConfig().setRepairTaskMinDuration("0s");
+        try
+        {
+            // Truncate history table to start fresh
+            QueryProcessor.executeInternal(String.format(
+                "TRUNCATE %s.%s",
+                SchemaConstants.DISTRIBUTED_KEYSPACE_NAME, SystemDistributedKeyspace.AUTO_REPAIR_HISTORY));
+
+            // A repair that finished an hour ago, with force repair requested since
+            QueryProcessor.executeInternal(String.format(
+                "INSERT INTO %s.%s (repair_type, host_id, repair_start_ts, repair_finish_ts, force_repair) VALUES (?, ?, ?, ?, true)",
+                SchemaConstants.DISTRIBUTED_KEYSPACE_NAME, SystemDistributedKeyspace.AUTO_REPAIR_HISTORY),
+                repairType.toString(), myId, new java.util.Date(previousFinish - 1000), new java.util.Date(previousFinish));
+
+            simulateRestart(AutoRepair.instance.repairStates.get(repairType));
+
+            AutoRepair.instance.repair(repairType);
+
+            assertTrue("force repair should have run",
+                       AutoRepairUtils.getLastRepairFinishTimeForNode(repairType, myId) > previousFinish);
+            assertTrue("ClusterRepairTimeInSec should measure from the finish time in auto_repair_history, but was "
+                       + AutoRepair.instance.repairStates.get(repairType).getClusterRepairTimeInSec(),
+                       AutoRepair.instance.repairStates.get(repairType).getClusterRepairTimeInSec() >= TimeUnit.HOURS.toSeconds(1));
+        }
+        finally
+        {
+            DatabaseDescriptor.getAutoRepairConfig().setRepairTaskMinDuration(repairTaskMinDuration.toString());
+        }
+    }
+
+    @Test
     public void testTooSoonToRunRepairAllowsResumeOfInProgressRepair()
     {
         RepairType repairType = RepairType.FULL;
@@ -372,5 +413,12 @@ public class AutoRepairTest extends CQLTester
 
         // Should return false because repair is incomplete (start >= finish edge case)
         assertFalse(AutoRepair.instance.tooSoonToRunRepair(repairType, repairState, config, myId));
+    }
+
+    private static void simulateRestart(AutoRepairState repairState)
+    {
+        repairState.setLastRepairFinishTime(0);
+        repairState.setLastRepairStartTime(0);
+        repairState.setClusterRepairTimeInSec(0);
     }
 }
