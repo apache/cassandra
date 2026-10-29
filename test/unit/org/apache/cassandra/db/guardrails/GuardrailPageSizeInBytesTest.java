@@ -178,7 +178,7 @@ public class GuardrailPageSizeInBytesTest extends ThresholdTester
         try (SimpleClient client = newSimpleClient(ProtocolVersion.CURRENT))
         {
             authenticate(client);
-            String query = formatQuery("SELECT * FROM %s WHERE k = 0");
+            String query = formatQuery("SELECT * FROM %s WHERE k = ?");
             ResultMessage.Prepared prepared = client.prepare(query);
             for (boolean usePrepared : new boolean[]{ false, true })
             {
@@ -204,7 +204,7 @@ public class GuardrailPageSizeInBytesTest extends ThresholdTester
                 for (boolean usePrepared : new boolean[]{ false, true })
                 {
                     setPeerVersion(NodeVersion.CURRENT);
-                    String query = formatQuery("SELECT * FROM %s WHERE k = 0 LIMIT 4");
+                    String query = formatQuery("SELECT * FROM %s WHERE k = ? LIMIT 4");
                     ResultMessage.Prepared prepared = client.prepare(query);
                     ResultMessage.Rows first = rows(client.execute(request(query, prepared, usePrepared, 1, null)));
                     assertClustering(first, 0);
@@ -223,7 +223,7 @@ public class GuardrailPageSizeInBytesTest extends ThresholdTester
                     assertThat(last.result.metadata.getPagingState()).isNull();
 
                     assertFailure(client.execute(request(query, prepared, usePrepared, 3, null), false), failure(3, 2));
-                    String limited = formatQuery("SELECT * FROM %s WHERE k = 0 LIMIT 1");
+                    String limited = formatQuery("SELECT * FROM %s WHERE k = ? LIMIT 1");
                     ResultMessage.Prepared limitedPrepared = client.prepare(limited);
                     assertFailure(client.execute(request(limited, limitedPrepared, usePrepared, 3, null), false), failure(3, 2));
                 }
@@ -314,7 +314,9 @@ public class GuardrailPageSizeInBytesTest extends ThresholdTester
 
     private static Message.Request request(String query, ResultMessage.Prepared prepared, boolean usePrepared, int bytes, PagingState state)
     {
-        QueryOptions options = options(PageSize.inBytes(bytes), state);
+        QueryOptions options = QueryOptions.create(ConsistencyLevel.ONE, Collections.singletonList(ByteBufferUtil.bytes(0)),
+                                                   false, PageSize.inBytes(bytes), state, null, ProtocolVersion.CURRENT, KEYSPACE);
+
         return usePrepared ? new ExecuteMessage(prepared.statementId, prepared.resultMetadataId, options)
                            : new QueryMessage(query, options);
     }
