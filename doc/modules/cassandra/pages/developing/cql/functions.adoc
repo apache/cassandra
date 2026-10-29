@@ -588,6 +588,61 @@ include::cassandra:example$JAVA/udf_imports.java[]
 
 Please note, that these convenience imports are not available for script UDFs.
 
+==== UDF restrictions
+
+UDFs run inside the Cassandra Java Virtual Machine (JVM).
+Cassandra checks UDF bytecode.
+It restricts the classes that a UDF can load.
+These controls do not provide complete process isolation.
+A UDF can consume processor time or heap memory.
+Grant permission to create functions only to trusted roles.
+
+Set the JVM system property `cassandra.udf.security_mechanism` before node startup.
+The default value is `auto`.
+
+[cols="1,3",options="header"]
+|===
+|Value |Behavior
+|`auto` |Cassandra uses the Java security manager based sandbox before Java Development Kit (JDK) 24.
+It uses the bytecode sandbox on JDK 24 and later.
+|`sandbox` |Cassandra uses the bytecode sandbox on every supported JDK.
+It skips security manager and security policy installation.
+|`securitymanager` |Cassandra requires the Java security manager based sandbox.
+Startup fails if the runtime cannot install the security manager.
+|===
+
+An invalid value causes a configuration error.
+For example, add `-Dcassandra.udf.security_mechanism=sandbox` to the JVM options to select the sandbox.
+Use a JDK version that Cassandra supports.
+
+The bytecode sandbox rejects restricted calls when Cassandra creates a function.
+It blocks system property access and environment access.
+It blocks process exit and native library loading.
+It blocks changes to standard input and output.
+It also blocks changes to the default process locale and time zone.
+It blocks indirect property access through `Integer.getInteger`, `Long.getLong`, and `Boolean.getBoolean`.
+The class loader blocks file access and process control.
+It also blocks reflection and method handles.
+The verifier rejects `ClassLoader` calls.
+It also rejects calls through `Module` and `ModuleLayer`.
+It rejects `Class.getModule`.
+A function cannot declare additional classes.
+
+UDF threads can execute calls to `System.nanoTime`, `System.currentTimeMillis`, and `System.arraycopy`.
+Cassandra applies warning and failure timeouts when `user_defined_functions_threads_enabled=true`.
+The `user_function_timeout_policy` setting controls the response to a failure timeout.
+
+To permit restricted `System` access, use these settings:
+
+. Set `allow_insecure_udfs=true` in `cassandra.yaml`.
+. Set `user_defined_functions_threads_enabled=false` in `cassandra.yaml`.
+. Set `allow_extra_insecure_udfs=true` in `cassandra.yaml`.
+
+This configuration permits restricted `System` method calls and indirect property access.
+With UDF threads enabled, the selected sandbox still enforces its restrictions.
+The class loader restrictions and the base bytecode checks still apply.
+Cassandra applies execution timeouts only when UDF threads are enabled.
+
 [[create-function-statement]]
 === CREATE FUNCTION statement
 
