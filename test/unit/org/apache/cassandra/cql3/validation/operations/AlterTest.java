@@ -568,6 +568,58 @@ public class AlterTest extends CQLTester
         }
     }
 
+    @Test
+    public void testDropAndReAddFrozenUDT() throws Throwable
+    {
+        String udt = createType("CREATE TYPE %s (a int, b text)");
+        createTable("CREATE TABLE %s (k int PRIMARY KEY, x frozen<" + udt + ">)");
+        execute("INSERT INTO %s (k, x) VALUES (0, {a: 1, b: 'one'})");
+
+        alterTable("ALTER TABLE %s DROP x");
+        alterTable("ALTER TABLE %s ADD x frozen<" + udt + ">");
+
+        assertRows(execute("SELECT x FROM %s WHERE k = 0"), row((Object) null));
+        execute("INSERT INTO %s (k, x) VALUES (1, {a: 2, b: 'two'})");
+        assertRows(execute("SELECT x.a, x.b FROM %s WHERE k = 1"), row(2, "two"));
+    }
+
+    @Test
+    public void testDropAndReAddNestedFrozenUDT() throws Throwable
+    {
+        String udt = createType("CREATE TYPE %s (a int, b text)");
+        for (String type : new String[] { "list<frozen<" + udt + ">>",
+                                          "map<text, frozen<" + udt + ">>",
+                                          "frozen<tuple<int, frozen<" + udt + ">>>" })
+        {
+            createTable("CREATE TABLE %s (k int PRIMARY KEY, x " + type + ')');
+            alterTable("ALTER TABLE %s DROP x");
+            alterTable("ALTER TABLE %s ADD x " + type);
+        }
+    }
+
+    @Test
+    public void testDropFrozenUDTAndAddNonFrozenUDT() throws Throwable
+    {
+        String udt = createType("CREATE TYPE %s (a int, b text)");
+        createTable("CREATE TABLE %s (k int PRIMARY KEY, x frozen<" + udt + ">)");
+        alterTable("ALTER TABLE %s DROP x");
+
+        assertInvalidMessage("incompatible with previously dropped column 'x' of type frozen<tuple<int, text>>",
+                             "ALTER TABLE %s ADD x " + udt);
+    }
+
+    @Test
+    public void testDropFrozenUDTAndAddIncompatibleUDT() throws Throwable
+    {
+        String udt = createType("CREATE TYPE %s (a int, b text)");
+        String otherUdt = createType("CREATE TYPE %s (a text, b text)");
+        createTable("CREATE TABLE %s (k int PRIMARY KEY, x frozen<" + udt + ">)");
+        alterTable("ALTER TABLE %s DROP x");
+
+        assertInvalidMessage("incompatible with previously dropped column 'x' of type frozen<tuple<int, text>>",
+                             "ALTER TABLE %s ADD x frozen<" + otherUdt + '>');
+    }
+
     @Test(expected = InvalidRequestException.class)
     public void testDropFixedAddVariable() throws Throwable
     {
