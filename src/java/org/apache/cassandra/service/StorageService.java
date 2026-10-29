@@ -1687,6 +1687,22 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
                 }
                 ClusterMetadataService.instance().commit(new Unregister(nodeId, EnumSet.of(REGISTERED, BOOTSTRAPPING, BOOT_REPLACING), ClusterMetadataService.instance().placementProvider()));
                 break;
+            case JOINED:
+                if (metadata.inProgressSequences.contains(nodeId))
+                {
+                    MultiStepOperation<?> seq = metadata.inProgressSequences.get(nodeId);
+                    if (seq.kind() != MultiStepOperation.Kind.JOIN && seq.kind() != MultiStepOperation.Kind.REPLACE)
+                        throw new RuntimeException("Can't abort bootstrap for " + nodeId + " since it is not bootstrapping");
+                    // handle the case when BootstrapAndJoin or BootstrapAndReplace get stuck
+                    // at sealing the shards when executing RETIRE_SINGLE_NODE_SEQUENCE step
+                    if (seq.nextStep() == Transformation.Kind.RETIRE_SINGLE_NODE_SEQUENCE)
+                    {
+                        // cancel the MSO; this will unlock the range (via BootstrapAndJoin/BootstrapAndReplace#cancel())
+                        // but otherwise leave the node in JOINED and still throw an RTE
+                        ClusterMetadataService.instance().commit(new CancelInProgressSequence(nodeId));
+                    }
+                }
+                // fall through to default: on purpose
             default:
                 throw new RuntimeException("Can't abort bootstrap for node " + nodeId + " since the state is " + nodeState);
         }
