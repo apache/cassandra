@@ -427,6 +427,11 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
         return new OwnedRanges(getReplicas(keyspaceName, broadcastAddress).ranges());
     }
 
+    public OwnedRanges getNormalizedLocalFullRanges(String keyspaceName, InetAddressAndPort broadcastAddress)
+    {
+        return new OwnedRanges(getReplicas(keyspaceName, broadcastAddress).onlyFull().ranges());
+    }
+
     @Deprecated(since = "CEP-21")
     public Collection<Range<Token>> getPrimaryRanges(String keyspace)
     {

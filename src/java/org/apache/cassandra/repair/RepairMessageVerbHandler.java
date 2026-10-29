@@ -517,7 +517,7 @@ public class RepairMessageVerbHandler implements IVerbHandler<RepairMessage>
     private static boolean acceptMessage(final RepairJobDesc desc, InetAddressAndPort broadcastAddressAndPort, final InetAddressAndPort from)
     {
         return StorageService.instance
-               .getNormalizedLocalRanges(desc.keyspace, broadcastAddressAndPort)
+               .getNormalizedLocalFullRanges(desc.keyspace, broadcastAddressAndPort)
                .validateRangeRequest(desc.ranges, "RepairSession #" + desc.parentSessionId, "validation request", from);
     }
 
