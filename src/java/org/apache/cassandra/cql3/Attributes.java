@@ -190,4 +190,3 @@ public class Attributes
         return ToStringBuilder.reflectionToString(this, ToStringStyle.SHORT_PREFIX_STYLE);
     }
 }
-
