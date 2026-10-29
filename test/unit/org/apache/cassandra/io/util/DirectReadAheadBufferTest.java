@@ -19,16 +19,25 @@ package org.apache.cassandra.io.util;
 
 import java.lang.management.BufferPoolMXBean;
 import java.lang.management.ManagementFactory;
+import java.nio.channels.FileChannel;
+import java.nio.file.Files;
+import java.nio.file.StandardOpenOption;
 import java.util.Arrays;
 import java.util.List;
+import java.util.Random;
 
 import org.junit.Assert;
+import org.junit.Rule;
 import org.junit.Test;
+import org.junit.rules.TemporaryFolder;
 
+import org.apache.cassandra.io.compress.CorruptBlockException;
 import org.apache.cassandra.utils.Pair;
 
 public class DirectReadAheadBufferTest extends ReadAheadBufferTest
 {
+    @Rule
+    public TemporaryFolder tempFolder = new TemporaryFolder();
 
     @Test
     public void testBufferSizes()
@@ -97,6 +106,43 @@ public class DirectReadAheadBufferTest extends ReadAheadBufferTest
                 "Before: " + memoryUsedBefore + ", After: " + memoryUsedAfter +
                 ", Expected decrease: ~" + expectedDecrease + ", Actual: " + actualDecrease,
                 actualDecrease >= expectedDecrease * 0.9); // 10% tolerance for alignment
+        }
+    }
+
+    @Test
+    public void testShortReadThrowsCorruptBlockException() throws Exception
+    {
+        int blockSize = FileUtils.getFileBlockSize(files[0]);
+        File file = new File(tempFolder.newFile("direct_read_ahead_short_read.bin"));
+        byte[] data = new byte[blockSize * 4];
+        new Random(seed).nextBytes(data);
+        Files.write(file.toPath(), data);
+
+        try (ChannelProxy channel = new ChannelProxy(file, ChannelProxy.IOMode.DIRECT))
+        {
+            // The buffer captures the channel size on construction, so truncating afterwards makes the
+            // next block load come up short, as it would for an SSTable truncated underneath a scan.
+            DirectReadAheadBuffer rab = new DirectReadAheadBuffer(channel, blockSize * 4, blockSize);
+            try (FileChannel fileChannel = FileChannel.open(file.toPath(), StandardOpenOption.WRITE))
+            {
+                fileChannel.truncate(blockSize + blockSize / 2);
+            }
+
+            try
+            {
+                rab.fill(0);
+                Assert.fail("Expected CorruptBlockException for a short read");
+            }
+            catch (CorruptBlockException e)
+            {
+                // CorruptBlockException, not CorruptSSTableException, so that CompressedChunkReader.Direct.readChunk
+                // resets its output buffer before rethrowing
+                Assert.assertTrue(e.getMessage().contains(file.name()));
+            }
+            finally
+            {
+                rab.close();
+            }
         }
     }
 
