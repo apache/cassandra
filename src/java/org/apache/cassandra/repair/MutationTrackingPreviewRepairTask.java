@@ -18,6 +18,7 @@
 package org.apache.cassandra.repair;
 
 import java.util.ArrayList;
+import java.util.Collection;
 import java.util.Collections;
 import java.util.Comparator;
 import java.util.HashMap;
@@ -27,10 +28,13 @@ import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.atomic.AtomicInteger;
 
+import com.google.common.collect.Sets;
+
 import org.apache.cassandra.concurrent.ExecutorPlus;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.db.ColumnFamilyStore;
 import org.apache.cassandra.db.Keyspace;
+import org.apache.cassandra.dht.NormalizedRanges;
 import org.apache.cassandra.dht.Range;
 import org.apache.cassandra.dht.Token;
 import org.apache.cassandra.io.sstable.format.SSTableReader;
@@ -40,6 +44,7 @@ import org.apache.cassandra.replication.CoordinatorLogId;
 import org.apache.cassandra.replication.MutationTrackingSyncCoordinator;
 import org.apache.cassandra.replication.Offsets;
 import org.apache.cassandra.replication.ValidationOffsets;
+import org.apache.cassandra.service.StorageService;
 import org.apache.cassandra.service.snapshot.SnapshotManager;
 import org.apache.cassandra.tcm.ClusterMetadata;
 import org.apache.cassandra.tcm.Epoch;
@@ -138,6 +143,11 @@ public class MutationTrackingPreviewRepairTask extends AbstractRepairTask
         return promise;
     }
 
+    private static boolean isLocalFull(NormalizedRanges<Token> localFullRanges, Collection<Range<Token>> ranges)
+    {
+        return NormalizedRanges.normalizedRanges(ranges).subtract(localFullRanges).isEmpty();
+    }
+
     boolean epochChanged(Epoch epochAtStart)
     {
         return !ClusterMetadata.current().epoch.equals(epochAtStart);
@@ -152,13 +162,17 @@ public class MutationTrackingPreviewRepairTask extends AbstractRepairTask
             return;
         }
 
-        // Union of all endpoints across common ranges, passed to the snapshot fan-out on mismatch.
-        // Common range only holds the remote replicas only. The coordinator is implicit and must
-        // be added explicitly so it also receives a SNAPSHOT_REQ for its own local snapshot.
+        // Union of all full replica endpoints across common ranges, passed to the snapshot fan-out on mismatch.
+        // Common range holds remote replicas only. The coordinator is implicit and is added only if it is a full
+        // replica for at least one common range.
+        NormalizedRanges<Token> localFullRanges = NormalizedRanges.normalizedRanges(StorageService.instance.getLocalReplicas(keyspace).onlyFull().ranges());
         Set<InetAddressAndPort> allParticipants = new HashSet<>();
-        allParticipants.add(broadcastAddressAndPort);
         for (CommonRange commonRange : allRanges)
-            allParticipants.addAll(commonRange.endpoints);
+        {
+            allParticipants.addAll(Sets.difference(commonRange.endpoints, commonRange.transEndpoints));
+            if (isLocalFull(localFullRanges, commonRange.ranges))
+                allParticipants.add(broadcastAddressAndPort);
+        }
 
         // Per-table tuple so per-table mismatching ranges are retained for metric emission.
         List<ValidationHandle> handles = new ArrayList<>();
@@ -166,10 +180,12 @@ public class MutationTrackingPreviewRepairTask extends AbstractRepairTask
         {
             for (CommonRange commonRange : allRanges)
             {
-                // Common range only holds remote replicas. Include the coordinator so its own tree is built and enters 
-                // the pairwise diff. MessagingService handles the self-send locally.
-                Set<InetAddressAndPort> participants = new HashSet<>(commonRange.endpoints);
-                participants.add(broadcastAddressAndPort);
+                // Common range only holds remote replicas. Exclude witness replicas  and include the coordinator
+                // only if it is a full replica for this range.
+                Set<InetAddressAndPort> participants = new HashSet<>(Sets.difference(commonRange.endpoints, commonRange.transEndpoints));
+                if (isLocalFull(localFullRanges, commonRange.ranges))
+                    participants.add(broadcastAddressAndPort);
+
                 for (String tableName : tableNames)
                 {
                     RepairJobDesc desc = new RepairJobDesc(parentSession, TimeUUID.Generator.nextTimeUUID(), keyspace, tableName, commonRange.ranges);
