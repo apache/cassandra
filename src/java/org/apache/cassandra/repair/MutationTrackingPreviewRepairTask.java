@@ -27,6 +27,9 @@ import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.atomic.AtomicInteger;
 
+import com.google.common.base.Preconditions;
+import com.google.common.collect.Sets;
+
 import org.apache.cassandra.concurrent.ExecutorPlus;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.db.ColumnFamilyStore;
@@ -40,6 +43,7 @@ import org.apache.cassandra.replication.CoordinatorLogId;
 import org.apache.cassandra.replication.MutationTrackingSyncCoordinator;
 import org.apache.cassandra.replication.Offsets;
 import org.apache.cassandra.replication.ValidationOffsets;
+import org.apache.cassandra.service.StorageService;
 import org.apache.cassandra.service.snapshot.SnapshotManager;
 import org.apache.cassandra.tcm.ClusterMetadata;
 import org.apache.cassandra.tcm.Epoch;
@@ -152,13 +156,10 @@ public class MutationTrackingPreviewRepairTask extends AbstractRepairTask
             return;
         }
 
-        // Union of all endpoints across common ranges, passed to the snapshot fan-out on mismatch.
-        // Common range only holds the remote replicas only. The coordinator is implicit and must
-        // be added explicitly so it also receives a SNAPSHOT_REQ for its own local snapshot.
+        // Union of all full replica endpoints across common ranges, passed to the snapshot fan-out on mismatch.
+        // Common range holds remote replicas only. The coordinator is implicit and is added only if it is a full
+        // replica for at least one common range.
         Set<InetAddressAndPort> allParticipants = new HashSet<>();
-        allParticipants.add(broadcastAddressAndPort);
-        for (CommonRange commonRange : allRanges)
-            allParticipants.addAll(commonRange.endpoints);
 
         // Per-table tuple so per-table mismatching ranges are retained for metric emission.
         List<ValidationHandle> handles = new ArrayList<>();
@@ -166,10 +167,15 @@ public class MutationTrackingPreviewRepairTask extends AbstractRepairTask
         {
             for (CommonRange commonRange : allRanges)
             {
-                // Common range only holds remote replicas. Include the coordinator so its own tree is built and enters 
-                // the pairwise diff. MessagingService handles the self-send locally.
-                Set<InetAddressAndPort> participants = new HashSet<>(commonRange.endpoints);
-                participants.add(broadcastAddressAndPort);
+                // Common range only holds remote replicas. Exclude witness replicas  and include the coordinator
+                // only if it is a full replica for this range.
+                Set<InetAddressAndPort> participants = new HashSet<>(Sets.difference(commonRange.endpoints, commonRange.transEndpoints));
+                if (StorageService.instance.isLocalFullReplica(keyspace, commonRange.ranges))
+                    participants.add(broadcastAddressAndPort);
+
+                if (!participants.isEmpty())
+                    allParticipants.addAll(participants);
+
                 for (String tableName : tableNames)
                 {
                     RepairJobDesc desc = new RepairJobDesc(parentSession, TimeUUID.Generator.nextTimeUUID(), keyspace, tableName, commonRange.ranges);
@@ -189,6 +195,9 @@ public class MutationTrackingPreviewRepairTask extends AbstractRepairTask
 
         AtomicInteger remaining = new AtomicInteger(handles.size());
         Map<String, Set<Range<Token>>> mismatchesByTable = new HashMap<>();
+
+        Preconditions.checkState(!allParticipants.isEmpty());
+        Preconditions.checkState(!handles.isEmpty());
 
         for (ValidationHandle handle : handles)
         {

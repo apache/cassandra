@@ -41,6 +41,7 @@ import org.apache.cassandra.dht.Range;
 import org.apache.cassandra.dht.Token;
 import org.apache.cassandra.distributed.test.log.ClusterMetadataTestHelper;
 import org.apache.cassandra.exceptions.RequestFailureReason;
+import org.apache.cassandra.locator.RangesAtEndpoint;
 import org.apache.cassandra.metrics.StorageMetrics;
 import org.apache.cassandra.net.Message;
 import org.apache.cassandra.net.MessagingService;
@@ -203,6 +204,21 @@ public class RepairMessageVerbHandlerOutOfRangeTest
         tryTrackedValidation(request, true);
     }
 
+    @Test
+    public void testTrackedValidationRequestWithRequestedRangeTransient() throws Exception
+    {
+        ClusterMetadataTestHelper.addEndpoint(ClusterMetadataTestHelper.addr(2), Lists.newArrayList(token(600)));
+        setLocalTokens(100);
+
+        String ks = TEST_NAME + "ks_with_transient";
+        RangesAtEndpoint localReplicas = StorageService.instance.getReplicas(ks, broadcastAddress);
+        assertFalse("Expected local node to have transient ranges", localReplicas.onlyTransient().isEmpty());
+
+        Range<Token> transientRange = localReplicas.onlyTransient().iterator().next().range();
+        ValidationRequest request = mtValidationMsg(ks, transientRange);
+        tryTrackedValidation(request, true);
+    }
+
     private static void tryTrackedValidation(ValidationRequest request, boolean expectFailure) throws Exception
     {
         long startMetricCount = StorageMetrics.totalOpsForInvalidToken.getCount();
@@ -238,10 +254,14 @@ public class RepairMessageVerbHandlerOutOfRangeTest
 
     private static ValidationRequest mtValidationMsg(Range<Token> range)
     {
+        return mtValidationMsg(KEYSPACE, range);
+    }
+
+    private static ValidationRequest mtValidationMsg(String keyspace, Range<Token> range)
+    {
         TimeUUID parentId = uuid();
-        List<ColumnFamilyStore> stores = tableIds.stream()
-                                                 .map(Schema.instance::getColumnFamilyStoreInstance)
-                                                 .collect(Collectors.toList());
+        TableId tableId = Keyspace.open(keyspace).getColumnFamilyStore(TABLE).metadata().id;
+        List<ColumnFamilyStore> stores = Collections.singletonList(Schema.instance.getColumnFamilyStoreInstance(tableId));
         ActiveRepairService.instance().registerParentRepairSession(parentId,
                                                                  node1,
                                                                  stores,
@@ -250,7 +270,7 @@ public class RepairMessageVerbHandlerOutOfRangeTest
                                                                  ActiveRepairService.UNREPAIRED_SSTABLE,
                                                                  true,
                                                                  PreviewKind.NONE);
-        return new ValidationRequest(new RepairJobDesc(parentId, uuid(), KEYSPACE, TABLE, Collections.singleton(range)),
+        return new ValidationRequest(new RepairJobDesc(parentId, uuid(), keyspace, TABLE, Collections.singleton(range)),
                                      randomInt(), false, ValidationOffsets.EMPTY);
     }
 

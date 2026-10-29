@@ -71,6 +71,8 @@ import org.apache.cassandra.distributed.api.NodeToolResult;
 import org.apache.cassandra.distributed.test.TestBaseImpl;
 import org.apache.cassandra.io.sstable.format.SSTableReader;
 import org.apache.cassandra.journal.DeserializedRecordConsumer;
+import org.apache.cassandra.locator.EndpointsForToken;
+import org.apache.cassandra.locator.Replica;
 import org.apache.cassandra.metrics.RepairMetrics;
 import org.apache.cassandra.metrics.TableMetrics;
 import org.apache.cassandra.net.Message;
@@ -111,7 +113,12 @@ public class TrackedPreviewRepairTest extends TestBaseImpl
 
     private static final Consumer<IInstanceConfig> CONFIG = cfg -> cfg.with(Feature.NETWORK)
                                                                                     .with(Feature.GOSSIP)
-                                                                                    .set("snapshot_on_repaired_data_mismatch", true);
+                                                                                    .set("snapshot_on_repaired_data_mismatch", true)
+                                                                                    .set("transient_replication_enabled", true)
+                                                                                    // journal size limits causes sstables to be promoted to repaired
+                                                                                    // clearing their offsets. Setting a large limit let's
+                                                                                    // the tests control this with manual compaction disabling/enabling
+                                                                                    .set("mutation_tracking.journal_promotion_threshold", "1000GiB");
 
     private static Cluster CLUSTER;
     private static final AtomicInteger UNIQUE_SUFFIX = new AtomicInteger();
@@ -167,6 +174,124 @@ public class TrackedPreviewRepairTest extends TestBaseImpl
         result.asserts().success();
 
         assertInSyncValidation(result, CLUSTER, keyspace, table, previewFailuresBefore);
+    }
+
+    @Test
+    public void reportsInSyncWithWitnessReplicas()
+    {
+        CLUSTER.schemaChange("CREATE KEYSPACE " + keyspace + " WITH replication = {'class': 'SimpleStrategy', 'replication_factor': '3/1'} AND replication_type='tracked'");
+        CLUSTER.schemaChange("CREATE TABLE " + keyspace + '.' + table + " (k int PRIMARY KEY, v int)");
+
+        writeRows(CLUSTER, keyspace, table, 0, 10);
+
+        settleReconciliation(CLUSTER);
+
+        long[] previewFailuresBefore = previewFailuresPerNode(CLUSTER);
+
+        NodeToolResult result = CLUSTER.get(1).nodetoolResult(true, "repair", "--validate", "-pr", keyspace);
+        result.asserts().success();
+
+        assertInSyncValidation(result, CLUSTER, keyspace, table, previewFailuresBefore);
+
+        // Verify that the witness replica was excluded from validation and validated no data.
+        assertThat(totalValidatedSSTables(CLUSTER.get(3), keyspace, table)).as("Witness replica must not validate SSTables").isZero();
+        assertThat(totalValidatedJournalPartitions(CLUSTER.get(3), keyspace, table)).as("Witness replica must not validate journal partitions").isZero();
+    }
+
+    @Test
+    public void testFullRepairWithWitnessReplicas()
+    {
+        CLUSTER.schemaChange("CREATE KEYSPACE " + keyspace + " WITH replication = {'class': 'SimpleStrategy', 'replication_factor': '3/1'} AND replication_type='tracked'");
+        CLUSTER.schemaChange("CREATE TABLE " + keyspace + '.' + table + " (k int PRIMARY KEY, v int)");
+
+        int witnessNode = 3;
+        int fullNode1 = 1;
+        int fullNode2 = 2;
+
+        List<Integer> keys = findKeysWithWitness(CLUSTER, keyspace, table, witnessNode, 3);
+        try
+        {
+            // Drop writes and reconciler messages to ensure mutations only exist in the witness journal.
+            CLUSTER.filters().verbs(Verb.MUTATION_REQ.id).from(witnessNode).to(fullNode1, fullNode2).drop();
+            CLUSTER.filters().verbs(Verb.MT_BROADCAST_LOG_OFFSETS.id).from(witnessNode).to(fullNode1, fullNode2).drop();
+            CLUSTER.filters().verbs(Verb.MT_PUSH_MUTATION_REQ.id).drop();
+
+            for (int key : keys)
+            {
+                try
+                {
+                    CLUSTER.coordinator(witnessNode).execute("INSERT INTO " + keyspace + '.' + table + " (k, v) VALUES (?, ?)",
+                                                             ConsistencyLevel.ALL, key, key * 10);
+                    fail("Expected write to time out because full replicas are unreachable");
+                }
+                catch (Exception expected)
+                {
+                    // Expected write timeout because full replicas dropped the mutation
+                }
+            }
+
+            // Verify full replicas and witness have no table data before repair.
+            for (int key : keys)
+            {
+                assertThat(CLUSTER.get(fullNode1).executeInternal("SELECT v FROM " + keyspace + '.' + table + " WHERE k = ?", key)).isEmpty();
+                assertThat(CLUSTER.get(fullNode2).executeInternal("SELECT v FROM " + keyspace + '.' + table + " WHERE k = ?", key)).isEmpty();
+                assertThat(CLUSTER.get(witnessNode).executeInternal("SELECT v FROM " + keyspace + '.' + table + " WHERE k = ?", key)).isEmpty();
+            }
+        }
+        finally
+        {
+            CLUSTER.filters().reset();
+        }
+
+        // Full repair must synchronize witness journal entries to full replicas before anti-entropy validation.
+        NodeToolResult result = CLUSTER.get(fullNode1).nodetoolResult(true, "repair", "--full", keyspace);
+        result.asserts().success();
+        assertNotificationContains(result, "Started mutation tracking sync before full repair");
+        assertNotificationContains(result, "Mutation tracking sync completed; running full repair");
+
+        for (int key : keys)
+        {
+            Object[][] expectedObject = { { key * 10 } };
+            assertThat(CLUSTER.get(fullNode1).executeInternal("SELECT v FROM " + keyspace + '.' + table + " WHERE k = ?", key))
+                .isEqualTo(expectedObject);
+            assertThat(CLUSTER.get(fullNode2).executeInternal("SELECT v FROM " + keyspace + '.' + table + " WHERE k = ?", key))
+                .isEqualTo(expectedObject);
+            assertThat(CLUSTER.get(witnessNode).executeInternal("SELECT v FROM " + keyspace + '.' + table + " WHERE k = ?", key)).isEmpty();
+
+            Object[][] coordRows = CLUSTER.coordinator(fullNode1).execute("SELECT v FROM " + keyspace + '.' + table + " WHERE k = ?",
+                                                                          ConsistencyLevel.ALL, key);
+            assertThat(coordRows).isEqualTo(expectedObject);
+        }
+    }
+
+    private static List<Integer> findKeysWithWitness(Cluster cluster, String keyspace, String table, int witnessNode, int count)
+    {
+        List<Integer> keys = new ArrayList<>();
+        for (int k = 0; k < 1000 && keys.size() < count; k++)
+        {
+            final int candidateKey = k;
+            boolean isTransient = cluster.get(witnessNode).callOnInstance(() -> {
+                ClusterMetadata metadata = ClusterMetadata.current();
+                Token token = Schema.instance.getTableMetadata(keyspace, table)
+                                             .partitioner.getToken(Int32Type.instance.decompose(candidateKey));
+                EndpointsForToken endpoints = metadata.placements.get(Schema.instance.getKeyspaceMetadata(keyspace).params.replication)
+                                                                 .reads.forToken(token).get();
+                boolean transientMatch = false;
+                int fullCount = 0;
+                for (Replica replica : endpoints)
+                {
+                    if (replica.isTransient() && replica.endpoint().equals(FBUtilities.getBroadcastAddressAndPort()))
+                        transientMatch = true;
+                    if (replica.isFull())
+                        fullCount++;
+                }
+                return transientMatch && fullCount == 2;
+            });
+            if (isTransient)
+                keys.add(candidateKey);
+        }
+        assertThat(keys).as("Could not find enough keys with witness on node %d", witnessNode).hasSize(count);
+        return keys;
     }
 
     @Test

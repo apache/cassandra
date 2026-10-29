@@ -65,6 +65,7 @@ public class RepairOption
     public static final String NO_TOMBSTONE_PURGING = "nopurge";
     public static final String REPAIR_ACCORD_KEY = "repairAccord";
     public static final String PERMIT_NO_QUORUM_KEY = "permitNoQuorum";
+    public static final String SKIP_SYNC_KEY = "skipSync";
 
     // we don't want to push nodes too much for repair
     public static final int MAX_JOB_THREADS = 4;
@@ -212,6 +213,7 @@ public class RepairOption
             repairAccord = false;
         }
         boolean permitNoQuorum = Boolean.parseBoolean(options.get(PERMIT_NO_QUORUM_KEY));
+        boolean skipSync = Boolean.parseBoolean(options.get(SKIP_SYNC_KEY));
 
         if (previewKind != PreviewKind.NONE)
         {
@@ -236,7 +238,7 @@ public class RepairOption
 
         boolean asymmetricSyncing = Boolean.parseBoolean(options.get(OPTIMISE_STREAMS_KEY));
 
-        RepairOption option = new RepairOption(parallelism, primaryRange, incremental, trace, jobThreads, ranges, pullRepair, force, previewKind, asymmetricSyncing, ignoreUnreplicatedKeyspaces, repairData, repairPaxos, dontPurgeTombstones, repairAccord, permitNoQuorum);
+        RepairOption option = new RepairOption(parallelism, primaryRange, incremental, trace, jobThreads, ranges, pullRepair, force, previewKind, asymmetricSyncing, ignoreUnreplicatedKeyspaces, repairData, repairPaxos, dontPurgeTombstones, repairAccord, permitNoQuorum, skipSync);
 
         // data centers
         String dataCentersStr = options.get(DATACENTERS_KEY);
@@ -320,6 +322,7 @@ public class RepairOption
     private final boolean dontPurgeTombstones;
     private final boolean repairAccord;
     private final boolean permitNoQuorum; // has an effect only for Accord at present
+    private final boolean skipSync;
 
     private final Collection<String> columnFamilies = new HashSet<>();
     private final Collection<String> dataCenters = new HashSet<>();
@@ -327,6 +330,11 @@ public class RepairOption
     private final Collection<Range<Token>> ranges = new HashSet<>();
 
     public RepairOption(RepairParallelism parallelism, boolean primaryRange, boolean incremental, boolean trace, int jobThreads, Collection<Range<Token>> ranges, boolean pullRepair, boolean forceRepair, PreviewKind previewKind, boolean optimiseStreams, boolean ignoreUnreplicatedKeyspaces, boolean repairData, boolean repairPaxos, boolean dontPurgeTombstones, boolean repairAccord, boolean permitNoQuorum)
+    {
+        this(parallelism, primaryRange, incremental, trace, jobThreads, ranges, pullRepair, forceRepair, previewKind, optimiseStreams, ignoreUnreplicatedKeyspaces, repairData, repairPaxos, dontPurgeTombstones, repairAccord, permitNoQuorum, false);
+    }
+
+    public RepairOption(RepairParallelism parallelism, boolean primaryRange, boolean incremental, boolean trace, int jobThreads, Collection<Range<Token>> ranges, boolean pullRepair, boolean forceRepair, PreviewKind previewKind, boolean optimiseStreams, boolean ignoreUnreplicatedKeyspaces, boolean repairData, boolean repairPaxos, boolean dontPurgeTombstones, boolean repairAccord, boolean permitNoQuorum, boolean skipSync)
     {
         checkArgument(repairData || repairAccord || repairPaxos, "Repair needs to repair at least one of data, Paxos, or Accord");
         this.parallelism = parallelism;
@@ -345,6 +353,7 @@ public class RepairOption
         this.dontPurgeTombstones = dontPurgeTombstones;
         this.repairAccord = repairAccord;
         this.permitNoQuorum = permitNoQuorum;
+        this.skipSync = skipSync;
     }
 
     public RepairParallelism getParallelism()
@@ -480,6 +489,11 @@ public class RepairOption
         return !repairPaxos && !repairData && repairAccord;
     }
 
+    public boolean isSkipSync()
+    {
+        return skipSync;
+    }
+
     @Override
     public String toString()
     {
@@ -501,6 +515,7 @@ public class RepairOption
                ", repairPaxos: " + repairPaxos +
                ", dontPurgeTombstones: " + dontPurgeTombstones +
                ", repairAccord: " + repairAccord +
+               ", skipSync: " + skipSync +
                ')';
     }
 
@@ -516,7 +531,7 @@ public class RepairOption
         RepairOption copy = new RepairOption(parallelism, primaryRange, incremental, trace, jobThreads,
                                             ranges, pullRepair, forceRepair, previewKind, optimiseStreams,
                                             ignoreUnreplicatedKeyspaces, repairData, repairPaxos,
-                                            dontPurgeTombstones, repairAccord, permitNoQuorum);
+                                            dontPurgeTombstones, repairAccord, permitNoQuorum, skipSync);
         copy.getColumnFamilies().addAll(columnFamilies);
         copy.getDataCenters().addAll(dataCenters);
         copy.getHosts().addAll(hosts);
@@ -544,6 +559,7 @@ public class RepairOption
         options.put(NO_TOMBSTONE_PURGING, Boolean.toString(dontPurgeTombstones));
         options.put(REPAIR_ACCORD_KEY, Boolean.toString(repairAccord));
         options.put(PERMIT_NO_QUORUM_KEY, Boolean.toString(permitNoQuorum));
+        options.put(SKIP_SYNC_KEY, Boolean.toString(skipSync));
         return options;
     }
 }

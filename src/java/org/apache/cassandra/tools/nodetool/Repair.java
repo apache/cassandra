@@ -125,6 +125,8 @@ public class Repair extends AbstractCommand
     @Option(paramLabel = "skip-accord", names = { "-skip-accord", "--skip-accord" }, description = "If the --skip-accord flag is included, the Accord repair step is skipped. Accord repair is also skipped for preview repairs.")
     private boolean skipAccord = false;
 
+    @Option(paramLabel = "skip-sync", names = { "-skip-sync", "--skip-sync" }, description = "If the --skip-sync flag is included, the mutation tracking sync step before full repair is skipped.")
+    private boolean skipSync = false;
 
     @Option(paramLabel = "ignore_unreplicated_keyspaces", names = { "-iuk", "--ignore-unreplicated-keyspaces" }, description = "Use --ignore-unreplicated-keyspaces to ignore keyspaces which are not replicated, otherwise the repair will fail")
     private boolean ignoreUnreplicatedKeyspaces = false;
@@ -208,6 +210,7 @@ public class Repair extends AbstractCommand
         boolean repairAccord = !skipAccord && !paxosOnly && getPreviewKind() == PreviewKind.NONE;
         options.put(RepairOption.REPAIR_ACCORD_KEY, Boolean.toString(repairAccord));
         options.put(RepairOption.PERMIT_NO_QUORUM_KEY, Boolean.toString(permitNoQuorum));
+        options.put(RepairOption.SKIP_SYNC_KEY, Boolean.toString(skipSync));
         boolean repairData = false;
         if (getPreviewKind() == PreviewKind.NONE)
         {

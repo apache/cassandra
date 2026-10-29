@@ -20,7 +20,7 @@ SYNOPSIS
                 [(-permit-no-quorum | --permit-no-quorum)] [(-pl | --pull)]
                 [(-pr | --partitioner-range)] [(-prv | --preview)]
                 [(-seq | --sequential)] [(-skip-accord | --skip-accord)]
-                [(-skip-paxos | --skip-paxos)]
+                [(-skip-paxos | --skip-paxos)] [(-skip-sync | --skip-sync)]
                 [(-st <start_token> | --start-token <start_token>)] [(-tr | --trace)]
                 [(-vd | --validate)] [--] [<keyspace> <tables>...]
 
@@ -109,6 +109,10 @@ OPTIONS
         -skip-paxos, --skip-paxos
             If the --skip-paxos flag is included, the paxos repair step is
             skipped. Paxos repair is also skipped for preview repairs.
+
+        -skip-sync, --skip-sync
+            If the --skip-sync flag is included, the mutation tracking sync
+            step before full repair is skipped.
 
         -st <start_token>, --start-token <start_token>
             Use -st to specify a token at which the repair range starts
