@@ -319,10 +319,13 @@ public class SSTableCursorWriter implements AutoCloseable
 
     /**
      * The primary key of the row being written, in CQL form, for a guardrail message.
+     *
+     * <p>A static row's descriptor has kind {@code STATIC_CLUSTERING} and no values, which
+     * {@link ClusteringDescriptor#toClusteringPrefix} cannot convert
      */
     private String primaryKeyLiteral(ClusteringDescriptor rHeader)
     {
-        Clustering<?> clustering = rHeader == null
+        Clustering<?> clustering = rHeader == null || rHeader.clusteringKind() == ClusteringPrefix.Kind.STATIC_CLUSTERING
                                    ? Clustering.STATIC_CLUSTERING
                                    : (Clustering<?>) rHeader.toClusteringPrefix(ssTableWriter.metadata().comparator.subtypes());
         return ssTableWriter.metadata()
