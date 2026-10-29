@@ -20,18 +20,14 @@ package org.apache.cassandra.repair;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.List;
-import java.util.concurrent.TimeUnit;
 
 import org.apache.cassandra.concurrent.ExecutorPlus;
-import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.dht.Range;
 import org.apache.cassandra.dht.Token;
 import org.apache.cassandra.replication.MutationTrackingSyncCoordinator;
 import org.apache.cassandra.schema.KeyspaceMetadata;
 import org.apache.cassandra.tcm.ClusterMetadata;
-import org.apache.cassandra.utils.Throwables;
 import org.apache.cassandra.utils.TimeUUID;
-import org.apache.cassandra.utils.concurrent.AsyncPromise;
 import org.apache.cassandra.utils.concurrent.Future;
 
 import static com.google.common.base.Preconditions.checkState;
@@ -78,122 +74,25 @@ public class MutationTrackingIncrementalRepairTask extends AbstractRepairTask
         List<CommonRange> allRanges = neighborsAndRanges.filterCommonRanges(keyspace, cfnames).commonRanges;
         checkState(!allRanges.isEmpty(), "No ranges to repair");
 
-        List<MutationTrackingSyncCoordinator> syncCoordinators = new ArrayList<>();
         List<Collection<Range<Token>>> rangeCollections = new ArrayList<>();
-
         for (CommonRange commonRange : allRanges)
         {
             for (Range<Token> range : commonRange.ranges)
-            {
-                RepairJobDesc desc = new RepairJobDesc(parentSession, TimeUUID.Generator.nextTimeUUID(),
-                                                       keyspace, "Mutation Tracking Sync", List.of(range));
-                MutationTrackingSyncCoordinator syncCoordinator =
-                    new MutationTrackingSyncCoordinator(coordinator.ctx, desc, commonRange.endpoints, metadata);
-                syncCoordinator.start();
-                syncCoordinators.add(syncCoordinator);
                 rangeCollections.add(List.of(range));
-
-                logger.info("Started mutation tracking sync for range {}", range);
-            }
-        }
-        // Publish coordinators so callers can extract captured targets after IR completes.
-        this.syncCoordinators = List.copyOf(syncCoordinators);
-
-        coordinator.notifyProgress("Started mutation tracking sync for " + syncCoordinators.size() + " ranges");
-
-        AsyncPromise<CoordinatedRepairResult> resultPromise = new AsyncPromise<>();
-
-        executor.execute(() -> {
-            try
-            {
-                waitForSyncCompletion(syncCoordinators, rangeCollections, resultPromise);
-            }
-            catch (InterruptedException e)
-            {
-                try
-                {
-                    resultPromise.tryFailure(new RuntimeException("Interrupted waiting for Mutation Tracking sync coordinators to finish", e));
-                }
-                finally
-                {
-                    Thread.currentThread().interrupt();
-                }
-            }
-            catch (Exception e)
-            {
-                logger.error("Error during mutation tracking repair", e);
-                resultPromise.tryFailure(e);
-            }
-        });
-
-        return resultPromise;
-    }
-
-    private void waitForSyncCompletion(List<MutationTrackingSyncCoordinator> syncCoordinators,
-                                       List<Collection<Range<Token>>> rangeCollections,
-                                       AsyncPromise<CoordinatedRepairResult> resultPromise) throws Exception
-    {
-        long deadlineNanos = coordinator.ctx.clock().nanoTime() + TimeUnit.MILLISECONDS.toNanos(
-            DatabaseDescriptor.getMutationTrackingSyncTimeout(TimeUnit.MILLISECONDS));
-        coordinator.ctx.scheduledTasks().schedule(() -> {
-            for (MutationTrackingSyncCoordinator syncCoordinator : syncCoordinators)
-            {
-                try
-                {
-                    syncCoordinator.timeout();
-                }
-                catch (Exception e)
-                {
-                    logger.error("Exception cancelling mutation tracking sync coordinator", e);
-                }
-            }
-        }, deadlineNanos - coordinator.ctx.clock().nanoTime(), TimeUnit.NANOSECONDS);
-
-        Exception error = null;
-        for (MutationTrackingSyncCoordinator syncCoordinator : syncCoordinators)
-        {
-            try
-            {
-                syncCoordinator.awaitCompletion();
-            }
-            catch (InterruptedException e)
-            {
-                if (error != null)
-                    e.addSuppressed(error);
-                for (MutationTrackingSyncCoordinator c : syncCoordinators)
-                {
-                    try
-                    {
-                        c.cancel();
-                    }
-                    catch (Exception e2)
-                    {
-                        e.addSuppressed(e2);
-                    }
-                }
-                throw e;
-            }
-            catch (Exception e)
-            {
-                error = Throwables.merge(error, e);
-            }
         }
 
-        if (error != null)
-        {
-            logger.warn("Mutation tracking sync failed for keyspace {}", keyspace, error);
-            throw error;
-        }
+        coordinator.notifyProgress("Started mutation tracking sync for " + rangeCollections.size() + " ranges");
 
-        coordinator.notifyProgress("Mutation tracking sync completed for all ranges");
+        return MutationTrackingSyncCoordinator.sync(coordinator.ctx, parentSession, keyspace, allRanges, metadata, executor)
+                                              .map(coordinators -> {
+                                                  this.syncCoordinators = List.copyOf(coordinators);
+                                                  coordinator.notifyProgress("Mutation tracking sync completed for all ranges");
 
-        List<RepairSessionResult> results = new ArrayList<>();
-        for (int i = 0; i < rangeCollections.size(); i++)
-        {
-            Collection<Range<Token>> ranges = rangeCollections.get(i);
-            results.add(new RepairSessionResult(parentSession, keyspace, ranges, List.of(), false));
-        }
-        resultPromise.trySuccess(CoordinatedRepairResult.create(rangeCollections, results));
+                                                  List<RepairSessionResult> results = new ArrayList<>();
+                                                  for (Collection<Range<Token>> ranges : rangeCollections)
+                                                      results.add(new RepairSessionResult(parentSession, keyspace, ranges, List.of(), false));
+                                                  return CoordinatedRepairResult.create(rangeCollections, results);
+                                              });
     }
 
     /**

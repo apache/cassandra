@@ -18,7 +18,6 @@
 package org.apache.cassandra.repair;
 
 import java.util.ArrayList;
-import java.util.Collection;
 import java.util.Collections;
 import java.util.Comparator;
 import java.util.HashMap;
@@ -34,7 +33,6 @@ import org.apache.cassandra.concurrent.ExecutorPlus;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.db.ColumnFamilyStore;
 import org.apache.cassandra.db.Keyspace;
-import org.apache.cassandra.dht.NormalizedRanges;
 import org.apache.cassandra.dht.Range;
 import org.apache.cassandra.dht.Token;
 import org.apache.cassandra.io.sstable.format.SSTableReader;
@@ -143,11 +141,6 @@ public class MutationTrackingPreviewRepairTask extends AbstractRepairTask
         return promise;
     }
 
-    private static boolean isLocalFull(NormalizedRanges<Token> localFullRanges, Collection<Range<Token>> ranges)
-    {
-        return NormalizedRanges.normalizedRanges(ranges).subtract(localFullRanges).isEmpty();
-    }
-
     boolean epochChanged(Epoch epochAtStart)
     {
         return !ClusterMetadata.current().epoch.equals(epochAtStart);
@@ -165,12 +158,11 @@ public class MutationTrackingPreviewRepairTask extends AbstractRepairTask
         // Union of all full replica endpoints across common ranges, passed to the snapshot fan-out on mismatch.
         // Common range holds remote replicas only. The coordinator is implicit and is added only if it is a full
         // replica for at least one common range.
-        NormalizedRanges<Token> localFullRanges = NormalizedRanges.normalizedRanges(StorageService.instance.getLocalReplicas(keyspace).onlyFull().ranges());
         Set<InetAddressAndPort> allParticipants = new HashSet<>();
         for (CommonRange commonRange : allRanges)
         {
             allParticipants.addAll(Sets.difference(commonRange.endpoints, commonRange.transEndpoints));
-            if (isLocalFull(localFullRanges, commonRange.ranges))
+            if (StorageService.instance.isLocalFullReplica(keyspace, commonRange.ranges))
                 allParticipants.add(broadcastAddressAndPort);
         }
 
@@ -183,7 +175,7 @@ public class MutationTrackingPreviewRepairTask extends AbstractRepairTask
                 // Common range only holds remote replicas. Exclude witness replicas  and include the coordinator
                 // only if it is a full replica for this range.
                 Set<InetAddressAndPort> participants = new HashSet<>(Sets.difference(commonRange.endpoints, commonRange.transEndpoints));
-                if (isLocalFull(localFullRanges, commonRange.ranges))
+                if (StorageService.instance.isLocalFullReplica(keyspace, commonRange.ranges))
                     participants.add(broadcastAddressAndPort);
 
                 for (String tableName : tableNames)

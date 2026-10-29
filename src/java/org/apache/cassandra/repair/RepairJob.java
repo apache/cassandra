@@ -57,6 +57,7 @@ import org.apache.cassandra.repair.state.JobState;
 import org.apache.cassandra.replication.TransferTrackingService;
 import org.apache.cassandra.schema.SystemDistributedKeyspace;
 import org.apache.cassandra.schema.TableMetadata;
+import org.apache.cassandra.service.StorageService;
 import org.apache.cassandra.service.accord.IAccordService;
 import org.apache.cassandra.service.accord.repair.AccordRepair;
 import org.apache.cassandra.service.accord.repair.AccordRepair.AccordRepairResult;
@@ -171,8 +172,22 @@ public class RepairJob extends AsyncFuture<RepairResult> implements Runnable
      */
     protected void runRepair()
     {
-        List<InetAddressAndPort> allEndpoints = new ArrayList<>(session.state.commonRange.endpoints);
-        allEndpoints.add(ctx.broadcastAddressAndPort());
+        List<InetAddressAndPort> allEndpoints = new ArrayList<>();
+        if (cfs.metadata().replicationType().isTracked())
+        {
+            for (InetAddressAndPort ep : session.state.commonRange.endpoints)
+            {
+                if (!session.state.commonRange.transEndpoints.contains(ep))
+                    allEndpoints.add(ep);
+            }
+            if (StorageService.instance.isLocalFullReplica(desc.keyspace, desc.ranges))
+                allEndpoints.add(ctx.broadcastAddressAndPort());
+        }
+        else
+        {
+            allEndpoints.addAll(session.state.commonRange.endpoints);
+            allEndpoints.add(ctx.broadcastAddressAndPort());
+        }
 
         TableMetadata metadata = cfs.metadata();
         Future<Void> paxosRepair;

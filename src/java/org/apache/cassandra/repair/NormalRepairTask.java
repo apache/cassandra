@@ -18,6 +18,8 @@
 package org.apache.cassandra.repair;
 
 import org.apache.cassandra.concurrent.ExecutorPlus;
+import org.apache.cassandra.replication.MutationTrackingSyncCoordinator;
+import org.apache.cassandra.tcm.ClusterMetadata;
 import org.apache.cassandra.utils.TimeUUID;
 import org.apache.cassandra.utils.concurrent.Future;
 
@@ -45,6 +47,17 @@ public class NormalRepairTask extends AbstractRepairTask
     @Override
     public Future<CoordinatedRepairResult> performUnsafe(ExecutorPlus executor, Scheduler validationScheduler)
     {
+        ClusterMetadata metadata = coordinator.metadata != null ? coordinator.metadata : ClusterMetadata.current();
+        boolean useMT = MutationTrackingIncrementalRepairTask.shouldUseMutationTrackingRepair(metadata, keyspace);
+        if (useMT)
+        {
+            coordinator.notifyProgress("Started mutation tracking sync before full repair");
+            return MutationTrackingSyncCoordinator.sync(coordinator.ctx, parentSession, keyspace, neighborsAndRanges.commonRanges, metadata, executor)
+                                                  .flatMap(ignored -> {
+                                                      coordinator.notifyProgress("Mutation tracking sync completed; running full repair");
+                                                      return runRepair(parentSession, false, executor, validationScheduler, neighborsAndRanges.commonRanges, neighborsAndRanges.shouldExcludeDeadParticipants, cfnames);
+                                                  }, executor);
+        }
         return runRepair(parentSession, false, executor, validationScheduler, neighborsAndRanges.commonRanges, neighborsAndRanges.shouldExcludeDeadParticipants, cfnames);
     }
 }
