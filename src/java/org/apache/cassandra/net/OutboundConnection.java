@@ -339,8 +339,10 @@ public class OutboundConnection
                 // this is an optimisation only; messages will be expired on ~100ms cycle, and by Delivery when it runs
                 if (queue.maybePruneExpired() && SUCCESS == acquireCapacity(canonicalSize))
                     break;
+                onOverloaded(message, INSUFFICIENT_ENDPOINT);
+                return;
             case INSUFFICIENT_GLOBAL:
-                onOverloaded(message);
+                onOverloaded(message, INSUFFICIENT_GLOBAL);
                 return;
         }
 
@@ -452,7 +454,7 @@ public class OutboundConnection
         }
     }
 
-    private void onOverloaded(Message<?> message)
+    private void onOverloaded(Message<?> message, Outcome outcome)
     {
         overloadedCountUpdater.incrementAndGet(this);
         
@@ -463,7 +465,7 @@ public class OutboundConnection
                           this, FBUtilities.prettyPrintMemory(canonicalSize),
                           readablePendingBytes, readableReserveEndpointUsing, readableReserveGlobalUsing);
         
-        callbacks.onOverloaded(message, template.to);
+        callbacks.onOverloaded(message, template.to, outcome);
     }
 
     /**
