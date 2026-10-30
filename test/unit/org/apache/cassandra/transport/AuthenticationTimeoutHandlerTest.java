@@ -53,6 +53,7 @@ public class AuthenticationTimeoutHandlerTest extends CQLTester
     @BeforeClass
     public static void setUpClass()
     {
+        CQLTester.setUpClass();
         requireAuthentication();
         requireNetwork();
     }
