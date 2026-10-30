@@ -57,6 +57,7 @@ public class SSTableAbstractBench extends CQLTester
     @Param("50000")
     int rowCount = 50000;
     private String table;
+    protected String writeStatement;
 
     // TODO: elaborate data setup with multiple schemas
     @Setup(Level.Trial)
@@ -84,7 +85,7 @@ public class SSTableAbstractBench extends CQLTester
 
     protected void setupData()
     {
-        String writeStatement = "INSERT INTO " + table + "(userid,picid1,picid2,commentid)VALUES(?,?,?,?)";
+        writeStatement = "INSERT INTO " + table + "(userid,picid1,picid2,commentid)VALUES(?,?,?,?)";
         for (long i = 0; i < rowCount; i++)
             insertForIndex(writeStatement, i);
 
@@ -99,10 +100,22 @@ public class SSTableAbstractBench extends CQLTester
     @TearDown(Level.Trial)
     public void teardown() throws IOException, ExecutionException, InterruptedException
     {
+        if (shouldSkipCleanup())
+            return;
+
         CommitLog.instance.shutdownBlocking();
         ClusterMetadataService.instance().log().close();
         CQLTester.tearDownClass();
         CQLTester.cleanup();
+    }
+
+    /**
+     * Overridden by benchmarks whose setup is expensive to tear down - e.g. one that creates hundreds of thousands of
+     * files - and which would rather leave the temporary directories behind than pay for deleting them.
+     */
+    protected boolean shouldSkipCleanup()
+    {
+        return false;
     }
 
     public SSTableReader getReader() throws IOException

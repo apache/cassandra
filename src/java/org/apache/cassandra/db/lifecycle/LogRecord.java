@@ -175,10 +175,35 @@ final class LogRecord
         return new LogRecord(Type.ABORT, updateTime);
     }
 
-    public static LogRecord make(Type type, SSTable table)
+    /**
+     * Create a REMOVE record for the given sstable, based on the files found on disk right now. Both the update time
+     * and the file count of a REMOVE record are re-verified against disk before we delete anything, so this record
+     * has to reflect the actual state of the directory see {@link LogFile#verifyRecord}
+     * <p>
+     * Note that this lists the sstable directory, which is O(directory size);
+     * ADD records must not be built this way, to avoid performance problems with flush
+     * @see #makeAdd(SSTable)
+     */
+    static LogRecord makeRemove(SSTable table)
     {
         String absoluteTablePath = absolutePath(table.descriptor.baseFile());
-        return make(type, getExistingFiles(absoluteTablePath), table.getAllFilePaths().size(), absoluteTablePath);
+        return make(Type.REMOVE, getExistingFiles(absoluteTablePath), table.getAllFilePaths().size(), absoluteTablePath);
+    }
+
+    /**
+     * Create an ADD record from the sstable's expected component paths, without listing the sstable directory.
+     * <p>
+     * Nothing has been written when a new sstable is tracked, so there is nothing useful on disk to look at: the
+     * update time of an ADD record is always discarded (see the constructor) and its file count describes the
+     * components we intend to write. Listing made tracking cost proportional to the size of the directory, and let
+     * unrelated files sharing the sstable's prefix change the record, breaking the lookup in
+     * {@link LogFile#remove(SSTable)}. See CASSANDRA-21345.
+     */
+    static LogRecord makeAdd(SSTable table)
+    {
+        String absoluteTablePath = absolutePath(table.descriptor.baseFile());
+        List<String> allFilePaths = table.getAllFilePaths();
+        return make(Type.ADD, Collections.emptyList(), allFilePaths.size(), absoluteTablePath);
     }
 
     public static Map<SSTable, LogRecord> make(Type type, Iterable<SSTableReader> tables)
@@ -201,7 +226,8 @@ final class LogRecord
         return records;
     }
 
-    private static String absolutePath(File baseFile)
+    @VisibleForTesting
+    static String absolutePath(File baseFile)
     {
         return baseFile.withSuffix(String.valueOf(Component.separator)).canonicalPath();
     }

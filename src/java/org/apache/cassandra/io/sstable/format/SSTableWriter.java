@@ -33,7 +33,6 @@ import javax.annotation.Nullable;
 
 import com.google.common.collect.ImmutableList;
 import com.google.common.collect.ImmutableSet;
-import com.google.common.collect.Sets;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -111,15 +110,7 @@ public abstract class SSTableWriter extends SSTable implements Transactional
         this.mmappedRegionsCache = builder.getMmappedRegionsCache();
         this.txn = txn;
 
-        // We need to ensure that no sstable components exist before the lifecycle transaction starts tracking it.
-        // Otherwise, it means that we either want to overwrite some existing sstable, which is not allowed, or some
-        // sstable files were created before the sstable is registered in the lifecycle transaction, which may lead
-        // to a race such that the sstable is listed as completed due to the lack of the transaction file before
-        // anything is actually written to it.
-        Set<Component> existingComponents = Sets.filter(components, c -> descriptor.fileFor(c).exists());
-        assert existingComponents.isEmpty() : String.format("Cannot create a new SSTable in directory %s as component files %s already exist there",
-                                                            descriptor.directory,
-                                                            existingComponents);
+        assertNoExistingSSTable();
 
         txn.trackNew(this);
 

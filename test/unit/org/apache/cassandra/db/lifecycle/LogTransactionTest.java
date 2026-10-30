@@ -21,6 +21,7 @@ import java.io.IOException;
 import java.io.UncheckedIOException;
 import java.nio.file.Files;
 import java.nio.file.NoSuchFileException;
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
@@ -39,6 +40,8 @@ import com.google.common.collect.Iterables;
 import com.google.common.collect.Sets;
 
 import org.junit.Test;
+import org.mockito.ArgumentMatchers;
+import org.mockito.MockedStatic;
 
 import org.apache.cassandra.Util;
 import org.apache.cassandra.config.DatabaseDescriptor;
@@ -83,6 +86,10 @@ import static org.junit.Assert.assertNotNull;
 import static org.junit.Assert.assertNull;
 import static org.junit.Assert.assertTrue;
 import static org.junit.Assert.fail;
+import static org.mockito.ArgumentMatchers.anyString;
+import static org.mockito.Mockito.CALLS_REAL_METHODS;
+import static org.mockito.Mockito.mockStatic;
+import static org.mockito.Mockito.never;
 
 public class LogTransactionTest extends AbstractTransactionalTest
 {
@@ -1634,4 +1641,166 @@ public class LogTransactionTest extends AbstractTransactionalTest
             txnFile.abort(); // this should complete the txn
             txnFile.trackNew(dummySSTable()); // expect an IllegalStateException here
         }
-    }}
+    }
+
+    @Test
+    public void testMakeAddEquivalentToMake() throws IOException
+    {
+        ColumnFamilyStore cfs = MockSchema.newCFS(KEYSPACE);
+        File dataFolder = new Directories(cfs.metadata()).getDirectoryForNewSSTables();
+        SSTableReader sstable = sstable(dataFolder, cfs, 0, 128);
+
+        try
+        {
+            // this is what the pre-CASSANDRA-21345 code did: build the ADD record from a listing of the directory
+            String absoluteTablePath = LogRecord.absolutePath(sstable.descriptor.baseFile());
+            LogRecord viaOldPath = LogRecord.make(LogRecord.Type.ADD,
+                                                  LogRecord.getExistingFiles(absoluteTablePath),
+                                                  sstable.getAllFilePaths().size(),
+                                                  absoluteTablePath);
+            LogRecord viaMakeAdd = LogRecord.makeAdd(sstable);
+
+            assertEquals(viaOldPath, viaMakeAdd);
+            assertEquals(viaOldPath.raw, viaMakeAdd.raw);
+        }
+        finally
+        {
+            sstable.selfRef().release();
+        }
+    }
+
+    /**
+     * The state {@link LogRecord#makeAdd} is actually called in: a writer that has just been created, with none of its
+     * components written yet - see {@link SSTable#assertNoExistingSSTable}.
+     */
+    @Test
+    public void testMakeAddWithNoFilesOnDisk()
+    {
+        SSTable sstable = dummySSTable();
+        for (String path : sstable.getAllFilePaths())
+            assertFalse(new File(path).exists());
+
+        LogRecord record = LogRecord.makeAdd(sstable);
+
+        assertEquals(sstable.getAllFilePaths().size(), record.numFiles);
+        assertEquals(0, record.updateTime);
+    }
+
+    @Test
+    public void testTrackNewDoesNotListDirectory() throws IOException
+    {
+        ColumnFamilyStore cfs = MockSchema.newCFS(KEYSPACE);
+        File dataFolder = new Directories(cfs.metadata()).getDirectoryForNewSSTables();
+        SSTableReader sstable = sstable(dataFolder, cfs, 0, 128);
+
+        try (LogTransaction log = new LogTransaction(OperationType.FLUSH))
+        {
+            // CALLS_REAL_METHODS so that the transaction behaves normally and we only observe which statics it calls
+            try (MockedStatic<LogRecord> logRecord = mockStatic(LogRecord.class, CALLS_REAL_METHODS))
+            {
+                log.trackNew(sstable);
+
+                // tracking a new sstable must not list the data directory, see CASSANDRA-21345
+                logRecord.verify(() -> LogRecord.getExistingFiles(anyString()), never());
+                logRecord.verify(() -> LogRecord.getExistingFiles(ArgumentMatchers.<Set<String>>any()), never());
+            }
+
+            log.untrackNew(sstable);
+            log.finish();
+        }
+        finally
+        {
+            sstable.selfRef().release();
+        }
+
+        LogTransaction.waitForDeletions();
+        assertFiles(dataFolder.path(), Collections.emptySet());
+    }
+
+    @Test
+    public void testMakeAddUnaffectedByExtraFilesInDirectory() throws IOException
+    {
+        ColumnFamilyStore cfs = MockSchema.newCFS(KEYSPACE);
+        File dataFolder = new Directories(cfs.metadata()).getDirectoryForNewSSTables();
+        SSTableReader sstable = sstable(dataFolder, cfs, 0, 128);
+
+        List<File> fakeComponents = Collections.emptyList();
+        try
+        {
+            LogRecord before = LogRecord.makeAdd(sstable);
+
+            fakeComponents = generateDisjointComponents(sstable);
+
+            LogRecord after = LogRecord.makeAdd(sstable);
+            assertEquals(before, after);
+            assertEquals(before.raw, after.raw);
+        }
+        finally
+        {
+            for (File file : fakeComponents)
+                file.tryDelete();
+
+            sstable.selfRef().release();
+        }
+    }
+
+    @Test
+    public void testDisjointComponentsAppearMidTransaction() throws IOException
+    {
+        ColumnFamilyStore cfs = MockSchema.newCFS(KEYSPACE);
+        File dataFolder = new Directories(cfs.metadata()).getDirectoryForNewSSTables();
+        SSTableReader sstable = sstable(dataFolder, cfs, 0, 128);
+
+        try (LogTransaction log = new LogTransaction(OperationType.COMPACTION))
+        {
+            log.trackNew(sstable);
+            generateDisjointComponents(sstable);
+            log.untrackNew(sstable);
+            log.finish();
+        }
+
+        sstable.selfRef().release();
+        LogTransaction.waitForDeletions();
+
+        assertFiles(dataFolder.path(), Collections.emptySet());
+    }
+
+    @Test
+    public void testPreExistingDisjointComponents() throws IOException
+    {
+        ColumnFamilyStore cfs = MockSchema.newCFS(KEYSPACE);
+        File dataFolder = new Directories(cfs.metadata()).getDirectoryForNewSSTables();
+        SSTableReader sstable = sstable(dataFolder, cfs, 0, 128);
+        generateDisjointComponents(sstable);
+
+        try (LogTransaction log = new LogTransaction(OperationType.COMPACTION))
+        {
+            log.trackNew(sstable);
+            log.untrackNew(sstable);
+            log.finish();
+        }
+
+        sstable.selfRef().release();
+        LogTransaction.waitForDeletions();
+
+        assertFiles(dataFolder.path(), Collections.emptySet());
+    }
+
+    /**
+     * Create files which share the sstable's prefix - so a directory listing picks them up as if they belonged to it -
+     * but which are not components of the sstable.
+     */
+    private static List<File> generateDisjointComponents(SSTableReader sstable)
+    {
+        int numComponents = 100;
+        final List<File> fakeComponents = new ArrayList<>(numComponents);
+        File dataFile = sstable.descriptor.fileFor(Components.DATA);
+        for (int i = 0; i < numComponents; i++)
+        {
+            File file = new File(dataFile.parent(), dataFile.name() + i + "fake.db");
+            file.createFileIfNotExists();
+            fakeComponents.add(file);
+        }
+        return fakeComponents;
+    }
+}
