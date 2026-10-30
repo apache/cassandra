@@ -65,6 +65,7 @@
  * Avoid megamorphic calls when serializing and deserializing fixed-length values (CASSANDRA-21536)
  * Avoid megamorphic calls for Cell.timestamp/ttl/path/localDeletionTimeAsUnsignedInt methods (CASSANDRA-21526)
 Merged from 5.0:
+ * Compact UCS shards that accumulate too many small sstables and use a per-partition minimum token span for sstables with few partitions (CASSANDRA-21615)
  * Fix ShardManager#coveringRange to include the first partition position (CASSANDRA-20927)
  * Respect cassandra.skip_sync in FileOutputStreamPlus.sync and ChecksumWriter (CASSANDRA-21800)
  * Fail sstableloader when no replicas are found for the target keyspace (CASSANDRA-20096)
