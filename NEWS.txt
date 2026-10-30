@@ -90,6 +90,12 @@ New features
       deployments that authenticate over mutual TLS. PasswordDefaultRoleInitializer
       remains the default and produces the historical behaviour. See CASSANDRA-21546
       for more information.
+    - New table option flush_compression selects the compressor used when a memtable is
+      flushed to an SSTable, per table. Values are 'auto' (default, follow the flush_compression
+      setting in cassandra.yaml), 'none', 'fast' and 'table', with the same meaning as the
+      yaml values. Compaction is unaffected and always uses the table's compression. The
+      option is stored in a new flush_compression column of system_schema.tables and
+      system_schema.views, which is only populated for non-default values.
 
 Upgrading
 ---------
