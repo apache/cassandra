@@ -126,18 +126,19 @@ public enum Operator
         @Override
         public boolean isSatisfiedBy(AbstractType<?> type, ByteBuffer leftOperand, ByteBuffer rightOperand)
         {
-            switch(((CollectionType<?>) type).kind)
+            AbstractType<?> unwrapped = type.unwrap();
+            switch(((CollectionType<?>) unwrapped).kind)
             {
                 case LIST :
-                    ListType<?> listType = (ListType<?>) type;
+                    ListType<?> listType = (ListType<?>) unwrapped;
                     List<?> list = listType.getSerializer().deserialize(leftOperand);
                     return list.contains(listType.getElementsType().getSerializer().deserialize(rightOperand));
                 case SET:
-                    SetType<?> setType = (SetType<?>) type;
+                    SetType<?> setType = (SetType<?>) unwrapped;
                     Set<?> set = setType.getSerializer().deserialize(leftOperand);
                     return set.contains(setType.getElementsType().getSerializer().deserialize(rightOperand));
                 case MAP:
-                    MapType<?, ?> mapType = (MapType<?, ?>) type;
+                    MapType<?, ?> mapType = (MapType<?, ?>) unwrapped;
                     Map<?, ?> map = mapType.getSerializer().deserialize(leftOperand);
                     return map.containsValue(mapType.getValuesType().getSerializer().deserialize(rightOperand));
                 default:
@@ -156,7 +157,7 @@ public enum Operator
         @Override
         public boolean isSatisfiedBy(AbstractType<?> type, ByteBuffer leftOperand, ByteBuffer rightOperand)
         {
-            MapType<?, ?> mapType = (MapType<?, ?>) type;
+            MapType<?, ?> mapType = (MapType<?, ?>) type.unwrap();
             Map<?, ?> map = mapType.getSerializer().deserialize(leftOperand);
             return map.containsKey(mapType.getKeysType().getSerializer().deserialize(rightOperand));
         }
