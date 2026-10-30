@@ -189,6 +189,8 @@ public class RepairJob extends AsyncFuture<RepairResult> implements Runnable
             allEndpoints.add(ctx.broadcastAddressAndPort());
         }
 
+        Preconditions.checkState(!allEndpoints.isEmpty());
+
         TableMetadata metadata = cfs.metadata();
         Future<Void> paxosRepair;
         Epoch repairStartingEpoch = ClusterMetadata.current().epoch;
