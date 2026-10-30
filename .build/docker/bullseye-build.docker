@@ -30,8 +30,16 @@ RUN echo "Building with arguments:" \
     && echo " - BUILD_HOME=${BUILD_HOME}" \
     && echo " - CASSANDRA_DIR=${CASSANDRA_DIR}"
 
-# configure apt to retry downloads
-RUN echo 'APT::Acquire::Retries "99";' > /etc/apt/apt.conf.d/80-retries
+# Bullseye security packages were removed after LTS ended (Debian #1147093).
+# Use the final LTS snapshot; only its Release expiry check is disabled.
+RUN printf '%s\n' \
+        'deb http://deb.debian.org/debian bullseye main' \
+        'deb http://deb.debian.org/debian bullseye-updates main' \
+        'deb [check-valid-until=no] http://snapshot.debian.org/archive/debian-security/20260831T235959Z/ bullseye-security main' \
+        > /etc/apt/sources.list
+
+# Retry transient download failures without repeating failed installs forever.
+RUN echo 'Acquire::Retries "3";' > /etc/apt/apt.conf.d/80-retries
 RUN echo 'Acquire::http::Timeout "60";' > /etc/apt/apt.conf.d/80proxy.conf
 RUN echo 'Acquire::ftp::Timeout "60";' >> /etc/apt/apt.conf.d/80proxy.conf
 
