@@ -134,7 +134,12 @@ public abstract class SSTable
         sorted.sort(Comparator.comparingLong(lastModified::get));
 
         for (Component component : sorted)
-            FileUtils.delete(desc.filenameFor(component));
+        {
+            if (component.equals(Component.SUMMARY))
+                FileUtils.delete(desc.filenameFor(component));
+            else
+                FileUtils.deleteWithConfirm(desc.filenameFor(component));
+        }
 
         return true;
     }
