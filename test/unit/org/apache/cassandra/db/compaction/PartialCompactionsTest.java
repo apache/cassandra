@@ -17,6 +17,7 @@
  */
 package org.apache.cassandra.db.compaction;
 
+import java.util.Collections;
 import java.util.Iterator;
 import java.util.Map;
 
@@ -192,7 +193,7 @@ public class PartialCompactionsTest extends SchemaLoader
             Keyspace keyspace = Keyspace.open(ks);
             ColumnFamilyStore store = keyspace.getColumnFamilyStore(cf);
             TableMetadataRef metadata = store.metadata;
-            keyspace.dropCf(metadata.id, true);
+            keyspace.removeAndUnloadColumnFamilyStores(Collections.singleton(metadata.id), true);
             ColumnFamilyStore cfs = ColumnFamilyStore.createColumnFamilyStore(keyspace, cf, metadata.get(), wrapDirectoriesOf(store), false, false);
             keyspace.initCfCustom(cfs);
         }

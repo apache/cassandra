@@ -70,8 +70,9 @@ public class ReadCommandVerbHandler implements IVerbHandler<ReadCommand>
         if (message.epoch().isAfter(Epoch.EMPTY))
         {
             ClusterMetadata metadata = ClusterMetadata.current();
-            metadata = checkTokenOwnership(metadata, message);
+            // check schema version first to make sure that keyspace exists
             metadata = checkSchemaVersion(metadata, message);
+            metadata = checkTokenOwnership(metadata, message);
         }
 
         MessageParams.reset();

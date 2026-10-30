@@ -22,10 +22,12 @@ import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
+import java.util.Set;
 import java.util.UUID;
 import java.util.stream.Collectors;
 
@@ -226,9 +228,7 @@ public class DistributedSchema implements MetadataValue<DistributedSchema>
                 assert keyspace != null : String.format("Keyspace %s is not initialized. Initialized keyspaces: %s.", delta.before.name, keyspaceInstances.keySet());
                 assert delta.before.name.equals(delta.after.name);
 
-                // drop tables and views
-                delta.views.dropped.forEach(v -> dropView(keyspace, v, loadSSTables));
-                delta.tables.dropped.forEach(t -> dropTable(keyspace, t, loadSSTables));
+                dropViewsAndTables(keyspace, delta.views.dropped, delta.tables.dropped, loadSSTables);
 
                 // add tables and views
                 delta.tables.created.forEach(t -> createTable(keyspace, t, loadSSTables));
@@ -336,11 +336,22 @@ public class DistributedSchema implements MetadataValue<DistributedSchema>
 
     }
 
-    private void dropView(Keyspace keyspace, ViewMetadata metadata, boolean dropData)
+    private void dropViewsAndTables(Keyspace keyspace, Iterable<ViewMetadata> views, Iterable<TableMetadata> tables, boolean dropData)
     {
-        keyspace.viewManager.dropView(metadata.name());
-        dropTable(keyspace, metadata.metadata, dropData);
+        Set<TableId> tableIds = new HashSet<>();
+        views.forEach(metadata -> {
+            keyspace.viewManager.dropView(metadata.name());
+            tableIds.add(metadata.metadata.id);
+            SchemaDiagnostics.tableDropping(Schema.instance, metadata.metadata);
+        });
+
+        tables.forEach((metadata) -> {
+            SchemaDiagnostics.tableDropping(Schema.instance, metadata);
+            tableIds.add(metadata.id);
+        });
+        keyspace.removeAndUnloadColumnFamilyStores(tableIds, dropData);
     }
+
 
     // TODO: handle drops after snapshots
     private void dropKeyspace(KeyspaceMetadata keyspaceMetadata, boolean dropData)
@@ -354,8 +365,7 @@ public class DistributedSchema implements MetadataValue<DistributedSchema>
             if (keyspace == null)
                 return;
 
-            keyspaceMetadata.views.forEach(v -> dropView(keyspace, v, dropData));
-            keyspaceMetadata.tables.forEach(t -> dropTable(keyspace, t, dropData));
+            dropViewsAndTables(keyspace, keyspaceMetadata.views, keyspaceMetadata.tables, dropData);
 
             // remove the keyspace from the static instances
             Keyspace unloadedKeyspace = keyspaceInstances.remove(keyspaceMetadata.name);
@@ -368,16 +378,6 @@ public class DistributedSchema implements MetadataValue<DistributedSchema>
         {
             keyspace.unload(true);
         }
-    }
-    /**
-     *
-     * @param keyspace
-     * @param metadata
-     */
-    private void dropTable(Keyspace keyspace, TableMetadata metadata, boolean dropData)
-    {
-        SchemaDiagnostics.tableDropping(Schema.instance, metadata);
-        keyspace.dropCf(metadata.id, dropData);
     }
 
     private void createTable(Keyspace keyspace, TableMetadata table, boolean loadSSTables)
