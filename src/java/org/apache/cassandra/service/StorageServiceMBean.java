@@ -1298,6 +1298,19 @@ public interface StorageServiceMBean extends NotificationEmitter
     long getNativeTransportTimeoutMillis();
     void setNativeTransportTimeoutMillis(long deadlineMillis);
 
+    /**
+     * @return the time in milliseconds a native transport connection has to finish authentication, 0 if disabled
+     */
+    long getNativeTransportAuthTimeoutMillis();
+
+    /**
+     * Sets the time a native transport connection has to finish authentication. Applies to connections established
+     * after the change, the timeout of already established connections is not changed.
+     *
+     * @param timeoutMillis timeout in milliseconds, 0 to disable
+     */
+    void setNativeTransportAuthTimeoutMillis(long timeoutMillis);
+
     boolean getEnforceNativeDeadlineForHints();
     void setEnforceNativeDeadlineForHints(boolean value);
 

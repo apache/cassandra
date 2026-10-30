@@ -66,6 +66,7 @@ import com.google.common.base.Objects;
 import com.google.common.base.Strings;
 import com.google.common.collect.ImmutableSet;
 import com.google.common.collect.Iterables;
+import io.netty.channel.group.ChannelGroup;
 import org.apache.commons.lang3.ArrayUtils;
 import org.apache.commons.lang3.StringUtils;
 import org.junit.After;
@@ -314,6 +315,14 @@ public abstract class CQLTester
     public void useSuperUser()
     {
         this.user = SUPER_USER;
+    }
+
+    /**
+     * @return the channel for all active connections
+     */
+    public static ChannelGroup allChannels()
+    {
+        return server.allChannels();
     }
 
     /**

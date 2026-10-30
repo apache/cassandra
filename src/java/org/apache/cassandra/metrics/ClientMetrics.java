@@ -59,6 +59,7 @@ public final class ClientMetrics
     private Meter requestDispatched;
 
     private Meter timedOutBeforeProcessing;
+    private Meter authTimeout;
     private Meter protocolException;
     private Meter unknownException;
     private Timer queueTime;
@@ -93,6 +94,20 @@ public final class ClientMetrics
     public void markRequestDiscarded() { requestDiscarded.mark(); }
     public void markRequestDispatched() { requestDispatched.mark(); }
     public void markTimedOutBeforeProcessing() { timedOutBeforeProcessing.mark(); }
+
+    /**
+     * Marks a connection closed because it did not authenticate within native_transport_auth_timeout.
+     */
+    public void markAuthTimeout()
+    {
+        authTimeout.mark();
+    }
+
+    @VisibleForTesting
+    public long getAuthTimeoutCount()
+    {
+        return authTimeout.getCount();
+    }
 
     public List<ConnectedClient> allConnectedClients()
     {
@@ -140,6 +155,7 @@ public final class ClientMetrics
 
         authSuccess = registerMeter("AuthSuccess");
         authFailure = registerMeter("AuthFailure");
+        authTimeout = registerMeter("AuthTimeout");
 
         pausedConnections = new AtomicInteger();
         pausedConnectionsGauge = registerGauge("PausedConnections", pausedConnections::get);
