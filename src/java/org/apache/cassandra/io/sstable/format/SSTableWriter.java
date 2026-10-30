@@ -33,7 +33,6 @@ import java.util.function.Supplier;
 
 import javax.annotation.Nullable;
 
-import com.google.common.base.Preconditions;
 import com.google.common.collect.ImmutableList;
 import com.google.common.collect.ImmutableSet;
 import com.google.common.collect.Sets;
@@ -370,14 +369,20 @@ public abstract class SSTableWriter extends SSTable implements Transactional
 
             if (!inMigrationPendingRange)
             {
-                Preconditions.checkState(Objects.equals(pendingRepair, ActiveRepairService.NO_PENDING_REPAIR));
-                if (MutationTrackingService.instance().isDurablyReconciled(coordinatorLogOffsets))
+                if (Objects.equals(pendingRepair, ActiveRepairService.NO_PENDING_REPAIR))
                 {
-                    repairedAt = Clock.Global.currentTimeMillis();
-                    // Clear the offsets, as PromoteReconciledTask does. Offsets are only meaningful while an sstable is
-                    // unrepaired, so setting repairedAt and keeping them would leave it claiming journal provenance.
-                    coordinatorLogOffsets = new ImmutableCoordinatorLogOffsets.Builder().build();
-                    logger.debug("Marking SSTable {} as reconciled with repairedAt {}", descriptor, repairedAt);
+                    if (MutationTrackingService.instance().isDurablyReconciled(coordinatorLogOffsets))
+                    {
+                        repairedAt = Clock.Global.currentTimeMillis();
+                        // Clear the offsets, as PromoteReconciledTask does. Offsets are only meaningful while an sstable is
+                        // unrepaired, so setting repairedAt and keeping them would leave it claiming journal provenance.
+                        coordinatorLogOffsets = new ImmutableCoordinatorLogOffsets.Builder().build();
+                        logger.debug("Marking SSTable {} as reconciled with repairedAt {}", descriptor, repairedAt);
+                    }
+                }
+                else
+                {
+                    logger.debug("Skipping mutation reconciliation for SSTable {} because it has pendingRepair: {}", descriptor, pendingRepair);
                 }
             }
         }
