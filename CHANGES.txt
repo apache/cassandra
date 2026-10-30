@@ -14,6 +14,7 @@
  * Allow nodetool garbagecollect to take a user defined list of SSTables (CASSANDRA-16767)
  * Add a guardrail for misprepared statements (CASSANDRA-21139)
 Merged from 6.0:
+ * Support wildcard * in excluded_indexes index hints (CASSANDRA-21715)
  * Prepare scalar constraints when column metadata is created so they are enforced after deserialization (CASSANDRA-21818)
  * Throw InvalidConstraintDefinitionException for malformed LENGTH and OCTET_LENGTH constraint terms (CASSANDRA-21817)
  * Support byte budgets for client query pages and internal replica reads, including aggregation subpages (CASSANDRA-11745)

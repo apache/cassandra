@@ -40,6 +40,7 @@ import org.apache.cassandra.cql3.statements.schema.IndexTarget;
 import org.apache.cassandra.db.ColumnFamilyStore;
 import org.apache.cassandra.db.ReadCommand;
 import org.apache.cassandra.db.SinglePartitionReadCommand;
+import org.apache.cassandra.db.guardrails.Guardrails;
 import org.apache.cassandra.exceptions.InvalidRequestException;
 import org.apache.cassandra.exceptions.SyntaxException;
 import org.apache.cassandra.index.CustomIndexTest;
@@ -432,6 +433,11 @@ public class IndexHintsTest extends CQLTester
         testTransport(query + "WITH included_indexes={idx1,idx2}", IndexHints.create(indexes(idx1, idx2), indexes()));
         testTransport(query + "WITH excluded_indexes={idx1,idx2}", IndexHints.create(indexes(), indexes(idx1, idx2)));
         testTransport(query + "WITH included_indexes={idx1,idx2} AND excluded_indexes={idx3,idx4}", IndexHints.create(indexes(idx1, idx2), indexes(idx3, idx4)));
+
+        // the wildcard is expanded to all the indexes on the table before it's sent over the wire, so the wire
+        // format itself is unaffected by the wildcard
+        testTransport(query + "WITH excluded_indexes={*}", IndexHints.create(indexes(), indexes(idx1, idx2, idx3, idx4)));
+        testTransport(query + "WITH excluded_indexes={*, idx1}", IndexHints.create(indexes(), indexes(idx1, idx2, idx3, idx4)));
     }
 
     private void testTransport(String query, IndexHints expectedHints)
@@ -1070,6 +1076,90 @@ public class IndexHintsTest extends CQLTester
         assertConflictingHints("SELECT * FROM %s WHERE v1=0 WITH included_indexes={idx1} AND excluded_indexes={idx1}", "idx1");
         assertConflictingHints("SELECT * FROM %s WHERE v2=0 WITH included_indexes={idx2} AND excluded_indexes={idx2}", "idx2");
         assertConflictingHints("SELECT * FROM %s WHERE v3=0 WITH included_indexes={idx3} AND excluded_indexes={idx3}", "idx3");
+    }
+
+    /**
+     * Tests the {@code *} wildcard in {@code excluded_indexes}, which should be equivalent to explicitly excluding
+     * every index applicable to the table.
+     */
+    @Test
+    public void testWildcardExcludedIndexes()
+    {
+        createTable("CREATE TABLE %s (k int PRIMARY KEY, v1 int, v2 int, v3 int)");
+        createIndex("CREATE INDEX idx1 ON %s(v1)");
+        createIndex("CREATE CUSTOM INDEX idx2 ON %s(v2) USING 'StorageAttachedIndex'");
+        Object[] row = row(0, 0, 0, 0);
+        execute("INSERT INTO %s (k, v1, v2, v3) VALUES (0, 0, 0, 0)");
+
+        // the wildcard excludes every applicable index, same as explicitly excluding all of them
+        assertNeedsAllowFiltering("SELECT * FROM %s WHERE v1=0 WITH excluded_indexes={*}");
+        assertNeedsAllowFiltering("SELECT * FROM %s WHERE v2=0 WITH excluded_indexes={*}");
+        assertNeedsAllowFiltering("SELECT * FROM %s WHERE v1=0 AND v2=0 WITH excluded_indexes={*}");
+        assertThatIndexQueryPlanFor("SELECT * FROM %s WHERE v1=0 ALLOW FILTERING WITH excluded_indexes={*}", row).selectsNone();
+        assertThatIndexQueryPlanFor("SELECT * FROM %s WHERE v2=0 ALLOW FILTERING WITH excluded_indexes={*}", row).selectsNone();
+        assertThatIndexQueryPlanFor("SELECT * FROM %s WHERE v1=0 AND v2=0 ALLOW FILTERING WITH excluded_indexes={*}", row).selectsNone();
+
+        // an unrestricted column (v3) has no index anyway, so the wildcard exclusion doesn't change anything for it
+        assertThatIndexQueryPlanFor("SELECT * FROM %s WHERE v3=0 ALLOW FILTERING WITH excluded_indexes={*}", row).selectsNone();
+
+        // the wildcard combined with explicit names in the same set is redundant, but not an error
+        assertThatIndexQueryPlanFor("SELECT * FROM %s WHERE v1=0 ALLOW FILTERING WITH excluded_indexes={*, idx1}", row).selectsNone();
+        assertThatIndexQueryPlanFor("SELECT * FROM %s WHERE v1=0 ALLOW FILTERING WITH excluded_indexes={*, idx2}", row).selectsNone();
+
+        // combining wildcard with a non-existing index name is still an error
+        String missingIndexError = String.format(IndexHints.MISSING_INDEX_ERROR, currentTable(), "idx3");
+        assertInvalidThrowMessage(missingIndexError,
+                                  InvalidRequestException.class,
+                                  "SELECT * FROM %s WITH excluded_indexes={idx3, *}");
+        assertInvalidThrowMessage(missingIndexError,
+                                  InvalidRequestException.class,
+                                  "SELECT * FROM %s WITH excluded_indexes={*, idx3}");
+
+        // the wildcard is not allowed in included_indexes, alone or combined with explicit names
+        assertInvalidThrowMessage(IndexHints.WILDCARD_INCLUDED_INDEXES_ERROR,
+                                  InvalidRequestException.class,
+                                  "SELECT * FROM %s WHERE v1=0 ALLOW FILTERING WITH included_indexes={*}");
+        assertInvalidThrowMessage(IndexHints.WILDCARD_INCLUDED_INDEXES_ERROR,
+                                  InvalidRequestException.class,
+                                  "SELECT * FROM %s WHERE v1=0 ALLOW FILTERING WITH included_indexes={*, idx1}");
+        assertInvalidThrowMessage(IndexHints.WILDCARD_INCLUDED_INDEXES_ERROR,
+                                  InvalidRequestException.class,
+                                  "SELECT * FROM %s WHERE v1=0 ALLOW FILTERING WITH included_indexes={idx1, *}");
+
+        // a wildcard exclusion conflicts with an included index that exists on the table
+        assertConflictingHints("SELECT * FROM %s WHERE v1=0 WITH included_indexes={idx1} AND excluded_indexes={*}", "idx1");
+        assertConflictingHints("SELECT * FROM %s WHERE v2=0 WITH included_indexes={idx2} AND excluded_indexes={*}", "idx2");
+    }
+
+    /**
+     * Tests that the size limit is also enforced on the set of excluded indexes that results from expanding the
+     * {@code *} wildcard, since the check on the raw CQL names doesn't catch it.
+     */
+    @Test
+    public void testWildcardExcludedIndexesOverGuardrailLimit()
+    {
+        createTable("CREATE TABLE %s (k int PRIMARY KEY, v1 int, v2 int, v3 int)");
+        createIndex("CREATE INDEX idx1 ON %s(v1)");
+        createIndex("CREATE INDEX idx2 ON %s(v2)");
+        createIndex("CREATE INDEX idx3 ON %s(v3)");
+
+        ColumnFamilyStore cfs = getCurrentColumnFamilyStore();
+        int warn = Guardrails.instance.getSecondaryIndexesPerTableWarnThreshold();
+        int fail = Guardrails.instance.getSecondaryIndexesPerTableFailThreshold();
+        try
+        {
+            // lower the guardrail below the table's existing index count
+            Guardrails.instance.setSecondaryIndexesPerTableThreshold(-1, 2);
+
+            Set<QualifiedName> excluded = Collections.singleton(QualifiedName.WILDCARD);
+            Assertions.assertThatThrownBy(() -> IndexHints.fromCQLNames(null, excluded, cfs.metadata(), cfs.indexManager))
+                      .isInstanceOf(InvalidRequestException.class)
+                      .hasMessageContaining(TOO_MANY_INDEXES_ERROR + 3);
+        }
+        finally
+        {
+            Guardrails.instance.setSecondaryIndexesPerTableThreshold(warn, fail);
+        }
     }
 
     /**
