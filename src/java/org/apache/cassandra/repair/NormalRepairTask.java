@@ -49,7 +49,7 @@ public class NormalRepairTask extends AbstractRepairTask
     {
         ClusterMetadata metadata = coordinator.metadata != null ? coordinator.metadata : ClusterMetadata.current();
         boolean useMT = MutationTrackingIncrementalRepairTask.shouldUseMutationTrackingRepair(metadata, keyspace);
-        if (useMT)
+        if (useMT && !options.isSkipSync())
         {
             coordinator.notifyProgress("Started mutation tracking sync before full repair");
             return MutationTrackingSyncCoordinator.sync(coordinator.ctx, parentSession, keyspace, neighborsAndRanges.commonRanges, metadata, executor)

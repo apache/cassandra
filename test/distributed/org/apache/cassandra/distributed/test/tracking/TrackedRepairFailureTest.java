@@ -224,7 +224,7 @@ public class TrackedRepairFailureTest extends TrackedRepairTransferTestBase
             // Run full repair from COORDINATING
             {
                 ExecutorService repairExecutor = Executors.newSingleThreadExecutor();
-                Future<NodeToolResult> repair = repairExecutor.submit(() -> COORDINATING.nodetoolResult("repair", "--full", KEYSPACE));
+                Future<NodeToolResult> repair = repairExecutor.submit(() -> COORDINATING.nodetoolResult("repair", "--full", "--skip-sync", KEYSPACE));
                 Awaitility.waitAtMost(10, TimeUnit.SECONDS).pollDelay(1, TimeUnit.SECONDS)
                           .until(() -> {
                               int finished = StreamReceiverFailureHelper.getFinishedRepairs(RECEIVING);
@@ -279,7 +279,7 @@ public class TrackedRepairFailureTest extends TrackedRepairTransferTestBase
             StaleMigrationViewHelper.enable(coordinator);
 
             long mark = receiver.logs().mark();
-            coordinator.nodetoolResult("repair", "--full", KEYSPACE).asserts().failure();
+            coordinator.nodetoolResult("repair", "--full", "--skip-sync", KEYSPACE).asserts().failure();
 
             assertThat(receiver.logs().grep(mark, "would be stranded in the unrepaired data silo").getResult()).isNotEmpty();
 
@@ -348,7 +348,7 @@ public class TrackedRepairFailureTest extends TrackedRepairTransferTestBase
             StaleMigrationViewHelper.enable(coordinator);
 
             long mark = receiver.logs().mark();
-            coordinator.nodetoolResult("repair", "--full", keyspace).asserts().failure();
+            coordinator.nodetoolResult("repair", "--full", "--skip-sync", keyspace).asserts().failure();
 
             assertThat(receiver.logs().grep(mark, "migration of these ranges completed while the repair was running").getResult())
                       .describedAs("the receiver did not report the rejection as a migration that completed mid-repair")
@@ -387,7 +387,7 @@ public class TrackedRepairFailureTest extends TrackedRepairTransferTestBase
             // Repair fails because activation is blocked on nodes 2 and 3
             ByteBuddyInjections.SkipActivation.setup(cluster, ActivationRequest.Phase.COMMIT, true);
             {
-                NodeToolResult repair = COORDINATING.nodetoolResult("repair", "--full", KEYSPACE);
+                NodeToolResult repair = COORDINATING.nodetoolResult("repair", "--full", "--skip-sync", KEYSPACE);
                 repair.asserts().failure();
             }
             for (IInvokableInstance instance : cluster)
