@@ -813,8 +813,8 @@ public class RowFilter implements Iterable<RowFilter.Expression>
             }
             else if (operator.appliesToCollectionElements() || operator.appliesToMapKeys())
             {
-                assert column.type.isCollection();
-                CollectionType<?> type = (CollectionType<?>) column.type;
+                assert column.type.unwrap().isCollection();
+                CollectionType<?> type = (CollectionType<?>) column.type.unwrap();
                 if (column.isComplex())
                 {
                     ComplexColumnData complexData = row.getComplexColumnData(column);
