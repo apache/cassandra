@@ -44,6 +44,7 @@ import org.apache.cassandra.db.rows.BTreeRow;
 import org.apache.cassandra.db.rows.BufferCell;
 import org.apache.cassandra.db.rows.Cell;
 import org.apache.cassandra.db.rows.Row;
+import org.apache.cassandra.dht.ByteOrderedPartitioner;
 import org.apache.cassandra.distributed.test.log.ClusterMetadataTestHelper;
 import org.apache.cassandra.locator.AbstractReplicationStrategy;
 import org.apache.cassandra.locator.Endpoints;
@@ -62,7 +63,6 @@ import org.apache.cassandra.tcm.membership.Location;
 import org.apache.cassandra.utils.ByteBufferUtil;
 
 import static java.util.concurrent.TimeUnit.NANOSECONDS;
-import static org.apache.cassandra.locator.ReplicaUtils.full;
 import static org.apache.cassandra.utils.Clock.Global.nanoTime;
 
 public class ReadRepairTest
@@ -112,6 +112,11 @@ public class ReadRepairTest
         {
             throw new AssertionError(String.format("Row comparison failed, expected %s got %s", expected, actual), t);
         }
+    }
+
+    static Replica full(InetAddressAndPort ep)
+    {
+        return new Replica(ep, ByteOrderedPartitioner.MINIMUM, ByteOrderedPartitioner.MINIMUM, true);
     }
 
     @BeforeClass

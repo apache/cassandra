@@ -18,8 +18,10 @@
 
 package org.apache.cassandra.service.reads.repair;
 
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.TimeUnit;
 
@@ -47,6 +49,7 @@ import org.apache.cassandra.net.RequestCallback;
 import org.apache.cassandra.schema.TableId;
 import org.apache.cassandra.service.reads.ReadCoordinator;
 import org.apache.cassandra.service.reads.repair.BlockingReadRepair.PendingPartitionRepair;
+import org.apache.cassandra.tcm.ClusterMetadata;
 import org.apache.cassandra.tracing.Tracing;
 import org.apache.cassandra.utils.concurrent.AsyncFuture;
 import org.apache.cassandra.utils.concurrent.CountDownLatch;
@@ -68,6 +71,7 @@ public class BlockingPartitionRepair
     private final CountDownLatch latch;
     private final int blockFor;
     private volatile long mutationsSentTime;
+    private final Set<Replica> toBeRepaired;
 
     @VisibleForTesting
     public BlockingPartitionRepair(ReadCoordinator coordinator, DecoratedKey key, Map<Replica, Mutation> repairs, ReplicaPlan.ForWrite repairPlan)
@@ -76,6 +80,7 @@ public class BlockingPartitionRepair
         this.key = key;
         this.pendingRepairs = new ConcurrentHashMap<>(repairs);
         this.repairPlan = repairPlan;
+        this.toBeRepaired = new HashSet<>(repairs.keySet());
 
         // make sure all the read repair targets are contact of the repair write plan
         Preconditions.checkState(all(repairs.keySet(), (r) -> repairPlan.contacts().contains(r)),
@@ -102,12 +107,6 @@ public class BlockingPartitionRepair
         // of empty mutations would be greater than blockFor, causing the latch ctor to throw
         // an illegal argument exception due to a negative start value. So here we clamp it 0
         latch = newCountDownLatch(Math.max(blockFor, 0));
-    }
-
-    @Override
-    public ReplicaPlan.ForWrite repairPlan()
-    {
-        return repairPlan;
     }
 
     @Override
@@ -256,6 +255,21 @@ public class BlockingPartitionRepair
             sendRR(Message.out(READ_REPAIR_REQ, mutation), replica.endpoint());
             ReadRepairDiagnostics.speculatedWrite(this, replica.endpoint(), mutation);
         }
+    }
+
+    @Override
+    public void checkPlacements(ClusterMetadata metadata)
+    {
+        if (repairPlan.epoch().equals(metadata.epoch))
+            return;
+        ReplicaPlan.ForWrite r = repairPlan.copyForPlacementCheck();
+        // consider replicas from repairPlan.contacts which were not sent mutations as already up to date
+        // and here treat them as successfully read-repaired
+        for (Replica replica : r.contacts())
+            if (!toBeRepaired.contains(replica))
+                r.collectSuccess(replica.endpoint());
+        // make sure we meet the consistency level of read repairs
+        r.stillAppliesTo(metadata);
     }
 
     Keyspace getKeyspace()
