@@ -36,6 +36,7 @@ import org.apache.cassandra.index.sai.StorageAttachedIndex;
 import org.apache.cassandra.index.sai.disk.PrimaryKeyMap;
 import org.apache.cassandra.index.sai.disk.v1.PerColumnIndexFiles;
 import org.apache.cassandra.index.sai.disk.v1.vector.BruteForceRowIdIterator;
+import org.apache.cassandra.index.sai.disk.v1.vector.CachingGraphIndex;
 import org.apache.cassandra.index.sai.disk.v1.vector.DiskAnn;
 import org.apache.cassandra.index.sai.disk.v1.vector.NeighborQueueRowIdIterator;
 import org.apache.cassandra.index.sai.disk.v1.vector.OnDiskOrdinalsMap;
@@ -56,10 +57,9 @@ import org.apache.cassandra.schema.ColumnMetadata;
 import org.apache.cassandra.tracing.Tracing;
 import org.apache.cassandra.utils.CloseableIterator;
 
-import io.github.jbellis.jvector.graph.GraphIndex;
-import io.github.jbellis.jvector.graph.NeighborQueue;
-import io.github.jbellis.jvector.graph.NeighborSimilarity;
-import io.github.jbellis.jvector.pq.CompressedVectors;
+import io.github.jbellis.jvector.graph.NodeQueue;
+import io.github.jbellis.jvector.graph.similarity.ScoreFunction;
+import io.github.jbellis.jvector.quantization.CompressedVectors;
 import io.github.jbellis.jvector.util.Bits;
 import io.github.jbellis.jvector.util.SparseFixedBitSet;
 
@@ -211,7 +211,7 @@ public class VectorIndexSegmentSearcher extends IndexSegmentSearcher
     {
         int expectedNodesVisited = expectedNodesVisited(limit, graph.size(), graph.size());
         IntConsumer nodesVisitedConsumer = nodesVisited -> updateExpectedNodes(nodesVisited, expectedNodesVisited);
-        return graph.search(queryVector, topK, limit, new Bits.MatchAllBits(graph.size()), nodesVisitedConsumer);
+        return graph.search(queryVector, topK, limit, Bits.ALL, nodesVisitedConsumer);
     }
 
     private long getMaxSSTableRowId(PrimaryKeyMap primaryKeyMap, PartitionPosition right)
@@ -249,10 +249,10 @@ public class VectorIndexSegmentSearcher extends IndexSegmentSearcher
         if (graph.getCompressedVectors() != null && segmentOrdinalPairs.size() > topK)
             return orderByBruteForceTwoPass(graph.getCompressedVectors(), queryVector, segmentOrdinalPairs, limit, topK);
 
-        try (GraphIndex.View<float[]> view = graph.getView())
+        try (CachingGraphIndex.CachedView view = graph.getView())
         {
-            NeighborSimilarity.ExactScoreFunction esf = graph.getExactScoreFunction(queryVector, view);
-            NeighborQueue scoredRowIds = segmentOrdinalPairs.mapToSegmentRowIdScoreHeap(esf);
+            ScoreFunction.ExactScoreFunction esf = graph.getExactScoreFunction(queryVector, view);
+            NodeQueue scoredRowIds = segmentOrdinalPairs.mapToSegmentRowIdScoreHeap(esf);
             return new NeighborQueueRowIdIterator(scoredRowIds);
         }
         catch (Exception e)
@@ -272,13 +272,13 @@ public class VectorIndexSegmentSearcher extends IndexSegmentSearcher
                                                                        int limit,
                                                                        int rerankK)
     {
-        NeighborSimilarity.ApproximateScoreFunction scoreFunction = graph.getApproximateScoreFunction(queryVector);
+        ScoreFunction.ApproximateScoreFunction scoreFunction = graph.getApproximateScoreFunction(queryVector);
         // Store the index of the (rowId, ordinal) pair from the segmentOrdinalPairs in the NodeQueue so that we can
         // retrieve both values with O(1) lookup when we need to resolve the full resolution score in the
         // BruteForceRowIdIterator.
-        NeighborQueue approximateScoreHeap = segmentOrdinalPairs.mapToIndexScoreIterator(scoreFunction);
-        GraphIndex.View<float[]> view = graph.getView();
-        NeighborSimilarity.ExactScoreFunction esf = graph.getExactScoreFunction(queryVector, view);
+        NodeQueue approximateScoreHeap = segmentOrdinalPairs.mapToIndexScoreIterator(scoreFunction);
+        CachingGraphIndex.CachedView view = graph.getView();
+        ScoreFunction.ExactScoreFunction esf = graph.getExactScoreFunction(queryVector, view);
         return new BruteForceRowIdIterator(approximateScoreHeap, segmentOrdinalPairs, esf, limit, rerankK, view);
     }
 

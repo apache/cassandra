@@ -43,7 +43,7 @@ public class ConcurrentVectorValues implements RamAwareVectorValues
     }
 
     @Override
-    public float[] vectorValue(int i)
+    public float[] getFloatArray(int i)
     {
         return values.get(i);
     }

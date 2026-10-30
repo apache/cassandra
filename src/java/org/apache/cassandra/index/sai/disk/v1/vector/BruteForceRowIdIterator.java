@@ -23,13 +23,14 @@ import javax.annotation.concurrent.NotThreadSafe;
 import org.apache.cassandra.io.util.FileUtils;
 import org.apache.cassandra.utils.AbstractIterator;
 
-import io.github.jbellis.jvector.graph.GraphIndex;
-import io.github.jbellis.jvector.graph.NeighborQueue;
-import io.github.jbellis.jvector.graph.NeighborSimilarity;
+import io.github.jbellis.jvector.graph.ImmutableGraphIndex;
+import io.github.jbellis.jvector.graph.NodeQueue;
+import io.github.jbellis.jvector.graph.similarity.ScoreFunction;
+import io.github.jbellis.jvector.util.GrowableLongHeap;
 
 
 /**
- * An iterator over {@link RowIdWithScore} that lazily consumes from a {@link NeighborQueue} of approximate scores.
+ * An iterator over {@link RowIdWithScore} that lazily consumes from a {@link NodeQueue} of approximate scores.
  * <p>
  * The idea is that we maintain the same level of accuracy as we would get from a graph search, by re-ranking the top
  * `k` best approximate scores at a time with the full resolution vectors to return the top `limit`.
@@ -51,16 +52,16 @@ import io.github.jbellis.jvector.graph.NeighborSimilarity;
 @NotThreadSafe
 public class BruteForceRowIdIterator extends AbstractIterator<RowIdWithScore>
 {
-    // We use two binary heaps (NeighborQueue) because we do not need an eager ordering of
+    // We use two binary heaps (NodeQueue) because we do not need an eager ordering of
     // these results. Depending on how many sstables the query hits and the relative scores of vectors from those
     // sstables, we may not need to return more than the first handful of scores.
     // Heap with compressed vector scores
-    private final NeighborQueue approximateScoreQueue;
+    private final NodeQueue approximateScoreQueue;
     private final SegmentRowIdOrdinalPairs segmentOrdinalPairs;
-    // Use the jvector NeighborQueue to avoid unnecessary object allocations
-    private final NeighborQueue exactScoreQueue;
-    private final NeighborSimilarity.ExactScoreFunction reranker;
-    private final GraphIndex.View<float[]> view;
+    // Use the jvector NodeQueue to avoid unnecessary object allocations
+    private final NodeQueue exactScoreQueue;
+    private final ScoreFunction.ExactScoreFunction reranker;
+    private final ImmutableGraphIndex.View view;
     private final int topK;
     private final int limit;
     private int rerankedCount;
@@ -73,16 +74,16 @@ public class BruteForceRowIdIterator extends AbstractIterator<RowIdWithScore>
      * @param topK                  The number of vectors to resolve and score before returning results
      * @param view                  The view of the graph, passed so we can close it when the iterator is closed
      */
-    public BruteForceRowIdIterator(NeighborQueue approximateScoreQueue,
+    public BruteForceRowIdIterator(NodeQueue approximateScoreQueue,
                                    SegmentRowIdOrdinalPairs segmentOrdinalPairs,
-                                   NeighborSimilarity.ExactScoreFunction reranker,
+                                   ScoreFunction.ExactScoreFunction reranker,
                                    int limit,
                                    int topK,
-                                   GraphIndex.View<float[]> view)
+                                   ImmutableGraphIndex.View view)
     {
         this.approximateScoreQueue = approximateScoreQueue;
         this.segmentOrdinalPairs = segmentOrdinalPairs;
-        this.exactScoreQueue = new NeighborQueue(limit, true);
+        this.exactScoreQueue = new NodeQueue(new GrowableLongHeap(limit), NodeQueue.Order.MAX_HEAP);
         this.reranker = reranker;
         assert topK >= limit : "topK must be greater than or equal to limit. Found: " + topK + " < " + limit;
         this.limit = limit;
@@ -104,7 +105,7 @@ public class BruteForceRowIdIterator extends AbstractIterator<RowIdWithScore>
                 int rowId = segmentOrdinalPairs.getSegmentRowId(segmentOrdinalIndex);
                 int ordinal = segmentOrdinalPairs.getOrdinal(segmentOrdinalIndex);
                 float score = reranker.similarityTo(ordinal);
-                exactScoreQueue.add(rowId, score);
+                exactScoreQueue.push(rowId, score);
             }
             rerankedCount = exactScoreQueue.size();
         }

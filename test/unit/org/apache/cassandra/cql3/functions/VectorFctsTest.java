@@ -27,6 +27,7 @@ import org.junit.runner.RunWith;
 import org.junit.runners.Parameterized;
 
 import org.apache.cassandra.cql3.CQLTester;
+import org.apache.cassandra.index.sai.disk.v1.vector.JVectorUtils;
 
 import io.github.jbellis.jvector.vector.VectorSimilarityFunction;
 
@@ -63,7 +64,7 @@ public class VectorFctsTest extends CQLTester
 
         float[] values = new float[]{ 1f, 2f };
         CQLTester.Vector<Float> vector = vector(ArrayUtils.toObject(values));
-        Object[] similarity = row(luceneFunction.compare(values, values));
+        Object[] similarity = row(JVectorUtils.compare(luceneFunction, values, values));
 
         // basic functionality
         execute("INSERT INTO %s (pk, value, l, fl, v1, v_int, v_double) VALUES (0, ?, ?, ?, ?, ?, ?)",
@@ -172,7 +173,7 @@ public class VectorFctsTest extends CQLTester
         }
         else
         {
-            float expected = luceneFunction.compare(values, new float[]{ 0, 0 });
+            float expected = JVectorUtils.compare(luceneFunction, values, new float[]{ 0, 0 });
             assertRows(execute("SELECT " + function + "(value, [0, 0]) FROM %s"), row(expected));
             assertRows(execute("SELECT " + function + "([0, 0], value) FROM %s"), row(expected));
         }

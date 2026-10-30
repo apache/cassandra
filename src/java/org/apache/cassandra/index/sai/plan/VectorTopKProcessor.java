@@ -45,6 +45,7 @@ import org.apache.cassandra.db.rows.Row;
 import org.apache.cassandra.db.rows.Unfiltered;
 import org.apache.cassandra.index.SecondaryIndexManager;
 import org.apache.cassandra.index.sai.StorageAttachedIndex;
+import org.apache.cassandra.index.sai.disk.v1.vector.JVectorUtils;
 import org.apache.cassandra.index.sai.utils.InMemoryPartitionIterator;
 import org.apache.cassandra.index.sai.utils.InMemoryUnfilteredPartitionIterator;
 import org.apache.cassandra.index.sai.utils.IndexTermType;
@@ -159,7 +160,7 @@ public class VectorTopKProcessor
         if (value != null)
         {
             float[] vector = indexTermType.decomposeVector(value);
-            return index.indexWriterConfig().getSimilarityFunction().compare(vector, queryVector);
+            return JVectorUtils.compare(index.indexWriterConfig().getSimilarityFunction(), vector, queryVector);
         }
         return 0;
     }

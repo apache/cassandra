@@ -38,6 +38,7 @@ import org.apache.cassandra.db.marshal.Int32Type;
 import org.apache.cassandra.db.marshal.VectorType;
 import org.apache.cassandra.dht.Murmur3Partitioner;
 import org.apache.cassandra.index.sai.disk.v1.segment.SegmentBuilder;
+import org.apache.cassandra.index.sai.disk.v1.vector.JVectorUtils;
 
 import io.github.jbellis.jvector.vector.VectorSimilarityFunction;
 
@@ -459,7 +460,7 @@ public class VectorLocalTest extends VectorTester
     {
         List<float[]> expected = population
                                  .stream()
-                                 .sorted(Comparator.comparingDouble(v -> -VectorSimilarityFunction.COSINE.compare(q, v)))
+                                 .sorted(Comparator.comparingDouble(v -> -JVectorUtils.compare(VectorSimilarityFunction.COSINE, q, v)))
                                  .limit(limit)
                                  .collect(Collectors.toList());
         return recallMatch(expected, resultVectors, limit);
@@ -589,7 +590,7 @@ public class VectorLocalTest extends VectorTester
         float prevScore = -1;
         for (float[] current : resultVectors)
         {
-            float score = VectorSimilarityFunction.COSINE.compare(current, queryVector);
+            float score = JVectorUtils.compare(VectorSimilarityFunction.COSINE, current, queryVector);
             if (prevScore >= 0)
                 assertThat(score).isLessThanOrEqualTo(prevScore);
 

@@ -86,6 +86,7 @@ import org.apache.cassandra.index.sai.disk.SSTableIndex;
 import org.apache.cassandra.index.sai.disk.format.IndexDescriptor;
 import org.apache.cassandra.index.sai.disk.format.Version;
 import org.apache.cassandra.index.sai.disk.v1.IndexWriterConfig;
+import org.apache.cassandra.index.sai.disk.v1.vector.JVectorUtils;
 import org.apache.cassandra.index.sai.memory.MemtableIndexManager;
 import org.apache.cassandra.index.sai.memory.ShardedMemtableIndex;
 import org.apache.cassandra.index.sai.metrics.ColumnQueryMetrics;
@@ -566,10 +567,10 @@ public class StorageAttachedIndex implements Index
 
         return (leftBuf, rightBuf) -> {
             float[] left = indexTermType.decomposeVector(leftBuf.duplicate());
-            double scoreLeft = function.compare(left, target);
+            double scoreLeft = JVectorUtils.compare(function, left, target);
 
             float[] right = indexTermType.decomposeVector(rightBuf.duplicate());
-            double scoreRight = function.compare(right, target);
+            double scoreRight = JVectorUtils.compare(function, right, target);
             return Double.compare(scoreRight, scoreLeft); // descending order
         };
     }

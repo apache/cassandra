@@ -170,7 +170,7 @@ public class OnHeapGraphSimulationTest extends SimulationTestBase
                             queryVector[d] = ThreadLocalRandom.current().nextFloat();
 
                         // Must not throw — safety invariant
-                        try (CloseableIterator<SearchResult.NodeScore> results = graph.search(queryVector, 50, new Bits.MatchAllBits(graph.size())))
+                        try (CloseableIterator<SearchResult.NodeScore> results = graph.search(queryVector, 50, Bits.ALL))
                         {
                             while (results.hasNext())
                             {
@@ -226,7 +226,7 @@ public class OnHeapGraphSimulationTest extends SimulationTestBase
             for (int d = 0; d < DIMENSIONS; d++)
                 queryVector[d] = ThreadLocalRandom.current().nextFloat();
 
-            try (CloseableIterator<SearchResult.NodeScore> results = graph.search(queryVector, 100, new Bits.MatchAllBits(graph.size())))
+            try (CloseableIterator<SearchResult.NodeScore> results = graph.search(queryVector, 100, Bits.ALL))
             {
                 while (results.hasNext())
                 {

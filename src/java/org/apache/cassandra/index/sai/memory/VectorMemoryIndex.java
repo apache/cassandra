@@ -44,6 +44,7 @@ import org.apache.cassandra.index.sai.QueryContext;
 import org.apache.cassandra.index.sai.StorageAttachedIndex;
 import org.apache.cassandra.index.sai.disk.format.IndexDescriptor;
 import org.apache.cassandra.index.sai.disk.v1.segment.SegmentMetadata;
+import org.apache.cassandra.index.sai.disk.v1.vector.JVectorUtils;
 import org.apache.cassandra.index.sai.disk.v1.vector.OnHeapGraph;
 import org.apache.cassandra.index.sai.disk.v1.vector.PrimaryKeyWithScore;
 import org.apache.cassandra.index.sai.iterators.KeyRangeIterator;
@@ -197,7 +198,7 @@ public class VectorMemoryIndex extends MemoryIndex
         else
         {
             // Accept all bits
-            bits = new Bits.MatchAllBits(Integer.MAX_VALUE);
+            bits = Bits.ALL;
         }
 
         CloseableIterator<SearchResult.NodeScore> iterator = graph.search(qv, queryContext.limit(), bits);
@@ -267,7 +268,7 @@ public class VectorMemoryIndex extends MemoryIndex
         float[] vector = graph.vectorForKey(key);
         if (vector == null)
             return null;
-        float score = similarityFunction.compare(queryVector, vector);
+        float score = JVectorUtils.compare(similarityFunction, queryVector, vector);
         return new PrimaryKeyWithScore(index.termType().columnMetadata(), memtable, key, score);
     }
 
@@ -343,12 +344,6 @@ public class VectorMemoryIndex extends MemoryIndex
             Collection<PrimaryKey> keys = graph.keysFromOrdinal(ordinal);
             return keys.stream().anyMatch(k -> keyRange.contains(k.partitionKey()));
         }
-
-        @Override
-        public int length()
-        {
-            return graph.size();
-        }
     }
 
     private class KeyFilteringBits implements Bits
@@ -365,12 +360,6 @@ public class VectorMemoryIndex extends MemoryIndex
         {
             Collection<PrimaryKey> pk = graph.keysFromOrdinal(i);
             return results.stream().anyMatch(pk::contains);
-        }
-
-        @Override
-        public int length()
-        {
-            return results.size();
         }
     }
 
