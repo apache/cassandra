@@ -228,14 +228,14 @@ public final class NativeLibrary
     public static void trySkipCache(int fd, long offset, long len, String path)
     {
         if (len == 0)
-            trySkipCache(fd, 0, 0, path);
+            trySkipCache(fd, offset, 0, path);
 
         while (len > 0)
         {
             int sublen = (int) Math.min(Integer.MAX_VALUE, len);
             trySkipCache(fd, offset, sublen, path);
             len -= sublen;
-            offset -= sublen;
+            offset += sublen;
         }
     }
 

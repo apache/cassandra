@@ -33,11 +33,13 @@ import org.apache.cassandra.cql3.Duration;
 import org.apache.cassandra.locator.InetAddressAndPort;
 import org.apache.cassandra.schema.SchemaConstants;
 import org.apache.cassandra.schema.SchemaKeyspaceTables;
+import org.apache.cassandra.service.consensus.TransactionalMode;
 import org.apache.cassandra.tcm.ClusterMetadata;
 import org.apache.cassandra.tcm.ClusterMetadataService;
 import org.apache.cassandra.tcm.membership.Directory;
 import org.apache.cassandra.tcm.membership.Location;
 import org.apache.cassandra.tcm.membership.NodeAddresses;
+import org.apache.cassandra.tcm.membership.NodeId;
 import org.apache.cassandra.tcm.membership.NodeVersion;
 import org.apache.cassandra.tcm.serialization.Version;
 import org.apache.cassandra.tcm.transformations.Register;
@@ -55,18 +57,22 @@ import static org.junit.Assert.assertEquals;
 @RunWith(Parameterized.class)
 public class InsertUpdateIfConditionTest extends CQLTester
 {
-    @Parameterized.Parameters(name = "{index}: clusterMinVersion={0}")
+    @Parameterized.Parameters(name = "{index}: clusterMinVersion={0}, transactionalMode={1}")
     public static Collection<Object[]> data()
     {
         ServerTestUtils.daemonInitialization();
         // TODO [tcm] we will require upgrading from 4.1
-        return Arrays.asList(new Object[]{ NodeVersion.CURRENT },
-                             new Object[]{ new NodeVersion( new CassandraVersion("4.1"), Version.OLD) },
-                             new Object[]{ new NodeVersion( new CassandraVersion("4.0"), Version.OLD) });
+        return Arrays.asList(new Object[]{ NodeVersion.CURRENT, TransactionalMode.off },
+                             new Object[]{ new NodeVersion( new CassandraVersion("4.1"), Version.OLD), TransactionalMode.off },
+                             new Object[]{ new NodeVersion( new CassandraVersion("4.0"), Version.OLD), TransactionalMode.off },
+                             new Object[]{ NodeVersion.CURRENT, TransactionalMode.full });
     }
 
     @Parameterized.Parameter(0)
     public NodeVersion clusterMinVersion;
+
+    @Parameterized.Parameter(1)
+    public TransactionalMode transactionalMode;
 
     @BeforeClass
     public static void setUpClass()
@@ -82,11 +88,17 @@ public class InsertUpdateIfConditionTest extends CQLTester
     @Before
     public void before()
     {
-        beforeSetup(clusterMinVersion);
+        beforeSetup(clusterMinVersion, transactionalMode);
     }
 
-    public static void beforeSetup(NodeVersion clusterMinVersion)
+    public static void beforeSetup(NodeVersion clusterMinVersion, TransactionalMode transactionalMode)
     {
+        if (transactionalMode != TransactionalMode.off && ClusterMetadata.current().myNodeId() == NodeId.UNREGISTERED)
+        {
+            prepareServer();
+            enableCoordinatorExecution();
+        }
+
         // Add two entries to ClusterMetadata, to make it potentially appear as a mixed-version cluster (if the
         // supplied version is lower than current).
         ClusterMetadataService.instance()
@@ -105,6 +117,12 @@ public class InsertUpdateIfConditionTest extends CQLTester
         // the scope of maintaining backward compatible metadata serializations (i.e. they predate them entirely). So
         // in this test, the common serialization version will always be the current one.
         assertEquals(NodeVersion.CURRENT_METADATA_VERSION, ClusterMetadata.current().directory.commonSerializationVersion);
+    }
+
+    @Override
+    protected String createTable(String query)
+    {
+        return super.createTable(query + (query.toLowerCase().contains("with") ? " AND " : " WITH ") + transactionalMode.asCqlParam());
     }
 
     /**

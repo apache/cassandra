@@ -72,6 +72,8 @@ import org.apache.cassandra.utils.ObjectSizes;
 
 import static com.google.common.base.Preconditions.checkState;
 import static org.apache.cassandra.io.util.DataOutputBuffer.scratchBuffer;
+import static org.apache.cassandra.service.accord.txn.TxnData.TxnDataNameKind.AUTO_READ;
+import static org.apache.cassandra.service.accord.txn.TxnData.TxnDataNameKind.CAS_READ;
 import static org.apache.cassandra.utils.ByteBufferUtil.readWithVIntLength;
 import static org.apache.cassandra.utils.ByteBufferUtil.serializedSizeWithVIntLength;
 import static org.apache.cassandra.utils.ByteBufferUtil.skipWithVIntLength;
@@ -304,7 +306,8 @@ public class TxnNamedRead extends AbstractParameterisedVersionedSerialized<ReadC
                         try (RowIterator row = iterator.next())
                         {
                             TxnDataKeyValue value = new TxnDataKeyValue(row);
-                            if (value.hasRows() || command.selectsFullPartition())
+                            // We need to put the value of the static row
+                            if (value.hasRows() || command.selectsFullPartition() || (!value.staticRow().isEmpty() && ((TxnData.txnDataNameKind(name) == CAS_READ || TxnData.txnDataNameKind(name) == AUTO_READ))))
                                 result.put(name, value);
                         }
                     }

@@ -18,12 +18,48 @@
 
 package org.apache.cassandra.cql3.validation.operations;
 
+import java.util.ArrayList;
+import java.util.Collection;
+import java.util.List;
+
+import com.google.common.collect.ImmutableList;
+
+import org.junit.Before;
 import org.junit.Test;
+import org.junit.runner.RunWith;
+import org.junit.runners.Parameterized;
 
 import org.apache.cassandra.cql3.CQLTester;
+import org.apache.cassandra.service.consensus.TransactionalMode;
 
+@RunWith(Parameterized.class)
 public class BatchTest extends CQLTester
 {
+    @Parameterized.Parameter
+    public TransactionalMode transactionalMode;
+
+    @Parameterized.Parameters(name = "{index}: transactionalMode={0}")
+    public static Collection<Object[]> data()
+    {
+        List<Object[]> result = new ArrayList<>();
+        for (TransactionalMode mode : ImmutableList.of(TransactionalMode.off, TransactionalMode.full))
+            result.add(new Object[]{ mode });
+        return result;
+    }
+
+    @Before
+    public void before()
+    {
+        if (transactionalMode != TransactionalMode.off)
+            enableCoordinatorExecution();
+    }
+
+    @Override
+    protected String createTable(String query)
+    {
+        return super.createTable(query + " WITH " + transactionalMode.asCqlParam());
+    }
+
     /**
      * Test batch statements
      * migrated from cql_tests.py:TestCQL.batch_test()

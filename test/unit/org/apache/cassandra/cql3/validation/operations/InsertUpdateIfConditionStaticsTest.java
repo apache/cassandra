@@ -28,6 +28,7 @@ import org.junit.runners.Parameterized;
 
 import org.apache.cassandra.ServerTestUtils;
 import org.apache.cassandra.cql3.CQLTester;
+import org.apache.cassandra.service.consensus.TransactionalMode;
 import org.apache.cassandra.tcm.membership.NodeVersion;
 
 /* InsertUpdateIfConditionCollectionsTest class has been split into multiple ones because of timeout issues (CASSANDRA-16670)
@@ -39,7 +40,7 @@ import org.apache.cassandra.tcm.membership.NodeVersion;
 @RunWith(Parameterized.class)
 public class InsertUpdateIfConditionStaticsTest extends CQLTester
 {
-    @Parameterized.Parameters(name = "{index}: clusterMinVersion={0}")
+    @Parameterized.Parameters(name = "{index}: clusterMinVersion={0}, transactionalMode={1}")
     public static Collection<Object[]> data()
     {
         ServerTestUtils.daemonInitialization();
@@ -48,6 +49,9 @@ public class InsertUpdateIfConditionStaticsTest extends CQLTester
 
     @Parameterized.Parameter(0)
     public NodeVersion clusterMinVersion;
+
+    @Parameterized.Parameter(1)
+    public TransactionalMode transactionalMode;
 
     @BeforeClass
     public static void setUpClass()
@@ -58,7 +62,13 @@ public class InsertUpdateIfConditionStaticsTest extends CQLTester
     @Before
     public void before()
     {
-        InsertUpdateIfConditionTest.beforeSetup(clusterMinVersion);
+        InsertUpdateIfConditionTest.beforeSetup(clusterMinVersion, transactionalMode);
+    }
+
+    @Override
+    protected String createTable(String query)
+    {
+        return super.createTable(query + " WITH " + transactionalMode.asCqlParam());
     }
 
     /**

@@ -501,7 +501,7 @@ public class TxnWrite extends AbstractKeySorted<TxnWrite.Update> implements Writ
         PartitionUpdate update;
         {
             boolean preserveTimestamps = txnUpdate.preserveTimestamps().preserve;
-            PartitionUpdate tmp = updates.size() == 1 ? updates.get(0) : PartitionUpdate.merge(updates);
+            PartitionUpdate tmp = updates.size() == 1 ? updates.get(0) : mergePartitions(updates);
             if (!preserveTimestamps)
                 tmp = new PartitionUpdate.Builder(tmp, 0).updateAllTimestamp(timestamp).build();
             update = tmp;
@@ -509,6 +509,37 @@ public class TxnWrite extends AbstractKeySorted<TxnWrite.Update> implements Writ
 
         AccordExecutor executor = ((AccordCommandStore) commandStore).executor();
         return executor.continuationChain(() -> new Mutation(update, PotentialTxnConflicts.ALLOW).apply(false, false));
+    }
+
+    /**
+     * We need to ensure that when we do a partition level deletion or a range deletion
+     * Accord will preserve the rows written by other statements within a batch
+     * to keep parity with Paxos semantics.
+     */
+    private static PartitionUpdate mergePartitions(List<PartitionUpdate> updates)
+    {
+        RegularAndStaticColumns.Builder columns = RegularAndStaticColumns.builder();
+        int rowCount = 0;
+
+        for (PartitionUpdate update : updates)
+        {
+            columns.addAll(update.columns());
+            rowCount += update.rowCount();
+        }
+
+        PartitionUpdate first = updates.get(0);
+        PartitionUpdate.Builder builder = new PartitionUpdate.Builder(first.metadata(), first.partitionKey(), columns.build(), rowCount, true);
+        for (PartitionUpdate update : updates)
+        {
+            builder.addPartitionDeletion(update.partitionLevelDeletion());
+            update.deletionInfo().rangeIterator(false).forEachRemaining(builder::add);
+            builder.add(update.staticRow());
+
+            for (Row row : update)
+                builder.add(row);
+        }
+
+        return builder.build();
     }
 
     public long estimatedSizeOnHeap()

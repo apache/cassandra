@@ -256,17 +256,19 @@ public class FileHandle extends SharedCloseableImpl
     /**
      * Drop page cache from start to given {@code before}.
      *
-     * @param before uncompressed position from start of the file to be dropped from cache. if 0, to end of file.
+     * @param before uncompressed position from start of the file to be dropped from cache. if 0, no-op.
      */
     public void dropPageCache(long before)
     {
         long position = compressionMetadata.map(metadata -> {
             if (before >= metadata.dataLength)
-                return 0L;
+                return metadata.compressedFileLength;
             else
                 return metadata.chunkFor(before).offset;
         }).orElse(before);
-        NativeLibrary.trySkipCache(channel.getFileDescriptor(), 0, position, file().absolutePath());
+
+        if (position > 0)
+            NativeLibrary.trySkipCache(channel.getFileDescriptor(), 0, position, file().absolutePath());
     }
 
     public Rebufferer instantiateRebufferer(RateLimiter limiter)
