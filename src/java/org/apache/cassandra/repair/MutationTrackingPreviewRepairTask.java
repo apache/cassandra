@@ -27,6 +27,7 @@ import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.atomic.AtomicInteger;
 
+import com.google.common.base.Preconditions;
 import com.google.common.collect.Sets;
 
 import org.apache.cassandra.concurrent.ExecutorPlus;
@@ -171,7 +172,9 @@ public class MutationTrackingPreviewRepairTask extends AbstractRepairTask
                 Set<InetAddressAndPort> participants = new HashSet<>(Sets.difference(commonRange.endpoints, commonRange.transEndpoints));
                 if (StorageService.instance.isLocalFullReplica(keyspace, commonRange.ranges))
                     participants.add(broadcastAddressAndPort);
-                allParticipants.addAll(participants);
+
+                if (!participants.isEmpty())
+                    allParticipants.addAll(participants);
 
                 for (String tableName : tableNames)
                 {
@@ -192,6 +195,9 @@ public class MutationTrackingPreviewRepairTask extends AbstractRepairTask
 
         AtomicInteger remaining = new AtomicInteger(handles.size());
         Map<String, Set<Range<Token>>> mismatchesByTable = new HashMap<>();
+
+        Preconditions.checkState(!allParticipants.isEmpty());
+        Preconditions.checkState(!handles.isEmpty());
 
         for (ValidationHandle handle : handles)
         {
