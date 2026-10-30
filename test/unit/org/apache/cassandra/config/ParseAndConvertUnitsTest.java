@@ -41,6 +41,7 @@ public class ParseAndConvertUnitsTest
         //Confirm duration parameters were successfully parsed with the default values in cassandra.yaml
         assertEquals(new DurationSpec.IntMillisecondsBound(10800000), config.max_hint_window);
         assertEquals(new DurationSpec.LongMillisecondsBound(0), config.native_transport_idle_timeout);
+        assertEquals(new DurationSpec.LongMillisecondsBound(5000), config.native_transport_auth_timeout);
         assertEquals(new DurationSpec.LongMillisecondsBound(10000), config.request_timeout);
         assertEquals(new DurationSpec.LongMillisecondsBound(5000), config.read_request_timeout);
         assertEquals(new DurationSpec.LongMillisecondsBound(10000), config.range_request_timeout);
