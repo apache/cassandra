@@ -278,6 +278,7 @@ class Shell(cmd.Cmd):
                  display_timezone=None,
                  max_trace_wait=DEFAULT_MAX_TRACE_WAIT,
                  ssl=False,
+                 ssl_mode=None,
                  single_statement=None,
                  request_timeout=DEFAULT_REQUEST_TIMEOUT_SECONDS,
                  protocol_version=None,
@@ -301,6 +302,7 @@ class Shell(cmd.Cmd):
 
         self.keyspace = keyspace
         self.ssl = ssl
+        self.ssl_mode = ssl_mode
         self.tracing_enabled = tracing_enabled
         self.page_size = self.default_page_size
         self.expand_enabled = expand_enabled
@@ -312,7 +314,7 @@ class Shell(cmd.Cmd):
                 kwargs['protocol_version'] = protocol_version
             self.conn = Cluster(contact_points=(self.hostname,), port=self.port, cql_version=cqlver,
                                 auth_provider=self.auth_provider,
-                                ssl_options=sslhandling.ssl_settings(hostname, self.config_file) if ssl else None,
+                                ssl_options=sslhandling.ssl_settings(hostname, self.config_file, ssl_mode=ssl_mode) if ssl else None,
                                 load_balancing_policy=WhiteListRoundRobinPolicy([self.hostname]),
                                 control_connection_timeout=connect_timeout,
                                 connect_timeout=connect_timeout,
@@ -1527,7 +1529,7 @@ class Shell(cmd.Cmd):
                          display_float_precision=self.display_float_precision,
                          display_double_precision=self.display_double_precision,
                          display_timezone=self.display_timezone,
-                         max_trace_wait=self.max_trace_wait, ssl=self.ssl,
+                         max_trace_wait=self.max_trace_wait, ssl=self.ssl, ssl_mode=self.ssl_mode,
                          request_timeout=self.session.default_timeout,
                          connect_timeout=self.conn.connect_timeout,
                          is_subshell=True,
@@ -2221,6 +2223,8 @@ def main(cmdline, pkgpath):
                                                         - browser path followed by %%s, example: /usr/bin/google-chrome-stable %%s""")
 
     parser.add_argument('--ssl', action='store_true', help='Use SSL', default=False)
+    parser.add_argument('--ssl-mode', dest='ssl_mode', type=str.lower, choices=sslhandling.SSL_MODES, default=None,
+                        help='SSL certificate validation when --ssl is used. Overrides $SSL_MODE and ssl_mode in cqlshrc.')
     parser.add_argument("-u", "--username", help="Authenticate as user.")
     parser.add_argument("-p", "--password", help="Authenticate using password.")
     parser.add_argument('-k', '--keyspace', help='Authenticate to the given keyspace.')
@@ -2377,6 +2381,7 @@ def main(cmdline, pkgpath):
                       display_timezone=timezone,
                       max_trace_wait=options.max_trace_wait,
                       ssl=options.ssl,
+                      ssl_mode=options.ssl_mode,
                       single_statement=options.execute,
                       request_timeout=options.request_timeout,
                       connect_timeout=options.connect_timeout,
