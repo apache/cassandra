@@ -21,10 +21,17 @@ package org.apache.cassandra.db.compaction;
 import java.nio.ByteBuffer;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Collections;
+import java.util.HashSet;
+import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Map;
+import java.util.Random;
+import java.util.Set;
 import java.util.stream.Collectors;
 
 import com.google.common.collect.ImmutableList;
+import com.google.common.collect.ImmutableSet;
 import org.junit.Assert;
 import org.junit.Before;
 import org.junit.Test;
@@ -42,6 +49,7 @@ import org.apache.cassandra.dht.Range;
 import org.apache.cassandra.dht.Splitter;
 import org.apache.cassandra.dht.Token;
 import org.apache.cassandra.io.sstable.format.SSTableReader;
+import org.apache.cassandra.utils.EstimatedHistogram;
 import org.mockito.Mockito;
 
 import static org.assertj.core.api.Assertions.assertThat;
@@ -71,7 +79,7 @@ public class ShardManagerTest
     public void testRangeSpannedFullOwnership()
     {
         weightedRanges.add(new Splitter.WeightedRange(1.0, new Range<>(minimumToken, minimumToken)));
-        ShardManager shardManager = new ShardManagerNoDisks(weightedRanges);
+        ShardManager shardManager = new ShardManagerNoDisks(weightedRanges, 10000L);
 
         // sanity check
         assertEquals(0.4, tokenAt(0.1).size(tokenAt(0.5)), delta);
@@ -80,8 +88,12 @@ public class ShardManagerTest
         assertEquals(0.2, shardManager.rangeSpanned(range(0.3, 0.5)), delta);
 
         assertEquals(0.2, shardManager.rangeSpanned(mockedTable(0.5, 0.7, Double.NaN)), delta);
-        // single-partition correction
-        assertEquals(1.0, shardManager.rangeSpanned(mockedTable(0.3, 0.3, Double.NaN)), delta);
+        // single-token-span correction
+        assertEquals(0.02, shardManager.rangeSpanned(mockedTable(0.3, 0.3, Double.NaN, 200)), delta);
+        // small partition count correction
+        assertEquals(0.0001, shardManager.rangeSpanned(mockedTable(0.3, 0.30001, Double.NaN, 1)), delta);
+        assertEquals(0.001, shardManager.rangeSpanned(mockedTable(0.3, 0.30001, Double.NaN, 10)), delta);
+        assertEquals(0.01, shardManager.rangeSpanned(mockedTable(0.3, 0.31, Double.NaN, 10)), delta);
 
         // reported coverage
         assertEquals(0.1, shardManager.rangeSpanned(mockedTable(0.5, 0.7, 0.1)), delta);
@@ -90,7 +102,7 @@ public class ShardManagerTest
         assertEquals(0.2, shardManager.rangeSpanned(mockedTable(0.5, 0.7, -1)), delta);
 
         // correction over coverage
-        assertEquals(1.0, shardManager.rangeSpanned(mockedTable(0.3, 0.5, 1e-50)), delta);
+        assertEquals(0.02, shardManager.rangeSpanned(mockedTable(0.3, 0.5, 1e-50, 200)), delta);
     }
 
     @Test
@@ -106,7 +118,7 @@ public class ShardManagerTest
         weightedRanges.add(new Splitter.WeightedRange(1.0, new Range<>(tokenAt(0.98), tokenAt(1.0))));
         double total = weightedRanges.stream().mapToDouble(wr -> wr.range().left.size(wr.range().right)).sum();
 
-        ShardManager shardManager = new ShardManagerNoDisks(weightedRanges);
+        ShardManager shardManager = new ShardManagerNoDisks(weightedRanges, 10000L);
 
         // sanity check
         assertEquals(0.4, tokenAt(0.1).size(tokenAt(0.5)), delta);
@@ -120,10 +132,11 @@ public class ShardManagerTest
         assertEquals(0.1, shardManager.rangeSpanned(mockedTable(0.5, 0.8, Double.NaN)), delta);
 
         // single-partition correction
-        assertEquals(1.0, shardManager.rangeSpanned(mockedTable(0.3, 0.3, Double.NaN)), delta);
+        assertEquals(0.02 * total, shardManager.rangeSpanned(mockedTable(0.3, 0.3, Double.NaN, 200)), delta);
         // out-of-local-range correction
-        assertEquals(1.0, shardManager.rangeSpanned(mockedTable(0.6, 0.7, Double.NaN)), delta);
-        assertEquals(0.001, shardManager.rangeSpanned(mockedTable(0.6, 0.701, Double.NaN)), delta);
+        assertEquals(0.03, shardManager.rangeSpanned(mockedTable(0.6, 0.73, Double.NaN, 200)), delta);
+        // completely outside should use partition-based count
+        assertEquals(0.02 * total, shardManager.rangeSpanned(mockedTable(0.6, 0.7, Double.NaN, 200)), delta);
 
         // reported coverage
         assertEquals(0.1, shardManager.rangeSpanned(mockedTable(0.5, 0.7, 0.1)), delta);
@@ -132,7 +145,7 @@ public class ShardManagerTest
         assertEquals(0.1, shardManager.rangeSpanned(mockedTable(0.5, 0.8, -1)), delta);
 
         // correction over coverage, no recalculation
-        assertEquals(1.0, shardManager.rangeSpanned(mockedTable(0.5, 0.8, 1e-50)), delta);
+        assertEquals(0.02 * total, shardManager.rangeSpanned(mockedTable(0.5, 0.8, 1e-50, 200)), delta);
     }
 
     @Test
@@ -148,7 +161,7 @@ public class ShardManagerTest
         weightedRanges.add(new Splitter.WeightedRange(1.0, new Range<>(tokenAt(0.98), tokenAt(1.0))));
         double total = weightedRanges.stream().mapToDouble(wr -> wr.size()).sum();
 
-        ShardManager shardManager = new ShardManagerNoDisks(weightedRanges);
+        ShardManager shardManager = new ShardManagerNoDisks(weightedRanges, 10000L);
 
         // sanity check
         assertEquals(0.4, tokenAt(0.1).size(tokenAt(0.5)), delta);
@@ -162,10 +175,10 @@ public class ShardManagerTest
         assertEquals(0.06, shardManager.rangeSpanned(mockedTable(0.5, 0.8, Double.NaN)), delta);
 
         // single-partition correction
-        assertEquals(1.0, shardManager.rangeSpanned(mockedTable(0.3, 0.3, Double.NaN)), delta);
+        assertEquals(0.02 * total, shardManager.rangeSpanned(mockedTable(0.3, 0.3, Double.NaN, 200)), delta);
         // out-of-local-range correction
-        assertEquals(1.0, shardManager.rangeSpanned(mockedTable(0.6, 0.7, Double.NaN)), delta);
-        assertEquals(0.001, shardManager.rangeSpanned(mockedTable(0.6, 0.701, Double.NaN)), delta);
+        assertEquals(0.02 * total, shardManager.rangeSpanned(mockedTable(0.6, 0.7, Double.NaN, 200)), delta);
+        assertEquals(0.03, shardManager.rangeSpanned(mockedTable(0.6, 0.73, Double.NaN)), delta);
 
         // reported coverage
         assertEquals(0.1, shardManager.rangeSpanned(mockedTable(0.5, 0.7, 0.1)), delta);
@@ -174,14 +187,14 @@ public class ShardManagerTest
         assertEquals(0.06, shardManager.rangeSpanned(mockedTable(0.5, 0.8, -1)), delta);
 
         // correction over coverage, no recalculation
-        assertEquals(1.0, shardManager.rangeSpanned(mockedTable(0.5, 0.8, 1e-50)), delta);
+        assertEquals(0.02 * total, shardManager.rangeSpanned(mockedTable(0.5, 0.8, 1e-50, 200)), delta);
     }
 
     @Test
     public void testRangeSpannedWithSingleToken()
     {
         weightedRanges.add(new Splitter.WeightedRange(1.0, new Range<>(minimumToken, minimumToken)));
-        ShardManager shardManager = new ShardManagerNoDisks(weightedRanges);
+        ShardManager shardManager = new ShardManagerNoDisks(weightedRanges, 10000L);
 
         Token singleToken = tokenAt(0.5);
         double rangeSpannedForSingleToken = shardManager.rangeSpanned(singleToken.minKeyBound(), singleToken.minKeyBound());
@@ -209,6 +222,262 @@ public class ShardManagerTest
         assertThat(coveringRange.contains(minimumToken)).isTrue();
     }
 
+    @Test
+    public void testOutOfDateOnPartitionCountChange()
+    {
+        weightedRanges.add(new Splitter.WeightedRange(1.0, new Range<>(minimumToken, minimumToken)));
+        ShardManager shardManager = new ShardManagerNoDisks(weightedRanges, 10000L);
+
+        assertFalse(shardManager.isOutOfDate(-1, 10000L));
+        assertTrue(shardManager.isOutOfDate(-1, 20000L));
+    }
+
+    @Test
+    public void testCombinedDensitySmallSSTables()
+    {
+        weightedRanges.add(new Splitter.WeightedRange(1.0, new Range<>(minimumToken, minimumToken)));
+        ShardManager shardManager = new ShardManagerNoDisks(weightedRanges, 10000L);
+
+        // Two adjacent tiny sstables with four partitions in total get a span floor of 4 / 10000 of the ring.
+        SSTableReader tinyA = mockedTable(0.3, 0.3 + 1e-11, Double.NaN, 2);
+        SSTableReader tinyB = mockedTable(0.3 + 2e-11, 0.3 + 3e-11, Double.NaN, 2);
+        Mockito.when(tinyA.onDiskLength()).thenReturn(1024L);
+        Mockito.when(tinyB.onDiskLength()).thenReturn(1024L);
+        double expected = 2048 / 0.0004;
+        assertEquals(expected, shardManager.calculateCombinedDensity(ImmutableSet.of(tinyA, tinyB)), expected * 1e-6);
+
+        // Enough partitions in a narrow slice keep the raw span.
+        SSTableReader narrowA = mockedTable(0.3, 0.3 + 1e-5, Double.NaN, 5000);
+        SSTableReader narrowB = mockedTable(0.3, 0.3 + 1e-5, Double.NaN, 5000);
+        Mockito.when(narrowA.onDiskLength()).thenReturn(1L << 20);
+        Mockito.when(narrowB.onDiskLength()).thenReturn(1L << 20);
+        expected = (2L << 20) / 1e-5;
+        assertEquals(expected, shardManager.calculateCombinedDensity(ImmutableSet.of(narrowA, narrowB)), expected * 1e-6);
+    }
+
+    @Test
+    public void testSplitSSTablesInShards()
+    {
+        weightedRanges.add(new Splitter.WeightedRange(1.0, new Range<>(minimumToken, minimumToken)));
+        ShardManager shardManager = new ShardManagerNoDisks(weightedRanges, 10000L);
+
+        SSTableReader a = mockedTable(0.1, 0.2, Double.NaN);
+        SSTableReader b = mockedTable(0.3, 0.4, Double.NaN);
+        SSTableReader crossing = mockedTable(0.45, 0.55, Double.NaN); // straddles the boundary at 0.5
+        SSTableReader d = mockedTable(0.9, 0.95, Double.NaN);
+
+        List<Range<Token>> shardRanges = new ArrayList<>();
+        List<List<SSTableReader>> shards = shardManager.splitSSTablesInShards(ImmutableList.of(d, crossing, a, b),
+                                                                              4,
+                                                                              (sstables, range) -> {
+                                                                                  shardRanges.add(range);
+                                                                                  return new ArrayList<>(sstables);
+                                                                              });
+
+        assertEquals(4, shards.size());
+        assertEquals(ImmutableList.of(a), shards.get(0));
+        assertEquals(ImmutableSet.of(b, crossing), ImmutableSet.copyOf(shards.get(1)));
+        assertEquals(ImmutableList.of(crossing), shards.get(2));
+        assertEquals(ImmutableList.of(d), shards.get(3));
+        assertEquals(tokenAt(0.25), shardRanges.get(0).right);
+        assertEquals(tokenAt(0.5), shardRanges.get(1).right);
+        assertEquals(tokenAt(0.75), shardRanges.get(2).right);
+
+        // A shard without sstables is skipped and a null result is dropped.
+        shards = shardManager.splitSSTablesInShards(ImmutableList.of(a, d),
+                                                    4,
+                                                    (sstables, range) -> sstables.contains(d) ? null : new ArrayList<>(sstables));
+        assertEquals(ImmutableList.of(ImmutableList.of(a)), shards);
+
+        // A shard manager without shard boundaries puts everything in one shard.
+        shards = new ShardManagerTrivial(partitioner).splitSSTablesInShards(ImmutableList.of(d, crossing, a, b),
+                                                                            4,
+                                                                            (sstables, range) -> new ArrayList<>(sstables));
+        assertEquals(1, shards.size());
+        assertEquals(ImmutableSet.of(a, b, crossing, d), ImmutableSet.copyOf(shards.get(0)));
+    }
+
+    @Test
+    public void testSplitSSTablesInShardsDiskAware()
+    {
+        ColumnFamilyStore.VersionedLocalRanges ranges = localRangesFull();
+        List<Token> diskBoundaries = splitRanges(ranges, 2);
+        ShardManager shardManager = new ShardManagerDiskAware(ranges, diskBoundaries, 10000L);
+
+        SSTableReader a = mockedTable(0.1, 0.2, Double.NaN);
+        SSTableReader b = mockedTable(0.3, 0.4, Double.NaN);
+        SSTableReader wide = mockedTable(0.2, 0.8, Double.NaN); // crosses three shard boundaries
+        SSTableReader e = mockedTable(0.9, 0.95, Double.NaN);
+        // A single token sstable sitting exactly on the disk boundary belongs to the shard ending there, as shard
+        // ranges are end inclusive.
+        SSTableReader onBoundary = Mockito.mock(SSTableReader.class);
+        DecoratedKey boundaryKey = new BufferDecoratedKey(diskBoundaries.get(0), ByteBuffer.allocate(0));
+        Mockito.when(onBoundary.getFirst()).thenReturn(boundaryKey);
+        Mockito.when(onBoundary.getLast()).thenReturn(boundaryKey);
+
+        List<Range<Token>> shardRanges = new ArrayList<>();
+        List<List<SSTableReader>> shards = shardManager.splitSSTablesInShards(ImmutableList.of(e, onBoundary, wide, a, b),
+                                                                              2,
+                                                                              (sstables, range) -> {
+                                                                                  shardRanges.add(range);
+                                                                                  return new ArrayList<>(sstables);
+                                                                              });
+
+        assertEquals(4, shards.size());
+        assertEquals(ImmutableSet.of(a, wide), ImmutableSet.copyOf(shards.get(0)));
+        assertEquals(ImmutableSet.of(b, wide, onBoundary), ImmutableSet.copyOf(shards.get(1)));
+        assertEquals(ImmutableList.of(wide), shards.get(2));
+        assertEquals(ImmutableSet.of(wide, e), ImmutableSet.copyOf(shards.get(3)));
+        assertEquals(tokenAt(0.25), shardRanges.get(0).right);
+        assertEquals(diskBoundaries.get(0), shardRanges.get(1).right);
+        assertEquals(tokenAt(0.75), shardRanges.get(2).right);
+        assertEquals(minimumToken, shardRanges.get(3).right);
+
+        // Entering the second disk directly, without passing through the first.
+        shardRanges.clear();
+        shards = shardManager.splitSSTablesInShards(ImmutableList.of(e),
+                                                    2,
+                                                    (sstables, range) -> {
+                                                        shardRanges.add(range);
+                                                        return new ArrayList<>(sstables);
+                                                    });
+        assertEquals(ImmutableList.of(ImmutableList.of(e)), shards);
+        assertEquals(tokenAt(0.75), shardRanges.get(0).left);
+        assertEquals(minimumToken, shardRanges.get(0).right);
+    }
+
+    @Test
+    public void testSplitSSTablesInShardsEnteringFirstShardOnSecondDisk()
+    {
+        ColumnFamilyStore.VersionedLocalRanges ranges = localRangesFull();
+        List<Token> disks = splitRanges(ranges, 2);
+        ShardManager manager = new ShardManagerDiskAware(ranges, disks, 10000L);
+        SSTableReader table = mockedTable(0.6, 0.65, Double.NaN);
+
+        List<Range<Token>> actual = manager.splitSSTablesInShards(ImmutableList.of(table), 2, (sstables, range) -> range);
+        assertEquals(ImmutableList.of(new Range<>(disks.get(0), tokenAt(0.75))), actual);
+    }
+
+    @Test
+    public void testSplitSSTablesInShardsFuzz()
+    {
+        long seed = 21615L;
+        Random random = new Random(seed);
+        for (int iteration = 0; iteration < 300; ++iteration)
+        {
+            int diskCount = 1 + random.nextInt(4);
+            int shardCount = 1 + random.nextInt(8);
+            ColumnFamilyStore.VersionedLocalRanges ranges = localRangesFull();
+
+            ShardManager manager = 1 == diskCount
+                                   ? new ShardManagerNoDisks(ranges, 10000L)
+                                   : new ShardManagerDiskAware(ranges, splitRanges(ranges, diskCount), 10000L);
+
+            // Sequential traversal provides a reference for the assignment sweep's direct entry into a disk.
+            List<Range<Token>> shards = new ArrayList<>();
+            List<Token> endpoints = new ArrayList<>();
+            ShardTracker tracker = manager.boundaries(shardCount);
+            tracker.advanceTo(minimumToken);
+            while (true)
+            {
+                shards.add(tracker.shardSpan());
+                Token end = tracker.shardEnd();
+                if (null == end)
+                    break;
+                endpoints.add(end);
+                endpoints.add(end.nextValidToken());
+                tracker.advanceTo(end.nextValidToken());
+            }
+            for (int i = 0; i < 20; ++i)
+                endpoints.add(tokenAt(0.001 + random.nextDouble() * 0.998));
+
+            List<SSTableReader> tables = new ArrayList<>();
+            int tableCount = random.nextInt(50);
+            for (int i = 0; i < tableCount; ++i)
+            {
+                Token first = endpoints.get(random.nextInt(endpoints.size()));
+                Token last = random.nextBoolean() ? first : endpoints.get(random.nextInt(endpoints.size()));
+                if (first.compareTo(last) > 0)
+                {
+                    Token swap = first;
+                    first = last;
+                    last = swap;
+                }
+                SSTableReader table = Mockito.mock(SSTableReader.class);
+                when(table.getFirst()).thenReturn(new BufferDecoratedKey(first, ByteBuffer.allocate(0)));
+                when(table.getLast()).thenReturn(new BufferDecoratedKey(last, ByteBuffer.allocate(0)));
+                tables.add(table);
+            }
+            Collections.shuffle(tables, random);
+
+            Map<Range<Token>, Set<SSTableReader>> expected = new LinkedHashMap<>();
+            for (Range<Token> shard : shards)
+            {
+                Set<SSTableReader> intersecting = new HashSet<>();
+                for (SSTableReader table : tables)
+                    if (table.getLast().getToken().compareTo(shard.left) > 0 &&
+                        (shard.right.isMinimum() || table.getFirst().getToken().compareTo(shard.right) <= 0))
+                        intersecting.add(table);
+
+                if (!intersecting.isEmpty())
+                    expected.put(shard, intersecting);
+            }
+            Map<Range<Token>, Set<SSTableReader>> actual = new LinkedHashMap<>();
+            String context = "seed=" + seed + " iteration=" + iteration + " disks=" + diskCount + " shards=" + shardCount;
+
+            manager.splitSSTablesInShards(tables, shardCount, (sstables, range) -> {
+                assertFalse(context + " duplicate shard " + range, actual.containsKey(range));
+                actual.put(range, new HashSet<>(sstables));
+                return null;
+            });
+
+            assertEquals(context, expected, actual);
+            assertEquals(context, new ArrayList<>(expected.keySet()), new ArrayList<>(actual.keySet()));
+        }
+    }
+
+    @Test
+    public void testRangeSpannedDiskAware()
+    {
+        ColumnFamilyStore.VersionedLocalRanges ranges = localRangesFull();
+        ShardManager shardManager = new ShardManagerDiskAware(ranges, splitRanges(ranges, 2), 10000L);
+
+        // DiskAware inherits the span floor from ShardManagerNoDisks
+        assertEquals(0.02, shardManager.rangeSpanned(mockedTable(0.3, 0.3, Double.NaN, 200)), delta);
+    }
+
+    @Test
+    public void testPartitionCountFromStatsMetadata()
+    {
+        weightedRanges.add(new Splitter.WeightedRange(1.0, new Range<>(minimumToken, minimumToken)));
+        ShardManager shardManager = new ShardManagerNoDisks(weightedRanges, 10000L);
+
+        // The stats histogram holds the exact count and wins over estimatedKeys.
+        EstimatedHistogram threePartitions = new EstimatedHistogram();
+        threePartitions.add(100);
+        threePartitions.add(200);
+        threePartitions.add(300);
+        SSTableReader withHistogram = mockedTable(0.3, 0.3, Double.NaN, 500);
+        Mockito.when(withHistogram.getEstimatedPartitionSize()).thenReturn(threePartitions);
+        assertEquals(3, ShardManager.partitionCount(withHistogram));
+        assertEquals(0.0003, shardManager.rangeSpanned(withHistogram), delta);
+
+        // An empty histogram falls back to estimatedKeys.
+        SSTableReader emptyHistogram = mockedTable(0.3, 0.3, Double.NaN, 7);
+        Mockito.when(emptyHistogram.getEstimatedPartitionSize()).thenReturn(new EstimatedHistogram());
+        assertEquals(7, ShardManager.partitionCount(emptyHistogram));
+        assertEquals(0.0007, shardManager.rangeSpanned(emptyHistogram), delta);
+
+        // No histogram and no keys still count as one partition, so the span floor is never zero.
+        SSTableReader noKeys = mockedTable(0.3, 0.3, Double.NaN, 0);
+        assertEquals(1, ShardManager.partitionCount(noKeys));
+        assertEquals(0.0001, shardManager.rangeSpanned(noKeys), delta);
+
+        // The floor applies below PER_PARTITION_SPAN_THRESHOLD partitions and the raw span from it.
+        assertEquals(0.0099, shardManager.rangeSpanned(mockedTable(0.3, 0.3 + 1e-6, Double.NaN, ShardManager.PER_PARTITION_SPAN_THRESHOLD - 1)), delta);
+        assertEquals(1e-6, shardManager.rangeSpanned(mockedTable(0.3, 0.3 + 1e-6, Double.NaN, ShardManager.PER_PARTITION_SPAN_THRESHOLD)), delta);
+    }
+
     Token tokenAt(double pos)
     {
         return partitioner.split(minimumToken, minimumToken, pos);
@@ -227,10 +496,17 @@ public class ShardManagerTest
 
     SSTableReader mockedTable(double start, double end, double reportedCoverage)
     {
+        return mockedTable(start, end, reportedCoverage, ShardManager.PER_PARTITION_SPAN_THRESHOLD * 2);
+    }
+
+    SSTableReader mockedTable(double start, double end, double reportedCoverage, long estimatedKeys)
+    {
         SSTableReader mock = Mockito.mock(SSTableReader.class);
         Mockito.when(mock.getFirst()).thenReturn(keyAt(start));
         Mockito.when(mock.getLast()).thenReturn(keyAt(end));
         Mockito.when(mock.tokenSpaceCoverage()).thenReturn(reportedCoverage);
+        Mockito.when(mock.getEstimatedPartitionSize()).thenReturn(null); // partitionCount falls back to estimatedKeys
+        Mockito.when(mock.estimatedKeys()).thenReturn(estimatedKeys);
         return mock;
     }
 

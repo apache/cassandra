@@ -45,6 +45,7 @@ import org.apache.cassandra.db.compaction.CompactionManager;
 import org.apache.cassandra.exceptions.ConfigurationException;
 import org.apache.cassandra.service.EmbeddedCassandraService;
 import org.apache.cassandra.service.StorageService;
+import org.awaitility.Awaitility;
 
 import static org.apache.cassandra.utils.Throwables.maybeFail;
 import static org.apache.cassandra.utils.Throwables.merge;
@@ -424,6 +425,72 @@ public class TableMetricsTest
         assertEquals(metrics.get().collect(Collectors.joining(",")), 0, metrics.get().count());
     }
 
+    @Test
+    public void testEstimatedPartitionCount() throws InterruptedException
+    {
+        long prevPeriod = TableMetrics.ESTIMATED_PARTITION_COUNT_CACHE_PERIOD_SECONDS;
+        try
+        {
+            // The gauge takes its period when the table is created. UCS also reads the gauge, so these checks
+            // never assume when a period started. The first part uses a period longer than the test, the second
+            // only waits for a refresh.
+            TableMetrics.ESTIMATED_PARTITION_COUNT_CACHE_PERIOD_SECONDS = TimeUnit.HOURS.toSeconds(1);
+            doTestEstimatedPartitionCount();
+            TableMetrics.ESTIMATED_PARTITION_COUNT_CACHE_PERIOD_SECONDS = 1;
+            doTestEstimatedPartitionCountRefresh();
+        }
+        finally
+        {
+            TableMetrics.ESTIMATED_PARTITION_COUNT_CACHE_PERIOD_SECONDS = prevPeriod;
+        }
+    }
+
+    private void doTestEstimatedPartitionCount()
+    {
+        ColumnFamilyStore cfs = recreateTable();
+        assertEquals(0L, cfs.metric.estimatedPartitionCount.getValue().longValue());
+        assertEquals(0L, cfs.metric.estimatedPartitionCountInSSTablesCached.getValue().longValue());
+
+        int partitionCount = 10;
+        int numRows = 100;
+
+        for (int i = 0; i < numRows; i++)
+            session.execute(String.format("INSERT INTO %s.%s (id, val1, val2) VALUES (%d, '%s', '%s')", KEYSPACE, TABLE, i % partitionCount, "val" + i, "val" + i));
+
+        assertEquals(partitionCount, cfs.metric.estimatedPartitionCount.getValue().longValue());
+        cfs.forceBlockingFlush(ColumnFamilyStore.FlushReason.UNIT_TESTS);
+        assertEquals(partitionCount, cfs.metric.estimatedPartitionCount.getValue().longValue());
+
+        // The cached count was loaded before the flush and is kept for the whole period.
+        assertEquals(0L, cfs.metric.estimatedPartitionCountInSSTablesCached.getValue().longValue());
+
+        for (int i = 0; i < numRows; i++)
+            session.execute(String.format("INSERT INTO %s.%s (id, val1, val2) VALUES (%d, '%s', '%s')", KEYSPACE, TABLE, i % partitionCount, "val" + i, "val" + i));
+
+        assertEquals(0L, cfs.metric.estimatedPartitionCountInSSTablesCached.getValue().longValue());
+
+        // The answer below is incorrect but what the metric currently returns.
+        assertEquals(partitionCount * 2, cfs.metric.estimatedPartitionCount.getValue().longValue());
+        cfs.forceBlockingFlush(ColumnFamilyStore.FlushReason.UNIT_TESTS);
+        // Recalculation for the new sstable set will correct it.
+        assertEquals(partitionCount, cfs.metric.estimatedPartitionCount.getValue().longValue());
+    }
+
+    private void doTestEstimatedPartitionCountRefresh()
+    {
+        ColumnFamilyStore cfs = recreateTable();
+        assertEquals(0L, cfs.metric.estimatedPartitionCountInSSTablesCached.getValue().longValue());
+
+        int partitionCount = 10;
+        for (int i = 0; i < partitionCount; i++)
+            session.execute(String.format("INSERT INTO %s.%s (id, val1, val2) VALUES (%d, '%s', '%s')", KEYSPACE, TABLE, i, "val" + i, "val" + i));
+        cfs.forceBlockingFlush(ColumnFamilyStore.FlushReason.UNIT_TESTS);
+
+        // With a one second period the cached count catches up with the flushed sstable.
+        Awaitility.await()
+                  .atMost(10, TimeUnit.SECONDS)
+                  .untilAsserted(() -> assertEquals(partitionCount, (long) cfs.metric.estimatedPartitionCountInSSTablesCached.getValue()));
+    }
 
     @AfterClass
     public static void tearDown()
