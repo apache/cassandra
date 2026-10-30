@@ -24,6 +24,8 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
 
+import javax.annotation.Nullable;
+
 import com.google.common.base.Preconditions;
 import com.google.common.collect.ImmutableSet;
 import com.google.common.collect.Iterables;
@@ -37,6 +39,7 @@ import org.apache.cassandra.cache.KeyCacheKey;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.db.ColumnFamilyStore;
 import org.apache.cassandra.db.DecoratedKey;
+import org.apache.cassandra.db.SerializationHeader;
 import org.apache.cassandra.db.lifecycle.LifecycleTransaction;
 import org.apache.cassandra.db.memtable.Flushing;
 import org.apache.cassandra.dht.IPartitioner;
@@ -44,6 +47,7 @@ import org.apache.cassandra.io.sstable.Component;
 import org.apache.cassandra.io.sstable.Descriptor;
 import org.apache.cassandra.io.sstable.GaugeProvider;
 import org.apache.cassandra.io.sstable.IScrubber;
+import org.apache.cassandra.io.sstable.IndexInfo;
 import org.apache.cassandra.io.sstable.MetricsProviders;
 import org.apache.cassandra.io.sstable.SSTable;
 import org.apache.cassandra.io.sstable.filter.BloomFilterMetrics;
@@ -58,6 +62,7 @@ import org.apache.cassandra.io.sstable.keycache.KeyCacheMetrics;
 import org.apache.cassandra.io.util.DataInputPlus;
 import org.apache.cassandra.io.util.DataOutputPlus;
 import org.apache.cassandra.net.MessagingService;
+import org.apache.cassandra.schema.TableMetadata;
 import org.apache.cassandra.schema.TableMetadataRef;
 import org.apache.cassandra.service.CacheService;
 import org.apache.cassandra.utils.JVMStabilityInspector;
@@ -365,9 +370,15 @@ public class BigFormat extends AbstractSSTableFormat<BigTableReader, BigTableWri
         private final static KeyCacheValueSerializer instance = new KeyCacheValueSerializer();
 
         @Override
-        public void skip(DataInputPlus input) throws IOException
+        public void skip(DataInputPlus input, Version version, @Nullable TableMetadata metadata) throws IOException
         {
-            RowIndexEntry.Serializer.skipForCache(input, getInstance().latestVersion);
+            IndexInfo.Serializer idxInfoSerializer = null;
+            if (metadata != null)
+            {
+                idxInfoSerializer = IndexInfo.serializer(version, SerializationHeader.makeWithoutStats(metadata));
+            }
+
+            RowIndexEntry.Serializer.skipForCache(input, version, idxInfoSerializer);
         }
 
         @Override
