@@ -85,6 +85,10 @@ final class ClientsTable extends AbstractVirtualTable
 
         for (ConnectedClient client : ClientMetrics.instance.allConnectedClients())
         {
+            // hide clients that have sent STARTUP but not yet authenticated (their options are attacker-controlled)
+            if (!client.loggedIn())
+                continue;
+
             InetSocketAddress remoteAddress = client.remoteAddress();
 
             result.row(remoteAddress.getAddress(), remoteAddress.getPort())
