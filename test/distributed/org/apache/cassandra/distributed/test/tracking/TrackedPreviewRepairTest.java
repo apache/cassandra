@@ -224,7 +224,7 @@ public class TrackedPreviewRepairTest extends TestBaseImpl
                                                             ConsistencyLevel.ALL, key, key * 10);
                     fail("Expected write to time out because full replicas are unreachable");
                 }
-                catch (Throwable t)
+                catch (Exception expected)
                 {
                     // Expected write timeout because full replicas dropped the mutation
                 }
