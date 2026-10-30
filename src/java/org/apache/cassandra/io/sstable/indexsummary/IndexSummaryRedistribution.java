@@ -173,6 +173,7 @@ public class IndexSummaryRedistribution extends CompactionInfo.Holder
         // Going from the coldest to the hottest sstables, try to give each sstable an amount of space proportional
         // to the number of total reads/sec it handles.
         remainingSpace = memoryPoolCapacity;
+        Map<TableId, List<SSTableReader>> toCancel = new HashMap<>();
         for (T sstable : sstables)
         {
             if (isStopRequested())
@@ -255,7 +256,7 @@ public class IndexSummaryRedistribution extends CompactionInfo.Holder
                 logger.trace("SSTable {} is within thresholds of ideal sampling", sstable);
                 remainingSpace -= sstable.getIndexSummary().getOffHeapSize();
                 newSSTables.add(sstable);
-                transactions.get(sstable.metadata().id).cancel(sstable);
+                toCancel.computeIfAbsent(sstable.metadata().id, id -> new ArrayList<>()).add(sstable);
             }
             totalReadsPerSec -= readsPerSec;
         }
@@ -266,8 +267,12 @@ public class IndexSummaryRedistribution extends CompactionInfo.Holder
             toDownsample = result.right;
             newSSTables.addAll(result.left);
             for (T sstable : result.left)
-                transactions.get(sstable.metadata().id).cancel(sstable);
+                toCancel.computeIfAbsent(sstable.metadata().id, id -> new ArrayList<>()).add(sstable);
         }
+
+        // one View update per table rather than one per sstable
+        for (Map.Entry<TableId, List<SSTableReader>> entry : toCancel.entrySet())
+            transactions.get(entry.getKey()).cancel(entry.getValue());
 
         // downsample first, then upsample
         logger.info("index summaries: downsample: {}, force resample: {}, upsample: {}, force upsample: {}", toDownsample.size(), forceResample.size(), toUpsample.size(), forceUpsample.size());
