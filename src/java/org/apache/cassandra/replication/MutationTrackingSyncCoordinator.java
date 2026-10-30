@@ -24,6 +24,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
 import java.util.concurrent.atomic.AtomicBoolean;
 
@@ -34,6 +35,7 @@ import com.google.common.collect.Iterables;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import org.apache.cassandra.concurrent.ExecutorPlus;
 import org.apache.cassandra.dht.Range;
 import org.apache.cassandra.dht.Token;
 import org.apache.cassandra.exceptions.RequestFailure;
@@ -41,15 +43,20 @@ import org.apache.cassandra.locator.InetAddressAndPort;
 import org.apache.cassandra.net.Message;
 import org.apache.cassandra.net.RequestCallback;
 import org.apache.cassandra.net.Verb;
+import org.apache.cassandra.repair.CommonRange;
 import org.apache.cassandra.repair.RepairJobDesc;
 import org.apache.cassandra.repair.SharedContext;
 import org.apache.cassandra.repair.messages.MutationTrackingSyncRequest;
 import org.apache.cassandra.repair.messages.MutationTrackingSyncResponse;
 import org.apache.cassandra.repair.messages.RepairMessage;
 import org.apache.cassandra.tcm.ClusterMetadata;
+import org.apache.cassandra.utils.Throwables;
+import org.apache.cassandra.utils.TimeUUID;
 import org.apache.cassandra.utils.concurrent.AsyncPromise;
+import org.apache.cassandra.utils.concurrent.Future;
 
 import static com.google.common.base.Preconditions.checkState;
+import static org.apache.cassandra.config.DatabaseDescriptor.getMutationTrackingSyncTimeout;
 
 public class MutationTrackingSyncCoordinator
 {
@@ -369,6 +376,118 @@ public class MutationTrackingSyncCoordinator
     {
         if (completionFuture.tryFailure(new TimeoutException("Mutation tracking sync timed out")))
             MutationTrackingService.instance().unregisterSyncCoordinator(this);
+    }
+
+    public static Future<List<MutationTrackingSyncCoordinator>> sync(SharedContext ctx,
+                                                                     TimeUUID parentSession,
+                                                                     String keyspace,
+                                                                     List<CommonRange> commonRanges,
+                                                                     ClusterMetadata metadata,
+                                                                     ExecutorPlus executor)
+    {
+        checkState(!commonRanges.isEmpty(), "No ranges to sync");
+
+        List<MutationTrackingSyncCoordinator> syncCoordinators = new ArrayList<>();
+        for (CommonRange commonRange : commonRanges)
+        {
+            for (Range<Token> range : commonRange.ranges)
+            {
+                RepairJobDesc desc = new RepairJobDesc(parentSession, TimeUUID.Generator.nextTimeUUID(),
+                                                       keyspace, "Mutation Tracking Sync", List.of(range));
+                MutationTrackingSyncCoordinator syncCoordinator =
+                    new MutationTrackingSyncCoordinator(ctx, desc, commonRange.endpoints, metadata);
+                syncCoordinator.start();
+                syncCoordinators.add(syncCoordinator);
+                logger.info("Started mutation tracking sync for range {}", range);
+            }
+        }
+
+        AsyncPromise<List<MutationTrackingSyncCoordinator>> resultPromise = new AsyncPromise<>();
+
+        executor.execute(() -> {
+            try
+            {
+                waitForSyncCompletion(ctx, keyspace, syncCoordinators, resultPromise);
+            }
+            catch (InterruptedException e)
+            {
+                try
+                {
+                    resultPromise.tryFailure(new RuntimeException("Interrupted waiting for Mutation Tracking sync coordinators to finish", e));
+                }
+                finally
+                {
+                    Thread.currentThread().interrupt();
+                }
+            }
+            catch (Exception e)
+            {
+                logger.error("Error during mutation tracking repair", e);
+                resultPromise.tryFailure(e);
+            }
+        });
+
+        return resultPromise;
+    }
+
+    private static void waitForSyncCompletion(SharedContext ctx,
+                                             String keyspace,
+                                             List<MutationTrackingSyncCoordinator> syncCoordinators,
+                                             AsyncPromise<List<MutationTrackingSyncCoordinator>> resultPromise) throws Exception
+    {
+        long deadlineNanos = ctx.clock().nanoTime() + TimeUnit.MILLISECONDS.toNanos(
+            getMutationTrackingSyncTimeout(TimeUnit.MILLISECONDS));
+        ctx.scheduledTasks().schedule(() -> {
+            for (MutationTrackingSyncCoordinator syncCoordinator : syncCoordinators)
+            {
+                try
+                {
+                    syncCoordinator.timeout();
+                }
+                catch (Exception e)
+                {
+                    logger.error("Exception cancelling mutation tracking sync coordinator", e);
+                }
+            }
+        }, deadlineNanos - ctx.clock().nanoTime(), TimeUnit.NANOSECONDS);
+
+        Exception error = null;
+        for (MutationTrackingSyncCoordinator syncCoordinator : syncCoordinators)
+        {
+            try
+            {
+                syncCoordinator.awaitCompletion();
+            }
+            catch (InterruptedException e)
+            {
+                if (error != null)
+                    e.addSuppressed(error);
+                for (MutationTrackingSyncCoordinator c : syncCoordinators)
+                {
+                    try
+                    {
+                        c.cancel();
+                    }
+                    catch (Exception e2)
+                    {
+                        e.addSuppressed(e2);
+                    }
+                }
+                throw e;
+            }
+            catch (Exception e)
+            {
+                error = Throwables.merge(error, e);
+            }
+        }
+
+        if (error != null)
+        {
+            logger.warn("Mutation tracking sync failed for keyspace {}", keyspace, error);
+            throw error;
+        }
+
+        resultPromise.trySuccess(syncCoordinators);
     }
 
     /**

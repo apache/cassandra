@@ -113,6 +113,7 @@ import org.apache.cassandra.db.guardrails.Guardrails;
 import org.apache.cassandra.db.lifecycle.LifecycleTransaction;
 import org.apache.cassandra.dht.BootStrapper;
 import org.apache.cassandra.dht.IPartitioner;
+import org.apache.cassandra.dht.NormalizedRanges;
 import org.apache.cassandra.dht.OwnedRanges;
 import org.apache.cassandra.dht.Range;
 import org.apache.cassandra.dht.StreamStateStore;
@@ -425,6 +426,17 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
     public OwnedRanges getNormalizedLocalRanges(String keyspaceName, InetAddressAndPort broadcastAddress)
     {
         return new OwnedRanges(getReplicas(keyspaceName, broadcastAddress).ranges());
+    }
+
+    public OwnedRanges getNormalizedLocalFullRanges(String keyspaceName, InetAddressAndPort broadcastAddress)
+    {
+        return new OwnedRanges(getReplicas(keyspaceName, broadcastAddress).onlyFull().ranges());
+    }
+
+    public boolean isLocalFullReplica(String keyspaceName, Collection<Range<Token>> ranges)
+    {
+        NormalizedRanges<Token> localFull = NormalizedRanges.normalizedRanges(getLocalReplicas(keyspaceName).onlyFull().ranges());
+        return NormalizedRanges.normalizedRanges(ranges).subtract(localFull).isEmpty();
     }
 
     @Deprecated(since = "CEP-21")

@@ -27,6 +27,9 @@ import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
 
+import com.google.common.base.Preconditions;
+import com.google.common.collect.ImmutableSet;
+
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -73,11 +76,13 @@ public class MutationTrackingValidationCoordinator
 
     MutationTrackingValidationCoordinator(SharedContext ctx, RepairJobDesc desc, Set<InetAddressAndPort> participants, ValidationOffsets offset)
     {
+        Preconditions.checkNotNull(participants, "participants");
+        Preconditions.checkArgument(!participants.isEmpty(), "Participant set cannot be empty for %s", desc);
         this.ctx = ctx;
         this.desc = desc;
-        this.participants = participants;
+        this.participants = ImmutableSet.copyOf(participants);
         this.offset = offset;
-        this.pending.addAll(participants);
+        this.pending.addAll(this.participants);
     }
 
     Future<Result> start()
@@ -85,6 +90,12 @@ public class MutationTrackingValidationCoordinator
         // May already be canceled, so don't dispatch a real request for a result nobody will consume.
         if (future.isDone())
             return future;
+
+        if (participants.isEmpty())
+        {
+            fail(new IllegalArgumentException("Participant set cannot be empty for " + desc));
+            return future;
+        }
 
         // Register early so a very-fast participant can find us on the response path.
         if (REGISTRY.putIfAbsent(desc, this) != null)
