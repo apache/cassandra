@@ -2716,6 +2716,16 @@ public class DatabaseDescriptor
         conf.native_transport_idle_timeout = new DurationSpec.LongMillisecondsBound(nativeTransportTimeout);
     }
 
+    public static long nativeTransportAuthTimeout()
+    {
+        return conf.native_transport_auth_timeout.toMilliseconds();
+    }
+
+    public static void setNativeTransportAuthTimeout(long nativeTransportAuthTimeout)
+    {
+        conf.native_transport_auth_timeout = new DurationSpec.LongMillisecondsBound(nativeTransportAuthTimeout);
+    }
+
     public static long getRpcTimeout(TimeUnit unit)
     {
         return conf.request_timeout.to(unit);
