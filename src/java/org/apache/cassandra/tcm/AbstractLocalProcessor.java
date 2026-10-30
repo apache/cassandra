@@ -18,6 +18,7 @@
 
 package org.apache.cassandra.tcm;
 
+import java.util.concurrent.locks.ReentrantLock;
 import java.util.function.Supplier;
 
 import org.slf4j.Logger;
@@ -43,6 +44,9 @@ public abstract class AbstractLocalProcessor implements Processor
 
     protected final LocalLog log;
 
+    // Serialize local proposals through append, so the next caller observes the winning epoch.
+    private final ReentrantLock proposalLock = new ReentrantLock(true);
+
     public AbstractLocalProcessor(LocalLog log)
     {
         this.log = log;
@@ -59,42 +63,87 @@ public abstract class AbstractLocalProcessor implements Processor
         String transformStr = transform.toString(); // convert once as idempotent and used in multiple logs
         logger.debug("Starting local commit of {} with policy {}", transformStr, retryPolicy);
         long commitStart = nanoTime();
+        boolean proposalAttempted = false;
         while (!retryPolicy.hasExpired() && !log.isClosed())
         {
-            ClusterMetadata previous = log.waitForHighestConsecutive();
-            if (!acceptCommit(previous))
-            {
-                String msg = String.format("Node %s is not a CMS member in epoch %s; members=%s",
-                                           FBUtilities.getBroadcastAddressAndPort(),
-                                           previous.epoch.getEpoch(),
-                                           previous.fullCMSMembers());
-                logger.warn(msg);
-                throw new NotCMSException(msg);
-            }
+            if (!acquireProposalLock(retryPolicy))
+                return notAdmitted(retryPolicy, proposalAttempted);
 
+            ClusterMetadata previous;
             Transformation.Result result;
-            if (!transform.eligibleToCommit(previous))
+            boolean applied = false;
+            Throwable failure = null;
+            try
             {
-                result = new Transformation.Rejected(INVALID, "Transformation rejected, can't commit " + transformStr +
-                                                              " it not supported with cluster common serialization version " + previous.directory.commonSerializationVersion +
-                                                              " and min/max serialization versions " + previous.directory.clusterMinVersion + "/" + previous.directory.clusterMaxVersion);
-            }
-            else
-            {
-                result = executeStrictly(previous, transform);
-            }
-            Version previousVersion = previous.directory.commonSerializationVersion;
-            if (result.isSuccess())
-            {
-                Version newVersion = result.success().metadata.directory.commonSerializationVersion;
-                if (previousVersion.isEqualOrBefore(Version.V9) &&
-                         newVersion.isAtLeast(Version.V10) &&
-                         !result.success().metadata.inProgressSequences.isEmpty())
+                if (log.isClosed() || retryPolicy.hasExpired())
+                    break;
+
+                previous = log.waitForHighestConsecutive();
+                if (!acceptCommit(previous))
                 {
-                    result = new Transformation.Rejected(INVALID, String.format("Committing %s would bump the serialization version from %s to %s," +
-                                                                                " which is not allowed when having ongoing multi step operations (%s) - see CASSANDRA-XYZ",
-                                                                                transform, previousVersion, newVersion, result.success().metadata.inProgressSequences));
+                    String msg = String.format("Node %s is not a CMS member in epoch %s; members=%s",
+                                               FBUtilities.getBroadcastAddressAndPort(),
+                                               previous.epoch.getEpoch(),
+                                               previous.fullCMSMembers());
+                    logger.warn(msg);
+                    throw new NotCMSException(msg);
                 }
+
+                if (!transform.eligibleToCommit(previous))
+                {
+                    result = new Transformation.Rejected(INVALID, "Transformation rejected, can't commit " + transformStr +
+                                                                  ". It is not supported with cluster common serialization version " + previous.directory.commonSerializationVersion +
+                                                                  " and min/max serialization versions " + previous.directory.clusterMinVersion + "/" + previous.directory.clusterMaxVersion);
+                }
+                else
+                {
+                    result = executeStrictly(previous, transform);
+                }
+                Version previousVersion = previous.directory.commonSerializationVersion;
+                if (result.isSuccess())
+                {
+                    Version newVersion = result.success().metadata.directory.commonSerializationVersion;
+                    if (previousVersion.isEqualOrBefore(Version.V9) &&
+                             newVersion.isAtLeast(Version.V10) &&
+                             !result.success().metadata.inProgressSequences.isEmpty())
+                    {
+                        result = new Transformation.Rejected(INVALID, String.format("Committing %s would bump the serialization version from %s to %s," +
+                                                                                    " which is not allowed when having ongoing multi step operations (%s) - see CASSANDRA-XYZ",
+                                                                                    transform, previousVersion, newVersion, result.success().metadata.inProgressSequences));
+                    }
+                }
+
+                if (result.isSuccess())
+                {
+                    try
+                    {
+                        Epoch nextEpoch = result.success().metadata.epoch;
+                        // If metadata applies, try committing it to the log
+                        long casStart = nanoTime();
+                        proposalAttempted = true;
+                        applied = tryCommitOne(entryId, transform, previous.epoch, nextEpoch);
+                        long casElapsedUs = NANOSECONDS.toMicros(nanoTime() - casStart);
+                        logger.debug("tryCommitOne for {} epoch {}->{}: applied={}, took {}us",
+                                     transform.kind(), previous.epoch, nextEpoch, applied, casElapsedUs);
+
+                        // Application here semantically means "succeeded in committing to the distributed log".
+                        if (applied)
+                        {
+                            logger.info("Committed {}. New epoch is {}. Took {} attempts in {}us total.",
+                                        transformStr, nextEpoch, retryPolicy.attempts(),
+                                        NANOSECONDS.toMicros(nanoTime() - commitStart));
+                            log.append(new Entry(entryId, nextEpoch, new Transformation.Executed(transform, result)));
+                        }
+                    }
+                    catch (Throwable t)
+                    {
+                        failure = t;
+                    }
+                }
+            }
+            finally
+            {
+                proposalLock.unlock();
             }
 
             // If we got a rejection, it could be that _we_ are not aware of the highest epoch.
@@ -124,25 +173,15 @@ public abstract class AbstractLocalProcessor implements Processor
                 continue;
             }
 
+            // Enactment, error handling, backoff and catch-up must not hold admission.
             try
             {
-                Epoch nextEpoch = result.success().metadata.epoch;
-                // If metadata applies, try committing it to the log
-                long casStart = nanoTime();
-                boolean applied = tryCommitOne(entryId, transform, previous.epoch, nextEpoch);
-                long casElapsedUs = NANOSECONDS.toMicros(nanoTime() - casStart);
-                logger.debug("tryCommitOne for {} epoch {}->{}: applied={}, took {}us",
-                             transform.kind(), previous.epoch, nextEpoch, applied, casElapsedUs);
+                if (null != failure)
+                    throw failure;
 
-                // Application here semantially means "succeeded in committing to the distributed log".
                 if (applied)
                 {
-                    logger.info("Committed {}. New epoch is {}. Took {} attempts in {}us total.",
-                                transformStr, nextEpoch, retryPolicy.attempts(),
-                                NANOSECONDS.toMicros(nanoTime() - commitStart));
-                    log.append(new Entry(entryId, nextEpoch, new Transformation.Executed(transform, result)));
-                    log.awaitAtLeast(nextEpoch);
-
+                    log.awaitAtLeast(result.success().metadata.epoch);
                     return new Commit.Result.Success(result.success().metadata.epoch,
                                                      toLogState(result.success(), entryId, lastKnown, transform));
                 }
@@ -176,6 +215,37 @@ public abstract class AbstractLocalProcessor implements Processor
         logger.debug("Commit {} failed in {}us total. {}",
                      transformStr, NANOSECONDS.toMicros(nanoTime() - commitStart), failureMsg);
         return Commit.Result.failed(SERVER_ERROR, failureMsg);
+    }
+
+    private boolean acquireProposalLock(Retry retryPolicy)
+    {
+        try
+        {
+            // Subtracting a negative nanoTime from the unlimited deadline can overflow.
+            if (Long.MAX_VALUE == retryPolicy.deadlineNanos)
+            {
+                proposalLock.lockInterruptibly();
+                return true;
+            }
+            long remaining = retryPolicy.remainingNanos();
+            return 0 < remaining && proposalLock.tryLock(remaining, NANOSECONDS);
+        }
+        catch (InterruptedException e)
+        {
+            Thread.currentThread().interrupt();
+            return false;
+        }
+    }
+
+    private Commit.Result notAdmitted(Retry retryPolicy, boolean proposalAttempted)
+    {
+        String cause = Thread.currentThread().isInterrupted() ? "Interrupted" : "Timed out";
+        String outcome = proposalAttempted
+                         ? "A proposal was made, so whether the transformation was committed to the log is unknown."
+                         : "No proposal was made.";
+        return Commit.Result.failed(SERVER_ERROR,
+                                    String.format("%s waiting to submit commit. %s Time remaining: %dms",
+                                                  cause, outcome, NANOSECONDS.toMillis(retryPolicy.remainingNanos())));
     }
 
     public Commit.Result maybeFailure(Entry.Id entryId, Epoch lastKnown, Supplier<Commit.Result.Failure> orElse)
