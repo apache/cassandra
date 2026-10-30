@@ -25,6 +25,7 @@ import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.function.Consumer;
+import java.util.function.Supplier;
 
 import org.junit.After;
 import org.junit.Before;
@@ -109,10 +110,25 @@ public class CollectionSizeGuardrailCompactionTest extends DifferentialCompactio
         return cfs;
     }
 
-    /** Compacts a fresh fixture down one pipeline and returns the warnings that compaction emitted. */
-    private List<String> warningsFromOneCompaction(boolean cursor) throws Exception
+    private ColumnFamilyStore twoHalvesOfOneStaticCollection()
     {
-        ColumnFamilyStore cfs = twoHalvesOfOneCollection();
+        createTable("CREATE TABLE %s (k int, c int, s set<blob> static, PRIMARY KEY (k, c))");
+        ColumnFamilyStore cfs = getCurrentColumnFamilyStore();
+        cfs.disableAutoCompaction();
+
+        execute("INSERT INTO %s (k, s) VALUES (1, ?)", set(allocate(768)));
+        flush();
+        execute("UPDATE %s SET s = s + ? WHERE k = 1", set(allocate(256)));
+        flush();
+
+        assertEquals("the test fixture needs two sstables to exercise the merge path", 2, cfs.getLiveSSTables().size());
+        collector.drain();
+        return cfs;
+    }
+
+    private List<String> collectWarningsFromCompaction(boolean cursor, Supplier<ColumnFamilyStore> fixture) throws Exception
+    {
+        ColumnFamilyStore cfs = fixture.get();
         Set<SSTableReader> inputs = cfs.getLiveSSTables();
         commitCompaction(cfs, inputs, cursor, cfs.getDefaultGcBefore(FBUtilities.nowInSeconds()));
         return collector.drain();
@@ -128,12 +144,26 @@ public class CollectionSizeGuardrailCompactionTest extends DifferentialCompactio
     {
         assumeBigFormatSelected();
 
-        List<String> iterator = warningsFromOneCompaction(false);
-        List<String> cursor = warningsFromOneCompaction(true);
+        List<String> iterator = collectWarningsFromCompaction(false, this::twoHalvesOfOneCollection);
+        List<String> cursor = collectWarningsFromCompaction(true, this::twoHalvesOfOneCollection);
 
         assertFalse("the iterator path must warn, or this says nothing about the cursor path",
                     iterator.isEmpty());
         assertEquals("the cursor path must report the same collection size as the iterator path",
+                     iterator, cursor);
+    }
+
+    @Test
+    public void bothPipelinesReportTheSameOversizedStaticCollection() throws Exception
+    {
+        assumeBigFormatSelected();
+
+        List<String> iterator = collectWarningsFromCompaction(false, this::twoHalvesOfOneStaticCollection);
+        List<String> cursor = collectWarningsFromCompaction(true, this::twoHalvesOfOneStaticCollection);
+
+        assertFalse("it is expected that the iterator path rerports warnings",
+                    iterator.isEmpty());
+        assertEquals("the cursor path must report the same number of warnings for the static collection size as the iterator path",
                      iterator, cursor);
     }
 
