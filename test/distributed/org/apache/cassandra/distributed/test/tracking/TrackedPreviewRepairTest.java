@@ -184,7 +184,7 @@ public class TrackedPreviewRepairTest extends TestBaseImpl
 
         long[] previewFailuresBefore = previewFailuresPerNode(CLUSTER);
 
-        NodeToolResult result = CLUSTER.get(1).nodetoolResult(true, "repair", "--validate", keyspace);
+        NodeToolResult result = CLUSTER.get(1).nodetoolResult(true, "repair", "--validate", "-pr", keyspace);
         result.asserts().success();
 
         assertInSyncValidation(result, CLUSTER, keyspace, table, previewFailuresBefore);
