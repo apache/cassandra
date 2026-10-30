@@ -34,7 +34,9 @@ import java.util.stream.Stream;
 
 import org.junit.Assert;
 import org.junit.BeforeClass;
+import org.junit.Rule;
 import org.junit.Test;
+import org.junit.rules.TemporaryFolder;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -46,6 +48,7 @@ import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.db.ClusteringComparator;
 import org.apache.cassandra.io.compress.CompressedSequentialWriter;
 import org.apache.cassandra.io.compress.CompressionMetadata;
+import org.apache.cassandra.io.compress.CorruptBlockException;
 import org.apache.cassandra.io.sstable.CorruptSSTableException;
 import org.apache.cassandra.io.sstable.metadata.MetadataCollector;
 import org.apache.cassandra.schema.CompressionParams;
@@ -61,6 +64,9 @@ public class DirectCompressedChunkReaderTest extends CompressedChunkReaderTestBa
 
     private static final Logger logger = LoggerFactory.getLogger(DirectCompressedChunkReaderTest.class);
     private static int seed;
+
+    @Rule
+    public TemporaryFolder tempFolder = new TemporaryFolder();
 
     static
     {
@@ -165,6 +171,77 @@ public class DirectCompressedChunkReaderTest extends CompressedChunkReaderTestBa
             }
             Assert.assertTrue("Expected CorruptSSTableException for truncated chunk, but none was thrown.", exceptionThrown);
         });
+    }
+
+    @Test
+    public void corruptReadAheadBlockResetsBuffer()
+    {
+        int originalReadAheadBufferSizeInKb = DatabaseDescriptor.getCompressedReadAheadBufferSizeInKB();
+        // must exceed the chunk length, or forScan() does not read ahead
+        DatabaseDescriptor.setCompressedReadAheadBufferSizeInKb(256);
+        try
+        {
+            Gen<CompressionParams> compressionGen = compressionParams(Gens.constant(4096));
+
+            qt().withSeed(seed).forAll(Gens.random(), compressionGen).check((rs, params) -> {
+                long totalBytesToWrite = params.chunkLength() * 2L; // two chunks
+                List<ByteBuffer> chunks = generateRandomChunks(rs, params, totalBytesToWrite);
+                File dataFile = new File(tempFolder.newFile());
+
+                CompressionMetadata metadata;
+                try (CompressedSequentialWriter writer = getCompressedSequentialWriter(writerOption(1 << 10), params, dataFile))
+                {
+                    for (ByteBuffer chunk : chunks)
+                        writer.write(chunk.duplicate());
+                    writer.sync();
+                    metadata = writer.open(0);
+                }
+
+                ByteBuffer readBuffer = ByteBuffer.allocateDirect(metadata.chunkLength());
+                try (ChannelProxy channel = new ChannelProxy(dataFile, ChannelProxy.IOMode.DIRECT);
+                     CompressedChunkReader reader = new CompressedChunkReader.Direct(channel, metadata, () -> 1d);
+                     metadata)
+                {
+                    // The scan reader's read-ahead buffer captures the file size when it is created, so truncating
+                    // afterwards makes its next block load come up short.
+                    CompressedChunkReader scanReader = reader.forScan();
+                    try (scanReader)
+                    {
+                        Assert.assertNotSame("forScan() should read ahead", reader, scanReader);
+                        CompressionMetadata.Chunk firstChunkMeta = metadata.chunkFor(0);
+                        try (FileChannel fileChannel = FileChannel.open(dataFile.toPath(), StandardOpenOption.WRITE))
+                        {
+                            fileChannel.truncate(firstChunkMeta.offset + (long) firstChunkMeta.length / 2);
+                        }
+
+                        // Stale contents from an earlier read, which the reader must not expose after a failure
+                        while (readBuffer.hasRemaining())
+                            readBuffer.put((byte) 0x5A);
+                        readBuffer.flip();
+
+                        try
+                        {
+                            scanReader.readChunk(0, readBuffer);
+                            Assert.fail("Expected CorruptSSTableException for a short read-ahead block");
+                        }
+                        catch (CorruptSSTableException e)
+                        {
+                            Assert.assertTrue("Cause should identify the corrupt block, was " + e.getCause(),
+                                              e.getCause() instanceof CorruptBlockException);
+                            Assert.assertEquals("Reader must not see stale data after a failed read", 0, readBuffer.limit());
+                        }
+                    }
+                }
+                finally
+                {
+                    MemoryUtil.clean(readBuffer);
+                }
+            });
+        }
+        finally
+        {
+            DatabaseDescriptor.setCompressedReadAheadBufferSizeInKb(originalReadAheadBufferSizeInKb);
+        }
     }
 
     @Test
