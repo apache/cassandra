@@ -1564,3 +1564,5 @@ Table of Contents
   * Removed NO_COMPACT startup option (Section 4.1.1.)
   * Introduces outer framing format wrapping the "frames" of v4 and earlier, which are
     now referred to as "envelopes" (Sections 2.1, 2.2 and 2.3)
+  * Added <contentions> [short] to the Write_timeout (0x1100) error body. It is
+    only sent when <writeType> is "CAS" (Section 8).
