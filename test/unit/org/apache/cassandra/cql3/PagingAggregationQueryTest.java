@@ -247,8 +247,9 @@ public class PagingAggregationQueryTest extends CQLTester
     {
         createTable("CREATE TABLE %s (k int, c1 int, c2 int, v blob, PRIMARY KEY(k, c1, c2))");
 
-        int c1s = 11;
-        int c2s = 17;
+        // Bound the number of one-row subpages so slow runners stay within the range-read timeout.
+        int c1s = 3;
+        int c2s = 7;
 
         for (int k = 1; k <= NUM_PARTITIONS; k++)
         {
