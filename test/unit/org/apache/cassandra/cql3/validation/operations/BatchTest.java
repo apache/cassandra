@@ -18,12 +18,27 @@
 
 package org.apache.cassandra.cql3.validation.operations;
 
+import java.nio.ByteBuffer;
+
 import org.junit.Test;
 
 import org.apache.cassandra.cql3.CQLTester;
 
 public class BatchTest extends CQLTester
 {
+    /**
+     * A batch-level USING TIMESTAMP goes through BatchStatement, not ModificationStatement.
+     * An empty bind must be rejected the same way as an insert-level timestamp.
+     */
+    @Test
+    public void testEmptyBatchTimestamp() throws Throwable
+    {
+        createTable("CREATE TABLE %s (k int PRIMARY KEY, v int)");
+        assertInvalidMessage("Invalid null value of timestamp",
+                             "BEGIN BATCH USING TIMESTAMP ? INSERT INTO %s (k, v) VALUES (1, 1); APPLY BATCH",
+                             ByteBuffer.wrap(new byte[0]));
+    }
+
     /**
      * Test batch statements
      * migrated from cql_tests.py:TestCQL.batch_test()
