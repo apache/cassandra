@@ -347,9 +347,11 @@ public class SSTableCursorReader implements AutoCloseable
                 }
                 readComplexDeletion(currIndex);
                 remainingCellsInColumn = dataReader.readUnsignedVInt32();
-                if (remainingCellsInColumn == 0 && pauseAtEmptyComplexColumns)
+                // A deletion the drop filter cleared leaves nothing: the iterator path gives the
+                // row no such column, so do not surface one.
+                if (remainingCellsInColumn == 0 && pauseAtEmptyComplexColumns && !complexDeletion.isLive())
                     return surfaceDeletionOnlyComplexColumn();
-                // A count of zero and no pause: continue to the next column.
+                // A count of zero and no pause, or no deletion: continue to the next column.
             }
             return COLUMN_RUN_OPEN;
         }
@@ -387,6 +389,14 @@ public class SSTableCursorReader implements AutoCloseable
                 return;
             }
             serializationHeader.readDeletionTime(dataReader, complexDeletion);
+            // A row with any complex deletion writes one for every complex column, and a column
+            // without one gets LIVE.  LIVE's local deletion time does not survive the header's
+            // delta encoding, so treat a deletion with no timestamp as LIVE, as BTreeRow.Builder does.
+            if (complexDeletion.markedForDeleteAt() == Long.MIN_VALUE)
+            {
+                complexDeletion.resetLive();
+                return;
+            }
             // Do what DeserializationHelper.isDroppedComplexDeletion does: drop a complex deletion
             // at or before the drop time of its column.
             if (isDroppedAt(complexDeletion.markedForDeleteAt(), currIndex))
@@ -564,7 +574,8 @@ public class SSTableCursorReader implements AutoCloseable
     {
         TableMetadata metadata = Util.metadataFromSSTable(desc);
         SSTableReader reader = SSTableReader.openNoValidation(null, desc, TableMetadataRef.forOfflineTools(metadata));
-        return new SSTableCursorReader(reader, metadata, reader.ref(), null, null);
+        // The cursor owns this reader, so closing it releases the reader's own reference.
+        return new SSTableCursorReader(reader, metadata, reader.selfRef(), null, null);
     }
 
     public SSTableCursorReader(SSTableReader reader)

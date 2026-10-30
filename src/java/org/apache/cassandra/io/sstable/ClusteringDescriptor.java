@@ -84,6 +84,11 @@ public class ClusteringDescriptor extends ResizableByteBuffer
         return clusteringKindEncoded == MAX_START_KIND && clusteringColumnsBound == 0;
     }
 
+    public final boolean isMinEnd()
+    {
+        return clusteringKindEncoded == MIN_END_KIND && clusteringColumnsBound == 0;
+    }
+
     public final void resetClustering()
     {
         set(ClusteringPrefix.Kind.CLUSTERING, 0);
