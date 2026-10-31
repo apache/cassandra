@@ -1529,7 +1529,17 @@ public class SinglePartitionReadCommand extends ReadCommand implements SinglePar
         public void onSSTableSelected(SSTableReader sstable, SelectionReason reason)
         {
             sstable.incrementReadCount();
+            if (reason == SelectionReason.INDEX_ENTRY_FOUND)
+                sstable.incrementIndexLookupCount();
             mergedSSTables++;
+        }
+
+        @Override
+        public void onSSTableSkipped(SSTableReader sstable, SkippingReason reason)
+        {
+            // bloom filter false positives: the index summary was searched, but the partition isn't in this SSTable
+            if (reason == SkippingReason.PARTITION_INDEX_LOOKUP || reason == SkippingReason.INDEX_ENTRY_NOT_FOUND)
+                sstable.incrementIndexLookupCount();
         }
 
         /**

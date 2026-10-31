@@ -288,6 +288,7 @@ public abstract class SSTableReader extends SSTable implements UnfilteredSource,
     private final Ref<SSTableReader> selfRef;
 
     private RestorableMeter readMeter;
+    private RestorableMeter indexLookupMeter;
 
     private volatile double crcCheckChance;
 
@@ -660,6 +661,11 @@ public abstract class SSTableReader extends SSTable implements UnfilteredSource,
     public RestorableMeter getReadMeter()
     {
         return readMeter;
+    }
+
+    public RestorableMeter getIndexLookupMeter()
+    {
+        return indexLookupMeter;
     }
 
     /**
@@ -1516,6 +1522,12 @@ public abstract class SSTableReader extends SSTable implements UnfilteredSource,
             readMeter.mark();
     }
 
+    public void incrementIndexLookupCount()
+    {
+        if (indexLookupMeter != null)
+            indexLookupMeter.mark();
+    }
+
     public EncodingStats stats()
     {
         // We could return sstable.header.stats(), but this may not be as accurate than the actual sstable stats (see
@@ -1549,12 +1561,19 @@ public abstract class SSTableReader extends SSTable implements UnfilteredSource,
         trackHotness &= TRACK_ACTIVITY;
         tidy.setup(this, trackHotness, setupInstance(trackHotness));
         this.readMeter = tidy.global.readMeter;
+        this.indexLookupMeter = tidy.global.indexLookupMeter;
     }
 
     @VisibleForTesting
     public void overrideReadMeter(RestorableMeter readMeter)
     {
         this.readMeter = tidy.global.readMeter = readMeter;
+    }
+
+    @VisibleForTesting
+    public void overrideIndexLookupMeter(RestorableMeter indexLookupMeter)
+    {
+        this.indexLookupMeter = tidy.global.indexLookupMeter = indexLookupMeter;
     }
 
     public void addTo(Ref.IdentityCollection identities)
@@ -1716,6 +1735,7 @@ public abstract class SSTableReader extends SSTable implements UnfilteredSource,
         // the readMeter that is shared between all instances of the sstable, and can be overridden in all of them
         // at once also, for testing purposes
         private RestorableMeter readMeter;
+        private RestorableMeter indexLookupMeter;
         // the scheduled persistence of the readMeter, that we will cancel once all instances of this logical
         // sstable have been released
         private WeakReference<ScheduledFuture<?>> readMeterSyncFuture = NULL;
@@ -1732,7 +1752,10 @@ public abstract class SSTableReader extends SSTable implements UnfilteredSource,
         void ensureReadMeter()
         {
             if (readMeter != null)
+            {
+                assert indexLookupMeter != null;
                 return;
+            }
 
             // Don't track read rates for tables in the system keyspace and don't bother trying to load or persist
             // the read meter when in client mode.
@@ -1740,11 +1763,13 @@ public abstract class SSTableReader extends SSTable implements UnfilteredSource,
             if (!TRACK_ACTIVITY || SchemaConstants.isLocalSystemKeyspace(desc.ksname) || DatabaseDescriptor.isClientOrToolInitialized())
             {
                 readMeter = null;
+                indexLookupMeter = null;
                 readMeterSyncFuture = NULL;
                 return;
             }
 
             readMeter = SystemKeyspace.getSSTableReadMeter(desc.ksname, desc.cfname, desc.id);
+            indexLookupMeter = new RestorableMeter();
             // sync the average read rate to system.sstable_activity every five minutes, starting one minute from now
             readMeterSyncFuture = new WeakReference<>(syncExecutor.scheduleAtFixedRate(this::maybePersistSSTableReadMeter, 1, 5, TimeUnit.MINUTES));
         }
