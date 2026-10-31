@@ -25,6 +25,8 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.*;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.atomic.AtomicInteger;
 
 import com.google.common.util.concurrent.Uninterruptibles;
 import org.apache.cassandra.ServerTestUtils;
@@ -75,6 +77,49 @@ public class CommitLogSegmentManagerCDCTest extends CQLTester
         // free up (a lot of) diskspace by deleting commitlog and cdc_raw after each test method
         CommitLog.instance.stopUnsafe(true);
         deleteCDCRawFiles();
+    }
+
+    @Test
+    public void testStopUnsafeRacingWithArchiveAndDiscard() throws Exception
+    {
+        File directory = new File(Files.createTempDirectory("commitlog-discard-race"));
+        AtomicBoolean archived = new AtomicBoolean();
+        AtomicInteger discards = new AtomicInteger();
+        CommitLogSegmentManagerStandard manager = new CommitLogSegmentManagerStandard(CommitLog.instance, directory.path())
+        {
+            @Override
+            public void discard(CommitLogSegment segment, boolean delete)
+            {
+                discards.incrementAndGet();
+                if (archived.compareAndSet(false, true))
+                    archiveAndDiscard(segment);
+                super.discard(segment, delete);
+            }
+        };
+
+        manager.start();
+        CommitLogSegment segment = manager.allocatingFrom();
+        try
+        {
+            manager.stopUnsafe(true);
+
+            Assert.assertTrue("Competing cleanup was not exercised", archived.get());
+            Assert.assertEquals(1, discards.get());
+            Assert.assertFalse(segment.logFile.exists());
+            Assert.assertTrue(manager.getActiveSegments().isEmpty());
+        }
+        finally
+        {
+            manager.shutdown();
+            try
+            {
+                Assert.assertTrue(manager.awaitTermination(1, TimeUnit.MINUTES));
+            }
+            finally
+            {
+                directory.deleteRecursive();
+            }
+        }
     }
 
     @Test
