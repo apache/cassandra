@@ -82,7 +82,16 @@ fi
 [ "x${CASSANDRA_DIR}" != "x" ] || CASSANDRA_DIR="$(readlink -f $(dirname -- "$0")/..)"
 [ "x${CASSANDRA_DTEST_DIR}" != "x" ] || CASSANDRA_DTEST_DIR="$(readlink -f ${CASSANDRA_DIR}/../cassandra-dtest)"
 [ "x${DIST_DIR}" != "x" ] || DIST_DIR="${CASSANDRA_DIR}/build"
-[ "x${TMPDIR}" != "x" ] || { TMPDIR_SET=1 && export TMPDIR="$(mktemp -d ${DIST_DIR}/run-python-dtest.XXXXXX)" ; }
+if [ "x${TMPDIR}" = "x" ] ; then
+    TMPDIR_SET=1
+    # avoid Xmx/Xms/Xmn in the name, older cassandra-env.sh treats them in the gc log path as heap flags
+    TMPDIR="$(mktemp -d ${DIST_DIR}/run-python-dtest.XXXXXX)"
+    while [[ "${TMPDIR##*/}" == *Xm[xsn]* ]] ; do
+        rmdir "${TMPDIR}"
+        TMPDIR="$(mktemp -d ${DIST_DIR}/run-python-dtest.XXXXXX)"
+    done
+    export TMPDIR
+fi
 [ "x${CCM_CONFIG_DIR}" != "x" ] && ls $CCM_CONFIG_DIR
 
 export PYTHONIOENCODING="utf-8"
