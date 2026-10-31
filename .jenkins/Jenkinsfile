@@ -226,7 +226,7 @@ def tasks() {
     'long-test': [splits: 4],
     'test-oa': [splits: 20],
     'test-system-keyspace-directory': [splits: 20],
-    'jvm-dtest': [splits: 16],
+    'jvm-dtest': [splits: 24],
     'jvm-dtest-upgrade': [splits: 6],
     'simulator-dtest': [splits: 2, size: 'large'],
     'dtest': [splits: 64, size: 'large'],
