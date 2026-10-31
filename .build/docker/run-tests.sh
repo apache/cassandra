@@ -284,7 +284,12 @@ case "${target}" in
     "cqlsh-test" | "dtest" | "dtest-novnode" | "dtest-latest" | "dtest-large" | "dtest-large-novnode" | "dtest-upgrade" | "dtest-upgrade-large" | "dtest-upgrade-novnode" | "dtest-upgrade-large-novnode" )
         ANT_OPTS="-Dtesttag.extra=_$(arch)_python${python_version/./-}"
         # intentionally not TMP_DIR
+        # avoid Xmx/Xms/Xmn in the name, older cassandra-env.sh treats them in the gc log path as heap flags
         DTEST_TMPDIR_LOCAL="$(mktemp -d ${build_dir}/run-python-dtest.XXXXXX)"
+        while [[ "${DTEST_TMPDIR_LOCAL##*/}" == *Xm[xsn]* ]] ; do
+            rmdir "${DTEST_TMPDIR_LOCAL}"
+            DTEST_TMPDIR_LOCAL="$(mktemp -d ${build_dir}/run-python-dtest.XXXXXX)"
+        done
     ;;
     "jvm-dtest-novnode" | "jvm-dtest-upgrade-novnode" )
         ANT_OPTS="-Dtesttag.extra=_$(arch)_novnode"
