@@ -227,7 +227,7 @@ public abstract class SSTableWriter extends SSTable implements Transactional
 
     public void setRepairedAt(long repairedAt)
     {
-        if (repairedAt > 0)
+        if (repairedAt >= 0)
             this.repairedAt = repairedAt;
     }
 
