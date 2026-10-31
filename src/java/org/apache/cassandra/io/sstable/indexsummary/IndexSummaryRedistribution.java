@@ -123,9 +123,11 @@ public class IndexSummaryRedistribution extends CompactionInfo.Holder
             if (isStopRequested())
                 throw new CompactionInterruptedException(getCompactionInfo());
 
-            if (sstable.getReadMeter() != null)
+            // Every query use of the index summary: point reads that missed the key cache, bloom filter false positives,
+            // and range scans. Unlike the read meter, this leaves out key cache hits, which never search the summary.
+            if (sstable.getIndexLookupMeter() != null)
             {
-                Double readRate = sstable.getReadMeter().fifteenMinuteRate();
+                Double readRate = sstable.getIndexLookupMeter().fifteenMinuteRate();
                 totalReadsPerSec += readRate;
                 readRates.put(sstable, readRate);
             }
@@ -144,7 +146,7 @@ public class IndexSummaryRedistribution extends CompactionInfo.Holder
         List<T> newSSTables;
         try (Refs<SSTableReader> refs = Refs.ref(sstablesByHotness))
         {
-            newSSTables = adjustSamplingLevels(sstablesByHotness, transactions, totalReadsPerSec, remainingBytes);
+            newSSTables = adjustSamplingLevels(sstablesByHotness, readRates, transactions, totalReadsPerSec, remainingBytes);
 
             for (LifecycleTransaction txn : transactions.values())
                 txn.finish();
@@ -160,6 +162,7 @@ public class IndexSummaryRedistribution extends CompactionInfo.Holder
     }
 
     private <T extends SSTableReader & IndexSummarySupport<T>> List<T> adjustSamplingLevels(List<T> sstables,
+                                                                                            Map<T, Double> readRates,
                                                                                             Map<TableId, LifecycleTransaction> transactions,
                                                                                             double totalReadsPerSec,
                                                                                             long memoryPoolCapacity) throws IOException
@@ -182,7 +185,7 @@ public class IndexSummaryRedistribution extends CompactionInfo.Holder
             int minIndexInterval = sstable.metadata().params.minIndexInterval;
             int maxIndexInterval = sstable.metadata().params.maxIndexInterval;
 
-            double readsPerSec = sstable.getReadMeter() == null ? 0.0 : sstable.getReadMeter().fifteenMinuteRate();
+            double readsPerSec = readRates.getOrDefault(sstable, 0.0);
             long idealSpace = Math.round(remainingSpace * (readsPerSec / totalReadsPerSec));
 
             // figure out how many entries our idealSpace would buy us, and pick a new sampling level based on that

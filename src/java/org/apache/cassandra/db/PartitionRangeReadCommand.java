@@ -487,6 +487,7 @@ public class PartitionRangeReadCommand extends ReadCommand implements PartitionR
                     public void onScanningStarted(SSTableReader sstable)
                     {
                         sstable.incrementReadCount();
+                        sstable.incrementIndexLookupCount();
                     }
                 };
     }

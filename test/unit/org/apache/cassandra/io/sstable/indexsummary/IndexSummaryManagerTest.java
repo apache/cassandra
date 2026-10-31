@@ -50,6 +50,7 @@ import org.apache.cassandra.Util;
 import org.apache.cassandra.concurrent.NamedThreadFactory;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.db.ColumnFamilyStore;
+import org.apache.cassandra.db.DecoratedKey;
 import org.apache.cassandra.db.Keyspace;
 import org.apache.cassandra.db.RowUpdateBuilder;
 import org.apache.cassandra.db.compaction.CompactionInfo;
@@ -92,6 +93,7 @@ public class IndexSummaryManagerTest<R extends SSTableReader & IndexSummarySuppo
     // index interval of 8, no key caching
     private static final String CF_STANDARDLOWiINTERVAL = "StandardLowIndexInterval";
     private static final String CF_STANDARDRACE = "StandardRace";
+    private static final String CF_NOBLOOMFILTER = "NoBloomFilter";
 
     @BeforeClass
     public static void defineSchema() throws ConfigurationException
@@ -110,7 +112,12 @@ public class IndexSummaryManagerTest<R extends SSTableReader & IndexSummarySuppo
                                     SchemaLoader.standardCFMD(KEYSPACE1, CF_STANDARDRACE)
                                                 .minIndexInterval(8)
                                                 .maxIndexInterval(256)
-                                                .caching(CachingParams.CACHE_NOTHING));
+                                                .caching(CachingParams.CACHE_NOTHING),
+                                    SchemaLoader.standardCFMD(KEYSPACE1, CF_NOBLOOMFILTER)
+                                                .minIndexInterval(8)
+                                                .maxIndexInterval(256)
+                                                .caching(CachingParams.CACHE_NOTHING)
+                                                .bloomFilterFpChance(1.0));
     }
 
     @Before
@@ -155,7 +162,7 @@ public class IndexSummaryManagerTest<R extends SSTableReader & IndexSummarySuppo
     private List<R> resetSummaries(ColumnFamilyStore cfs, List<R> sstables, long originalOffHeapSize) throws IOException
     {
         for (R sstable : sstables)
-            sstable.overrideReadMeter(new RestorableMeter(100.0, 100.0));
+            sstable.overrideIndexLookupMeter(new RestorableMeter(100.0, 100.0));
 
         try (LifecycleTransaction txn = cfs.getTracker().tryModify(sstables, OperationType.UNKNOWN))
         {
@@ -179,7 +186,7 @@ public class IndexSummaryManagerTest<R extends SSTableReader & IndexSummarySuppo
         }
     }
 
-    private final Comparator<SSTableReader> hotnessComparator = Comparator.comparingDouble(o -> o.getReadMeter().fifteenMinuteRate());
+    private final Comparator<SSTableReader> hotnessComparator = Comparator.comparingDouble(o -> o.getIndexLookupMeter().fifteenMinuteRate());
 
     private void createSSTables(String ksname, String cfname, int numSSTables, int numPartition)
     {
@@ -232,7 +239,7 @@ public class IndexSummaryManagerTest<R extends SSTableReader & IndexSummarySuppo
 
         List<R> sstables = ServerTestUtils.getLiveIndexSummarySupportingReaders(cfs);
         for (R sstable : sstables)
-            sstable.overrideReadMeter(new RestorableMeter(100.0, 100.0));
+            sstable.overrideIndexLookupMeter(new RestorableMeter(100.0, 100.0));
 
         for (R sstable : sstables)
             assertEquals(cfs.metadata().params.minIndexInterval, sstable.getIndexSummary().getEffectiveIndexInterval(), 0.001);
@@ -317,7 +324,7 @@ public class IndexSummaryManagerTest<R extends SSTableReader & IndexSummarySuppo
 
         List<R> sstables = ServerTestUtils.getLiveIndexSummarySupportingReaders(cfs);
         for (R sstable : sstables)
-            sstable.overrideReadMeter(new RestorableMeter(100.0, 100.0));
+            sstable.overrideIndexLookupMeter(new RestorableMeter(100.0, 100.0));
 
         try (LifecycleTransaction txn = cfs.getTracker().tryModify(sstables, OperationType.UNKNOWN))
         {
@@ -368,7 +375,7 @@ public class IndexSummaryManagerTest<R extends SSTableReader & IndexSummarySuppo
 
         List<R> sstables = ServerTestUtils.getLiveIndexSummarySupportingReaders(cfs);
         for (R sstable : sstables)
-            sstable.overrideReadMeter(new RestorableMeter(100.0, 100.0));
+            sstable.overrideIndexLookupMeter(new RestorableMeter(100.0, 100.0));
 
         long singleSummaryOffHeapSpace = sstables.get(0).getIndexSummary().getOffHeapSize();
 
@@ -422,8 +429,8 @@ public class IndexSummaryManagerTest<R extends SSTableReader & IndexSummarySuppo
 
         // make two of the four sstables cold, only leave enough space for three full index summaries,
         // so the two cold sstables should get downsampled to be half of their original size
-        sstables.get(0).overrideReadMeter(new RestorableMeter(50.0, 50.0));
-        sstables.get(1).overrideReadMeter(new RestorableMeter(50.0, 50.0));
+        sstables.get(0).overrideIndexLookupMeter(new RestorableMeter(50.0, 50.0));
+        sstables.get(1).overrideIndexLookupMeter(new RestorableMeter(50.0, 50.0));
         try (LifecycleTransaction txn = cfs.getTracker().tryModify(sstables, OperationType.UNKNOWN))
         {
             sstables = redistributeSummaries(Collections.emptyList(), of(cfs.metadata.id, txn), (singleSummaryOffHeapSpace * 3));
@@ -438,8 +445,8 @@ public class IndexSummaryManagerTest<R extends SSTableReader & IndexSummarySuppo
         // small increases or decreases in the read rate don't result in downsampling or upsampling
         double lowerRate = 50.0 * (DOWNSAMPLE_THESHOLD + (DOWNSAMPLE_THESHOLD * 0.10));
         double higherRate = 50.0 * (UPSAMPLE_THRESHOLD - (UPSAMPLE_THRESHOLD * 0.10));
-        sstables.get(0).overrideReadMeter(new RestorableMeter(lowerRate, lowerRate));
-        sstables.get(1).overrideReadMeter(new RestorableMeter(higherRate, higherRate));
+        sstables.get(0).overrideIndexLookupMeter(new RestorableMeter(lowerRate, lowerRate));
+        sstables.get(1).overrideIndexLookupMeter(new RestorableMeter(higherRate, higherRate));
         try (LifecycleTransaction txn = cfs.getTracker().tryModify(sstables, OperationType.UNKNOWN))
         {
             sstables = redistributeSummaries(Collections.emptyList(), of(cfs.metadata.id, txn), (singleSummaryOffHeapSpace * 3));
@@ -453,10 +460,10 @@ public class IndexSummaryManagerTest<R extends SSTableReader & IndexSummarySuppo
 
         // reset, and then this time, leave enough space for one of the cold sstables to not get downsampled
         sstables = resetSummaries(cfs, sstables, singleSummaryOffHeapSpace);
-        sstables.get(0).overrideReadMeter(new RestorableMeter(1.0, 1.0));
-        sstables.get(1).overrideReadMeter(new RestorableMeter(2.0, 2.0));
-        sstables.get(2).overrideReadMeter(new RestorableMeter(1000.0, 1000.0));
-        sstables.get(3).overrideReadMeter(new RestorableMeter(1000.0, 1000.0));
+        sstables.get(0).overrideIndexLookupMeter(new RestorableMeter(1.0, 1.0));
+        sstables.get(1).overrideIndexLookupMeter(new RestorableMeter(2.0, 2.0));
+        sstables.get(2).overrideIndexLookupMeter(new RestorableMeter(1000.0, 1000.0));
+        sstables.get(3).overrideIndexLookupMeter(new RestorableMeter(1000.0, 1000.0));
 
         try (LifecycleTransaction txn = cfs.getTracker().tryModify(sstables, OperationType.UNKNOWN))
         {
@@ -478,10 +485,10 @@ public class IndexSummaryManagerTest<R extends SSTableReader & IndexSummarySuppo
         // coldest sstables will get downsampled to 4/128 of their size, leaving us with 1 and 92/128th index
         // summaries worth of space.  The hottest sstable should get a full index summary, and the one in the middle
         // should get the remainder.
-        sstables.get(0).overrideReadMeter(new RestorableMeter(0.0, 0.0));
-        sstables.get(1).overrideReadMeter(new RestorableMeter(0.0, 0.0));
-        sstables.get(2).overrideReadMeter(new RestorableMeter(92, 92));
-        sstables.get(3).overrideReadMeter(new RestorableMeter(128.0, 128.0));
+        sstables.get(0).overrideIndexLookupMeter(new RestorableMeter(0.0, 0.0));
+        sstables.get(1).overrideIndexLookupMeter(new RestorableMeter(0.0, 0.0));
+        sstables.get(2).overrideIndexLookupMeter(new RestorableMeter(92, 92));
+        sstables.get(3).overrideIndexLookupMeter(new RestorableMeter(128.0, 128.0));
         try (LifecycleTransaction txn = cfs.getTracker().tryModify(sstables, OperationType.UNKNOWN))
         {
             sstables = redistributeSummaries(Collections.emptyList(), of(cfs.metadata.id, txn), (long) (singleSummaryOffHeapSpace + (singleSummaryOffHeapSpace * (92.0 / BASE_SAMPLING_LEVEL))));
@@ -643,7 +650,7 @@ public class IndexSummaryManagerTest<R extends SSTableReader & IndexSummarySuppo
         List<R> compacting = allSSTables.subList(4, 8);
 
         for (R sstable : sstables)
-            sstable.overrideReadMeter(new RestorableMeter(100.0, 100.0));
+            sstable.overrideIndexLookupMeter(new RestorableMeter(100.0, 100.0));
 
         final long singleSummaryOffHeapSpace = sstables.get(0).getIndexSummary().getOffHeapSize();
 
@@ -734,7 +741,7 @@ public class IndexSummaryManagerTest<R extends SSTableReader & IndexSummarySuppo
 
         List<R> sstables = ServerTestUtils.getLiveIndexSummarySupportingReaders(cfs);
         for (R sstable : sstables)
-            sstable.overrideReadMeter(new RestorableMeter(100.0, 100.0));
+            sstable.overrideIndexLookupMeter(new RestorableMeter(100.0, 100.0));
 
         long singleSummaryOffHeapSpace = sstables.get(0).getIndexSummary().getOffHeapSize();
 
@@ -756,6 +763,62 @@ public class IndexSummaryManagerTest<R extends SSTableReader & IndexSummarySuppo
             assertEquals(BASE_SAMPLING_LEVEL, sstable.getIndexSummary().getSamplingLevel());
         validateData(cfs, numRows);
         assertOnDiskState(cfs, numSSTables);
+    }
+
+    @Test
+    public void testIndexLookupMeterCountsBloomFilterFalsePositives()
+    {
+        String ksname = KEYSPACE1;
+        String cfname = CF_STANDARDLOWiINTERVAL; // index interval of 8, no key caching
+        ColumnFamilyStore cfs = Keyspace.open(ksname).getColumnFamilyStore(cfname);
+        createSSTables(ksname, cfname, 1, 256);
+        R sstable = ServerTestUtils.<R>getLiveIndexSummarySupportingReaders(cfs).get(0);
+        RestorableMeter reads = sstable.getReadMeter();
+        RestorableMeter lookups = sstable.getIndexLookupMeter();
+
+        // A rejected key is one that the bloom filter knows for sure that the key is not in the SSTable
+        String rejected = null;
+        // A false positive key is one that the bloom filter only knows the key might be present and it is not present
+        String falsePositive = null;
+
+        // Because a bloom filter is probabilistic iterate until we find both a rejected key and
+        // a falsePositive key
+        for (int i = 1000; i < 10_000 && (rejected == null || falsePositive == null); i++)
+        {
+            String key = String.valueOf(i);
+            DecoratedKey decoratedKey = Util.dk(key);
+            if (decoratedKey.compareTo(sstable.getFirst()) <= 0 || decoratedKey.compareTo(sstable.getLast()) >= 0)
+                continue;
+            if (!sstable.mayContainAssumingKeyIsInRange(decoratedKey))
+                rejected = rejected == null ? key : rejected;
+            else
+                falsePositive = falsePositive == null ? key : falsePositive;
+        }
+        assertNotNull(rejected);
+        assertNotNull(falsePositive);
+
+        // A partition that is present is both a read and an index lookup.
+        assertReadAndIndexLookupCounts(cfs, String.format("%3d", 10), reads, lookups, 1, 1);
+        // A key the bloom filter rejects never reaches the index.
+        assertReadAndIndexLookupCounts(cfs, rejected, reads, lookups, 0, 0);
+        // A false positive isn't a read, but it searches the index summary just like one.
+        assertReadAndIndexLookupCounts(cfs, falsePositive, reads, lookups, 0, 1);
+
+        // Lookups outside point reads, like index builds and compaction, aren't counted.
+        long lookupsBefore = lookups.count();
+        sstable.getPosition(Util.dk(falsePositive), SSTableReader.Operator.EQ);
+        sstable.getPosition(Util.dk(String.format("%3d", 10)), SSTableReader.Operator.EQ);
+        assertEquals("index lookups outside point reads", lookupsBefore, lookups.count());
+    }
+
+    private static void assertReadAndIndexLookupCounts(ColumnFamilyStore cfs, String key, RestorableMeter reads, RestorableMeter lookups,
+                                                           long expectedReads, long expectedLookups)
+    {
+        long readsBefore = reads.count();
+        long lookupsBefore = lookups.count();
+        Util.getAll(Util.cmd(cfs, key).build());
+        assertEquals("reads of key " + key, readsBefore + expectedReads, reads.count());
+        assertEquals("index lookups for key " + key, lookupsBefore + expectedLookups, lookups.count());
     }
 
     private List<R> redistributeSummaries(List<R> compacting,
