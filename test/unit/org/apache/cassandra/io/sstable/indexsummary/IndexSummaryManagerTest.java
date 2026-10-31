@@ -781,8 +781,7 @@ public class IndexSummaryManagerTest<R extends SSTableReader & IndexSummarySuppo
         // A false positive key is one that the bloom filter only knows the key might be present and it is not present
         String falsePositive = null;
 
-        // Because a bloom filter is probabilistic iterate until we find both a rejected key and
-        // a falsePositive key
+        // Because a bloom filter is probabilistic iterate until we find both a rejected key and a falsePositive key
         for (int i = 1000; i < 10_000 && (rejected == null || falsePositive == null); i++)
         {
             String key = String.valueOf(i);

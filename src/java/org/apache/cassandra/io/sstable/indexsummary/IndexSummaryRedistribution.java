@@ -116,7 +116,7 @@ public class IndexSummaryRedistribution extends CompactionInfo.Holder
         logger.info("Beginning redistribution of index summaries for {} sstables with memory pool size {} MiB; current spaced used is {} MiB",
                      redistribute.size(), memoryPoolBytes / 1024L / 1024L, total / 1024.0 / 1024.0);
 
-        final Map<T, Double> readRates = new HashMap<>(redistribute.size());
+        final Map<T, Double> indexLookupRates = new HashMap<>(redistribute.size());
         double totalReadsPerSec = 0.0;
         for (T sstable : redistribute)
         {
@@ -127,16 +127,16 @@ public class IndexSummaryRedistribution extends CompactionInfo.Holder
             // and range scans. Unlike the read meter, this leaves out key cache hits, which never search the summary.
             if (sstable.getIndexLookupMeter() != null)
             {
-                Double readRate = sstable.getIndexLookupMeter().fifteenMinuteRate();
-                totalReadsPerSec += readRate;
-                readRates.put(sstable, readRate);
+                Double indexLookupRate = sstable.getIndexLookupMeter().fifteenMinuteRate();
+                totalReadsPerSec += indexLookupRate;
+                indexLookupRates.put(sstable, indexLookupRate);
             }
         }
         logger.trace("Total reads/sec across all sstables in index summary resize process: {}", totalReadsPerSec);
 
         // copy and sort by read rates (ascending)
         List<T> sstablesByHotness = new ArrayList<>(redistribute);
-        Collections.sort(sstablesByHotness, new ReadRateComparator(readRates));
+        Collections.sort(sstablesByHotness, new ReadRateComparator(indexLookupRates));
 
         long remainingBytes = memoryPoolBytes - nonRedistributingOffHeapSize;
 
@@ -146,7 +146,7 @@ public class IndexSummaryRedistribution extends CompactionInfo.Holder
         List<T> newSSTables;
         try (Refs<SSTableReader> refs = Refs.ref(sstablesByHotness))
         {
-            newSSTables = adjustSamplingLevels(sstablesByHotness, readRates, transactions, totalReadsPerSec, remainingBytes);
+            newSSTables = adjustSamplingLevels(sstablesByHotness, indexLookupRates, transactions, totalReadsPerSec, remainingBytes);
 
             for (LifecycleTransaction txn : transactions.values())
                 txn.finish();
@@ -162,7 +162,7 @@ public class IndexSummaryRedistribution extends CompactionInfo.Holder
     }
 
     private <T extends SSTableReader & IndexSummarySupport<T>> List<T> adjustSamplingLevels(List<T> sstables,
-                                                                                            Map<T, Double> readRates,
+                                                                                            Map<T, Double> indexLookupRates,
                                                                                             Map<TableId, LifecycleTransaction> transactions,
                                                                                             double totalReadsPerSec,
                                                                                             long memoryPoolCapacity) throws IOException
@@ -185,7 +185,7 @@ public class IndexSummaryRedistribution extends CompactionInfo.Holder
             int minIndexInterval = sstable.metadata().params.minIndexInterval;
             int maxIndexInterval = sstable.metadata().params.maxIndexInterval;
 
-            double readsPerSec = readRates.getOrDefault(sstable, 0.0);
+            double readsPerSec = indexLookupRates.getOrDefault(sstable, 0.0);
             long idealSpace = Math.round(remainingSpace * (readsPerSec / totalReadsPerSec));
 
             // figure out how many entries our idealSpace would buy us, and pick a new sampling level based on that
