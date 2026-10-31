@@ -65,7 +65,13 @@ elif [ "${java_version}" = "8" ] && ! compgen -G '/usr/lib/jvm/java-8-openjdk-*/
     export JAVA_HOME="$("${CASSANDRA_DIR}/.build/docker/_ensure_jdk8.sh" "${HOME}/.m2/repository/.ci-jdks")"
     export PATH="${JAVA_HOME}/bin:${PATH}"
 elif grep "^ID=" /etc/os-release | grep -q 'debian\|ubuntu' ; then
-    sudo update-java-alternatives --set java-1.${java_version}.0-openjdk-$(dpkg --print-architecture)
+    # Select the registered /usr/lib/jvm/.../bin/java and bin/javac alternatives directly.
+    # Don't use `update-java-alternatives --set java-1.<v>.0-openjdk`: it resolves the
+    # package to the .../jre/bin/java variant, which the test image removes from the
+    # alternatives group, so it fails silently (exit 0) leaving /usr/bin/java on the
+    # default (17) while javac/JAVA_HOME point at the requested version.
+    sudo update-alternatives --set java  /usr/lib/jvm/java-${java_version}-openjdk-$(dpkg --print-architecture)/bin/java
+    sudo update-alternatives --set javac /usr/lib/jvm/java-${java_version}-openjdk-$(dpkg --print-architecture)/bin/javac
     export JAVA_HOME=$(readlink -f /usr/bin/javac | sed "s:/bin/javac::")
 else
     sudo alternatives --set java $(alternatives --display java | grep "family java-${java_version}-openjdk" | cut -d' ' -f1)
