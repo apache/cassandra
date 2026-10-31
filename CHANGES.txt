@@ -25,6 +25,7 @@
 Merged from 4.1:
  * PreV5Handlers.toFlushItem may leak memory on disconnected channel (CASSANDRA-21766)
 Merged from 4.0:
+ * Fix cassandra-env.sh treating Xmx/Xms/Xmn inside paths as heap flags (CASSANDRA-21804)
  * IndexSummaryRedistribution should unmark compacting SSTables in batch (CASSANDRA-20159)
  * Fix global MemtableOffHeapDataSize metric reporting on-heap memtable usage (CASSANDRA-21762)
  * Fix function inference for arithmetic on DESC clustering columns (CASSANDRA-19919)
