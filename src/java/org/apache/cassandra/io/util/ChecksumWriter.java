@@ -94,7 +94,7 @@ public class ChecksumWriter
         {
             fos.write(String.valueOf(fullChecksum.getValue()).getBytes(StandardCharsets.UTF_8));
             fos.flush();
-            fos.getChannel().force(true);
+            fos.sync();
         }
         catch (IOException e)
         {

@@ -31,6 +31,7 @@ import org.apache.cassandra.io.FSError;
 import org.apache.cassandra.io.FSReadError;
 import org.apache.cassandra.io.util.FileUtils;
 import org.apache.cassandra.utils.NativeLibrary;
+import org.apache.cassandra.utils.SyncUtil;
 
 import static org.apache.cassandra.config.CassandraRelevantProperties.IGNORE_MISSING_NATIVE_FILE_HINTS;
 
@@ -122,7 +123,7 @@ final class LogReplica implements AutoCloseable
         try
         {
             if (directoryDescriptor >= 0)
-                NativeLibrary.trySync(directoryDescriptor);
+                SyncUtil.trySync(directoryDescriptor);
         }
         catch (FSError e)
         {
