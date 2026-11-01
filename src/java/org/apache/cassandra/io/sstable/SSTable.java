@@ -45,6 +45,7 @@ import org.apache.cassandra.schema.TableMetadata;
 import org.apache.cassandra.schema.TableMetadataRef;
 import org.apache.cassandra.utils.ByteBufferUtil;
 import org.apache.cassandra.utils.Pair;
+import org.apache.cassandra.utils.SyncUtil;
 import org.apache.cassandra.utils.memory.HeapCloner;
 
 import static org.apache.cassandra.service.ActiveRepairService.NO_PENDING_REPAIR;
@@ -342,7 +343,7 @@ public abstract class SSTable
             for (Component component : components)
                 w.println(component.name);
             w.flush();
-            fos.getFD().sync();
+            SyncUtil.sync(fos);
         }
         catch (IOException e)
         {
