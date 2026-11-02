@@ -34,6 +34,7 @@ import org.apache.cassandra.ServerTestUtils;
 import org.apache.cassandra.auth.IAuthenticator.AuthenticationMode;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.config.OverrideConfigurationLoader;
+import org.apache.cassandra.service.CassandraDaemon;
 import org.apache.cassandra.service.EmbeddedCassandraService;
 import org.apache.cassandra.transport.TlsTestUtils;
 
@@ -238,5 +239,32 @@ public class ClientMetricsTest
         assertEquals(0, clientMetrics.unencryptedConnectedNativeClients.getValue().intValue());
         assertEquals(0, clientMetrics.encryptedConnectedNativeClients.getValue().intValue());
         assertEquals(0, passwordConnections.getValue().intValue());
+    }
+
+    @Test
+    public void testGracefulDisconnectMetricsViaServerLifecycle() throws Exception
+    {
+        boolean original = DatabaseDescriptor.getGracefulDisconnectEnabled();
+        DatabaseDescriptor.getRawConfig().graceful_disconnect_enabled = true;
+
+        try
+        {
+            assertEquals(0, clientMetrics.connectionsDraining.get());
+            long initialForcedDisconnects = clientMetrics.forcedDisconnects.getCount();
+
+            try (Cluster cluster = clusterBuilder().withCredentials("cassandra", "cassandra").build();
+                 Session ignored = cluster.connect())
+            {
+                assertEquals(2, clientMetrics.connectedNativeClients.getValue().intValue());
+                CassandraDaemon.getInstanceForTesting().nativeTransportService().stop();
+                assertEquals(0, clientMetrics.connectionsDraining.get());
+                assertEquals(initialForcedDisconnects, clientMetrics.forcedDisconnects.getCount());
+            }
+        }
+        finally
+        {
+            DatabaseDescriptor.getRawConfig().graceful_disconnect_enabled = original;
+            CassandraDaemon.getInstanceForTesting().nativeTransportService().start();
+        }
     }
 }

@@ -163,6 +163,12 @@ public class NativeTransportService
         return server;
     }
 
+    @VisibleForTesting
+    public int getChannelsSubscribedToGracefulDisconnectCount()
+    {
+        return server.getChannelsSubscribedToGracefulDisconnect().size();
+    }
+
     public void clearConnectionHistory()
     {
         server.clearConnectionHistory();

@@ -32,6 +32,7 @@ import java.util.concurrent.ConcurrentLinkedQueue;
 import java.util.concurrent.SynchronousQueue; // checkstyle: permit this import
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.atomic.AtomicInteger;
 
 import com.google.common.annotations.VisibleForTesting;
 import com.google.common.primitives.Ints;
@@ -111,9 +112,10 @@ public class SimpleClient implements Closeable
     public final int port;
     private final EncryptionOptions.ClientEncryptionOptions encryptionOptions;
     private final int largeMessageThreshold;
+    private final boolean ignoreGracefulDisconnect;
     private final boolean closeOnWriteFailure;
 
-    protected final ResponseHandler responseHandler = new ResponseHandler();
+    protected final ResponseHandler responseHandler = new ResponseHandler(this);
     protected final Connection.Tracker tracker = new ConnectionTracker();
     protected final ProtocolVersion version;
     // We don't track connection really, so we don't need one Connection per channel
@@ -121,7 +123,8 @@ public class SimpleClient implements Closeable
     protected Bootstrap bootstrap;
     protected Channel channel;
     protected ChannelFuture lastWriteFuture;
-
+    private final AtomicBoolean draining = new AtomicBoolean(false);
+    private final AtomicInteger inFlight = new AtomicInteger();
     protected String compression;
 
     public static class Builder
@@ -132,6 +135,7 @@ public class SimpleClient implements Closeable
         private ProtocolVersion version = ProtocolVersion.CURRENT;
         private boolean useBeta = false;
         private int largeMessageThreshold = FrameEncoder.Payload.MAX_SIZE;
+        private boolean ignoreGracefulDisconnect = false;
         private boolean closeOnWriteFailure = true;
 
         private Builder(String host, int port)
@@ -155,6 +159,12 @@ public class SimpleClient implements Closeable
         public Builder protocolVersion(ProtocolVersion version)
         {
             this.version = version;
+            return this;
+        }
+
+        public Builder ignoreGracefulDisconnect()
+        {
+            this.ignoreGracefulDisconnect = true;
             return this;
         }
 
@@ -182,6 +192,7 @@ public class SimpleClient implements Closeable
         }
     }
 
+
     public static Builder builder(String host, int port)
     {
         return new Builder(host, port);
@@ -194,6 +205,7 @@ public class SimpleClient implements Closeable
         this.version = builder.version;
         this.encryptionOptions = builder.encryptionOptions.applyConfig();
         this.largeMessageThreshold = builder.largeMessageThreshold;
+        this.ignoreGracefulDisconnect = builder.ignoreGracefulDisconnect;
         this.closeOnWriteFailure = builder.closeOnWriteFailure;
     }
 
@@ -212,6 +224,16 @@ public class SimpleClient implements Closeable
         this(host, port, version, new EncryptionOptions.ClientEncryptionOptions());
     }
 
+    public boolean isDraining()
+    {
+        return draining.get();
+    }
+
+    public boolean isConnected()
+    {
+        return channel != null && channel.isActive();
+    }
+
     public SimpleClient(String host, int port, ProtocolVersion version, boolean useBeta, EncryptionOptions.ClientEncryptionOptions encryptionOptions)
     {
         this.host = host;
@@ -224,6 +246,7 @@ public class SimpleClient implements Closeable
         this.largeMessageThreshold = FrameEncoder.Payload.MAX_SIZE -
                                         Math.max(FrameEncoderCrc.HEADER_AND_TRAILER_LENGTH,
                                                  FrameEncoderLZ4.HEADER_AND_TRAILER_LENGTH);
+        this.ignoreGracefulDisconnect = false;
         this.closeOnWriteFailure = true;
     }
 
@@ -337,8 +360,10 @@ public class SimpleClient implements Closeable
         return execute(request, true);
     }
 
+
     public Message.Response execute(Message.Request request, boolean throwOnErrorResponse)
     {
+        beginRequest();
         try
         {
             request.attach(connection);
@@ -346,48 +371,83 @@ public class SimpleClient implements Closeable
             Message.Response msg = responseHandler.responses.poll(TIMEOUT_SECONDS, TimeUnit.SECONDS);
             if (msg == null)
                 throw new RuntimeException("timeout");
+
             if (throwOnErrorResponse && msg instanceof ErrorMessage)
-                throw new RuntimeException((Throwable)((ErrorMessage)msg).error);
+                throw new RuntimeException((Throwable) ((ErrorMessage) msg).error);
+
             return msg;
         }
         catch (InterruptedException e)
         {
             throw new UncheckedInterruptedException(e);
         }
+        finally
+        {
+            endRequest();
+        }
+    }
+
+    private void beginRequest()
+    {
+        synchronized (this)
+        {
+            if (draining.get())
+                throw new RuntimeException("Connection is draining (GRACEFUL_DISCONNECT received)");
+
+            inFlight.incrementAndGet();
+        }
+    }
+
+    private void endRequest()
+    {
+        synchronized (this)
+        {
+            if (inFlight.decrementAndGet() == 0 && draining.get())
+                channel.eventLoop().execute(channel::close);
+        }
     }
 
     public Map<Message.Request, Message.Response> execute(List<Message.Request> requests)
     {
+        if (!version.isGreaterOrEqualTo(ProtocolVersion.V5))
+        {
+            Map<Message.Request, Message.Response> rrMap = new HashMap<>();
+
+            // V4 doesn't support batching.
+            for (Message.Request request : requests)
+                rrMap.put(request, execute(request));
+
+            return rrMap;
+        }
+
+        beginRequest();
         try
         {
             Map<Message.Request, Message.Response> rrMap = new HashMap<>();
 
-            if (version.isGreaterOrEqualTo(ProtocolVersion.V5))
+            for (int i = 0; i < requests.size(); i++)
             {
-                for (int i = 0; i < requests.size(); i++)
-                {
-                    Message.Request message = requests.get(i);
-                    message.setSource(new Envelope(Envelope.Header.dummy(i, message.type), null));
-                    message.attach(connection);
-                }
-                lastWriteFuture = channel.writeAndFlush(requests);
-
-                long deadline = currentTimeMillis() + TimeUnit.SECONDS.toMillis(TIMEOUT_SECONDS);
-                for (int i = 0; i < requests.size(); i++)
-                {
-                    Message.Response msg = responseHandler.responses.poll(deadline - currentTimeMillis(), TimeUnit.MILLISECONDS);
-                    if (msg == null)
-                        throw new RuntimeException("timeout");
-                    if (msg instanceof ErrorMessage)
-                        throw new RuntimeException((Throwable) ((ErrorMessage) msg).error);
-                    rrMap.put(requests.get(msg.getSource().header.streamId), msg);
-                }
+                Message.Request message = requests.get(i);
+                message.setSource(new Envelope(Envelope.Header.dummy(i, message.type), null));
+                message.attach(connection);
             }
-            else
+
+            lastWriteFuture = channel.writeAndFlush(requests);
+
+            long deadline = currentTimeMillis() + TimeUnit.SECONDS.toMillis(TIMEOUT_SECONDS);
+            for (int i = 0; i < requests.size(); i++)
             {
-                // V4 doesn't support batching
-                for (Message.Request request : requests)
-                    rrMap.put(request, execute(request));
+                Message.Response msg = responseHandler.responses.poll(
+                deadline - currentTimeMillis(),
+                TimeUnit.MILLISECONDS);
+
+                if (msg == null)
+                    throw new RuntimeException("timeout");
+
+                if (msg instanceof ErrorMessage)
+                    throw new RuntimeException((Throwable) ((ErrorMessage) msg).error);
+
+                rrMap.put(requests.get(msg.getSource().header.streamId), msg);
             }
 
             return rrMap;
@@ -395,6 +455,10 @@ public class SimpleClient implements Closeable
         catch (InterruptedException e)
         {
             throw new UncheckedInterruptedException(e);
+        }
+        finally
+        {
+            endRequest();
         }
     }
 
@@ -413,6 +477,19 @@ public class SimpleClient implements Closeable
     public interface EventHandler
     {
         void onEvent(Event event);
+    }
+
+    private void handleGracefulDisconnect()
+    {
+        synchronized (this)
+    {
+        draining.set(true);
+
+        if (inFlight.get() == 0)
+            channel.eventLoop().execute(channel::close);
+    }
+
+        channel.closeFuture().addListener(f -> bootstrap.group().shutdownGracefully());
     }
 
     public static class SimpleEventHandler implements EventHandler
@@ -716,7 +793,12 @@ public class SimpleClient implements Closeable
     static class ResponseHandler extends SimpleChannelInboundHandler<Message.Response>
     {
         public final BlockingQueue<Message.Response> responses = new SynchronousQueue<>(true);
+        private final SimpleClient client;
         public EventHandler eventHandler;
+        public ResponseHandler(SimpleClient client)
+        {
+            this.client = client;
+        }
 
         @Override
         public void channelRead0(ChannelHandlerContext ctx, Message.Response r)
@@ -734,8 +816,20 @@ public class SimpleClient implements Closeable
 
                 if (r instanceof EventMessage)
                 {
+                    Event event = ((EventMessage)r).event;
+
+                    if (event.type == Event.Type.GRACEFUL_DISCONNECT)
+                    {
+                        logger.info("Received GRACEFUL_DISCONNECT. Entering draining mode.");
+                        if (eventHandler != null)
+                            eventHandler.onEvent(event);
+                        if (!client.ignoreGracefulDisconnect)
+                            client.handleGracefulDisconnect();
+                        return;
+                    }
+
                     if (eventHandler != null)
-                        eventHandler.onEvent(((EventMessage) r).event);
+                        eventHandler.onEvent(event);
                 }
                 else
                     responses.put(r);
