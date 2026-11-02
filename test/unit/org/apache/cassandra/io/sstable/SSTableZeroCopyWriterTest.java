@@ -57,8 +57,10 @@ import org.apache.cassandra.utils.Pair;
 import io.netty.buffer.Unpooled;
 import io.netty.channel.embedded.EmbeddedChannel;
 
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertNotEquals;
+import static org.junit.Assert.assertTrue;
 
 public class SSTableZeroCopyWriterTest
 {
@@ -142,6 +144,40 @@ public class SSTableZeroCopyWriterTest
         }
     }
 
+
+    /**
+     * The writer must refuse to start over existing component files, and must do so before the transaction tracks the
+     * new sstable - otherwise aborting the transaction would delete files which do not belong to it.
+     */
+    @Test
+    public void testCannotCreateWriterOverExistingComponents()
+    {
+        File dir = store.getDirectories().getDirectoryForNewSSTables();
+        Descriptor desc = store.newSSTableDescriptor(dir);
+        TableMetadataRef metadata = Schema.instance.getTableMetadataRef(desc);
+        Set<Component> componentsToWrite = new HashSet<>(desc.getFormat().uploadComponents());
+
+        File existing = desc.fileFor(Components.DATA);
+        assertTrue(existing.createFileIfNotExists());
+        try (LifecycleTransaction txn = LifecycleTransaction.offline(OperationType.STREAM))
+        {
+            assertThatThrownBy(() -> desc.getFormat()
+                                         .getWriterFactory()
+                                         .builder(desc)
+                                         .setComponents(componentsToWrite)
+                                         .setTableMetadataRef(metadata)
+                                         .createZeroCopyWriter(txn, store))
+            .isInstanceOf(AssertionError.class)
+            .hasMessageContaining("already exist");
+
+            txn.abort();
+            assertTrue("untracked file must survive the abort", existing.exists());
+        }
+        finally
+        {
+            existing.tryDelete();
+        }
+    }
 
     private void writeDataTestCycle(Function<ByteBuffer, DataInputPlus> bufferMapper)
     {

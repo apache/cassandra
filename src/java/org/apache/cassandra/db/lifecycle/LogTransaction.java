@@ -179,7 +179,7 @@ class LogTransaction extends Transactional.AbstractTransactional implements Tran
     @VisibleForTesting
     SSTableTidier obsoleted(SSTableReader sstable)
     {
-        return obsoleted(sstable, LogRecord.make(Type.REMOVE, sstable));
+        return obsoleted(sstable, LogRecord.makeRemove(sstable));
     }
 
     /**
