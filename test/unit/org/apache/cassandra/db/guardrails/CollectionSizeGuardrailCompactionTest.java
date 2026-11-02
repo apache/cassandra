@@ -142,28 +142,25 @@ public class CollectionSizeGuardrailCompactionTest extends DifferentialCompactio
     @Test
     public void bothPipelinesReportTheSameOversizedCollection() throws Exception
     {
-        assumeBigFormatSelected();
-
-        List<String> iterator = collectWarningsFromCompaction(false, this::twoHalvesOfOneCollection);
-        List<String> cursor = collectWarningsFromCompaction(true, this::twoHalvesOfOneCollection);
-
-        assertFalse("the iterator path must warn, or this says nothing about the cursor path",
-                    iterator.isEmpty());
-        assertEquals("the cursor path must report the same collection size as the iterator path",
-                     iterator, cursor);
+        testWarningsOnBothCompactionPaths(this::twoHalvesOfOneCollection);
     }
 
     @Test
     public void bothPipelinesReportTheSameOversizedStaticCollection() throws Exception
     {
+        testWarningsOnBothCompactionPaths(this::twoHalvesOfOneStaticCollection);
+    }
+
+    private void testWarningsOnBothCompactionPaths(Supplier<ColumnFamilyStore> fixture) throws Exception
+    {
         assumeBigFormatSelected();
 
-        List<String> iterator = collectWarningsFromCompaction(false, this::twoHalvesOfOneStaticCollection);
-        List<String> cursor = collectWarningsFromCompaction(true, this::twoHalvesOfOneStaticCollection);
+        List<String> iterator = collectWarningsFromCompaction(false, fixture);
+        List<String> cursor = collectWarningsFromCompaction(true, fixture);
 
-        assertFalse("it is expected that the iterator path rerports warnings",
+        assertFalse("the iterator path should report warnings",
                     iterator.isEmpty());
-        assertEquals("the cursor path must report the same number of warnings for the static collection size as the iterator path",
+        assertEquals("the cursor path must report the same collection size as the iterator path",
                      iterator, cursor);
     }
 
