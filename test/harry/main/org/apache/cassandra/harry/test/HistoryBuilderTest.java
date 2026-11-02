@@ -25,6 +25,7 @@ import org.junit.Test;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import org.apache.cassandra.TestConfigurations;
 import org.apache.cassandra.cql3.CQLTester;
 import org.apache.cassandra.harry.ColumnSpec;
 import org.apache.cassandra.harry.MagicConstants;
@@ -47,6 +48,7 @@ import static org.apache.cassandra.harry.Relations.RelationKind.LTE;
 import static org.apache.cassandra.harry.checker.TestHelper.withRandom;
 import static org.apache.cassandra.harry.dsl.SingleOperationBuilder.IdxRelation;
 
+@TestConfigurations({"default", "bti", "latest"})
 public class HistoryBuilderTest extends CQLTester
 {
     // TODO: go through all basic features of History builder here and test them!!!

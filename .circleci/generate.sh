@@ -55,6 +55,8 @@ print_help()
   echo "                   -e REPEATED_UTESTS_SSTABLELOADER_COUNT=500"
   echo "                   -e REPEATED_UTESTS_LONG=org.apache.cassandra.db.commitlog.CommitLogStressTest"
   echo "                   -e REPEATED_UTESTS_LONG_COUNT=100"
+  echo "                   -e REPEATED_HARRY_TESTS=org.apache.cassandra.harry.test.HistoryBuilderTest"
+  echo "                   -e REPEATED_HARRY_TESTS_COUNT=10"
   echo "                   -e REPEATED_UTESTS_STRESS=org.apache.cassandra.stress.generate.DistributionGaussianTest"
   echo "                   -e REPEATED_UTESTS_STRESS_COUNT=500"
   echo "                   -e REPEATED_SIMULATOR_DTESTS=org.apache.cassandra.simulator.test.TrivialSimulationTest"
@@ -135,6 +137,8 @@ if $has_env_vars && $check_env_vars; then
        [ "$key" != "REPEATED_UTESTS_FQLTOOL_COUNT" ] &&
        [ "$key" != "REPEATED_UTESTS_SSTABLELOADER" ] &&
        [ "$key" != "REPEATED_UTESTS_SSTABLELOADER_COUNT" ] &&
+       [ "$key" != "REPEATED_HARRY_TESTS" ] &&
+       [ "$key" != "REPEATED_HARRY_TESTS_COUNT" ] &&
        [ "$key" != "REPEATED_UTESTS_LONG" ] &&
        [ "$key" != "REPEATED_UTESTS_LONG_COUNT" ] &&
        [ "$key" != "REPEATED_UTESTS_STRESS" ] &&
@@ -242,6 +246,7 @@ if $detect_changed_tests; then
   echo
   echo "Detecting new or modified tests with git diff --diff-filter=AMR ${BASE_BRANCH}...HEAD:"
   add_diff_tests "REPEATED_UTESTS" "test/unit/" "org.apache.cassandra"
+  add_diff_tests "REPEATED_HARRY_TESTS" "test/harry/main/" "org.apache.cassandra"
   add_diff_tests "REPEATED_UTESTS_LONG" "test/long/" "org.apache.cassandra"
   add_diff_tests "REPEATED_UTESTS_STRESS" "tools/stress/test/unit/" "org.apache.cassandra.stress"
   add_diff_tests "REPEATED_UTESTS_FQLTOOL" "tools/fqltool/test/unit/" "org.apache.cassandra.fqltool"
@@ -297,6 +302,10 @@ delete_repeated_jobs()
     delete_job "$1" "j17_utests_oa_repeat"
     delete_job "$1" "j11_utests_system_keyspace_directory_repeat"
     delete_job "$1" "j17_utests_system_keyspace_directory_repeat"
+  fi
+  if (! (echo "$env_vars" | grep -q "REPEATED_HARRY_TESTS=")); then
+    delete_job "$1" "j11_harry_tests_repeat"
+    delete_job "$1" "j17_harry_tests_repeat"
   fi
   if (! (echo "$env_vars" | grep -q "REPEATED_UTESTS_LONG=")); then
     delete_job "$1" "j11_utests_long_repeat"
@@ -399,6 +408,7 @@ build_dev_min_jobs()
   delete_job "$1" "j11_utests_long"
   delete_job "$1" "j11_utests_stress"
   delete_job "$1" "j11_utests_system_keyspace_directory"
+  delete_job "$1" "j17_harry_tests"
   delete_job "$1" "j17_unit_tests"
   delete_job "$1" "j17_utests_oa"
   delete_job "$1" "j17_utests_cdc"

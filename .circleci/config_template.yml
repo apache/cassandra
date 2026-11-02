@@ -78,6 +78,10 @@ default_env_vars: &default_env_vars
     # The number of times that new, modified or manually specified long unit tests should be run.
     REPEATED_UTESTS_LONG_COUNT: 100
 
+    # Standalone Harry tests; every iteration runs the class's annotated configurations.
+    REPEATED_HARRY_TESTS:
+    REPEATED_HARRY_TESTS_COUNT: 10
+
     # Comma-separated list of tests that should be included in the repeated run for stress unit tests,
     # in addition to automatically detected new and modified tests. For example:
     # REPEATED_UTESTS_STRESS: org.apache.cassandra.stress.generate.DistributionGaussianTest
@@ -402,27 +406,51 @@ j11_separate_jobs: &j11_separate_jobs
           - j11_build
     - start_j11_utests_long:
         type: approval
+    - start_j11_harry_tests:
+        type: approval
     - j11_utests_long:
         requires:
           - start_j11_utests_long
           - j11_build
+    - j11_harry_tests:
+        requires:
+          - start_j11_harry_tests
+          - j11_build
     - start_j17_utests_long:
+        type: approval
+    - start_j17_harry_tests:
         type: approval
     - j17_utests_long:
         requires:
           - start_j17_utests_long
           - j11_build
+    - j17_harry_tests:
+        requires:
+          - start_j17_harry_tests
+          - j11_build
     - start_j11_utests_long_repeat:
+        type: approval
+    - start_j11_harry_tests_repeat:
         type: approval
     - j11_utests_long_repeat:
         requires:
           - start_j11_utests_long_repeat
           - j11_build
+    - j11_harry_tests_repeat:
+        requires:
+          - start_j11_harry_tests_repeat
+          - j11_build
     - start_j17_utests_long_repeat:
+        type: approval
+    - start_j17_harry_tests_repeat:
         type: approval
     - j17_utests_long_repeat:
         requires:
           - start_j17_utests_long_repeat
+          - j11_build
+    - j17_harry_tests_repeat:
+        requires:
+          - start_j17_harry_tests_repeat
           - j11_build
     - start_j11_utests_cdc:
         type: approval
@@ -917,21 +945,39 @@ j11_pre-commit_jobs: &j11_pre-commit_jobs
     # specialized unit tests (all run on request)
     - start_utests_long:
         type: approval
+    - start_harry_tests:
+        type: approval
     - j11_utests_long:
         requires:
           - start_utests_long
+          - j11_build
+    - j11_harry_tests:
+        requires:
+          - start_harry_tests
           - j11_build
     - j17_utests_long:
         requires:
           - start_utests_long
           - j11_build
+    - j17_harry_tests:
+        requires:
+          - start_harry_tests
+          - j11_build
     - j11_utests_long_repeat:
         requires:
           - start_utests_long
           - j11_build
+    - j11_harry_tests_repeat:
+        requires:
+          - start_harry_tests
+          - j11_build
     - j17_utests_long_repeat:
         requires:
           - start_utests_long
+          - j11_build
+    - j17_harry_tests_repeat:
+        requires:
+          - start_harry_tests
           - j11_build
     - start_utests_cdc:
         type: approval
@@ -1335,15 +1381,27 @@ j17_separate_jobs: &j17_separate_jobs
           - j17_build
     - start_j17_utests_long:
         type: approval
+    - start_j17_harry_tests:
+        type: approval
     - j17_utests_long:
         requires:
           - start_j17_utests_long
           - j17_build
+    - j17_harry_tests:
+        requires:
+          - start_j17_harry_tests
+          - j17_build
     - start_j17_utests_long_repeat:
+        type: approval
+    - start_j17_harry_tests_repeat:
         type: approval
     - j17_utests_long_repeat:
         requires:
           - start_j17_utests_long_repeat
+          - j17_build
+    - j17_harry_tests_repeat:
+        requires:
+          - start_j17_harry_tests_repeat
           - j17_build
     - start_j17_utests_cdc:
         type: approval
@@ -1554,13 +1612,23 @@ j17_pre-commit_jobs: &j17_pre-commit_jobs
     # specialized unit tests (all run on request)
     - start_utests_long:
         type: approval
+    - start_harry_tests:
+        type: approval
     - j17_utests_long:
         requires:
           - start_utests_long
           - j17_build
+    - j17_harry_tests:
+        requires:
+          - start_harry_tests
+          - j17_build
     - j17_utests_long_repeat:
         requires:
           - start_utests_long
+          - j17_build
+    - j17_harry_tests_repeat:
+        requires:
+          - start_harry_tests
           - j17_build
     - start_utests_cdc:
         type: approval
@@ -1704,6 +1772,18 @@ jobs:
           paths:
             - dtest_jars
 
+  j11_harry_tests:
+    <<: *j11_small_executor
+    parallelism: 2
+    steps:
+      - attach_workspace:
+          at: /home/cassandra
+      - create_junit_containers:
+          classlistprefix: harry/main
+      - log_environment
+      - run_parallel_junit_tests:
+          classlistprefix: harry/main
+
   j11_unit_tests:
     <<: *j11_par_executor
     steps:
@@ -1798,6 +1878,18 @@ jobs:
           classlistprefix: distributed
           target: "testclasslist"
           arguments: "-Dtest.jvm.args='-Dcassandra.dtest.num_tokens=16 -Djvm_dtests.latest=true'"
+
+  j17_harry_tests:
+    <<: *j17_small_executor
+    parallelism: 2
+    steps:
+      - attach_workspace:
+          at: /home/cassandra
+      - create_junit_containers:
+          classlistprefix: harry/main
+      - log_environment
+      - run_parallel_junit_tests:
+          classlistprefix: harry/main
 
   j17_unit_tests:
     <<: *j17_par_executor
@@ -2499,6 +2591,14 @@ jobs:
       - log_environment
       - run_utests_long_repeat
 
+  j11_harry_tests_repeat:
+    <<: *j11_repeated_utest_executor
+    steps:
+      - attach_workspace:
+          at: /home/cassandra
+      - log_environment
+      - run_harry_tests_repeat
+
   j17_utests_long_repeat:
     <<: *j17_repeated_utest_executor
     steps:
@@ -2506,6 +2606,14 @@ jobs:
           at: /home/cassandra
       - log_environment
       - run_utests_long_repeat
+
+  j17_harry_tests_repeat:
+    <<: *j17_repeated_utest_executor
+    steps:
+      - attach_workspace:
+          at: /home/cassandra
+      - log_environment
+      - run_harry_tests_repeat
 
   j11_utests_stress_repeat:
     <<: *j11_repeated_utest_executor
@@ -3029,7 +3137,8 @@ commands:
           if [ -d ~/dtest_jars ]; then
             cp ~/dtest_jars/dtest* /tmp/cassandra/build/
           fi
-          test_timeout=$(grep 'name="test.<<parameters.classlistprefix>>.timeout"' build.xml | awk -F'"' '{print $4}' || true)
+          timeout_prefix="<<parameters.classlistprefix>>"
+          test_timeout=$(grep 'name="test.'"${timeout_prefix%%/*}"'.timeout"' build.xml | awk -F'"' '{print $4}' || true)
           if [ -z "$test_timeout" ]; then
             test_timeout=$(grep 'name="test.timeout"' build.xml | awk -F'"' '{print $4}')
           fi
@@ -3209,6 +3318,15 @@ commands:
           count: ${REPEATED_UTESTS_COUNT}
           stop_on_failure: ${REPEATED_TESTS_STOP_ON_FAILURE}
 
+  run_harry_tests_repeat:
+    steps:
+      - run_repeated_utests:
+          target: testsome
+          arguments: "-Dtest.classlistprefix=harry/main -Dtest.timeout=900000"
+          tests: ${REPEATED_HARRY_TESTS}
+          count: ${REPEATED_HARRY_TESTS_COUNT}
+          stop_on_failure: ${REPEATED_TESTS_STOP_ON_FAILURE}
+
   run_utests_long_repeat:
     steps:
       - run_repeated_utests:
@@ -3289,6 +3407,9 @@ commands:
         default: false
       stop_on_failure:
         type: string
+      arguments:
+        type: string
+        default: ""
     steps:
       - run:
           name: Repeatedly run new or modifed JUnit tests
@@ -3378,7 +3499,7 @@ commands:
                   # run the test
                   status="passes"
                   if !( set -o pipefail && \
-                        ant <<parameters.target>> $name_arg $methods_arg $vnodes_args -Dno-build-test=true | \
+                        ant <<parameters.target>> <<parameters.arguments>> $name_arg $methods_arg $vnodes_args -Dno-build-test=true | \
                         tee stdout.txt \
                       ); then
                     status="fails"
@@ -3392,7 +3513,7 @@ commands:
 
                   # move the XML output files
                   source=build/test/output/${testtag}
-                  dest=/tmp/results/repeated_utests/output/${status}/${i}
+                  dest=/tmp/results/repeated_utests/output/${status}/${i}/${test}
                   mkdir -p $dest
                   if [[ -d $source && -n "$(ls $source)" ]]; then
                     mv $source/* $dest/
@@ -3400,10 +3521,10 @@ commands:
 
                   # move the log files
                   source="build/test/logs"
-                  dest=/tmp/results/repeated_utests/logs/${status}/${i}
+                  dest=/tmp/results/repeated_utests/logs/${status}/${i}/${test}
                   mkdir -p $dest
                   if [[ -d $source && -n "$(ls $source)" && -n "$(ls ${source}/${testtag}*)" ]]; then
-                    mv $source/${testtag}*/* $dest/
+                    mv $source/${testtag}* $dest/
                   fi
                   
                   # maybe stop iterations on test failure
