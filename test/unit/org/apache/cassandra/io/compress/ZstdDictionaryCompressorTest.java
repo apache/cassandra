@@ -38,6 +38,7 @@ import org.junit.Test;
 
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.db.compression.ZstdCompressionDictionary;
+import org.apache.cassandra.utils.concurrent.Ref;
 
 import static org.apache.cassandra.db.compression.CompressionDictionary.DictId;
 import static org.apache.cassandra.db.compression.CompressionDictionary.Kind;
@@ -324,27 +325,35 @@ public class ZstdDictionaryCompressorTest
     @Test
     public void testClosedDictionaryHandling()
     {
-        ZstdDictionaryCompressor.invalidateCache();
         ZstdCompressionDictionary closedDict = createTestDictionary();
         closedDict.initRefLazily();
         closedDict.close();
 
-        // This should throw IllegalStateException
-        assertThatThrownBy(() -> ZstdDictionaryCompressor.create(closedDict))
-        .isInstanceOf(IllegalStateException.class);
+        // create() does not check the dictionary is released - only compressing or decompressing with it does
+        ZstdDictionaryCompressor compressor = ZstdDictionaryCompressor.create(closedDict);
+
+        ByteBuffer input = ByteBuffer.allocateDirect(compressibleData.length);
+        input.put(compressibleData);
+        input.flip();
+        ByteBuffer compressed = ByteBuffer.allocateDirect(compressor.initialCompressedBufferLength(compressibleData.length));
+        assertThatThrownBy(() -> compressor.compress(input, compressed))
+        .isInstanceOf(IOException.class)
+        .hasMessageContaining("Dictionary is released");
     }
 
     /**
-     * Races cache eviction against in-flight compress/uncompress calls to guard the fix: each call must hold its
-     * own ref for the native call's duration, or eviction can tidy the dictionary out from under it.
+     * Races a concurrent release of the dictionary's last reference against in-flight compress/uncompress calls to
+     * guard the fix: each call must hold its own ref for the native call's duration, or the release can tidy the
+     * dictionary out from under it.
      */
     @Test
     public void testConcurrentCompressSurvivesConcurrentEviction() throws Exception
     {
         ZstdCompressionDictionary dictionary = createTestDictionary(9001);
         ZstdDictionaryCompressor compressor = ZstdDictionaryCompressor.create(dictionary);
-        // Drop the dictionary's own baseline reference so the cache's ref - the one eviction below releases -
-        // is the last one standing, matching the production trigger where eviction hits the last reference.
+        // An extra ref the test holds and releases concurrently with the workers below, simulating the production
+        // trigger where the last reference is released while a compress/uncompress call is in flight.
+        Ref<ZstdCompressionDictionary> ref = dictionary.tryRef();
         dictionary.close();
 
         int workerCount = 4;
@@ -374,7 +383,7 @@ public class ZstdDictionaryCompressorTest
                             byte[] result = new byte[decompressed.remaining()];
                             decompressed.get(result);
                             assertThat(result)
-                            .as("round trip must never return corrupt data, even racing dictionary eviction")
+                            .as("round trip must never return corrupt data, even racing dictionary release")
                             .isEqualTo(compressibleData);
                         }
                         catch (IOException e)
@@ -389,9 +398,9 @@ public class ZstdDictionaryCompressorTest
                 });
             }
 
-            // Force the exact path production hits: Caffeine's removalListener releasing dictionaryRef, while
-            // the workers above are still racing through compress/uncompress calls.
-            ZstdDictionaryCompressor.invalidateCache();
+            // Force the exact path production hits: releasing the last reference while the workers above are
+            // still racing through compress/uncompress calls.
+            ref.release();
 
             for (Future<?> future : futures)
                 future.get(10, TimeUnit.SECONDS);
@@ -400,6 +409,53 @@ public class ZstdDictionaryCompressorTest
         {
             executor.shutdownNow();
             executor.awaitTermination(5, TimeUnit.SECONDS);
+        }
+    }
+
+    /**
+     * Two different dictionary objects sharing the same dictId - e.g. the same dictionary loaded twice, as the
+     * dictionary cache does on eviction and reload - must get independent compressors, each bound to the object it
+     * was created for. Neither object's compressor is affected by the other object's lifecycle.
+     */
+    @Test
+    public void equalDictionary() throws IOException
+    {
+        ZstdCompressionDictionary first = createTestDictionary(9002);
+        ZstdDictionaryCompressor firstCompressor = ZstdDictionaryCompressor.create(first);
+
+        ZstdCompressionDictionary second = new ZstdCompressionDictionary(first.dictId(), first.rawDictionary());
+        Ref<ZstdCompressionDictionary> ref = second.tryRef();
+        try
+        {
+            ZstdDictionaryCompressor secondCompressor = ZstdDictionaryCompressor.create(second);
+
+            assertThat(secondCompressor)
+            .as("a different dictionary object must get its own compressor, not the other object's")
+            .isNotSameAs(firstCompressor);
+            assertThat(secondCompressor.dictionary()).isSameAs(second);
+            assertThat(firstCompressor.dictionary()).isSameAs(first);
+
+            // closing the first object does not affect the second object's compressor
+            first.close();
+
+            ByteBuffer input = ByteBuffer.allocateDirect(compressibleData.length);
+            input.put(compressibleData);
+            input.flip();
+            ByteBuffer compressed = ByteBuffer.allocateDirect(secondCompressor.initialCompressedBufferLength(compressibleData.length));
+            secondCompressor.compress(input, compressed);
+            compressed.flip();
+            ByteBuffer decompressed = ByteBuffer.allocateDirect(compressibleData.length);
+            secondCompressor.uncompress(compressed, decompressed);
+            decompressed.flip();
+
+            byte[] result = new byte[decompressed.remaining()];
+            decompressed.get(result);
+            assertThat(result).isEqualTo(compressibleData);
+        }
+        finally
+        {
+            ref.release();
+            second.close();
         }
     }
 

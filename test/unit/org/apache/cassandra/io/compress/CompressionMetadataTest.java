@@ -133,14 +133,15 @@ public class CompressionMetadataTest
         assertThat(compressor)
         .as("Should be able to get compressor with dictionary")
         .isNotNull();
-        // RC is incremented
-        assertThat(dictionary.selfRef().globalCount()).isEqualTo(3);
+        // The compressor is owned by the dictionary and references it only while it compresses or decompresses,
+        // so RC is unchanged
+        assertThat(dictionary.selfRef().globalCount()).isEqualTo(2);
 
         // Step 3: Schema change - close cache (simulating switch from Zstd to LZ4)
         // This releases the cache's reference to the dictionary
         cache.close();
         // RC is decremented
-        spinAssertEquals(2, () -> dictionary.selfRef().globalCount());
+        spinAssertEquals(1, () -> dictionary.selfRef().globalCount());
 
         // Step 4: Verify dictionary is still usable via CompressionMetadata
         // This is the key test - before the fix, this would fail with "Dictionary has been closed"
@@ -157,19 +158,8 @@ public class CompressionMetadataTest
         .isNotNull();
 
         // Step 5: Close CompressionMetadata (simulating SSTable being compacted away)
+        // This releases the last reference, the compressor does not keep the dictionary alive
         metadata.close();
-        // RC is decremented
-        assertThat(dictionary.selfRef().globalCount()).isOne();
-
-        // Step 6: Dictionary is still usable because ZstdDictionaryCompressor cache holds a reference
-        // This is expected behavior - the compressor cache is global and may keep dictionaries
-        // alive for reuse across SSTables
-        assertThat(dictionary.dictionaryForDecompression())
-        .as("Dictionary should still work due to compressor cache")
-        .isNotNull();
-
-        ZstdDictionaryCompressor.invalidateCache();
-        // RC is decremented
         spinAssertEquals(0, () -> dictionary.selfRef().globalCount());
         assertThatThrownBy(dictionary::dictionaryForDecompression)
         .isInstanceOf(IllegalStateException.class)
@@ -216,15 +206,16 @@ public class CompressionMetadataTest
         );
         assertThat(dictionary.selfRef().globalCount()).isEqualTo(4);
 
-        // All should be able to get compressors
+        // All should be able to get compressors; a compressor references the dictionary only while it compresses or
+        // decompresses, so RC is unchanged
         assertThat(metadata1.compressor()).isNotNull();
         assertThat(metadata2.compressor()).isNotNull();
         assertThat(metadata3.compressor()).isNotNull();
-        assertThat(dictionary.selfRef().globalCount()).isEqualTo(5);
+        assertThat(dictionary.selfRef().globalCount()).isEqualTo(4);
 
-        // Close cache (schema change)
+        // Close cache (schema change), which releases its reference
         cache.close();
-        spinAssertEquals(4, () -> dictionary.selfRef().globalCount());
+        spinAssertEquals(3, () -> dictionary.selfRef().globalCount());
 
         // All metadata instances should still work
         assertThat(metadata1.compressor()).isNotNull();
@@ -233,7 +224,7 @@ public class CompressionMetadataTest
 
         // Close metadata instances one by one
         metadata1.close();
-        assertThat(dictionary.selfRef().globalCount()).isEqualTo(3);
+        assertThat(dictionary.selfRef().globalCount()).isEqualTo(2);
         assertThat(metadata2.compressor())
         .as("Other metadata should still work")
         .isNotNull();
@@ -242,17 +233,13 @@ public class CompressionMetadataTest
         .isNotNull();
 
         metadata2.close();
-        assertThat(dictionary.selfRef().globalCount()).isEqualTo(2);
+        assertThat(dictionary.selfRef().globalCount()).isEqualTo(1);
         assertThat(metadata3.compressor())
         .as("Last metadata should still work")
         .isNotNull();
 
         // Close last instance - now dictionary should be released
         metadata3.close();
-        assertThat(dictionary.selfRef().globalCount()).isEqualTo(1);
-
-        ZstdDictionaryCompressor.invalidateCache();
-        // RC is decremented
         spinAssertEquals(0, () -> dictionary.selfRef().globalCount());
         assertThatThrownBy(dictionary::dictionaryForDecompression)
         .isInstanceOf(IllegalStateException.class)
