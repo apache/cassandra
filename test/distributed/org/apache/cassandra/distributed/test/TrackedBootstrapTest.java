@@ -74,7 +74,13 @@ public class TrackedBootstrapTest extends TestBaseImpl
     @Test
     public void bootstrapSealsObsoletedShards_withTransientDrainTimeout() throws Throwable
     {
-        bootstrapAndSeal(3, 3, 2);
+        bootstrapAndSeal(3, 3, Verb.MT_DRAIN_REQ, 2);
+    }
+
+    @Test
+    public void bootstrapSealsObsoletedShards_withTransientAwaitEpochTimeout() throws Throwable
+    {
+        bootstrapAndSeal(3, 3, Verb.MT_AWAIT_EPOCH_REQ, 2);
     }
 
     @Test
@@ -90,10 +96,10 @@ public class TrackedBootstrapTest extends TestBaseImpl
      */
     private void bootstrapAndSeal(int initialNodes, int rf) throws Throwable
     {
-        bootstrapAndSeal(initialNodes, rf, 0);
+        bootstrapAndSeal(initialNodes, rf, null, 0);
     }
 
-    private void bootstrapAndSeal(int initialNodes, int rf, int dropDrainCount) throws Throwable
+    private void bootstrapAndSeal(int initialNodes, int rf, Verb dropVerb, int dropCount) throws Throwable
     {
         int expandedNodes = initialNodes + 1;
         // Real Murmur3 tokens for the full expanded ring; the joining node (index expandedNodes) gets the top
@@ -105,7 +111,7 @@ public class TrackedBootstrapTest extends TestBaseImpl
                                         .withConfig(config -> {
                                             config.with(NETWORK, GOSSIP)
                                                   .set("num_tokens", 1);
-                                            if (dropDrainCount > 0)
+                                            if (dropCount > 0)
                                                 config.set("shard_sealing_timeout", "1000ms");
                                         })
                                         .start())
@@ -142,15 +148,15 @@ public class TrackedBootstrapTest extends TestBaseImpl
             IInstanceConfig config = cluster.newInstanceConfig()
                                             .set("auto_bootstrap", true)
                                             .set(Constants.KEY_DTEST_FULL_STARTUP, true);
-            if (dropDrainCount > 0)
+            if (dropCount > 0)
                 config.set("shard_sealing_timeout", "1000ms");
             IInvokableInstance newNode = cluster.bootstrap(config);
 
             AtomicInteger dropped = new AtomicInteger();
-            if (dropDrainCount > 0)
+            if (dropCount > 0)
             {
-                cluster.filters().verbs(Verb.MT_DRAIN_REQ.id).messagesMatching((from, to, msg) -> {
-                    return dropped.getAndIncrement() < dropDrainCount;
+                cluster.filters().verbs(dropVerb.id).messagesMatching((from, to, msg) -> {
+                    return dropped.getAndIncrement() < dropCount;
                 }).drop();
             }
 
@@ -197,8 +203,8 @@ public class TrackedBootstrapTest extends TestBaseImpl
 
             newNode.startup(cluster);
 
-            if (dropDrainCount > 0)
-                assertTrue("expected drain requests to be dropped", dropped.get() >= dropDrainCount);
+            if (dropCount > 0)
+                assertTrue("expected " + dropVerb + " requests to be dropped", dropped.get() >= dropCount);
 
             ClusterUtils.awaitRingJoin(cluster.get(1), newNode);
             ClusterUtils.awaitRingJoin(newNode, cluster.get(1));

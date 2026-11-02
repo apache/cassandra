@@ -5617,11 +5617,13 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
         logger.info("MutationTrackingValidationTimeout set to {}ms via JMX", timeoutInMillis);
     }
 
+    @Override
     public long getShardSealingTimeout()
     {
         return DatabaseDescriptor.getShardSealingTimeout(MILLISECONDS);
     }
 
+    @Override
     public void setShardSealingTimeout(long timeoutInMillis)
     {
         checkArgument(timeoutInMillis > 0);

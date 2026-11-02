@@ -29,14 +29,12 @@ import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.TimeoutException;
 import java.util.concurrent.atomic.AtomicInteger;
-import java.util.concurrent.locks.LockSupport;
 import java.util.function.BiFunction;
 import java.util.function.Predicate;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 
-import org.agrona.collections.IntHashSet;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -80,9 +78,6 @@ import org.apache.cassandra.utils.concurrent.UncheckedInterruptedException;
 import static com.google.common.base.Preconditions.checkArgument;
 import static java.lang.String.format;
 import static java.util.concurrent.TimeUnit.MILLISECONDS;
-import static java.util.concurrent.TimeUnit.NANOSECONDS;
-import static java.util.concurrent.TimeUnit.SECONDS;
-import static org.apache.cassandra.utils.Clock.Global.nanoTime;
 
 /*
  * Sealing {@link Shard}s once a topology change obsoletes them.
@@ -574,43 +569,15 @@ public final class SealingCoordinator
      */
     private static void awaitEpoch(Set<ShardMetadata> shards, @Nullable NodeId withoutNode, Epoch epoch)
     {
-        IntHashSet participants = new IntHashSet();
+        Set<InetAddressAndPort> endpoints = new HashSet<>();
         for (ShardMetadata shard : shards)
-            shard.participants.addTo(participants);
-        if (withoutNode != null)
-            participants.remove(withoutNode.id());
+            endpoints.addAll(toEndpoints(shard.participants, withoutNode));
 
-        if (participants.isEmpty())
-            return;
-
-        ClusterMetadata metadata = ClusterMetadata.current();
-        List<InetAddressAndPort> pending = new ArrayList<>(participants.size());
-        participants.forEach(id -> pending.add(metadata.directory.endpoint(new NodeId(id))));
-
-        long deadlineNanos = nanoTime() + DatabaseDescriptor.getCmsAwaitTimeout().to(NANOSECONDS);
-        while (true)
-        {
-            try
-            {
-                pending.removeAll(AwaitEpoch.poll(epoch, pending)
-                       .get(DatabaseDescriptor.getRpcTimeout(MILLISECONDS), MILLISECONDS));
-            }
-            catch (InterruptedException | ExecutionException | TimeoutException e)
-            {
-                throw new RuntimeException(format("Failed to poll await epoch %s; still pending: %s", epoch, pending), e);
-            }
-
-            if (pending.isEmpty())
-                return;
-            if (nanoTime() >= deadlineNanos)
-                throw new RuntimeException(format("Timed out awaiting epoch %s; still pending: %s", epoch, pending));
-            LockSupport.parkNanos(SECONDS.toNanos(1));
-        }
+        executeWithRetry("awaiting epoch " + epoch, Map.of(epoch, endpoints), AwaitEpoch::poll);
     }
 
     static class StepCallback<T> implements RequestCallback<T>
     {
-        private final String keyspace;
         private final String operation;
         private final AsyncPromise<Void> future = new AsyncPromise<>();
         private final Set<InetAddressAndPort> remaining;
@@ -618,14 +585,13 @@ public final class SealingCoordinator
         private final Map<InetAddressAndPort, RequestFailure> failures = new ConcurrentHashMap<>();
         private final Predicate<T> successCondition;
 
-        public StepCallback(Collection<InetAddressAndPort> endpoints, String keyspace, String operation)
+        public StepCallback(Collection<InetAddressAndPort> endpoints, String operation)
         {
-            this(endpoints, keyspace, operation, payload -> true);
+            this(endpoints, operation, payload -> true);
         }
 
-        public StepCallback(Collection<InetAddressAndPort> endpoints, String keyspace, String operation, Predicate<T> successCondition)
+        public StepCallback(Collection<InetAddressAndPort> endpoints, String operation, Predicate<T> successCondition)
         {
-            this.keyspace = keyspace;
             this.operation = operation;
             this.successCondition = successCondition;
             this.remaining = ConcurrentHashMap.newKeySet();
@@ -642,11 +608,6 @@ public final class SealingCoordinator
             return succeeded;
         }
 
-        Map<InetAddressAndPort, RequestFailure> failures()
-        {
-            return failures;
-        }
-
         private void maybeComplete(InetAddressAndPort ep)
         {
             remaining.remove(ep);
@@ -659,7 +620,7 @@ public final class SealingCoordinator
                 return;
             }
 
-            future.tryFailure(new RuntimeException(format("Failed to complete %s on keyspace %s: %s", operation, keyspace, failures)));
+            future.tryFailure(new RuntimeException(format("Failed to complete %s: %s", operation, failures)));
         }
 
         @Override
@@ -673,7 +634,7 @@ public final class SealingCoordinator
         @Override
         public void onFailure(InetAddressAndPort from, RequestFailure failure)
         {
-            logger.debug("Failed {} on {} for keyspace {}: {}", operation, from, keyspace, failure);
+            logger.debug("Failed {} on {}: {}", operation, from, failure);
             failures.put(from, failure);
             maybeComplete(from);
         }
@@ -691,13 +652,22 @@ public final class SealingCoordinator
         @Nullable NodeId withoutNode,
         BiFunction<ShardMetadata, Set<InetAddressAndPort>, StepCallback<?>> stepRunner)
     {
-        Map<ShardMetadata, Set<InetAddressAndPort>> pending = new HashMap<>();
+        Map<ShardMetadata, Set<InetAddressAndPort>> endpoints = new HashMap<>();
         for (ShardMetadata shard : shards)
-        {
-            List<InetAddressAndPort> endpoints = toEndpoints(shard.participants, withoutNode);
-            if (!endpoints.isEmpty())
-                pending.put(shard, new HashSet<>(endpoints));
-        }
+            endpoints.put(shard, new HashSet<>(toEndpoints(shard.participants, withoutNode)));
+        executeWithRetry(operationName, endpoints, stepRunner);
+    }
+
+    private static <K> void executeWithRetry(
+        String operationName,
+        Map<K, ? extends Collection<InetAddressAndPort>> endpoints,
+        BiFunction<K, Set<InetAddressAndPort>, StepCallback<?>> stepRunner)
+    {
+        Map<K, Set<InetAddressAndPort>> pending = new HashMap<>();
+        endpoints.forEach((key, eps) -> {
+            if (!eps.isEmpty())
+                pending.put(key, new HashSet<>(eps));
+        });
 
         if (pending.isEmpty())
             return;
@@ -712,14 +682,12 @@ public final class SealingCoordinator
             if (attempts++ >= MAX_RETRIES)
                 throw new RuntimeException("Exceeded maximum retries " + operationName + "; still pending: " + pending, lastError);
 
-            Map<ShardMetadata, StepCallback<?>> callbacks = new HashMap<>();
+            Map<K, StepCallback<?>> callbacks = new HashMap<>();
             List<Future<Void>> futures = new ArrayList<>(pending.size());
-            for (Map.Entry<ShardMetadata, Set<InetAddressAndPort>> entry : pending.entrySet())
+            for (Map.Entry<K, Set<InetAddressAndPort>> entry : pending.entrySet())
             {
-                ShardMetadata shard = entry.getKey();
-                Set<InetAddressAndPort> endpoints = entry.getValue();
-                StepCallback<?> callback = stepRunner.apply(shard, endpoints);
-                callbacks.put(shard, callback);
+                StepCallback<?> callback = stepRunner.apply(entry.getKey(), entry.getValue());
+                callbacks.put(entry.getKey(), callback);
                 futures.add(callback.future());
             }
 
@@ -737,13 +705,8 @@ public final class SealingCoordinator
                 logger.debug("Transient failure {}, will retry (attempt {}/{})", operationName, attempts, MAX_RETRIES, e);
             }
 
-            for (Map.Entry<ShardMetadata, StepCallback<?>> entry : callbacks.entrySet())
-            {
-                ShardMetadata shard = entry.getKey();
-                StepCallback<?> callback = entry.getValue();
-                Set<InetAddressAndPort> pendingEndpoints = pending.get(shard);
-                pendingEndpoints.removeAll(callback.succeeded());
-            }
+            for (Map.Entry<K, StepCallback<?>> entry : callbacks.entrySet())
+                pending.get(entry.getKey()).removeAll(entry.getValue().succeeded());
 
             pending.entrySet().removeIf(entry -> entry.getValue().isEmpty());
             if (pending.isEmpty())
@@ -897,7 +860,7 @@ public final class SealingCoordinator
          * {@link ShardMetadataRequest#queryPeers}, but waits for every (live) replica to respond and
          * merges their deduplicated shards rather than taking the first response.
          */
-        public static AsyncPromise<Set<ShardMetadata>> fetch(
+        private static AsyncPromise<Set<ShardMetadata>> fetch(
             String keyspace, long beforeEpoch, Range<Token> range, Set<InetAddressAndPort> endpoints)
         {
             checkArgument(!endpoints.isEmpty());
@@ -1024,44 +987,16 @@ public final class SealingCoordinator
             }
         }
 
-        public static AsyncPromise<Set<InetAddressAndPort>> poll(Epoch epoch, List<InetAddressAndPort> endpoints)
+        private static StepCallback<Response> poll(Epoch epoch, Collection<InetAddressAndPort> endpoints)
         {
             checkArgument(!endpoints.isEmpty());
 
-            AsyncPromise<Set<InetAddressAndPort>> promise = new AsyncPromise<>();
-            Set<InetAddressAndPort> applied = ConcurrentHashMap.newKeySet();
-
-            RequestCallback<Response> callback = new RequestCallback<>()
-            {
-                private final AtomicInteger remaining = new AtomicInteger(endpoints.size());
-
-                @Override
-                public void onResponse(Message<Response> msg)
-                {
-                    if (msg.payload.applied)
-                        applied.add(msg.from());
-                    if (remaining.decrementAndGet() == 0)
-                        promise.trySuccess(applied);
-                }
-
-                @Override
-                public void onFailure(InetAddressAndPort from, RequestFailure failure)
-                {
-                    promise.tryFailure(new RuntimeException(format("Failed to poll await epoch %s on %s: %s", epoch, from, failure)));
-                }
-
-                @Override
-                public boolean invokeOnFailure()
-                {
-                    return true;
-                }
-            };
-
+            StepCallback<Response> callback = new StepCallback<>(endpoints, "await epoch " + epoch, r -> r.applied);
             Message<Request> message = Message.out(Verb.MT_AWAIT_EPOCH_REQ, new Request(epoch));
             for (InetAddressAndPort peer : endpoints)
                 MessagingService.instance().sendWithCallback(message, peer, callback);
 
-            return promise;
+            return callback;
         }
 
         public static final IVerbHandler<Request> verbHandler = message -> {
@@ -1142,12 +1077,12 @@ public final class SealingCoordinator
         /**
          * Tell every participant of an obsoleted shard to fence id allocation (mark it SEALING)
          */
-        public static StepCallback<Response> initiate(
+        private static StepCallback<Response> initiate(
             String keyspace, long sinceEpoch, Range<Token> range, Collection<InetAddressAndPort> endpoints)
         {
             checkArgument(!endpoints.isEmpty());
 
-            StepCallback<Response> callback = new StepCallback<>(endpoints, keyspace, "initiate sealing");
+            StepCallback<Response> callback = new StepCallback<>(endpoints, "initiate sealing for keyspace " + keyspace);
             Message<Request> message = Message.out(Verb.MT_INIT_SEALING_REQ, new Request(keyspace, sinceEpoch, range));
             for (InetAddressAndPort peer : endpoints)
                 MessagingService.instance().sendWithCallback(message, peer, callback);
@@ -1242,12 +1177,12 @@ public final class SealingCoordinator
          * Poll given participants of a SEALING shard for whether they have drained their in-flight local
          * writes. Records participants reporting drained.
          */
-        public static StepCallback<Response> poll(
+        private static StepCallback<Response> poll(
             String keyspace, long sinceEpoch, Range<Token> range, Collection<InetAddressAndPort> endpoints)
         {
             checkArgument(!endpoints.isEmpty());
 
-            StepCallback<Response> callback = new StepCallback<>(endpoints, keyspace, "drain poll", r -> r.drained);
+            StepCallback<Response> callback = new StepCallback<>(endpoints, "drain poll for keyspace " + keyspace, r -> r.drained);
             Message<Request> message = Message.out(Verb.MT_DRAIN_REQ, new Request(keyspace, sinceEpoch, range));
             for (InetAddressAndPort peer : endpoints)
                 MessagingService.instance().sendWithCallback(message, peer, callback);
@@ -1590,12 +1525,12 @@ public final class SealingCoordinator
         /**
          * Tell every participant of a sealing shard to promote it from SEALING to SEALED.
          */
-        public static StepCallback<Response> complete(
+        private static StepCallback<Response> complete(
             String keyspace, long sinceEpoch, Range<Token> range, Collection<InetAddressAndPort> endpoints)
         {
             checkArgument(!endpoints.isEmpty());
 
-            StepCallback<Response> callback = new StepCallback<>(endpoints, keyspace, "complete sealing");
+            StepCallback<Response> callback = new StepCallback<>(endpoints, "complete sealing for keyspace " + keyspace);
             Message<Request> message = Message.out(Verb.MT_COMPLETE_SEALING_REQ, new Request(keyspace, sinceEpoch, range));
             for (InetAddressAndPort peer : endpoints)
                 MessagingService.instance().sendWithCallback(message, peer, callback);
