@@ -86,6 +86,7 @@ import org.apache.cassandra.config.Config.DiskAccessMode;
 import org.apache.cassandra.config.Config.PaxosOnLinearizabilityViolation;
 import org.apache.cassandra.config.Config.PaxosStatePurging;
 import org.apache.cassandra.config.DurationSpec.IntMillisecondsBound;
+import org.apache.cassandra.cql3.PageSize;
 import org.apache.cassandra.cql3.QueryOptions;
 import org.apache.cassandra.db.ConsistencyLevel;
 import org.apache.cassandra.db.commitlog.AbstractCommitLogSegmentManager;
@@ -1284,6 +1285,11 @@ public class DatabaseDescriptor
         {
             throw new ConfigurationException(ex.getMessage());
         }
+
+        if (conf.aggregation_subpage_size.toBytes() < 0)
+            throw new ConfigurationException("aggregation_subpage_size_in_kb must be >= 0");
+
+        setAggregationSubPageSize(getAggregationSubPageSize());
     }
 
     @VisibleForTesting
@@ -4732,6 +4738,16 @@ public class DatabaseDescriptor
         return conf.stream_entire_sstables = value;
     }
 
+    public static boolean getEntireSSTableStreamDigestValidationEnabled()
+    {
+        return conf.entire_sstable_stream_digest_validation_enabled;
+    }
+
+    public static void setEntireSSTableStreamDigestValidationEnabled(boolean value)
+    {
+        conf.entire_sstable_stream_digest_validation_enabled = value;
+    }
+
     public static DurationSpec.LongMillisecondsBound getStreamTransferTaskTimeout()
     {
         return conf.stream_transfer_task_timeout;
@@ -6555,5 +6571,20 @@ public class DatabaseDescriptor
     public static void setGossipQuarantineDisabled(boolean disabled)
     {
         conf.gossip_quarantine_disabled = disabled;
+    }
+
+    public static PageSize getAggregationSubPageSize()
+    {
+        if (conf.aggregation_subpage_size.toBytes() == 0)
+            return PageSize.NONE;
+
+        return PageSize.inBytes(conf.aggregation_subpage_size.toBytes());
+    }
+
+    public static void setAggregationSubPageSize(PageSize pageSize)
+    {
+        Preconditions.checkArgument(!pageSize.isDefined() || pageSize.getUnit() == PageSize.PageUnit.BYTES);
+        Preconditions.checkArgument(pageSize.bytes() >= 0);
+        conf.aggregation_subpage_size = new DataStorageSpec.IntBytesBound(pageSize.isDefined() ? pageSize.bytes() : 0);
     }
 }

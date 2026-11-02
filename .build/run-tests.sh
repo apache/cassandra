@@ -197,11 +197,19 @@ _get_env_var() {
   echo "${BASH_REMATCH[1]}"
 }
 
+# a jar's table of contents is written at its end, so a truncated jar (e.g. left by an interrupted Jenkins unstash) cannot be listed
+_is_valid_jar() {
+  [ -f "${1}" ] || return 1
+  jar tf "${1}" >/dev/null 2>&1 && return 0
+  echo "WARNING: ${1} is not a readable jar, rebuilding it"
+  return 1
+}
+
 _build_all_dtest_jars() {
 
     # build the dtest-jar for the branch under test. remember to `ant clean` if you want a new dtest jar built
     dtest_jar_version=$(grep 'property\s*name=\"base.version\"' build.xml |sed -ne 's/.*value=\"\([^"]*\)\".*/\1/p')
-    if [ -f "${DIST_DIR}/dtest-${dtest_jar_version}.jar" ] ; then
+    if _is_valid_jar "${DIST_DIR}/dtest-${dtest_jar_version}.jar" ; then
         echo "Skipping dtest jar build for branch under test as ${DIST_DIR}/dtest-${dtest_jar_version}.jar already exists"
     else
         ant jar dtest-jar ${ANT_TEST_OPTS} -Dbuild.dir=${TMP_DIR}/cassandra-dtest-jars/build
@@ -229,7 +237,7 @@ _build_all_dtest_jars() {
         git clean -qxdff && git reset --hard HEAD  || echo "WARNING: could not reset/clean ${TMP_DIR}/cassandra-dtest-jars… continuing…"
         git checkout --quiet $branch
         dtest_jar_version=$(grep 'property\s*name=\"base.version\"' build.xml |sed -ne 's/.*value=\"\([^"]*\)\".*/\1/p')
-        if [ -f "${DIST_DIR}/dtest-${dtest_jar_version}.jar" ] ; then
+        if _is_valid_jar "${DIST_DIR}/dtest-${dtest_jar_version}.jar" ; then
             echo "Skipping dtest jar build for branch ${branch} as ${DIST_DIR}/dtest-${dtest_jar_version}.jar already exists"
             continue
         fi
@@ -355,12 +363,16 @@ _run_microbench() {
     local -r arch="$(uname -m)"
     local -r output_dir="${DIST_DIR}/test/output/${_target}/jdk${java_version}/${arch}/${_split_chunk//\//_}"
 
-    # microbench produces JMH json, not JUnit xml
+    # microbench produces JMH json, and jmh-junit-report.py renders the run as JUnit xml: a failed benchmark is a
+    # failed test.  -foe false runs the benchmarks after a failed one, and leaves ant's status to the run itself
     set +o errexit
-    ant $_target ${ANT_TEST_OPTS} -Dbuild.test.output.dir=${output_dir} -Dbenchmark.name="${benchmark_pattern}" -Dmaven.test.failure.ignore=true
-    local -r _ant_status=$?
+    ant $_target ${ANT_TEST_OPTS} -Dbuild.test.output.dir=${output_dir} -Dbenchmark.name="${benchmark_pattern}" -Djmh.foe=false -Dmaven.test.failure.ignore=true 2>&1 \
+      | "${CASSANDRA_DIR}/.build/sh/jmh-junit-report.py" --result "${output_dir}/jmh-result.json" --output-dir "${output_dir}" --tag "_jdk${java_version}_${arch}"
+    local -r _statuses=("${PIPESTATUS[@]}")
     set -o errexit
-    if [[ ${_ant_status} -ne 0 ]]; then
+    local -r _ant_status=${_statuses[0]}
+    local -r _report_status=${_statuses[1]}
+    if [[ ${_ant_status} -ne 0 ]] || [[ ${_report_status} -ne 0 ]]; then
       echo "failed ${_target} ${_split_chunk}"
     else
       echo "${_target} completed successfully"
@@ -383,8 +395,11 @@ with open('${jmh_result}','w') as f:
 "
     fi
 
-    # fail the run, as microbench has no JUnit xml for generate-test-report to judge
-    return ${_ant_status}
+    # failed benchmarks are judged from the JUnit xml, as failed tests are.  A run with no xml fails here: ant failing
+    # is a compile or setup failure, or JMH aborting, and the report's 2 is a run that did not complete
+    [[ ${_ant_status} -eq 0 ]] || return ${_ant_status}
+    [[ ${_report_status} -le 1 ]] || return ${_report_status}
+    return 0
 }
 
 _main() {
@@ -533,7 +548,7 @@ _main() {
 
   # merge all unit xml files into one, and print summary test numbers
   case ${target} in
-    # Skip targets that produce no JUnit xml
+    # Skip targets that produce no JUnit xml, and microbench, whose xml jmh-junit-report.py has summarised
     "microbench" | "microbench-test" | "build_dtest_jars")
       ;;
     *)

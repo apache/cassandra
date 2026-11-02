@@ -227,9 +227,7 @@ def create_summary_file(test_suites: Dict[str, JUnitTestSuite], xml_files, outpu
 
     JUnitResultBuilder.add_style_tags(soup)
 
-    # We cut off at 200 failures; if you have > than that chances are you have a bad run and there's no point in
-    # just continuing to pollute the summary file with it and blow past file size. Since the inlined failures are
-    # a tool to be used in the attaching / review process and not primarily workflow and fixing.
+    # Limit failure details by suite to keep the report small, but count every result.
     total_passed_count = 0
     total_skipped_count = 0
     total_failure_count = 0
@@ -252,15 +250,15 @@ def create_summary_file(test_suites: Dict[str, JUnitTestSuite], xml_files, outpu
                 failures_builder.add_row(test.row_data())
             failures_list_tag.append(BeautifulSoup(failures_builder.build_list(), 'html.parser'))
             failures_tag.append(BeautifulSoup(failures_builder.build_table(), 'html.parser'))
-            total_failure_count += failure_count
-            if total_failure_count > 200:
-                logger.critical(f'Saw {total_failure_count} failures; greater than 200 threshold. Not appending further failure details to {output}.')
+            if total_failure_count + failure_count > 200:
+                logger.critical(f'Saw {total_failure_count + failure_count} failures; greater than 200 threshold. Not appending further failure details to {output}.')
+        total_failure_count += failure_count
         total_passed_count += passed_count
         total_skipped_count += skipped_count
 
     # totals, manual html
     totals_tag = soup.new_tag("div")
-    totals_tag.string = f"""[Totals]<br/><br/><table style="width:100px">
+    totals_tag.string = f"""[Totals]<br/><br/><table style="width:100px" data-failure-count-capped="false">
         <tr><td >Passed</td><td></td><td align="right"> {total_passed_count}</td></tr>
         <tr><td >Failed</td><td></td><td align="right"> {total_failure_count}</td></tr>
         <tr><td >Skipped</td><td></td><td align="right"> {total_skipped_count}</td></tr>

@@ -25,6 +25,10 @@
     <!-- Blacklist of broken benchmarks -->
     <property name="microbench.exclude.pattern" value="AtomicBTreePartitionUpdateBench|BTreeSearchIteratorBench|BTreeTransformBench|BTreeUpdateBench|CompactionWideRowBench|FastThreadLocalBench|KeyLookupBench|(instance.*Bench)|LatencyTrackingBench|MessageOutBench|MutationBench|ReadWriteBench|SSTablePipeCursorBench|SSTableReadingCursorBench|SSTableReadingFileBench|SSTableReadingFileCursorBench|ZeroCopyStreamingBench"/>
 
+    <!-- JMH's -foe: stop at the first failed benchmark, with a non-zero exit.  .build/run-tests.sh sets it false,
+         to run every benchmark and report each failed one in JUnit xml, see .build/sh/jmh-junit-report.py -->
+    <property name="jmh.foe" value="true"/>
+
     <condition property="async-profiler.suffix" value="linux-arm64">
         <and>
             <os arch="aarch64"/>
@@ -108,7 +112,7 @@
                 <jvmarg value="-Xmx1G"/>
 
                 <arg value="-foe"/>
-                <arg value="true"/>
+                <arg value="${jmh.foe}"/>
                 <arg value="-rf"/>
                 <arg value="json"/>
                 <arg value="-rff"/>

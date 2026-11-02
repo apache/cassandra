@@ -284,7 +284,12 @@ case "${target}" in
     "cqlsh-test" | "dtest" | "dtest-novnode" | "dtest-latest" | "dtest-large" | "dtest-large-novnode" | "dtest-upgrade" | "dtest-upgrade-large" | "dtest-upgrade-novnode" | "dtest-upgrade-large-novnode" )
         ANT_OPTS="-Dtesttag.extra=_$(arch)_python${python_version/./-}"
         # intentionally not TMP_DIR
+        # avoid Xmx/Xms/Xmn in the name, older cassandra-env.sh treats them in the gc log path as heap flags
         DTEST_TMPDIR_LOCAL="$(mktemp -d ${build_dir}/run-python-dtest.XXXXXX)"
+        while [[ "${DTEST_TMPDIR_LOCAL##*/}" == *Xm[xsn]* ]] ; do
+            rmdir "${DTEST_TMPDIR_LOCAL}"
+            DTEST_TMPDIR_LOCAL="$(mktemp -d ${build_dir}/run-python-dtest.XXXXXX)"
+        done
     ;;
     "jvm-dtest-novnode" | "jvm-dtest-upgrade-novnode" )
         ANT_OPTS="-Dtesttag.extra=_$(arch)_novnode"
@@ -355,6 +360,14 @@ set -o pipefail
 docker exec --user cassandra ${container_name} bash -c "${docker_command}" | tee -a ${logfile}
 status=$?
 set +o pipefail
+
+# the container's own memory cgroup counts OOM kills of anything inside it (e.g. a forked test JVM, which is otherwise
+# reported only as "exited abnormally"); read it now, the container is removed once stopped
+memory_events="${build_dir}/test/logs/memory_events_${container_name}.txt"
+docker exec ${container_name} sh -c "cat /sys/fs/cgroup/memory.events 2>/dev/null || cat /sys/fs/cgroup/memory/memory.oom_control" > "${memory_events}" 2>/dev/null || rm -f "${memory_events}"
+if grep -qE '^oom_kill [1-9]' "${memory_events}" 2>/dev/null ; then
+    echo "WARNING: OOM killer was active in ${container_name}: $(grep '^oom_kill ' "${memory_events}")" | tee -a ${logfile}
+fi
 
 if [ "$status" -ne 0 ] && [ -z $SKIP_DOCKER_DEBUG_ON_FAIL ] ; then
     echo "${docker_id} failed (${status}), debug… (set SKIP_DOCKER_DEBUG_ON_FAIL to quiet)"

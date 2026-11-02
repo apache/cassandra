@@ -19,15 +19,21 @@
 package org.apache.cassandra.fqltool;
 
 import java.io.File;
+import java.io.FileInputStream;
+import java.io.FileOutputStream;
 import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.nio.file.Files;
+import java.security.GeneralSecurityException;
+import java.security.KeyStore;
+import java.security.KeyStoreException;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Objects;
 import java.util.Random;
+import java.util.UUID;
 import java.util.stream.Collectors;
 
 import com.datastax.driver.core.CodecRegistry;
@@ -578,6 +584,247 @@ public class FQLReplayTest
         assertEquals(9042, pth.port );
         assertEquals("aaa", pth.user);
         assertEquals("bbb", pth.password);
+
+        pth = fromString("user:p@ssword@127.0.0.1:9042");
+        assertEquals("127.0.0.1", pth.host);
+        assertEquals(9042, pth.port);
+        assertEquals("user", pth.user);
+        assertEquals("p@ssword", pth.password);
+    }
+
+    @Test
+    public void testInvalidAuthProviderClassThrows()
+    {
+        try
+        {
+            ConnectionOptions.builder().withAuthProviderClass("com.not.a.real.AuthProviderClass").build();
+            throw new AssertionError("Expected IllegalArgumentException for invalid auth provider class");
+        }
+        catch (IllegalArgumentException e)
+        {
+            assertTrue(e.getMessage().contains("com.not.a.real.AuthProviderClass"));
+        }
+    }
+
+    @Test
+    public void testMaskPassword()
+    {
+        assertEquals("aaa:*****@127.0.0.1:9042", QueryReplayer.ParsedTargetHost.maskPassword("aaa:bbb@127.0.0.1:9042"));
+        assertEquals("127.0.0.1:9042", QueryReplayer.ParsedTargetHost.maskPassword("127.0.0.1:9042"));
+        assertEquals("127.0.0.1", QueryReplayer.ParsedTargetHost.maskPassword("127.0.0.1"));
+        assertEquals("user:*****@host:9042", QueryReplayer.ParsedTargetHost.maskPassword("user:p@ssword@host:9042"));
+        assertEquals("cassandra:*****@127.0.0.1", QueryReplayer.ParsedTargetHost.maskPassword("cassandra:p@ss@w@rd@127.0.0.1"));
+    }
+
+    @Test
+    public void testResultHandlerKeepsTargetLabels() throws IOException
+    {
+        // fqltool compare passes result directories as labels, they must reach the listener unchanged
+        List<String> targetHosts = Lists.newArrayList("/mnt/a:b/user@host/res", "hostb");
+        List<List<String>> reportedHosts = new ArrayList<>();
+        MismatchListener listener = new MismatchListener()
+        {
+            public void mismatch(UUID mismatchUUID, List<String> targetHosts, FQLQuery query, List<ResultHandler.ComparableRow> rows)
+            {
+                reportedHosts.add(targetHosts);
+            }
+
+            public void columnDefMismatch(UUID mismatchUUID, List<String> targetHosts, FQLQuery query, List<ResultHandler.ComparableColumnDefinitions> cds)
+            {
+                reportedHosts.add(targetHosts);
+            }
+        };
+        FQLQuery query = new FQLQuery.Single("aaa", QueryOptions.DEFAULT.getProtocolVersion().asInt(), QueryOptions.DEFAULT, 1, 2, 3, "select * from xyz", Collections.emptyList());
+        try (ResultHandler rh = new ResultHandler(targetHosts, null, null, listener))
+        {
+            rh.handleResults(query, Lists.newArrayList(createResultSet(10, 10, false), createResultSet(5, 10, false)));
+        }
+        assertFalse(reportedHosts.isEmpty());
+        reportedHosts.forEach(hosts -> assertEquals(targetHosts, hosts));
+    }
+
+    @Test
+    public void testInvalidTruststorePathThrows()
+    {
+        try
+        {
+            ConnectionOptions.builder().withSsl(true).withTruststore("/path/does/not/exist.jks").withTruststorePassword("password").build();
+            throw new AssertionError("Expected RuntimeException for a bad truststore path");
+        }
+        catch (RuntimeException e)
+        {
+            assertTrue(e.getMessage().contains("SSL"));
+        }
+    }
+
+    @Test
+    public void testImplicitSslEnableWithTruststoreOnly()
+    {
+        // no --ssl flag given, but a truststore path should still turn SSL on rather than being ignored
+        try
+        {
+            ConnectionOptions.builder().withTruststore("/path/does/not/exist.jks").build();
+            throw new AssertionError("Expected RuntimeException since SSL should be implicitly enabled");
+        }
+        catch (RuntimeException e)
+        {
+            assertTrue(e.getMessage().contains("SSL"));
+        }
+    }
+
+    @Test
+    public void testTruststorePasswordWithoutPathThrows()
+    {
+        try
+        {
+            ConnectionOptions.builder().withTruststorePassword("somepassword").build();
+            throw new AssertionError("Expected IllegalArgumentException when truststore password is given without a path");
+        }
+        catch (IllegalArgumentException e)
+        {
+            assertTrue(e.getMessage().contains("--ssl-truststore-password requires --ssl-truststore"));
+        }
+    }
+
+    @Test
+    public void testKeystorePasswordWithoutPathThrows()
+    {
+        try
+        {
+            ConnectionOptions.builder().withKeystorePassword("somepassword").build();
+            throw new AssertionError("Expected IllegalArgumentException when keystore password is given without a path");
+        }
+        catch (IllegalArgumentException e)
+        {
+            assertTrue(e.getMessage().contains("--ssl-keystore-password requires --ssl-keystore"));
+        }
+    }
+
+    public static class NoArgOnlyAuthProvider implements com.datastax.driver.core.AuthProvider
+    {
+        public NoArgOnlyAuthProvider() { }
+
+        public com.datastax.driver.core.Authenticator newAuthenticator(java.net.InetSocketAddress host, String authenticator)
+        {
+            throw new UnsupportedOperationException("not needed for this test");
+        }
+    }
+
+    @Test
+    public void testAuthProviderWithoutCredentialsConstructorThrows()
+    {
+        ConnectionOptions connectionOptions = ConnectionOptions.builder()
+                                                                .withAuthProviderClass(NoArgOnlyAuthProvider.class.getName())
+                                                                .build();
+        try
+        {
+            new QueryReplayer(Collections.emptyIterator(),
+                              Lists.newArrayList("aaa:bbb@127.0.0.1:9999"),
+                              null,
+                              new ArrayList<>(),
+                              null,
+                              connectionOptions);
+            throw new AssertionError("Expected RuntimeException when auth provider lacks a (String,String) constructor");
+        }
+        catch (RuntimeException e)
+        {
+            assertTrue(e.getMessage().contains("does not support plain text credentials"));
+        }
+    }
+
+    @Test
+    public void testOneWayTLSSucceeds()
+    {
+        ConnectionOptions connectionOptions = ConnectionOptions.builder()
+                                                                .withTruststore("test/conf/cassandra_ssl_test.truststore")
+                                                                .withTruststorePassword("cassandra")
+                                                                .build();
+        assertTrue(connectionOptions.ssl());
+        assertNotNull(connectionOptions.sslOptions());
+    }
+
+    @Test
+    public void testInvalidStoreTypeThrows()
+    {
+        try
+        {
+            ConnectionOptions.builder()
+                             .withTruststore("test/conf/cassandra_ssl_test.truststore")
+                             .withTruststorePassword("cassandra")
+                             .withStoreType("NOTATYPE")
+                             .build();
+            throw new AssertionError("Expected RuntimeException for an unknown store type");
+        }
+        catch (RuntimeException e)
+        {
+            assertTrue(e.getMessage().contains("SSL"));
+            assertTrue(e.getCause() instanceof KeyStoreException);
+        }
+    }
+
+    @Test
+    public void testStoreTypeWithoutStorePathThrows()
+    {
+        try
+        {
+            ConnectionOptions.builder().withStoreType("PKCS12").build();
+            throw new AssertionError("Expected IllegalArgumentException when store type is given without a store path");
+        }
+        catch (IllegalArgumentException e)
+        {
+            assertTrue(e.getMessage().contains("--ssl-store-type requires --ssl-truststore or --ssl-keystore"));
+        }
+    }
+
+    @Test
+    public void testPkcs12StoreTypeSucceeds() throws IOException, GeneralSecurityException
+    {
+        ConnectionOptions connectionOptions = ConnectionOptions.builder()
+                                                                .withTruststore(toPkcs12("test/conf/cassandra_ssl_test.truststore", "cassandra"))
+                                                                .withTruststorePassword("cassandra")
+                                                                .withKeystore(toPkcs12("test/conf/cassandra_ssl_test.keystore", "cassandra"))
+                                                                .withKeystorePassword("cassandra")
+                                                                .withStoreType("PKCS12")
+                                                                .build();
+        assertTrue(connectionOptions.ssl());
+        assertNotNull(connectionOptions.sslOptions());
+    }
+
+    private static String toPkcs12(String jksPath, String password) throws IOException, GeneralSecurityException
+    {
+        KeyStore jks = KeyStore.getInstance("JKS");
+        try (FileInputStream in = new FileInputStream(jksPath))
+        {
+            jks.load(in, password.toCharArray());
+        }
+        KeyStore pkcs12 = KeyStore.getInstance("PKCS12");
+        pkcs12.load(null, password.toCharArray());
+        KeyStore.PasswordProtection protection = new KeyStore.PasswordProtection(password.toCharArray());
+        for (String alias : Collections.list(jks.aliases()))
+        {
+            KeyStore.PasswordProtection entryProtection = jks.isKeyEntry(alias) ? protection : null;
+            pkcs12.setEntry(alias, jks.getEntry(alias, entryProtection), entryProtection);
+        }
+        File file = Files.createTempFile("fqltool", ".p12").toFile();
+        file.deleteOnExit();
+        try (FileOutputStream out = new FileOutputStream(file))
+        {
+            pkcs12.store(out, password.toCharArray());
+        }
+        return file.getPath();
+    }
+
+    @Test
+    public void testTwoWayTLSSucceeds()
+    {
+        ConnectionOptions connectionOptions = ConnectionOptions.builder()
+                                                                .withTruststore("test/conf/cassandra_ssl_test.truststore")
+                                                                .withTruststorePassword("cassandra")
+                                                                .withKeystore("test/conf/cassandra_ssl_test.keystore")
+                                                                .withKeystorePassword("cassandra")
+                                                                .build();
+        assertTrue(connectionOptions.ssl());
+        assertNotNull(connectionOptions.sslOptions());
     }
 
     @Test(expected = RuntimeException.class)

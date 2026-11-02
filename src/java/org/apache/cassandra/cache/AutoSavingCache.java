@@ -393,6 +393,7 @@ public class AutoSavingCache<K extends CacheKey, V> extends InstrumentingCache<K
                 }
 
                 cacheLoader.serializeMetadata(metadataWriter);
+                metadataWriter.flush();
                 metadataWriter.sync();
             }
             catch (FileNotFoundException | NoSuchFileException e)

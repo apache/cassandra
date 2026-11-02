@@ -30,8 +30,6 @@ import java.util.stream.Collectors;
 
 import com.datastax.driver.core.BoundStatement;
 import com.datastax.driver.core.ColumnDefinitions;
-import com.datastax.driver.core.DataType;
-import com.datastax.driver.core.LocalDate;
 import com.datastax.driver.core.PreparedStatement;
 import com.datastax.driver.core.ResultSet;
 import com.google.common.collect.ImmutableList;
@@ -60,7 +58,7 @@ public class CASQuery extends SchemaStatement
     private final ImmutableMap<Integer, Integer> casConditionArgFreqMap;
     private final String readQuery;
 
-    private PreparedStatement casReadConditionStatement;
+    private Binder casReadConditionBinder;
 
     public CASQuery(Timer timer, StressSettings settings, PartitionGenerator generator, SeedManager seedManager, PreparedStatement statement, ConsistencyLevel cl, ArgSelect argSelect, final String tableName)
     {
@@ -140,7 +138,8 @@ public class CASQuery extends SchemaStatement
         private JavaDriverRun(JavaDriverClient client)
         {
             this.client = client;
-            casReadConditionStatement = client.prepare(readQuery);
+            if (casReadConditionBinder == null)
+                casReadConditionBinder = new Binder(client.prepare(readQuery));
         }
 
         public boolean run()
@@ -169,7 +168,7 @@ public class CASQuery extends SchemaStatement
         }
 
         //get current db values for all the coluns which are part of dynamic conditions
-        ResultSet rs = client.getSession().execute(casReadConditionStatement.bind(keys));
+        ResultSet rs = client.getSession().execute(casReadConditionBinder.bind(keys));
         final Object casDbValues[] = new Object[casConditionArgFreqMap.size()];
 
         final com.datastax.driver.core.Row casDbValue = rs.one();
@@ -208,14 +207,7 @@ public class CASQuery extends SchemaStatement
             }
             else
             {
-                Object value = row.get(argumentIndex[i]);
-                if (definitions.getType(i).getName() == DataType.date().getName())
-                {
-                    // the java driver only accepts com.datastax.driver.core.LocalDate for CQL type "DATE"
-                    value = LocalDate.fromDaysSinceEpoch((Integer) value);
-                }
-
-                bindBuffer[i] = value;
+                bindBuffer[i] = row.get(argumentIndex[i]);
             }
 
             if (bindBuffer[i] == null && !getDataSpecification().partitionGenerator.permitNulls(argumentIndex[i]))
@@ -223,6 +215,6 @@ public class CASQuery extends SchemaStatement
                 throw new IllegalStateException();
             }
         }
-        return statement.bind(bindBuffer);
+        return binder.bind(bindBuffer);
     }
 }

@@ -146,6 +146,12 @@ public class ZstdDictionaryCompressor extends ZstdCompressorBase implements ICom
             return super.uncompress(input, inputOffset, inputLength, output, outputOffset);
         }
 
+        // Hold our own reference for the duration of the call: the cache's dictionaryRef can be released by
+        // eviction concurrently with this call, and tidy() must not run while a context is still in use.
+        Ref<ZstdCompressionDictionary> ref = dictionary.tryRef();
+        if (ref == null)
+            throw new IOException("Dictionary is released");
+
         ZstdDecompressCtx ctx = null;
         boolean ok = false;
         try
@@ -178,6 +184,7 @@ public class ZstdDictionaryCompressor extends ZstdCompressorBase implements ICom
                 else
                     ctx.close();
             }
+            ref.release();
         }
     }
 
@@ -189,6 +196,10 @@ public class ZstdDictionaryCompressor extends ZstdCompressorBase implements ICom
             super.uncompress(input, output);
             return;
         }
+
+        Ref<ZstdCompressionDictionary> ref = dictionary.tryRef();
+        if (ref == null)
+            throw new IOException("Dictionary is released");
 
         ZstdDecompressCtx ctx = null;
         boolean ok = false;
@@ -217,6 +228,7 @@ public class ZstdDictionaryCompressor extends ZstdCompressorBase implements ICom
                 else
                     ctx.close();
             }
+            ref.release();
         }
     }
 
@@ -228,6 +240,10 @@ public class ZstdDictionaryCompressor extends ZstdCompressorBase implements ICom
             super.compress(input, output);
             return;
         }
+
+        Ref<ZstdCompressionDictionary> ref = dictionary.tryRef();
+        if (ref == null)
+            throw new IOException("Dictionary is released");
 
         ZstdCompressCtx ctx = null;
         boolean ok = false;
@@ -256,6 +272,7 @@ public class ZstdDictionaryCompressor extends ZstdCompressorBase implements ICom
                 else
                     ctx.close();
             }
+            ref.release();
         }
     }
 

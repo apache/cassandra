@@ -70,6 +70,8 @@ kubectl exec -it svc/cassius-jenkins -c jenkins -- /bin/cat /run/secrets/additio
 
 This leaves the controller running, a single e2-standard-8 instance. All other node-pools downscale to zero.
 
+The shared job setup preserves saved build parameters across redeploys on both GKE and EKS.  New jobs, and existing jobs with blank defaults, get their configured SCM branch (`trunk`, `cassandra-6.0`, or `cassandra-5.0`) and the `skinny` profile.  Parameter forms are available before the first build.  The branch parameter selects the code to test; the job's SCM configuration still selects which Jenkinsfile to load.
+
 ## Upgrading an existing instance (e.g. pre-ci.cassandra.apache.org)
 
 A long-lived site like pre-ci.cassandra.apache.org may carry customisations: hostname, cloud load-balancer, storage class; that are deliberately absent from `jenkins-deployment.yaml`.

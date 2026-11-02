@@ -113,6 +113,9 @@ public class InJvmDTestVisitExecutor extends CQLVisitExecutor
         {
             if (pageSize == PageSizeSelector.NO_PAGING)
                 rows = cluster.coordinator(node).execute(statement.cql(), consistencyLevel, statement.bindings());
+            else if (pageSizeSelector.isInBytes())
+                rows = iterToArr(cluster.coordinator(node)
+                                        .executeWithPagingInBytes(statement.cql(), consistencyLevel, pageSize, statement.bindings()));
             else
                 rows = iterToArr(cluster.coordinator(node)
                                         .executeWithPaging(statement.cql(), consistencyLevel, pageSize, statement.bindings()));
@@ -284,6 +287,11 @@ public class InJvmDTestVisitExecutor extends CQLVisitExecutor
     {
         int NO_PAGING = -1;
         int pages(Visit visit);
+
+        default boolean isInBytes()
+        {
+            return false;
+        }
     }
 
     public interface ConsistencyLevelSelector

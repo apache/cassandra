@@ -82,7 +82,7 @@ public class TestDatabaseDescriptor
      * Pauses compaction strategies for all given ColumnFamilyStores.
      * Pattern matches {@link ColumnFamilyStore#pauseCompactionStrategies}.
      */
-    private static CompactionManager.CompactionPauser pauseAllCompactionStrategies(Iterable<ColumnFamilyStore> toPause)
+    public static CompactionManager.CompactionPauser pauseAllCompactionStrategies(Iterable<ColumnFamilyStore> toPause)
     {
         ArrayList<ColumnFamilyStore> successfullyPaused = new ArrayList<>();
         try

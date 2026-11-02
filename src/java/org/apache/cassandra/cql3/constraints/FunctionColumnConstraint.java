@@ -80,6 +80,7 @@ public class FunctionColumnConstraint extends AbstractFunctionConstraint<Functio
     {
         super(relationType, term);
         this.function = function;
+        this.function.prepare(term);
         this.columnName = function.columnName;
     }
 
@@ -210,7 +211,7 @@ public class FunctionColumnConstraint extends AbstractFunctionConstraint<Functio
             for (String arg : columnConstraint.function.args)
                 argsSizes += TypeSizes.sizeof(arg);
 
-            return TypeSizes.sizeof(columnConstraint.function.getClass().getName())
+            return TypeSizes.sizeof(columnConstraint.function.name)
                    + TypeSizes.sizeof(columnConstraint.function.args.size())
                    + argsSizes
                    + TypeSizes.sizeof(columnConstraint.term)

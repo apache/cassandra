@@ -482,6 +482,8 @@ public class AutoRepairConfig implements Serializable
             opts.initial_scheduler_delay = new DurationSpec.IntSecondsBound("5m");
             opts.repair_session_timeout = new DurationSpec.IntSecondsBound("3h");
             opts.min_repair_interval = new DurationSpec.IntSecondsBound("24h");
+            opts.repair_max_retries = 3;
+            opts.repair_retry_backoff = new DurationSpec.LongSecondsBound("30s");
 
             return opts;
         }
@@ -543,9 +545,9 @@ public class AutoRepairConfig implements Serializable
         // Timeout for retrying stuck repair sessions.
         public volatile DurationSpec.IntSecondsBound repair_session_timeout;
         // Maximum number of retries for a repair session.
-        public volatile Integer repair_max_retries = 3;
+        public volatile Integer repair_max_retries;
         // Backoff time before retrying a repair session.
-        public volatile DurationSpec.LongSecondsBound repair_retry_backoff = new DurationSpec.LongSecondsBound("30s");
+        public volatile DurationSpec.LongSecondsBound repair_retry_backoff;
 
         public String toString()
         {

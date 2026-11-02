@@ -29,6 +29,8 @@ import org.apache.cassandra.db.marshal.Int32Type;
 import org.apache.cassandra.db.marshal.UTF8Type;
 import org.apache.cassandra.utils.ByteBufferUtil;
 
+import static java.lang.String.format;
+
 public class OctetLengthConstraint extends ConstraintFunction
 {
     private static final List<AbstractType<?>> SUPPORTED_TYPES = List.of(BytesType.instance, UTF8Type.instance, AsciiType.instance);
@@ -37,12 +39,12 @@ public class OctetLengthConstraint extends ConstraintFunction
     {
         super("OCTET_LENGTH", args);
     }
+    private int sizeConstraint;
 
     @Override
     public void internalEvaluate(AbstractType<?> valueType, Operator relationType, String term, ByteBuffer columnValue)
     {
         int valueLength = columnValue.remaining();
-        int sizeConstraint = Integer.parseInt(term);
 
         ByteBuffer leftOperand = ByteBufferUtil.bytes(valueLength);
         ByteBuffer rightOperand = ByteBufferUtil.bytes(sizeConstraint);
@@ -63,6 +65,21 @@ public class OctetLengthConstraint extends ConstraintFunction
     public List<AbstractType<?>> getSupportedTypes()
     {
         return SUPPORTED_TYPES;
+    }
+
+    @Override
+    public void prepare(String term) throws InvalidConstraintDefinitionException
+    {
+        try
+        {
+            // parsint the int every single time upon evaluation is not performance friendly
+            // so we "cache" the compiled int for further reuse upon actual validation
+            sizeConstraint = Integer.parseInt(term);
+        }
+        catch (Exception e)
+        {
+            throw new InvalidConstraintDefinitionException(format("String '%s' is not a valid int", Integer.parseInt(term)));
+        }
     }
 
     @Override

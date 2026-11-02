@@ -50,6 +50,7 @@ import org.apache.cassandra.db.partitions.PartitionIterator;
 import org.apache.cassandra.db.partitions.UnfilteredPartitionIterator;
 import org.apache.cassandra.db.partitions.UnfilteredPartitionIterators;
 import org.apache.cassandra.db.rows.EncodingStats;
+import org.apache.cassandra.db.rows.RangeTombstoneBoundMarker;
 import org.apache.cassandra.db.rows.RangeTombstoneMarker;
 import org.apache.cassandra.db.rows.Row;
 import org.apache.cassandra.db.rows.RowIterator;
@@ -196,6 +197,7 @@ public class ReplicaFilteringProtection<E extends Endpoints<E>>
         final EncodingStats stats;
         final boolean[] silentRowAt;
         final boolean[] silentColumnAt;
+        Clustering<?> lastClustering;
         
         PartitionMergeListerner(DecoratedKey partitionKey, List<UnfilteredRowIterator> versions)
         {
@@ -221,6 +223,9 @@ public class ReplicaFilteringProtection<E extends Endpoints<E>>
         @Override
         public void onMergedRows(Row merged, Row[] versions)
         {
+            if (!merged.isStatic())
+                lastClustering = merged.clustering();
+
             // Cache the row versions to be able to regenerate the original row iterator:
             for (int i = 0; i < versions.length; i++)
                 builders.get(i).addRow(versions[i]);
@@ -278,7 +283,10 @@ public class ReplicaFilteringProtection<E extends Endpoints<E>>
         public void populate()
         {
             for (int i = 0; i < sources.size(); i++)
+            {
+                builders.get(i).closeOpenMarker(lastClustering);
                 originalPartitions.get(i).add(builders.get(i));
+            }
         }
     }
 
@@ -426,19 +434,16 @@ public class ReplicaFilteringProtection<E extends Endpoints<E>>
 
                         if (currentRowIterator != null)
                         {
-                            int i = 0;
-
-                            // Consume LIMIT filtered rows from the current partition, unless there are fewer results.
-                            // The underlying iterator is short-read protected, and limiting the number of rows we
-                            // consume avoids needless SRP reads when there are many more than LIMIT results.
-                            while (i < command.limits().count() && currentRowIterator.hasNext())
-                            {
-                                currentRowIterator.next();
-                                i++;
-                            }
+                            // Bound each page by rows and bytes before short-read protection fetches more data.
+                            DataLimits.Counter counter = DataLimits.cqlLimits(command.limits().count())
+                                                                   .withBytesLimit(command.limits().bytes())
+                                                                   .newCounter(command.nowInSec(), true, false, command.metadata().enforceStrictLiveness());
+                            counter.applyToPartition(currentRowIterator.partitionKey(), currentRowIterator.staticRow());
+                            while (!counter.isDone() && currentRowIterator.hasNext())
+                                counter.applyToRow(currentRowIterator.next());
 
                             // If we actually consumed a row, checkpoint to populate the builders.
-                            if (i > 0)
+                            if (counter.rowsCounted() > 0)
                                 mergeListener.populate();
                         }
                     }
@@ -467,6 +472,8 @@ public class ReplicaFilteringProtection<E extends Endpoints<E>>
         private DeletionTime deletionTime;
         private Row staticRow = Rows.EMPTY_STATIC_ROW;
         private final Queue<Unfiltered> contents = new ArrayDeque<>();
+        private DeletionTime openDeletion;
+        private RangeTombstoneMarker reopenMarker;
         private BTreeSet.Builder<Clustering<?>> toFetch;
         private int partitionRowsCached;
 
@@ -497,15 +504,52 @@ public class ReplicaFilteringProtection<E extends Endpoints<E>>
                 return;
 
             if (row.isStatic())
+            {
                 staticRow = row;
+            }
             else
+            {
+                addReopenMarker();
                 contents.add(row);
+            }
         }
 
         private void addRangeTombstoneMarker(RangeTombstoneMarker marker)
         {
-            if (marker != null)
-                contents.add(marker);
+            if (null == marker)
+                return;
+
+            boolean reversed = command.isReversed();
+            addReopenMarker();
+            openDeletion = marker.isOpen(reversed) ? marker.openDeletionTime(reversed) : null;
+            contents.add(marker);
+        }
+
+        /**
+         * Each page's protected partition must close the ranges it opens, as the next page is merged separately.
+         * Close an open range after the last row of the page, and reopen it before this replica's next item.
+         */
+        private void closeOpenMarker(Clustering<?> lastClustering)
+        {
+            if (null == openDeletion)
+                return;
+
+            assert null != lastClustering : "open deletion with no merged row to anchor the close bound at";
+
+            // A replica with nothing since the previous page still needs the range, to shadow other replicas' rows.
+            addReopenMarker();
+            boolean reversed = command.isReversed();
+            contents.add(RangeTombstoneBoundMarker.inclusiveClose(reversed, lastClustering, openDeletion));
+            reopenMarker = RangeTombstoneBoundMarker.exclusiveOpen(reversed, lastClustering, openDeletion);
+        }
+
+        private void addReopenMarker()
+        {
+            if (null == reopenMarker)
+                return;
+
+            contents.add(reopenMarker);
+            reopenMarker = null;
         }
 
         private void addToFetch(Row row)

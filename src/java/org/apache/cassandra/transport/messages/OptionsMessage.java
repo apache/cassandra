@@ -18,11 +18,14 @@
 package org.apache.cassandra.transport.messages;
 
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.stream.Collectors;
 
 import org.apache.cassandra.config.DatabaseDescriptor;
+import org.apache.cassandra.cql3.PageSize;
 import org.apache.cassandra.cql3.QueryProcessor;
 import org.apache.cassandra.service.QueryState;
 import org.apache.cassandra.transport.Compressor;
@@ -37,6 +40,8 @@ import io.netty.buffer.ByteBuf;
  */
 public class OptionsMessage extends Message.Request
 {
+    private static final List<String> supportedPageUnits = Arrays.stream(PageSize.PageUnit.values()).map(PageSize.PageUnit::name).collect(Collectors.toList());
+
     public static final Message.Codec<OptionsMessage> codec = new Message.Codec<OptionsMessage>()
     {
         public OptionsMessage decode(ByteBuf body, ProtocolVersion version)
@@ -78,6 +83,7 @@ public class OptionsMessage extends Message.Request
         if (DatabaseDescriptor.getGracefulDisconnectEnabled())
             supported.put(StartupMessage.GRACEFUL_DISCONNECT, gracefulDisconnect);
         supported.put(StartupMessage.PROTOCOL_VERSIONS, ProtocolVersion.supportedVersions());
+        supported.put(StartupMessage.PAGE_UNIT, supportedPageUnits);
 
         return new SupportedMessage(supported);
     }

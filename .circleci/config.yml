@@ -16,7 +16,7 @@
 # limitations under the License.
 #
 
-version: 2
+version: 2.1
 jobs:
   j11_jvm_upgrade_dtests_repeat:
     docker:
@@ -4336,7 +4336,7 @@ jobs:
   j17_build:
     docker:
     - image: apache/cassandra-testing-ubuntu2004-java11:latest
-    resource_class: medium
+    resource_class: large
     working_directory: ~/
     shell: /bin/bash -eo pipefail -l
     parallelism: 1
@@ -4399,6 +4399,7 @@ jobs:
         - .m2
     environment:
     - ANT_HOME: /usr/share/ant
+    - ANT_OPTS: "-Xmx3g"
     - LANG: en_US.UTF-8
     - KEEP_TEST_DIR: true
     - DEFAULT_DIR: /home/cassandra/cassandra-dtest
@@ -8226,7 +8227,7 @@ jobs:
   j11_build:
     docker:
     - image: apache/cassandra-testing-ubuntu2004-java11-w-dependencies:latest
-    resource_class: medium
+    resource_class: large
     working_directory: ~/
     shell: /bin/bash -eo pipefail -l
     parallelism: 1
@@ -8289,6 +8290,7 @@ jobs:
         - .m2
     environment:
     - ANT_HOME: /usr/share/ant
+    - ANT_OPTS: "-Xmx3g"
     - LANG: en_US.UTF-8
     - KEEP_TEST_DIR: true
     - DEFAULT_DIR: /home/cassandra/cassandra-dtest

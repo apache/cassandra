@@ -815,6 +815,11 @@ public class Config
     public volatile int max_concurrent_automatic_sstable_upgrades = 1;
     public boolean stream_entire_sstables = true;
 
+    /**
+     * When receiving a zero-copy stream, validate Digest.crc32 before the sstable is made visible.
+     */
+    public volatile boolean entire_sstable_stream_digest_validation_enabled = true;
+
     public volatile boolean skip_stream_disk_space_check = false;
 
     public volatile AuditLogOptions audit_logging_options = new AuditLogOptions();
@@ -913,6 +918,8 @@ public class Config
 
     public StorageAttachedIndexOptions sai_options = new StorageAttachedIndexOptions();
 
+    public volatile DataStorageSpec.IntBytesBound aggregation_subpage_size = new DataStorageSpec.IntBytesBound(2, DataStorageSpec.DataStorageUnit.MEBIBYTES);
+
     /**
      * @deprecated migrate to {@link DatabaseDescriptor#isClientInitialized()} See CASSANDRA-12550
      */
@@ -982,6 +989,8 @@ public class Config
     public volatile int materialized_views_per_table_fail_threshold = -1;
     public volatile int page_size_warn_threshold = -1;
     public volatile int page_size_fail_threshold = -1;
+    public volatile DataStorageSpec.LongBytesBound page_size_in_bytes_warn_threshold = null;
+    public volatile DataStorageSpec.LongBytesBound page_size_in_bytes_fail_threshold = null;
     public volatile int partition_keys_in_select_warn_threshold = -1;
     public volatile int partition_keys_in_select_fail_threshold = -1;
     public volatile int in_select_cartesian_product_warn_threshold = -1;

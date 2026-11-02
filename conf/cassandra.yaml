@@ -1351,6 +1351,14 @@ uuid_sstable_identifiers_enabled: false
 # disabled if internode encryption is enabled.
 # stream_entire_sstables: true
 
+# When an entire SSTable is received via zero-copy streaming, validate the Digest.crc32 that was streamed with it
+# against the received Data.db before the SSTable is added to the table. This detects corruption introduced in
+# transit as well as pre-existing corruption on the sending node's disk, neither of which is otherwise noticed by
+# this path, since it writes component bytes to disk without parsing them.
+# If there's no Digest.crc32, this check passes.
+# When unset, the default is validating Digest.crc32.
+# entire_sstable_stream_digest_validation_enabled: true
+
 # Throttles entire SSTable outbound streaming file transfers on
 # this node to the given total throughput in Mbps.
 # Setting this value to 0 it disables throttling.
@@ -2300,6 +2308,12 @@ report_unconfirmed_repaired_data_mismatches: false
 # Defaults to false to disable dynamic data masking.
 # dynamic_data_masking_enabled: false
 
+# This is the page size used internally by aggregation queries. It aims to limit the memory used by aggregation
+# queries when there is a lot of data to aggregate.
+# The client page size, when specified, takes precedence over this setting.
+# During rolling upgrades from 4.x or 5.0, aggregation queries use row-sized subpages until all nodes run 6.0 or later.
+# aggregation_subpage_size: 2MiB
+
 #########################
 # EXPERIMENTAL FEATURES #
 #########################
@@ -2420,10 +2434,17 @@ drop_compact_storage_enabled: false
 # Guardrail to allow/disallow bulk load of SSTables
 # bulk_load_enabled: true
 #
-# Guardrail to warn or fail when using a page size greater than threshold.
+# Guardrail to warn or fail when requesting a row page size greater than threshold, in rows.
 # The two thresholds default to -1 to disable.
 # page_size_warn_threshold: -1
 # page_size_fail_threshold: -1
+#
+# Guardrail to warn or fail when requesting a byte page size greater than threshold.
+# These thresholds apply to client requests, not server-selected aggregation subpages or upgrade fallbacks.
+# A row larger than the requested byte page size can still be returned to allow paging to make progress.
+# The two thresholds default to null to disable; use storage units such as MiB, KiB, or B.
+# page_size_in_bytes_warn_threshold:
+# page_size_in_bytes_fail_threshold:
 #
 # Guardrail to allow/disallow list operations that require read before write, i.e. setting list element by index and
 # removing list elements by either index or value. Defaults to true.

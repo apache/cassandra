@@ -50,6 +50,7 @@ import org.apache.cassandra.service.paxos.Ballot;
 import org.apache.cassandra.utils.AbstractIterator;
 import org.apache.cassandra.utils.ByteBufferUtil;
 import org.apache.cassandra.utils.CloseableIterator;
+import org.apache.cassandra.utils.SyncUtil;
 import org.apache.cassandra.utils.Throwables;
 
 public class UncommittedDataFile
@@ -252,6 +253,7 @@ public class UncommittedDataFile
             {
                 crcFile.move(finalCrc);
                 file.move(finalData);
+                SyncUtil.trySyncDir(directory);
                 return new UncommittedDataFile(tableId, finalData, finalCrc, generation);
             }
             catch (Throwable e)

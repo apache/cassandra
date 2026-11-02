@@ -102,54 +102,55 @@ controller:
       # TODO: add new version each release branching
       test-job: |
         jobs:
-          - script: >
-              pipelineJob('cassandra') {
-                definition {
-                  cpsScm {
-                    scm {
-                      git {
-                        remote {
-                          url('https://github.com/apache/cassandra')
-                        }
-                        branch('trunk')
-                        scriptPath('.jenkins/Jenkinsfile')
-                      }
-                    }
-                    lightweight()
-                  }
+          - script: |
+              import javaposse.jobdsl.dsl.JobConfigurationNotFoundException
+
+              ['cassandra': 'trunk', 'cassandra-6.0': 'cassandra-6.0', 'cassandra-5.0': 'cassandra-5.0'].each { jobName, scmBranch ->
+                // Job DSL replaces config.xml on reload. Preserve the defaults saved by the Jenkinsfile.
+                def savedParameters = []
+                try {
+                  savedParameters = new XmlParser().parseText(jm.getConfig(jobName)).properties.
+                      'hudson.model.ParametersDefinitionProperty'.parameterDefinitions[0]?.children() ?: []
+                } catch (JobConfigurationNotFoundException ignored) {
+                  // A new job gets the defaults below before its first build.
                 }
-              }
-          - script: >
-              pipelineJob('cassandra-6.0') {
-                definition {
-                  cpsScm {
-                    scm {
-                      git {
-                        remote {
-                          url('https://github.com/apache/cassandra')
-                        }
-                        branch('cassandra-6.0')
-                        scriptPath('.jenkins/Jenkinsfile')
-                      }
-                    }
-                    lightweight()
+                pipelineJob(jobName) {
+                  parameters {
+                    stringParam('repository', 'https://github.com/apache/cassandra', 'Cassandra Repository')
+                    stringParam('branch', scmBranch, 'Branch')
+                    choiceParam('profile', ['skinny', 'packaging', 'pre-commit', 'pre-commit w/ upgrades', 'post-commit', 'performance', 'custom'], 'Pick a pipeline profile.')
+                    stringParam('profile_custom_regexp', '', 'Regexp for stages when using custom profile. See testSteps in Jenkinsfile.')
+                    choiceParam('architecture', ['amd64', 'arm64', 'all'], 'Pick architecture.')
+                    stringParam('jdk', '', 'Restrict JDK versions.')
+                    stringParam('dtest_repository', 'https://github.com/apache/cassandra-dtest', 'Cassandra DTest Repository')
+                    stringParam('dtest_branch', 'trunk', 'DTest Branch')
                   }
-                }
-              }
-          - script: >
-              pipelineJob('cassandra-5.0') {
-                definition {
-                  cpsScm {
-                    scm {
-                      git {
-                        remote {
-                          url('https://github.com/apache/cassandra')
-                        }
-                        branch('cassandra-5.0')
-                        scriptPath('.jenkins/Jenkinsfile')
+                  configure { project ->
+                    def definitions = project.properties.'hudson.model.ParametersDefinitionProperty'.parameterDefinitions[0]
+                    savedParameters.each { saved ->
+                      def name = saved.name.text()
+                      if (name == 'branch' && !saved.defaultValue.text().trim()) return
+                      if (name == 'profile') {
+                        def firstChoice = saved.choices[0]?.depthFirst()?.find { it instanceof Node && it.name() == 'string' }
+                        if (!firstChoice?.text()?.trim()) return
                       }
+                      definitions.children().removeAll { it.name.text() == name }
+                      definitions.append(saved.clone())
                     }
-                    lightweight()
+                  }
+                  definition {
+                    cpsScm {
+                      scm {
+                        git {
+                          remote {
+                            url('https://github.com/apache/cassandra')
+                          }
+                          branch(scmBranch)
+                          scriptPath('.jenkins/Jenkinsfile')
+                        }
+                      }
+                      lightweight()
+                    }
                   }
                 }
               }

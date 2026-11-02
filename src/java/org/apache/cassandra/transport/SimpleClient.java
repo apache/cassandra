@@ -113,6 +113,7 @@ public class SimpleClient implements Closeable
     private final EncryptionOptions.ClientEncryptionOptions encryptionOptions;
     private final int largeMessageThreshold;
     private final boolean ignoreGracefulDisconnect;
+    private final boolean closeOnWriteFailure;
 
     protected final ResponseHandler responseHandler = new ResponseHandler(this);
     protected final Connection.Tracker tracker = new ConnectionTracker();
@@ -135,6 +136,7 @@ public class SimpleClient implements Closeable
         private boolean useBeta = false;
         private int largeMessageThreshold = FrameEncoder.Payload.MAX_SIZE;
         private boolean ignoreGracefulDisconnect = false;
+        private boolean closeOnWriteFailure = true;
 
         private Builder(String host, int port)
         {
@@ -172,6 +174,16 @@ public class SimpleClient implements Closeable
             return this;
         }
 
+        /**
+         * When disabled, a failed write only shuts down the channel output, so a response the server sent
+         * before resetting the connection can still be read.
+         */
+        public Builder closeOnWriteFailure(boolean enabled)
+        {
+            closeOnWriteFailure = enabled;
+            return this;
+        }
+
         public SimpleClient build()
         {
             if (version.isBeta() && !useBeta)
@@ -194,6 +206,7 @@ public class SimpleClient implements Closeable
         this.encryptionOptions = builder.encryptionOptions.applyConfig();
         this.largeMessageThreshold = builder.largeMessageThreshold;
         this.ignoreGracefulDisconnect = builder.ignoreGracefulDisconnect;
+        this.closeOnWriteFailure = builder.closeOnWriteFailure;
     }
 
     public SimpleClient(String host, int port, ProtocolVersion version, EncryptionOptions.ClientEncryptionOptions encryptionOptions)
@@ -234,6 +247,7 @@ public class SimpleClient implements Closeable
                                         Math.max(FrameEncoderCrc.HEADER_AND_TRAILER_LENGTH,
                                                  FrameEncoderLZ4.HEADER_AND_TRAILER_LENGTH);
         this.ignoreGracefulDisconnect = false;
+        this.closeOnWriteFailure = true;
     }
 
     public SimpleClient(String host, int port)
@@ -278,7 +292,8 @@ public class SimpleClient implements Closeable
         bootstrap = new Bootstrap()
                     .group(new NioEventLoopGroup(new NamedThreadFactory("SimpleClient-nioEventLoopGroup")))
                     .channel(io.netty.channel.socket.nio.NioSocketChannel.class)
-                    .option(ChannelOption.TCP_NODELAY, true);
+                    .option(ChannelOption.TCP_NODELAY, true)
+                    .option(ChannelOption.AUTO_CLOSE, closeOnWriteFailure);
 
         // Configure the pipeline factory.
         if(encryptionOptions.getEnabled())
