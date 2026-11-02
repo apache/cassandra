@@ -20,23 +20,17 @@ package org.apache.cassandra.io.compress;
 
 import java.io.IOException;
 import java.nio.ByteBuffer;
-import java.time.Duration;
 import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 
 import javax.annotation.Nullable;
 
-import com.github.benmanes.caffeine.cache.Cache;
-import com.github.benmanes.caffeine.cache.Caffeine;
-import com.github.benmanes.caffeine.cache.RemovalCause;
 import com.github.luben.zstd.Zstd;
 import com.github.luben.zstd.ZstdCompressCtx;
 import com.github.luben.zstd.ZstdDecompressCtx;
 import com.google.common.annotations.VisibleForTesting;
 
-import org.apache.cassandra.concurrent.ImmediateExecutor;
-import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.config.ParameterizedClass;
 import org.apache.cassandra.db.compression.CompressionDictionary.Kind;
 import org.apache.cassandra.db.compression.CompressionDictionaryTrainingConfig;
@@ -46,27 +40,10 @@ import org.apache.cassandra.utils.concurrent.Ref;
 public class ZstdDictionaryCompressor extends ZstdCompressorBase implements ICompressor, IDictionaryCompressor<ZstdCompressionDictionary>
 {
     private static final ConcurrentHashMap<Integer, ZstdDictionaryCompressor> instancesPerLevel = new ConcurrentHashMap<>();
-    private static final Cache<ZstdCompressionDictionary, ZstdDictionaryCompressor> instancePerDict =
-    Caffeine.newBuilder()
-            .maximumSize(DatabaseDescriptor.getCompressionDictionaryCacheSize())
-            .expireAfterAccess(Duration.ofSeconds(DatabaseDescriptor.getCompressionDictionaryCacheExpireSeconds()))
-            .removalListener((ZstdCompressionDictionary dictionary,
-                              ZstdDictionaryCompressor compressor,
-                              RemovalCause cause) -> {
-                // Release dictionary reference when compressor is evicted from cache. The dictionary's own Tidy
-                // closes any pooled native (de)compression contexts once this was the last reference.
-                if (compressor != null && compressor.dictionaryRef != null)
-                    compressor.dictionaryRef.release();
-            })
-            .executor(ImmediateExecutor.INSTANCE)
-            .build();
 
-    // dictionary and its ref are null, when they are absent.
-    // In this case, the compressor falls back to be the same as ZstdCompressor
+    // dictionary is null when it is absent. In this case, the compressor falls back to be the same as ZstdCompressor
     @Nullable
     private final ZstdCompressionDictionary dictionary;
-    @Nullable
-    private final Ref<ZstdCompressionDictionary> dictionaryRef;
 
     /**
      * Create a ZstdDictionaryCompressor with the given options
@@ -92,6 +69,10 @@ public class ZstdDictionaryCompressor extends ZstdCompressorBase implements ICom
         return getOrCreate(DEFAULT_COMPRESSION_LEVEL, dictionary);
     }
 
+    // The compressor for a dictionary and level is cached on the dictionary instance itself (see
+    // ZstdCompressionDictionary.getOrCreateCompressor), so its lifetime is tied to that instance: it can never be
+    // handed out for a dictionary object other than the one passed in, and it never outlives the dictionary object,
+    // unlike a compressor kept in a cache independent of the dictionary's own lifecycle.
     private static ZstdDictionaryCompressor getOrCreate(int level, ZstdCompressionDictionary dictionary)
     {
         if (dictionary == null)
@@ -99,30 +80,21 @@ public class ZstdDictionaryCompressor extends ZstdCompressorBase implements ICom
             return instancesPerLevel.computeIfAbsent(level, ZstdDictionaryCompressor::new);
         }
 
-        return instancePerDict.get(dictionary, dict -> {
-            // Get a reference to the dictionary when creating new compressor
-            Ref<ZstdCompressionDictionary> ref = dict.tryRef();
-            if (ref == null)
-            {
-                throw new IllegalStateException("Dictionary is released");
-            }
-            return new ZstdDictionaryCompressor(level, dictionary, ref);
-        });
+        return dictionary.getOrCreateCompressor(level, lvl -> new ZstdDictionaryCompressor(lvl, dictionary));
     }
 
     private ZstdDictionaryCompressor(int level)
     {
-        this(level, null, null);
+        this(level, null);
     }
 
-    private ZstdDictionaryCompressor(int level, ZstdCompressionDictionary dictionary, Ref<ZstdCompressionDictionary> dictionaryRef)
+    private ZstdDictionaryCompressor(int level, ZstdCompressionDictionary dictionary)
     {
         super(level, Set.of(COMPRESSION_LEVEL_OPTION_NAME,
                             TRAINING_MAX_DICTIONARY_SIZE_PARAMETER_NAME,
                             TRAINING_MAX_TOTAL_SAMPLE_SIZE_PARAMETER_NAME,
                             TRAINING_MIN_FREQUENCY_PARAMETER_NAME));
         this.dictionary = dictionary;
-        this.dictionaryRef = dictionaryRef;
     }
 
     @Override
@@ -146,8 +118,8 @@ public class ZstdDictionaryCompressor extends ZstdCompressorBase implements ICom
             return super.uncompress(input, inputOffset, inputLength, output, outputOffset);
         }
 
-        // Hold our own reference for the duration of the call: the cache's dictionaryRef can be released by
-        // eviction concurrently with this call, and tidy() must not run while a context is still in use.
+        // Hold our own reference for the duration of the call: the caller's own reference can be released by
+        // another thread concurrently with this call, and tidy() must not run while a context is still in use.
         Ref<ZstdCompressionDictionary> ref = dictionary.tryRef();
         if (ref == null)
             throw new IOException("Dictionary is released");
@@ -280,12 +252,5 @@ public class ZstdDictionaryCompressor extends ZstdCompressorBase implements ICom
     ZstdCompressionDictionary dictionary()
     {
         return dictionary;
-    }
-
-    @VisibleForTesting
-    public static void invalidateCache()
-    {
-        instancePerDict.invalidateAll();
-        instancePerDict.cleanUp();
     }
 }

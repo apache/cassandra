@@ -24,6 +24,7 @@ import java.util.Queue;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentLinkedQueue;
 import java.util.concurrent.atomic.AtomicReference;
+import java.util.function.Function;
 
 import com.github.luben.zstd.ZstdCompressCtx;
 import com.github.luben.zstd.ZstdDecompressCtx;
@@ -35,6 +36,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import org.apache.cassandra.io.compress.ZstdCompressorBase;
+import org.apache.cassandra.io.compress.ZstdDictionaryCompressor;
 import org.apache.cassandra.utils.FBUtilities;
 import org.apache.cassandra.utils.concurrent.Ref;
 import org.apache.cassandra.utils.concurrent.RefCounted;
@@ -56,6 +58,10 @@ public class ZstdCompressionDictionary implements CompressionDictionary, SelfRef
     // were loaded with, so no context can outlive the native memory it references.
     private final ConcurrentHashMap<Integer, Queue<ZstdCompressCtx>> compressCtxPoolPerLevel = new ConcurrentHashMap<>();
     private final Queue<ZstdDecompressCtx> decompressCtxPool = new ConcurrentLinkedQueue<>();
+    // The compressor for a level is owned by this dictionary instance, lazily built on first use. Its lifetime is
+    // tied to this instance: it can never be handed out for, or outlive, a different dictionary object, unlike a
+    // compressor kept in a cache independent of the dictionary's own lifecycle.
+    private final ConcurrentHashMap<Integer, ZstdDictionaryCompressor> compressorPerLevel = new ConcurrentHashMap<>();
     private volatile Ref<ZstdCompressionDictionary> selfRef;
     private final Instant createdAt;
 
@@ -259,6 +265,22 @@ public class ZstdCompressionDictionary implements CompressionDictionary, SelfRef
         decompressCtxPool.offer(ctx);
         if (selfRef == null || selfRef.globalCount() <= 0)
             drainDecompressPool(decompressCtxPool);
+    }
+
+    /**
+     * Returns the compressor for {@code level}, building it with {@code factory} and caching it on this instance on
+     * first use. The compressor's lifetime is tied to this dictionary instance rather than to a separate cache, so
+     * it can never be handed out for, or outlive, a different dictionary object with the same dictionary id.
+     * <br>
+     * This dictionary may already be released when called; that is only reported when the returned compressor is
+     * used to compress or decompress, which already checks for it.
+     *
+     * @param level the compression level the compressor must compress with
+     * @param factory builds the compressor for {@code level} on a cache miss
+     */
+    public ZstdDictionaryCompressor getOrCreateCompressor(int level, Function<Integer, ZstdDictionaryCompressor> factory)
+    {
+        return compressorPerLevel.computeIfAbsent(level, factory);
     }
 
     private static void drainCompressPool(Queue<ZstdCompressCtx> pool)

@@ -119,7 +119,6 @@ public abstract class ZstdDictionaryCompressorBenchBase
             dictionary.close();
             dictionary = null;
         }
-        ZstdDictionaryCompressor.invalidateCache();
     }
 
     protected byte[] generateTestData(DataType type, int size, Random random)
