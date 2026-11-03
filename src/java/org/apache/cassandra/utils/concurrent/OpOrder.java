@@ -285,50 +285,53 @@ public class OpOrder
         }
 
         /**
-         * Called once all operations started against this Ordered have completed (i.e. on the transition to
-         * FINISHED). We do not know if operations against its ancestors have completed, or if its descendants have
-         * completed ahead of it.
+         * Called once we know all operations started against this Ordered have completed,
+         * however we do not know if operations against its ancestors have completed, or
+         * if its descendants have completed ahead of it, so we attempt to create the longest
+         * chain from the oldest still linked Ordered. If we can't reach the oldest through
+         * an unbroken chain of completed Ordered, we abort, and leave the still completing
+         * ancestor to tidy up.
          * <p>
-         * Groups are unlinked strictly in order, one at a time, by the thread that claims them with a CAS from FINISHED
-         * to UNLINKED. A group may only be claimed when its prev link is null, i.e. when its predecessor has been
-         * unlinked (or it is the very first group). Each group is claimed exactly once, and only the thread that
-         * claimed it touches its links (apart from Barrier.issue(), which only sets the next link of the current group,
-         * which is never FINISHED). This is what makes it safe to clear the next link: nobody can be traversing it.
-         * <p>
-         * After claiming a group, the claiming thread clears its successor's prev link (making the successor the oldest
-         * linked group) and the group's own next link, wakes any waiters, and then tries to claim the successor. A
-         * successor whose operations finish concurrently cannot be missed: its last operation sets running to FINISHED
-         * and then reads its prev link, while we clear the prev link and then try to claim it. As all of these are
-         * volatile accesses, at least one of the two threads sees the other's write, and the CAS lets exactly one of
-         * them proceed with unlinking it.
-         * <p>
-         * Clearing the next links is important: if a group that has been unlinked is still referenced (e.g. by a
-         * Barrier), or has been promoted to the old generation and is waiting there to be collected, a next link would
-         * keep all groups created after it reachable, and the garbage collector would have to copy this ever-growing
-         * linked list (one element at a time) on every young collection.
+         * While clearing the next links is not required for correctness, it is nevertheless
+         * needed for performance reasons: if a group that has been unlinked is still referenced
+         * (e.g. by a Barrier), or has been promoted to the old generation and is waiting there
+         * to be collected, a next link would keep all groups created after it reachable, and
+         * the garbage collector would have to copy this ever-growing linked list on every
+         * young collection.
          */
         private void unlink()
         {
-            // If our predecessor is not unlinked yet, whoever unlinks it will see that we are finished and unlink us.
-            if (prev != null)
-                return;
-            // Claim; this fails if the thread that unlinked our predecessor has already claimed us.
-            if (!runningUpdater.compareAndSet(this, FINISHED, UNLINKED))
-                return;
-
-            Group group = this;
+            // First check if this group can be safely cleaned up, and help with cleaning up earlier groups should their
+            // threads stall.
+            Group start = this;
             while (true)
             {
-                // Expired groups always have a next, and no one else can clear it as only one thread claims a group.
-                Group next = group.next;
-                next.prev = null;
-                group.next = null;
-                group.waiting.signalAll();
-                // If the next group has also finished, it may have checked its prev link before we cleared it above,
-                // and left it to us to unlink it.
-                if (!runningUpdater.compareAndSet(next, FINISHED, UNLINKED))
+                Group prev = start.prev;
+                if (prev == null || prev.running == UNLINKED)
+                    break;
+
+                // If prev has not yet finished, do not unlink as this group is not really expired yet as barriers must
+                // ensure all earlier operations, including ones in previous groups, have completed.
+                // Abort and let prev clean the forward chain when it's done.
+                if (prev.running != FINISHED)
                     return;
-                group = next;
+                start = prev;
+            }
+
+            while (true)
+            {
+                // Claim; this fails if a concurrent thread has already claimed the group, in which case it will also
+                // process the forward chain.
+                // (Note that it will likely have cleared next, so we can't continue even if we want to.)
+                if (!runningUpdater.compareAndSet(start, FINISHED, UNLINKED))
+                    return;
+
+                // Expired groups always have a next, and no one else can clear it as only one thread claims a group.
+                Group next = start.next;
+                next.prev = null;
+                start.next = null;
+                start.waiting.signalAll();
+                start = next;
             }
         }
 
