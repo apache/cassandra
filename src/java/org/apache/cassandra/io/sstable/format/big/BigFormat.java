@@ -19,7 +19,6 @@ package org.apache.cassandra.io.sstable.format.big;
 
 import java.io.IOException;
 import java.util.Iterator;
-import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
@@ -27,11 +26,7 @@ import java.util.Set;
 import com.google.common.base.Preconditions;
 import com.google.common.collect.ImmutableSet;
 import com.google.common.collect.Iterables;
-import com.google.common.collect.Lists;
 import com.google.common.collect.Sets;
-
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
 
 import org.apache.cassandra.cache.KeyCacheKey;
 import org.apache.cassandra.config.DatabaseDescriptor;
@@ -50,7 +45,6 @@ import org.apache.cassandra.io.sstable.format.AbstractSSTableFormat;
 import org.apache.cassandra.io.sstable.format.SSTableFormat;
 import org.apache.cassandra.io.sstable.format.SSTableReaderLoadingBuilder;
 import org.apache.cassandra.io.sstable.format.SSTableWriter;
-import org.apache.cassandra.io.sstable.format.SortedTableScrubber;
 import org.apache.cassandra.io.sstable.format.Version;
 import org.apache.cassandra.io.sstable.indexsummary.IndexSummaryMetrics;
 import org.apache.cassandra.io.sstable.keycache.KeyCacheMetrics;
@@ -63,15 +57,11 @@ import org.apache.cassandra.utils.JVMStabilityInspector;
 import org.apache.cassandra.utils.OutputHandler;
 import org.apache.cassandra.utils.Pair;
 
-import static org.apache.cassandra.io.sstable.format.SSTableFormat.Components.DATA;
-
 /**
  * Legacy bigtable format
  */
 public class BigFormat extends AbstractSSTableFormat<BigTableReader, BigTableWriter>
 {
-    private final static Logger logger = LoggerFactory.getLogger(BigFormat.class);
-
     public static final String NAME = "big";
 
     private final Version latestVersion = new BigVersion(this, BigVersion.current_version);
@@ -221,28 +211,6 @@ public class BigFormat extends AbstractSSTableFormat<BigTableReader, BigTableWri
     }
 
     @Override
-    public void deleteOrphanedComponents(Descriptor descriptor, Set<Component> components)
-    {
-        SortedTableScrubber.deleteOrphanedComponents(descriptor, components);
-    }
-
-    private void delete(Descriptor desc, List<Component> components)
-    {
-        logger.info("Deleting sstable: {}", desc);
-
-        if (components.remove(DATA))
-            components.add(0, DATA); // DATA component should be first
-        if (components.remove(Components.SUMMARY))
-            components.add(Components.SUMMARY); // SUMMARY component should be last (IDK why)
-
-        for (Component component : components)
-        {
-            logger.trace("Deleting component {} of {}", component, desc);
-            desc.fileFor(component).deleteIfExists();
-        }
-    }
-
-    @Override
     public void delete(Descriptor desc)
     {
         try
@@ -259,7 +227,7 @@ public class BigFormat extends AbstractSSTableFormat<BigTableReader, BigTableWri
                 }
             }
 
-            delete(desc, Lists.newArrayList(Sets.intersection(allComponents(), desc.discoverComponents())));
+            deleteComponentsOldestFirst(desc, Sets.intersection(allComponents(), desc.discoverComponents()));
         }
         catch (Throwable t)
         {
