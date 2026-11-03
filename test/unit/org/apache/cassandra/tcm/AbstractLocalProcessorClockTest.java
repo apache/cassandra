@@ -29,16 +29,17 @@ import org.apache.cassandra.distributed.shared.WithProperties;
 import org.apache.cassandra.metrics.TCMMetrics;
 import org.apache.cassandra.tcm.log.Entry;
 import org.apache.cassandra.tcm.log.LocalLog;
-import org.apache.cassandra.tcm.sequences.LockedRanges;
+import org.apache.cassandra.tcm.transformations.CustomTransformation;
 import org.apache.cassandra.utils.Clock;
+import org.apache.cassandra.utils.FBUtilities;
 
+import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertTrue;
 
 public class AbstractLocalProcessorClockTest
 {
-    // Unit tests fork per class; install the clock before Cassandra initializes Clock.Global.
     private static final WithProperties properties = new WithProperties().set(CassandraRelevantProperties.CLOCK_GLOBAL,
-                                                                               NegativeClock.class.getName());
+                                                                              NegativeClock.class.getName());
 
     @BeforeClass
     public static void setup()
@@ -54,61 +55,29 @@ public class AbstractLocalProcessorClockTest
     }
 
     @Test
-    public void unlimitedRetryAdmitsWithNegativeClock() throws Exception
+    public void unlimitedRetryAdmitsWithNegativeClock()
     {
         try (LocalLog log = LocalLog.logSpec().sync()
                                     .withInitialState(new ClusterMetadata(Murmur3Partitioner.instance)).createLog())
         {
             log.readyUnchecked();
-            AbstractLocalProcessor processor = new AbstractLocalProcessor(log)
-            {
-                @Override
-                protected boolean acceptCommit(ClusterMetadata metadata)
-                {
-                    return true;
-                }
-
-                @Override
-                protected boolean tryCommitOne(Entry.Id id, Transformation transform, Epoch previous, Epoch next)
-                {
-                    return true;
-                }
-
-                @Override
-                public ClusterMetadata fetchLogAndWait(Epoch epoch, Retry retry)
-                {
-                    throw new AssertionError("Unexpected catch-up");
-                }
-            };
-            Transformation transformation = new Transformation()
-            {
-                @Override
-                public Kind kind()
-                {
-                    return Kind.CUSTOM;
-                }
-
-                @Override
-                public Result execute(ClusterMetadata metadata)
-                {
-                    return Transformation.success(metadata.transformer(), LockedRanges.AffectedRanges.EMPTY);
-                }
-            };
-            Commit.Result result = processor.commit(new Entry.Id(1), transformation, null,
+            AtomicLongBackedProcessor processor = new AtomicLongBackedProcessor(log);
+            log.unsafeBootstrapForTesting(FBUtilities.getBroadcastAddressAndPort());
+            Commit.Result result = processor.commit(new Entry.Id(1), CustomTransformation.make(1), null,
                                                     Retry.withNoTimeLimit(TCMMetrics.instance.commitRetries,
                                                                           Retry.unsafeRetryIndefinitely()));
-            assertTrue(result.toString(), result.isSuccess());
+            assertEquals(Epoch.FIRST.nextEpoch(), result.success().epoch);
         }
     }
 
     public static class NegativeClock extends Clock.Default
     {
-        private final long origin = System.nanoTime(); // checkstyle: permit system clock
-
+        // just makes sure that we return a negative timestamp
+        // checks that we handle Long.MAX_VALUE (no timelimit on the retries) in acquireProposalLock
         @Override
         public long nanoTime()
         {
-            return System.nanoTime() - origin - java.util.concurrent.TimeUnit.DAYS.toNanos(36500); // checkstyle: permit system clock
+            return -100;
         }
     }
 }
