@@ -18,6 +18,8 @@
 
 package org.apache.cassandra.db.compaction;
 
+import java.util.Collections;
+import java.util.IdentityHashMap;
 import java.util.List;
 import java.util.Set;
 import java.util.concurrent.CopyOnWriteArrayList;
@@ -55,38 +57,52 @@ import static org.junit.Assert.fail;
  */
 @RunWith(BMUnitRunner.class)
 @BMRules(rules = {
+    // Background compactions of other tables (system_schema, for one) run in the same JVM and open and
+    // close cursors and cursor index writers of their own, so every count is limited to the test's table.
     @BMRule(name = "count opened cursors",
             targetClass = "StatefulCursor",
             targetMethod = "<init>",
             targetLocation = "AT EXIT",
+            condition = "org.apache.cassandra.db.compaction.CursorCompactorCloseTest.isTestTable($0.ssTableReader().descriptor.cfname)",
             action = "org.apache.cassandra.db.compaction.CursorCompactorCloseTest.opened.incrementAndGet()"),
     @BMRule(name = "count closed cursors",
             targetClass = "org.apache.cassandra.io.sstable.SSTableCursorReader",
             targetMethod = "close",
             targetLocation = "AT EXIT",
+            condition = "org.apache.cassandra.db.compaction.CursorCompactorCloseTest.isTestTable($0.ssTableReader().descriptor.cfname)",
             action = "org.apache.cassandra.db.compaction.CursorCompactorCloseTest.closed.incrementAndGet()"),
+    @BMRule(name = "note the cursor index writers built for the test's table",
+            targetClass = "org.apache.cassandra.io.sstable.format.SortedTableWriter",
+            targetMethod = "newCursorIndexWriter",
+            targetLocation = "AT EXIT",
+            condition = "org.apache.cassandra.db.compaction.CursorCompactorCloseTest.isTestTable($0.descriptor.cfname)",
+            action = "org.apache.cassandra.db.compaction.CursorCompactorCloseTest.indexWritersBuilt.add($!)"),
     @BMRule(name = "count closed cursor index writers",
             targetClass = "^org.apache.cassandra.io.sstable.CursorIndexWriter",
             targetMethod = "close",
             targetLocation = "AT ENTRY",
+            condition = "org.apache.cassandra.db.compaction.CursorCompactorCloseTest.indexWritersBuilt.contains($0)",
             action = "org.apache.cassandra.db.compaction.CursorCompactorCloseTest.indexWritersClosed.incrementAndGet()"),
     @BMRule(name = "note that a partition was started",
             targetClass = "org.apache.cassandra.io.sstable.SSTableCursorWriter",
             targetMethod = "writePartitionStart",
             targetLocation = "AT EXIT",
+            condition = "org.apache.cassandra.db.compaction.CursorCompactorCloseTest.isTestThread()",
             action = "org.apache.cassandra.db.compaction.CursorCompactorCloseTest.partitionStarted = true"),
     @BMRule(name = "stop once a partition is started",
             targetClass = "org.apache.cassandra.db.compaction.CompactionInfo$Holder",
             targetMethod = "isStopRequested",
             targetLocation = "AT ENTRY",
             condition = "org.apache.cassandra.db.compaction.CursorCompactorCloseTest.stopInFirstPartition " +
-                        "&& org.apache.cassandra.db.compaction.CursorCompactorCloseTest.partitionStarted",
+                        "&& org.apache.cassandra.db.compaction.CursorCompactorCloseTest.partitionStarted " +
+                        "&& org.apache.cassandra.db.compaction.CursorCompactorCloseTest.isTestThread()",
             action = "return true"),
     @BMRule(name = "fail while finishing the output",
             targetClass = "CursorCompactor",
             targetMethod = "writerRollover",
             targetLocation = "AT ENTRY",
-            condition = "org.apache.cassandra.db.compaction.CursorCompactorCloseTest.failFinish",
+            condition = "org.apache.cassandra.db.compaction.CursorCompactorCloseTest.failFinish " +
+                        "&& org.apache.cassandra.db.compaction.CursorCompactorCloseTest.isTestThread()",
             action = "throw new RuntimeException(\"injected finish failure\")")
 })
 public class CursorCompactorCloseTest extends CQLTester
@@ -94,6 +110,12 @@ public class CursorCompactorCloseTest extends CQLTester
     public static final AtomicInteger opened = new AtomicInteger();
     public static final AtomicInteger closed = new AtomicInteger();
     public static final AtomicInteger indexWritersClosed = new AtomicInteger();
+    /** By identity: the cursor index writers that the test table's writers built. */
+    public static final Set<Object> indexWritersBuilt = Collections.synchronizedSet(Collections.newSetFromMap(new IdentityHashMap<>()));
+    /** The table whose cursors and cursor index writers are counted; null counts none. */
+    private static volatile String testTable;
+    /** The thread that runs the test's compaction steps; the stop and the injected failure act only on it. */
+    private static volatile Thread testThread;
     public static volatile boolean partitionStarted;
     public static volatile boolean stopInFirstPartition;
     public static volatile boolean failFinish;
@@ -107,6 +129,9 @@ public class CursorCompactorCloseTest extends CQLTester
         opened.set(0);
         closed.set(0);
         indexWritersClosed.set(0);
+        indexWritersBuilt.clear();
+        testTable = null;
+        testThread = Thread.currentThread();
         partitionStarted = false;
         stopInFirstPartition = false;
         failFinish = false;
@@ -114,9 +139,21 @@ public class CursorCompactorCloseTest extends CQLTester
         Ref.setOnLeak(leaks::add);
     }
 
+    public static boolean isTestTable(String table)
+    {
+        return table.equals(testTable);
+    }
+
+    public static boolean isTestThread()
+    {
+        return Thread.currentThread() == testThread;
+    }
+
     @After
     public void restore()
     {
+        testTable = null;
+        testThread = null;
         stopInFirstPartition = false;
         failFinish = false;
         Ref.setOnLeak(null);
@@ -186,6 +223,8 @@ public class CursorCompactorCloseTest extends CQLTester
         {
             DatabaseDescriptor.setCursorCompactionEnabled(cursorEnabled);
         }
+        assertEquals("one cursor index writer per committed output must be built",
+                     cfs.getLiveSSTables().size(), indexWritersBuilt.size());
         assertEquals("one cursor index writer per committed output must be closed",
                      cfs.getLiveSSTables().size(), indexWritersClosed.get());
         assertCursorsClosedAndNoLeaks();
@@ -294,6 +333,7 @@ public class CursorCompactorCloseTest extends CQLTester
 
     private void assertAbortedOutputClosedItsIndexWriter()
     {
+        assertEquals("the aborted output must build one cursor index writer", 1, indexWritersBuilt.size());
         assertEquals("the aborted output must close its cursor index writer", 1, indexWritersClosed.get());
     }
 
@@ -316,6 +356,7 @@ public class CursorCompactorCloseTest extends CQLTester
         createTable("CREATE TABLE %s (pk bigint, ck bigint, v text, PRIMARY KEY (pk, ck))");
         ColumnFamilyStore cfs = getCurrentColumnFamilyStore();
         cfs.disableAutoCompaction();
+        testTable = cfs.name;
         for (int round = 0; round < 2; round++)
         {
             for (long pk = 0; pk < 20; pk++)

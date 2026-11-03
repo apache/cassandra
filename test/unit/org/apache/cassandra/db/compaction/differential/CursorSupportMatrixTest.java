@@ -29,6 +29,7 @@ import org.mockito.Mockito;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.cql3.CQLTester;
 import org.apache.cassandra.db.ColumnFamilyStore;
+import org.apache.cassandra.db.SerializationHeader;
 import org.apache.cassandra.db.compaction.AbstractCompactionStrategy;
 import org.apache.cassandra.db.compaction.CompactionController;
 import org.apache.cassandra.db.compaction.CompactionManager;
@@ -41,7 +42,9 @@ import org.apache.cassandra.io.sstable.format.SSTableReader;
 import org.apache.cassandra.io.sstable.format.SSTableWriter;
 import org.apache.cassandra.io.sstable.format.SortedTableWriter;
 import org.apache.cassandra.io.sstable.format.big.BigFormat;
+import org.apache.cassandra.io.sstable.format.big.BigTableWriter;
 import org.apache.cassandra.io.sstable.format.bti.BtiFormat;
+import org.apache.cassandra.io.sstable.format.bti.BtiTableWriter;
 import org.apache.cassandra.notifications.INotificationConsumer;
 import org.apache.cassandra.notifications.SSTableListChangedNotification;
 import org.apache.cassandra.schema.ColumnMetadata;
@@ -217,6 +220,59 @@ public class CursorSupportMatrixTest extends CQLTester
         // the table is supported again once the real format is back
         assertTrue("expected the table to be cursor-supported again under the real format",
                    isSupportedNow(cfs));
+    }
+
+    /**
+     * A format whose cursor index writer factory takes a writer that is not a SortedTableWriter is refused
+     * by isSupported, so the compaction falls back before it opens any cursor.
+     */
+    @Test
+    public void factoryForWriterThatIsNotSortedTableWriterUnsupported() throws Exception
+    {
+        ColumnFamilyStore cfs =
+            twoSSTableTable("CREATE TABLE %s (pk bigint, ck bigint, v text, PRIMARY KEY (pk, ck))",
+                            "INSERT INTO %s (pk, ck, v) VALUES (1, 1, 'x')",
+                            "INSERT INTO %s (pk, ck, v) VALUES (1, 2, 'y')");
+        assertTrue("expected a plain two-sstable table to be cursor-supported", isSupportedNow(cfs));
+
+        CursorIndexWriter.Factory wrongWriter = new CursorIndexWriter.Factory()
+        {
+            @Override
+            public Class<? extends SSTableWriter> writerClass()
+            {
+                return SSTableWriter.class;
+            }
+
+            @Override
+            public CursorIndexWriter create(SortedTableWriter<?, ?> writer, SerializationHeader header)
+            {
+                throw new AssertionError("isSupported must refuse this factory before any writer is built");
+            }
+        };
+        SSTableFormat<?, ?> original = DatabaseDescriptor.getSelectedSSTableFormat();
+        SSTableFormat<?, ?> format = Mockito.mock(SSTableFormat.class, Mockito.CALLS_REAL_METHODS);
+        Mockito.doReturn(wrongWriter).when(format).cursorIndexWriterFactory();
+
+        DatabaseDescriptor.setSelectedSSTableFormat(format);
+        try
+        {
+            assertFalse("cursor compaction must refuse a format whose cursor index writer factory takes a " +
+                        "writer that is not a SortedTableWriter",
+                        isSupportedNow(cfs));
+        }
+        finally
+        {
+            DatabaseDescriptor.setSelectedSSTableFormat(original);
+        }
+        assertTrue("expected the table to be cursor-supported again under the real format", isSupportedNow(cfs));
+    }
+
+    /** The shipped formats name the writer class their factory takes, and it is a SortedTableWriter. */
+    @Test
+    public void shippedFactoriesNameTheirWriterClass()
+    {
+        assertEquals(BigTableWriter.class, DatabaseDescriptor.getSSTableFormats().get(BigFormat.NAME).cursorIndexWriterFactory().writerClass());
+        assertEquals(BtiTableWriter.class, DatabaseDescriptor.getSSTableFormats().get(BtiFormat.NAME).cursorIndexWriterFactory().writerClass());
     }
 
     /** The BTI factory given a BIG writer fails with a message that names the format and the writer class. */

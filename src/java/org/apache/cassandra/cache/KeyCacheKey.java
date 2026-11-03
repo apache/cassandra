@@ -44,12 +44,12 @@ public class KeyCacheKey extends CacheKey
         assert this.key != null;
     }
 
-    /** Keeps the given array, so a caller that looks one key up in many sstables copies its bytes once. */
-    public KeyCacheKey(TableMetadata tableMetadata, Descriptor desc, byte[] key)
+    /** For {@link ReusableKeyCacheKey}, which keeps its key bytes in fields of its own. */
+    protected KeyCacheKey(TableMetadata tableMetadata, Descriptor desc)
     {
         super(tableMetadata);
         this.desc = desc;
-        this.key = key;
+        this.key = null;
     }
 
     private KeyCacheKey() // Only for EMPTY_SIZE
@@ -73,6 +73,7 @@ public class KeyCacheKey extends CacheKey
     public boolean equals(Object o)
     {
         if (this == o) return true;
+        if (o instanceof ReusableKeyCacheKey) return o.equals(this);
         if (o == null || getClass() != o.getClass()) return false;
 
         KeyCacheKey that = (KeyCacheKey) o;

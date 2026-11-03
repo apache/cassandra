@@ -22,10 +22,12 @@ import java.nio.ByteBuffer;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 import java.util.Random;
+import java.util.Set;
 import java.util.concurrent.TimeUnit;
 
 import com.google.common.collect.ImmutableList;
@@ -198,12 +200,15 @@ public class RandomDifferentialCompactionTest extends DifferentialCompactionTest
     /** Generates a random table restricted to the surface the cursor pipeline supports. */
     private static TableMetadata generateSupportedMetadata(long seed, JavaRandom qtRandom, Random workload)
     {
-        // Every example shares KEYSPACE, and the user types are created with IF NOT EXISTS, so a name
-        // reused by a later example would bind it to an earlier type of another shape. The seed suffix
-        // keeps names apart across examples without drawing from the random source, so a replayed seed
-        // still generates the same schema.
-        String suffix = "_" + Long.toHexString(seed);
+        // Every example shares KEYSPACE. The user types are created with IF NOT EXISTS, so a name reused
+        // by a later example would bind it to an earlier type of another shape, and a reused table name
+        // fails the CREATE TABLE. The seed suffix keeps names apart across examples without drawing from
+        // the random source, so a replayed seed still generates the same schema apart from the names.
+        String suffix = seedSuffix(seed);
         Gen<String> udtName = Generators.unique(IDENTIFIER_GEN).map(name -> name + suffix);
+        // Not Generators.unique: a redraw of the schema could then draw the name again, and the draws
+        // would no longer match the default table name generator's.
+        Gen<String> tableName = IDENTIFIER_GEN.map(name -> name + suffix);
         TypeGenBuilder safePrimary = AbstractTypeGenerators.withoutUnsafeEquality().withUDTNames(udtName);
         TableMetadata metadata;
         do
@@ -213,6 +218,7 @@ public class RandomDifferentialCompactionTest extends DifferentialCompactionTest
                                                              : workload.nextInt(4);
             metadata = new TableMetadataBuilder()
                        .withKeyspaceName(KEYSPACE)
+                       .withTableName(tableName)
                        .withTableKinds(TableMetadata.Kind.REGULAR)
                        .withKnownMemtables()
                        .withDefaultTypeGen(AbstractTypeGenerators.builder()
@@ -234,6 +240,32 @@ public class RandomDifferentialCompactionTest extends DifferentialCompactionTest
 
         return metadata;
     }
+
+    private static String seedSuffix(long seed)
+    {
+        return "_" + Long.toHexString(seed);
+    }
+
+    /**
+     * The examples of one run share KEYSPACE, so their table names must differ, or a later CREATE TABLE
+     * fails. Generates the schemas of a run without running the examples.
+     */
+    @Test
+    public void tableNamesDifferAcrossTheExamplesOfARun() throws Throwable
+    {
+        Set<String> names = new HashSet<>();
+        new SeedRunner(EXAMPLES).withFixedSeed(TABLE_NAME_RUN_SEED).run(seed -> {
+            TableMetadata metadata = generateSupportedMetadata(seed, new JavaRandom(seed), new Random(seed));
+            assertTrue("seed " + seed + " generated a table name an earlier example of the run already used: " +
+                       metadata.name, names.add(metadata.name));
+            assertTrue("seed " + seed + " generated a table name without its seed suffix: " + metadata.name,
+                       metadata.name.endsWith(seedSuffix(seed)));
+        });
+        assertEquals(EXAMPLES, names.size());
+    }
+
+    /** The run seed of the Jenkins failure on CREATE TABLE of an existing table. */
+    private static final long TABLE_NAME_RUN_SEED = 1792740226203L;
 
     /** Appends {@code columns[i].name}, joined by separator. */
     private static void appendNames(StringBuilder sb, List<ColumnMetadata> columns, String separator)

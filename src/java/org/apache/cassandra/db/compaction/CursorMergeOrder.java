@@ -222,8 +222,8 @@ final class CursorMergeOrder
     }
 
     /**
-     * Steps the row merge, and puts the source whose clustering the iterator path writes at the
-     * front of the group.  Call once per row or marker of the partition.
+     * Steps the row merge, and makes the cursor whose clustering the iterator path writes the first
+     * cursor of the merge group.  Call once per row or marker of the partition.
      */
     void orderUnfilteredGroup(StatefulCursor[] sstableCursors, boolean[] equalsNext, int unfilteredMergeLimit)
     {

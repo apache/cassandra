@@ -133,10 +133,19 @@ public class CursorCompactor extends CompactionInfo.Holder
 
         if (unsupportedScanners(metadata, scanners))
             return false;
-        if (DatabaseDescriptor.getSelectedSSTableFormat().cursorIndexWriterFactory() == null)
+        CursorIndexWriter.Factory indexWriterFactory = DatabaseDescriptor.getSelectedSSTableFormat().cursorIndexWriterFactory();
+        if (indexWriterFactory == null)
         {
             LOGGER.debug("Cursor compaction is not supported for {}.{}: the selected sstable output format {} does not support it",
                          metadata.keyspace, metadata.name, DatabaseDescriptor.getSelectedSSTableFormat());
+            return false;
+        }
+        // The writer is cast to a SortedTableWriter once per output sstable; checking the class here
+        // falls back before any cursor is open.
+        if (!SortedTableWriter.class.isAssignableFrom(indexWriterFactory.writerClass()))
+        {
+            LOGGER.debug("Cursor compaction is not supported for {}.{}: the selected sstable output format {} writes with {}, which is not a SortedTableWriter",
+                         metadata.keyspace, metadata.name, DatabaseDescriptor.getSelectedSSTableFormat(), indexWriterFactory.writerClass().getName());
             return false;
         }
         // TODO: Implement CompactionIterator.GarbageSkipper like functionality
@@ -859,7 +868,7 @@ public class CursorCompactor extends CompactionInfo.Holder
             rowMergeCounters[rowMergeLimit - 1]++;
         }
 
-        // The cell sorts reorder the group, so the clustering source is taken now
+        // The cell sorts reorder the cursors, so the cursor whose clustering the row is written with is taken now
         rowSource = sstableCursors[0];
         foldRowLivenessAndDeletion(rowMergeLimit);
         DeletionTime rowActiveDeletion = applyRowPurge(partitionActiveDeletion);
@@ -930,7 +939,7 @@ public class CursorCompactor extends CompactionInfo.Holder
 
     private final MergedRow mergedRow = new MergedRow();
 
-    /** The source whose clustering the current row writes: the group's front when the row merge starts. */
+    /** The cursor whose clustering the current row is written with: the first cursor of the merge group when the row merge starts. */
     private StatefulCursor rowSource;
 
     /**
