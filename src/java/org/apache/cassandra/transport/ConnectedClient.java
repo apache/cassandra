@@ -165,8 +165,9 @@ public final class ConnectedClient
     }
 
     /**
-     * @return true once the client has authenticated (has a user). Clients that have sent STARTUP but not yet
-     * logged in are not shown in operator-facing views, since their options are attacker-controlled pre-auth.
+     * @return true once the client has authenticated (has a user).
+     * Unauthenticated clients may still be visible in operator-facing views,
+     * but client-supplied metadata is withheld until authentication.
      */
     public boolean loggedIn()
     {
@@ -175,18 +176,16 @@ public final class ConnectedClient
 
     public Map<String, String> asMap()
     {
-        return asMap(true);
-    }
-
-    public Map<String, String> asMap(boolean displayWhenUnauthenticated)
-    {
-        if (!displayWhenUnauthenticated && !loggedIn())
-            return null;
-
-        return ImmutableMap.<String, String>builder()
-                           .put(ADDRESS, remoteAddress().toString())
-                           .put(USER, username().orElse(UNDEFINED))
-                           .put(VERSION, String.valueOf(protocolVersion()))
+        ImmutableMap.Builder<String, String> builder = ImmutableMap.<String, String>builder()
+                                                                   .put(ADDRESS, remoteAddress().toString())
+                                                                   .put(VERSION, String.valueOf(protocolVersion()))
+                                                                   .put(REQUESTS, String.valueOf(requestCount()))
+                                                                   .put(SSL, Boolean.toString(sslEnabled()))
+                                                                   .put(CIPHER, sslCipherSuite().orElse(UNDEFINED))
+                                                                   .put(PROTOCOL, sslProtocol().orElse(UNDEFINED));
+        if (loggedIn())
+        {
+            builder.put(USER, username().orElse(UNDEFINED))
                            .put(CLIENT_OPTIONS, clientOptions().orElse(Collections.emptyMap())
                                                                .entrySet()
                                                                .stream()
@@ -194,16 +193,14 @@ public final class ConnectedClient
                                                                .collect(Collectors.joining(", ")))
                            .put(DRIVER_NAME, driverName().orElse(UNDEFINED))
                            .put(DRIVER_VERSION, driverVersion().orElse(UNDEFINED))
-                           .put(REQUESTS, String.valueOf(requestCount()))
                            .put(KEYSPACE, keyspace().orElse(""))
-                           .put(SSL, Boolean.toString(sslEnabled()))
-                           .put(CIPHER, sslCipherSuite().orElse(UNDEFINED))
-                           .put(PROTOCOL, sslProtocol().orElse(UNDEFINED))
                            .put(AUTHENTICATION_MODE, authenticationMode().toString())
                            .put(AUTHENTICATION_METADATA, Joiner.on(", ")
                                                                .withKeyValueSeparator("=")
                                                                .join(authenticationMetadata()))
                            .build();
+        }
+        return builder.build();
     }
 
     /**

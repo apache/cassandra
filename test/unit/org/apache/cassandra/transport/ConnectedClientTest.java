@@ -38,19 +38,14 @@ public class ConnectedClientTest
     }
 
     @Test
-    public void clientIsNotVisibleUntilAuthenticated()
+    public void loggedInReflectsAuthenticationState()
     {
         ServerConnection connection = mock(ServerConnection.class);
         ClientState state = mock(ClientState.class);
         when(connection.getClientState()).thenReturn(state);
         ConnectedClient client = new ConnectedClient(connection);
-
-        // sent STARTUP but not logged in yet: no authenticated user -> must not surface in operator-facing views
         when(state.getUser()).thenReturn(null);
         Assert.assertFalse(client.loggedIn());
-        Assert.assertNull(client.asMap(false));
-
-        // once authenticated it becomes visible
         when(state.getUser()).thenReturn(new AuthenticatedUser("test"));
         Assert.assertTrue(client.loggedIn());
     }
