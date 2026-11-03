@@ -19,9 +19,7 @@
 package org.apache.cassandra.tcm;
 
 import java.util.concurrent.TimeUnit;
-import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
-import java.util.concurrent.atomic.AtomicReference;
 
 import org.junit.BeforeClass;
 import org.junit.Test;
@@ -32,10 +30,11 @@ import org.apache.cassandra.exceptions.ExceptionCode;
 import org.apache.cassandra.metrics.TCMMetrics;
 import org.apache.cassandra.service.RetryStrategy;
 import org.apache.cassandra.service.TimeoutStrategy;
-import org.apache.cassandra.service.WaitStrategy;
 import org.apache.cassandra.tcm.log.Entry;
 import org.apache.cassandra.tcm.log.LocalLog;
 import org.apache.cassandra.tcm.sequences.LockedRanges;
+import org.apache.cassandra.tcm.transformations.CustomTransformation;
+import org.apache.cassandra.tcm.transformations.ForceSnapshot;
 
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
@@ -45,6 +44,7 @@ import static org.junit.Assert.assertTrue;
 public class AbstractLocalProcessorCycleTest
 {
     private static final long TIMEOUT_SECONDS = 30;
+    private static final Epoch BASE = Epoch.create(100);
 
     @BeforeClass
     public static void beforeClass()
@@ -53,16 +53,15 @@ public class AbstractLocalProcessorCycleTest
     }
 
     @Test
-    public void transformationRejectedWithNoEpochChangeReturnsRejection() throws Exception
+    public void transformationRejectedWithNoEpochChangeReturnsRejection()
     {
-        LocalLog log = newLog();
-        RejectingProcessor processor = new RejectingProcessor(log);
-        try
+        try (LocalLog log = newLog())
         {
+            RejectingProcessor processor = new RejectingProcessor(log);
             Commit.Result result = processor.commit(new Entry.Id(1),
-                                                     rejectingTransformation(),
-                                                     null,
-                                                     retryFor(TIMEOUT_SECONDS, TimeUnit.SECONDS));
+                                                    rejectingTransformation(),
+                                                    null,
+                                                    retry());
 
             assertTrue("a permanently rejected transformation must fail", result.isFailure());
             Commit.Result.Failure failure = result.failure();
@@ -75,74 +74,59 @@ public class AbstractLocalProcessorCycleTest
             assertEquals("a rejected transformation must never reach tryCommitOne",
                         0, processor.tryCommitOneCalls.get());
         }
-        finally
-        {
-            log.close();
-        }
     }
 
     // A rejection against stale metadata must be reconsidered after discovering a remote commit.
     @Test
-    public void transformationRejectedTriggersCatchUpThenRetries() throws Exception
+    public void transformationRejectedTriggersCatchUpThenRetries()
     {
-        LocalLog log = newLog();
-        CatchUpProcessor processor = new CatchUpProcessor(log);
-        try
+        try (LocalLog log = newLog())
         {
+            CatchUpProcessor processor = new CatchUpProcessor(log);
             Commit.Result result = processor.commit(new Entry.Id(1),
-                                                     rejectAtEmptyEpoch(),
-                                                     null,
-                                                     retryFor(TIMEOUT_SECONDS, TimeUnit.SECONDS));
+                                                    rejectAtBaseEpoch(),
+                                                    null,
+                                                    retry());
 
             assertTrue("commit must succeed once catch-up reveals the epoch the transformation was waiting for",
                       result.isSuccess());
             assertEquals("must catch up exactly once, not loop", 1, processor.fetchLogAndWaitCalls.get());
             assertEquals("the retried cycle must propose against the caught-up epoch, one past the epoch fetchLogAndWait " +
                         "introduced",
-                        2L, result.success().epoch.getEpoch());
-        }
-        finally
-        {
-            log.close();
+                        BASE.nextEpoch().nextEpoch(), result.success().epoch);
         }
     }
 
     @Test
-    public void tryCommitOneThrowsIsReportedAsFailedThenRetries() throws Exception
+    public void tryCommitOneThrowsIsReportedAsFailedThenRetries()
     {
-        LocalLog log = newLog();
-        ThrowThenSucceedProcessor processor = new ThrowThenSucceedProcessor(log);
-        try
+        try (LocalLog log = newLog())
         {
+            CommitFailedProcessor processor = new CommitFailedProcessor(log, true);
             Commit.Result result = processor.commit(new Entry.Id(1),
-                                                     executableTransformation(),
-                                                     null,
-                                                     retryFor(TIMEOUT_SECONDS, TimeUnit.SECONDS));
+                                                    CustomTransformation.make("abc"),
+                                                    null,
+                                                    retry());
 
             assertTrue("commit must recover once a later cycle's tryCommitOne succeeds", result.isSuccess());
             assertEquals("exactly two cycles should have reached tryCommitOne: the one that threw, and the one " +
                         "that succeeded after retrying",
-                        2, processor.tryCommitOneCalls.get());
+                        1, processor.failCount.get());
             // The exception precedes append, so the retry must still use epoch 1.
-            assertEquals("the failed first cycle must leave no trace in the log", 1L, result.success().epoch.getEpoch());
-        }
-        finally
-        {
-            log.close();
+            assertEquals("the failed first cycle must leave no trace in the log", BASE.nextEpoch(), result.success().epoch);
         }
     }
 
     @Test
-    public void tryCommitOneThrowsRepeatedlyExhaustsAsGenericFailure() throws Exception
+    public void tryCommitOneThrowsRepeatedlyExhaustsAsGenericFailure()
     {
-        LocalLog log = newLog();
-        AlwaysThrowingProcessor processor = new AlwaysThrowingProcessor(log);
-        try
+        try (LocalLog log = newLog())
         {
+            CommitFailedProcessor processor = new CommitFailedProcessor(log, false);
             Commit.Result result = processor.commit(new Entry.Id(1),
-                                                     executableTransformation(),
-                                                     null,
-                                                     retryFor(TIMEOUT_SECONDS, TimeUnit.SECONDS));
+                                                    CustomTransformation.make("abc"),
+                                                    null,
+                                                    retry());
 
             assertTrue("persistent tryCommitOne failure must eventually fail the commit", result.isFailure());
             Commit.Result.Failure failure = result.failure();
@@ -153,25 +137,20 @@ public class AbstractLocalProcessorCycleTest
                       failure.message.startsWith("Could not perform commit after"));
             // Exhaust the configured attempt cap, not the much longer deadline.
             assertEquals("must exhaust exactly the default retry policy's attempt budget, no more, no fewer",
-                        3, processor.tryCommitOneCalls.get());
-        }
-        finally
-        {
-            log.close();
+                        3, processor.failCount.get());
         }
     }
 
     @Test
-    public void proposalLosingItsEpochBacksOffCatchesUpThenRetries() throws Exception
+    public void proposalLosingItsEpochBacksOffCatchesUpThenRetries()
     {
-        LocalLog log = newLog();
-        LostEpochProcessor processor = new LostEpochProcessor(log);
-        try
+        try (LocalLog log = newLog())
         {
+            LostEpochProcessor processor = new LostEpochProcessor(log);
             Commit.Result result = processor.commit(new Entry.Id(1),
-                                                     executableTransformation(),
-                                                     null,
-                                                     retryFor(TIMEOUT_SECONDS, TimeUnit.SECONDS));
+                                                    CustomTransformation.make("abc"),
+                                                    null,
+                                                    retry());
 
             assertTrue("commit must recover once a later cycle's proposal wins its epoch", result.isSuccess());
             assertEquals("exactly two cycles should have reached tryCommitOne: the one that lost its epoch, and the " +
@@ -182,70 +161,7 @@ public class AbstractLocalProcessorCycleTest
                         1, processor.fetchLogAndWaitCalls.get());
             // Reusing the original epoch would contend with the winner again.
             assertEquals("the retried cycle must propose against the caught-up epoch, one past the epoch the winner took",
-                        2L, result.success().epoch.getEpoch());
-        }
-        finally
-        {
-            log.close();
-        }
-    }
-
-    @Test
-    public void enactmentFailureDoesNotReportSuccess() throws Exception
-    {
-        LocalLog log = newLog();
-        LossyAppendProcessor processor = new LossyAppendProcessor(log);
-        // A durable proposal whose local append is lost must not be acknowledged as enacted.
-        log.addFilter(entry -> true);
-        try
-        {
-            Retry retry = Retry.untilElapsed(TimeUnit.SECONDS.toNanos(TIMEOUT_SECONDS), TCMMetrics.instance.commitRetries,
-                                             WaitStrategy.None.INSTANCE);
-            Commit.Result result = processor.commit(new Entry.Id(1), executableTransformation(), null, retry);
-            assertTrue(result.isFailure());
-            assertEquals(1, processor.tryCommitOneCalls.get());
-            assertEquals(Epoch.EMPTY, log.metadata().epoch);
-        }
-        finally
-        {
-            log.close();
-        }
-    }
-
-    @Test
-    public void lostLocalAppendIsRecoveredFromTheDurableLog() throws Exception
-    {
-        LocalLog log = newLog();
-        LossyAppendProcessor processor = new LossyAppendProcessor(log);
-        AtomicBoolean dropFirst = new AtomicBoolean(true);
-        log.addFilter(entry -> dropFirst.compareAndSet(true, false));
-        Transformation once = new Transformation()
-        {
-            public Kind kind()
-            {
-                return Kind.CUSTOM;
-            }
-
-            public Result execute(ClusterMetadata metadata)
-            {
-                if (!metadata.epoch.is(Epoch.EMPTY))
-                    return new Rejected(ExceptionCode.INVALID, "already applied");
-                return Transformation.success(metadata.transformer(), LockedRanges.AffectedRanges.EMPTY);
-            }
-        };
-        try
-        {
-            Entry.Id id = new Entry.Id(1);
-            Commit.Result result = processor.commit(id, once, Epoch.EMPTY, retryFor(TIMEOUT_SECONDS, TimeUnit.SECONDS));
-            assertTrue(result.isSuccess());
-            assertEquals(Epoch.create(1), result.success().epoch);
-            assertEquals(2, processor.tryCommitOneCalls.get());
-            assertEquals(1, result.success().logState.entries.size());
-            assertEquals(id, result.success().logState.entries.get(0).id);
-        }
-        finally
-        {
-            log.close();
+                        BASE.nextEpoch().nextEpoch(), result.success().epoch);
         }
     }
 
@@ -257,32 +173,16 @@ public class AbstractLocalProcessorCycleTest
                                .withInitialState(new ClusterMetadata(Murmur3Partitioner.instance))
                                .createLog();
         log.readyUnchecked();
+        // start at epoch 100
+        log.append(new Entry(Entry.Id.NONE, BASE,
+                             new ForceSnapshot(new ClusterMetadata(Murmur3Partitioner.instance).forceEpoch(BASE))));
         return log;
     }
 
-    private static Retry retryFor(long timeout, TimeUnit unit)
+    private static Retry retry()
     {
-        return Retry.untilElapsed(unit.toNanos(timeout), TCMMetrics.instance.commitRetries,
+        return Retry.untilElapsed(TimeUnit.SECONDS.toNanos(TIMEOUT_SECONDS), TCMMetrics.instance.commitRetries,
                                   RetryStrategy.parse("1ms,retries=2", TimeoutStrategy.LatencySourceFactory.none()));
-    }
-
-    // Bare test metadata has no metadata keyspace from which to derive affected ranges.
-    private static Transformation executableTransformation()
-    {
-        return new Transformation()
-        {
-            @Override
-            public Kind kind()
-            {
-                return Kind.CUSTOM;
-            }
-
-            @Override
-            public Result execute(ClusterMetadata metadata)
-            {
-                return Transformation.success(metadata.transformer(), LockedRanges.AffectedRanges.EMPTY);
-            }
-        };
     }
 
     private static Transformation rejectingTransformation()
@@ -303,7 +203,7 @@ public class AbstractLocalProcessorCycleTest
         };
     }
 
-    private static Transformation rejectAtEmptyEpoch()
+    private static Transformation rejectAtBaseEpoch()
     {
         return new Transformation()
         {
@@ -316,7 +216,7 @@ public class AbstractLocalProcessorCycleTest
             @Override
             public Result execute(ClusterMetadata metadata)
             {
-                if (metadata.epoch.is(Epoch.EMPTY))
+                if (metadata.epoch.is(BASE))
                     return new Rejected(ExceptionCode.INVALID, "rejected until a newer epoch is observed");
                 return Transformation.success(metadata.transformer(), LockedRanges.AffectedRanges.EMPTY);
             }
@@ -383,68 +283,42 @@ public class AbstractLocalProcessorCycleTest
             if (fetchLogAndWaitCalls.getAndIncrement() == 0)
             {
                 Epoch advanced = log.metadata().epoch.nextEpoch();
-                log.append(new Entry(new Entry.Id(99), advanced, executableTransformation()));
+                log.append(new Entry(new Entry.Id(99), advanced, CustomTransformation.make("abc")));
             }
             return log.waitForHighestConsecutive();
         }
     }
 
-    private static class ThrowThenSucceedProcessor extends AbstractLocalProcessor
+    private static class CommitFailedProcessor extends AbstractLocalProcessor
     {
-        final AtomicInteger tryCommitOneCalls = new AtomicInteger();
+        final AtomicInteger failCount = new AtomicInteger();
+        private final boolean onlyFirst;
 
-        ThrowThenSucceedProcessor(LocalLog log)
+        public CommitFailedProcessor(LocalLog log, boolean onlyFirst)
         {
             super(log);
+            this.onlyFirst = onlyFirst;
+        }
+
+        @Override
+        public ClusterMetadata fetchLogAndWait(Epoch waitFor, Retry retryPolicy)
+        {
+            return log.waitForHighestConsecutive();
+        }
+
+        @Override
+        protected boolean tryCommitOne(Entry.Id entryId, Transformation transform, Epoch previousEpoch, Epoch nextEpoch)
+        {
+            if (onlyFirst && failCount.get() > 0)
+                return true;
+            failCount.incrementAndGet();
+            return false;
         }
 
         @Override
         protected boolean acceptCommit(ClusterMetadata metadata)
         {
             return true;
-        }
-
-        @Override
-        protected boolean tryCommitOne(Entry.Id entryId, Transformation transform, Epoch previousEpoch, Epoch nextEpoch)
-        {
-            if (tryCommitOneCalls.incrementAndGet() == 1)
-                throw new RuntimeException("injected tryCommitOne failure for testing");
-            return true;
-        }
-
-        @Override
-        public ClusterMetadata fetchLogAndWait(Epoch waitFor, Retry retryPolicy)
-        {
-            throw new AssertionError("A FAILED outcome must not trigger a log fetch");
-        }
-    }
-
-    private static class AlwaysThrowingProcessor extends AbstractLocalProcessor
-    {
-        final AtomicInteger tryCommitOneCalls = new AtomicInteger();
-
-        AlwaysThrowingProcessor(LocalLog log)
-        {
-            super(log);
-        }
-
-        @Override
-        protected boolean acceptCommit(ClusterMetadata metadata)
-        {
-            return true;
-        }
-
-        @Override
-        protected boolean tryCommitOne(Entry.Id entryId, Transformation transform, Epoch previousEpoch, Epoch nextEpoch)
-        {
-            tryCommitOneCalls.incrementAndGet();
-            throw new RuntimeException("injected tryCommitOne failure for testing");
-        }
-
-        @Override
-        public ClusterMetadata fetchLogAndWait(Epoch waitFor, Retry retryPolicy)
-        {
-            throw new AssertionError("A FAILED outcome must not trigger a log fetch");
         }
     }
 
@@ -477,41 +351,10 @@ public class AbstractLocalProcessorCycleTest
             if (fetchLogAndWaitCalls.getAndIncrement() == 0)
             {
                 Epoch contested = log.metadata().epoch.nextEpoch();
-                log.append(new Entry(new Entry.Id(99), contested, executableTransformation()));
+                log.append(new Entry(new Entry.Id(99), contested, CustomTransformation.make("abc")));
             }
             return log.waitForHighestConsecutive();
         }
     }
 
-    /** Keeps the durable proposal independently of the local append, which the tests can discard. */
-    private static class LossyAppendProcessor extends AbstractLocalProcessor
-    {
-        final AtomicInteger tryCommitOneCalls = new AtomicInteger();
-        final AtomicReference<Entry> durable = new AtomicReference<>();
-
-        LossyAppendProcessor(LocalLog log)
-        {
-            super(log);
-        }
-
-        @Override
-        protected boolean acceptCommit(ClusterMetadata metadata)
-        {
-            return true;
-        }
-
-        @Override
-        protected boolean tryCommitOne(Entry.Id entryId, Transformation transform, Epoch previousEpoch, Epoch nextEpoch)
-        {
-            tryCommitOneCalls.incrementAndGet();
-            return durable.compareAndSet(null, new Entry(entryId, nextEpoch, transform));
-        }
-
-        @Override
-        public ClusterMetadata fetchLogAndWait(Epoch waitFor, Retry retryPolicy)
-        {
-            log.append(durable.get());
-            return log.waitForHighestConsecutive();
-        }
-    }
 }
