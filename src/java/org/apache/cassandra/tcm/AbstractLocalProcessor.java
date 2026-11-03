@@ -108,7 +108,7 @@ public abstract class AbstractLocalProcessor implements Processor
                              !result.success().metadata.inProgressSequences.isEmpty())
                     {
                         result = new Transformation.Rejected(INVALID, String.format("Committing %s would bump the serialization version from %s to %s," +
-                                                                                    " which is not allowed when having ongoing multi step operations (%s) - see CASSANDRA-XYZ",
+                                                                                    " which is not allowed when having ongoing multi step operations (%s) - see CASSANDRA-21582",
                                                                                     transform, previousVersion, newVersion, result.success().metadata.inProgressSequences));
                     }
                 }
