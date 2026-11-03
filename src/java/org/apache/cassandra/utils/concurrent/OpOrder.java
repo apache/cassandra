@@ -22,6 +22,8 @@ import java.util.concurrent.ConcurrentLinkedQueue;
 import java.util.concurrent.atomic.AtomicIntegerFieldUpdater;
 import java.util.concurrent.atomic.AtomicReferenceFieldUpdater;
 
+import com.google.common.annotations.VisibleForTesting;
+
 import static org.apache.cassandra.utils.concurrent.WaitQueue.newWaitQueue;
 
 /**
@@ -276,6 +278,12 @@ public class OpOrder
         public OpOrder.Group prev()
         {
             return prev;
+        }
+
+        @VisibleForTesting
+        OpOrder.Group next()
+        {
+            return next;
         }
 
         /**

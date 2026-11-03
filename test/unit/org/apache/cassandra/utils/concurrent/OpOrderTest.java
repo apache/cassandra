@@ -18,13 +18,13 @@
 package org.apache.cassandra.utils.concurrent;
 
 import java.lang.ref.WeakReference;
-import java.lang.reflect.Field;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 import java.util.Random;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.ForkJoinPool;
 import java.util.concurrent.ThreadLocalRandom;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
@@ -33,6 +33,8 @@ import java.util.concurrent.atomic.AtomicReference;
 import java.util.concurrent.locks.LockSupport;
 
 import org.junit.Test;
+
+import org.apache.cassandra.utils.FBUtilities;
 
 import static org.awaitility.Awaitility.await;
 import static org.junit.Assert.assertEquals;
@@ -47,9 +49,6 @@ import static org.junit.Assert.fail;
 /// unlinked groups must not keep any later groups reachable.
 public class OpOrderTest
 {
-    private static final Field PREV = field("prev");
-    private static final Field NEXT = field("next");
-
     // Can be increased for longer runs.
     private static final long STRESS_MILLIS = 5000;
     private static final int RACE_ITERATIONS = 200_000;
@@ -58,32 +57,6 @@ public class OpOrderTest
     // Number of spins before waiting threads start yielding, letting the other threads run if there are not enough cores.
     private static final int SPINS_BEFORE_YIELD = 1000;
 
-    private static Field field(String name)
-    {
-        try
-        {
-            Field f = OpOrder.Group.class.getDeclaredField(name);
-            f.setAccessible(true);
-            return f;
-        }
-        catch (NoSuchFieldException e)
-        {
-            throw new AssertionError(e);
-        }
-    }
-
-    private static Object get(Field f, OpOrder.Group group)
-    {
-        try
-        {
-            return f.get(group);
-        }
-        catch (IllegalAccessException e)
-        {
-            throw new AssertionError(e);
-        }
-    }
-
     /// Checks the structure of a group given whether it should be finished (unlinked): unlinked groups must have no
     /// links, and groups that have expired but are not unlinked must still be linked to their successor.
     private static void checkLinks(OpOrder.Group group, boolean expired, boolean finished, String context)
@@ -91,14 +64,14 @@ public class OpOrderTest
         assertEquals(context, finished, group.isFinished());
         if (finished)
         {
-            assertNull(context + ": unlinked group retains its next link", get(NEXT, group));
-            assertNull(context + ": unlinked group retains its prev link", get(PREV, group));
+            assertNull(context + ": unlinked group retains its next link", group.next());
+            assertNull(context + ": unlinked group retains its prev link", group.prev());
             assertTrue(context, group.isOldestLiveGroup());
         }
         else if (expired)
-            assertNotNull(context + ": expired group lost its next link before being unlinked", get(NEXT, group));
+            assertNotNull(context + ": expired group lost its next link before being unlinked", group.next());
         else
-            assertNull(context + ": current group has a next link", get(NEXT, group));
+            assertNull(context + ": current group has a next link", group.next());
     }
 
     @Test
@@ -119,7 +92,26 @@ public class OpOrderTest
         barrier.await();
         checkLinks(op, true, true, "first group");
         assertTrue(later.isOldestLiveGroup());
-        assertNull(get(PREV, later));
+        assertNull(later.prev());
+    }
+
+    @Test
+    public void testSimpleBarrierBlock()
+    {
+        OpOrder order = new OpOrder();
+        OpOrder.Group op = order.start();
+        OpOrder.Barrier barrier = order.newBarrier();
+        barrier.issue();
+        assertTrue(barrier.isAfter(op));
+
+        assertFalse(barrier.allPriorOpsAreFinished());
+        ForkJoinPool.commonPool().execute(() -> {
+            FBUtilities.sleepQuietly(100);
+            op.close();
+        });
+
+        barrier.await();
+        checkLinks(op, true, true, "first group");
     }
 
     /// Explores all sequences (up to the given sizes) of starting operations, issuing barriers and closing operations
@@ -238,7 +230,7 @@ public class OpOrderTest
             op.close();
             assertTrue(barrier.allPriorOpsAreFinished());
         }
-        assertNull(get(NEXT, retained.getSyncPoint()));
+        assertNull(retained.getSyncPoint().next());
 
         // All the later groups except the current one should be collectable.
         await().atMost(5, TimeUnit.SECONDS)
@@ -282,7 +274,7 @@ public class OpOrderTest
             assertTrue(barrierB.allPriorOpsAreFinished());
             checkLinks(barrierA.getSyncPoint(), true, true, "first group");
             checkLinks(barrierB.getSyncPoint(), true, true, "second group");
-            assertNull(get(PREV, order.getCurrent()));
+            assertNull(order.getCurrent().prev());
         });
     }
 
@@ -307,7 +299,7 @@ public class OpOrderTest
                 assertTrue(barrier.allPriorOpsAreFinished());
                 checkLinks(barrier.getSyncPoint(), true, true, "group");
             }
-            assertNull(get(PREV, order.getCurrent()));
+            assertNull(order.getCurrent().prev());
         });
     }
 
@@ -331,7 +323,7 @@ public class OpOrderTest
             assertTrue(barrierB.allPriorOpsAreFinished());
             checkLinks(barrierA.getSyncPoint(), true, true, "first group");
             checkLinks(barrierB.getSyncPoint(), true, true, "second group");
-            assertNull(get(PREV, order.getCurrent()));
+            assertNull(order.getCurrent().prev());
         });
     }
 
@@ -451,19 +443,26 @@ public class OpOrderTest
         {
             threads.add(new Thread(() -> {
                 Random rand = new Random(ThreadLocalRandom.current().nextLong());
-                while (!stop.get())
+                try
                 {
-                    OpOrder.Group group = order.start();
-                    AtomicInteger count = running.computeIfAbsent(group, g -> new AtomicInteger());
-                    count.incrementAndGet();
-                    int r = rand.nextInt(100);
-                    if (r < 5)
-                        LockSupport.parkNanos(rand.nextInt(1_000_000)); // occasional long operation
-                    else if (r < 50)
-                        for (int i = rand.nextInt(1000); i > 0; --i)
-                            Thread.onSpinWait();
-                    count.decrementAndGet();
-                    group.close();
+                    while (!stop.get())
+                    {
+                        OpOrder.Group group = order.start();
+                        AtomicInteger count = running.computeIfAbsent(group, g -> new AtomicInteger());
+                        count.incrementAndGet();
+                        int r = rand.nextInt(100);
+                        if (r < 5)
+                            LockSupport.parkNanos(rand.nextInt(1_000_000)); // occasional long operation
+                        else if (r < 50)
+                            for (int i = rand.nextInt(1000); i > 0; --i)
+                                Thread.onSpinWait();
+                        count.decrementAndGet();
+                        group.close();
+                    }
+                }
+                catch (Throwable e)
+                {
+                    failure.compareAndSet(null, e);
                 }
             }, "op-" + t));
         }
@@ -557,6 +556,8 @@ public class OpOrderTest
                .pollInterval(100, TimeUnit.MILLISECONDS)
                .until(() -> failure.get() != null || System.currentTimeMillis() >= deadline);
         stop.set(true);
+        if (failure.get() != null)
+            throw failure.get();
         for (Thread thread : threads)
         {
             thread.join(30000);
@@ -568,14 +569,12 @@ public class OpOrderTest
                 fail("Thread " + thread.getName() + " did not complete; a barrier probably never completed:" + stack);
             }
         }
-        if (failure.get() != null)
-            throw failure.get();
         assertTrue(barriersCompleted.get() > 100);
 
         // Once everything has finished, all groups but the current one must be unlinked.
         order.awaitNewBarrier();
         OpOrder.Group current = order.getCurrent();
-        assertNull(get(PREV, current));
+        assertNull(current.prev());
         for (OpOrder.Group group : running.keySet())
             if (group != current)
                 checkLinks(group, true, true, "group after test");
