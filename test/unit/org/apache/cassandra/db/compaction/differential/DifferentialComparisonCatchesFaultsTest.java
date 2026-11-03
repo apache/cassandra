@@ -36,7 +36,7 @@ import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertTrue;
 
 /**
- * A negative control for the differential comparison itself. Every other test in this package asserts the
+ * Checks the differential comparison itself. Every other test in this package asserts the
  * cursor and iterator paths agree. This test asserts the opposite direction: that {@link #assertEquivalentOutputs}
  * actually FAILS when an output is wrong. A comparison that never fails proves nothing, so this test injects a
  * fault into each dimension the comparison guards and confirms each one is caught.
@@ -46,7 +46,7 @@ import static org.junit.Assert.assertTrue;
  * the logical dump, a changed stat, and a missing component. Each perturbation must raise an {@link AssertionError}.
  * If a perturbation is NOT caught, the comparison has a blind spot, and every green run through it is suspect.
  */
-public class NegativeControlDifferentialTest extends DifferentialCompactionTester
+public class DifferentialComparisonCatchesFaultsTest extends DifferentialCompactionTester
 {
     // A small, non-digest logical dump. Non-digest so assertEquivalentSSTable compares it line by line.
     private static final String CANON_JSON = "[\n  {\"partition\":{\"key\":[\"0\"]}},\n" +
@@ -210,7 +210,7 @@ public class NegativeControlDifferentialTest extends DifferentialCompactionTeste
         {
             caught = true;
         }
-        assertTrue("negative control FAILED: the differential comparison did not catch " + what +
+        assertTrue("the differential comparison did not catch " + what +
                    "; the comparison has a blind spot and every green run through it is suspect", caught);
     }
 }

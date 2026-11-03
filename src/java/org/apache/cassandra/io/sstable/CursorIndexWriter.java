@@ -19,6 +19,7 @@
 package org.apache.cassandra.io.sstable;
 
 import java.io.IOException;
+import java.util.function.BiFunction;
 
 import org.apache.cassandra.db.DeletionTime;
 import org.apache.cassandra.db.SerializationHeader;
@@ -40,7 +41,38 @@ public abstract class CursorIndexWriter
     /** Builds the index writer for one table writer. See {@link org.apache.cassandra.io.sstable.format.SSTableFormat#cursorIndexWriterFactory}. */
     public interface Factory
     {
+        /**
+         * The class of table writer that {@link #create} takes. Cursor compaction falls back to the
+         * iterator path, before it opens any cursor, unless this is a {@link SortedTableWriter}.
+         */
+        Class<? extends SSTableWriter> writerClass();
+
         CursorIndexWriter create(SortedTableWriter<?, ?> writer, SerializationHeader header);
+
+        /**
+         * A factory for table writers of class {@code writerClass}. {@link #create} checks the
+         * writer's class with {@link #checkWriterType} before it calls {@code create}.
+         *
+         * @param format the name of the format, for the message if the writer has another class
+         */
+        static <W extends SortedTableWriter<?, ?>> Factory of(String format, Class<W> writerClass,
+                                                              BiFunction<W, SerializationHeader, CursorIndexWriter> create)
+        {
+            return new Factory()
+            {
+                @Override
+                public Class<W> writerClass()
+                {
+                    return writerClass;
+                }
+
+                @Override
+                public CursorIndexWriter create(SortedTableWriter<?, ?> writer, SerializationHeader header)
+                {
+                    return create.apply(checkWriterType(format, writer, writerClass), header);
+                }
+            };
+        }
     }
 
     /**

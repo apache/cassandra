@@ -32,7 +32,7 @@ import org.agrona.collections.IntArrayList;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import org.apache.cassandra.cache.KeyCacheKey;
+import org.apache.cassandra.cache.ReusableKeyCacheKey;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.db.DecoratedKey;
 import org.apache.cassandra.db.DeletionTime;
@@ -84,6 +84,8 @@ public class BigTableWriter extends SortedTableWriter<BigFormatPartitionWriter, 
     private final Map<DecoratedKey, AbstractRowIndexEntry> cachedKeys = new HashMap<>();
     private static final SSTableReader[] NO_ORIGINALS = new SSTableReader[0];
     private final SSTableReader[] originals;
+    /** The key cache keys used to look a partition up in each of {@link #originals}, reused for every partition; built on the first lookup. */
+    private ReusableKeyCacheKey[] lookupKeys;
 
     public BigTableWriter(Builder builder, ILifecycleTransaction txn, SSTable.Owner owner)
     {
@@ -101,6 +103,13 @@ public class BigTableWriter extends SortedTableWriter<BigFormatPartitionWriter, 
         this.originals = migrateKeyCache ? withKeyCache(txn.originals()) : NO_ORIGINALS;
     }
 
+    /**
+     * The readers that have a key cache. A reader of a table that no longer caches keys keeps the
+     * cache it was opened with, and a schema change does not clear it, so the iterator path can still
+     * find the key there; it is kept for that reason. The other condition of
+     * {@link org.apache.cassandra.db.ColumnFamilyStore#isKeyCacheEnabled()}, a capacity above zero,
+     * can change at runtime, so shouldCacheKey checks it for each partition.
+     */
     private static SSTableReader[] withKeyCache(Collection<SSTableReader> readers)
     {
         List<SSTableReader> cached = new ArrayList<>(readers.size());
@@ -166,18 +175,46 @@ public class BigTableWriter extends SortedTableWriter<BigFormatPartitionWriter, 
     /**
      * True when one of the transaction's originals has a cached position for this key. The array is
      * empty unless key cache migration is on, so that setting is already folded in.
+     * <p>
+     * Like the iterator path, this looks the key up in every original, not only in the sstables
+     * that hold the partition: a fully expired sstable is left out of the compaction's input but stays
+     * an original, and its key cache can still hold the key.
      */
     private boolean shouldCacheKey(DecoratedKey key)
     {
-        if (originals.length == 0)
+        // A cache of capacity 0 holds nothing, so every lookup would miss. The capacity can change
+        // at runtime (nodetool setcachecapacity), so it is read for each partition, as the iterator
+        // path looks it up for each partition. It is a volatile read.
+        if (originals.length == 0 || CacheService.instance.keyCache.getCapacity() <= 0)
             return false;
 
-        // one copy of the key bytes for all the lookups
-        byte[] keyBytes = ByteBufferUtil.getArray(key.getKey());
-        for (SSTableReader reader : originals)
+        ByteBuffer keyBuffer = key.getKey();
+        byte[] keyBytes;
+        int keyOffset;
+        if (keyBuffer.hasArray())
         {
-            KeyCacheKey cacheKey = new KeyCacheKey(reader.metadata(), reader.descriptor, keyBytes);
-            if (((KeyCacheSupport<?>) reader).getCachedPosition(cacheKey, false) != null)
+            keyBytes = keyBuffer.array();
+            keyOffset = keyBuffer.arrayOffset() + keyBuffer.position();
+        }
+        else
+        {
+            keyBytes = ByteBufferUtil.getArray(keyBuffer);
+            keyOffset = 0;
+        }
+        int keyLength = keyBuffer.remaining();
+        // hashed once for all the lookups
+        int keyHash = ReusableKeyCacheKey.hashBytes(keyBytes, keyOffset, keyLength);
+        if (lookupKeys == null)
+        {
+            lookupKeys = new ReusableKeyCacheKey[originals.length];
+            for (int i = 0; i < originals.length; i++)
+                lookupKeys[i] = new ReusableKeyCacheKey(originals[i].metadata(), originals[i].descriptor);
+        }
+        for (int i = 0; i < originals.length; i++)
+        {
+            ReusableKeyCacheKey lookupKey = lookupKeys[i];
+            lookupKey.setKey(keyBytes, keyOffset, keyLength, keyHash);
+            if (((KeyCacheSupport<?>) originals[i]).getCachedPosition(lookupKey, false) != null)
                 return true;
         }
         return false;

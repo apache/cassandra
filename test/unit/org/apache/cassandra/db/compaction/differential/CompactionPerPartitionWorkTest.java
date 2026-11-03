@@ -18,6 +18,7 @@
 
 package org.apache.cassandra.db.compaction.differential;
 
+import java.lang.reflect.Field;
 import java.util.HashSet;
 import java.util.Set;
 import java.util.concurrent.atomic.AtomicLong;
@@ -31,15 +32,19 @@ import org.junit.Test;
 import org.junit.runner.RunWith;
 
 import org.apache.cassandra.config.DatabaseDescriptor;
+import org.apache.cassandra.db.ClusteringComparator;
 import org.apache.cassandra.db.ColumnFamilyStore;
 import org.apache.cassandra.db.compaction.ActiveCompactionsTracker;
 import org.apache.cassandra.db.compaction.CompactionPipelineCounts;
 import org.apache.cassandra.db.compaction.CompactionTask;
 import org.apache.cassandra.db.compaction.OperationType;
 import org.apache.cassandra.db.lifecycle.LifecycleTransaction;
+import org.apache.cassandra.io.sstable.ClusteringDescriptor;
 import org.apache.cassandra.io.sstable.Component;
 import org.apache.cassandra.io.sstable.Descriptor;
+import org.apache.cassandra.io.sstable.SSTableCursorWriter;
 import org.apache.cassandra.io.sstable.format.SSTableReader;
+import org.apache.cassandra.io.sstable.metadata.MetadataCollector;
 import org.apache.cassandra.io.util.File;
 import org.apache.cassandra.utils.FBUtilities;
 
@@ -69,13 +74,29 @@ import static org.junit.Assert.assertTrue;
             targetMethod = "hash3_x64_128",
             targetLocation = "AT ENTRY",
             condition = "org.apache.cassandra.db.compaction.differential.CompactionPerPartitionWorkTest.isCounting()",
-            action = "org.apache.cassandra.db.compaction.differential.CompactionPerPartitionWorkTest.hashes.incrementAndGet()")
+            action = "org.apache.cassandra.db.compaction.differential.CompactionPerPartitionWorkTest.hashes.incrementAndGet()"),
+    @BMRule(name = "count pre-hashed key copies",
+            targetClass = "org.apache.cassandra.db.PreHashedDecoratedKey",
+            targetMethod = "<init>",
+            targetLocation = "AT ENTRY",
+            condition = "org.apache.cassandra.db.compaction.differential.CompactionPerPartitionWorkTest.isCounting()",
+            action = "org.apache.cassandra.db.compaction.differential.CompactionPerPartitionWorkTest.keyCopies.incrementAndGet()"),
+    @BMRule(name = "check the max clustering when a partition ends",
+            targetClass = "org.apache.cassandra.io.sstable.SSTableCursorWriter",
+            targetMethod = "writePartitionEnd",
+            targetLocation = "AT ENTRY",
+            condition = "org.apache.cassandra.db.compaction.differential.CompactionPerPartitionWorkTest.isCounting()",
+            action = "org.apache.cassandra.db.compaction.differential.CompactionPerPartitionWorkTest.checkMaxClusteringAtPartitionEnd($0, $4)")
 })
 public class CompactionPerPartitionWorkTest extends DifferentialCompactionTester
 {
     public static final AtomicLong prepared = new AtomicLong();
     public static final AtomicLong cacheSkips = new AtomicLong();
     public static final AtomicLong hashes = new AtomicLong();
+    public static final AtomicLong keyCopies = new AtomicLong();
+    /** Partitions that ended with a last clustering above the collector's max clustering. */
+    public static final AtomicLong maxBelowLastName = new AtomicLong();
+    public static final AtomicLong partitionEndsChecked = new AtomicLong();
     private static volatile Thread countingThread;
 
     private static final int PARTITIONS = 4000;
@@ -153,6 +174,80 @@ public class CompactionPerPartitionWorkTest extends DifferentialCompactionTester
             counted[i] = hashes.get();
         }
         return (double) (counted[1] - counted[0]) / (partitions[1] - partitions[0]);
+    }
+
+    /**
+     * On BTI the cursor path reuses three keys for the partition index and copies only the keys the index
+     * keeps, so the count of key copies does not grow with the partition count. A copy of each partition's
+     * key ({@code key.retainable()}) would add one per partition.
+     */
+    @Test
+    public void btiCursorPathCopiesNoKeyPerPartition() throws Throwable
+    {
+        DatabaseDescriptor.setSelectedSSTableFormat("bti");
+        int small = 1000;
+        int large = 10 * small;
+        long smallCopies = keyCopiesDuringCursorCompaction(small);
+        long largeCopies = keyCopiesDuringCursorCompaction(large);
+        logger.info("BTI cursor compaction key copies: {} for {} partitions, {} for {} partitions",
+                    smallCopies, small, largeCopies, large);
+        assertTrue(String.format("the BTI cursor path copied %d keys for %d partitions and %d for %d partitions; " +
+                                 "the count grows with the partitions, so a key is copied per partition",
+                                 smallCopies, small, largeCopies, large),
+                   largeCopies - smallCopies < (large - small) / 100);
+    }
+
+    private long keyCopiesDuringCursorCompaction(int partitions) throws Throwable
+    {
+        ColumnFamilyStore cfs = twoSSTables(partitions);
+        startCounting();
+        commitThroughFactory(cfs, true, (c, txn, gcBefore) -> new CompactionTask(c, txn, gcBefore, false));
+        countingThread = null;
+        return keyCopies.get();
+    }
+
+    /**
+     * The partition's last clustering is in the max clustering of the output before the end of partition
+     * is written, as on the iterator path, which updates it with each unfiltered. An sstable opened early
+     * during that write would otherwise carry a max clustering below the partition's last row.
+     */
+    @Test
+    public void lastClusteringIsInMaxClusteringBeforePartitionEnd() throws Throwable
+    {
+        createTable("CREATE TABLE %s (pk bigint, ck bigint, v text, PRIMARY KEY (pk, ck)) " +
+                    "WITH compression = {'enabled': 'false'}");
+        ColumnFamilyStore cfs = getCurrentColumnFamilyStore();
+        cfs.disableAutoCompaction();
+        for (int round = 0; round < 2; round++)
+        {
+            // each partition's clusterings are above every earlier partition's, so each last clustering raises the max
+            for (long pk = 0; pk < 10; pk++)
+                for (long ck = 0; ck < 5; ck++)
+                    execute("INSERT INTO %s (pk, ck, v) VALUES (?, ?, ?)", pk, pk * 5 + ck, "v" + round);
+            flush();
+        }
+        startCounting();
+        commitThroughFactory(cfs, true, (c, txn, gcBefore) -> new CompactionTask(c, txn, gcBefore, false));
+        countingThread = null;
+        assertEquals("every output partition must be checked", 10, partitionEndsChecked.get());
+        assertEquals("partitions whose last clustering was above the max clustering when the end of partition was written",
+                     0, maxBelowLastName.get());
+    }
+
+    /** Called by Byteman at the start of {@link SSTableCursorWriter#writePartitionEnd}. */
+    public static void checkMaxClusteringAtPartitionEnd(SSTableCursorWriter writer, ClusteringDescriptor lastName) throws Exception
+    {
+        if (lastName == null)
+            return;
+        Field collectorField = SSTableCursorWriter.class.getDeclaredField("metadataCollector");
+        collectorField.setAccessible(true);
+        Object collector = collectorField.get(writer);
+        Field maxField = MetadataCollector.class.getDeclaredField("maxClusteringDescriptor");
+        maxField.setAccessible(true);
+        ClusteringDescriptor max = (ClusteringDescriptor) maxField.get(collector);
+        partitionEndsChecked.incrementAndGet();
+        if (ClusteringComparator.compare(max, lastName) < 0)
+            maxBelowLastName.incrementAndGet();
     }
 
     /** Offline, the originals' file cache is skipped once per open interval, not on every partition after it. */
@@ -239,6 +334,9 @@ public class CompactionPerPartitionWorkTest extends DifferentialCompactionTester
         prepared.set(0);
         cacheSkips.set(0);
         hashes.set(0);
+        keyCopies.set(0);
+        maxBelowLastName.set(0);
+        partitionEndsChecked.set(0);
         countingThread = Thread.currentThread();
     }
 
