@@ -152,8 +152,8 @@ public class DeletionAwareIntersectionTest extends DeletionAwareTestBase
     {
         return flatten(asList(deletedPoint(17, 20),
                               livePoint(19, 30),
-                              from(21, 10), deletedPointInside(22, 21, 10), livePoint(23, 31), to(24, 10),
-                              from(26, 11), livePoint(27, 32), change(28, 11, 12).withPoint(22), livePoint(29, 33), to(30, 12),
+                              from(21, 10), deletedPointInside(22, 21, 10), livePointInside(23, 31, 10), to(24, 10),
+                              from(26, 11), livePointInside(27, 32, 11), change(28, 11, 12).withPoint(22), livePointInside(29, 33, 12), to(30, 12),
                               livePoint(32, 34), from(33, 13).withPoint(23), to(34, 13),
                               from(36, 14), to(38, 14).withPoint(24), livePoint(39, 35)));
     }

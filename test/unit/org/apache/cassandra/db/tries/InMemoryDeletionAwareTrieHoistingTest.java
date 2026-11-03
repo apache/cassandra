@@ -70,7 +70,7 @@ public class InMemoryDeletionAwareTrieHoistingTest
             mutator.apply(DeletionAwareTrie.deletedRange(hex(prefix), hex("10"), hex("20"), VERSION, new DeletionMarker(hex(prefix + "10"), 5, 5)));
 
             expected.add(new DeletionMarker(hex(prefix + "10"), -1, 5));
-            expected.add(new LivePoint(hex(prefix + "15"), 10));
+            expected.add(livePointInside(hex(prefix + "15"), 10, 5));
             expected.add(new DeletionMarker(hex(prefix + "20"), 5, -1));
             expected.add(new LivePoint(hex(prefix + "30"), 1));
         }
@@ -94,6 +94,11 @@ public class InMemoryDeletionAwareTrieHoistingTest
         assertEquals(expected, actual);
         assertEquals(expected.toString(), actual.toString()); // marker equality does not check positions
         DeletionAwareTestBase.assertDeletionAwareEqual("hoisted", expected, trie);
+    }
+
+    private static DataPoint livePointInside(ByteComparable position, int timestamp, int covering)
+    {
+        return new CombinedDataPoint(new LivePoint(position, timestamp), new DeletionMarker(position, covering, covering));
     }
 
     private static ByteComparable hex(String s)

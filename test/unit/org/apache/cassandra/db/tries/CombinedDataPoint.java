@@ -69,14 +69,15 @@ class CombinedDataPoint implements DataPoint
     @Override
     public String toString()
     {
-        return marker.toString() + 'L' + livePoint.timestamp;
+        if (marker.isBoundary())
+            return marker.toString() + 'L' + livePoint.timestamp;
+        else
+            return livePoint.toString() + " under " + marker.leftSide;
     }
 
     public DataPoint toContent()
     {
-        if (marker.isBoundary())
-            return this;
-        return livePoint;
+        return this;
     }
 
     @Override

@@ -165,7 +165,7 @@ public interface DeletionAwareCursor<T, D extends RangeState<D>> extends Cursor<
 
     /// A cursor merging the live data and deletion markers of a deletion-aware trie into a combined trie.
     class LiveAndDeletionsMergeCursor<T, D extends RangeState<D>, Z>
-    extends FlexibleMergeCursor.WithMappedContent<T, D, DeletionAwareCursor<T, D>, RangeCursor<D>, Z>
+    extends FlexibleMergeCursor.WithRange<T, D, DeletionAwareCursor<T, D>, RangeCursor<D>, Z>
     {
         LiveAndDeletionsMergeCursor(BiFunction<T, D, Z> resolver, DeletionAwareCursor<T, D> c1)
         {

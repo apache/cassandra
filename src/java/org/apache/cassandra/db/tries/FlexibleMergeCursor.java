@@ -200,17 +200,17 @@ abstract class FlexibleMergeCursor<C extends Cursor<?>, D extends Cursor<?>, T> 
         return c1.byteComparableVersion();
     }
 
-    static abstract class WithMappedContent<T, U, C extends Cursor<T>, D extends Cursor<U>, Z> extends FlexibleMergeCursor<C, D, Z>
+    static abstract class WithRange<T, S extends RangeState<S>, C extends Cursor<T>, D extends RangeCursor<S>, Z> extends FlexibleMergeCursor<C, D, Z>
     {
-        final BiFunction<T, U, Z> resolver;
+        final BiFunction<T, S, Z> resolver;
 
-        WithMappedContent(BiFunction<T, U, Z> resolver, C c1)
+        WithRange(BiFunction<T, S, Z> resolver, C c1)
         {
             super(c1);
             this.resolver = resolver;
         }
 
-        WithMappedContent(BiFunction<T, U, Z> resolver, C c1, D c2)
+        WithRange(BiFunction<T, S, Z> resolver, C c1, D c2)
         {
             super(c1, c2);
             this.resolver = resolver;
@@ -219,25 +219,28 @@ abstract class FlexibleMergeCursor<C extends Cursor<?>, D extends Cursor<?>, T> 
         @Override
         public Z content()
         {
-            U mc = null;
+            S mc = null;
             T nc = null;
             switch (state)
             {
                 case C1_ONLY:
+                    nc = c1.content();
+                    break;
                 case AT_C1:
+                    mc = c2.precedingState();
                     nc = c1.content();
                     break;
                 case AT_C2:
                     mc = c2.content();
                     break;
                 case AT_BOTH:
-                    mc = c2.content();
+                    mc = c2.state();
                     nc = c1.content();
                     break;
                 default:
                     throw new AssertionError();
             }
-            if (nc == null && mc == null)
+            if (nc == null && (mc == null || !mc.isBoundary()))
                 return null;
             return resolver.apply(nc, mc);
         }

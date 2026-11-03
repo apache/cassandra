@@ -88,7 +88,7 @@ public interface DataPoint
             assertTrue("Order violation " + toString(prev) + " vs " + toString(marker.position),
                        prev == null || ByteComparable.compare(prev, marker.position, VERSION) < 0);
             assertEquals("Range close violation", active, marker.leftSide);
-            assertTrue(marker.rightSide != marker.leftSide);
+            assertTrue(marker.rightSide != marker.leftSide || dp.live() != null);
             prev = marker.position;
             active = marker.rightSide;
         }
@@ -99,7 +99,7 @@ public interface DataPoint
     static DataPoint resolve(LivePoint a, DeletionMarker m)
     {
         if (a == null)
-            return m;
+            return m != null ? m.toContent() : null;
         if (m == null)
             return a;
         return new CombinedDataPoint(a, m);

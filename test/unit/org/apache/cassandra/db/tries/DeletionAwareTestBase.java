@@ -90,7 +90,7 @@ public class DeletionAwareTestBase
                          merged.stream().map(DataPoint::live).filter(x -> x != null).collect(Collectors.toList()),
                          contentOnlyList(trie));
             assertEquals(msg + " deletions",
-                         merged.stream().map(DataPoint::marker).filter(x -> x != null).collect(Collectors.toList()),
+                         merged.stream().map(DataPoint::marker).filter(x -> x != null && x.isBoundary()).collect(Collectors.toList()),
                          deletionOnlyList(trie));
             System.out.println(msg + " matched.");
         }
@@ -173,6 +173,11 @@ public class DeletionAwareTestBase
     DataPoint livePoint(int where, int timestamp)
     {
         return new LivePoint(at(where), timestamp);
+    }
+
+    DataPoint livePointInside(int where, int timestamp, int active)
+    {
+        return new CombinedDataPoint(new LivePoint(at(where), timestamp), new DeletionMarker(at(where), active, active));
     }
 
     protected ByteComparable[] array(ByteComparable... data)

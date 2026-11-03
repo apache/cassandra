@@ -230,8 +230,8 @@ public class DeletionAwareMergeTest extends DeletionAwareTestBase
     {
         return flatten(asList(deletedPoint(17, 20),
                               livePoint(19, 30),
-                              from(21, 10), deletedPointInside(22, 21, 10), livePoint(23, 31), to(24, 10),
-                              from(26, 11), livePoint(27, 32), change(28, 11, 12).withPoint(22), livePoint(29, 33), to(30, 12),
+                              from(21, 10), deletedPointInside(22, 21, 10), livePointInside(23, 31, 10), to(24, 10),
+                              from(26, 11), livePointInside(27, 32, 11), change(28, 11, 12).withPoint(22), livePointInside(29, 33, 12), to(30, 12),
                               livePoint(32, 34), from(33, 13).withPoint(23), to(34, 13),
                               from(36, 14), to(38, 14).withPoint(24), livePoint(39, 35)));
     }
@@ -506,7 +506,7 @@ public class DeletionAwareMergeTest extends DeletionAwareTestBase
 
         int newLeft = Math.max(deletionTime, marker.leftSide);
         int newRight = Math.max(deletionTime, marker.rightSide);
-        if (newLeft < 0 && newRight < 0 || newLeft == newRight)
+        if (newLeft < 0 && newRight < 0)
             return null;
         if (newLeft == marker.leftSide && newRight == marker.rightSide)
             return marker;
@@ -522,8 +522,13 @@ public class DeletionAwareMergeTest extends DeletionAwareTestBase
 
     static DataPoint delete(int deletionTime, DataPoint marker)
     {
+        if (deletionTime < 0)
+            return marker;
+
         LivePoint live = delete(deletionTime, marker.live());
         DeletionMarker deletion = delete(deletionTime, marker.marker());
+        if (live != null && deletion == null)
+            deletion = new DeletionMarker(live.position, deletionTime, deletionTime);
         return DataPoint.resolve(live, deletion);
     }
 
@@ -568,7 +573,7 @@ public class DeletionAwareMergeTest extends DeletionAwareTestBase
                     if (nextLeft.marker() == null)
                         nextRight = delete(active, nextRight);
                     if (nextRight != null)
-                        maybeAdd(result, DataPoint.combine(nextRight, nextLeft).toContent());
+                        maybeAdd(result, DataPoint.combine(nextRight, nextLeft));
                     else
                         maybeAdd(result, nextLeft);
 

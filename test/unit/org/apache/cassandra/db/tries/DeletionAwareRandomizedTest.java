@@ -168,8 +168,10 @@ public class DeletionAwareRandomizedTest extends DeletionAwareTestBase
             {
                 LivePoint live = (LivePoint) dp;
                 // Only include live point if not covered by active deletion with higher timestamp
-                if (activeDeletionTimestamp == -1 || live.timestamp > activeDeletionTimestamp)
-                    filtered.add(dp);
+                if (activeDeletionTimestamp == -1)
+                    filtered.add(live);
+                else if (live.timestamp > activeDeletionTimestamp)
+                    filtered.add(new CombinedDataPoint(live, new DeletionMarker(live.position, activeDeletionTimestamp, activeDeletionTimestamp)));
                 // Otherwise skip this live point as it would be deleted
             }
         }
