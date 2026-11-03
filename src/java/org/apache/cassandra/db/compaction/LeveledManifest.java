@@ -598,17 +598,19 @@ public class LeveledManifest
 
     /**
      * Precondition: SSTables in sstablesNextLevel must be disjoint
-    */
+     */
     @VisibleForTesting
     protected static Set<SSTableReader> getIntersectingSSTablesFromTreeSet(SSTableReader sstable, TreeSet<SSTableReader> sstablesNextLevel)
     {
         Set<SSTableReader> candidates = new HashSet<>();
 
-        if (sstablesNextLevel.isEmpty())
-            return candidates;
-
         SSTableReader start = sstablesNextLevel.floor(sstable);
-        Iterator<SSTableReader> it = sstablesNextLevel.tailSet(start != null ? start : sstablesNextLevel.first(), true).iterator();
+        Iterator<SSTableReader> it;
+
+        if (start == null)
+            it = sstablesNextLevel.iterator();
+        else
+            it =  sstablesNextLevel.tailSet(start,true).iterator();
 
         while (it.hasNext())
         {
