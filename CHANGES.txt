@@ -1,4 +1,5 @@
 4.0.22
+ * Delete SSTable files in order of last-updated timestamp (CASSANDRA-21649)
  * Prevent negative BufferPool overflow memory accounting (CASSANDRA-21815)
  * Respect cassandra.skip_sync in LogReplica, SSTable.appendTOC and ChecksumWriter (CASSANDRA-21835)
  * Fix cassandra-env.sh treating Xmx/Xms/Xmn inside paths as heap flags (CASSANDRA-21804)
