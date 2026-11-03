@@ -192,6 +192,12 @@ public class ContentManagerPojo<T> implements ContentManager<T>
     }
 
     @Override
+    public void stopRecycling()
+    {
+        objectAllocator.stopRecycling();
+    }
+
+    @Override
     public long usedSizeOffHeap()
     {
         return 0;

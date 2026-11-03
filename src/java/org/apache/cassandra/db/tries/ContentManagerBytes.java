@@ -178,6 +178,12 @@ class ContentManagerBytes<T> implements ContentManager<T>
     }
 
     @Override
+    public void stopRecycling()
+    {
+        serializer.stopRecycling();
+    }
+
+    @Override
     public String dumpContentId(int id)
     {
         int offset = offset(id);

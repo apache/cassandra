@@ -202,6 +202,15 @@ public class TrieMemtable extends AbstractShardedMemtable
     }
 
     @Override
+    public void writeComplete()
+    {
+        super.writeComplete();
+
+        for (MemtableShard shard : shards)
+            shard.data.stopRecycling();
+    }
+
+    @Override
     public void discard()
     {
         super.discard();
@@ -800,6 +809,7 @@ public class TrieMemtable extends AbstractShardedMemtable
                     columns = columns.mergeTo(update.columns());
                     stats = stats.mergeWith(update.stats());
                 }
+                this.cellDataBufferManager.opOrderGroup = null;
             }
             finally
             {
@@ -1317,6 +1327,12 @@ public class TrieMemtable extends AbstractShardedMemtable
         }
 
         @Override
+        public void stopRecycling()
+        {
+            manager.stopRecycling();
+        }
+
+        @Override
         public long usedSizeOnHeap()
         {
             return manager.onHeapSize();
@@ -1381,6 +1397,8 @@ public class TrieMemtable extends AbstractShardedMemtable
         abstract void completeMutation();
         /// See [org.apache.cassandra.db.tries.MemoryManager#abortMutation]
         abstract void abortMutation();
+        /// See [org.apache.cassandra.db.tries.MemoryManager#stopRecycling]
+        abstract void stopRecycling();
 
         /// See [org.apache.cassandra.db.tries.MemoryManager#unusedReservedOnHeapMemory]
         @VisibleForTesting
@@ -1456,6 +1474,12 @@ public class TrieMemtable extends AbstractShardedMemtable
         }
 
         @Override
+        void stopRecycling()
+        {
+            buffers.stopRecycling();
+        }
+
+        @Override
         @VisibleForTesting
         long unusedReservedOnHeapMemory()
         {
@@ -1526,6 +1550,12 @@ public class TrieMemtable extends AbstractShardedMemtable
 
         @Override
         public void abortMutation()
+        {
+            // Nothing needed as we can't recycle allocator memory
+        }
+
+        @Override
+        void stopRecycling()
         {
             // Nothing needed as we can't recycle allocator memory
         }

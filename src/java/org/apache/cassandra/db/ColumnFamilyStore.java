@@ -1293,14 +1293,18 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean, Memtable.Owner
             if (logger.isTraceEnabled())
                 logger.trace("Flush task for task {}@{} waited {} ms at the barrier", hashCode(), name, TimeUnit.NANOSECONDS.toMillis(nanoTime() - start));
 
-            // mark all memtables as flushing, removing them from the live memtable list
-            for (Map.Entry<ColumnFamilyStore, Memtable> entry : memtables.entrySet())
-                entry.getKey().data.markFlushing(entry.getValue());
-
-            metric.memtableSwitchCount.inc();
-
             try
             {
+                // mark all memtables as flushing, removing them from the live memtable list, and let them know that all
+                // writes to them have completed
+                for (Map.Entry<ColumnFamilyStore, Memtable> entry : memtables.entrySet())
+                {
+                    entry.getKey().data.markFlushing(entry.getValue());
+                    entry.getValue().writeComplete();
+                }
+
+                metric.memtableSwitchCount.inc();
+
                 boolean first = true;
                 // Flush "data" memtable with non-cf 2i first;
                 for (Map.Entry<ColumnFamilyStore, Memtable> entry : memtables.entrySet())

@@ -39,6 +39,13 @@ public interface MemoryManager
     /// correctly.
     void abortMutation();
 
+    /// Called when the trie is not going to be modified anymore, to stop reusing memory and release any state that is
+    /// held to track when memory can be reused. See [MemoryAllocationStrategy#stopRecycling].
+    default void stopRecycling()
+    {
+        // nothing by default
+    }
+
     /// Returns the off heap size of the memtable trie itself, not counting any space taken by referenced content, or
     /// any space that has been allocated but is not currently in use (e.g. recycled cells or preallocated buffer).
     /// The latter means we are undercounting the actual usage, but the purpose of this reporting is to decide when

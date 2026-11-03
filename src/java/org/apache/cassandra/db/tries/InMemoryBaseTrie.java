@@ -1724,6 +1724,16 @@ public abstract class InMemoryBaseTrie<T> extends InMemoryReadTrie<T>
         contentManager.abortMutation();
     }
 
+    /// To be called when the trie is not going to be modified anymore (e.g. after a memtable has been switched out
+    /// and all writes to it have completed). Drops the memory waiting to be reused, and the state held to track when it
+    /// can be (see [MemoryAllocationStrategy#stopRecycling]).
+    /// Must be called by the writing thread, or after all writes have completed.
+    public void stopRecycling()
+    {
+        bufferManager.stopRecycling();
+        contentManager.stopRecycling();
+    }
+
     /// Returns true if the allocation threshold has been reached. To be called by the the writing thread (ideally, just
     /// after the write completes). When this returns true, the user should switch to a new trie as soon as feasible.
     ///

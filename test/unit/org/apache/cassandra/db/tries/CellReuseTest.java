@@ -105,6 +105,19 @@ public class CellReuseTest
 
     public static void verifyFreeCellsMatchUnreachable(InMemoryBaseTrie<?> trieLong)
     {
+        verifyFreeCells(trieLong, true);
+    }
+
+    /// Checks that no reachable cell or object is marked for reuse. Unlike [#verifyFreeCellsMatchUnreachable], this
+    /// does not require all unreachable ones to be marked for reuse, which is no longer the case after
+    /// [InMemoryBaseTrie#stopRecycling].
+    public static void verifyNoReachableCellsFree(InMemoryBaseTrie<?> trieLong)
+    {
+        verifyFreeCells(trieLong, false);
+    }
+
+    private static void verifyFreeCells(InMemoryBaseTrie<?> trieLong, boolean allUnreachableFree)
+    {
         // dump some information first
         System.out.println(String.format(" LongLived %s sizes %10s %10s",
                                          trieLong.bufferManager.bufferType(),
@@ -123,19 +136,22 @@ public class CellReuseTest
         ));
 
         BufferManagerMultibuf mgr = ((BufferManagerMultibuf) trieLong.bufferManager);
-        verifyReachability(trieLong, reachable, (mgr.cellAllocator).indexesInPipeline(), mgr.getAllocatedPos(), 5, "cells");
+        verifyReachability(trieLong, reachable, (mgr.cellAllocator).indexesInPipeline(), mgr.getAllocatedPos(), 5, "cells", allUnreachableFree);
 
         ContentManager<?> contentManager = trieLong.contentManager;
         if (contentManager instanceof ContentManagerPojo)
         {
             ContentManagerPojo<?> pojo = (ContentManagerPojo<?>) contentManager;
-            verifyReachability(trieLong, longReachable.right, pojo.objectAllocator.indexesInPipeline(), pojo.getAllocatedPos(), 0, "objects");
-            IntArrayList filtered = pojo.collectReleasedUnclearedContentIndexes();
-            Assert.assertTrue(filtered.size() + " indexes released but not cleared " + filtered, filtered.isEmpty());
+            verifyReachability(trieLong, longReachable.right, pojo.objectAllocator.indexesInPipeline(), pojo.getAllocatedPos(), 0, "objects", allUnreachableFree);
+            if (allUnreachableFree)
+            {
+                IntArrayList filtered = pojo.collectReleasedUnclearedContentIndexes();
+                Assert.assertTrue(filtered.size() + " indexes released but not cleared " + filtered, filtered.isEmpty());
+            }
         }
     }
 
-    private static void verifyReachability(InMemoryBaseTrie<?> trieLong, BitSet reachable, IntArrayList availableList, int allocatedMax, int shift, String name)
+    private static void verifyReachability(InMemoryBaseTrie<?> trieLong, BitSet reachable, IntArrayList availableList, int allocatedMax, int shift, String name, boolean allUnreachableFree)
     {
         BitSet available = new BitSet(reachable.size());
         for (int v : availableList)
@@ -146,6 +162,8 @@ public class CellReuseTest
         intersection.or(available);
         intersection.and(reachable);
         assertCellSetEmpty(intersection, trieLong, " reachable " + name + " marked as available");
+        if (!allUnreachableFree)
+            return;
 
         // Check all unreachable cells are marked for reuse
         BitSet unreachable = new BitSet(reachable.size());
@@ -194,6 +212,66 @@ public class CellReuseTest
                 }
             }
 
+        assertMapEquals(trie.filteredEntrySet(ByteBuffer.class).iterator(),
+                        check.filteredEntrySet(ByteBuffer.class).iterator());
+    }
+
+    @Test
+    public void testMutationsAfterStopRecyclingBytes() throws Exception
+    {
+        testMutationsAfterStopRecycling(opOrder -> InMemoryTrie.longLived(VERSION, BufferType.ON_HEAP, opOrder, new TestContentSerializer()));
+    }
+
+    @Test
+    public void testMutationsAfterStopRecyclingPojo() throws Exception
+    {
+        testMutationsAfterStopRecycling(opOrder -> InMemoryTrie.longLived(VERSION, BufferType.ON_HEAP, opOrder));
+    }
+
+    /// Mutations are not expected after [InMemoryBaseTrie#stopRecycling], but if they happen they must still work
+    /// correctly, and no reachable cell may be marked for reuse. (That cells are not reused while a read that may be
+    /// using them is in progress is tested in [MemoryAllocationStrategyTest].)
+    private void testMutationsAfterStopRecycling(Function<OpOrder, InMemoryTrie<Object>> creator) throws Exception
+    {
+        ByteComparable[] src = generateKeys(rand, COUNT);
+        OpOrder order = new OpOrder();
+        InMemoryTrie<Object> trie = creator.apply(order);
+        InMemoryTrie<Object> check = InMemoryTrie.shortLived(VERSION);
+        int step = Math.min(100, COUNT / 100);
+        int stopAt = src.length / 2;
+        int readerEndsAt = stopAt + src.length / 4;
+        boolean stopped = false;
+        OpOrder.Group reader = null;
+
+        for (int i = 0; i < src.length; i += step)
+        {
+            if (!stopped && i >= stopAt)
+            {
+                // A read that is in progress when the trie stops recycling, and lasts for some further mutations,
+                // holding back the reuse of the cells they release.
+                reader = order.start();
+                trie.stopRecycling();
+                stopped = true;
+                verifyNoReachableCellsFree(trie);
+            }
+            else if (reader != null && i >= readerEndsAt)
+            {
+                verifyNoReachableCellsFree(trie);
+                reader.close();
+                reader = null;
+            }
+
+            try (OpOrder.Group g = order.start())
+            {
+                int last = Math.min(i + step, src.length);
+                addToInMemoryTrie(Arrays.copyOfRange(src, i, last), trie, FORCE_COPY_PARTITION);
+                addToInMemoryTrie(Arrays.copyOfRange(src, i, last), check, NO_ATOMICITY);
+            }
+        }
+        Assert.assertTrue(stopped);
+        Assert.assertNull(reader);
+
+        verifyNoReachableCellsFree(trie);
         assertMapEquals(trie.filteredEntrySet(ByteBuffer.class).iterator(),
                         check.filteredEntrySet(ByteBuffer.class).iterator());
     }
@@ -410,7 +488,7 @@ public class CellReuseTest
         {
             int length = buffer.getInt(inBufferPos);
             ByteBuffer buf = ByteBuffer.allocate(length);
-            buffer.getBytes(inBufferPos, buf, length);
+            buffer.getBytes(inBufferPos + 4, buf, 0, length);
             return buf;
         }
 

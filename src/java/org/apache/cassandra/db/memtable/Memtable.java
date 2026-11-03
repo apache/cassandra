@@ -423,6 +423,15 @@ public interface Memtable extends Comparable<Memtable>, UnfilteredSource, CellSo
     void switchOut(OpOrder.Barrier writeBarrier, AtomicReference<CommitLogPosition> commitLogUpperBound);
 
     /**
+     * Called when the write barrier of a flush expires, i.e. when this memtable has been switched out and all writes to
+     * it have completed, before it is flushed. Can be used by the memtable to release internal state supporting writes.
+     */
+    default void writeComplete()
+    {
+        // nothing in base class
+    }
+
+    /**
      * This memtable is no longer in use or required for outstanding flushes or operations.
      * All held memory must be released.
      */

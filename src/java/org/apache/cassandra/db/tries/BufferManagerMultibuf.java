@@ -191,6 +191,12 @@ public class BufferManagerMultibuf implements BufferManager
     }
 
     @Override
+    public void stopRecycling()
+    {
+        cellAllocator.stopRecycling();
+    }
+
+    @Override
     public boolean reachedAllocatedSizeThreshold()
     {
         return allocatedPos >= ALLOCATED_SIZE_THRESHOLD;

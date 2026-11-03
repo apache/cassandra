@@ -995,6 +995,13 @@ happen often, but any users of tries that expect them to live indefinitely (unli
 regularly; an example would be the chunk cache map when/if we switch it to `InMemoryTrie`) must ensure that exceptions
 cannot happen during mutation, otherwise waste can slowly accumulate to bring the node down.
 
+Users of in-memory tries that can recognize a point after which an in-memory trie will no longer be mutated (e.g. when
+a trie memtable is switched out before being flushed) can request the recycling structures to be released via a
+`stopRecycling` call. This will drop all the blocks in the pipeline except the current `free` and `justReleased` blocks,
+shrinking the on-heap presence of the structure (and the potential for GC irregularities dealing with linked lists) to
+a minimum. After this call, no new mutations are expected, but if they do happen they will be applied correctly using
+fresh cells; i.e. any cells in the dropped recycling pipeline will be effectively lost.
+
 ### Range tries
 
 Range tries differ from plain ones in being able to present preceding state for any position in the trie, and the fact
