@@ -2200,6 +2200,13 @@ public class MutationTrackingService implements MutationTrackingServiceMBean
             return new KeyspaceShards(keyspace, ShardIntervalBTree.fromSorted(shards));
         }
 
+        public static KeyspaceShards createTestKeyspaceShards(String keyspace, List<Shard> shards)
+        {
+            List<Shard> sorted = new ArrayList<>(shards);
+            sorted.sort(Shard.COMPARATOR);
+            return new KeyspaceShards(keyspace, ShardIntervalBTree.fromSorted(sorted));
+        }
+
         /**
          * Sets the keyspace shards for testing purposes.
          */

@@ -267,7 +267,7 @@ public class PendingLocalTransferTest
 
         TransferTrackingService transferTrackingService = new TransferTrackingService();
         // Transfer is not tracked in memory, simulating coordinator crash/restart before failure notice
-        transferTrackingService.purge(new TransferFailed(planId));
+        transferTrackingService.purge(new TransferFailedRequest(planId));
 
         for (File dir : dirs)
             assertThat(dir.exists()).describedAs("%s was not deleted by TransferFailed", dir).isFalse();

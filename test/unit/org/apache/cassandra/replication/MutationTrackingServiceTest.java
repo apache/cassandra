@@ -21,10 +21,8 @@ import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
-import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
-import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.LongSupplier;
@@ -43,7 +41,6 @@ import org.apache.cassandra.dht.AbstractBounds;
 import org.apache.cassandra.dht.ByteOrderedPartitioner;
 import org.apache.cassandra.dht.Range;
 import org.apache.cassandra.dht.Token;
-import org.apache.cassandra.locator.EndpointsForRange;
 import org.apache.cassandra.locator.InetAddressAndPort;
 import org.apache.cassandra.repair.RepairJobDesc;
 import org.apache.cassandra.repair.SharedContext;
@@ -59,8 +56,6 @@ import org.apache.cassandra.schema.TableId;
 import org.apache.cassandra.streaming.PreviewKind;
 import org.apache.cassandra.tcm.ClusterMetadata;
 import org.apache.cassandra.tcm.Epoch;
-import org.apache.cassandra.tcm.ownership.ReplicaGroups;
-import org.apache.cassandra.tcm.ownership.VersionedEndpoints;
 import org.apache.cassandra.utils.ByteBufferUtil;
 import org.apache.cassandra.utils.TimeUUID;
 
@@ -280,8 +275,7 @@ public class MutationTrackingServiceTest
         Offsets.Immutable offsets = new Offsets.Immutable(logId, new int[]{ 1, 1 });
         Range<Token> range = range("a", "z");
 
-        service.updateReplicatedOffsets(dropped, range, Collections.singletonList(offsets), true, REMOTE);
-        service.recordFullyReconciledOffsets(ReconciledLogSnapshot.builder().put(dropped, logId, offsets, range).build());
+        service.updateReplicatedOffsets(dropped, 1L, range, new Participants(List.of(1)), Collections.singletonList(offsets), true, REMOTE);
 
         assertNull(MutationTrackingService.TestAccess.getKeyspaceShards(service, dropped));
         assertEquals(0, MutationTrackingService.TestAccess.countLogsFor(service, dropped));
@@ -337,7 +331,7 @@ public class MutationTrackingServiceTest
         setKeyspaceShardsUnsafe(service, TEST_KEYSPACE, shards);
 
         // Shard was created with localNodeId 1 as participant. Node 2 is not a participant.
-        Shard shard = shards.lookUp(range("a", "m"));
+        Shard shard = shards.get(range("a", "m"), Epoch.EMPTY.getEpoch());
         CoordinatorLog log = shard.currentLocalLog();
         Offsets offsets = new Offsets.Mutable(log.logId);
 
@@ -365,26 +359,19 @@ public class MutationTrackingServiceTest
 
         // Shard 1 covers range a-m with participant 1 only.
         // Shard 2 covers range m-z with participant 2 only.
-        Map<Range<Token>, Shard> shardMap = new HashMap<>();
-        Map<Range<Token>, VersionedEndpoints.ForRange> groups = new HashMap<>();
-
         AtomicInteger hostLogId = new AtomicInteger(0);
         LongSupplier logId1 = () -> CoordinatorLogId.asLong(1, hostLogId.getAndIncrement());
         LongSupplier logId2 = () -> CoordinatorLogId.asLong(2, hostLogId.getAndIncrement());
 
         Range<Token> range1 = range("a", "m");
-        Shard shard1 = new Shard(1, TEST_KEYSPACE, range1, new Participants(List.of(1)), logId1, (s, l) -> {});
+        Shard shard1 = new Shard(1, TEST_KEYSPACE, 1L, range1, new Participants(List.of(1)), logId1, (s, l) -> {});
         shard1.currentLocalLog().reconciledOffsets.add(1);
-        shardMap.put(range1, shard1);
-        groups.put(range1, VersionedEndpoints.forRange(Epoch.EMPTY, EndpointsForRange.empty(range1)));
 
         Range<Token> range2 = range("m", "z");
-        Shard shard2 = new Shard(2, TEST_KEYSPACE, range2, new Participants(List.of(2)), logId2, (s, l) -> {});
+        Shard shard2 = new Shard(2, TEST_KEYSPACE, 1L, range2, new Participants(List.of(2)), logId2, (s, l) -> {});
         shard2.currentLocalLog().reconciledOffsets.add(2);
-        shardMap.put(range2, shard2);
-        groups.put(range2, VersionedEndpoints.forRange(Epoch.EMPTY, EndpointsForRange.empty(range2)));
 
-        KeyspaceShards keyspaceShards = new KeyspaceShards(TEST_KEYSPACE, shardMap, new ReplicaGroups(groups));
+        KeyspaceShards keyspaceShards = createTestKeyspaceShards(TEST_KEYSPACE, List.of(shard1, shard2));
         setKeyspaceShardsUnsafe(service, TEST_KEYSPACE, keyspaceShards);
 
         TableId tableId = Keyspace.open(TEST_KEYSPACE).getColumnFamilyStore(TEST_TABLE).metadata().id;
@@ -464,15 +451,15 @@ public class MutationTrackingServiceTest
     @Test
     public void testStartupGuardBumpsRegressedCounter()
     {
-        QueryProcessor.executeInternal(String.format("INSERT INTO %s.%s (keyspace_name, range_start, range_end, host_id, host_log_id) VALUES (?, ?, ?, ?, ?)",
+        QueryProcessor.executeInternal(String.format("INSERT INTO %s.%s (keyspace_name, range_start, range_end, since_epoch, host_id, host_log_id) VALUES (?, ?, ?, ?, ?, ?)",
                                                      SchemaConstants.SYSTEM_KEYSPACE_NAME, SystemKeyspace.COORDINATOR_LOGS),
-                                       "test_ks", "a", "z", 1, 56);
-        QueryProcessor.executeInternal(String.format("INSERT INTO %s.%s (keyspace_name, range_start, range_end, host_id, host_log_id) VALUES (?, ?, ?, ?, ?)",
+                                       "test_ks", "a", "z", 1L, 1, 56);
+        QueryProcessor.executeInternal(String.format("INSERT INTO %s.%s (keyspace_name, range_start, range_end, since_epoch, host_id, host_log_id) VALUES (?, ?, ?, ?, ?, ?)",
                                                      SchemaConstants.SYSTEM_KEYSPACE_NAME, SystemKeyspace.COORDINATOR_LOGS),
-                                       "test_ks", "a", "z", 2, 100);
+                                       "test_ks", "a", "z", 1L, 2000, 100);
 
         assertEquals(56, MutationTrackingService.loadMaxCoordinatorLogIdFromSystemTable(1));
-        assertEquals(100, MutationTrackingService.loadMaxCoordinatorLogIdFromSystemTable(2));
+        assertEquals(100, MutationTrackingService.loadMaxCoordinatorLogIdFromSystemTable(2000));
 
         // Stored counter is 6 (regressed compared to 56)
         MutationTrackingService.persistHostLogIdToSystemTable(6);
