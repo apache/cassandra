@@ -100,7 +100,7 @@ public abstract class DifferentialCompactionTester extends DifferentialCorpusDri
     private static final boolean SLICE_READBACK =
         CassandraRelevantProperties.TEST_DIFFERENTIAL_SLICE_READBACK.getBoolean();
 
-    /** Ceiling on how many rows of one partition {@link #assertEveryRowReadableThroughASlice} probes. */
+    /** Ceiling on how many rows of one partition {@link #assertEveryRowReadableThroughASlice} reads back. */
     private static final int SLICE_READBACK_MAX_ROWS_PER_PARTITION =
         CassandraRelevantProperties.TEST_DIFFERENTIAL_SLICE_READBACK_MAX_ROWS.getInt();
 
@@ -587,7 +587,7 @@ public abstract class DifferentialCompactionTester extends DifferentialCorpusDri
             return 0;
 
         ColumnFilter fetchAll = ColumnFilter.all(metadata);
-        // cells are only comparable when the probe's filter fetches exactly what the sequential read deserializes
+        // cells are only comparable when the slice's filter fetches exactly what the sequential read deserializes
         boolean cellsComparable = sstable.header.columns().equals(metadata.regularAndStaticColumns());
         int headCap = (SLICE_READBACK_MAX_ROWS_PER_PARTITION + 1) / 2;
         int tailCap = SLICE_READBACK_MAX_ROWS_PER_PARTITION / 2;
@@ -600,7 +600,7 @@ public abstract class DifferentialCompactionTester extends DifferentialCorpusDri
         {
             while (scanner.hasNext())
             {
-                List<Row> probes = new ArrayList<>();
+                List<Row> rowsToSlice = new ArrayList<>();
                 int unfiltereds;
                 DecoratedKey key;
                 DeletionTime partitionDeletion;
@@ -608,7 +608,7 @@ public abstract class DifferentialCompactionTester extends DifferentialCorpusDri
                 {
                     key = partition.partitionKey();
                     partitionDeletion = partition.partitionLevelDeletion();
-                    unfiltereds = collectProbeRows(partition, probes, headCap, tailCap);
+                    unfiltereds = collectRowsToSlice(partition, rowsToSlice, headCap, tailCap);
                 }
 
                 AbstractRowIndexEntry entry = sstable.getRowIndexEntry(key, SSTableReader.Operator.EQ);
@@ -621,7 +621,7 @@ public abstract class DifferentialCompactionTester extends DifferentialCorpusDri
                 pending.advance(sstable, key, entry, unfiltereds, granularity);
 
                 assertPartitionDeletionReadableFromIndexEntry(sstable, key, entry, partitionDeletion);
-                assertEveryProbeReturnsExactly(sstable, metadata, fetchAll, key, probes, cellsComparable);
+                assertEachRowReturnedBySlice(sstable, metadata, fetchAll, key, rowsToSlice, cellsComparable);
             }
         }
         pending.finish(sstable, granularity);
@@ -658,12 +658,12 @@ public abstract class DifferentialCompactionTester extends DifferentialCorpusDri
         }
     }
 
-    /** Every probe row of one partition, seeked in both directions. */
-    private static void assertEveryProbeReturnsExactly(SSTableReader sstable, TableMetadata metadata,
-                                                       ColumnFilter fetchAll, DecoratedKey key,
-                                                       List<Row> probes, boolean cellsComparable)
+    /** Reads each of {@code rowsToSlice} back through a single-row slice, in both directions. */
+    private static void assertEachRowReturnedBySlice(SSTableReader sstable, TableMetadata metadata,
+                                                     ColumnFilter fetchAll, DecoratedKey key,
+                                                     List<Row> rowsToSlice, boolean cellsComparable)
     {
-        for (Row expected : probes)
+        for (Row expected : rowsToSlice)
         {
             assertSliceReturnsExactly(sstable, metadata, fetchAll, key, expected, false, cellsComparable);
             assertSliceReturnsExactly(sstable, metadata, fetchAll, key, expected, true, cellsComparable);
@@ -671,12 +671,13 @@ public abstract class DifferentialCompactionTester extends DifferentialCorpusDri
     }
 
     /**
-     * Collects the rows one partition is probed with: the first {@code headCap}, then the last {@code tailCap}.
+     * Collects the rows of one partition to read back through a slice: the first {@code headCap}, then the
+     * last {@code tailCap}.
      *
      * @return how many unfiltereds the partition held, markers included
      */
-    private static int collectProbeRows(UnfilteredRowIterator partition, List<Row> probes,
-                                        int headCap, int tailCap)
+    private static int collectRowsToSlice(UnfilteredRowIterator partition, List<Row> rowsToSlice,
+                                          int headCap, int tailCap)
     {
         ArrayDeque<Row> tail = new ArrayDeque<>();
         int unfiltereds = 0;
@@ -687,8 +688,8 @@ public abstract class DifferentialCompactionTester extends DifferentialCorpusDri
             if (!unfiltered.isRow())
                 continue;
             Row row = (Row) unfiltered;
-            if (probes.size() < headCap)
-                probes.add(row);
+            if (rowsToSlice.size() < headCap)
+                rowsToSlice.add(row);
             else if (tailCap > 0)
             {
                 tail.addLast(row);
@@ -696,7 +697,7 @@ public abstract class DifferentialCompactionTester extends DifferentialCorpusDri
                     tail.removeFirst();
             }
         }
-        probes.addAll(tail);
+        rowsToSlice.addAll(tail);
         return unfiltereds;
     }
 
@@ -713,14 +714,14 @@ public abstract class DifferentialCompactionTester extends DifferentialCorpusDri
                                                   boolean cellsComparable)
     {
         Slices slices = Slices.with(metadata.comparator, Slice.make(expected.clustering()));
-        try (UnfilteredRowIterator probe = sstable.rowIterator(key, slices, fetchAll, reversed,
-                                                               SSTableReadsListener.NOOP_LISTENER))
+        try (UnfilteredRowIterator sliced = sstable.rowIterator(key, slices, fetchAll, reversed,
+                                                                SSTableReadsListener.NOOP_LISTENER))
         {
             Row found = null;
             int rows = 0;
-            while (probe.hasNext())
+            while (sliced.hasNext())
             {
-                Unfiltered unfiltered = probe.next();
+                Unfiltered unfiltered = sliced.next();
                 if (!unfiltered.isRow())
                     continue;
                 rows++;
@@ -760,12 +761,12 @@ public abstract class DifferentialCompactionTester extends DifferentialCorpusDri
     {
         if (entry.blockCount() <= 1)
             return;
-        try (UnfilteredRowIterator probe = sstable.rowIterator(key, Slices.ALL, ColumnFilter.NONE, false,
-                                                               SSTableReadsListener.NOOP_LISTENER))
+        try (UnfilteredRowIterator read = sstable.rowIterator(key, Slices.ALL, ColumnFilter.NONE, false,
+                                                              SSTableReadsListener.NOOP_LISTENER))
         {
             assertEquals("the index entry's partition-level deletion differs from the data file's for " +
                          key + " in " + sstable.descriptor,
-                         fromDataFile, probe.partitionLevelDeletion());
+                         fromDataFile, read.partitionLevelDeletion());
         }
     }
 

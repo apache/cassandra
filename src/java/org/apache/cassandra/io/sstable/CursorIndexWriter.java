@@ -23,6 +23,7 @@ import java.io.IOException;
 import org.apache.cassandra.db.DeletionTime;
 import org.apache.cassandra.db.SerializationHeader;
 import org.apache.cassandra.dht.ReusableDecoratedKey;
+import org.apache.cassandra.io.sstable.format.SSTableWriter;
 import org.apache.cassandra.io.sstable.format.SortedTableWriter;
 
 /**
@@ -40,6 +41,20 @@ public abstract class CursorIndexWriter
     public interface Factory
     {
         CursorIndexWriter create(SortedTableWriter<?, ?> writer, SerializationHeader header);
+    }
+
+    /**
+     * Returns {@code writer} as a {@code type}, or throws if it is not one. Cursor compaction calls this
+     * once per sstable writer, so a format whose writer class does not match fails with a clear message.
+     *
+     * @param format the name of the format whose cursor compaction needs the {@code type}
+     */
+    public static <T> T checkWriterType(String format, SSTableWriter writer, Class<T> type)
+    {
+        if (!type.isInstance(writer))
+            throw new IllegalStateException(String.format("cursor compaction for format %s needs a %s, but the writer is a %s",
+                                                          format, type.getName(), writer.getClass().getName()));
+        return type.cast(writer);
     }
 
     protected long partitionStart;

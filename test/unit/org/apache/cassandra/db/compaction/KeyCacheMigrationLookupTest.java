@@ -45,9 +45,9 @@ import static org.junit.Assert.assertTrue;
         targetClass = "org.apache.cassandra.io.sstable.keycache.KeyCache",
         targetMethod = "get",
         targetLocation = "AT ENTRY",
-        condition = "org.apache.cassandra.db.compaction.KeyCacheMigrationProbeTest.counting",
-        action = "org.apache.cassandra.db.compaction.KeyCacheMigrationProbeTest.lookups.incrementAndGet()")
-public class KeyCacheMigrationProbeTest extends CQLTester
+        condition = "org.apache.cassandra.db.compaction.KeyCacheMigrationLookupTest.counting",
+        action = "org.apache.cassandra.db.compaction.KeyCacheMigrationLookupTest.lookups.incrementAndGet()")
+public class KeyCacheMigrationLookupTest extends CQLTester
 {
     public static final AtomicLong lookups = new AtomicLong();
     public static volatile boolean counting;

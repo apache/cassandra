@@ -58,6 +58,7 @@ import org.apache.cassandra.db.rows.Row;
 import org.apache.cassandra.db.rows.UnfilteredRowIterators;
 import org.apache.cassandra.db.rows.UnfilteredSerializer;
 import org.apache.cassandra.io.sstable.ClusteringDescriptor;
+import org.apache.cassandra.io.sstable.CursorIndexWriter;
 import org.apache.cassandra.io.sstable.ISSTableScanner;
 import org.apache.cassandra.io.sstable.PartitionDescriptor;
 import org.apache.cassandra.io.sstable.SSTableCursorReader;
@@ -1861,7 +1862,9 @@ public class CursorCompactor extends CompactionInfo.Holder
         {
             writerRollover();
 
-            ssTableCursorWriter = new SSTableCursorWriter((SortedTableWriter) newWriter);
+            SortedTableWriter<?, ?> sortedWriter =
+                CursorIndexWriter.checkWriterType(newWriter.descriptor.getFormat().name(), newWriter, SortedTableWriter.class);
+            ssTableCursorWriter = new SSTableCursorWriter(sortedWriter);
             ssTableCursorWriter.setFirst(partitionDescriptor.keyBuffer());
         }
         assert ssTableCursorWriter != null;

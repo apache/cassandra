@@ -87,7 +87,7 @@ public class CursorKeyCacheMigrationTest extends DifferentialCompactionTester
         DatabaseDescriptor.setSelectedSSTableFormat("big");
         originalMigrate = DatabaseDescriptor.shouldMigrateKeycacheOnCompaction();
         DatabaseDescriptor.setMigrateKeycacheOnCompaction(true);
-        // Forces a promoted row index.
+        // Forces a promoted index.
         originalColumnIndexCacheSize = DatabaseDescriptor.getColumnIndexCacheSizeInKiB();
         DatabaseDescriptor.setColumnIndexCacheSize(0);
         // Small index blocks, so the fixture's partitions span more than one block and their cached
