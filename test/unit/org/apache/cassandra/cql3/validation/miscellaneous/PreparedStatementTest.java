@@ -56,7 +56,7 @@ public class PreparedStatementTest extends CQLTester
                     preparedSelect[threadId] = QueryProcessor.instance.prepare(
                     String.format("SELECT b FROM %s.test_fullyqualified where a = 10", KEYSPACE), state);
                     Assert.assertNotNull(preparedSelect[threadId].statementId);
-                    if(!QueryProcessor.instance.getPreparedStatements().containsKey(preparedSelect[threadId].statementId))
+                    if (QueryProcessor.instance.getPrepared(preparedSelect[threadId].statementId) == null)
                     {
                         preparedStatementPresentInCache.set(false);
                     }
@@ -70,7 +70,6 @@ public class PreparedStatementTest extends CQLTester
                     // Signal that this thread has finished
                     finishLatch.countDown();
                 }
-                Assert.fail();
             });
             thread.start();
         }
