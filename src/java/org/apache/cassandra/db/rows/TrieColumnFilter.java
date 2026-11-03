@@ -26,8 +26,6 @@ import java.util.function.Predicate;
 import com.google.common.base.Predicates;
 import com.google.common.collect.SortedSetMultimap;
 
-import org.agrona.collections.Object2IntHashMap;
-
 import org.apache.cassandra.cql3.ColumnIdentifier;
 import org.apache.cassandra.db.Columns;
 import org.apache.cassandra.db.DeletionTime;
@@ -62,8 +60,8 @@ public class TrieColumnFilter
 {
     final InMemoryRangeTrie<FilterState> trie = InMemoryRangeTrie.shortLived(TrieBackedPartition.BYTE_COMPARABLE_VERSION);
     final InMemoryRangeTrie<FilterState>.Mutator<FilterState> mutator = trie.mutator(TrieColumnFilter::mergeFilterState, Predicates.alwaysFalse());
-    final Columns columns;
-    final Object2IntHashMap<ColumnIdentifier> columnIds;
+    /// The column set of the row the filter will apply to, used to identify columns (see [TrieBackedRow#columnId]).
+    final Columns rowColumns;
 
     /// Create a filter trie that applies the given [ColumnFilter]:
     /// - the trie is restricted to only the fetched columns
@@ -74,12 +72,10 @@ public class TrieColumnFilter
     /// @param isStatic true if the static part of the filter should be used (i.e. we are processing a static row),
     ///                 false if the regular part
     /// @param mayFilterColumns must be set to `!filter.fetchesAllColumns(isStatic()) || !filter.allFetchedColumnsAreQueried()`
-    public TrieColumnFilter(Columns columns, Object2IntHashMap<ColumnIdentifier> columnIds, ColumnFilter filter, boolean isStatic, boolean mayFilterColumns)
+    public TrieColumnFilter(Columns rowColumns, ColumnFilter filter, boolean isStatic, boolean mayFilterColumns)
     throws TrieSpaceExhaustedException
     {
-        this.columns = columns;
-        this.columnIds = columnIds;
-
+        this.rowColumns = rowColumns;
         if (mayFilterColumns)
         {
             applyColumnFilter(filter, isStatic);
@@ -97,17 +93,15 @@ public class TrieColumnFilter
     }
 
     /// Create a filter trie that restricts a trie to only the specified set of queried columns.
-    public TrieColumnFilter(Columns columns, Object2IntHashMap<ColumnIdentifier> columnIds, Columns queriedColumns)
+    public TrieColumnFilter(Columns rowColumns, Columns queriedColumns)
     throws TrieSpaceExhaustedException
     {
-        this.columns = columns;
-        this.columnIds = columnIds;
-
+        this.rowColumns = rowColumns;
         for (ColumnMetadata column : queriedColumns)
         {
-            int id = columnIds.get(column.name);
-            if (id == TrieBackedRow.COLUMN_NOT_PRESENT)
-                continue;
+            int id = TrieBackedRow.columnId(rowColumns, column);
+            if (id < 0)
+                continue; // columns we cannot identify can't be present in the row
             ByteComparable columnKey = TrieBackedRow.encodeUnsignedInt(id);
 
             trie.putRecursive(columnKey, INCLUDED_START, false, TrieColumnFilter::addNew);
@@ -129,9 +123,9 @@ public class TrieColumnFilter
 
         for (ColumnMetadata column : columns)
         {
-            int id = TrieBackedRow.columnId(columnIds, column);
-            if (id == TrieBackedRow.COLUMN_NOT_PRESENT)
-                continue; // unknown columns can't be present in the row
+            int id = TrieBackedRow.columnId(rowColumns, column);
+            if (id < 0)
+                continue; // columns we cannot identify can't be present in the row
             ByteComparable columnKey = TrieBackedRow.encodeUnsignedInt(id);
 
             if (queriedByUserTester.test(column))
@@ -181,7 +175,7 @@ public class TrieColumnFilter
             DroppedColumn dropped = droppedColumns.get(c.name.bytes);
             if (dropped != null)
             {
-                ByteComparable columnKey = TrieBackedRow.columnKey(columnIds, c);
+                ByteComparable columnKey = TrieBackedRow.columnKeyComparable(rowColumns, c);
                 Covering deletion = deletion(dropped.droppedTime, 0);
                 // applying the deletion will merge INCLUDED markers with the deletion time
                 mutator.apply(RangeTrie.branch(columnKey, TrieBackedPartition.BYTE_COMPARABLE_VERSION, deletion));

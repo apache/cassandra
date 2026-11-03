@@ -117,17 +117,16 @@ back to a UUID.
 
 ### Row
 
-The row is the central concept in Cassandra's CQL data model. A row is a collection of typed columns. The
-type and order of columns is predefined in the table's metadata, and thus each column can be identified by
-a simple integer id[^2], which we represent as a variable length unsigned integer, usually taking just one
-byte. Some of the columns are simple, mapping to a single cell, and some may be complex,
-where the id maps to the complex column marker, and the individual cells can be reached by following the
-cell path from the position of the marker. A row may also contain "liveness info", which tells Cassandra
+The row is the central concept in Cassandra's CQL data model. A row is a collection of typed columns. Each
+column of a table is assigned a unique integer id (`ColumnMetadata.uniqueId`), which does not change when the
+table's schema is altered (dropped columns keep their ids, and get them back if they are re-added). We use
+this id to identify the column in the trie, representing it as a variable length unsigned integer, usually
+taking just one byte. Some of the columns are simple, where the id maps to a single cell, and some may be
+complex, where the id maps to the complex column marker, and the individual cells can be reached by following
+the cell path from the position of the marker. A row may also contain "liveness info", which tells Cassandra
 if the row should be listed as live even if all cells that it contains have been deleted. We store this
 liveness info as a `LivenessInfo` object at the root of a row and use it as a marker to list rows within
 a partition.
-
-[^2]: Provided that the metadata does not change, which we can be guaranteed for the lifetime of a memtable.
 
 Rows can have a row deletion, which is represented as a branch deletion over the root of the row in the
 deletion branch of the trie. Like complex columns, it is also possible for rows to exist in the deletion
@@ -135,12 +134,16 @@ branch alone, and to be able to recognize such rows as rows we mark the root of 
 with a row level marker, which is a special `TrieTombstoneMarker` that has no effect other than as metadata
 to mark a level.
 
-There are two ways that the content of a row can be listed:
-- by cell, in which case we present all the cells/leaves of the trie, combining complex column cells with
-  their cell path.
-- by column, in which case we present simple cells directly, and also look for `COMPLEX_COLUMN_MARKER` or
-  a deletion marker below the root of the row. If one of these is found, we take the tail trie (which
-  includes both the live and deleted part) and use it to form a `TrieBackedComplexColumn`.
+Column ids are assigned when the columns are created and do not follow the order in which Cassandra expects to
+see the columns of a row (static before regular, simple before complex, then by name).
+Because of this, rows do not list their content by walking the trie, but look each column up by its id in
+the order of the row's column set (which is the table's set of regular or static columns, including dropped
+ones). There are two ways that the content of a row can be listed:
+- by column, in which case for simple columns we present the cell at the column's id, and for complex columns
+  we take the tail trie at the column's id (which includes both the live and deleted part) and, if it is not
+  empty, use it to form a `TrieBackedComplexColumn`.
+- by cell, in which case we list the columns in the same way and present their cells, combining complex
+  column cells with their cell path.
 
 Rows are implemented by the class `TrieBackedRow`. They can be taken from a bigger structure or constructed
 by inserting cells into a standalone row in a short-lived in-memory trie using a row builder. We use these
@@ -158,32 +161,33 @@ is the following:
  -> [ts=346]
 *** Start deletion branch
  -> Level ROW
-01 -> LIVE -> deletedAt=345[COLUMN]
-01↑ -> deletedAt=345[COLUMN] -> LIVE
+02 -> LIVE -> deletedAt=345[COLUMN]
+02↑ -> deletedAt=345[COLUMN] -> LIVE
 ↑ -> Level ROW
 *** End deletion branch
-00 -> [?=40700ae147ae147b ts=346]
-01 -> COMPLEX_COLUMN_MARKER
+02 -> COMPLEX_COLUMN_MARKER
   404830b82cea7f29399ea146b9d371484838 -> [?=40650051eb851eb8 ts=346]
     4d79012af8b34fb497996c0d29ca4e2f38 -> [?=40562ae147ae147b ts=346]
+03 -> [?=40700ae147ae147b ts=346]
 ```
 
 This trie contains row level markers in both the live (liveness info `[ts=346]`) and deletion
-(`Level ROW`)[^3] branches; a complex column deletion for the column `purchases` with index `01`;
-a cell for the timestamp and value of the simple column `total` with index `00`, and two cells with path
-for the entries of the `purchases` complex column.
+(`Level ROW`)[^3] branches; a complex column deletion for the column `purchases` with id `02`;
+two cells with path for the entries of the `purchases` complex column, and a cell for the timestamp and value
+of the simple column `total` with id `03`. (Ids `00` and `01` belong to the primary key columns `company`
+and `date`.)
 
 [^3]: Note that the deletion marker must be presented both before and after the branch because
 it needs to be returned before the content of the branch in both forward and reverse direction.
 
-When this trie is presented as an iterator of `ColumnData`, `TrieBackedRow` uses `tailTries` to stop on
-cells, deletions and complex column markers and view the trie above as:
+When this trie is presented as an iterator of `ColumnData`, `TrieBackedRow` looks up the row's columns in
+order, `total` before `purchases` because simple columns come before complex ones, and views the trie above as:
 ```
-00 -> [total=256.68 ts=346]
-01 -> [complex column]
+03 -> [total=256.68 ts=346]
+02 -> [complex column]
 ```
-where the stop at `01` is given the complex column trie as shown in the example in the previous section as
-the tail trie.
+where the complex column is given the tail trie at `02`, i.e. the complex column trie as shown in the example in
+the previous section.
 
 ### Partition
 
@@ -257,14 +261,14 @@ DELETE FROM %s WHERE ... AND date <= '2026-01-31' AND date >= '2026-01-01'
         0d38 -> Level ROW + LIVE -> deletedAt=329[ROW]
           38↑ -> Level ROW + deletedAt=329[ROW] -> LIVE
         1038 -> Level ROW
-            01 -> LIVE -> deletedAt=366[COLUMN]
-            01↑ -> deletedAt=366[COLUMN] -> LIVE
+            02 -> LIVE -> deletedAt=366[COLUMN]
+            02↑ -> deletedAt=366[COLUMN] -> LIVE
           38↑ -> Level ROW
 *** End deletion branch
 408000501038 -> [ts=367]
-            00 -> [?=40744d47ae147ae1 ts=367]
-            01 -> COMPLEX_COLUMN_MARKER
+            02 -> COMPLEX_COLUMN_MARKER
               40482b4ce57d6a047087471c2aa4fc596138 -> [?=40744d47ae147ae1 ts=367]
+            03 -> [?=40744d47ae147ae1 ts=367]
 ```
 
 The trie here has a partition marker with some collected statistics ("partition with ...") 
@@ -309,13 +313,13 @@ For example, the tail given for the `408000501038` row is
 -> [ts=367]
 *** Start deletion branch
 -> Level ROW
-01 -> LIVE -> deletedAt=366[COLUMN]
-01↑ -> deletedAt=366[COLUMN] -> LIVE
+02 -> LIVE -> deletedAt=366[COLUMN]
+02↑ -> deletedAt=366[COLUMN] -> LIVE
 ↑ -> Level ROW
 *** End deletion branch
-00 -> [?=40744d47ae147ae1 ts=367]
-01 -> COMPLEX_COLUMN_MARKER
+02 -> COMPLEX_COLUMN_MARKER
   40482b4ce57d6a047087471c2aa4fc596138 -> [?=40744d47ae147ae1 ts=367]
+03 -> [?=40744d47ae147ae1 ts=367]
 ```
 
 ### Memtable
@@ -345,31 +349,31 @@ The trie below
 40a9e72bd32b9f1ba24041434d450038 -> partition with 2 rows and 0 tombstones
                                 *** Start deletion branch
                                 408000500e38 -> Level ROW
-                                            01 -> LIVE -> deletedAt=345[COLUMN]
-                                            01↑ -> deletedAt=345[COLUMN] -> LIVE
+                                            02 -> LIVE -> deletedAt=345[COLUMN]
+                                            02↑ -> deletedAt=345[COLUMN] -> LIVE
                                           38↑ -> Level ROW
                                 *** End deletion branch
                                 408000500e38 -> [ts=346]
-                                            00 -> [?=40700ae147ae147b ts=346]
-                                            01 -> COMPLEX_COLUMN_MARKER
+                                            02 -> COMPLEX_COLUMN_MARKER
                                               404830b82cea7f29399ea146b9d371484838 -> [?=40650051eb851eb8 ts=346]
                                                 4d79012af8b34fb497996c0d29ca4e2f38 -> [?=40562ae147ae147b ts=346]
+                                            03 -> [?=40700ae147ae147b ts=346]
                                         1138 -> [ts=385]
-                                            00 -> [?=4058ceb851eb851f ts=385]
-                                            01 -> COMPLEX_COLUMN_MARKER
+                                            02 -> COMPLEX_COLUMN_MARKER
                                               404dab4819dc6f5c05b5754a057d78c99a38 -> [?=4058ceb851eb851f ts=385]
+                                            03 -> [?=4058ceb851eb851f ts=385]
   ca8e7ee71a25ce664049424d0038 -> partition with 1 rows and 0 tombstones
                               *** Start deletion branch
                               408000500f38 -> Level ROW
-                                          01 -> LIVE -> deletedAt=351[COLUMN]
-                                          01↑ -> deletedAt=351[COLUMN] -> LIVE
+                                          02 -> LIVE -> deletedAt=351[COLUMN]
+                                          02↑ -> deletedAt=351[COLUMN] -> LIVE
                                         38↑ -> Level ROW
                               *** End deletion branch
                               408000500f38 -> [ts=352]
-                                          00 -> [?=4080f651eb851eb8 ts=352]
-                                          01 -> COMPLEX_COLUMN_MARKER
+                                          02 -> COMPLEX_COLUMN_MARKER
                                             40435441ee93ac90d098e89c75b414addb38 -> [?=407a4ab851eb851e ts=352]
                                                 edf143aa8d178f86b4d83a72a7517038 -> [?=405e87ae147ae148 ts=352]
+                                          03 -> [?=4080f651eb851eb8 ts=352]
   cd0a37fd8f053c6c404170706c650038 -> partition with 1 rows and 2 tombstones
                                   *** Start deletion branch
                                   4080004fe620 -> LIVE -> deletedAt=412[RANGE]
@@ -377,14 +381,14 @@ The trie below
                                           0d38 -> Level ROW + LIVE -> deletedAt=329[ROW]
                                             38↑ -> Level ROW + deletedAt=329[ROW] -> LIVE
                                           1038 -> Level ROW
-                                              01 -> LIVE -> deletedAt=366[COLUMN]
-                                              01↑ -> deletedAt=366[COLUMN] -> LIVE
+                                              02 -> LIVE -> deletedAt=366[COLUMN]
+                                              02↑ -> deletedAt=366[COLUMN] -> LIVE
                                             38↑ -> Level ROW
                                   *** End deletion branch
                                   408000501038 -> [ts=367]
-                                              00 -> [?=40744d47ae147ae1 ts=367]
-                                              01 -> COMPLEX_COLUMN_MARKER
+                                              02 -> COMPLEX_COLUMN_MARKER
                                                 40482b4ce57d6a047087471c2aa4fc596138 -> [?=40744d47ae147ae1 ts=367]
+                                              03 -> [?=40744d47ae147ae1 ts=367]
 ```
 is constructed by running the code in `TrieMemtableDocTrieMakerTest.java` and represents the full trie for a small
 table with three partitions. The leading part of this trie is the decorated partition key, composed of a token
@@ -414,31 +418,31 @@ type definitions and keys to make it easier to see what the content is describin
 40a9e72bd32b9f1ba24041434d450038 -> partition with 2 rows and 0 tombstones at ACME
                                 *** Start deletion branch
                                 408000500e38 -> Level ROW
-                                            01 -> LIVE -> deletedAt=345[COLUMN]
-                                            01↑ -> deletedAt=345[COLUMN] -> LIVE
+                                            02 -> LIVE -> deletedAt=345[COLUMN]
+                                            02↑ -> deletedAt=345[COLUMN] -> LIVE
                                           38↑ -> Level ROW
                                 *** End deletion branch
                                 408000500e38 -> [ts=346] at date=2026-02-10
-                                            00 -> [total=256.68 ts=346]
-                                            01 -> COMPLEX_COLUMN_MARKER
+                                            02 -> COMPLEX_COLUMN_MARKER
                                               404830b82cea7f29399ea146b9d371484838 -> [purchases[830b82ce-a7f2-4939-9ea1-46b9d3714848]=168.01 ts=346]
                                                 4d79012af8b34fb497996c0d29ca4e2f38 -> [purchases[d79012af-8b34-4fb4-9799-6c0d29ca4e2f]=88.67 ts=346]
+                                            03 -> [total=256.68 ts=346]
                                         1138 -> [ts=385] at date=2026-02-13
-                                            00 -> [total=99.23 ts=385]
-                                            01 -> COMPLEX_COLUMN_MARKER
+                                            02 -> COMPLEX_COLUMN_MARKER
                                               404dab4819dc6f5c05b5754a057d78c99a38 -> [purchases[dab4819d-c6f5-4c05-b575-4a057d78c99a]=99.23 ts=385]
+                                            03 -> [total=99.23 ts=385]
   ca8e7ee71a25ce664049424d0038 -> partition with 1 rows and 0 tombstones at IBM
                               *** Start deletion branch
                               408000500f38 -> Level ROW
-                                          01 -> LIVE -> deletedAt=351[COLUMN]
-                                          01↑ -> deletedAt=351[COLUMN] -> LIVE
+                                          02 -> LIVE -> deletedAt=351[COLUMN]
+                                          02↑ -> deletedAt=351[COLUMN] -> LIVE
                                         38↑ -> Level ROW
                               *** End deletion branch
                               408000500f38 -> [ts=352] at date=2026-02-11
-                                          00 -> [total=542.79 ts=352]
-                                          01 -> COMPLEX_COLUMN_MARKER
+                                          02 -> COMPLEX_COLUMN_MARKER
                                             40435441ee93ac90d098e89c75b414addb38 -> [purchases[35441ee9-3ac9-40d0-98e8-9c75b414addb]=420.66999999999996 ts=352]
                                                 edf143aa8d178f86b4d83a72a7517038 -> [purchases[3edf143a-a8d1-478f-86b4-d83a72a75170]=122.12 ts=352]
+                                          03 -> [total=542.79 ts=352]
   cd0a37fd8f053c6c404170706c650038 -> partition with 1 rows and 2 tombstones at Apple
                                   *** Start deletion branch
                                   4080004fe620 -> LIVE -> deletedAt=412[RANGE]
@@ -446,14 +450,14 @@ type definitions and keys to make it easier to see what the content is describin
                                           0d38 -> Level ROW + LIVE -> deletedAt=329[ROW]
                                             38↑ -> Level ROW + deletedAt=329[ROW] -> LIVE
                                           1038 -> Level ROW
-                                              01 -> LIVE -> deletedAt=366[COLUMN]
-                                              01↑ -> deletedAt=366[COLUMN] -> LIVE
+                                              02 -> LIVE -> deletedAt=366[COLUMN]
+                                              02↑ -> deletedAt=366[COLUMN] -> LIVE
                                             38↑ -> Level ROW
                                   *** End deletion branch
                                   408000501038 -> [ts=367] at date=2026-02-12
-                                              00 -> [total=324.83 ts=367]
-                                              01 -> COMPLEX_COLUMN_MARKER
+                                              02 -> COMPLEX_COLUMN_MARKER
                                                 40482b4ce57d6a047087471c2aa4fc596138 -> [purchases[82b4ce57-d6a0-4470-8747-1c2aa4fc5961]=324.83 ts=367]
+                                              03 -> [total=324.83 ts=367]
 ```
 
 ## Data storage
@@ -723,16 +727,16 @@ partition it will see something similar to:
                                           0d38 -> Level ROW + LIVE -> deletedAt=329[ROW]
                                             38↑ -> Level ROW + deletedAt=329[ROW] -> LIVE
                                           1038 -> Level ROW
-                                              01 -> LIVE -> deletedAt=366[COLUMN]
-                                              01↑ -> deletedAt=366[COLUMN] -> LIVE
+                                              02 -> LIVE -> deletedAt=366[COLUMN]
+                                              02↑ -> deletedAt=366[COLUMN] -> LIVE
                                             38↑ -> Level ROW
                                   ↑ -> TO APPLY: deletedAt=513[PARTITION] -> LIVE
                                   *** End deletion branch
                                   -> TO APPLY: LIVE -> deletedAt=513[PARTITION]
                                   408000501038 -> [ts=367]
-                                              00 -> [?=40744d47ae147ae1 ts=367]
-                                              01 -> COMPLEX_COLUMN_MARKER
+                                              02 -> COMPLEX_COLUMN_MARKER
                                                 40482b4ce57d6a047087471c2aa4fc596138 -> [?=40744d47ae147ae1 ts=367]
+                                              03 -> [?=40744d47ae147ae1 ts=367]
                                   ↑ -> TO APPLY: deletedAt=513[PARTITION] -> LIVE
 ```
 
@@ -749,7 +753,7 @@ resulting in:
                                   ↑ -> deletedAt=513[PARTITION] -> LIVE
                                   *** End deletion branch
                                   408000501038 -> [ts=EMPTY]
-                                              01 -> COMPLEX_COLUMN_MARKER
+                                              02 -> COMPLEX_COLUMN_MARKER
 ```
 Note that `Level ROW` markers need to initially be kept in case there is substructure that needs to be presented as
 a deleted row, and because every tombstone marker in the trie has to present the state before and after it, it is also

@@ -208,7 +208,7 @@ public class BTreeRow extends AbstractRow
         // if there are no deleted cells then we can just check if we have at least one cell
         if (!hasDeletion(nowInSec))
             return !BTree.isEmpty(btree);
-        return Iterables.any(cells(), cell -> cell.isLive(nowInSec));
+        return Iterables.any(cellsData(), cell -> cell.isLive(nowInSec));
     }
 
     public void apply(Consumer<ColumnData> function)

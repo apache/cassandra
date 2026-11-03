@@ -37,9 +37,8 @@ import org.apache.cassandra.utils.ByteBufferUtil;
 
 import static org.junit.Assert.assertEquals;
 
-/// Trie memtables identify columns by their index in the table's column set and encode cell paths using the column
-/// types, thus they must be switched when the columns change. Check that this is done correctly, including when the
-/// memtable is empty at the time of the schema change.
+/// Trie memtables identify columns by their unique id and decode cell paths using the latest column types. Check that
+/// data written before and after a schema change is presented correctly, both from the memtables and after flushing.
 public class TrieMemtableSchemaChangeTest extends CQLTester
 {
     @Test
@@ -48,7 +47,7 @@ public class TrieMemtableSchemaChangeTest extends CQLTester
         createTable("CREATE TABLE %s (k int PRIMARY KEY, b text) WITH memtable = 'trie'");
         assertEquals(TrieMemtable.class, getCurrentColumnFamilyStore().getCurrentMemtable().getClass());
 
-        // a is inserted before b in the column set, changing its index
+        // a is inserted before b in the column set, changing the position of b
         alterTable("ALTER TABLE %s ADD a list<text>");
         execute("INSERT INTO %s (k, a, b) VALUES (1, ['x'], 'y')");
         assertRows(execute("SELECT k, a, b FROM %s"), row(1, list("x"), "y"));
@@ -94,12 +93,28 @@ public class TrieMemtableSchemaChangeTest extends CQLTester
     }
 
     @Test
+    public void testDropColumnHoldingAllRowData() throws Throwable
+    {
+        createTable("CREATE TABLE %s (k int PRIMARY KEY, a int, b int) WITH memtable = 'trie'");
+        // row 1 has no row marker, only a cell in the column we drop
+        execute("UPDATE %s USING TIMESTAMP 10000 SET a = 1 WHERE k = 1");
+        execute("INSERT INTO %s (k, b) VALUES (2, 2) USING TIMESTAMP 10000");
+
+        alterTable("ALTER TABLE %s DROP a USING TIMESTAMP 20000");
+        assertRows(execute("SELECT * FROM %s"), row(2, 2));
+        assertEmpty(execute("SELECT * FROM %s WHERE k = 1"));
+
+        flush();
+        assertRows(execute("SELECT * FROM %s"), row(2, 2));
+        assertEmpty(execute("SELECT * FROM %s WHERE k = 1"));
+    }
+
+    @Test
     public void testAlterNestedUserType() throws Throwable
     {
         String type = KEYSPACE + '.' + createType("CREATE TYPE %s (a int)");
         createTable("CREATE TABLE %s (k int PRIMARY KEY, s set<frozen<" + type + ">>) WITH memtable = 'trie'");
         execute("INSERT INTO %s (k, s) VALUES (1, {{a: 1}})");
-
         schemaChange("ALTER TYPE " + type + " ADD b int");
         execute("INSERT INTO %s (k, s) VALUES (2, {{a: 2, b: 2}})");
         // Values written before the type change may be returned with or without the new field, compare field values.

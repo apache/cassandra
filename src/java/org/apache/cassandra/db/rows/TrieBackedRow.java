@@ -32,14 +32,11 @@ import javax.annotation.Nonnull;
 
 import com.google.common.base.Preconditions;
 import com.google.common.base.Predicates;
+import com.google.common.collect.AbstractIterator;
 import com.google.common.collect.Iterables;
 import com.google.common.collect.Iterators;
-import com.google.common.collect.MapMaker;
 import com.google.common.primitives.Ints;
 
-import org.agrona.collections.Object2IntHashMap;
-
-import org.apache.cassandra.cql3.ColumnIdentifier;
 import org.apache.cassandra.db.Clustering;
 import org.apache.cassandra.db.Columns;
 import org.apache.cassandra.db.DeletionPurger;
@@ -55,9 +52,7 @@ import org.apache.cassandra.db.tries.Direction;
 import org.apache.cassandra.db.tries.InMemoryDeletionAwareTrie;
 import org.apache.cassandra.db.tries.RangeTrie;
 import org.apache.cassandra.db.tries.Trie;
-import org.apache.cassandra.db.tries.TrieEntriesIterator;
 import org.apache.cassandra.db.tries.TrieSpaceExhaustedException;
-import org.apache.cassandra.db.tries.TrieTailsIterator;
 import org.apache.cassandra.schema.ColumnMetadata;
 import org.apache.cassandra.schema.DroppedColumn;
 import org.apache.cassandra.schema.TableMetadata;
@@ -78,9 +73,9 @@ import static org.apache.cassandra.db.partitions.TrieBackedPartition.noIncomingS
 /// Immutable implementation of a [Row] object, where the data structure is represented by a trie.
 /// Stores either [Cell], or [TrieCellData] (if the row comes from a memtable trie).
 ///
-/// Trie-backed rows using a mapping of column ids to numbers that is to be obtained from the table metadata. Currently,
-/// we don't support mixing different column sets in trie rows, thus all rows in use in one object (partition, memtable)
-/// must share the same column set.
+/// Columns are identified in the trie by their unique id ([ColumnMetadata#uniqueId]), which is stable across schema
+/// changes. Because unique ids are not ordered like the columns, the row's column set is used to list the columns in
+/// the correct order, looking each of them up in the trie.
 public class TrieBackedRow extends AbstractRow
 {
     public static final Object COMPLEX_COLUMN_MARKER = new Object()
@@ -95,13 +90,11 @@ public class TrieBackedRow extends AbstractRow
     static final DeletionAwareTrie<Object, TrieTombstoneMarker> EMPTY_ROW = DeletionAwareTrie.singleton(ByteComparable.EMPTY,
                                                                                                         BYTE_COMPARABLE_VERSION,
                                                                                                         LivenessInfo.EMPTY);
-    static final Object2IntHashMap<ColumnIdentifier> EMPTY_COLUMN_IDS = makeColumnIdsMap(Columns.NONE);
 
-    private static final long EMPTY_SIZE = ObjectSizes.measure(new TrieBackedRow(Columns.NONE, EMPTY_COLUMN_IDS, Clustering.EMPTY, LivenessInfo.EMPTY, Row.Deletion.LIVE, 0, EMPTY_ROW));
+    private static final long EMPTY_SIZE = ObjectSizes.measure(new TrieBackedRow(Columns.NONE, Clustering.EMPTY, LivenessInfo.EMPTY, Row.Deletion.LIVE, 0, EMPTY_ROW));
 
-    static final int COLUMN_NOT_PRESENT = -1;
-
-    // A column with this ID cannot exist. Used to make sure we don't find anything when we are passed an unknown column definition.
+    // A column with this ID cannot exist. Used to make sure we don't find anything when we are passed a column
+    // definition that we cannot identify.
     public static final ByteComparable MISSING_COLUMN_KEY = encodeUnsignedInt(Long.MAX_VALUE);
 
     public static final int MAX_RECURSIVE_LENGTH = 128;
@@ -109,13 +102,8 @@ public class TrieBackedRow extends AbstractRow
     /// The row's clustering key.
     private final Clustering<?> clustering;
 
-    /// Mapping from column id to its numeric index, used to reach the column in the trie.
-    private final Object2IntHashMap<ColumnIdentifier> columnIds;
-    /// List of columns in this row, also used a map from column index to column id/definition.
+    /// The columns that this row can contain, used to list its columns in order.
     private final Columns columns;
-
-    /// Pre-computed column maps for each `Columns` instance.
-    private static final Map<Columns, Object2IntHashMap<ColumnIdentifier>> columnsMapCache = new MapMaker().weakKeys().makeMap();
 
     // We need to filter the tombstones of a row on every read (twice in fact: first to remove purgeable tombstone, and then after reconciliation to remove
     // all tombstone since we don't return them to the client) as well as on compaction. But it's likely that many rows won't have any tombstone at all, so
@@ -163,21 +151,20 @@ public class TrieBackedRow extends AbstractRow
         return !Objects.equals(m.leftDeletion(), m.rightDeletion());
     }
 
+    /// Create a row over the given data trie. The row can list all columns of the table, including dropped ones, so
+    /// that the data of dropped columns is presented in the same way as by other row implementations (and can be
+    /// filtered by [#filter]).
     public static TrieBackedRow create(TableMetadata tableMetadata, Clustering<?> clustering, DeletionAwareTrie<Object, TrieTombstoneMarker> data)
     {
-        return create(tableMetadata.regularAndStaticColumns().columns(clustering == Clustering.STATIC_CLUSTERING), clustering, data);
+        return create(tableColumns(tableMetadata, clustering), clustering, data);
     }
 
-    static TrieBackedRow create(Columns columns, Clustering<?> clustering, DeletionAwareTrie<Object, TrieTombstoneMarker> data)
+    private static Columns tableColumns(TableMetadata tableMetadata, Clustering<?> clustering)
     {
-        return create(columns,
-                      columnsMapCache.computeIfAbsent(columns, TrieBackedRow::makeColumnIdsMap),
-                      clustering,
-                      data);
+        return tableMetadata.regularAndStaticAndDroppedColumns().columns(clustering == Clustering.STATIC_CLUSTERING);
     }
 
     static TrieBackedRow create(Columns columns,
-                                Object2IntHashMap<ColumnIdentifier> columnIds,
                                 Clustering<?> clustering,
                                 DeletionAwareTrie<Object, TrieTombstoneMarker> data)
     {
@@ -201,7 +188,6 @@ public class TrieBackedRow extends AbstractRow
             minLocalDeletionTime = accumulate(minLocalDeletionTime, TrieBackedRow::mergeMinLocalDeletionTime, TrieBackedRow::mergeMinLocalDeletionTime, data.contentOnlyTrie());
 
         return new TrieBackedRow(columns,
-                                 columnIds,
                                  clustering,
                                  getLivenessInfo(data),
                                  deletion,
@@ -210,7 +196,6 @@ public class TrieBackedRow extends AbstractRow
     }
 
     private TrieBackedRow(Columns columns,
-                          Object2IntHashMap<ColumnIdentifier> columnIds,
                           Clustering<?> clustering,
                           LivenessInfo livenessInfo,
                           Deletion deletion,
@@ -222,17 +207,8 @@ public class TrieBackedRow extends AbstractRow
         this.minLocalDeletionTime = minLocalDeletionTime;
         assert data != null;
         this.columns = columns;
-        this.columnIds = columnIds;
         this.clustering = clustering;
         this.data = data;
-    }
-
-    private static Object2IntHashMap<ColumnIdentifier> makeColumnIdsMap(Columns columns)
-    {
-        Object2IntHashMap<ColumnIdentifier> columnIds = new Object2IntHashMap<>(COLUMN_NOT_PRESENT);
-        for (int i = 0; i < columns.size(); i++)
-            columnIds.put(columns.getSimple(i).name, i);
-        return columnIds;
     }
 
     private static RangeTrie<TrieTombstoneMarker> rowDeletionTrie(DeletionTime deletion)
@@ -251,7 +227,7 @@ public class TrieBackedRow extends AbstractRow
     {
         assert !deletion.isLive();
         RangeTrie<TrieTombstoneMarker> deletionTrie = rowDeletionTrie(deletion);
-        return new TrieBackedRow(Columns.NONE, EMPTY_COLUMN_IDS, clustering, LivenessInfo.EMPTY, Deletion.regular(deletion), Long.MIN_VALUE,
+        return new TrieBackedRow(Columns.NONE, clustering, LivenessInfo.EMPTY, Deletion.regular(deletion), Long.MIN_VALUE,
                                  DeletionAwareTrie.deletionBranch(ByteComparable.EMPTY, BYTE_COMPARABLE_VERSION, deletionTrie));
     }
 
@@ -458,9 +434,13 @@ public class TrieBackedRow extends AbstractRow
             return Deletion.regular(delTime);
     }
 
+    /// Returns the column key, i.e. the path in the trie leading to the column's data, as a byte source. The column
+    /// must be identifiable using the given column set, see [#columnId].
     public static ByteSource columnKey(Columns columns, ColumnMetadata column)
     {
-        return ByteSource.variableLengthUnsignedInteger(columns.simpleIdx(column));
+        int id = columnId(columns, column);
+        Preconditions.checkArgument(id >= 0, "Column %s not present in columns set %s", column, columns);
+        return ByteSource.variableLengthUnsignedInteger(id);
     }
 
     public static ByteSource cellPathKey(ColumnMetadata column, CellPath path, ByteComparable.Version version)
@@ -469,27 +449,33 @@ public class TrieBackedRow extends AbstractRow
                                          getCellPathType(column).asComparableBytes(path.get(0), version));
     }
 
-    static int columnId(Object2IntHashMap<ColumnIdentifier> columnIds, ColumnMetadata column)
+    /// Returns the id with which the column is identified in the trie, or -1 if the column cannot be identified.
+    ///
+    /// Columns are identified by their unique id. Column definitions that are not taken from the table's metadata
+    /// (e.g. ones made to access the rows of system tables) may not have one; for these we use the id of the matching
+    /// column in the given column set, so that rows can be accessed using such definitions as with other row
+    /// implementations.
+    static int columnId(Columns columns, ColumnMetadata column)
     {
-        return columnIds.getValue(column.name);
+        if (column.uniqueId >= 0)
+            return column.uniqueId;
+        int index = columns.simpleIdx(column); // index in the whole set, valid for complex columns too
+        if (index < 0)
+            return -1;
+        return Math.max(columns.getSimple(index).uniqueId, -1);
     }
 
     /// Return a cell key (i.e. path in the trie) for the given (simple or complex) column and cell path (which must be
     /// non-null if the column is complex).
-    private static ByteComparable cellKey(Object2IntHashMap<ColumnIdentifier> columnIds, ColumnMetadata column, CellPath path)
+    private static ByteComparable cellKey(Columns columns, ColumnMetadata column, CellPath path)
     {
-        int id = columnId(columnIds, column);
-        if (id == COLUMN_NOT_PRESENT)
-            return MISSING_COLUMN_KEY; // SAI can call cellKey for static columns on regular rows and vice versa
+        int id = columnId(columns, column);
+        if (id < 0)
+            return MISSING_COLUMN_KEY;
         if (!column.isComplex())
             return encodeUnsignedInt(id);
         else
             return cellKey(id, column, path);
-    }
-
-    private ByteComparable cellKey(ColumnMetadata column, CellPath path)
-    {
-        return cellKey(columnIds, column, path);
     }
 
     private static ByteSource columnIdPrefix(int columnId)
@@ -500,10 +486,10 @@ public class TrieBackedRow extends AbstractRow
             return ByteSource.variableLengthUnsignedInteger(columnId);
     }
 
-    /// Return a cell key (i.e. path in the trie) for a complex cell with the given column index and cell path.
+    /// Return a cell key (i.e. path in the trie) for a complex cell with the given column id and cell path.
     ///
-    /// Note: this method is also used by [TrieBackedComplexColumn] where the column index is in the path leading to the
-    /// complex column trie. To support this, a `columnId` of -1 is used to skip the column index.
+    /// Note: this method is also used by [TrieBackedComplexColumn] where the column id is in the path leading to the
+    /// complex column trie. To support this, a `columnId` of -1 is used to skip the column id.
     static ByteComparable cellKey(int columnId, ColumnMetadata column, @Nonnull CellPath path)
     {
         if (path == CellPath.BOTTOM)
@@ -527,11 +513,11 @@ public class TrieBackedRow extends AbstractRow
         return ColumnMetadata.pathNameComparator(column.type);
     }
 
-    /// Returns the column key, i.e. the column index path in the trie without the part corresponding to the cell path.
-    static ByteComparable columnKey(Object2IntHashMap<ColumnIdentifier> columnIds, ColumnMetadata column)
+    /// Returns the column key, i.e. the column id path in the trie without the part corresponding to the cell path.
+    static ByteComparable columnKeyComparable(Columns columns, ColumnMetadata column)
     {
-        int id = columnId(columnIds, column);
-        if (id == COLUMN_NOT_PRESENT)
+        int id = columnId(columns, column);
+        if (id < 0)
             return MISSING_COLUMN_KEY;
         return encodeUnsignedInt(id);
     }
@@ -568,7 +554,7 @@ public class TrieBackedRow extends AbstractRow
 
     private Cell<?> getCellInternal(ColumnMetadata c, CellPath path)
     {
-        Object o = data.get(cellKey(c, path));
+        Object o = data.get(cellKey(columns, c, path));
         if (o == null || o instanceof Cell)
             return (Cell<?>) o;
         CellData<?, ?> cellData = (CellData<?, ?>) o;
@@ -579,7 +565,7 @@ public class TrieBackedRow extends AbstractRow
     public ComplexColumnData getComplexColumnData(ColumnMetadata c)
     {
         assert c.isComplex();
-        DeletionAwareTrie<Object, TrieTombstoneMarker> tail = data.tailTrie(columnKey(columnIds, c));
+        DeletionAwareTrie<Object, TrieTombstoneMarker> tail = complexColumnTrie(c);
         if (!isColumnDataTrieEmpty(tail))
             return new TrieBackedComplexColumn(c, tail);
         else
@@ -644,52 +630,29 @@ public class TrieBackedRow extends AbstractRow
         return combineDataAndDeletionForColumnIterator(content, marker, Direction.FORWARD);
     }
 
-    private static Object combineDataAndDeletionForColumnIteratorReverse(Object content, TrieTombstoneMarker marker)
+    /// Returns the column for the column key at the start of the given path in the trie.
+    public static ColumnMetadata columnMetadataFromPath(byte[] bytes, int byteLength, TableMetadata metadata)
     {
-        return combineDataAndDeletionForColumnIterator(content, marker, Direction.REVERSE);
+        return columnFromKey(ByteSource.preencoded(bytes, 0, byteLength), metadata);
     }
 
-    static class ColumnDataIterator extends TrieTailsIterator.DeletionAware<Object, TrieTombstoneMarker, Object, ColumnData>
-    {
-        private final Columns columns;
-
-        ColumnDataIterator(Columns columns, DeletionAwareTrie<Object, TrieTombstoneMarker> trie, Direction direction)
-        {
-            super(trie,
-                  direction,
-                  direction.select(TrieBackedRow::combineDataAndDeletionForColumnIteratorForward,
-                                   TrieBackedRow::combineDataAndDeletionForColumnIteratorReverse),
-                  false);
-            this.columns = columns;
-        }
-
-        @Override
-        protected ColumnData mapContent(Object value, DeletionAwareTrie<Object, TrieTombstoneMarker> tailTrie, byte[] bytes, int byteLength)
-        {
-            // value is given by combineDataAndDeletionForColumnIterator above
-            if (value != COMPLEX_COLUMN_MARKER)
-                return cellFromCellData((CellData<?, ?>) value, bytes, byteLength, columns);
-
-            return new TrieBackedComplexColumn(columnMetadataFromPath(bytes, byteLength, columns), tailTrie);
-        }
-
-    }
-
-    public static ColumnMetadata columnMetadataFromPath(byte[] bytes, int byteLength, Columns columns)
-    {
-        long columnIndex = ByteSourceInverse.getVariableLengthUnsignedInteger(ByteSource.preencoded(bytes, 0, byteLength));
-        assert ((int) columnIndex) == columnIndex;
-        return columns.getSimple((int) columnIndex);
-    }
-
-    public static Cell<?> cellFromCellData(CellData<?, ?> value, byte[] bytes, int byteLength, Columns columns)
+    /// Converts the given cell data, found at the given path in a row trie, to a [Cell].
+    public static Cell<?> cellFromCellData(CellData<?, ?> value, byte[] bytes, int byteLength, TableMetadata metadata)
     {
         if (value instanceof Cell)
             return (Cell<?>) value;
         ByteSource.Peekable pathBytes = ByteSource.preencoded(bytes, 0, byteLength);
-        long columnIdx = ByteSourceInverse.getVariableLengthUnsignedInteger(pathBytes);
-        ColumnMetadata column = columns.getSimple((int) columnIdx);
+        ColumnMetadata column = columnFromKey(pathBytes, metadata);
         return value.toCell(column, column.isComplex() ? cellPath(column, pathBytes) : null);
+    }
+
+    private static ColumnMetadata columnFromKey(ByteSource.Peekable keyBytes, TableMetadata metadata)
+    {
+        long columnId = ByteSourceInverse.getVariableLengthUnsignedInteger(keyBytes);
+        assert ((int) columnId) == columnId;
+        ColumnMetadata column = metadata.getColumnById((int) columnId);
+        assert column != null : "Unknown column id " + columnId + " in " + metadata;
+        return column;
     }
 
     /// Count the columns in the provided data trie (a row or a partition trie). This includes simple and complex
@@ -716,19 +679,68 @@ public class TrieBackedRow extends AbstractRow
     @Override
     public int columnCount()
     {
-        return countColumns(data);
+        // Count only the columns in the row's column set, to be consistent with the iterator.
+        int count = 0;
+        for (ColumnMetadata column : columns)
+            if (hasColumnData(column))
+                ++count;
+        return count;
     }
 
+    private boolean hasColumnData(ColumnMetadata column)
+    {
+        if (column.isSimple())
+            return data.get(cellKey(columns, column, null)) instanceof CellData;
+        else
+            return !isColumnDataTrieEmpty(complexColumnTrie(column));
+    }
+
+    /// Returns the branch of the given complex column. Deletions that cover the column (e.g. the row deletion) are not
+    /// included, so that the complex deletion of the column is the one that is specified for it.
+    private DeletionAwareTrie<Object, TrieTombstoneMarker> complexColumnTrie(ColumnMetadata column)
+    {
+        return data.tailTrie(columnKeyComparable(columns, column), false);
+    }
+
+    /// Lists the column data in the row. Because the order of column ids in the trie does not match the order of
+    /// columns, we do this by looking up each of the row's columns in order.
     @Override
     public Iterator<ColumnData> iterator()
     {
-        return new ColumnDataIterator(columns, data, Direction.FORWARD);
+        return new AbstractIterator<>()
+        {
+            final Iterator<ColumnMetadata> columnIterator = columns.iterator();
+
+            @Override
+            protected ColumnData computeNext()
+            {
+                while (columnIterator.hasNext())
+                {
+                    ColumnData columnData = getColumnData(columnIterator.next());
+                    if (columnData != null)
+                        return columnData;
+                }
+                return endOfData();
+            }
+        };
     }
 
     @Override
     public Iterable<Cell<?>> cells()
     {
-        return () -> new CellsWithPath(data.contentOnlyTrie(), Direction.FORWARD);
+        return () -> Iterators.concat(Iterators.transform(iterator(),
+                                                          cd -> cd.column().isSimple()
+                                                                ? Iterators.singletonIterator((Cell<?>) cd)
+                                                                : ((ComplexColumnData) cd).iterator()));
+    }
+
+    /// Lists the cell data directly from the trie, in the order of the column ids, without the lookups that are needed
+    /// to present the cells in column order.
+    @Override
+    @SuppressWarnings({ "unchecked", "rawtypes" })
+    public Iterable<? extends CellData<?, ?>> cellsData()
+    {
+        return (Iterable<CellData<?, ?>>) (Iterable) data.contentOnlyTrie().filteredValues(CellData.class);
     }
 
     @Override
@@ -751,7 +763,7 @@ public class TrieBackedRow extends AbstractRow
         if (!mayFilterColumns && droppedColumns.isEmpty() && setActiveDeletionToRow)
         {
             assert mayHaveDeleted;
-            return new TrieBackedRow(columns, columnIds,
+            return new TrieBackedRow(columns,
                                      clustering,
                                      activeDeletion.deletes(livenessInfo) ? LivenessInfo.EMPTY : livenessInfo,
                                      Deletion.regular(activeDeletion),
@@ -761,7 +773,7 @@ public class TrieBackedRow extends AbstractRow
 
         try
         {
-            TrieColumnFilter tcf = new TrieColumnFilter(columns, columnIds, filter, isStatic(), mayFilterColumns);
+            TrieColumnFilter tcf = new TrieColumnFilter(columns, filter, isStatic(), mayFilterColumns);
 
             if (!droppedColumns.isEmpty())
             {
@@ -780,7 +792,7 @@ public class TrieBackedRow extends AbstractRow
             if (isEmpty(filteredData))
                 return null;
 
-            return TrieBackedRow.create(columns, columnIds, clustering, filteredData);
+            return TrieBackedRow.create(columns, clustering, filteredData);
         }
         catch (TrieSpaceExhaustedException e)
         {
@@ -844,8 +856,8 @@ public class TrieBackedRow extends AbstractRow
         Columns queried = filter.queriedColumns().columns(isStatic());
         try
         {
-            TrieColumnFilter tcf = new TrieColumnFilter(columns, columnIds, queried);
-            return create(columns, columnIds, clustering, tcf.apply(data));
+            TrieColumnFilter tcf = new TrieColumnFilter(columns, queried);
+            return create(columns, clustering, tcf.apply(data));
         }
         catch (TrieSpaceExhaustedException e)
         {
@@ -880,7 +892,7 @@ public class TrieBackedRow extends AbstractRow
             return true;
         else if (enforceStrictLiveness)
             return false;
-        return Iterables.any(cells(), cell -> cell.isLive(nowInSec));
+        return Iterables.any(cellsData(), cell -> cell.isLive(nowInSec));
     }
 
     @Override
@@ -931,7 +943,7 @@ public class TrieBackedRow extends AbstractRow
                                                                                         TrieBackedRow::deleteData,
                                                                                         TrieTombstoneMarker::mergeUpdate,
                                                                                         true);
-        return new TrieBackedRow(columns, columnIds, clustering, getLivenessInfo(newData), getDeletion(newData), Long.MIN_VALUE, newData);
+        return new TrieBackedRow(columns, clustering, getLivenessInfo(newData), getDeletion(newData), Long.MIN_VALUE, newData);
     }
 
     @Override
@@ -977,7 +989,7 @@ public class TrieBackedRow extends AbstractRow
     public Row transformAndFilter(UnaryOperator<LivenessInfo> livenessInfoFunction,
                                   CellTransformer cellFunction)
     {
-        return create(columns, columnIds, clustering, data.mapValues(
+        return create(columns, clustering, data.mapValues(
             (Object x) ->
             {
                 if (x instanceof LivenessInfo)
@@ -1017,7 +1029,6 @@ public class TrieBackedRow extends AbstractRow
             return null;
 
         return create(columns,
-                      columnIds,
                       clustering,
                       mappedData);
     }
@@ -1040,7 +1051,7 @@ public class TrieBackedRow extends AbstractRow
         {
             throw new AssertionError(e);
         }
-        return new TrieBackedRow(columns, columnIds, cloner.clone(clustering), livenessInfo, deletion, minLocalDeletionTime, newTrie);
+        return new TrieBackedRow(columns, cloner.clone(clustering), livenessInfo, deletion, minLocalDeletionTime, newTrie);
     }
 
     // TODO: Redo size collection to be more direct.
@@ -1111,7 +1122,7 @@ public class TrieBackedRow extends AbstractRow
 
     private static Builder builder(TableMetadata metadata, Clustering<?> clustering)
     {
-        Builder builder = new Builder(clustering == Clustering.STATIC_CLUSTERING ? metadata.staticColumns() : metadata.regularColumns());
+        Builder builder = new Builder(tableColumns(metadata, clustering));
         builder.newRow(clustering);
         return builder;
     }
@@ -1149,8 +1160,8 @@ public class TrieBackedRow extends AbstractRow
         if (!(updateAsRow instanceof TrieBackedRow))
             throw new IllegalArgumentException("Merging different row types.");
         TrieBackedRow update = (TrieBackedRow) updateAsRow;
-        if (!this.columns.containsAll(update.columns))
-            throw new IllegalArgumentException("Can't handle varying column lists.");
+        // Columns are identified by their unique id, thus rows with different column sets can be merged.
+        Columns mergedColumns = this.columns.mergeTo(update.columns);
 
         try
         {
@@ -1162,8 +1173,7 @@ public class TrieBackedRow extends AbstractRow
                                            TrieBackedRow::deleteData,
                                            true
                 ));
-            return create(this.columns,
-                          this.columnIds,
+            return create(mergedColumns,
                           this.clustering,
                           mergedData);
         }
@@ -1188,22 +1198,6 @@ public class TrieBackedRow extends AbstractRow
         return Long.MIN_VALUE; // we only have a marker when its non-live
     }
 
-    class CellsWithPath extends TrieEntriesIterator.WithNullFiltering<Object, Cell<?>>
-    {
-        protected CellsWithPath(Trie<Object> trie, Direction direction)
-        {
-            super(trie, direction);
-        }
-
-        @Override
-        protected Cell<?> mapContent(Object content, byte[] bytes, int byteLength)
-        {
-            if (!(content instanceof CellData))
-                return null;
-            return cellFromCellData((CellData<?, ?>) content, bytes, byteLength, columns);
-        }
-    }
-
     static InMemoryDeletionAwareTrie<Object, TrieTombstoneMarker>.Mutator<Object, TrieTombstoneMarker>
     makeMutator(InMemoryDeletionAwareTrie<Object, TrieTombstoneMarker> data)
     {
@@ -1219,7 +1213,6 @@ public class TrieBackedRow extends AbstractRow
     public static class Builder implements Row.Builder
     {
         protected final Columns columns;
-        protected final Object2IntHashMap<ColumnIdentifier> columnIds;
         protected Clustering<?> clustering;
         private InMemoryDeletionAwareTrie<Object, TrieTombstoneMarker> data;
         private InMemoryDeletionAwareTrie<Object, TrieTombstoneMarker>.Mutator<Object, TrieTombstoneMarker> mutator;
@@ -1227,14 +1220,12 @@ public class TrieBackedRow extends AbstractRow
         protected Builder(Columns columns)
         {
             this.columns = columns;
-            columnIds = columnsMapCache.computeIfAbsent(columns, TrieBackedRow::makeColumnIdsMap);
         }
 
         protected Builder(Builder builder)
         {
             this.columns = builder.columns;
             this.clustering = builder.clustering;
-            this.columnIds = builder.columnIds;
             data = newTrie();
             mutator = makeMutator(data);
             try
@@ -1327,8 +1318,9 @@ public class TrieBackedRow extends AbstractRow
         {
             assert cell.column().isStatic() == (clustering == Clustering.STATIC_CLUSTERING) : "Column is " + cell.column() + ", clustering = " + clustering;
             CellPath path = cell.path();
-            ByteComparable key = cellKey(columnIds, cell.column, path);
-            Preconditions.checkArgument(key != MISSING_COLUMN_KEY, "Column %s not present in row columns set.", cell.column);
+            ByteComparable key = cellKey(columns, cell.column, path);
+            Preconditions.checkArgument(key != MISSING_COLUMN_KEY, "Column %s not present in row columns set %s", cell.column, columns);
+            assert columns.contains(cell.column) : "Column " + cell.column + " not present in row columns set " + columns;
 
             try
             {
@@ -1344,7 +1336,7 @@ public class TrieBackedRow extends AbstractRow
                     mutator.apply(DeletionAwareTrie.singleton(key, BYTE_COMPARABLE_VERSION, cell));
 
                 if (path != null)
-                    data.putRecursive(columnKey(columnIds, cell.column), COMPLEX_COLUMN_MARKER, Builder::addIfNotPresent);
+                    data.putRecursive(columnKeyComparable(columns, cell.column), COMPLEX_COLUMN_MARKER, Builder::addIfNotPresent);
 
                 data.putRecursive(ByteComparable.EMPTY, LivenessInfo.EMPTY, Builder::addIfNotPresent);
             }
@@ -1360,7 +1352,8 @@ public class TrieBackedRow extends AbstractRow
             if (deletion.isLive())
                 return;
 
-            ByteComparable key = columnKey(columnIds, column);
+            ByteComparable key = columnKeyComparable(columns, column);
+            Preconditions.checkArgument(key != MISSING_COLUMN_KEY, "Column %s not present in row columns set %s", column, columns);
             try
             {
                 mutator.delete(deletionTrie(key, deletion, TrieTombstoneMarker.Kind.COLUMN));
@@ -1375,7 +1368,6 @@ public class TrieBackedRow extends AbstractRow
         public TrieBackedRow build()
         {
             TrieBackedRow row = create(columns,
-                                       columnIds,
                                        clustering,
                                        data);
             reset();

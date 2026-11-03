@@ -36,6 +36,7 @@ import org.apache.cassandra.db.LivenessInfo;
 import org.apache.cassandra.db.filter.ColumnFilter;
 import org.apache.cassandra.db.memtable.Memtable;
 import org.apache.cassandra.db.rows.Cell;
+import org.apache.cassandra.db.rows.CellData;
 import org.apache.cassandra.db.rows.CellPath;
 import org.apache.cassandra.db.rows.ColumnData;
 import org.apache.cassandra.db.rows.ComplexColumnData;
@@ -182,6 +183,12 @@ public class RowWithSource implements Row
     public Iterable<Cell<?>> cells()
     {
         return Iterables.transform(row.cells(), this::wrapCell);
+    }
+
+    @Override
+    public Iterable<? extends CellData<?, ?>> cellsData()
+    {
+        return row.cellsData();
     }
 
     @Override

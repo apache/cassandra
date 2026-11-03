@@ -57,7 +57,7 @@ import org.apache.cassandra.db.filter.TombstoneOverwhelmingException;
 import org.apache.cassandra.db.partitions.PurgeFunction;
 import org.apache.cassandra.db.partitions.UnfilteredPartitionIterator;
 import org.apache.cassandra.db.partitions.UnfilteredPartitionIterators;
-import org.apache.cassandra.db.rows.Cell;
+import org.apache.cassandra.db.rows.CellData;
 import org.apache.cassandra.db.rows.RangeTombstoneBoundMarker;
 import org.apache.cassandra.db.rows.RangeTombstoneMarker;
 import org.apache.cassandra.db.rows.Row;
@@ -668,7 +668,7 @@ public abstract class ReadCommand extends AbstractReadQuery
                 final boolean rowHasDeletion = row.hasDeletion(nowInSec);
                 if (rowHasDeletion) // perf optimization, to avoid iteration if all cells are alive
                 {
-                    for (Cell<?> cell : row.cells())
+                    for (CellData<?, ?> cell : row.cellsData())
                     {
                         if (!cell.isLive(nowInSec))
                         {
@@ -1037,7 +1037,7 @@ public abstract class ReadCommand extends AbstractReadQuery
 
                 if (isPurgeableCellTombstonesTrackingEnabled())
                 {
-                    for (Cell<?> cell : row.cells())
+                    for (CellData<?, ?> cell : row.cellsData())
                     {
                         if (!cell.isLive(nowInSec) && isPurgeable(cell.localDeletionTime(), nowInSec))
                         {

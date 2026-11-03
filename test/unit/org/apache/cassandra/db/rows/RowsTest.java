@@ -238,11 +238,16 @@ public class RowsTest
 
     private static Row.Builder createBuilder(Clustering<?> c)
     {
+        return createBuilder(kcvm, c);
+    }
+
+    private static Row.Builder createBuilder(TableMetadata table, Clustering<?> c)
+    {
         Row.Builder builder;
         switch (implementation)
         {
             case TRIE_BACKED:
-                builder = TrieBackedRow.builder(kcvm.regularAndStaticColumns().columns(c == Clustering.STATIC_CLUSTERING));
+                builder = TrieBackedRow.builder(table.regularAndStaticColumns().columns(c == Clustering.STATIC_CLUSTERING));
                 break;
             case BTREE:
             default:
@@ -268,6 +273,47 @@ public class RowsTest
         }
 
         return builder;
+    }
+
+    @Test
+    public void cellsDataListsAllCells()
+    {
+        // Columns get their unique ids in the order in which they are added to the table, which here is different from
+        // the order of the columns (a, b, m). Trie-backed rows list cell data in the order of the column ids.
+        TableMetadata table = TableMetadata.builder(KEYSPACE, "ids_not_in_column_order")
+                                           .addPartitionKeyColumn("k", IntegerType.instance)
+                                           .addClusteringColumn("c", IntegerType.instance)
+                                           .addRegularColumn("m", MapType.getInstance(IntegerType.instance, IntegerType.instance, true))
+                                           .addRegularColumn("b", IntegerType.instance)
+                                           .addRegularColumn("a", IntegerType.instance)
+                                           .build();
+        ColumnMetadata colA = table.getColumn(new ColumnIdentifier("a", false));
+        ColumnMetadata colB = table.getColumn(new ColumnIdentifier("b", false));
+        ColumnMetadata colM = table.getColumn(new ColumnIdentifier("m", false));
+        long now = FBUtilities.nowInSeconds();
+        long ts = secondToTs(now);
+
+        // Give each cell a different timestamp to identify it.
+        Row.Builder builder = createBuilder(table, c1);
+        builder.addPrimaryKeyLivenessInfo(LivenessInfo.create(ts));
+        builder.addComplexDeletion(colM, DeletionTime.build(ts - 1, now));
+        builder.addCell(BufferCell.expiring(colM, ts + 4, 10, now, BB2, CellPath.create(BB2)));
+        builder.addCell(BufferCell.live(colM, ts + 3, BB1, CellPath.create(BB1)));
+        builder.addCell(BufferCell.tombstone(colB, ts + 2, now));
+        builder.addCell(BufferCell.live(colA, ts + 1, BB1));
+        Row row = builder.build();
+
+        List<Long> cellTimestamps = Lists.newArrayList();
+        for (Cell<?> cell : row.cells())
+            cellTimestamps.add(cell.timestamp());
+        // cells() must list the cells in column order.
+        Assert.assertEquals(Lists.newArrayList(ts + 1, ts + 2, ts + 3, ts + 4), cellTimestamps);
+
+        List<Long> cellDataTimestamps = Lists.newArrayList();
+        for (CellData<?, ?> cell : row.cellsData())
+            cellDataTimestamps.add(cell.timestamp());
+        cellDataTimestamps.sort(null);
+        Assert.assertEquals(cellTimestamps, cellDataTimestamps);
     }
 
     @Test

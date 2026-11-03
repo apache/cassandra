@@ -189,6 +189,20 @@ public interface Row extends Unfiltered, Iterable<ColumnData>, IMeasurableMemory
     public Iterable<Cell<?>> cells();
 
     /**
+     * An iterable over the data of the cells of this row, for uses that need the timestamps, liveness or values of the
+     * cells, but not their columns and paths.
+     * <p>
+     * The cells are returned in no particular order, which lets implementations list them in the order they are
+     * stored in.
+     *
+     * @return an iterable over the data of the cells of this row.
+     */
+    public default Iterable<? extends CellData<?, ?>> cellsData()
+    {
+        return cells();
+    }
+
+    /**
      * Whether the row stores any (non-live) complex deletion for any complex column.
      */
     public boolean hasComplexDeletion();

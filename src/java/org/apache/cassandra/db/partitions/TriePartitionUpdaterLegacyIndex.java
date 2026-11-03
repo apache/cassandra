@@ -22,7 +22,6 @@ import javax.annotation.Nullable;
 
 import org.apache.cassandra.db.Clustering;
 import org.apache.cassandra.db.ClusteringBound;
-import org.apache.cassandra.db.Columns;
 import org.apache.cassandra.db.DeletionTime;
 import org.apache.cassandra.db.LivenessInfo;
 import org.apache.cassandra.db.RangeTombstone;
@@ -63,24 +62,19 @@ public final class TriePartitionUpdaterLegacyIndex extends TriePartitionUpdater
     /// Set when we pass through a row marker ([LivenessInfo] or [TrieTombstoneMarker.LevelMarker.ROW]), which always
     /// happens before seeing any of the columns and cells of the update.
     private int currentRowDepth;
-    /// The column set for the current row (differs for static rows)
-    ///
-    /// Set when we pass through a row marker ([LivenessInfo] or [TrieTombstoneMarker.LevelMarker.ROW]), which always
-    /// happens before seeing any of the columns and cells of the update.
-    private Columns currentColumns;
 
     public TriePartitionUpdaterLegacyIndex(TrieMemtable.MemtableShard owner,
-                                           InMemoryDeletionAwareTrie<Object, TrieTombstoneMarker> data,
-                                           TableMetadata metadata)
+                                           InMemoryDeletionAwareTrie<Object, TrieTombstoneMarker> data)
     {
         super(owner, data);
-        this.metadata = metadata;
     }
 
-    /// Set the update transaction to use
-    public void setIndexContext(UpdateTransaction indexer)
+    /// Set the update transaction to use, and the table metadata to use to interpret the existing data and the update.
+    /// The metadata must know all columns of both, i.e. it should be the table's current metadata.
+    public void setIndexContext(UpdateTransaction indexer, TableMetadata metadata)
     {
         this.indexer = indexer;
+        this.metadata = metadata;
         this.rangeTombstoneOpenPosition = null;
         assert indexer != UpdateTransaction.NO_OP;
     }
@@ -115,7 +109,6 @@ public final class TriePartitionUpdaterLegacyIndex extends TriePartitionUpdater
             indexer.startRow(clustering, LivenessInfo.EMPTY, Row.Deletion.regular(existing), LivenessInfo.EMPTY, updatedDeletion);
 
         currentRowDepth = mutator.getDeletionBranchDepth();
-        currentColumns = metadata.regularAndStaticColumns().columns(clustering == Clustering.STATIC_CLUSTERING);
     }
 
     private void processMarkerBoundary(TrieTombstoneMarker update)
@@ -133,7 +126,7 @@ public final class TriePartitionUpdaterLegacyIndex extends TriePartitionUpdater
         if (rightKind == TrieTombstoneMarker.Kind.COLUMN)
         {
             byte[] cellPath = mutator.getDeletionBranchKeyBytes(currentRowDepth);
-            ColumnMetadata column = TrieBackedRow.columnMetadataFromPath(cellPath, cellPath.length, currentColumns);
+            ColumnMetadata column = TrieBackedRow.columnMetadataFromPath(cellPath, cellPath.length, metadata);
             indexer.onComplexColumnDeletion(column, rightSide);
             return;
         }
@@ -205,7 +198,7 @@ public final class TriePartitionUpdaterLegacyIndex extends TriePartitionUpdater
             return mergedCellData;
 
         byte[] cellPath = mutator.getCurrentKeyBytes(currentRowDepth);
-        Cell<?> existingAsCell = TrieBackedRow.cellFromCellData(existingContent, cellPath, cellPath.length, currentColumns);
+        Cell<?> existingAsCell = TrieBackedRow.cellFromCellData(existingContent, cellPath, cellPath.length, metadata);
         assert mergedCellData == null;
         indexer.onCellUpdate(existingAsCell, null);
         return mergedCellData;
@@ -224,7 +217,6 @@ public final class TriePartitionUpdaterLegacyIndex extends TriePartitionUpdater
                                                                          : Row.Deletion.LIVE);
 
         currentRowDepth = mutator.currentDepth();
-        currentColumns = metadata.regularAndStaticColumns().columns(clustering == Clustering.STATIC_CLUSTERING);
         return mergedInfo;
     }
 
@@ -249,7 +241,6 @@ public final class TriePartitionUpdaterLegacyIndex extends TriePartitionUpdater
         LivenessInfo mergedInfo = super.applyIncomingRowMarker(existing, insert);
         indexer.startRow(clustering, existing, Row.Deletion.LIVE, mergedInfo, Row.Deletion.LIVE);
         currentRowDepth = mutator.currentDepth();
-        currentColumns = metadata.regularAndStaticColumns().columns(clustering == Clustering.STATIC_CLUSTERING);
         return mergedInfo;
     }
 
@@ -262,14 +253,14 @@ public final class TriePartitionUpdaterLegacyIndex extends TriePartitionUpdater
         Cell<?> mergedAsCell = null;
         if (mergedCellData != null)
         {
-            mergedAsCell = TrieBackedRow.cellFromCellData(mergedCellData, cellPath, cellPath.length, currentColumns);
+            mergedAsCell = TrieBackedRow.cellFromCellData(mergedCellData, cellPath, cellPath.length, metadata);
             if (existing != null)
                 existingAsCell = existing.toCell(mergedAsCell.column(), mergedAsCell.path());
         }
         else
         {
             assert existing != null;
-            existingAsCell = TrieBackedRow.cellFromCellData(existing, cellPath, cellPath.length, currentColumns);
+            existingAsCell = TrieBackedRow.cellFromCellData(existing, cellPath, cellPath.length, metadata);
         }
         indexer.onCellUpdate(existingAsCell, mergedAsCell);
 

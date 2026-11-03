@@ -167,12 +167,11 @@ public class TrieBackedPartition implements Partition
                                              int tombstoneCount,
                                              DeletionAwareTrie<Object, TrieTombstoneMarker> trie,
                                              TableMetadata metadata,
-                                             TableMetadata droppedColumnsSource,
                                              boolean copyToHeap)
     {
         return copyToHeap
-               ? new WithCopyingToHeap(partitionKey, columnMetadata, encodingStats, rowCountIncludingStatic, tombstoneCount, trie, metadata, droppedColumnsSource)
-               : new WithDroppedColumnsSource(partitionKey, columnMetadata, encodingStats, rowCountIncludingStatic, tombstoneCount, trie, metadata, droppedColumnsSource);
+               ? new WithCopyingToHeap(partitionKey, columnMetadata, encodingStats, rowCountIncludingStatic, tombstoneCount, trie, metadata)
+               : new TrieBackedPartition(partitionKey, columnMetadata, encodingStats, rowCountIncludingStatic, tombstoneCount, trie, metadata);
     }
 
     /// Implementation of an iterator over rows. Note that because the legacy containers store deleted rows as [Row]s
@@ -465,13 +464,6 @@ public class TrieBackedPartition implements Partition
         return null;
     }
 
-    /// Source of dropped columns, if they could be different from the metadata in use.
-    /// To be overridden by memtable partitions.
-    protected TableMetadata droppedColumnsSource()
-    {
-        return metadata;
-    }
-
     /// Implementation of [UnfilteredRowIterator] for this partition.
     ///
     /// Looks for row and tombstone markers in the trie and presents each branch as a [TrieBackedRow] or
@@ -493,7 +485,7 @@ public class TrieBackedPartition implements Partition
             super(trie, Direction.fromBoolean(reversed), TrieBackedPartition::combineDataAndDeletionForUnfilteredIterator, false);
             this.selection = selection;
             this.reversed = reversed;
-            this.mayFilterColumns = !droppedColumnsSource().droppedColumns.isEmpty() ||
+            this.mayFilterColumns = !metadata.droppedColumns.isEmpty() ||
                                     selection != null && (!selection.fetchesAllColumns(false) ||
                                                           !selection.fetchesAllColumns(true) ||
                                                           !selection.allFetchedColumnsAreQueried());
@@ -505,7 +497,7 @@ public class TrieBackedPartition implements Partition
         {
             if (!mayFilterColumns || row == null)
                 return row;
-            return row.filter(selection, droppedColumnsSource());
+            return row.filter(selection, metadata);
         }
 
         @Override
@@ -630,25 +622,8 @@ public class TrieBackedPartition implements Partition
         return Partition.toString(this);
     }
 
-    private static class WithDroppedColumnsSource extends TrieBackedPartition
-    {
-        final TableMetadata droppedColumnsSource;
-
-        public WithDroppedColumnsSource(DecoratedKey partitionKey, RegularAndStaticColumns columns, EncodingStats stats, int rowCountIncludingStatic, int tombstoneCount, DeletionAwareTrie<Object, TrieTombstoneMarker> trie, TableMetadata metadata, TableMetadata droppedColumnsSource)
-        {
-            super(partitionKey, columns, stats, rowCountIncludingStatic, tombstoneCount, trie, metadata);
-            this.droppedColumnsSource = droppedColumnsSource;
-        }
-
-        @Override
-        protected TableMetadata droppedColumnsSource()
-        {
-            return droppedColumnsSource;
-        }
-    }
-
     /// A snapshot of the current [TrieBackedPartition] data, copied on heap when retrieved.
-    private static final class WithCopyingToHeap extends WithDroppedColumnsSource
+    private static final class WithCopyingToHeap extends TrieBackedPartition
     {
         public WithCopyingToHeap(DecoratedKey partitionKey,
                                  RegularAndStaticColumns columns,
@@ -656,10 +631,9 @@ public class TrieBackedPartition implements Partition
                                  int rowCountIncludingStatic,
                                  int tombstoneCount,
                                  DeletionAwareTrie<Object, TrieTombstoneMarker> trie,
-                                 TableMetadata metadata,
-                                 TableMetadata droppedColumnsSource)
+                                 TableMetadata metadata)
         {
-            super(partitionKey, columns, stats, rowCountIncludingStatic, tombstoneCount, trie, metadata, droppedColumnsSource);
+            super(partitionKey, columns, stats, rowCountIncludingStatic, tombstoneCount, trie, metadata);
         }
 
         @Override

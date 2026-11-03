@@ -42,7 +42,6 @@ import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.db.BufferDecoratedKey;
 import org.apache.cassandra.db.Clustering;
 import org.apache.cassandra.db.ColumnFamilyStore;
-import org.apache.cassandra.db.Columns;
 import org.apache.cassandra.db.DataRange;
 import org.apache.cassandra.db.DecoratedKey;
 import org.apache.cassandra.db.LivenessInfo;
@@ -61,19 +60,12 @@ import org.apache.cassandra.db.partitions.TriePartitionUpdate;
 import org.apache.cassandra.db.partitions.TriePartitionUpdater;
 import org.apache.cassandra.db.partitions.TriePartitionUpdaterLegacyIndex;
 import org.apache.cassandra.db.partitions.UnfilteredPartitionIterator;
-import org.apache.cassandra.db.rows.BTreeRow;
 import org.apache.cassandra.db.rows.Cell;
 import org.apache.cassandra.db.rows.CellData;
-import org.apache.cassandra.db.rows.ColumnData;
-import org.apache.cassandra.db.rows.ComplexColumnData;
 import org.apache.cassandra.db.rows.EncodingStats;
-import org.apache.cassandra.db.rows.Row;
-import org.apache.cassandra.db.rows.Rows;
 import org.apache.cassandra.db.rows.TrieBackedRow;
 import org.apache.cassandra.db.rows.TrieTombstoneMarker;
 import org.apache.cassandra.db.rows.UnfilteredRowIterator;
-import org.apache.cassandra.db.rows.WrappingUnfilteredRowIterator;
-import org.apache.cassandra.db.transform.Transformation;
 import org.apache.cassandra.db.tries.ContentManagerPojo;
 import org.apache.cassandra.db.tries.ContentSerializer;
 import org.apache.cassandra.db.tries.DeletionAwareTrie;
@@ -93,7 +85,6 @@ import org.apache.cassandra.index.transactions.UpdateTransaction;
 import org.apache.cassandra.io.compress.BufferType;
 import org.apache.cassandra.io.sstable.SSTableReadsListener;
 import org.apache.cassandra.metrics.TrieMemtableMetricsView;
-import org.apache.cassandra.schema.ColumnMetadata;
 import org.apache.cassandra.schema.TableMetadata;
 import org.apache.cassandra.schema.TableMetadataRef;
 import org.apache.cassandra.utils.ByteBufferUtil;
@@ -148,33 +139,49 @@ public class TrieMemtable extends AbstractShardedMemtable
     @Unmetered
     private final TrieMemtableMetricsView metrics;
 
-    /// The table metadata at the time of the memtable's creation. Rows in the memtable identify their columns by
-    /// their index in the table's column set, thus this memtable can only be used with this exact set of columns, and
-    /// must use this metadata to interpret its data. Any change to the columns forces a memtable switch (see
-    /// [#shouldSwitch]).
+    /// The most recent table metadata among the updates applied to this memtable. Writes that race with a schema
+    /// change may be prepared with metadata that has not been published yet; the memtable must still be able to list
+    /// and decode their columns, thus it presents its data using the latest of this and the published metadata.
     @Unmetered
-    private final TableMetadata actualMetadata;
+    private final AtomicReference<TableMetadata> latestUpdateMetadata = new AtomicReference<>();
 
     TrieMemtable(AtomicReference<CommitLogPosition> commitLogLowerBound, TableMetadataRef metadataRef, Owner owner, Integer shardCountOption)
     {
         super(commitLogLowerBound, metadataRef, owner, shardCountOption);
         this.metrics = new TrieMemtableMetricsView(metadataRef.keyspace, metadataRef.name);
-        this.actualMetadata = metadataRef.get();
-        this.shards = generatePartitionShards(boundaries.shardCount(), actualMetadata, allocator, metrics, owner.readOrdering());
+        this.shards = generatePartitionShards(boundaries.shardCount(), metadataRef, latestUpdateMetadata, allocator, metrics, owner.readOrdering());
         this.mergedTrie = makeMergedTrie(shards);
     }
 
     private static MemtableShard[] generatePartitionShards(int splits,
-                                                           TableMetadata metadata,
+                                                           TableMetadataRef metadata,
+                                                           AtomicReference<TableMetadata> latestUpdateMetadata,
                                                            MemtableAllocator allocator,
                                                            TrieMemtableMetricsView metrics,
                                                            OpOrder readOrder)
     {
         MemtableShard[] partitionMapContainer = new MemtableShard[splits];
         for (int i = 0; i < splits; i++)
-            partitionMapContainer[i] = new MemtableShard(metadata, allocator, metrics, readOrder);
+            partitionMapContainer[i] = new MemtableShard(metadata, latestUpdateMetadata, allocator, metrics, readOrder);
 
         return partitionMapContainer;
+    }
+
+    /// The metadata to use to interpret the memtable's data, i.e. the latest of the published table metadata and the
+    /// metadata of the updates applied to the memtable.
+    ///
+    /// Rows identify their columns by unique id (see [TrieBackedRow]), which does not change with the schema,
+    /// and the latest metadata can decode any cell path written using an earlier version of the columns' types. Thus
+    /// the memtable can hold data written with different versions of the table's columns; this is the case e.g. for
+    /// a memtable that is created during a schema change, before the new metadata is published.
+    TableMetadata dataMetadata()
+    {
+        return latest(metadata(), latestUpdateMetadata.get());
+    }
+
+    private static TableMetadata latest(TableMetadata published, TableMetadata update)
+    {
+        return update != null && update.epoch.isAfter(published.epoch) ? update : published;
     }
 
     private static DeletionAwareTrie<Object, TrieTombstoneMarker> makeMergedTrie(MemtableShard[] shards)
@@ -183,17 +190,6 @@ public class TrieMemtable extends AbstractShardedMemtable
         for (MemtableShard shard : shards)
             tries.add(shard.data);
         return DeletionAwareTrie.mergeDistinct(tries);
-    }
-
-    @Override
-    public boolean shouldSwitch(ColumnFamilyStore.FlushReason reason, TableMetadata latest)
-    {
-        if (super.shouldSwitch(reason, latest))
-            return true;
-        if (reason != ColumnFamilyStore.FlushReason.SCHEMA_CHANGE)
-            return false;
-        // If the columns definition changes, we need to flush as we would need to remap column indexes.
-        return !actualMetadata.regularAndStaticColumns().equals(latest.regularAndStaticColumns());
     }
 
     @Override
@@ -248,10 +244,10 @@ public class TrieMemtable extends AbstractShardedMemtable
     @Override
     public long put(PartitionUpdate update, UpdateTransaction indexer, OpOrder.Group opGroup, boolean assumeMissing)
     {
-        RegularAndStaticColumns updateColumns = update.metadata().regularAndStaticColumns();
-        RegularAndStaticColumns memtableColumns = actualMetadata.regularAndStaticColumns();
-        if (updateColumns != memtableColumns && !updateColumns.equals(memtableColumns))
-            update = withMemtableColumns(update);
+        // Record the update's metadata before its data becomes visible, so that readers can interpret it.
+        TableMetadata updateMetadata = update.metadata();
+        if (latestUpdateMetadata.get() != updateMetadata)
+            latestUpdateMetadata.accumulateAndGet(updateMetadata, (current, given) -> current == null ? given : latest(current, given));
 
         DecoratedKey key = update.partitionKey();
         MemtableShard shard = shards[boundaries.getShardForKey(key)];
@@ -264,103 +260,6 @@ public class TrieMemtable extends AbstractShardedMemtable
         }
 
         return colUpdateTimeDelta;
-    }
-
-    /// Rows in the memtable identify their columns by index in the memtable's column set, and encode cell paths using
-    /// the memtable's column types. If an update was prepared using a different version of the table metadata (e.g. by
-    /// a write that raced with a schema change), convert it to use the memtable's columns.
-    ///
-    /// Data for columns that have been dropped is discarded. If the update contains a column that the memtable does
-    /// not know about, the write fails.
-    private PartitionUpdate withMemtableColumns(PartitionUpdate update)
-    {
-        RegularAndStaticColumns.Builder columnsBuilder = RegularAndStaticColumns.builder();
-        for (ColumnMetadata column : update.columns())
-        {
-            ColumnMetadata memtableColumn = memtableColumn(column);
-            if (memtableColumn != null)
-                columnsBuilder.add(memtableColumn);
-        }
-        RegularAndStaticColumns columns = columnsBuilder.build();
-
-        Transformation<UnfilteredRowIterator> convertRows = new Transformation<>()
-        {
-            @Override
-            protected Row applyToStatic(Row row)
-            {
-                Row converted = withMemtableColumns(row);
-                return converted.isEmpty() ? Rows.EMPTY_STATIC_ROW : converted;
-            }
-
-            @Override
-            protected Row applyToRow(Row row)
-            {
-                Row converted = withMemtableColumns(row);
-                return converted.isEmpty() ? null : converted;
-            }
-        };
-
-        UnfilteredRowIterator converted = Transformation.apply(update.unfilteredIterator(), convertRows);
-        // Note: closing this closes the wrapped iterator.
-        try (UnfilteredRowIterator withMetadata = new WrappingUnfilteredRowIterator()
-             {
-                 @Override
-                 public UnfilteredRowIterator wrapped()
-                 {
-                     return converted;
-                 }
-
-                 @Override
-                 public TableMetadata metadata()
-                 {
-                     return actualMetadata;
-                 }
-
-                 @Override
-                 public RegularAndStaticColumns columns()
-                 {
-                     return columns;
-                 }
-             })
-        {
-            return TriePartitionUpdate.fromIterator(withMetadata);
-        }
-    }
-
-    private Row withMemtableColumns(Row row)
-    {
-        Row.Builder builder = BTreeRow.unsortedBuilder();
-        builder.newRow(row.clustering());
-        builder.addPrimaryKeyLivenessInfo(row.primaryKeyLivenessInfo());
-        builder.addRowDeletion(row.deletion());
-        for (ColumnData cd : row)
-        {
-            ColumnMetadata column = memtableColumn(cd.column());
-            if (column == null)
-                continue;   // dropped column
-            if (column.isSimple())
-                builder.addCell(((Cell<?>) cd).withUpdatedColumn(column));
-            else
-            {
-                ComplexColumnData ccd = (ComplexColumnData) cd;
-                if (!ccd.complexDeletion().isLive())
-                    builder.addComplexDeletion(column, ccd.complexDeletion());
-                for (Cell<?> cell : ccd)
-                    builder.addCell(cell.withUpdatedColumn(column));
-            }
-        }
-        return builder.build();
-    }
-
-    private ColumnMetadata memtableColumn(ColumnMetadata column)
-    {
-        ColumnMetadata memtableColumn = actualMetadata.getColumn(column.name);
-        if (memtableColumn != null && memtableColumn.isStatic() == column.isStatic())
-            return memtableColumn;
-        if (actualMetadata.droppedColumns.containsKey(column.name.bytes))
-            return null;
-        throw new IllegalStateException(String.format("Column %s of update is not present in the metadata of memtable %s",
-                                                      column, this));
     }
 
     /// Technically we should scatter gather on all the core threads because the size in following calls are not
@@ -454,8 +353,7 @@ public class TrieMemtable extends AbstractShardedMemtable
             mergedTrie.subtrie(toComparableBound(keyRange.left, includeStart),
                                toComparableBound(keyRange.right, !includeStop));
 
-        return new MemtableUnfilteredPartitionIterator(actualMetadata,
-                                                       metadata.get(),
+        return new MemtableUnfilteredPartitionIterator(dataMetadata(),
                                                        true, // even if our data is on-heap, we can recycle
                                                              // cells as soon as the opOrder is closed
                                                        subMap,
@@ -474,10 +372,10 @@ public class TrieMemtable extends AbstractShardedMemtable
         int shardIndex = boundaries.getShardForKey(key);
         DeletionAwareTrie<Object, TrieTombstoneMarker> trie = shards[shardIndex].data.tailTrie(key);
         // Always copy to heap. Even if our data is on-heap, we can recycle cells as soon as the opOrder is closed.
-        return createPartition(actualMetadata, metadata.get(), true, key, trie);
+        return createPartition(dataMetadata(), true, key, trie);
     }
 
-    private static TrieBackedPartition createPartition(TableMetadata metadata, TableMetadata droppedColumnsSource, boolean copyToHeap, DecoratedKey key, DeletionAwareTrie<Object, TrieTombstoneMarker> trie)
+    private static TrieBackedPartition createPartition(TableMetadata metadata, boolean copyToHeap, DecoratedKey key, DeletionAwareTrie<Object, TrieTombstoneMarker> trie)
     {
         if (trie == null)
             return null;
@@ -494,7 +392,6 @@ public class TrieMemtable extends AbstractShardedMemtable
                                           holder.tombstoneCount(),
                                           trie,
                                           metadata,
-                                          droppedColumnsSource,
                                           copyToHeap);
     }
 
@@ -526,7 +423,7 @@ public class TrieMemtable extends AbstractShardedMemtable
     /// [TrieMemtable.md](TrieMemtable.md) for an example of the output.
     public String dump()
     {
-        return mergedTrie.process(Direction.FORWARD, new Dumper(actualMetadata));
+        return mergedTrie.process(Direction.FORWARD, new Dumper(dataMetadata()));
     }
 
     static final int PARTITIONDATA_OFFSET_ROW_COUNT = 0;
@@ -711,7 +608,7 @@ public class TrieMemtable extends AbstractShardedMemtable
 
         return new AbstractFlushablePartitionSet<TrieBackedPartition>()
         {
-            private final TableMetadata tableMetadata = TrieMemtable.this.metadata();
+            private final TableMetadata tableMetadata = dataMetadata();
 
             public Memtable memtable()
             {
@@ -737,7 +634,7 @@ public class TrieMemtable extends AbstractShardedMemtable
             {
                 // During flushing we are certain the memtable will remain at least until the flush completes and
                 // that no further modifications to it will happen. No copying to heap is necessary.
-                return new PartitionIterator(toFlush, actualMetadata, metadata.get(), false);
+                return new PartitionIterator(toFlush, tableMetadata, false);
             }
 
             public long partitionKeysSize()
@@ -803,15 +700,25 @@ public class TrieMemtable extends AbstractShardedMemtable
         @Unmetered
         private final TrieMemtableMetricsView metrics;
 
-        private final TableMetadata metadata;
+        /// The table's metadata and the latest metadata of the memtable's updates, used to decode the data for index
+        /// updates (see [TrieMemtable#dataMetadata]).
+        @Unmetered
+        private final TableMetadataRef metadata;
+        @Unmetered
+        private final AtomicReference<TableMetadata> latestUpdateMetadata;
 
         private TriePartitionUpdater noIndexUpdater;
         private TriePartitionUpdaterLegacyIndex legacyIndexUpdater;
 
         @VisibleForTesting
-        MemtableShard(TableMetadata metadata, MemtableAllocator allocator, TrieMemtableMetricsView metrics, OpOrder readOrder)
+        MemtableShard(TableMetadataRef metadata,
+                      AtomicReference<TableMetadata> latestUpdateMetadata,
+                      MemtableAllocator allocator,
+                      TrieMemtableMetricsView metrics,
+                      OpOrder readOrder)
         {
             this.metadata = metadata;
+            this.latestUpdateMetadata = latestUpdateMetadata;
             this.allocator = allocator;
             if (this.allocator instanceof NativeAllocator)
                 this.cellDataBufferManager = new NativeBufferManager((NativeAllocator) allocator);
@@ -838,8 +745,10 @@ public class TrieMemtable extends AbstractShardedMemtable
             else
             {
                 if (legacyIndexUpdater == null)
-                    legacyIndexUpdater = new TriePartitionUpdaterLegacyIndex(this, data, metadata);
-                legacyIndexUpdater.setIndexContext(indexer);
+                    legacyIndexUpdater = new TriePartitionUpdaterLegacyIndex(this, data);
+                // This is called under the write lock, after the update's metadata has been recorded, thus the latest
+                // metadata knows all columns of both the update and the existing data.
+                legacyIndexUpdater.setIndexContext(indexer, latest(metadata.get(), latestUpdateMetadata.get()));
                 return legacyIndexUpdater;
             }
         }
@@ -970,14 +879,12 @@ public class TrieMemtable extends AbstractShardedMemtable
     static class PartitionIterator extends TrieTailsIterator.DeletionAwareWithoutCoveringDeletions<Object, TrieTombstoneMarker, TrieBackedPartition>
     {
         final TableMetadata metadata;
-        final TableMetadata droppedColumnsSource;
         final boolean copyToHeap;
 
-        PartitionIterator(DeletionAwareTrie<Object, TrieTombstoneMarker> source, TableMetadata metadata, TableMetadata droppedColumnsSource, boolean copyToHeap)
+        PartitionIterator(DeletionAwareTrie<Object, TrieTombstoneMarker> source, TableMetadata metadata, boolean copyToHeap)
         {
             super(source, Direction.FORWARD, TrieBackedPartition.IS_PARTITION_BOUNDARY);
             this.metadata = metadata;
-            this.droppedColumnsSource = droppedColumnsSource;
             this.copyToHeap = copyToHeap;
         }
 
@@ -995,7 +902,6 @@ public class TrieMemtable extends AbstractShardedMemtable
                                               pd.tombstoneCount(),
                                               tailTrie,
                                               metadata,
-                                              droppedColumnsSource,
                                               copyToHeap);
         }
     }
@@ -1009,13 +915,12 @@ public class TrieMemtable extends AbstractShardedMemtable
         private final DataRange dataRange;
 
         public MemtableUnfilteredPartitionIterator(TableMetadata metadata,
-                                                   TableMetadata droppedColumnsSource,
                                                    boolean copyToHeap,
                                                    DeletionAwareTrie<Object, TrieTombstoneMarker> source,
                                                    ColumnFilter columnFilter,
                                                    DataRange dataRange)
         {
-            this.iter = new PartitionIterator(source, metadata, droppedColumnsSource, copyToHeap);
+            this.iter = new PartitionIterator(source, metadata, copyToHeap);
             this.metadata = metadata;
             this.columnFilter = columnFilter;
             this.dataRange = dataRange;
@@ -1641,7 +1546,6 @@ public class TrieMemtable extends AbstractShardedMemtable
     static class Dumper extends TrieDumperWithPath.DeletionAware<Object, TrieTombstoneMarker>
     {
         final TableMetadata metadata;
-        Columns columns;
         int rowKeyLength = 0;
         int partitionKeyLength = 0;
 
@@ -1656,7 +1560,7 @@ public class TrieMemtable extends AbstractShardedMemtable
             if (content instanceof TrieCellData)
             {
                 byte[] cellPath = Arrays.copyOfRange(keyBytes, rowKeyLength, keyPos);
-                Cell<?> asCell = TrieBackedRow.cellFromCellData((TrieCellData) content, cellPath, cellPath.length, columns);
+                Cell<?> asCell = TrieBackedRow.cellFromCellData((TrieCellData) content, cellPath, cellPath.length, metadata);
                 return asCell.toString();
             }
             else if (content instanceof LivenessInfo)
@@ -1664,7 +1568,6 @@ public class TrieMemtable extends AbstractShardedMemtable
                 rowKeyLength = keyPos;
                 Clustering<?> clustering = metadata.comparator.clusteringFromByteComparable(ByteBufferAccessor.instance,
                                                                                             ByteComparable.preencoded(BYTE_COMPARABLE_VERSION, keyBytes, partitionKeyLength, keyPos - partitionKeyLength));
-                columns = metadata.regularAndStaticColumns().columns(clustering == Clustering.STATIC_CLUSTERING);
                 return content + " at " + clustering.toString(metadata);
             }
             else if (content instanceof PartitionData)

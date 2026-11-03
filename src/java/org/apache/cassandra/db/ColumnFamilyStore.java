@@ -278,8 +278,6 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean, Memtable.Owner
     public final Keyspace keyspace;
     public final String name;
     public final TableMetadataRef metadata;
-    /** Metadata being applied by a schema change that may not be published yet, see {@link #createMemtable}. */
-    private volatile TableMetadata pendingMetadata;
     private final String mbeanName;
     /** @deprecated See CASSANDRA-9448 */
     @Deprecated(since = "3.0")
@@ -404,7 +402,6 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean, Memtable.Owner
         indexManager.reload(tableMetadata);
 
         memtableFactory = tableMetadata.params.memtable.factory();
-        pendingMetadata = tableMetadata;
         if (DatabaseDescriptor.isDaemonInitialized())
             switchMemtableOrNotify(FlushReason.SCHEMA_CHANGE, tableMetadata, Memtable::metadataUpdated);
     }
@@ -1468,27 +1465,7 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean, Memtable.Owner
 
     public Memtable createMemtable(AtomicReference<CommitLogPosition> commitLogUpperBound)
     {
-        return memtableFactory.create(commitLogUpperBound, metadataForNewMemtable(), this);
-    }
-
-    /**
-     * Returns the metadata reference to use for new memtables. During a schema change (see {@link #reload}) memtables
-     * are switched before the updated schema is published; memtables created during that time must still see the new
-     * metadata, as they will receive writes that use it.
-     */
-    private TableMetadataRef metadataForNewMemtable()
-    {
-        TableMetadata pending = pendingMetadata;
-        if (pending == null)
-            return metadata;
-
-        if (!pending.epoch.isAfter(metadata.get().epoch))
-        {
-            // The update has been published, no need to wrap any more.
-            pendingMetadata = null;
-            return metadata;
-        }
-        return TableMetadataRef.withPendingUpdate(metadata, pending);
+        return memtableFactory.create(commitLogUpperBound, metadata, this);
     }
 
     // atomically set the upper bound for the commit log

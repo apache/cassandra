@@ -1551,8 +1551,10 @@ public class SecondaryIndexManager implements IndexRegistry, INotificationConsum
     private static final class WriteTimeTransaction implements UpdateTransaction
     {
         private final Index.Indexer[] indexers;
-        final Row.Builder toRemove = BTreeRow.sortedBuilder();
-        final Row.Builder toInsert = BTreeRow.sortedBuilder();
+        // Cells may be reported in any order within a row (e.g. trie memtables report them in the order of the
+        // columns' unique ids), thus the builders must sort them.
+        final Row.Builder toRemove = BTreeRow.unsortedBuilder();
+        final Row.Builder toInsert = BTreeRow.unsortedBuilder();
         boolean rowUpdated = false;
         boolean rowExisted = true;
 
