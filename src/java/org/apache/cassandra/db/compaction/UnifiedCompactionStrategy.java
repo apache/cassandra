@@ -98,6 +98,10 @@ public class UnifiedCompactionStrategy extends AbstractCompactionStrategy
     {
         super(cfs, options);
         this.controller = controller;
+        // Keep single-SSTable tombstone compaction opt-in to avoid changing existing UCS workloads.
+        disableTombstoneCompactions = !options.containsKey(TOMBSTONE_THRESHOLD_OPTION)
+                                     && !options.containsKey(TOMBSTONE_COMPACTION_INTERVAL_OPTION)
+                                     && !uncheckedTombstoneCompaction;
         estimatedRemainingTasks = 0;
         lastExpiredCheck = Clock.Global.currentTimeMillis();
     }
@@ -277,7 +281,10 @@ public class UnifiedCompactionStrategy extends AbstractCompactionStrategy
         LifecycleTransaction transaction = cfs.getTracker().tryModify(pick, OperationType.COMPACTION, nextTimeUUID());
         if (transaction != null)
         {
-            return createCompactionTasks(gcBefore, transaction);
+            Collection<AbstractCompactionTask> tasks = createCompactionTasks(gcBefore, transaction);
+            for (AbstractCompactionTask task : tasks)
+                task.setCompactionType(pick.compactionType);
+            return tasks;
         }
         else
         {
@@ -425,13 +432,32 @@ public class UnifiedCompactionStrategy extends AbstractCompactionStrategy
         if (selected == null)
         {
             if (expired.isEmpty())
-                return null;
+                return getTombstoneCompactionPick(suitable, gcBefore);
             else
                 return new CompactionPick(-1, -1, expired);
         }
 
         selected.addAll(expired);
         return selected;
+    }
+
+    /**
+     * Reuse the LCS eligibility checks when neither normal compaction nor whole-file expiration has work to do.
+     * These checks estimate the benefit; the compaction controller still enforces tombstone purging safety.
+     */
+    private CompactionPick getTombstoneCompactionPick(List<SSTableReader> suitable, long gcBefore)
+    {
+        if (disableTombstoneCompactions)
+            return null;
+
+        suitable.sort((left, right) -> Double.compare(right.getEstimatedDroppableTombstoneRatio(gcBefore),
+                                                     left.getEstimatedDroppableTombstoneRatio(gcBefore)));
+        for (SSTableReader sstable : suitable)
+        {
+            if (worthDroppingTombstones(sstable, gcBefore))
+                return new CompactionPick(-1, -1, Collections.singleton(sstable), OperationType.TOMBSTONE_COMPACTION);
+        }
+        return null;
     }
 
     private Set<SSTableReader> maybeGetExpiredSSTables(long gcBefore, List<SSTableReader> suitable)
@@ -986,12 +1012,19 @@ public class UnifiedCompactionStrategy extends AbstractCompactionStrategy
     {
         final int level;
         final int overlap;
+        final OperationType compactionType;
 
         CompactionPick(int level, int overlap, Collection<SSTableReader> sstables)
+        {
+            this(level, overlap, sstables, OperationType.COMPACTION);
+        }
+
+        CompactionPick(int level, int overlap, Collection<SSTableReader> sstables, OperationType compactionType)
         {
             super(sstables);
             this.level = level;
             this.overlap = overlap;
+            this.compactionType = compactionType;
         }
     }
 
