@@ -1,0 +1,1611 @@
+/*
+ * Licensed to the Apache Software Foundation (ASF) under one
+ * or more contributor license agreements.  See the NOTICE file
+ * distributed with this work for additional information
+ * regarding copyright ownership.  The ASF licenses this file
+ * to you under the Apache License, Version 2.0 (the
+ * "License"); you may not use this file except in compliance
+ * with the License.  You may obtain a copy of the License at
+ *
+ *     http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+package org.apache.cassandra.replication;
+
+import java.io.IOException;
+import java.util.ArrayList;
+import java.util.Collection;
+import java.util.HashMap;
+import java.util.HashSet;
+import java.util.List;
+import java.util.Map;
+import java.util.Set;
+import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.ExecutionException;
+import java.util.concurrent.TimeoutException;
+import java.util.concurrent.atomic.AtomicInteger;
+import java.util.function.BiFunction;
+import java.util.function.Predicate;
+
+import javax.annotation.Nonnull;
+import javax.annotation.Nullable;
+
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+
+import org.apache.cassandra.config.CassandraRelevantProperties;
+import org.apache.cassandra.config.DatabaseDescriptor;
+import org.apache.cassandra.db.TypeSizes;
+import org.apache.cassandra.dht.AbstractBounds;
+import org.apache.cassandra.dht.IPartitioner;
+import org.apache.cassandra.dht.Range;
+import org.apache.cassandra.dht.Token;
+import org.apache.cassandra.exceptions.RequestFailure;
+import org.apache.cassandra.io.UnversionedSerializer;
+import org.apache.cassandra.io.util.DataInputPlus;
+import org.apache.cassandra.io.util.DataOutputPlus;
+import org.apache.cassandra.locator.EndpointsByReplica;
+import org.apache.cassandra.locator.EndpointsForRange;
+import org.apache.cassandra.locator.InetAddressAndPort;
+import org.apache.cassandra.locator.RangesAtEndpoint;
+import org.apache.cassandra.locator.Replica;
+import org.apache.cassandra.net.IVerbHandler;
+import org.apache.cassandra.net.Message;
+import org.apache.cassandra.net.MessagingService;
+import org.apache.cassandra.net.RequestCallback;
+import org.apache.cassandra.net.Verb;
+import org.apache.cassandra.schema.KeyspaceMetadata;
+import org.apache.cassandra.tcm.ClusterMetadata;
+import org.apache.cassandra.tcm.ClusterMetadataService;
+import org.apache.cassandra.tcm.Epoch;
+import org.apache.cassandra.tcm.membership.NodeId;
+import org.apache.cassandra.tcm.ownership.DataPlacement;
+import org.apache.cassandra.tcm.ownership.MovementMap;
+import org.apache.cassandra.tcm.ownership.PlacementDeltas;
+import org.apache.cassandra.tcm.ownership.VersionedEndpoints;
+import org.apache.cassandra.tcm.sequences.LeaveStreams;
+import org.apache.cassandra.utils.CollectionSerializers;
+import org.apache.cassandra.utils.concurrent.AsyncPromise;
+import org.apache.cassandra.utils.concurrent.Future;
+import org.apache.cassandra.utils.concurrent.FutureCombiner;
+import org.apache.cassandra.utils.concurrent.UncheckedInterruptedException;
+
+import static com.google.common.base.Preconditions.checkArgument;
+import static java.lang.String.format;
+import static java.util.concurrent.TimeUnit.MILLISECONDS;
+
+/*
+ * Sealing {@link Shard}s once a topology change obsoletes them.
+ *
+ * Happy Path Sequence:
+ * 1. Bring every participant up to (at least) this seal's epoch and fence allocation, so that everyone
+ *    stops writing to the old shards; then wait until all in-progress mutations have been done.
+ * 2. Same for tracked transfers
+ * 3. Wait until all participating replicas have reconciled the union of their witnessed ids
+ * 4. Mark the shard as fully sealed
+ * 5. Stop including the shard in mutation summaries for read requests.
+ *
+ * Unhappy Path Sequence (not yet implemented):
+ * 1. Wait until everyone who's up stops writing to the old shards and all in-progress mutations have been done
+ * 2. Same for tracked transfers
+ * 3. Wait until all *live* participating replicas have reconciled the union of their witnessed ids
+ * 4. Mark the shard as partially sealed, label it with the set of participants that were able to seal
+ * 5. When a down node comes up, have it talk to other nodes and learn about sealing, and what mutations/logs
+ *    they have exchanged. Diff with what we have - in system tables and in the journal (though system table
+ *    plus local replay should give us an up-to-date metadata state for the shard)
+ */
+public final class SealingCoordinator
+{
+    private static final Logger logger = LoggerFactory.getLogger(SealingCoordinator.class);
+
+    private static final int MAX_RETRIES = CassandraRelevantProperties.SHARD_SEALING_RETRIES.getInt();
+    private static final long INITIAL_BACKOFF_MS = 200;
+    private static final long MAX_BACKOFF_MS = 2000;
+
+    private static long sleepWithBackoff(long currentBackoffMs)
+    {
+        if (currentBackoffMs > 0)
+        {
+            try
+            {
+                Thread.sleep(currentBackoffMs);
+            }
+            catch (InterruptedException e)
+            {
+                throw new UncheckedInterruptedException(e);
+            }
+        }
+        return Math.min(MAX_BACKOFF_MS, (long) (currentBackoffMs * 1.5));
+    }
+    /*
+     * BOOTSTRAP sequence illustrated. Stages in which write placements
+     * remain unchanged, and only read placements change, are skipped
+     * here as irrelevant to sharding / sealing.
+     *
+     * There is a tracked keyspace with RF=3.
+     * A node n35 with token=35 is added in the middle of the ring.
+     *
+     * 1. Initial state at e0:
+     *
+     *      (10,20] | {n20,n30,n40}     | e0 | ACTIVE
+     *      (20,30] | {n30,n40,n50}     | e0 | ACTIVE
+     *      (30,40] | {n40,n50,n60}     | e0 | ACTIVE
+     *
+     * 2. PREPARE_JOIN at e1:
+     *
+     *      (10,20] | {n20,n30,n40}     | e0 | ACTIVE
+     *      (20,30] | {n30,n40,n50}     | e0 | ACTIVE
+     *      (30,40] | {n40,n50,n60}     | e0 | ACTIVE
+     *    + (30,35] | {n40,n50,n60}     | e1 | ACTIVE
+     *    + (35,40] | {n40,n50,n60}     | e1 | ACTIVE
+     *
+     * 3. START_JOIN at e2:
+     *
+     *      (10,20] | {n20,n30,n40}     | e0 | ACTIVE
+     *    + (10,20] | {n20,n30,n35,n40} | e2 | ACTIVE
+     *      (20,30] | {n30,n40,n50}     | e0 | ACTIVE
+     *    + (20,30] | {n30,n35,n40,n50} | e2 | ACTIVE
+     *      (30,40] | {n40,n50,n60}     | e0 | ACTIVE
+     *      (30,35] | {n40,n50,n60}     | e1 | ACTIVE
+     *    + (30,35] | {n35,n40,n50,n60} | e2 | ACTIVE
+     *      (35,40] | {n40,n50,n60}     | e1 | ACTIVE
+     *
+     * 4. MID_JOIN at e3 [*]:
+     *
+     *    S (10,20] | {n20,n30,n40}     | e0 | SEALED
+     *      (10,20] | {n20,n30,n35,n40} | e2 | ACTIVE
+     *    S (20,30] | {n30,n40,n50}     | e0 | SEALED
+     *      (20,30] | {n30,n35,n40,n50} | e2 | ACTIVE
+     *    S (30,40] | {n40,n50,n60}     | e0 | SEALED
+     *    S (30,35] | {n40,n50,n60}     | e1 | SEALED
+     *      (30,35] | {n35,n40,n50,n60} | e2 | ACTIVE
+     *      (35,40] | {n40,n50,n60}     | e1 | ACTIVE
+     *
+     * 5. FINISH_JOIN at e4:
+     *
+     *      (10,20] | {n20,n30,n40}     | e0 | SEALED
+     *      (10,20] | {n20,n30,n35,n40} | e2 | ACTIVE
+     *    + (10,20] | {n20,n30,n35}     | e4 | ACTIVE
+     *      (20,30] | {n30,n40,n50}     | e0 | SEALED
+     *      (20,30] | {n30,n35,n40,n50} | e2 | ACTIVE
+     *    + (20,30] | {n30,n35,n40}     | e4 | ACTIVE
+     *      (30,40] | {n40,n50,n60}     | e0 | SEALED
+     *      (30,35] | {n40,n50,n60}     | e1 | SEALED
+     *      (30,35] | {n35,n40,n50,n60} | e2 | ACTIVE
+     *    + (30,35] | {n35,n40,n50}     | e4 | ACTIVE
+     *      (35,40] | {n40,n50,n60}     | e1 | ACTIVE
+     *
+     * 6. RETIRE_SINGLE_NODE_SEQUENCE:
+     *
+     *      (10,20] | {n20,n30,n40}     | e0 | SEALED
+     *    S (10,20] | {n20,n30,n35,n40} | e2 | SEALED
+     *      (10,20] | {n20,n30,n35}     | e4 | ACTIVE
+     *      (20,30] | {n30,n40,n50}     | e0 | SEALED
+     *    S (20,30] | {n30,n35,n40,n50} | e2 | SEALED
+     *      (20,30] | {n30,n35,n40}     | e4 | ACTIVE
+     *      (30,40] | {n40,n50,n60}     | e0 | SEALED
+     *      (30,35] | {n40,n50,n60}     | e1 | SEALED
+     *    S (30,35] | {n35,n40,n50,n60} | e2 | SEALED
+     *      (30,35] | {n35,n40,n50}     | e4 | ACTIVE
+     *      (35,40] | {n40,n50,n60}     | e1 | ACTIVE
+     *
+     * [*] At this stage, after sealing the shards, we stream the sstables.
+     * All the offsets belonging to these sealed shards get stripped from
+     * stats component of streamed sstables. Otherwise, the new node
+     * won't be able to compact them or mark them as reconciled/repaired -
+     * it is rightfully unaware of the sealed shards.
+     */
+
+    /**
+     * Seal the shards obsoleted by bootstrap before the new node starts streaming.
+     */
+    public static void sealShardsAtMidJoin(ClusterMetadata metadata, MovementMap movements)
+    {
+        seal(discoverShardsAtMidJoinOrReplace(metadata, movements), metadata.epoch);
+    }
+
+    /**
+     * Seal the intermediate, over-replicated shards created during START_JOIN and obsoleted by FINISH_JOIN.
+     */
+    public static void sealShardsAtFinishJoin(ClusterMetadata metadata, long finishEpoch, PlacementDeltas finishDelta)
+    {
+        seal(discoverShardsAtFinishJoinOrReplace(metadata, finishEpoch, finishDelta, null), metadata.epoch);
+    }
+
+    /*
+     * REPLACE sequence illustrated. Stages in which write placements
+     * remain unchanged, and only read placements change, are skipped
+     * here as irrelevant to sharding / sealing.
+     *
+     * There is a tracked keyspace with RF=3.
+     * Node n40 is dead, and is being replaced with $n40.
+     *
+     * 1. Initial state at e0:
+     *
+     *      (10,20] | {n20,n30,n40}     | e0 | ACTIVE
+     *      (20,30] | {n30,n40,n50}     | e0 | ACTIVE
+     *      (30,40] | {n40,n50,n60}     | e0 | ACTIVE
+     *
+     * 2. START_REPLACE at e1:
+     *
+     *      (10,20] | {n20,n30,n40}     | e0 | ACTIVE
+     *    + (10,20] | {n20,n30,n40,$n40}| e1 | ACTIVE
+     *      (20,30] | {n30,n40,n50}     | e0 | ACTIVE
+     *    + (20,30] | {n30,n40,$n40,n50}| e1 | ACTIVE
+     *      (30,40] | {n40,n50,n60}     | e0 | ACTIVE
+     *    + (30,40] | {n40,$n40,n50,n60}| e1 | ACTIVE
+     *
+     * 3. MID_REPLACE at e2 [*]:
+     *
+     *    S (10,20] | {n20,n30,n40}     | e0 | SEALED
+     *      (10,20] | {n20,n30,n40,$n40}| e1 | ACTIVE
+     *    S (20,30] | {n30,n40,n50}     | e0 | SEALED
+     *      (20,30] | {n30,n40,$n40,n50}| e1 | ACTIVE
+     *    S (30,40] | {n40,n50,n60}     | e0 | SEALED
+     *      (30,40] | {n40,$n40,n50,n60}| e1 | ACTIVE
+     *
+     * 4. FINISH_REPLACE at e3:
+     *
+     *      (10,20] | {n20,n30,n40}     | e0 | SEALED
+     *      (10,20] | {n20,n30,n40,$n40}| e1 | ACTIVE
+     *    + (10,20] | {n20,n30,$n40}    | e3 | ACTIVE
+     *      (20,30] | {n30,n40,n50}     | e0 | SEALED
+     *      (20,30] | {n30,n40,$n40,n50}| e1 | ACTIVE
+     *    + (20,30] | {n30,$n40,n50}    | e3 | ACTIVE
+     *      (30,40] | {n40,n50,n60}     | e0 | SEALED
+     *      (30,40] | {n40,$n40,n50,n60}| e1 | ACTIVE
+     *    + (30,40] | {$n40,n50,n60}    | e3 | ACTIVE
+     *
+     * 5. RETIRE_SINGLE_NODE_SEQUENCE:
+     *
+     *      (10,20] | {n20,n30,n40}     | e0 | SEALED
+     *    S (10,20] | {n20,n30,n40,$n40}| e1 | SEALED
+     *      (10,20] | {n20,n30,$n40}    | e3 | ACTIVE
+     *      (20,30] | {n30,n40,n50}     | e0 | SEALED
+     *    S (20,30] | {n30,n40,$n40,n50}| e1 | SEALED
+     *      (20,30] | {n30,$n40,n50}    | e3 | ACTIVE
+     *      (30,40] | {n40,n50,n60}     | e0 | SEALED
+     *    S (30,40] | {n40,$n40,n50,n60}| e1 | SEALED
+     *      (30,40] | {$n40,n50,n60}    | e3 | ACTIVE
+     *
+     * [*] At this stage, after sealing the shards, we stream the sstables.
+     * Non-repaired (not fully reconciled) SSTables must be split into
+     * fully reconciled part and non-reconciled part. When streaming the
+     * former, we will strip all the log offsets from their metadata.
+     * Otherwise, the new node won't be able to compact them or mark them
+     * as reconciled/repaired - it is rightfully unaware of the sealed shards.
+     * If we don't split them into two parts, then we risk being unable to
+     * rebuild and filter any of the streamed SSTables on the receiving node.
+     */
+
+    /**
+     * Seal the shards obsoleted by host replacement before the replacement node starts streaming.
+     * The {@code deadNode} node cannot participate in the sealing.
+     */
+    public static void sealShardsAtMidReplace(ClusterMetadata metadata, MovementMap movements, @Nonnull NodeId deadNode)
+    {
+        seal(discoverShardsAtMidJoinOrReplace(metadata, movements), deadNode, metadata.epoch);
+    }
+
+    /**
+     * Seal the intermediate, over-replicated shards created during START_REPLACE and obsoleted by FINISH_REPLACE.
+     * The {@code deadNode} node cannot participate in the sealing.
+     */
+    public static void sealShardsAtFinishReplace(ClusterMetadata metadata, long finishEpoch, PlacementDeltas finishDelta, @Nonnull NodeId deadNode)
+    {
+        seal(discoverShardsAtFinishJoinOrReplace(metadata, finishEpoch, finishDelta, deadNode), deadNode, metadata.epoch);
+    }
+
+    /**
+     * Discover all shards that need to be sealed at MID_JOIN or MID_REPLACE.
+     */
+    private static Set<ShardMetadata> discoverShardsAtMidJoinOrReplace(ClusterMetadata metadata, MovementMap movements)
+    {
+        List<Future<Set<ShardMetadata>>> futures = new ArrayList<>();
+
+        for (KeyspaceMetadata ksm : metadata.schema.getKeyspaces())
+        {
+            if (!ksm.params.replicationType.isTracked())
+                continue;
+
+            EndpointsByReplica acquired = movements.get(ksm.params.replication);
+            if (acquired.isEmpty()) // when the keyspace is not replicated to this DC
+                continue;
+
+            DataPlacement placement = metadata.placements.get(ksm.params.replication);
+
+            for (Map.Entry<Replica, EndpointsForRange> entry : acquired.entrySet())
+            {
+                Range<Token> range = entry.getKey().range();
+                Set<InetAddressAndPort> endpoints = entry.getValue().endpoints();
+                // cutoff: the epoch this node was added to the write placement for the range;
+                // shards over the range with sinceEpoch < cutoff are obsoleted by this bootstrap or replace.
+                long beforeEpoch = placement.writes.forRange(range).lastModified().getEpoch();
+                futures.add(FetchShards.fetch(ksm.name, beforeEpoch, range, endpoints));
+            }
+        }
+
+        Set<ShardMetadata> shards = new HashSet<>();
+        try
+        {
+            for (Set<ShardMetadata> fetched : FutureCombiner.allOf(futures).get(DatabaseDescriptor.getShardSealingTimeout(MILLISECONDS), MILLISECONDS))
+                shards.addAll(fetched);
+        }
+        catch (InterruptedException e)
+        {
+            throw new UncheckedInterruptedException(e);
+        }
+        catch (ExecutionException | TimeoutException e)
+        {
+            throw new RuntimeException("Failed to fetch shards to seal", e);
+        }
+        return shards;
+    }
+
+    /**
+     * Discover all shards that need to be sealed at FINISH_JOIN or FINISH_REPLACE.
+     */
+    private static Set<ShardMetadata> discoverShardsAtFinishJoinOrReplace(
+        ClusterMetadata metadata, long finishEpoch, PlacementDeltas finishDelta, @Nullable NodeId deadNode)
+    {
+        Set<ShardMetadata> shards = new HashSet<>();
+        for (KeyspaceMetadata ksm : metadata.schema.getKeyspaces())
+        {
+            if (!ksm.params.replicationType.isTracked())
+                continue;
+
+            DataPlacement placement = metadata.placements.get(ksm.params.replication);
+            finishDelta.get(ksm.params.replication).writes.removals.flattenValues().forEach(removed -> {
+                Set<Integer> nodeIDs = new HashSet<>();
+                for (InetAddressAndPort ep : placement.writes.forRange(removed.range()).endpoints())
+                    nodeIDs.add(metadata.directory.peerId(ep).id());
+                nodeIDs.add(deadNode != null ? deadNode.id() : metadata.directory.peerId(removed.endpoint()).id());
+                Participants participants = new Participants(nodeIDs);
+
+                MutationTrackingService.instance().forEachShardInKeyspace(ksm.name, shard -> {
+                    if (shard.sinceEpoch < finishEpoch
+                        && shard.range.equals(removed.range())
+                        && shard.participants.equals(participants)
+                        && !shard.isSealed())
+                        shards.add(new ShardMetadata(shard.keyspace, shard.sinceEpoch, shard.range, shard.participants));
+                });
+            });
+        }
+        return shards;
+    }
+
+    /*
+     * UNBOOTSTRAP and REMOVENODE sequences illustrated (same sequence as far as sharding is concerned).
+     * Stages in which write placements remain unchanged, and only read placements change, are skipped
+     * here as irrelevant to sharding / sealing.
+     *
+     * There is a tracked keyspace with RF=3.
+     * A node n40 with token=40 is removed in the middle of the ring.
+     *
+     * 1. Initial state at e0:
+     *
+     *      (10,20] | {n20,n30,n40}     | e0 | ACTIVE
+     *      (20,30] | {n30,n40,n50}     | e0 | ACTIVE
+     *      (30,40] | {n40,n50,n60}     | e0 | ACTIVE
+     *      (40,50] | {n50,n60,n70}     | e0 | ACTIVE
+     *
+     * 2. START_LEAVE at e1:
+     *
+     *      (10,20] | {n20,n30,n40}     | e0 | ACTIVE
+     *    + (10,20] | {n20,n30,n40,n50} | e1 | ACTIVE
+     *      (20,30] | {n30,n40,n50}     | e0 | ACTIVE
+     *    + (20,30] | {n30,n40,n50,n60} | e1 | ACTIVE
+     *      (30,40] | {n40,n50,n60}     | e0 | ACTIVE
+     *    + (30,40] | {n40,n50,n60,n70} | e1 | ACTIVE
+     *      (40,50] | {n50,n60,n70}     | e0 | ACTIVE
+     *
+     * 3. MID_LEAVE at e2 [*]:
+     *
+     *    S (10,20] | {n20,n30,n40}     | e0 | SEALED
+     *      (10,20] | {n20,n30,n40,n50} | e1 | ACTIVE
+     *    S (20,30] | {n30,n40,n50}     | e0 | SEALED
+     *      (20,30] | {n30,n40,n50,n60} | e1 | ACTIVE
+     *    S (30,40] | {n40,n50,n60}     | e0 | SEALED
+     *      (30,40] | {n40,n50,n60,n70} | e1 | ACTIVE
+     *      (40,50] | {n50,n60,n70}     | e0 | ACTIVE
+     *
+     * 4. FINISH_LEAVE at e3:
+     *
+     *      (10,20] | {n20,n30,n40}     | e0 | SEALED
+     *      (10,20] | {n20,n30,n40,n50} | e1 | ACTIVE
+     *    + (10,20] | {n20,n30,n50}     | e3 | ACTIVE
+     *      (20,30] | {n30,n40,n50}     | e0 | SEALED
+     *      (20,30] | {n30,n40,n50,n60} | e1 | ACTIVE
+     *    + (20,30] | {n30,n50,n60}     | e3 | ACTIVE
+     *      (30,40] | {n40,n50,n60}     | e0 | SEALED
+     *      (30,40] | {n40,n50,n60,n70} | e1 | ACTIVE
+     *      (40,50] | {n50,n60,n70}     | e0 | ACTIVE
+     *    + (30,50] | {n50,n60,n70}     | e3 | ACTIVE
+     *
+     * 5. RETIRE_SINGLE_NODE_SEQUENCE:
+     *
+     *      (10,20] | {n20,n30,n40}     | e0 | SEALED
+     *    S (10,20] | {n20,n30,n40,n50} | e1 | SEALED
+     *      (10,20] | {n20,n30,n50}     | e3 | ACTIVE
+     *      (20,30] | {n30,n40,n50}     | e0 | SEALED
+     *    S (20,30] | {n30,n40,n50,n60} | e1 | SEALED
+     *      (20,30] | {n30,n50,n60}     | e3 | ACTIVE
+     *      (30,40] | {n40,n50,n60}     | e0 | SEALED
+     *    S (30,40] | {n40,n50,n60,n70} | e1 | SEALED
+     *    S (40,50] | {n50,n60,n70}     | e0 | SEALED
+     *      (30,50] | {n50,n60,n70}     | e3 | ACTIVE
+     *
+     * [*] At this stage, after sealing the shards, we stream the sstables.
+     * Non-repaired (not fully reconciled) SSTables must be split into
+     * fully reconciled part and non-reconciled part. When streaming the
+     * former, we will strip all the log offsets from their metadata.
+     * Otherwise, the new node won't be able to compact them or mark them
+     * as reconciled/repaired - it is rightfully unaware of the sealed shards.
+     * If we don't split them into two parts, then we risk being unable to
+     * rebuild and filter any of the streamed SSTables on the receiving node.
+     */
+
+    /**
+     * Seal the shards obsoleted by START_LEAVE before streaming, for both UNBOOTSTRAP and REMOVENODE.
+     */
+    public static void sealShardsAtMidLeave(ClusterMetadata metadata, PlacementDeltas startDelta, NodeId leavingOrDeparted, LeaveStreams.Kind kind)
+    {
+        InetAddressAndPort leavingOrDepartedEndpoint = metadata.directory.endpoint(leavingOrDeparted);
+
+        List<Future<Set<ShardMetadata>>> futures = new ArrayList<>();
+        for (KeyspaceMetadata ksm : metadata.schema.getKeyspaces())
+        {
+            if (!ksm.params.replicationType.isTracked())
+                continue;
+
+            DataPlacement placement = metadata.placements.get(ksm.params.replication);
+            startDelta.get(ksm.params.replication).writes.additions.flattenValues().forEach(added -> {
+                Range<Token> range = added.range();
+                long beforeEpoch = placement.writes.forRange(range).lastModified().getEpoch();
+                Set<InetAddressAndPort> survivors = new HashSet<>(placement.writes.forRange(range).endpoints());
+                survivors.remove(leavingOrDepartedEndpoint);
+                futures.add(FetchShards.fetch(ksm.name, beforeEpoch, range, survivors));
+            });
+        }
+
+        Set<ShardMetadata> shards = new HashSet<>();
+        try
+        {
+            for (Set<ShardMetadata> fetched : FutureCombiner.allOf(futures).get(DatabaseDescriptor.getShardSealingTimeout(MILLISECONDS), MILLISECONDS))
+                for (ShardMetadata shard : fetched)
+                    if (shard.participants.contains(leavingOrDeparted.id()))
+                        shards.add(shard);
+        }
+        catch (InterruptedException e)
+        {
+            throw new UncheckedInterruptedException(e);
+        }
+        catch (ExecutionException | TimeoutException e)
+        {
+            throw new RuntimeException("Failed to fetch shards to seal for leave", e);
+        }
+
+        seal(shards, kind == LeaveStreams.Kind.UNBOOTSTRAP ? null : leavingOrDeparted, metadata.epoch);
+    }
+
+    /**
+     * Seal the shards obsoleted by FINISH_LEAVE, for both UNBOOTSTRAP and REMOVENODE: the departed node's
+     * over-replicated generations created during START_LEAVE, plus the merge-half folded into its range.
+     */
+    public static void sealShardsAtFinishLeave(ClusterMetadata metadata, long finishEpoch, PlacementDeltas finishDelta, NodeId leavingOrDeparted, LeaveStreams.Kind kind)
+    {
+        InetAddressAndPort leavingOrDepartedEndpoint = metadata.directory.endpoint(leavingOrDeparted);
+
+        List<Future<Set<ShardMetadata>>> futures = new ArrayList<>();
+        for (KeyspaceMetadata ksm : metadata.schema.getKeyspaces())
+        {
+            if (!ksm.params.replicationType.isTracked())
+                continue;
+
+            DataPlacement placement = metadata.placements.get(ksm.params.replication);
+            RangesAtEndpoint removals = finishDelta.get(ksm.params.replication).writes.removals.get(leavingOrDepartedEndpoint);
+            for (Replica removedReplica : removals)
+            {
+                // FINISH_LEAVE merges the leavingOrDeparted node's (pre-merge) range with an adjacent one. Query the *merged*
+                // range (not the pre-merge range) so discovery covers both the leavingOrDeparted node's own obsoleted
+                // generations and the merge-half - the adjacent pre-merge range folded into the merged range, whose
+                // shard never listed the leavingOrDeparted node. matchRange() yields the containing merged group + its
+                // current (survivor) write endpoints.
+                VersionedEndpoints.ForRange group = placement.writes.matchRange(removedReplica.range());
+                Range<Token> mergedRange = group.range();
+                Set<InetAddressAndPort> survivors = new HashSet<>(group.endpoints());
+                survivors.remove(leavingOrDepartedEndpoint);
+                futures.add(FetchShards.fetch(ksm.name, finishEpoch, mergedRange, survivors));
+            }
+        }
+
+        Set<ShardMetadata> shards = new HashSet<>();
+        try
+        {
+            for (Set<ShardMetadata> fetched : FutureCombiner.allOf(futures).get(DatabaseDescriptor.getShardSealingTimeout(MILLISECONDS), MILLISECONDS))
+                shards.addAll(fetched);
+        }
+        catch (InterruptedException e)
+        {
+            throw new UncheckedInterruptedException(e);
+        }
+        catch (ExecutionException | TimeoutException e)
+        {
+            throw new RuntimeException("Failed to fetch shards to seal for leave finish", e);
+        }
+
+        seal(shards, kind == LeaveStreams.Kind.UNBOOTSTRAP ? null : leavingOrDeparted, metadata.epoch);
+    }
+
+    /*
+     * Sealing logic.
+     */
+
+    private static void seal(Set<ShardMetadata> shards, Epoch epoch)
+    {
+        seal(shards, null, epoch);
+    }
+
+    private static void seal(Set<ShardMetadata> shards, @Nullable NodeId withoutNode, Epoch epoch)
+    {
+        awaitEpoch(shards, withoutNode, epoch); // wait for all involved replicas to catch up to the relevant TCM epoch
+        initiate(shards, withoutNode);          // ACTIVE -> SEALING for each Shard
+        drain(shards, withoutNode);             // drain in-flight local writes
+        reconcile(shards, withoutNode);         // wait for logs to reconcile
+        complete(shards, withoutNode);          // SEALING -> SEALED for each Shard
+    }
+
+    /**
+     * TCM commit doesn't require/wait for all participants to ack. However, before we seal any shards,
+     * we must ensure that their successor shards have been initialized (which happens in MTS in a callback
+     * to TCM changes, after the new epoch has been set).
+     * So what we have to do is to wait for all affected replicas to reach at least the epoch
+     * of this change and for MTS to process its TCM post-commit callback.
+     */
+    private static void awaitEpoch(Set<ShardMetadata> shards, @Nullable NodeId withoutNode, Epoch epoch)
+    {
+        Set<InetAddressAndPort> endpoints = new HashSet<>();
+        for (ShardMetadata shard : shards)
+            endpoints.addAll(toEndpoints(shard.participants, withoutNode));
+
+        executeWithRetry("awaiting epoch " + epoch, Map.of(epoch, endpoints), AwaitEpoch::poll);
+    }
+
+    static class StepCallback<T> implements RequestCallback<T>
+    {
+        private final String operation;
+        private final AsyncPromise<Void> future = new AsyncPromise<>();
+        private final Set<InetAddressAndPort> remaining;
+        private final Set<InetAddressAndPort> succeeded = ConcurrentHashMap.newKeySet();
+        private final Map<InetAddressAndPort, RequestFailure> failures = new ConcurrentHashMap<>();
+        private final Predicate<T> successCondition;
+
+        public StepCallback(Collection<InetAddressAndPort> endpoints, String operation)
+        {
+            this(endpoints, operation, payload -> true);
+        }
+
+        public StepCallback(Collection<InetAddressAndPort> endpoints, String operation, Predicate<T> successCondition)
+        {
+            this.operation = operation;
+            this.successCondition = successCondition;
+            this.remaining = ConcurrentHashMap.newKeySet();
+            this.remaining.addAll(endpoints);
+        }
+
+        Future<Void> future()
+        {
+            return future;
+        }
+
+        Set<InetAddressAndPort> succeeded()
+        {
+            return succeeded;
+        }
+
+        private void maybeComplete(InetAddressAndPort ep)
+        {
+            remaining.remove(ep);
+            if (!remaining.isEmpty())
+                return;
+
+            if (failures.isEmpty())
+            {
+                future.trySuccess(null);
+                return;
+            }
+
+            future.tryFailure(new RuntimeException(format("Failed to complete %s: %s", operation, failures)));
+        }
+
+        @Override
+        public void onResponse(Message<T> msg)
+        {
+            if (successCondition.test(msg.payload))
+                succeeded.add(msg.from());
+            maybeComplete(msg.from());
+        }
+
+        @Override
+        public void onFailure(InetAddressAndPort from, RequestFailure failure)
+        {
+            logger.debug("Failed {} on {}: {}", operation, from, failure);
+            failures.put(from, failure);
+            maybeComplete(from);
+        }
+
+        @Override
+        public boolean invokeOnFailure()
+        {
+            return true;
+        }
+    }
+
+    private static void executeWithRetry(
+        String operationName,
+        Set<ShardMetadata> shards,
+        @Nullable NodeId withoutNode,
+        BiFunction<ShardMetadata, Set<InetAddressAndPort>, StepCallback<?>> stepRunner)
+    {
+        Map<ShardMetadata, Set<InetAddressAndPort>> endpoints = new HashMap<>();
+        for (ShardMetadata shard : shards)
+            endpoints.put(shard, new HashSet<>(toEndpoints(shard.participants, withoutNode)));
+        executeWithRetry(operationName, endpoints, stepRunner);
+    }
+
+    private static <K> void executeWithRetry(
+        String operationName,
+        Map<K, ? extends Collection<InetAddressAndPort>> endpoints,
+        BiFunction<K, Set<InetAddressAndPort>, StepCallback<?>> stepRunner)
+    {
+        Map<K, Set<InetAddressAndPort>> pending = new HashMap<>();
+        endpoints.forEach((key, eps) -> {
+            if (!eps.isEmpty())
+                pending.put(key, new HashSet<>(eps));
+        });
+
+        if (pending.isEmpty())
+            return;
+
+        long backoffMs = INITIAL_BACKOFF_MS;
+        long timeoutMs = DatabaseDescriptor.getShardSealingTimeout(MILLISECONDS);
+        int attempts = 0;
+        Throwable lastError = null;
+
+        while (!pending.isEmpty())
+        {
+            if (attempts++ >= MAX_RETRIES)
+                throw new RuntimeException("Exceeded maximum retries " + operationName + "; still pending: " + pending, lastError);
+
+            Map<K, StepCallback<?>> callbacks = new HashMap<>();
+            List<Future<Void>> futures = new ArrayList<>(pending.size());
+            for (Map.Entry<K, Set<InetAddressAndPort>> entry : pending.entrySet())
+            {
+                StepCallback<?> callback = stepRunner.apply(entry.getKey(), entry.getValue());
+                callbacks.put(entry.getKey(), callback);
+                futures.add(callback.future());
+            }
+
+            try
+            {
+                FutureCombiner.allOf(futures).get(timeoutMs, MILLISECONDS);
+            }
+            catch (InterruptedException e)
+            {
+                throw new UncheckedInterruptedException(e);
+            }
+            catch (ExecutionException | TimeoutException e)
+            {
+                lastError = e;
+                logger.debug("Transient failure {}, will retry (attempt {}/{})", operationName, attempts, MAX_RETRIES, e);
+            }
+
+            for (Map.Entry<K, StepCallback<?>> entry : callbacks.entrySet())
+                pending.get(entry.getKey()).removeAll(entry.getValue().succeeded());
+
+            pending.entrySet().removeIf(entry -> entry.getValue().isEmpty());
+            if (pending.isEmpty())
+                return;
+
+            backoffMs = sleepWithBackoff(backoffMs);
+        }
+    }
+
+    /**
+     * Fence allocation on every participant of the obsoleted shard (ACTIVE -> SEALING).
+     */
+    private static void initiate(Set<ShardMetadata> shards, @Nullable NodeId withoutNode)
+    {
+        executeWithRetry("initiating sealing", shards, withoutNode, (shard, endpoints) ->
+            InitSealing.initiate(shard.keyspace, shard.sinceEpoch, shard.range, endpoints));
+    }
+
+    private static void drain(Set<ShardMetadata> shards, @Nullable NodeId withoutNode)
+    {
+        executeWithRetry("draining shards", shards, withoutNode, (shard, endpoints) ->
+            Drain.poll(shard.keyspace, shard.sinceEpoch, shard.range, endpoints));
+    }
+
+    /**
+     * For each of the shards, capture the witnessed union then poll each participant until it has
+     * caught up and witnessed the entire offset union itself.
+     */
+    private static void reconcile(Set<ShardMetadata> shards, @Nullable NodeId withoutNode)
+    {
+        for (ShardMetadata shard : shards)
+            reconcile(shard, withoutNode);
+    }
+
+    private static void reconcile(ShardMetadata shard, @Nullable NodeId withoutNode)
+    {
+        // capture shard's witnessed offsets once
+        Log2OffsetsMap.Mutable offsets = captureWitnessedOffsets(shard, withoutNode);
+        // poll every participant until they've each witnessed the union of offsets
+        for (InetAddressAndPort endpoint : toEndpoints(shard.participants, withoutNode))
+            pollUntilWitnesses(shard, offsets, endpoint);
+    }
+
+    private static Log2OffsetsMap.Mutable captureWitnessedOffsets(ShardMetadata shard, @Nullable NodeId withoutNode)
+    {
+        List<InetAddressAndPort> endpoints = toEndpoints(shard.participants, withoutNode);
+        if (endpoints.isEmpty())
+            return new Log2OffsetsMap.Mutable();
+
+        long backoffMs = INITIAL_BACKOFF_MS;
+        long timeoutMs = DatabaseDescriptor.getShardSealingTimeout(MILLISECONDS);
+        int attempts = 0;
+        Throwable lastError = null;
+
+        while (attempts++ < MAX_RETRIES)
+        {
+            try
+            {
+                return ReconcileCapture.capture(shard.keyspace, shard.sinceEpoch, shard.range, endpoints)
+                                       .get(timeoutMs, MILLISECONDS);
+            }
+            catch (InterruptedException e)
+            {
+                throw new UncheckedInterruptedException(e);
+            }
+            catch (ExecutionException | TimeoutException e)
+            {
+                lastError = e;
+                logger.debug("Transient failure capturing witnessed offsets for shard {}, will retry (attempt {}/{})", shard, attempts, MAX_RETRIES, e);
+            }
+            backoffMs = sleepWithBackoff(backoffMs);
+        }
+        throw new RuntimeException(format("Failed to capture witnessed offsets for shard %s after %d retries", shard, MAX_RETRIES), lastError);
+    }
+
+    private static void pollUntilWitnesses(ShardMetadata shard, Log2OffsetsMap.Mutable offsets, InetAddressAndPort endpoint)
+    {
+        long backoffMs = INITIAL_BACKOFF_MS;
+        long timeoutMs = DatabaseDescriptor.getShardSealingTimeout(MILLISECONDS);
+        int attempts = 0;
+        Throwable lastError = null;
+
+        while (attempts++ < MAX_RETRIES)
+        {
+            try
+            {
+                boolean witnessed =
+                    ReconcilePoll.poll(shard.keyspace, shard.sinceEpoch, shard.range, offsets, endpoint)
+                                 .get(timeoutMs, MILLISECONDS);
+                if (witnessed)
+                    return;
+            }
+            catch (InterruptedException e)
+            {
+                throw new UncheckedInterruptedException(e);
+            }
+            catch (ExecutionException | TimeoutException e)
+            {
+                lastError = e;
+                logger.debug("Transient failure polling reconcile on {} for shard {}, will retry (attempt {}/{})", endpoint, shard, attempts, MAX_RETRIES, e);
+            }
+
+            backoffMs = sleepWithBackoff(backoffMs);
+        }
+        throw new RuntimeException(format("Timed out reconciling shard %s on endpoint %s after %d retries", shard, endpoint, MAX_RETRIES), lastError);
+    }
+
+    /**
+     * Promote every participant of the (drained and reconciled) shard from SEALING to SEALED.
+     */
+    private static void complete(Set<ShardMetadata> shards, @Nullable NodeId withoutNode)
+    {
+        executeWithRetry("completing sealing", shards, withoutNode, (shard, endpoints) ->
+            CompleteSealing.complete(shard.keyspace, shard.sinceEpoch, shard.range, endpoints));
+    }
+
+    /**
+     * A bootstrapping node knows nothing about the shards that currently exist,
+     * so it must collect the list of shards from the existing replicas before
+     * it can proceed with the rest of the sealing steps.
+     */
+    public static final class FetchShards
+    {
+        public static final class Request
+        {
+            final String keyspace;
+            final long beforeEpoch;
+            final Range<Token> range;
+
+            Request(String keyspace, long beforeEpoch, Range<Token> range)
+            {
+                this.keyspace = keyspace;
+                this.beforeEpoch = beforeEpoch;
+                this.range = range;
+            }
+        }
+
+        public static final class Response
+        {
+            final Set<ShardMetadata> shards;
+
+            Response(Set<ShardMetadata> shards)
+            {
+                this.shards = shards;
+            }
+        }
+
+        /**
+         * Query all replicas in a group in parallel for the shards over {@code ranges} obsoleted by an
+         * in-flight topology change (those with {@code sinceEpoch < beforeEpoch}). Resembles
+         * {@link ShardMetadataRequest#queryPeers}, but waits for every (live) replica to respond and
+         * merges their deduplicated shards rather than taking the first response.
+         */
+        private static AsyncPromise<Set<ShardMetadata>> fetch(
+            String keyspace, long beforeEpoch, Range<Token> range, Set<InetAddressAndPort> endpoints)
+        {
+            checkArgument(!endpoints.isEmpty());
+            AsyncPromise<Set<ShardMetadata>> promise = new AsyncPromise<>();
+            Set<ShardMetadata> merged = ConcurrentHashMap.newKeySet();
+
+            RequestCallback<Response> callback = new RequestCallback<>()
+            {
+                private final AtomicInteger remaining = new AtomicInteger(endpoints.size());
+
+                @Override
+                public void onResponse(Message<Response> msg)
+                {
+                    merged.addAll(msg.payload.shards);
+                    if (remaining.decrementAndGet() == 0)
+                        promise.trySuccess(merged);
+                }
+
+                @Override
+                public void onFailure(InetAddressAndPort from, RequestFailure failure)
+                {
+                    // happy path assumes all replicas are up; fail the whole fetch if any can't respond
+                    promise.tryFailure(new RuntimeException(format("Failed to fetch shards to seal from %s for keyspace %s: %s", from, keyspace, failure)));
+                }
+
+                @Override
+                public boolean invokeOnFailure()
+                {
+                    return true;
+                }
+            };
+
+            Message<Request> message = Message.out(Verb.MT_FETCH_SHARDS_REQ, new Request(keyspace, beforeEpoch, range));
+            for (InetAddressAndPort peer : endpoints)
+                MessagingService.instance().sendWithCallback(message, peer, callback);
+
+            return promise;
+        }
+
+        public static final IVerbHandler<Request> verbHandler = message ->
+        {
+            MutationTrackingService.ensureEnabled();
+            Request request = message.payload;
+            Set<ShardMetadata> shards = new HashSet<>();
+            MutationTrackingService.instance().forEachShardInKeyspace(request.keyspace, shard -> {
+                if (shard.sinceEpoch < request.beforeEpoch
+                    && request.range.intersects(shard.range)
+                    && !shard.isSealed())
+                    shards.add(new ShardMetadata(shard.keyspace, shard.sinceEpoch, shard.range, shard.participants));
+            });
+            MessagingService.instance().send(message.responseWith(new Response(shards)), message.from());
+        };
+
+        public static final VersionedSerializer<Request> requestSerializer = new VersionedSerializer<>()
+        {
+            @Override
+            public void serialize(Request r, DataOutputPlus out, Version version) throws IOException
+            {
+                out.writeUTF(r.keyspace);
+                out.writeLong(r.beforeEpoch);
+                AbstractBounds.tokenSerializer.serialize(r.range, out, version.messagingVersion());
+            }
+
+            @Override
+            public Request deserialize(DataInputPlus in, Version version) throws IOException
+            {
+                String keyspace = in.readUTF();
+                long beforeEpoch = in.readLong();
+                Range<Token> range = (Range<Token>) AbstractBounds.tokenSerializer.deserialize(in, IPartitioner.global(), version.messagingVersion());
+                return new Request(keyspace, beforeEpoch, range);
+            }
+
+            @Override
+            public long serializedSize(Request r, Version version)
+            {
+                long size = TypeSizes.sizeof(r.keyspace);
+                size += TypeSizes.sizeof(r.beforeEpoch);
+                size += AbstractBounds.tokenSerializer.serializedSize(r.range, version.messagingVersion());
+                return size;
+            }
+        };
+
+        public static final VersionedSerializer<Response> responseSerializer = new VersionedSerializer<>()
+        {
+            @Override
+            public void serialize(Response r, DataOutputPlus out, Version version) throws IOException
+            {
+                CollectionSerializers.serializeCollection(r.shards, out, version, ShardMetadata.serializer);
+            }
+
+            @Override
+            public Response deserialize(DataInputPlus in, Version version) throws IOException
+            {
+                return new Response(CollectionSerializers.deserializeSet(in, version, ShardMetadata.serializer));
+            }
+
+            @Override
+            public long serializedSize(Response r, Version version)
+            {
+                return CollectionSerializers.serializedCollectionSize(r.shards, version, ShardMetadata.serializer);
+            }
+        };
+    }
+
+    public static final class AwaitEpoch
+    {
+        public static final class Request
+        {
+            final Epoch epoch;
+
+            Request(Epoch epoch)
+            {
+                this.epoch = epoch;
+            }
+        }
+
+        public static final class Response
+        {
+            final boolean applied;
+
+            Response(boolean applied)
+            {
+                this.applied = applied;
+            }
+        }
+
+        private static StepCallback<Response> poll(Epoch epoch, Collection<InetAddressAndPort> endpoints)
+        {
+            checkArgument(!endpoints.isEmpty());
+
+            StepCallback<Response> callback = new StepCallback<>(endpoints, "await epoch " + epoch, r -> r.applied);
+            Message<Request> message = Message.out(Verb.MT_AWAIT_EPOCH_REQ, new Request(epoch));
+            for (InetAddressAndPort peer : endpoints)
+                MessagingService.instance().sendWithCallback(message, peer, callback);
+
+            return callback;
+        }
+
+        public static final IVerbHandler<Request> verbHandler = message -> {
+            MutationTrackingService.ensureEnabled();
+            Request request = message.payload;
+            boolean applied = MutationTrackingService.instance().hasAppliedEpoch(request.epoch);
+            MessagingService.instance().send(message.responseWith(new Response(applied)), message.from());
+            ClusterMetadata metadata = ClusterMetadata.current();
+            if (!applied && metadata.epoch.isBefore(request.epoch))
+                ClusterMetadataService.instance().fetchLogFromPeerOrCMSAsync(metadata, message.from(), request.epoch);
+        };
+
+        public static final UnversionedSerializer<Request> requestSerializer = new UnversionedSerializer<>()
+        {
+            @Override
+            public void serialize(Request r, DataOutputPlus out) throws IOException
+            {
+                Epoch.serializer.serialize(r.epoch, out);
+            }
+
+            @Override
+            public Request deserialize(DataInputPlus in) throws IOException
+            {
+                return new Request(Epoch.serializer.deserialize(in));
+            }
+
+            @Override
+            public long serializedSize(Request r)
+            {
+                return Epoch.serializer.serializedSize(r.epoch);
+            }
+        };
+
+        public static final UnversionedSerializer<Response> responseSerializer = new UnversionedSerializer<>()
+        {
+            @Override
+            public void serialize(Response r, DataOutputPlus out) throws IOException
+            {
+                out.writeBoolean(r.applied);
+            }
+
+            @Override
+            public Response deserialize(DataInputPlus in) throws IOException
+            {
+                return new Response(in.readBoolean());
+            }
+
+            @Override
+            public long serializedSize(Response r)
+            {
+                return TypeSizes.sizeof(r.applied);
+            }
+        };
+    }
+
+    public static final class InitSealing
+    {
+        public static final class Request
+        {
+            final String keyspace;
+            final long sinceEpoch;
+            final Range<Token> range;
+
+            Request(String keyspace, long sinceEpoch, Range<Token> range)
+            {
+                this.keyspace = keyspace;
+                this.sinceEpoch = sinceEpoch;
+                this.range = range;
+            }
+        }
+
+        // cannot use NoPayload, because its serializer cannot be wrapped inside mtEmbedded()
+        public static final class Response
+        {
+            private static final Response instance = new Response();
+        }
+
+        /**
+         * Tell every participant of an obsoleted shard to fence id allocation (mark it SEALING)
+         */
+        private static StepCallback<Response> initiate(
+            String keyspace, long sinceEpoch, Range<Token> range, Collection<InetAddressAndPort> endpoints)
+        {
+            checkArgument(!endpoints.isEmpty());
+
+            StepCallback<Response> callback = new StepCallback<>(endpoints, "initiate sealing for keyspace " + keyspace);
+            Message<Request> message = Message.out(Verb.MT_INIT_SEALING_REQ, new Request(keyspace, sinceEpoch, range));
+            for (InetAddressAndPort peer : endpoints)
+                MessagingService.instance().sendWithCallback(message, peer, callback);
+
+            return callback;
+        }
+
+        public static final IVerbHandler<Request> verbHandler = message -> {
+            MutationTrackingService.ensureEnabled();
+            Request request = message.payload;
+            MutationTrackingService.instance().markShardSealing(request.keyspace, request.sinceEpoch, request.range);
+            MessagingService.instance().send(message.responseWith(Response.instance), message.from());
+        };
+
+        public static final VersionedSerializer<Request> requestSerializer = new VersionedSerializer<>()
+        {
+            @Override
+            public void serialize(Request r, DataOutputPlus out, Version version) throws IOException
+            {
+                out.writeUTF(r.keyspace);
+                out.writeLong(r.sinceEpoch);
+                AbstractBounds.tokenSerializer.serialize(r.range, out, version.messagingVersion());
+            }
+
+            @Override
+            public Request deserialize(DataInputPlus in, Version version) throws IOException
+            {
+                String keyspace = in.readUTF();
+                long sinceEpoch = in.readLong();
+                Range<Token> range = (Range<Token>) AbstractBounds.tokenSerializer.deserialize(in, IPartitioner.global(), version.messagingVersion());
+                return new Request(keyspace, sinceEpoch, range);
+            }
+
+            @Override
+            public long serializedSize(Request r, Version version)
+            {
+                long size = TypeSizes.sizeof(r.keyspace);
+                size += TypeSizes.sizeof(r.sinceEpoch);
+                size += AbstractBounds.tokenSerializer.serializedSize(r.range, version.messagingVersion());
+                return size;
+            }
+        };
+
+        public static final UnversionedSerializer<Response> responseSerializer = new UnversionedSerializer<>()
+        {
+            @Override
+            public void serialize(Response r, DataOutputPlus out)
+            {
+            }
+
+            @Override
+            public Response deserialize(DataInputPlus in)
+            {
+                return Response.instance;
+            }
+
+            @Override
+            public long serializedSize(Response r)
+            {
+                return 0;
+            }
+        };
+    }
+
+    public static final class Drain
+    {
+        public static final class Request
+        {
+            final String keyspace;
+            final long sinceEpoch;
+            final Range<Token> range;
+
+            Request(String keyspace, long sinceEpoch, Range<Token> range)
+            {
+                this.keyspace = keyspace;
+                this.sinceEpoch = sinceEpoch;
+                this.range = range;
+            }
+        }
+
+        public static final class Response
+        {
+            final boolean drained;
+
+            Response(boolean drained)
+            {
+                this.drained = drained;
+            }
+        }
+
+        /**
+         * Poll given participants of a SEALING shard for whether they have drained their in-flight local
+         * writes. Records participants reporting drained.
+         */
+        private static StepCallback<Response> poll(
+            String keyspace, long sinceEpoch, Range<Token> range, Collection<InetAddressAndPort> endpoints)
+        {
+            checkArgument(!endpoints.isEmpty());
+
+            StepCallback<Response> callback = new StepCallback<>(endpoints, "drain poll for keyspace " + keyspace, r -> r.drained);
+            Message<Request> message = Message.out(Verb.MT_DRAIN_REQ, new Request(keyspace, sinceEpoch, range));
+            for (InetAddressAndPort peer : endpoints)
+                MessagingService.instance().sendWithCallback(message, peer, callback);
+
+            return callback;
+        }
+
+        public static final IVerbHandler<Request> verbHandler = message -> {
+            MutationTrackingService.ensureEnabled();
+            Request request = message.payload;
+            boolean drained = MutationTrackingService.instance().isShardDrained(request.keyspace, request.sinceEpoch, request.range);
+            MessagingService.instance().send(message.responseWith(new Response(drained)), message.from());
+        };
+
+        public static final VersionedSerializer<Request> requestSerializer = new VersionedSerializer<>()
+        {
+            @Override
+            public void serialize(Request r, DataOutputPlus out, Version version) throws IOException
+            {
+                out.writeUTF(r.keyspace);
+                out.writeLong(r.sinceEpoch);
+                AbstractBounds.tokenSerializer.serialize(r.range, out, version.messagingVersion());
+            }
+
+            @Override
+            public Request deserialize(DataInputPlus in, Version version) throws IOException
+            {
+                String keyspace = in.readUTF();
+                long sinceEpoch = in.readLong();
+                Range<Token> range = (Range<Token>) AbstractBounds.tokenSerializer.deserialize(in, IPartitioner.global(), version.messagingVersion());
+                return new Request(keyspace, sinceEpoch, range);
+            }
+
+            @Override
+            public long serializedSize(Request r, Version version)
+            {
+                long size = TypeSizes.sizeof(r.keyspace);
+                size += TypeSizes.sizeof(r.sinceEpoch);
+                size += AbstractBounds.tokenSerializer.serializedSize(r.range, version.messagingVersion());
+                return size;
+            }
+        };
+
+        public static final UnversionedSerializer<Response> responseSerializer = new UnversionedSerializer<>()
+        {
+            @Override
+            public void serialize(Response r, DataOutputPlus out) throws IOException
+            {
+                out.writeBoolean(r.drained);
+            }
+
+            @Override
+            public Response deserialize(DataInputPlus in) throws IOException
+            {
+                return new Response(in.readBoolean());
+            }
+
+            @Override
+            public long serializedSize(Response r)
+            {
+                return TypeSizes.sizeof(r.drained);
+            }
+        };
+    }
+
+    public static final class ReconcileCapture
+    {
+        public static final class Request
+        {
+            final String keyspace;
+            final long sinceEpoch;
+            final Range<Token> range;
+
+            Request(String keyspace, long sinceEpoch, Range<Token> range)
+            {
+                this.keyspace = keyspace;
+                this.sinceEpoch = sinceEpoch;
+                this.range = range;
+            }
+        }
+
+        public static final class Response
+        {
+            final Log2OffsetsMap<?> witnessed;
+
+            Response(Log2OffsetsMap<?> witnessed)
+            {
+                this.witnessed = witnessed;
+            }
+        }
+
+        public static AsyncPromise<Log2OffsetsMap.Mutable> capture(
+            String keyspace, long sinceEpoch, Range<Token> range, List<InetAddressAndPort> endpoints)
+        {
+            checkArgument(!endpoints.isEmpty());
+
+            AsyncPromise<Log2OffsetsMap.Mutable> promise = new AsyncPromise<>();
+            Log2OffsetsMap.Mutable union = new Log2OffsetsMap.Mutable();
+
+            RequestCallback<Response> callback = new RequestCallback<>()
+            {
+                private final AtomicInteger remaining = new AtomicInteger(endpoints.size());
+
+                @Override
+                public void onResponse(Message<Response> msg)
+                {
+                    synchronized (union)
+                    {
+                        union.addAll(msg.payload.witnessed);
+                    }
+                    if (remaining.decrementAndGet() == 0)
+                        promise.trySuccess(union);
+                }
+
+                @Override
+                public void onFailure(InetAddressAndPort from, RequestFailure failure)
+                {
+                    promise.tryFailure(new RuntimeException(format("Failed to capture witnessed offsets on %s for keyspace %s: %s", from, keyspace, failure)));
+                }
+
+                @Override
+                public boolean invokeOnFailure()
+                {
+                    return true;
+                }
+            };
+
+            Message<Request> message = Message.out(Verb.MT_RECONCILE_CAPTURE_REQ, new Request(keyspace, sinceEpoch, range));
+            for (InetAddressAndPort peer : endpoints)
+                MessagingService.instance().sendWithCallback(message, peer, callback);
+
+            return promise;
+        }
+
+        public static final IVerbHandler<Request> verbHandler = message -> {
+            MutationTrackingService.ensureEnabled();
+            Request request = message.payload;
+            Log2OffsetsMap<?> witnessed =
+                MutationTrackingService.instance()
+                                       .collectLocallyWitnessedOffsets(request.keyspace, request.sinceEpoch, request.range);
+            MessagingService.instance().send(message.responseWith(new Response(witnessed)), message.from());
+        };
+
+        public static final VersionedSerializer<Request> requestSerializer = new VersionedSerializer<>()
+        {
+            @Override
+            public void serialize(Request r, DataOutputPlus out, Version version) throws IOException
+            {
+                out.writeUTF(r.keyspace);
+                out.writeLong(r.sinceEpoch);
+                AbstractBounds.tokenSerializer.serialize(r.range, out, version.messagingVersion());
+            }
+
+            @Override
+            public Request deserialize(DataInputPlus in, Version version) throws IOException
+            {
+                String keyspace = in.readUTF();
+                long sinceEpoch = in.readLong();
+                Range<Token> range = (Range<Token>) AbstractBounds.tokenSerializer.deserialize(in, IPartitioner.global(), version.messagingVersion());
+                return new Request(keyspace, sinceEpoch, range);
+            }
+
+            @Override
+            public long serializedSize(Request r, Version version)
+            {
+                long size = TypeSizes.sizeof(r.keyspace);
+                size += TypeSizes.sizeof(r.sinceEpoch);
+                size += AbstractBounds.tokenSerializer.serializedSize(r.range, version.messagingVersion());
+                return size;
+            }
+        };
+
+        public static final UnversionedSerializer<Response> responseSerializer = new UnversionedSerializer<>()
+        {
+            @Override
+            public void serialize(Response r, DataOutputPlus out) throws IOException
+            {
+                Log2OffsetsMap.serializer.serialize(r.witnessed, out);
+            }
+
+            @Override
+            public Response deserialize(DataInputPlus in) throws IOException
+            {
+                return new Response(Log2OffsetsMap.serializer.deserialize(in));
+            }
+
+            @Override
+            public long serializedSize(Response r)
+            {
+                return Log2OffsetsMap.serializer.serializedSize(r.witnessed);
+            }
+        };
+    }
+
+    public static final class ReconcilePoll
+    {
+        public static final class Request
+        {
+            final String keyspace;
+            final long sinceEpoch;
+            final Range<Token> range;
+            final Log2OffsetsMap<?> offsets;
+
+            Request(String keyspace, long sinceEpoch, Range<Token> range, Log2OffsetsMap<?> offsets)
+            {
+                this.keyspace = keyspace;
+                this.sinceEpoch = sinceEpoch;
+                this.range = range;
+                this.offsets = offsets;
+            }
+        }
+
+        public static final class Response
+        {
+            final boolean witnessed;
+
+            Response(boolean witnessed)
+            {
+                this.witnessed = witnessed;
+            }
+        }
+
+        public static AsyncPromise<Boolean> poll(
+            String keyspace, long sinceEpoch, Range<Token> range, Log2OffsetsMap.Mutable offsets, InetAddressAndPort endpoint)
+        {
+            AsyncPromise<Boolean> promise = new AsyncPromise<>();
+
+            RequestCallback<Response> callback = new RequestCallback<>()
+            {
+                @Override
+                public void onResponse(Message<Response> msg)
+                {
+                    promise.trySuccess(msg.payload.witnessed);
+                }
+
+                @Override
+                public void onFailure(InetAddressAndPort from, RequestFailure failure)
+                {
+                    promise.tryFailure(new RuntimeException(format("Failed to reconcile poll %s for keyspace %s: %s", from, keyspace, failure)));
+                }
+
+                @Override
+                public boolean invokeOnFailure()
+                {
+                    return true;
+                }
+            };
+
+            MessagingService.instance()
+                            .sendWithCallback(Message.out(Verb.MT_RECONCILE_POLL_REQ, new Request(keyspace, sinceEpoch, range, offsets)),
+                                              endpoint, callback);
+
+            return promise;
+        }
+
+        public static final IVerbHandler<Request> verbHandler = message -> {
+            MutationTrackingService.ensureEnabled();
+            Request request = message.payload;
+            boolean witnessed =
+                MutationTrackingService.instance().hasWitnessed(request.keyspace, request.sinceEpoch, request.range, request.offsets);
+            MessagingService.instance().send(message.responseWith(new Response(witnessed)), message.from());
+        };
+
+        public static final VersionedSerializer<Request> requestSerializer = new VersionedSerializer<>()
+        {
+            @Override
+            public void serialize(Request r, DataOutputPlus out, Version version) throws IOException
+            {
+                out.writeUTF(r.keyspace);
+                out.writeLong(r.sinceEpoch);
+                AbstractBounds.tokenSerializer.serialize(r.range, out, version.messagingVersion());
+                Log2OffsetsMap.serializer.serialize(r.offsets, out);
+            }
+
+            @Override
+            public Request deserialize(DataInputPlus in, Version version) throws IOException
+            {
+                String keyspace = in.readUTF();
+                long sinceEpoch = in.readLong();
+                Range<Token> range = (Range<Token>) AbstractBounds.tokenSerializer.deserialize(in, IPartitioner.global(), version.messagingVersion());
+                Log2OffsetsMap.Immutable offsets = Log2OffsetsMap.serializer.deserialize(in);
+                return new Request(keyspace, sinceEpoch, range, offsets);
+            }
+
+            @Override
+            public long serializedSize(Request r, Version version)
+            {
+                long size = TypeSizes.sizeof(r.keyspace);
+                size += TypeSizes.sizeof(r.sinceEpoch);
+                size += AbstractBounds.tokenSerializer.serializedSize(r.range, version.messagingVersion());
+                size += Log2OffsetsMap.serializer.serializedSize(r.offsets);
+                return size;
+            }
+        };
+
+        public static final UnversionedSerializer<Response> responseSerializer = new UnversionedSerializer<>()
+        {
+            @Override
+            public void serialize(Response r, DataOutputPlus out) throws IOException
+            {
+                out.writeBoolean(r.witnessed);
+            }
+
+            @Override
+            public Response deserialize(DataInputPlus in) throws IOException
+            {
+                return new Response(in.readBoolean());
+            }
+
+            @Override
+            public long serializedSize(Response r)
+            {
+                return TypeSizes.sizeof(r.witnessed);
+            }
+        };
+    }
+
+    public static final class CompleteSealing
+    {
+        public static final class Request
+        {
+            final String keyspace;
+            final long sinceEpoch;
+            final Range<Token> range;
+
+            Request(String keyspace, long sinceEpoch, Range<Token> range)
+            {
+                this.keyspace = keyspace;
+                this.sinceEpoch = sinceEpoch;
+                this.range = range;
+            }
+        }
+
+        // cannot use NoPayload, because its serializer cannot be wrapped inside mtEmbedded()
+        public static final class Response
+        {
+            private static final Response instance = new Response();
+        }
+
+        /**
+         * Tell every participant of a sealing shard to promote it from SEALING to SEALED.
+         */
+        private static StepCallback<Response> complete(
+            String keyspace, long sinceEpoch, Range<Token> range, Collection<InetAddressAndPort> endpoints)
+        {
+            checkArgument(!endpoints.isEmpty());
+
+            StepCallback<Response> callback = new StepCallback<>(endpoints, "complete sealing for keyspace " + keyspace);
+            Message<Request> message = Message.out(Verb.MT_COMPLETE_SEALING_REQ, new Request(keyspace, sinceEpoch, range));
+            for (InetAddressAndPort peer : endpoints)
+                MessagingService.instance().sendWithCallback(message, peer, callback);
+
+            return callback;
+        }
+
+        public static final IVerbHandler<Request> verbHandler = message -> {
+            MutationTrackingService.ensureEnabled();
+            Request request = message.payload;
+
+            MutationTrackingService.instance().markShardSealed(request.keyspace, request.sinceEpoch, request.range);
+            MessagingService.instance().send(message.responseWith(Response.instance), message.from());
+        };
+
+        public static final VersionedSerializer<Request> requestSerializer = new VersionedSerializer<>()
+        {
+            @Override
+            public void serialize(Request r, DataOutputPlus out, Version version) throws IOException
+            {
+                out.writeUTF(r.keyspace);
+                out.writeLong(r.sinceEpoch);
+                AbstractBounds.tokenSerializer.serialize(r.range, out, version.messagingVersion());
+            }
+
+            @Override
+            public Request deserialize(DataInputPlus in, Version version) throws IOException
+            {
+                String keyspace = in.readUTF();
+                long sinceEpoch = in.readLong();
+                Range<Token> range = (Range<Token>) AbstractBounds.tokenSerializer.deserialize(in, IPartitioner.global(), version.messagingVersion());
+                return new Request(keyspace, sinceEpoch, range);
+            }
+
+            @Override
+            public long serializedSize(Request r, Version version)
+            {
+                long size = TypeSizes.sizeof(r.keyspace);
+                size += TypeSizes.sizeof(r.sinceEpoch);
+                size += AbstractBounds.tokenSerializer.serializedSize(r.range, version.messagingVersion());
+                return size;
+            }
+        };
+
+        public static final UnversionedSerializer<Response> responseSerializer = new UnversionedSerializer<>()
+        {
+            @Override
+            public void serialize(Response r, DataOutputPlus out)
+            {
+            }
+
+            @Override
+            public Response deserialize(DataInputPlus in)
+            {
+                return Response.instance;
+            }
+
+            @Override
+            public long serializedSize(Response r)
+            {
+                return 0;
+            }
+        };
+    }
+
+    private static List<InetAddressAndPort> toEndpoints(Participants participants, @Nullable NodeId withoutNode)
+    {
+        ClusterMetadata metadata = ClusterMetadata.current();
+        List<InetAddressAndPort> endpoints = new ArrayList<>(participants.size());
+        for (int i = 0, size = participants.size(); i < size; i++)
+        {
+            NodeId nodeId = new NodeId(participants.get(i));
+            if (!nodeId.equals(withoutNode))
+                endpoints.add(metadata.directory.endpoint(nodeId));
+        }
+        return endpoints;
+    }
+}

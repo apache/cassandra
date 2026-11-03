@@ -281,7 +281,7 @@ public class Tracker
         addSSTablesInternal(sstables, false, true, true);
     }
 
-    public void addSSTablesTracked(Collection<SSTableReader> sstables)
+    public void addSSTablesFromTrackedTransfer(Collection<SSTableReader> sstables)
     {
         Preconditions.checkState(cfstore.metadata().replicationType().isTracked());
         for (SSTableReader sstable : sstables)
@@ -290,14 +290,15 @@ public class Tracker
             Preconditions.checkState(logOffsets.mutations().isEmpty());
             Preconditions.checkState(!logOffsets.transfers().isEmpty());
         }
-
         addSSTablesInternal(sstables, false, true, true);
     }
 
     /**
-     * addSStables variant for bootstrap. Doesn't validate tracked/untracked or absence of logOffsets data
+     * addSStables variant for topology-change-caused streaming.
+     * Doesn't validate tracked/untracked or absence of logOffsets data.
+     * TODO (expected): validate that all offsets belong to known shards
      */
-    public void addSSTablesForBootstrap(Collection<SSTableReader> sstables)
+    public void addSSTablesForTopologyChange(Collection<SSTableReader> sstables)
     {
         addSSTablesInternal(sstables, false, true, true);
     }

@@ -540,6 +540,8 @@ public enum CassandraRelevantProperties
     SEED_COUNT_WARN_THRESHOLD("cassandra.seed_count_warn_threshold"),
     SERIALIZATION_EMPTY_TYPE_NONEMPTY_BEHAVIOR("cassandra.serialization.emptytype.nonempty_behavior"),
     SET_SEP_THREAD_NAME("cassandra.set_sep_thread_name", "true"),
+    /** How many times to retry shard sealing operations before giving up. */
+    SHARD_SEALING_RETRIES("cassandra.shard_sealing_retries", "10"),
     SHUTDOWN_ANNOUNCE_DELAY_IN_MS("cassandra.shutdown_announce_in_ms", "2000"),
     SIMULATOR_ITERATIONS("simulator.iterations", "3"),
     SIMULATOR_SEED("cassandra.simulator.seed"),
@@ -601,6 +603,14 @@ public enum CassandraRelevantProperties
     //       but it makes sense to group logically related properties together
     TCM_SHADOW_ROUND_MAX_ATTEMPTS("cassandra.shadow_round_max_attempts", "3"),
     TCM_SHADOW_ROUND_TIMEOUT("cassandra.shadow_round_timeout_millis", "15000"),
+    /**
+     * for use by MetadataChangeSimulationTest only, ensure that in a Join/Leave/Replace/Move MultiStepOperation the
+     * range unlocking is inlined in the FINISH_X transformation. This emulates the original behaviour prior to
+     * CASSANDRA-20386 and avoids overcomplicating the invariant checking in that simulation. For that kind of
+     * simulation testing, the point at which ranges are unlocked and completed MSOs are purged from the model state
+     * has no effect on the correctness of placements.
+     */
+    TCM_SIMULATION_ONLY_SEQUENCE_UNLOCKING("cassandra.test.use_simulation_only_sequence_unlocking", "false"),
     /**
      * for testing purposes disable the automatic CMS reconfiguration after a bootstrap/replace/move operation
      */

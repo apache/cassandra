@@ -20,6 +20,7 @@ package org.apache.cassandra.db.virtual;
 
 import java.util.Arrays;
 import java.util.List;
+import java.util.Set;
 import java.util.stream.Collectors;
 
 import com.datastax.driver.core.ColumnDefinitions;
@@ -39,6 +40,7 @@ import org.apache.cassandra.replication.MutationTrackingService;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
+// TODO (expected): these tests aren't very useful, should be addressed
 public class MutationTrackingShardsTableTest extends CQLTester
 {
     private static final String KS_NAME = "vts";
@@ -116,7 +118,7 @@ public class MutationTrackingShardsTableTest extends CQLTester
             String rangeEnd = r.getString("range_end");
             String logId = r.getString("log_id");
             int localNodeId = r.getInt("local_node_id");
-            String participants = r.getString("participants");
+            Set<Integer> participants = r.getSet("participants", Integer.class);
             String witnessedOffsets = r.getString("witnessed_offsets");
             String reconciledOffsets = r.getString("reconciled_offsets");
             String persistedOffsets = r.getString("persisted_offsets");
@@ -130,7 +132,7 @@ public class MutationTrackingShardsTableTest extends CQLTester
 
             assertThat(localNodeId).isGreaterThanOrEqualTo(0);
 
-            assertThat(participants).isNotNull(); // should show replica node IDs
+            assertThat(participants).isNotEmpty();
 
             assertThat(witnessedOffsets).isNotNull();
             assertThat(reconciledOffsets).isNotNull();

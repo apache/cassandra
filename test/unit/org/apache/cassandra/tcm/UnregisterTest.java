@@ -49,12 +49,30 @@ import org.apache.cassandra.tcm.transformations.UnsafeJoin;
 
 import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertNull;
+import static org.junit.Assert.assertTrue;
 
 public class UnregisterTest
 {
     private final KeyspaceMetadata ksm = KeyspaceMetadata.create("ks_nts", KeyspaceParams.nts("dc1", 3, "dc2", 3));
     private final Keyspaces kss = Keyspaces.of(DistributedMetadataLogKeyspace.initialMetadata(Sets.newHashSet("dc1", "dc2")), ksm);
     private final DistributedSchema initialSchema = new DistributedSchema(kss);
+
+    @Test
+    public void testAssassinateUnlocksRangesAndRemovesSequence()
+    {
+        ClusterMetadata metadata = new ClusterMetadata(Murmur3Partitioner.instance, Directory.EMPTY, initialSchema);
+        for (int i = 0; i < 10; i++)
+        {
+            String dc = "dc" + (i == 5 ? "2" : "1");
+            metadata = unsafejoin(i, register(i, dc, metadata));
+        }
+        int toAssassinate = 5;
+
+        metadata = assassinate(toAssassinate, metadata);
+
+        assertTrue(metadata.inProgressSequences.isEmpty());
+        assertTrue(metadata.lockedRanges.locked.isEmpty());
+    }
 
     @Test
     public void testBasicUnregister()

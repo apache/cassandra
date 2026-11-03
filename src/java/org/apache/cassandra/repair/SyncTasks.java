@@ -43,13 +43,15 @@ public class SyncTasks extends AbstractCollection<SyncTask>
         public final String keyspace;
         public final Participants participants;
         public final SyncTask task;
+        public final long sinceEpoch;
         public final Range<Token> range;
 
-        private ShardedSyncTask(String keyspace, Participants participants, SyncTask task, Range<Token> range)
+        private ShardedSyncTask(String keyspace, Participants participants, SyncTask task, long sinceEpoch, Range<Token> range)
         {
             this.keyspace = keyspace;
             this.participants = participants;
             this.task = task;
+            this.sinceEpoch = sinceEpoch;
             this.range = range;
         }
     }
@@ -57,7 +59,7 @@ public class SyncTasks extends AbstractCollection<SyncTask>
     static SyncTasks untracked(Collection<SyncTask> tasks)
     {
         SyncTasks syncTasks = new SyncTasks();
-        tasks.forEach(t -> syncTasks.shardedTasks.add(new ShardedSyncTask(null, null, t, null)));
+        tasks.forEach(t -> syncTasks.shardedTasks.add(new ShardedSyncTask(null, null, t, 0L, null)));
         return syncTasks;
     }
 
@@ -76,7 +78,7 @@ public class SyncTasks extends AbstractCollection<SyncTask>
         // Narrow the ultimate scope of activation to the ranges in the sync tasks rather than the entire shard.
         Set<Range<Token>> ranges = new HashSet<>(task.rangesToSync);
         Range<Token> span = span(ranges);
-        shardedTasks.add(new ShardedSyncTask(shard.keyspace, shard.participants, task, span));
+        shardedTasks.add(new ShardedSyncTask(shard.keyspace, shard.participants, task, shard.sinceEpoch, span));
     }
 
     public static Range<Token> span(Set<Range<Token>> ranges)

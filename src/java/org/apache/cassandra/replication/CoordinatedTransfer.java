@@ -94,6 +94,7 @@ public abstract class CoordinatedTransfer
     private static final Logger logger = LoggerFactory.getLogger(CoordinatedTransfer.class);
 
     protected final String keyspace;
+    protected final long sinceEpoch;
     protected final Range<Token> range;
 
     String logPrefix()
@@ -104,19 +105,21 @@ public abstract class CoordinatedTransfer
     private final ShortMutationId id;
     final ConcurrentMap<Pair<InetAddressAndPort, InetAddressAndPort>, SingleTransferResult> streamResults;
 
-    public CoordinatedTransfer(ShortMutationId id, String keyspace, Range<Token> range)
+    public CoordinatedTransfer(ShortMutationId id, String keyspace, long sinceEpoch, Range<Token> range)
     {
         this.id = id;
         this.streamResults = new ConcurrentHashMap<>();
         this.keyspace = keyspace;
+        this.sinceEpoch = sinceEpoch;
         this.range = range;
     }
 
-    public CoordinatedTransfer(ShortMutationId id, Participants participants, String keyspace, Range<Token> range)
+    public CoordinatedTransfer(ShortMutationId id, Participants participants, String keyspace, long sinceEpoch, Range<Token> range)
     {
         this.id = id;
         this.streamResults = new ConcurrentHashMap<>(participants.size());
         this.keyspace = keyspace;
+        this.sinceEpoch = sinceEpoch;
         this.range = range;
     }
 
@@ -285,7 +288,7 @@ public abstract class CoordinatedTransfer
 
             logger.debug("{} Notifying {} of transfer failure for plan {}", logPrefix(), to, result.planId());
             notifyFailure.responses.incrementAndGet();
-            Message<TransferFailed> msg = Message.out(Verb.MT_TRANSFER_FAILED_REQ, new TransferFailed(result.planId()));
+            Message<TransferFailedRequest> msg = Message.out(Verb.MT_TRANSFER_FAILED_REQ, new TransferFailedRequest(result.planId()));
             MessagingService.instance().sendWithCallback(msg, to, notifyFailure);
         }
 

@@ -105,6 +105,7 @@ public class TransferTrackingServiceTest
                                      transferId,
                                      new NodeId(1),
                                      new Range<>(tk(0), tk(1000)),
+                                     1L,
                                      "ks",
                                      planId);
     }
@@ -133,6 +134,7 @@ public class TransferTrackingServiceTest
                                      transferId,
                                      new NodeId(1),
                                      new Range<>(tk(0), tk(1000)),
+                                     1L,
                                      SchemaConstants.SYSTEM_KEYSPACE_NAME,
                                      planId);
     }

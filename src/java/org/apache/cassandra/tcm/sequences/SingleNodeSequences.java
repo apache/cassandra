@@ -30,6 +30,7 @@ import org.slf4j.LoggerFactory;
 import org.apache.cassandra.dht.Token;
 import org.apache.cassandra.gms.Gossiper;
 import org.apache.cassandra.locator.InetAddressAndPort;
+import org.apache.cassandra.replication.MutationTrackingService;
 import org.apache.cassandra.service.StorageService;
 import org.apache.cassandra.tcm.ClusterMetadata;
 import org.apache.cassandra.tcm.ClusterMetadataService;
@@ -168,6 +169,10 @@ public interface SingleNodeSequences
 
         if (ClusterMetadata.current().tokenMap.tokens().contains(newToken))
             throw new IllegalArgumentException(String.format("target token %s is already owned by another node.", newToken));
+
+        // TODO (required): mutation tracking shard sealing for move is not yet implemented
+        if (MutationTrackingService.isEnabled())
+            throw new IllegalStateException("Cannot move a node with mutation tracking enabled.");
 
         // address of the current node
         ClusterMetadata metadata = ClusterMetadata.current();

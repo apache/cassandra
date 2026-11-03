@@ -83,7 +83,17 @@ import org.apache.cassandra.replication.BroadcastLogOffsets;
 import org.apache.cassandra.replication.ForwardedWrite;
 import org.apache.cassandra.replication.PullMutationsRequest;
 import org.apache.cassandra.replication.PushMutationRequest;
-import org.apache.cassandra.replication.TransferFailed;
+import org.apache.cassandra.replication.SealingCoordinator.AwaitEpoch;
+import org.apache.cassandra.replication.SealingCoordinator.CompleteSealing;
+import org.apache.cassandra.replication.SealingCoordinator.Drain;
+import org.apache.cassandra.replication.SealingCoordinator.FetchShards;
+import org.apache.cassandra.replication.SealingCoordinator.InitSealing;
+import org.apache.cassandra.replication.SealingCoordinator.ReconcileCapture;
+import org.apache.cassandra.replication.SealingCoordinator.ReconcilePoll;
+import org.apache.cassandra.replication.ShardMetadataRequest;
+import org.apache.cassandra.replication.ShardMetadataResponse;
+import org.apache.cassandra.replication.TransferFailedRequest;
+import org.apache.cassandra.replication.TransferFailedResponse;
 import org.apache.cassandra.replication.TransferTrackingService;
 import org.apache.cassandra.schema.SchemaMutationsSerializer;
 import org.apache.cassandra.schema.SchemaPullVerbHandler;
@@ -206,6 +216,7 @@ import static org.apache.cassandra.net.VerbTimeouts.repairTimeout;
 import static org.apache.cassandra.net.VerbTimeouts.repairValidationRspTimeout;
 import static org.apache.cassandra.net.VerbTimeouts.repairWithBackoffTimeout;
 import static org.apache.cassandra.net.VerbTimeouts.rpcTimeout;
+import static org.apache.cassandra.net.VerbTimeouts.shardSealingTimeout;
 import static org.apache.cassandra.net.VerbTimeouts.shortTimeout;
 import static org.apache.cassandra.net.VerbTimeouts.truncateTimeout;
 import static org.apache.cassandra.net.VerbTimeouts.writeTimeout;
@@ -372,12 +383,29 @@ public enum Verb
 
     MT_TRANSFER_ACTIVATE_RSP (912, P1, repairTimeout,            REQUEST_RESPONSE, () -> mtEmbedded(ActivationResponse.serializer),           RESPONSE_HANDLER                                                   ),
     MT_TRANSFER_ACTIVATE_REQ (913, P1, repairTimeout,            ANTI_ENTROPY,     () -> mtEmbedded(ActivationRequest.serializer),            () -> ActivationRequest.verbHandler,       MT_TRANSFER_ACTIVATE_RSP),
-    MT_TRANSFER_FAILED_RSP   (914, P1, repairTimeout,            REQUEST_RESPONSE, () -> mtEmbedded(NoPayload.unversionedSerializer),         RESPONSE_HANDLER                                                   ),
-    MT_TRANSFER_FAILED_REQ   (915, P1, repairTimeout,            ANTI_ENTROPY,     () -> mtEmbedded(TransferFailed.serializer),               () -> TransferTrackingService.verbHandler, MT_TRANSFER_FAILED_RSP  ),
+    MT_TRANSFER_FAILED_RSP   (914, P1, repairTimeout,            REQUEST_RESPONSE, () -> mtEmbedded(TransferFailedResponse.serializer),       RESPONSE_HANDLER                                                   ),
+    MT_TRANSFER_FAILED_REQ   (915, P1, repairTimeout,            ANTI_ENTROPY,     () -> mtEmbedded(TransferFailedRequest.serializer),        () -> TransferTrackingService.verbHandler, MT_TRANSFER_FAILED_RSP  ),
     MT_SYNC_RSP              (916, P1, repairWithBackoffTimeout, REQUEST_RESPONSE, () -> mtEmbedded(MutationTrackingSyncResponse.serializer), RESPONSE_HANDLER                                                   ),
     MT_SYNC_REQ              (917, P1, repairWithBackoffTimeout, ANTI_ENTROPY,     () -> mtEmbedded(MutationTrackingSyncRequest.serializer),  () -> RepairMessageVerbHandler.instance(), MT_SYNC_RSP             ),
     MT_VALIDATION_RSP        (918, P1, repairValidationRspTimeout, ANTI_ENTROPY,     () -> ValidationResponse.serializer,                     () -> RepairMessageVerbHandler.instance(), REPAIR_RSP              ),
     MT_VALIDATION_REQ        (919, P1, repairWithBackoffTimeout,   ANTI_ENTROPY,     () -> ValidationRequest.serializer,                      () -> RepairMessageVerbHandler.instance(), REPAIR_RSP              ),
+
+    MT_SHARD_METADATA_RSP    (920, P2, writeTimeout,             REQUEST_RESPONSE, () -> mtEmbedded(ShardMetadataResponse.serializer),        RESPONSE_HANDLER                                                   ),
+    MT_SHARD_METADATA_REQ    (921, P2, writeTimeout,             MISC,             () -> mtEmbedded(ShardMetadataRequest.serializer),         () -> ShardMetadataRequest.verbHandler,    MT_SHARD_METADATA_RSP   ),
+    MT_FETCH_SHARDS_RSP      (922, P2, shardSealingTimeout,      REQUEST_RESPONSE, () -> mtEmbedded(FetchShards.responseSerializer),          RESPONSE_HANDLER                                                   ),
+    MT_FETCH_SHARDS_REQ      (923, P2, shardSealingTimeout,      ANTI_ENTROPY,     () -> mtEmbedded(FetchShards.requestSerializer),           () -> FetchShards.verbHandler,             MT_FETCH_SHARDS_RSP     ),
+    MT_AWAIT_EPOCH_RSP       (924, P2, shardSealingTimeout,      REQUEST_RESPONSE, () -> mtEmbedded(AwaitEpoch.responseSerializer),           RESPONSE_HANDLER                                                   ),
+    MT_AWAIT_EPOCH_REQ       (925, P2, shardSealingTimeout,      ANTI_ENTROPY,     () -> mtEmbedded(AwaitEpoch.requestSerializer),            () -> AwaitEpoch.verbHandler,              MT_AWAIT_EPOCH_RSP      ),
+    MT_INIT_SEALING_RSP      (926, P2, shardSealingTimeout,      REQUEST_RESPONSE, () -> mtEmbedded(InitSealing.responseSerializer),          RESPONSE_HANDLER                                                   ),
+    MT_INIT_SEALING_REQ      (927, P2, shardSealingTimeout,      ANTI_ENTROPY,     () -> mtEmbedded(InitSealing.requestSerializer),           () -> InitSealing.verbHandler,             MT_INIT_SEALING_RSP     ),
+    MT_DRAIN_RSP             (928, P2, shardSealingTimeout,      REQUEST_RESPONSE, () -> mtEmbedded(Drain.responseSerializer),                RESPONSE_HANDLER                                                   ),
+    MT_DRAIN_REQ             (929, P2, shardSealingTimeout,      ANTI_ENTROPY,     () -> mtEmbedded(Drain.requestSerializer),                 () -> Drain.verbHandler,                   MT_DRAIN_RSP            ),
+    MT_RECONCILE_CAPTURE_RSP (930, P2, shardSealingTimeout,      REQUEST_RESPONSE, () -> mtEmbedded(ReconcileCapture.responseSerializer),     RESPONSE_HANDLER                                                   ),
+    MT_RECONCILE_CAPTURE_REQ (931, P2, shardSealingTimeout,      ANTI_ENTROPY,     () -> mtEmbedded(ReconcileCapture.requestSerializer),      () -> ReconcileCapture.verbHandler,        MT_RECONCILE_CAPTURE_RSP),
+    MT_RECONCILE_POLL_RSP    (932, P2, shardSealingTimeout,      REQUEST_RESPONSE, () -> mtEmbedded(ReconcilePoll.responseSerializer),        RESPONSE_HANDLER                                                   ),
+    MT_RECONCILE_POLL_REQ    (933, P2, shardSealingTimeout,      ANTI_ENTROPY,     () -> mtEmbedded(ReconcilePoll.requestSerializer),         () -> ReconcilePoll.verbHandler,           MT_RECONCILE_POLL_RSP   ),
+    MT_COMPLETE_SEALING_RSP  (934, P2, shardSealingTimeout,      REQUEST_RESPONSE, () -> mtEmbedded(CompleteSealing.responseSerializer),      RESPONSE_HANDLER                                                   ),
+    MT_COMPLETE_SEALING_REQ  (935, P2, shardSealingTimeout,      ANTI_ENTROPY,     () -> mtEmbedded(CompleteSealing.requestSerializer),       () -> CompleteSealing.verbHandler,         MT_COMPLETE_SEALING_RSP ),
 
     // accord
     ACCORD_SIMPLE_RSP               (119, P2, writeTimeout, IMMEDIATE,          () -> accordEmbedded(EnumSerializer.simpleReply),           AccordService::responseHandlerOrNoop                                           ),
@@ -715,6 +743,7 @@ class VerbTimeouts
     static final ToLongFunction<TimeUnit> counterTimeout  = DatabaseDescriptor::getCounterWriteRpcTimeout;
     static final ToLongFunction<TimeUnit> truncateTimeout = DatabaseDescriptor::getTruncateRpcTimeout;
     static final ToLongFunction<TimeUnit> repairTimeout   = DatabaseDescriptor::getRepairRpcTimeout;
+    static final ToLongFunction<TimeUnit> shardSealingTimeout = DatabaseDescriptor::getShardSealingTimeout;
     static final ToLongFunction<TimeUnit> pingTimeout     = DatabaseDescriptor::getPingTimeout;
     static final ToLongFunction<TimeUnit> longTimeout     = units -> Math.max(DatabaseDescriptor.getRpcTimeout(units), units.convert(5L, TimeUnit.MINUTES));
     static final ToLongFunction<TimeUnit> noTimeout       = units -> {  throw new IllegalStateException(); };

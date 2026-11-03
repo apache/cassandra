@@ -876,7 +876,7 @@ public class Range<T extends RingPosition<T>> extends AbstractBounds<T> implemen
         if (a.isMinimum())
             return 1;
         if (b.isMinimum())
-            return 0;
+            return -1;
         return a.compareTo(b);
     }
 }
