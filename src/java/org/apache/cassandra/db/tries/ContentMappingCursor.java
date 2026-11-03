@@ -87,8 +87,17 @@ abstract class ContentMappingCursor<T, C extends Cursor<T>, V> implements Cursor
         }
     }
 
+    /// Range version of the mapping cursor. The mapping can convert a boundary into a covering state, e.g. when it
+    /// makes the states on the two sides of the boundary equal. Such a position no longer has content, thus this
+    /// cursor maps only the state of the source and derives its content and preceding state from it.
     static class Range<S extends RangeState<S>, V extends RangeState<V>> extends ContentMappingCursor<S, RangeCursor<S>, V> implements RangeCursor<V>
     {
+        /// The mapped state at the current position, valid if `stateMapped` is true.
+        /// In a range trie we may get multiple calls to `precedingState` (during merges, including when taking tails),
+        /// thus we map the state once and cache the result.
+        private V state;
+        private boolean stateMapped;
+
         Range(Function<S, V> mapper, RangeCursor<S> source)
         {
             super(mapper, source);
@@ -97,19 +106,54 @@ abstract class ContentMappingCursor<T, C extends Cursor<T>, V> implements Cursor
         @Override
         public V state()
         {
-            S state = source.state();
-            if (state == null)
-                return null;
-            return mapper.apply(state);
+            if (!stateMapped)
+            {
+                S sourceState = source.state();
+                state = sourceState != null ? mapper.apply(sourceState) : null;
+                stateMapped = true;
+            }
+            return state;
         }
 
         @Override
-        public V precedingState()
+        public V content()
         {
-            S state = source.precedingState();
-            if (state == null)
-                return null;
-            return mapper.apply(state);
+            // We don't normally end up here with a range trie (state() will usually be called instead, often following
+            // one or more precedingState() calls in merges). If we do, try to avoid remapping non-boundary states.
+            if (!stateMapped)
+            {
+                S sourceContent = source.content();
+                if (sourceContent == null)
+                    return null; // Do not set stateMapped as we may still have an applicable covering state.
+
+                // If we have content, then state must match it. Apply the mapper and save what we get.
+                state = mapper.apply(sourceContent);
+                stateMapped = true;
+                // Note that the mapper can turn a boundary (i.e. content) into a covering (i.e. non-content) state,
+                // in which case we should return null.
+            }
+            return state != null && state.isBoundary() ? state : null;
+        }
+
+        @Override
+        public long advance()
+        {
+            stateMapped = false;
+            return super.advance();
+        }
+
+        @Override
+        public long advanceMultiple(TransitionsReceiver receiver)
+        {
+            stateMapped = false;
+            return super.advanceMultiple(receiver);
+        }
+
+        @Override
+        public long skipTo(long encodedSkipPosition)
+        {
+            stateMapped = false;
+            return super.skipTo(encodedSkipPosition);
         }
 
         @Override

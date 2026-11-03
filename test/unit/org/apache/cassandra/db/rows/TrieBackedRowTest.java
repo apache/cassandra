@@ -21,10 +21,14 @@ package org.apache.cassandra.db.rows;
 import java.util.ArrayList;
 import java.util.List;
 
+import com.google.common.collect.Iterables;
+import com.google.common.collect.Lists;
+
 import org.junit.BeforeClass;
 import org.junit.Test;
 
 import org.apache.cassandra.Util;
+import org.apache.cassandra.config.CassandraRelevantProperties;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.db.Clustering;
 import org.apache.cassandra.db.DeletionTime;
@@ -33,6 +37,7 @@ import org.apache.cassandra.db.context.CounterContext;
 import org.apache.cassandra.db.marshal.CounterColumnType;
 import org.apache.cassandra.db.marshal.Int32Type;
 import org.apache.cassandra.db.marshal.MapType;
+import org.apache.cassandra.db.marshal.SetType;
 import org.apache.cassandra.db.marshal.UTF8Type;
 import org.apache.cassandra.schema.ColumnMetadata;
 import org.apache.cassandra.schema.TableMetadata;
@@ -51,6 +56,7 @@ public class TrieBackedRowTest
     @BeforeClass
     public static void setUpClass()
     {
+        CassandraRelevantProperties.TRIE_DEBUG.setBoolean(true);
         DatabaseDescriptor.daemonInitialization();
     }
 
@@ -174,5 +180,147 @@ public class TrieBackedRowTest
             }
             assertNotSame(expected, actual);
         }
+    }
+
+    private final TableMetadata complexMetadata = TableMetadata.builder("", "")
+                                                               .addPartitionKeyColumn("pk", Int32Type.instance)
+                                                               .addClusteringColumn("ck", Int32Type.instance)
+                                                               .addRegularColumn("v", Int32Type.instance)
+                                                               .addRegularColumn("s", SetType.getInstance(Int32Type.instance, true))
+                                                               .addRegularColumn("m", MapType.getInstance(Int32Type.instance, UTF8Type.instance, true))
+                                                               .build();
+    private final ColumnMetadata vMetadata = complexMetadata.getColumn(ByteBufferUtil.bytes("v"));
+    private final ColumnMetadata sMetadata = complexMetadata.getColumn(ByteBufferUtil.bytes("s"));
+    private final ColumnMetadata mMetadata = complexMetadata.getColumn(ByteBufferUtil.bytes("m"));
+
+    /// Updating the timestamps makes deletions with the same local deletion time equal, which removes the boundaries
+    /// between them (e.g. between the row deletion and a complex column deletion). This must not leave invalid complex
+    /// columns in the updated row.
+    @Test
+    public void testUpdateAllTimestampWithComplexColumns()
+    {
+        long nowInSec = FBUtilities.nowInSeconds();
+        DeletionTime rowDeletion = DeletionTime.build(100, nowInSec);
+        DeletionTime columnDeletion = DeletionTime.build(200, nowInSec);
+        DeletionTime laterColumnDeletion = DeletionTime.build(200, nowInSec + 1);
+
+        testUpdateAllTimestamp(false, null, null, null);
+        testUpdateAllTimestamp(true, null, columnDeletion, columnDeletion);
+        testUpdateAllTimestamp(false, rowDeletion, null, null);
+        testUpdateAllTimestamp(false, rowDeletion, columnDeletion, columnDeletion);
+        testUpdateAllTimestamp(true, rowDeletion, columnDeletion, laterColumnDeletion);
+        testUpdateAllTimestamp(false, rowDeletion, laterColumnDeletion, columnDeletion);
+    }
+
+    /// Builds a row whose set column only has a complex deletion, and whose map column has a complex deletion and
+    /// cells (null deletions are not added). Checks that updating its timestamps gives the same data as doing that
+    /// on the same [BTreeRow].
+    private void testUpdateAllTimestamp(boolean withLiveness, DeletionTime rowDeletion, DeletionTime setDeletion, DeletionTime mapDeletion)
+    {
+        long newTimestamp = 1000;
+        Row row = buildRow(TrieBackedRow.builder(complexMetadata.regularColumns()), withLiveness, rowDeletion, setDeletion, mapDeletion);
+        Row updated = row.updateAllTimestamp(newTimestamp);
+        Row expected = buildRow(BTreeRow.unsortedBuilder(), withLiveness, rowDeletion, setDeletion, mapDeletion).updateAllTimestamp(newTimestamp);
+        // Converting to string iterates the complex columns of the row, which used to fail with NullPointerException.
+        String message = "Updating " + row + " gave " + updated;
+
+        assertEquals(message, expected.primaryKeyLivenessInfo(), updated.primaryKeyLivenessInfo());
+        assertEquals(message, expected.deletion(), updated.deletion());
+        assertEquals(message, columnContent(expected), columnContent(updated));
+
+        for (ColumnMetadata column : List.of(sMetadata, mMetadata))
+        {
+            assertEquals(message, effectiveDeletion(expected, column), effectiveDeletion(updated, column));
+            assertEquals(message, cells(expected.getComplexColumnData(column)), cells(updated.getComplexColumnData(column)));
+
+            // test the complex-column version of updateAllTimestamp
+            ComplexColumnData ccd = row.getComplexColumnData(column);
+            if (ccd == null)
+                continue;
+            ComplexColumnData ccdUpdated = ccd.updateAllTimestamp(newTimestamp);
+            String columnMessage = "Updating column " + ccd + " gave " + ccdUpdated;
+            assertEquals(columnMessage, effectiveDeletion(expected, column), effectiveDeletion(updated, ccdUpdated));
+            assertEquals(columnMessage, cells(expected.getComplexColumnData(column)), cells(ccdUpdated));
+        }
+
+        int columnCount = 0;
+        int cellsCount = 0;
+        boolean hasComplexDeletion = false;
+        for (ColumnData cd : updated)
+        {
+            ++columnCount;
+            if (cd instanceof ComplexColumnData)
+            {
+                ComplexColumnData ccd = (ComplexColumnData) cd;
+                for (Cell<?> cell : ccd)
+                    assertEquals(message, newTimestamp, cell.timestamp());
+                cellsCount += ccd.cellsCount();
+                hasComplexDeletion |= !ccd.complexDeletion().isLive();
+            }
+            else
+            {
+                assertEquals(message, newTimestamp, ((Cell<?>) cd).timestamp());
+                ++cellsCount;
+            }
+        }
+        assertEquals(message, columnCount, updated.columnCount());
+        assertEquals(message, cellsCount, Iterables.size(updated.cells()));
+        assertEquals(message, hasComplexDeletion, updated.hasComplexDeletion());
+    }
+
+    private Row buildRow(Row.Builder builder, boolean withLiveness, DeletionTime rowDeletion, DeletionTime setDeletion, DeletionTime mapDeletion)
+    {
+        builder.newRow(Util.clustering(complexMetadata.comparator, 1));
+        if (withLiveness)
+            builder.addPrimaryKeyLivenessInfo(LivenessInfo.create(300));
+        if (rowDeletion != null)
+            builder.addRowDeletion(Row.Deletion.regular(rowDeletion));
+        builder.addCell(BufferCell.live(vMetadata, 300, ByteBufferUtil.bytes(1)));
+        if (setDeletion != null)
+            builder.addComplexDeletion(sMetadata, setDeletion);
+        if (mapDeletion != null)
+            builder.addComplexDeletion(mMetadata, mapDeletion);
+        builder.addCell(BufferCell.live(mMetadata, 300, ByteBufferUtil.bytes("a"), CellPath.create(ByteBufferUtil.bytes(1))));
+        builder.addCell(BufferCell.live(mMetadata, 300, ByteBufferUtil.bytes("b"), CellPath.create(ByteBufferUtil.bytes(2))));
+        return builder.build();
+    }
+
+    /// Lists the content of the columns of the row as presented by its iterator. Ignores complex deletions that do not
+    /// supersede the row deletion, which trie-backed rows drop when they become equal to the row deletion.
+    private static List<Object> columnContent(Row row)
+    {
+        List<Object> content = new ArrayList<>();
+        DeletionTime rowDeletion = row.deletion().time();
+        for (ColumnData cd : row)
+        {
+            if (cd instanceof ComplexColumnData)
+            {
+                ComplexColumnData ccd = (ComplexColumnData) cd;
+                DeletionTime complexDeletion = ccd.complexDeletion().supersedes(rowDeletion) ? ccd.complexDeletion() : DeletionTime.LIVE;
+                if (ccd.cellsCount() > 0 || !complexDeletion.isLive())
+                    content.add(List.of(cd.column(), complexDeletion, cells(ccd)));
+            }
+            else
+                content.add(cd);
+        }
+        return content;
+    }
+
+    /// Returns the deletion that applies to the given column of the row.
+    private static DeletionTime effectiveDeletion(Row row, ColumnMetadata column)
+    {
+        ComplexColumnData ccd = row.getComplexColumnData(column);
+        return effectiveDeletion(row, ccd);
+    }
+
+    private static DeletionTime effectiveDeletion(Row row, ComplexColumnData ccd)
+    {
+        DeletionTime rowDeletion = row.deletion().time();
+        return ccd != null && ccd.complexDeletion().supersedes(rowDeletion) ? ccd.complexDeletion() : rowDeletion;
+    }
+
+    private static List<Cell<?>> cells(ComplexColumnData ccd)
+    {
+        return ccd != null ? Lists.newArrayList(ccd) : List.of();
     }
 }

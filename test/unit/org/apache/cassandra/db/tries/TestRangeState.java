@@ -226,12 +226,21 @@ class TestRangeState implements RangeState<TestRangeState>
             onReturnPath = true;
         }
 
+        /// Moving to a new position clears the `onReturnPath` flag. Note that this method call may be skipped when we
+        /// ascend to a return path position on the current path (in particular, this will not be called when going back
+        /// to the root return position), where the flag will be set to true anyway.
+        @Override
+        public void addPathByte(int nextByte)
+        {
+            onReturnPath = false;
+            super.addPathByte(nextByte);
+        }
+
         @Override
         protected TestRangeState mapContent(TestRangeState content, byte[] bytes, int byteLength)
         {
             ByteComparable key = ByteComparable.preencoded(byteComparableVersion(), Arrays.copyOf(bytes, byteLength));
             boolean appliesAfter = onReturnPath == direction().isForward();
-            onReturnPath = false;
             return remap(content, key, appliesAfter);
         }
     }

@@ -122,14 +122,10 @@ class RangeApplyCursor<T, S extends RangeState<S>> implements Cursor<T>
         if (content == null)
             return null;
 
-        S applicableRange = atRange ? range.content() : null;
+        S applicableRange = atRange ? range.state() : range.precedingState();
 
         if (applicableRange == null)
-        {
-            applicableRange = range.precedingState();
-            if (applicableRange == null)
-                return content;
-        }
+            return content;
 
         return resolver.apply(applicableRange, content);
     }
@@ -172,7 +168,6 @@ class RangeApplyCursor<T, S extends RangeState<S>> implements Cursor<T>
                 if (r == null)
                     r = RangeCursor.empty(direction, byteComparableVersion());
                 return new DeletionAwareDataBranch<>(resolver, r, data.tailCursor(direction));
-
             }
         }
     }

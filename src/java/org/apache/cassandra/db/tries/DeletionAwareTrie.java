@@ -711,7 +711,7 @@ extends BaseTrie<T, DeletionAwareCursor<T, D>, DeletionAwareTrie<T, D>>
     }
 
     /// Returns a view of this trie where all live content and deletions are processed through the given mapping
-    /// functions.
+    /// functions. The deletion mapper is applied to the deletion branches as described in [RangeTrie#mapValues].
     default <V, E extends RangeState<E>> DeletionAwareTrie<V, E> mapValuesAndDeletions(Function<T, V> mapper, Function<D, E> deletionMapper)
     {
         return dir -> new ContentMappingCursor.DeletionAware<>(mapper, deletionMapper, cursor(dir));

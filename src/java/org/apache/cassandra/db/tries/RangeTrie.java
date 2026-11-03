@@ -191,6 +191,11 @@ public interface RangeTrie<S extends RangeState<S>> extends BaseTrie<S, RangeCur
     }
 
     /// Returns a view of this trie where all content is processed through the given mapping function.
+    ///
+    /// The mapper is applied to both boundary and covering states, and must map the sides of a boundary in the same way
+    /// as it maps the corresponding covering states (in particular, it cannot convert a covering state to a boundary).
+    /// It can map a state into nothing, or it may convert a boundary into a covering state (e.g. when it makes the
+    /// states on the two sides of the boundary equal), in which case the position will not be reported as content.
     default <E extends RangeState<E>> RangeTrie<E> mapValues(Function<S, E> mapper)
     {
         return dir -> new ContentMappingCursor.Range<>(mapper, cursor(dir));

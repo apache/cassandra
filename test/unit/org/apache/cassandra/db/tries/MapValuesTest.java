@@ -19,6 +19,7 @@
 package org.apache.cassandra.db.tries;
 
 import java.nio.ByteBuffer;
+import java.util.ArrayList;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
@@ -407,6 +408,70 @@ public class MapValuesTest
         for (K key : Sets.union(c1.keySet(), c2.keySet()))
             mergedContent.put(key, mapper.apply(c1.get(key), c2.get(key)));
         return mergedContent;
+    }
+
+    /// Test that mapping a range trie handles boundaries that the mapping converts to covering states (by making the
+    /// states on their two sides equal) or drops. Such positions must not be reported as content, including when the
+    /// mapped trie is walked with skips.
+    @Test
+    public void testRangeTrieMapValues()
+    {
+        qt().forAll(lists().of(integers().between(0, 255)).ofSizeBetween(0, 20),
+                    lists().of(integers().between(-1, 9)).ofSize(20),
+                    lists().of(integers().between(0, 255)).ofSizeBetween(0, 6))
+            .checkAssert((positions, values, setBoundaries) -> {
+                List<Integer> keys = positions.stream().distinct().sorted().collect(Collectors.toList());
+                List<TestRangeState> ranges = new ArrayList<>();
+                List<TestRangeState> expected = new ArrayList<>();
+                int prev = -1;
+                for (int i = 0; i < keys.size(); ++i)
+                {
+                    // The last boundary must close the active range.
+                    int next = i < keys.size() - 1 ? values.get(i) : -1;
+                    if (next == prev)
+                        continue;
+                    TestRangeState boundary = new TestRangeState(rangeKey(keys.get(i)), prev, next);
+                    ranges.add(boundary);
+                    TestRangeState mapped = mapRangeState(boundary);
+                    if (mapped != null && mapped.isBoundary())
+                        expected.add(mapped);
+                    prev = next;
+                }
+
+                RangeTrie<TestRangeState> mappedTrie = TestRangeState.fromList(ranges).mapValues(MapValuesTest::mapRangeState);
+                RangeTrie<TestRangeState> expectedTrie = TestRangeState.fromList(expected);
+                TrieUtil.verifyEqualRangeTries(mappedTrie, expectedTrie);
+
+                // Intersecting skips over parts of the trie and relies on the preceding state of the mapped cursor.
+                List<Integer> setKeys = setBoundaries.stream().distinct().sorted().collect(Collectors.toList());
+                TrieSet set = TrieSet.ranges(VERSION,
+                                             setKeys.stream()
+                                                    .limit(setKeys.size() & ~1)
+                                                    .map(MapValuesTest::rangeKey)
+                                                    .toArray(ByteComparable[]::new));
+                TrieUtil.verifyEqualRangeTries(mappedTrie.intersect(set), expectedTrie.intersect(set));
+            });
+    }
+
+    /// Two-byte key, so that range tries have nodes without content, where the cursor must present covering states.
+    private static ByteComparable rangeKey(int value)
+    {
+        return ByteComparable.preencoded(VERSION, new byte[]{ (byte) (value >> 4), (byte) (value & 0xF) });
+    }
+
+    /// Maps the sides of range states so that groups of three values become the same, and drops one value.
+    private static TestRangeState mapRangeState(TestRangeState state)
+    {
+        int left = mapRangeSide(state.leftSide);
+        int right = mapRangeSide(state.rightSide);
+        if (left < 0 && right < 0)
+            return null;
+        return new TestRangeState(state.position, state.appliesAfter, left, right);
+    }
+
+    private static int mapRangeSide(int side)
+    {
+        return side < 0 || side == 7 ? -1 : side / 3;
     }
 
 

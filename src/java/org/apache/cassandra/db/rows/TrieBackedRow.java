@@ -931,7 +931,8 @@ public class TrieBackedRow extends AbstractRow
     @Override
     public Row updateAllTimestamp(long newTimestamp)
     {
-        return transformAndFilter(liveness -> liveness.withUpdatedTimestamp(newTimestamp),
+        // Empty liveness only marks the presence of the row and must not become a primary key liveness.
+        return transformAndFilter(liveness -> liveness.isEmpty() ? liveness : liveness.withUpdatedTimestamp(newTimestamp),
                                   cell -> cell.updateAllTimestamp(newTimestamp),
                                   dt -> dt.isLive() ? dt : DeletionTime.build(newTimestamp - 1, dt.localDeletionTime()));
     }

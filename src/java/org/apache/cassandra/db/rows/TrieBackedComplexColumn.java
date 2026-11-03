@@ -57,6 +57,7 @@ public class TrieBackedComplexColumn extends ComplexColumnData
     {
         super(column);
         assert column.isComplex();
+        assert data != null;
         this.data = data;
     }
 
