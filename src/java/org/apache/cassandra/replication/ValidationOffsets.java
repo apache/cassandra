@@ -149,7 +149,33 @@ public final class ValidationOffsets
     @Override
     public String toString()
     {
-        return "ValidationOffsets{logs=" + perLog.size() + '}';
+        return toString(false);
+    }
+
+    /**
+     * Offsets are rendered as ranges, never as expanded ids: a single range can span thousands of offsets and
+     * {@link Offsets#collectIds} allocates one {@link ShortMutationId} per offset. Only enable this for trace
+     * logging that is expected to be verbose.
+     */
+    public String toString(boolean verbose)
+    {
+        StringBuilder builder = new StringBuilder("ValidationOffsets{logs=").append(perLog.size());
+        if (!verbose || perLog.isEmpty())
+            return builder.append('}').toString();
+
+        builder.append(", ");
+        boolean first = true;
+        for (Map.Entry<Long, Offsets.Immutable> entry : perLog.entrySet())
+        {
+            if (!first)
+                builder.append(", ");
+            first = false;
+
+            CoordinatorLogId logId = CoordinatorLogId.fromLong(entry.getKey());
+            builder.append(logId.hostId()).append(':').append(logId.hostLogId()).append(':');
+            Offsets.appendRanges(builder, entry.getValue());
+        }
+        return builder.append('}').toString();
     }
 
     public static final UnversionedSerializer<ValidationOffsets> serializer = new UnversionedSerializer<>()

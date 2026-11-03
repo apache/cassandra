@@ -49,7 +49,6 @@ import org.junit.Before;
 import org.junit.BeforeClass;
 import org.junit.Test;
 
-import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.db.CassandraWriteContext;
 import org.apache.cassandra.db.ColumnFamilyStore;
 import org.apache.cassandra.db.DecoratedKey;
@@ -1240,11 +1239,6 @@ public class TrackedPreviewRepairTest extends TestBaseImpl
         createTrackedSchema(CLUSTER, keyspace, table);
 
         IInvokableInstance coordinator = CLUSTER.get(1);
-        long originalTimeoutMillis = coordinator.callOnInstance(() -> DatabaseDescriptor.getMutationTrackingValidationTimeout(TimeUnit.MILLISECONDS));
-
-        // Make the validation timeout essentially infinite, so the only path to resolution is an explicit failure.
-        long longTimeoutMillis = TimeUnit.MINUTES.toMillis(10);
-        coordinator.runOnInstance(() -> DatabaseDescriptor.setMutationTrackingValidationTimeout(longTimeoutMillis));
         coordinator.runOnInstance(ThrowOnTreeDifference::activate);
 
         ExecutorService executor = Executors.newSingleThreadExecutor();
@@ -1253,13 +1247,12 @@ public class TrackedPreviewRepairTest extends TestBaseImpl
             Future<NodeToolResult> resultFuture = submitValidate(executor, coordinator, keyspace);
 
             // This should terminate immediately...
-            NodeToolResult result = resultFuture.get(longTimeoutMillis / 2, TimeUnit.MILLISECONDS);
+            NodeToolResult result = resultFuture.get(1, TimeUnit.MINUTES);
             result.asserts().failure();
         }
         finally
         {
             coordinator.runOnInstance(ThrowOnTreeDifference::deactivate);
-            coordinator.runOnInstance(() -> DatabaseDescriptor.setMutationTrackingValidationTimeout(originalTimeoutMillis));
             ExecutorUtils.shutdownAndWait(10, TimeUnit.SECONDS, executor);
         }
     }
@@ -1271,11 +1264,6 @@ public class TrackedPreviewRepairTest extends TestBaseImpl
 
         IInvokableInstance coordinator = CLUSTER.get(1);
         IInvokableInstance node2 = CLUSTER.get(2);
-        long originalTimeoutMillis = coordinator.callOnInstance(() -> DatabaseDescriptor.getMutationTrackingValidationTimeout(TimeUnit.MILLISECONDS));
-
-        // Make the validation timeout essentially infinite, so the only path to resolution is an explicit failure.
-        long longTimeoutMillis = TimeUnit.MINUTES.toMillis(10);
-        coordinator.runOnInstance(() -> DatabaseDescriptor.setMutationTrackingValidationTimeout(longTimeoutMillis));
         node2.runOnInstance(PauseValidationRequest::activateToFail);
 
         ExecutorService executor = Executors.newSingleThreadExecutor();
@@ -1284,13 +1272,12 @@ public class TrackedPreviewRepairTest extends TestBaseImpl
             Future<NodeToolResult> resultFuture = submitValidate(executor, coordinator, keyspace);
 
             // This should terminate immediately...
-            NodeToolResult result = resultFuture.get(longTimeoutMillis / 2, TimeUnit.MILLISECONDS);
+            NodeToolResult result = resultFuture.get(1, TimeUnit.MINUTES);
             result.asserts().failure();
         }
         finally
         {
             node2.runOnInstance(PauseValidationRequest::releaseAndDeactivate);
-            coordinator.runOnInstance(() -> DatabaseDescriptor.setMutationTrackingValidationTimeout(originalTimeoutMillis));
             ExecutorUtils.shutdownAndWait(10, TimeUnit.SECONDS, executor);
         }
     }

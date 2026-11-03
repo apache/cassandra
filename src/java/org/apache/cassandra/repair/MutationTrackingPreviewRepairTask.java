@@ -30,6 +30,9 @@ import java.util.concurrent.atomic.AtomicInteger;
 import com.google.common.base.Preconditions;
 import com.google.common.collect.Sets;
 
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+
 import org.apache.cassandra.concurrent.ExecutorPlus;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.db.ColumnFamilyStore;
@@ -63,6 +66,8 @@ import org.apache.cassandra.utils.concurrent.Future;
  */
 public class MutationTrackingPreviewRepairTask extends AbstractRepairTask
 {
+    private static final Logger logger = LoggerFactory.getLogger(MutationTrackingPreviewRepairTask.class);
+
     public static final String ESTABLISHING_OFFSETS = "Establishing validation offsets";
     public static final String OFFSETS_ESTABLISHED = "Validation offsets established";
     public static final String DISPATCHING_VALIDATION = "Dispatching validation";
@@ -130,9 +135,27 @@ public class MutationTrackingPreviewRepairTask extends AbstractRepairTask
                 // Extract captured targets from every sync coordinator IR ran, merge into one
                 // flat ValidationOffsets, and pass to the validation dispatch.
                 List<Map<CoordinatorLogId, Offsets.Immutable>> targetsList = new ArrayList<>();
+                List<String> targetDescriptions = logger.isTraceEnabled() ? new ArrayList<>() : null;
                 for (MutationTrackingSyncCoordinator syncCoordinator : irTask.getSyncCoordinators())
-                    targetsList.add(syncCoordinator.getCapturedTargets());
+                {
+                    Map<CoordinatorLogId, Offsets.Immutable> capturedTargets = syncCoordinator.getCapturedTargets();
+                    targetsList.add(capturedTargets);
+                    if (targetDescriptions != null)
+                    {
+                        targetDescriptions.add(String.format("%s/%s: %s",
+                                                             syncCoordinator.getKeyspace(),
+                                                             syncCoordinator.getRange(),
+                                                             new ValidationOffsets(capturedTargets).toString(true)));
+                    }
+                }
                 ValidationOffsets validationOffsets = ValidationOffsets.flatten(targetsList);
+
+                if (targetDescriptions != null)
+                {
+                    logger.trace("[#{}] Captured validation targets from {} sync coordinators: {}",
+                                 parentSession, targetsList.size(), targetDescriptions);
+                    logger.trace("[#{}] Agreed validation target: {}", parentSession, validationOffsets.toString(true));
+                }
 
                 runValidation(promise, validationOffsets, executor, validationScheduler);
             },
@@ -176,6 +199,11 @@ public class MutationTrackingPreviewRepairTask extends AbstractRepairTask
                 if (!participants.isEmpty())
                     allParticipants.addAll(participants);
 
+                if (logger.isTraceEnabled())
+                    logger.trace("[#{}] Dispatching tracked validation for {}.{} over {} to {} participants: {}",
+                                 parentSession, keyspace, String.join(",", tableNames), commonRange.ranges,
+                                 participants.size(), participants);
+
                 for (String tableName : tableNames)
                 {
                     RepairJobDesc desc = new RepairJobDesc(parentSession, TimeUUID.Generator.nextTimeUUID(), keyspace, tableName, commonRange.ranges);
@@ -211,9 +239,8 @@ public class MutationTrackingPreviewRepairTask extends AbstractRepairTask
                         emitValidationComplete(promise, mismatchesByTable, allParticipants, offset);
                 },
                 failure -> {
-                    // Any validation failure fails the whole preview. Cancel siblings so they
-                    // don't keep running to completion or their own timeout, holding merkle
-                    // trees and registry entries for a result nobody will consume.
+                    // Any validation failure fails the whole preview. Cancel siblings so they don't keep running
+                    // to completion, holding merkle trees and registry entries for a result nobody will consume.
                     promise.tryFailure(new RuntimeException("Tracked validation failed: " + failure.getMessage(), failure));
                     for (ValidationHandle sibling : handles)
                         sibling.coordinator.cancel();

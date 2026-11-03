@@ -24,8 +24,6 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
-import java.util.concurrent.TimeUnit;
-import java.util.concurrent.TimeoutException;
 
 import com.google.common.base.Preconditions;
 import com.google.common.collect.ImmutableSet;
@@ -33,7 +31,6 @@ import com.google.common.collect.ImmutableSet;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.dht.Range;
 import org.apache.cassandra.dht.Token;
 import org.apache.cassandra.exceptions.RequestFailure;
@@ -105,12 +102,6 @@ public class MutationTrackingValidationCoordinator
         }
         future.addListener(() -> REGISTRY.remove(desc, this));
 
-        long timeout = DatabaseDescriptor.getMutationTrackingValidationTimeout(TimeUnit.SECONDS);
-        ctx.scheduledTasks().schedule(() -> {
-            if (!future.isDone())
-                fail(new TimeoutException("Tracked validation timed out after " + timeout + "s for " + desc));
-        }, timeout, TimeUnit.SECONDS);
-
         ValidationRequest request = new ValidationRequest(desc, FBUtilities.nowInSeconds(), false, offset);
         for (InetAddressAndPort participant : participants)
         {
@@ -141,7 +132,7 @@ public class MutationTrackingValidationCoordinator
     /**
      * Invoked by {@link RepairMessageVerbHandler} on receipt of {@link Verb#MT_VALIDATION_RSP}.
      * Trees may be null if the participant reported validation failure. Synchronized with
-     * {@link #complete()} and {@link #fail(Throwable)} so a concurrent timeout can't race
+     * {@link #complete()} and {@link #fail(Throwable)} so a concurrent failure cannot race
      * a tree being stored.
      */
     synchronized void onTreesReceived(InetAddressAndPort from, MerkleTrees trees)

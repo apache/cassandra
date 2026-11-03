@@ -129,10 +129,32 @@ public class ImmutableCoordinatorLogOffsets implements CoordinatorLogOffsets<Off
     @Override
     public String toString()
     {
-        return "ImmutableCoordinatorLogOffsets{" +
-               "mutations=" + mutations +
-               ", transfers=" + transfers +
-               '}';
+        return toString(false);
+    }
+
+    /**
+     * The default form reports counts only; the verbose form renders per-log offset ranges and transfer ids. Use
+     * {@link ValidationOffsets#toString(boolean)} when comparing an SSTable's offsets with an agreed target, so the
+     * two renderings match. Only enable verbose output for trace logging that is expected to be verbose.
+     */
+    public String toString(boolean verbose)
+    {
+        StringBuilder builder = new StringBuilder("ImmutableCoordinatorLogOffsets{logs=").append(mutations.size());
+        if (!verbose)
+            return builder.append(", transfers=").append(transfers.size()).append('}').toString();
+
+        boolean first = true;
+        for (Long logId : mutations)
+        {
+            builder.append(first ? "" : ", ");
+            first = false;
+
+            Offsets.Immutable offsets = mutations.getOffsets(logId);
+            builder.append(CoordinatorLogId.hostId(logId))
+                   .append(':').append(CoordinatorLogId.hostLogId(logId)).append(':');
+            Offsets.appendRanges(builder, offsets);
+        }
+        return builder.append(", transfers=").append(transfers.toString(true)).append('}').toString();
     }
 
     @NotThreadSafe
