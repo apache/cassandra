@@ -646,8 +646,10 @@ replicas and it has to wait for responses from other nodes. As it is not a good 
 long periods that such responses can require, we need a different way to ensure that such data is alive.
 
 The latter problem is solved by copying data to on-heap objects for temporary storage before it is given
-to the coordination layer to keep. This has a pretty high overhead and will likely be replaced with trie
-serialization in later stages of the work on trie-based interfaces.
+to the coordination layer to keep. Reads copy every row they return directly into an on-heap `BTreeRow`,
+which is also the row type the read path converts memtable rows to (e.g. in `ImmutableBTreePartition`).
+This copy will likely be replaced with trie serialization in later stages of the work on trie-based
+interfaces.
 
 ### Unfiltered and filtered row iterators
 

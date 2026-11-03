@@ -204,7 +204,7 @@ public class TrieBackedPartition implements Partition
 
     /// Conversion from row branch to [Row]. [WithCopyingToHeap] overrides this to do the necessary copying
     /// (hence the non-static method).
-    TrieBackedRow toRow(DeletionAwareTrie<Object, TrieTombstoneMarker> rowContent, Clustering<?> clustering)
+    Row toRow(DeletionAwareTrie<Object, TrieTombstoneMarker> rowContent, Clustering<?> clustering)
     {
         return rowContent != null ? TrieBackedRow.create(metadata, clustering, rowContent) : null;
     }
@@ -636,13 +636,15 @@ public class TrieBackedPartition implements Partition
             super(partitionKey, columns, stats, rowCountIncludingStatic, tombstoneCount, trie, metadata);
         }
 
+        /// Copies the row to the heap as a `BTreeRow`, built directly from the trie cells. Readers of memtable data
+        /// convert rows to `BTreeRow` anyway (e.g. `ImmutableBTreePartition` via `BTreeRow.asBTreeRow`), so this
+        /// does the one copy that is needed instead of rebuilding the row as a new on-heap trie.
         @Override
-        public TrieBackedRow toRow(DeletionAwareTrie<Object, TrieTombstoneMarker> data, Clustering<?> clustering)
+        Row toRow(DeletionAwareTrie<Object, TrieTombstoneMarker> data, Clustering<?> clustering)
         {
-            TrieBackedRow row = super.toRow(data, clustering);
-            if (row == null || row == Rows.EMPTY_STATIC_ROW)
-                return row;
-            return row.clone(HeapCloner.instance);
+            if (data == null)
+                return null;
+            return TrieBackedRow.toBTreeRow(metadata, clustering, data, HeapCloner.instance);
         }
     }
 

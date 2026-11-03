@@ -367,7 +367,8 @@ public class TrieMemtable extends AbstractShardedMemtable
         return position == null || position.isMinimum() ? null : position.asComparableBound(before);
     }
 
-    private Partition getPartition(DecoratedKey key)
+    @VisibleForTesting
+    Partition getPartition(DecoratedKey key)
     {
         int shardIndex = boundaries.getShardForKey(key);
         DeletionAwareTrie<Object, TrieTombstoneMarker> trie = shards[shardIndex].data.tailTrie(key);

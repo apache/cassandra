@@ -52,6 +52,7 @@ import org.apache.cassandra.db.tries.Direction;
 import org.apache.cassandra.db.tries.InMemoryDeletionAwareTrie;
 import org.apache.cassandra.db.tries.RangeTrie;
 import org.apache.cassandra.db.tries.Trie;
+import org.apache.cassandra.db.tries.TrieEntriesWalker;
 import org.apache.cassandra.db.tries.TrieSpaceExhaustedException;
 import org.apache.cassandra.schema.ColumnMetadata;
 import org.apache.cassandra.schema.DroppedColumn;
@@ -773,7 +774,11 @@ public class TrieBackedRow extends AbstractRow
 
         try
         {
-            TrieColumnFilter tcf = new TrieColumnFilter(columns, filter, isStatic(), mayFilterColumns);
+            // As in BTreeRow.filter, the cells of fetched but not queried columns that are older than the row's
+            // liveness are skipped, using the liveness left after applying an active deletion that shadows the row's.
+            boolean livenessShadowed = !activeDeletion.isLive() && !deletion.time().supersedes(activeDeletion) && activeDeletion.deletes(livenessInfo.timestamp());
+            long rowLivenessTimestamp = livenessShadowed ? LivenessInfo.NO_TIMESTAMP : livenessInfo.timestamp();
+            TrieColumnFilter tcf = new TrieColumnFilter(columns, filter, isStatic(), mayFilterColumns, rowLivenessTimestamp);
 
             if (!droppedColumns.isEmpty())
             {
@@ -1052,6 +1057,81 @@ public class TrieBackedRow extends AbstractRow
             throw new AssertionError(e);
         }
         return new TrieBackedRow(columns, cloner.clone(clustering), livenessInfo, deletion, minLocalDeletionTime, newTrie);
+    }
+
+    /// Copies the given row branch of a trie (e.g. a memtable row) directly to a [BTreeRow], cloning every cell with
+    /// the given cloner.
+    ///
+    /// The result has the same content as `BTreeRow.asBTreeRow(TrieBackedRow.create(metadata, clustering, data).clone(cloner))`,
+    /// but is made with a single walk over the cells and complex column deletions of the trie, without building an
+    /// intermediate trie. It is meant for the memtable read path, where the returned row must not reference memtable
+    /// memory and is usually converted to a [BTreeRow] anyway. Unlike `clone`, the clustering is used as given: it
+    /// must not reference memory that may be recycled.
+    ///
+    /// The walk lists the columns in the order of their unique ids, which is not the order in which rows present
+    /// them, thus the row is put together by an unsorted builder.
+    public static BTreeRow toBTreeRow(TableMetadata metadata,
+                                      Clustering<?> clustering,
+                                      DeletionAwareTrie<Object, TrieTombstoneMarker> data,
+                                      Cloner cloner)
+    {
+        BTreeRow.Builder builder = BTreeRow.unsortedBuilder();
+        builder.newRow(clustering);
+        builder.addPrimaryKeyLivenessInfo(getLivenessInfo(data));
+        // Same row deletion as computed by create(), as a plain DeletionTime rather than the trie's marker state.
+        TrieTombstoneMarker deletionRoot = data.deletionAtRoot();
+        TrieTombstoneMarker.Covering rowDeletionTime = deletionRoot != null ? deletionRoot.applicableToPointForward() : null;
+        if (rowDeletionTime != null)
+            builder.addRowDeletion(Deletion.regular(DeletionTime.build(rowDeletionTime.markedForDeleteAt(), rowDeletionTime.localDeletionTime())));
+
+        return data.mergedTrie(TrieBackedRow::cellOrComplexDeletion)
+                   .process(Direction.FORWARD, new BTreeRowCopier(metadata, builder, cloner));
+    }
+
+    /// Combine data in the live and deletion branches to find the cells and the complex column deletions of a row.
+    private static Object cellOrComplexDeletion(Object content, TrieTombstoneMarker marker)
+    {
+        if (content instanceof CellData)
+            return content;
+        if (marker == null)
+            return null;
+        // A complex column deletion is introduced by a marker at the column's root. Other markers (row deletion at
+        // the row root, ends of deletion ranges) are not needed: the row deletion is given separately.
+        TrieTombstoneMarker.Covering introducedDeletion = marker.succedingState(Direction.FORWARD);
+        if (introducedDeletion != null && introducedDeletion.deletionKind() == TrieTombstoneMarker.Kind.COLUMN)
+            return introducedDeletion;
+        return null;
+    }
+
+    /// Walker over the result of [#cellOrComplexDeletion], adding every cell (cloned) and complex column deletion to a
+    /// [BTreeRow.Builder].
+    private static class BTreeRowCopier extends TrieEntriesWalker<Object, BTreeRow>
+    {
+        private final TableMetadata metadata;
+        private final BTreeRow.Builder builder;
+        private final Cloner cloner;
+
+        BTreeRowCopier(TableMetadata metadata, BTreeRow.Builder builder, Cloner cloner)
+        {
+            this.metadata = metadata;
+            this.builder = builder;
+            this.cloner = cloner;
+        }
+
+        @Override
+        protected void content(Object content, byte[] bytes, int byteLength)
+        {
+            if (content instanceof CellData)
+                builder.addCell(cellFromCellData((CellData<?, ?>) content, bytes, byteLength, metadata).clone(cloner));
+            else
+                builder.addComplexDeletion(columnMetadataFromPath(bytes, byteLength, metadata), (DeletionTime) content);
+        }
+
+        @Override
+        public BTreeRow complete()
+        {
+            return builder.build();
+        }
     }
 
     // TODO: Redo size collection to be more direct.

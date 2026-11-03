@@ -65,20 +65,28 @@ public class TrieColumnFilter
 
     /// Create a filter trie that applies the given [ColumnFilter]:
     /// - the trie is restricted to only the fetched columns
-    /// - columns that are fetched but not queried have their cell values dropped
+    /// - columns that are fetched but not queried have their cell values dropped, and their cells older than the
+    ///   row's primary key liveness skipped (as done by `BTreeRow.filter` and by sstable reads, see `#10657`)
     /// - complex columns are restricted to their subselections, if any are specified, preserving the complex deletion
     /// - the row deletion is preserved
     ///
     /// @param isStatic true if the static part of the filter should be used (i.e. we are processing a static row),
     ///                 false if the regular part
     /// @param mayFilterColumns must be set to `!filter.fetchesAllColumns(isStatic()) || !filter.allFetchedColumnsAreQueried()`
-    public TrieColumnFilter(Columns rowColumns, ColumnFilter filter, boolean isStatic, boolean mayFilterColumns)
+    /// @param rowLivenessTimestamp the timestamp of the row's primary key liveness, after applying any active deletion
+    ///                             (i.e. [LivenessInfo#NO_TIMESTAMP] if the active deletion shadows it); cells of
+    ///                             fetched but not queried columns older than it are skipped
+    public TrieColumnFilter(Columns rowColumns,
+                            ColumnFilter filter,
+                            boolean isStatic,
+                            boolean mayFilterColumns,
+                            long rowLivenessTimestamp)
     throws TrieSpaceExhaustedException
     {
         this.rowColumns = rowColumns;
         if (mayFilterColumns)
         {
-            applyColumnFilter(filter, isStatic);
+            applyColumnFilter(filter, isStatic, rowLivenessTimestamp);
 
             // Add row-level before and after markers to preserve row-level liveness and deletion.
             trie.putRecursive(ByteComparable.EMPTY, MARKER, false, TrieColumnFilter::addNew);
@@ -113,13 +121,16 @@ public class TrieColumnFilter
         trie.putRecursive(ByteComparable.EMPTY, MARKER, true, TrieColumnFilter::addNew);
     }
 
-    private void applyColumnFilter(ColumnFilter filter, boolean isStatic) throws TrieSpaceExhaustedException
+    private void applyColumnFilter(ColumnFilter filter, boolean isStatic, long rowLivenessTimestamp) throws TrieSpaceExhaustedException
     {
         // Note: this method uses `putRecursive`, assuming the trie starts empty and that no range presented covers
         // another. It must be called before any deletion (dropped column or active deletion).
         Columns columns = filter.fetchedColumns().columns(isStatic);
         Predicate<ColumnMetadata> queriedByUserTester = filter.queriedColumns().columns(isStatic).inOrderInclusionTester();
         SortedSetMultimap<ColumnIdentifier, ColumnSubselection> subselections = filter.subSelections();
+        Covering dropValue = new Covering(true, true, null, rowLivenessTimestamp);
+        Boundary dropValueStart = new Boundary(null, dropValue, dropValue);
+        Boundary dropValueEnd = new Boundary(dropValue, null, dropValue);
 
         for (ColumnMetadata column : columns)
         {
@@ -154,9 +165,10 @@ public class TrieColumnFilter
             }
             else
             {
-                // cover the column with all cells and complex deletion, but drop the cell values of any covered cells
-                trie.putRecursive(columnKey, DROP_VALUE_START, false, TrieColumnFilter::addNew);
-                trie.putRecursive(columnKey, DROP_VALUE_END, true, TrieColumnFilter::addNew);
+                // cover the column with all cells and complex deletion, but skip the cells older than the row's
+                // liveness and drop the cell values of the others
+                trie.putRecursive(columnKey, dropValueStart, false, TrieColumnFilter::addNew);
+                trie.putRecursive(columnKey, dropValueEnd, true, TrieColumnFilter::addNew);
             }
         }
     }
@@ -200,18 +212,15 @@ public class TrieColumnFilter
                                   TrieColumnFilter::resolve);
     }
 
-    private static final Covering INCLUDED = new Covering(true, false, null);
+    private static final Covering INCLUDED = new Covering(true, false, null, LivenessInfo.NO_TIMESTAMP);
     private static final Boundary INCLUDED_START = new Boundary(null, INCLUDED, INCLUDED);
     private static final Boundary INCLUDED_END = new Boundary(INCLUDED, null, INCLUDED);
-    private static final Covering DROP_VALUE = new Covering(true, true, null);
-    private static final Boundary DROP_VALUE_START = new Boundary(null, DROP_VALUE, DROP_VALUE);
-    private static final Boundary DROP_VALUE_END = new Boundary(DROP_VALUE, null, DROP_VALUE);
 
     static final Marker MARKER = new Marker();
 
     static Covering deletion(long timestamp, long localDeletionTime)
     {
-        return new Covering(false, false, TrieTombstoneMarker.covering(timestamp, localDeletionTime, TrieTombstoneMarker.Kind.COLUMN));
+        return new Covering(false, false, TrieTombstoneMarker.covering(timestamp, localDeletionTime, TrieTombstoneMarker.Kind.COLUMN), LivenessInfo.NO_TIMESTAMP);
     }
 
     static FilterState mergeFilterState(FilterState existing, FilterState update)
@@ -268,7 +277,7 @@ public class TrieColumnFilter
             if (deletion != null && deletion.deletes(cell))
                 return null;
             else if (state.dropsValue())
-                return cell.withSkippedValue();
+                return cell.timestamp() < state.skipsCellsOlderThan() ? null : cell.withSkippedValue();
             else
                 return cell;
         }
@@ -286,6 +295,9 @@ public class TrieColumnFilter
 
         boolean dropsValue();
 
+        /// Cells older than this are skipped where [#dropsValue] is true.
+        long skipsCellsOlderThan();
+
         TrieTombstoneMarker.Covering applicableDeletion();
 
         FilterState mergeWith(FilterState existing);
@@ -296,12 +308,14 @@ public class TrieColumnFilter
         private final boolean included;
         private final boolean dropsValue;
         private final TrieTombstoneMarker.Covering applicableDeletion;
+        private final long skipsCellsOlderThan;
 
-        Covering(boolean included, boolean dropsValue, TrieTombstoneMarker.Covering applicableDeletion)
+        Covering(boolean included, boolean dropsValue, TrieTombstoneMarker.Covering applicableDeletion, long skipsCellsOlderThan)
         {
             this.included = included;
             this.dropsValue = dropsValue;
             this.applicableDeletion = applicableDeletion;
+            this.skipsCellsOlderThan = skipsCellsOlderThan;
         }
 
         @Override
@@ -314,6 +328,12 @@ public class TrieColumnFilter
         public boolean dropsValue()
         {
             return dropsValue;
+        }
+
+        @Override
+        public long skipsCellsOlderThan()
+        {
+            return skipsCellsOlderThan;
         }
 
         @Override
@@ -339,7 +359,10 @@ public class TrieColumnFilter
             if (other == null)
                 return this;
             TrieTombstoneMarker.Covering newDeletion = TrieTombstoneMarker.combine(applicableDeletion, other.applicableDeletion);
-            return new Covering(included | other.included, dropsValue | other.dropsValue, newDeletion);
+            return new Covering(included | other.included,
+                                dropsValue | other.dropsValue,
+                                newDeletion,
+                                Math.max(skipsCellsOlderThan, other.skipsCellsOlderThan));
         }
 
         @Override
@@ -378,7 +401,7 @@ public class TrieColumnFilter
             if (applicableDeletion != null)
                 return (dropsValue ? "D " : (included ? "I " : "")) + applicableDeletion;
             if (dropsValue)
-                return "DROPPED_VALUE";
+                return "DROPPED_VALUE<" + skipsCellsOlderThan;
             if (included)
                 return "INCLUDED";
             return "UNEFFECTIVE";
@@ -397,6 +420,12 @@ public class TrieColumnFilter
         public boolean dropsValue()
         {
             return false;
+        }
+
+        @Override
+        public long skipsCellsOlderThan()
+        {
+            return LivenessInfo.NO_TIMESTAMP;
         }
 
         @Override
@@ -482,6 +511,12 @@ public class TrieColumnFilter
         public boolean dropsValue()
         {
             return appliesToPoint.dropsValue();
+        }
+
+        @Override
+        public long skipsCellsOlderThan()
+        {
+            return appliesToPoint.skipsCellsOlderThan();
         }
 
         @Override

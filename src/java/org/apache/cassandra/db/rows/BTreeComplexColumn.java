@@ -183,7 +183,10 @@ public class BTreeComplexColumn extends ComplexColumnData
         if (cellTester == null && activeDeletion.isLive() && dropped == null && isQueriedColumn)
             return this;
 
-        DeletionTime newDeletion = activeDeletion.supersedes(complexDeletion) ? DeletionTime.LIVE : complexDeletion;
+        // Like sstable reads (see DeserializationHelper.isDroppedComplexDeletion), also drop a complex deletion
+        // that is not newer than the drop of the column.
+        boolean isDroppedDeletion = dropped != null && complexDeletion.markedForDeleteAt() <= dropped.droppedTime;
+        DeletionTime newDeletion = isDroppedDeletion || activeDeletion.supersedes(complexDeletion) ? DeletionTime.LIVE : complexDeletion;
         return transformAndFilter(newDeletion, (cell) ->
         {
             CellPath path = cell.path();
