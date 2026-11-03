@@ -62,14 +62,14 @@ public class CassandraTableRepairManager implements TableRepairManager
     public ValidationPartitionIterator getValidationIterator(Collection<Range<Token>> ranges, TimeUUID parentId, TimeUUID sessionID, boolean isIncremental, long nowInSec, boolean dontPurgeTombstones, ValidationOffsets validationOffsets, TopPartitionTracker.Collector topPartitionCollector) throws IOException, NoSuchRepairSessionException
     {
         CassandraValidationIterator sstableIterator =
-            new CassandraValidationIterator(cfs, ctx, ranges, parentId, sessionID, isIncremental, nowInSec, dontPurgeTombstones, validationOffsets, topPartitionCollector);
+            new CassandraValidationIterator(cfs, ctx, ranges, parentId, sessionID, isIncremental, nowInSec, validationOffsets != null || dontPurgeTombstones, validationOffsets, topPartitionCollector);
 
         if (validationOffsets == null)
             return sstableIterator;
 
         try
         {
-            return new JournalMergingValidationIterator(cfs, sstableIterator, ranges, validationOffsets);
+            return new JournalMergingValidationIterator(cfs, sstableIterator, ranges, validationOffsets, nowInSec, dontPurgeTombstones);
         }
         catch (Throwable t)
         {

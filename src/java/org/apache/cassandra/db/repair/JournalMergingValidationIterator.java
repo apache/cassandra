@@ -28,6 +28,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.NavigableMap;
 import java.util.TreeMap;
+import java.util.function.LongPredicate;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -38,12 +39,14 @@ import org.apache.cassandra.db.Mutation;
 import org.apache.cassandra.db.RegularAndStaticColumns;
 import org.apache.cassandra.db.partitions.AbstractUnfilteredPartitionIterator;
 import org.apache.cassandra.db.partitions.PartitionUpdate;
+import org.apache.cassandra.db.partitions.PurgeFunction;
 import org.apache.cassandra.db.partitions.UnfilteredPartitionIterator;
 import org.apache.cassandra.db.partitions.UnfilteredPartitionIterators;
 import org.apache.cassandra.db.rows.DeserializationHelper;
 import org.apache.cassandra.db.rows.UnfilteredRowIterator;
 import org.apache.cassandra.db.rows.UnfilteredRowIterators;
 import org.apache.cassandra.db.rows.WrappingUnfilteredRowIterator;
+import org.apache.cassandra.db.transform.Transformation;
 import org.apache.cassandra.dht.Range;
 import org.apache.cassandra.dht.Token;
 import org.apache.cassandra.io.util.DataInputBuffer;
@@ -53,6 +56,8 @@ import org.apache.cassandra.replication.ShortMutationId;
 import org.apache.cassandra.replication.ValidationOffsets;
 import org.apache.cassandra.schema.TableId;
 import org.apache.cassandra.schema.TableMetadata;
+
+import static org.apache.cassandra.db.repair.CassandraValidationIterator.getDefaultGcBefore;
 
 /**
  * Merges a {@link CassandraValidationIterator}'s SSTable-sourced partitions with
@@ -73,7 +78,9 @@ public class JournalMergingValidationIterator extends ValidationPartitionIterato
     public JournalMergingValidationIterator(ColumnFamilyStore cfs,
                                             CassandraValidationIterator sstableIterator,
                                             Collection<Range<Token>> ranges,
-                                            ValidationOffsets validationOffsets)
+                                            ValidationOffsets validationOffsets,
+                                            long nowInSec,
+                                            boolean dontPurgeTombstones)
     {
         this.sstableIterator = sstableIterator;
         // Narrow the offsets for the journal to exclude anything the selected SSTables already cover.
@@ -90,7 +97,18 @@ public class JournalMergingValidationIterator extends ValidationPartitionIterato
             this.rangePartitionCounts = new HashMap<>(sstableIterator.getRangePartitionCounts());
             for (Map.Entry<Range<Token>, Long> entry : journalAccessor.rangeCounts.entrySet())
                 rangePartitionCounts.merge(entry.getKey(), entry.getValue(), Long::sum);
-            this.merged = UnfilteredPartitionIterators.merge(List.of(sstableIterator, journalIterator), UnfilteredPartitionIterators.MergeListener.NOOP);
+
+            UnfilteredPartitionIterator iter = UnfilteredPartitionIterators.merge(List.of(sstableIterator, journalIterator), UnfilteredPartitionIterators.MergeListener.NOOP);
+            long gcBefore = dontPurgeTombstones ? Long.MIN_VALUE : getDefaultGcBefore(cfs, nowInSec);
+            PurgeFunction purger = new PurgeFunction(nowInSec, gcBefore, Long.MIN_VALUE, false, cfs.metadata().enforceStrictLiveness())
+            {
+                @Override
+                protected LongPredicate getPurgeEvaluator()
+                {
+                    return time -> true;
+                }
+            };
+            this.merged = Transformation.apply(iter, purger);
         }
         catch (Throwable t)
         {
