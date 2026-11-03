@@ -89,12 +89,6 @@ public class OpOrder
     private static final int FINISHED = -1;
 
     /**
-     * Constant that when an Ordered.running is equal to, indicates that the Ordered and all the ones before it are
-     * complete, and it has been unlinked. Only reachable from FINISHED, i.e. when no operations are running.
-     */
-    private static final int UNLINKED = Integer.MIN_VALUE;
-
-    /**
      * A linked list starting with the most recent Ordered object, i.e. the one we should start new operations from,
      * with (prev) links to any incomplete Ordered instances, and (next) links to any potential future Ordered instances.
      * Once all operations started against an Ordered instance and its ancestors have been finished it is unlinked,
@@ -157,7 +151,6 @@ public class OpOrder
          * 4) ZOMBIE:    all our operations are finished, but some operations against an earlier Ordered are still
          *               running, or tidying up, so unlink() fails to remove us
          * 5) COMPLETE:  all operations started on or before us are FINISHED (and COMPLETE), so we are unlinked
-         *               (running == UNLINKED, and both our links are cleared)
          * <p/>
          * Another parallel states is ISBLOCKING:
          * <p/>
@@ -169,9 +162,7 @@ public class OpOrder
 
         private volatile Group prev, next;
         private final long id; // monotonically increasing id for compareTo()
-        // number of operations currently running.  < 0 means we're expired, and the count of tasks still running is
-        // -(running + 1), or UNLINKED once we and all groups before us have finished
-        private volatile int running = 0;
+        private volatile int running = 0; // number of operations currently running.  < 0 means we're expired, and the count of tasks still running is -(running + 1)
         private volatile boolean isBlocking; // indicates running operations are blocking future barriers
         private volatile ConcurrentLinkedQueue<WaitQueue.Signal> blocking; // signal to wait on to indicate isBlocking is true
         private final WaitQueue waiting = newWaitQueue(); // signal to wait on for completion
@@ -235,7 +226,6 @@ public class OpOrder
                 int current = running;
                 if (current < 0)
                 {
-                    assert current != UNLINKED : "OpOrder group closed more than once.";
                     if (runningUpdater.compareAndSet(this, current, current + 1))
                     {
                         if (current + 1 == FINISHED)
@@ -255,7 +245,11 @@ public class OpOrder
 
         public boolean isFinished()
         {
-            return running == UNLINKED;
+            // This is only currently used after a barrier is issued, where the group's next pointer must have been
+            // assigned, and thus finished status can be established by checking next == null alone.
+            // However, a future user might call this on a group that still accepts registrations, in which case
+            // it would return the wrong answer.
+            return running == FINISHED && next == null;
         }
 
         public boolean isOldestLiveGroup()
@@ -276,7 +270,7 @@ public class OpOrder
                 else
                     signal.awaitUninterruptibly();
             }
-            assert running == UNLINKED;
+            assert running == FINISHED;
         }
 
         public OpOrder.Group prev()
@@ -307,7 +301,7 @@ public class OpOrder
             while (true)
             {
                 Group prev = start.prev;
-                if (prev == null || prev.running == UNLINKED)
+                if (prev == null)
                     break;
 
                 // If prev has not yet finished, do not unlink as this group is not really expired yet as barriers must
@@ -318,21 +312,19 @@ public class OpOrder
                 start = prev;
             }
 
-            while (true)
+            // now walk forwards in time, in case we finished up late,
+            // unlinking both pointers and waking up any blocking threads
+            do
             {
-                // Claim; this fails if a concurrent thread has already claimed the group, in which case it will also
-                // process the forward chain.
-                // (Note that it will likely have cleared next, so we can't continue even if we want to.)
-                if (!runningUpdater.compareAndSet(start, FINISHED, UNLINKED))
-                    return;
-
-                // Expired groups always have a next, and no one else can clear it as only one thread claims a group.
                 Group next = start.next;
-                next.prev = null;
+                if (next == null)
+                    return; // some other thread has already claimed this group and the forward chain
                 start.next = null;
+                next.prev = null;
                 start.waiting.signalAll();
                 start = next;
             }
+            while (start.running == FINISHED);
         }
 
         /**
