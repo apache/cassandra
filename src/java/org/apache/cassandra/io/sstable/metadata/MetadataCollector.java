@@ -156,7 +156,9 @@ public class MetadataCollector implements PartitionStatisticsCollector
      * while lowering bytes required to hold information.
      * See CASSANDRA-5906 for detail.
      */
-    protected ICardinality cardinality = new HyperLogLogPlus(13, 25);
+    public static final int CARDINALITY_PRECISION = 13;
+    public static final int CARDINALITY_SPARSE_PRECISION = 25;
+    protected ICardinality cardinality = new HyperLogLogPlus(CARDINALITY_PRECISION, CARDINALITY_SPARSE_PRECISION);
     private final ClusteringComparator comparator;
     private final long nowInSec = FBUtilities.nowInSeconds();
 
