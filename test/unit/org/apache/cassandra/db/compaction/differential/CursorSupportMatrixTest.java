@@ -31,9 +31,15 @@ import org.apache.cassandra.cql3.CQLTester;
 import org.apache.cassandra.db.ColumnFamilyStore;
 import org.apache.cassandra.db.compaction.AbstractCompactionStrategy;
 import org.apache.cassandra.db.compaction.CompactionController;
+import org.apache.cassandra.db.compaction.CompactionManager;
 import org.apache.cassandra.db.compaction.CursorCompactor;
+import org.apache.cassandra.db.compaction.OperationType;
+import org.apache.cassandra.db.lifecycle.LifecycleTransaction;
+import org.apache.cassandra.io.sstable.CursorIndexWriter;
 import org.apache.cassandra.io.sstable.format.SSTableFormat;
 import org.apache.cassandra.io.sstable.format.SSTableReader;
+import org.apache.cassandra.io.sstable.format.SSTableWriter;
+import org.apache.cassandra.io.sstable.format.SortedTableWriter;
 import org.apache.cassandra.io.sstable.format.big.BigFormat;
 import org.apache.cassandra.io.sstable.format.bti.BtiFormat;
 import org.apache.cassandra.notifications.INotificationConsumer;
@@ -46,6 +52,7 @@ import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertNotNull;
 import static org.junit.Assert.assertTrue;
+import static org.junit.Assert.fail;
 
 /** Pins the cursor compaction support matrix: which schemas, headers and compactions the gate
  *  accepts or refuses. */
@@ -210,6 +217,89 @@ public class CursorSupportMatrixTest extends CQLTester
         // the table is supported again once the real format is back
         assertTrue("expected the table to be cursor-supported again under the real format",
                    isSupportedNow(cfs));
+    }
+
+    /** The BTI factory given a BIG writer fails with a message that names the format and the writer class. */
+    @Test
+    public void btiFactoryRefusesBigWriter() throws Exception
+    {
+        assertFactoryRefusesWriter(BigFormat.NAME, BtiFormat.NAME, "BtiTableWriter", "BigTableWriter");
+    }
+
+    /** The BIG factory given a BTI writer fails with a message that names the format and the writer class. */
+    @Test
+    public void bigFactoryRefusesBtiWriter() throws Exception
+    {
+        assertFactoryRefusesWriter(BtiFormat.NAME, BigFormat.NAME, "BigTableWriter", "BtiTableWriter");
+    }
+
+    /** The check cursor compaction runs on each new sstable writer refuses one that is not a SortedTableWriter. */
+    @Test
+    public void writerThatIsNotSortedTableWriterRefused()
+    {
+        SSTableWriter notSorted = Mockito.mock(SSTableWriter.class);
+        try
+        {
+            CursorIndexWriter.checkWriterType("custom", notSorted, SortedTableWriter.class);
+            fail("expected an IllegalStateException for a writer that is not a SortedTableWriter");
+        }
+        catch (IllegalStateException e)
+        {
+            assertMessageNames(e, "custom", SortedTableWriter.class.getName(), notSorted.getClass().getName());
+        }
+    }
+
+    /**
+     * Builds a real writer in {@code writerFormat} and hands it to the cursor index writer factory of
+     * {@code factoryFormat}.
+     */
+    private void assertFactoryRefusesWriter(String writerFormat, String factoryFormat,
+                                            String expectedClass, String actualClass) throws Exception
+    {
+        SSTableFormat<?, ?> original = DatabaseDescriptor.getSelectedSSTableFormat();
+        try
+        {
+            DatabaseDescriptor.setSelectedSSTableFormat(writerFormat);
+            ColumnFamilyStore cfs =
+                twoSSTableTable("CREATE TABLE %s (pk bigint, ck bigint, v text, PRIMARY KEY (pk, ck))",
+                                "INSERT INTO %s (pk, ck, v) VALUES (1, 1, 'x')",
+                                "INSERT INTO %s (pk, ck, v) VALUES (1, 2, 'y')");
+            SSTableReader input = cfs.getLiveSSTables().iterator().next();
+            CursorIndexWriter.Factory factory =
+                DatabaseDescriptor.getSSTableFormats().get(factoryFormat).cursorIndexWriterFactory();
+            assertNotNull(factoryFormat + " must have a cursor index writer factory", factory);
+
+            try (LifecycleTransaction txn = LifecycleTransaction.offline(OperationType.COMPACTION))
+            {
+                SSTableWriter writer = CompactionManager.createWriter(cfs, cfs.getDirectories().getDirectoryForNewSSTables(),
+                                                                      0, 0, null, false, input, txn);
+                try
+                {
+                    factory.create((SortedTableWriter<?, ?>) writer, writer.header);
+                    fail("expected an IllegalStateException for a " + writer.getClass().getName() +
+                         " given to the " + factoryFormat + " factory");
+                }
+                catch (IllegalStateException e)
+                {
+                    assertMessageNames(e, factoryFormat, expectedClass, actualClass);
+                }
+                finally
+                {
+                    writer.abort();
+                }
+            }
+        }
+        finally
+        {
+            DatabaseDescriptor.setSelectedSSTableFormat(original);
+        }
+    }
+
+    private static void assertMessageNames(IllegalStateException e, String... parts)
+    {
+        for (String part : parts)
+            assertTrue("expected the message to name " + part + ": " + e.getMessage(),
+                       e.getMessage().contains(part));
     }
 
     /** Creates {@code ddl} with auto-compaction off and flushes each insert into its own sstable. */

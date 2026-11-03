@@ -123,7 +123,7 @@ public class BtiFormat extends AbstractSSTableFormat<BtiTableReader, BtiTableWri
     @Override
     public CursorIndexWriter.Factory cursorIndexWriterFactory()
     {
-        return (writer, header) -> ((BtiTableWriter) writer).createCursorIndexWriter(header);
+        return (writer, header) -> CursorIndexWriter.checkWriterType(NAME, writer, BtiTableWriter.class).createCursorIndexWriter(header);
     }
 
     @Override

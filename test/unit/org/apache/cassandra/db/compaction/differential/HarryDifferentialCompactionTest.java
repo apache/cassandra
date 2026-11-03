@@ -57,10 +57,10 @@ public class HarryDifferentialCompactionTest extends DifferentialCompactionTeste
 
         // replay with -Dcassandra.test.differential.seed=N, through test-isolated.sh or -Dtest.jvm.args
         String seedProperty = CassandraRelevantProperties.TEST_DIFFERENTIAL_SEED.getKey();
-        boolean pinned = CassandraRelevantProperties.TEST_DIFFERENTIAL_SEED.isPresent();
+        boolean seedFromProperty = CassandraRelevantProperties.TEST_DIFFERENTIAL_SEED.isPresent();
         long seed = CassandraRelevantProperties.TEST_DIFFERENTIAL_SEED.getLong(System.currentTimeMillis());
         logger.info("harryTombstoneHistories seed={} ({}); replay with -D{}={}",
-                    seed, pinned ? "from " + seedProperty : "from the clock", seedProperty, seed);
+                    seed, seedFromProperty ? "from " + seedProperty : "from the clock", seedProperty, seed);
         withRandom(seed, rng -> {
             String ks = "harry_diff_ks" + idGen.incrementAndGet();
             String table = "tbl" + idGen.incrementAndGet();

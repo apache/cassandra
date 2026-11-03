@@ -157,9 +157,9 @@ public class SSTableRewriter extends Transactional.AbstractTransactional impleme
     }
 
     /**
-     * Publishes a partial reader once {@code preemptiveOpenInterval} bytes have been written since the last one,
-     * and moves the originals' starts past what it covers. Call this only on a partition boundary: the cursor
-     * path has no {@link #append} to hang it off.
+     * Opens the sstable early once {@code preemptiveOpenInterval} bytes have been written since the last early
+     * open, and moves the originals' starts past what the early-opened reader covers. Call this only on a
+     * partition boundary: the cursor path has no {@link #append} to hang it off.
      */
     public void maybeReopenEarly(DecoratedKey key)
     {
