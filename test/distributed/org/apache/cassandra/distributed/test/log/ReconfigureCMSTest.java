@@ -28,7 +28,6 @@ import java.util.Set;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
-import java.util.function.Function;
 import java.util.function.Supplier;
 
 import org.junit.Assert;
@@ -436,18 +435,9 @@ public class ReconfigureCMSTest extends FuzzTestBase
                     // Stub the in-progress sequence to be "occupied" for 3 checks, and then "free" for any check after that
                     MultiStepOperation<?> placeholder = ReconfigureCMS.newSequence(LockedRanges.keyFor(current.nextEpoch()), PrepareCMSReconfiguration.Diff.NOCHANGE);
                     AtomicInteger lookupCalls = new AtomicInteger();
-                    Function<ClusterMetadata, MultiStepOperation<?>> previousLookup =
-                        ReconfigureCMS.replaceInProgressCMSSequenceLookup(m -> lookupCalls.incrementAndGet() <= 3 ? placeholder : null);
-
                     long retriesBefore = TCMMetrics.instance.cmsReconfigurationRetries.getCount();
-                    try
-                    {
-                        ReconfigureCMS.maybeReconfigureCMS(current, self);
-                    }
-                    finally
-                    {
-                        ReconfigureCMS.replaceInProgressCMSSequenceLookup(previousLookup);
-                    }
+
+                    ReconfigureCMS.maybeReconfigureCMS(current, self, m -> lookupCalls.incrementAndGet() <= 3 ? placeholder : null);
 
                     // 3 "occupied" responses followed by the 4th "free" one
                     Assert.assertEquals(4, lookupCalls.get());
@@ -488,28 +478,18 @@ public class ReconfigureCMSTest extends FuzzTestBase
 
                     // Stub the in-progress-sequence lookup to report "occupied" forever
                     MultiStepOperation<?> placeholder = ReconfigureCMS.newSequence(LockedRanges.keyFor(ClusterMetadata.current().nextEpoch()), PrepareCMSReconfiguration.Diff.NOCHANGE);
-                    Function<ClusterMetadata, MultiStepOperation<?>> previousLookup =
-                        ReconfigureCMS.replaceInProgressCMSSequenceLookup(m -> placeholder);
-
                     long retriesBefore = TCMMetrics.instance.cmsReconfigurationRetries.getCount();
                     try
                     {
-                        try
-                        {
-                            ReconfigureCMS.maybeReconfigureCMS(ClusterMetadata.current(), self);
-                            Assert.fail("Expected IllegalStateException after timing out waiting for the CMS reconfiguration slot to clear");
-                        }
-                        catch (IllegalStateException e)
-                        {
-                            Assert.assertTrue(e.getMessage(), e.getMessage().contains("Timed out"));
-                            long retries = TCMMetrics.instance.cmsReconfigurationRetries.getCount() - retriesBefore;
-                            Assert.assertTrue("Expected the wait loop to back off repeatedly before giving up, but it retried " + retries + " time(s)",
-                                              retries >= 5);
-                        }
+                        ReconfigureCMS.maybeReconfigureCMS(ClusterMetadata.current(), self, m -> placeholder);
+                        Assert.fail("Expected IllegalStateException after timing out waiting for the CMS reconfiguration slot to clear");
                     }
-                    finally
+                    catch (IllegalStateException e)
                     {
-                        ReconfigureCMS.replaceInProgressCMSSequenceLookup(previousLookup);
+                        Assert.assertTrue(e.getMessage(), e.getMessage().contains("Timed out"));
+                        long retries = TCMMetrics.instance.cmsReconfigurationRetries.getCount() - retriesBefore;
+                        Assert.assertTrue("Expected the wait loop to back off repeatedly before giving up, but it retried " + retries + " time(s)",
+                                          retries >= 5);
                     }
                 }
                 finally

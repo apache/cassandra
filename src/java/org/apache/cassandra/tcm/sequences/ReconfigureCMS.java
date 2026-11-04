@@ -243,18 +243,15 @@ public class ReconfigureCMS extends MultiStepOperation<AdvanceCMSReconfiguration
                                    MetaStrategy.affectedRanges(metadata));
     }
 
-    @VisibleForTesting
-    public static Function<ClusterMetadata, MultiStepOperation<?>> inProgressCMSSequenceLookup = m -> m.inProgressSequences.get(SequenceKey.instance);
-
-    @VisibleForTesting
-    public static Function<ClusterMetadata, MultiStepOperation<?>> replaceInProgressCMSSequenceLookup(Function<ClusterMetadata, MultiStepOperation<?>> newLookup)
+    public static void maybeReconfigureCMS(ClusterMetadata metadata, InetAddressAndPort toRemove)
     {
-        Function<ClusterMetadata, MultiStepOperation<?>> prev = inProgressCMSSequenceLookup;
-        inProgressCMSSequenceLookup = newLookup;
-        return prev;
+        maybeReconfigureCMS(metadata, toRemove, m -> m.inProgressSequences.get(SequenceKey.instance));
     }
 
-    public static void maybeReconfigureCMS(ClusterMetadata metadata, InetAddressAndPort toRemove)
+    @VisibleForTesting
+    public static void maybeReconfigureCMS(ClusterMetadata metadata,
+                                           InetAddressAndPort toRemove,
+                                           Function<ClusterMetadata, MultiStepOperation<?>> inProgressReconfiguration)
     {
         if (!metadata.fullCMSMembers().contains(toRemove))
             return;
@@ -269,8 +266,15 @@ public class ReconfigureCMS extends MultiStepOperation<AdvanceCMSReconfiguration
             if (!current.fullCMSMembers().contains(toRemove))
                 return;
 
-            inProgress = inProgressCMSSequenceLookup.apply(current);
-            if (inProgress == null)
+            inProgress = inProgressReconfiguration.apply(current);
+            if (inProgress != null)
+            {
+                logger.info("Deferring CMS reconfiguration to remove {} until in-progress reconfiguration {} completes ({}ms remaining before giving up)",
+                            toRemove, inProgress, NANOSECONDS.toMillis(retry.remainingNanos()));
+                retry.maybeSleep();
+                current = ClusterMetadata.current();
+            }
+            else
             {
                 Set<NodeId> downNodes = new HashSet<>();
                 for (InetAddressAndPort ep : current.directory.allJoinedEndpoints())
@@ -299,20 +303,15 @@ public class ReconfigureCMS extends MultiStepOperation<AdvanceCMSReconfiguration
                 }
 
                 current = ClusterMetadata.current();
-                inProgress = inProgressCMSSequenceLookup.apply(current);
+                inProgress = inProgressReconfiguration.apply(current);
                 if (inProgress == null)
                     throw new IllegalStateException(String.format("Can not commit transformation to remove %s from the CMS: \"%s\"(%s).",
                                                                     toRemove, failureCode.get(), failureMessage.get()));
             }
-
-            logger.info("Deferring CMS reconfiguration to remove {} until in-progress reconfiguration {} completes ({}ms remaining before giving up)",
-                        toRemove, inProgress, NANOSECONDS.toMillis(retry.remainingNanos()));
-            retry.maybeSleep();
-            current = ClusterMetadata.current();
         }
 
         throw new IllegalStateException(String.format("Timed out after %s waiting to reconfigure the CMS to remove %s: " +
-                                                        "another CMS reconfiguration (%s) has been in progress for the entire wait.",
+                                                        "another CMS reconfiguration (%s) is in progress.",
                                                         DatabaseDescriptor.getCmsReconfigurationWaitTimeout(), toRemove, inProgress));
     }
 
