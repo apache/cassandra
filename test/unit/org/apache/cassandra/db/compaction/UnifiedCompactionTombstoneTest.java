@@ -216,17 +216,34 @@ public class UnifiedCompactionTombstoneTest extends CQLTester
     @Test
     public void testOnlyPurgeRepairedTombstones() throws Throwable
     {
-        ColumnFamilyStore cfs = createTable();
-        Map<String, String> options = tombstoneOptions(true);
-        options.put("only_purge_repaired_tombstones", "true");
-        cfs.setCompactionParameters(options);
-        writeMixedSSTable(cfs);
-        SSTableReader sstable = Iterables.getOnlyElement(cfs.getLiveSSTables());
-        assertFalse(sstable.isRepaired());
-        executeTasks(strategy(cfs, sstable).getNextBackgroundTasks(FBUtilities.nowInSeconds()),
-                     OperationType.TOMBSTONE_COMPACTION, Collections.singleton(sstable));
-        assertEquals(MARKERS, countRangeTombstoneMarkers(cfs));
-        assertLiveRows();
+        for (boolean unchecked : new boolean[]{ false, true })
+        {
+            ColumnFamilyStore cfs = createTable();
+            Map<String, String> options = tombstoneOptions(unchecked);
+            options.put("only_purge_repaired_tombstones", "true");
+            cfs.setCompactionParameters(options);
+            writeMixedSSTable(cfs);
+            SSTableReader sstable = Iterables.getOnlyElement(cfs.getLiveSSTables());
+            assertFalse(sstable.isRepaired());
+            Collection<AbstractCompactionTask> tasks = strategy(cfs, sstable).getNextBackgroundTasks(FBUtilities.nowInSeconds());
+            try
+            {
+                assertTrue("Unrepaired SSTables cannot purge tombstones", tasks.isEmpty());
+            }
+            finally
+            {
+                tasks.forEach(AbstractCompactionTask::rejected);
+            }
+            assertEquals(MARKERS, countRangeTombstoneMarkers(cfs));
+            assertLiveRows();
+
+            cfs.getCompactionStrategyManager().mutateRepaired(Collections.singleton(sstable), 1L, null, false);
+            assertTrue(sstable.isRepaired());
+            executeTasks(strategy(cfs, sstable).getNextBackgroundTasks(FBUtilities.nowInSeconds()),
+                         OperationType.TOMBSTONE_COMPACTION, Collections.singleton(sstable));
+            assertEquals(0, countRangeTombstoneMarkers(cfs));
+            assertLiveRows();
+        }
     }
 
     @Test

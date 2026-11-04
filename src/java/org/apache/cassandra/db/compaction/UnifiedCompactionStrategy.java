@@ -454,6 +454,9 @@ public class UnifiedCompactionStrategy extends AbstractCompactionStrategy
                                                      left.getEstimatedDroppableTombstoneRatio(gcBefore)));
         for (SSTableReader sstable : suitable)
         {
+            if (cfs.getCompactionStrategyManager().onlyPurgeRepairedTombstones() && !sstable.isRepaired())
+                continue;
+
             if (worthDroppingTombstones(sstable, gcBefore))
                 return new CompactionPick(-1, -1, Collections.singleton(sstable), OperationType.TOMBSTONE_COMPACTION);
         }
