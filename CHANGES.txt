@@ -25,6 +25,7 @@
 Merged from 4.1:
  * PreV5Handlers.toFlushItem may leak memory on disconnected channel (CASSANDRA-21766)
 Merged from 4.0:
+ * Prepared statement metadata no longer reports slice bind markers on a partition key as partition key bind indexes (CASSANDRA-21740)
  * Delete SSTable files in order of last-updated timestamp (CASSANDRA-21649)
  * Prevent negative BufferPool overflow memory accounting (CASSANDRA-21815)
  * Respect cassandra.skip_sync in LogReplica, SSTable.appendTOC and ChecksumWriter (CASSANDRA-21835)
