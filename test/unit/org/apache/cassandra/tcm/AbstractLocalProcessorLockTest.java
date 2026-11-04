@@ -22,6 +22,7 @@ import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicReference;
+import java.util.concurrent.locks.ReentrantLock;
 
 import org.junit.BeforeClass;
 import org.junit.Test;
@@ -250,7 +251,7 @@ public class AbstractLocalProcessorLockTest
     {
         for (StackTraceElement frame : waiter.getStackTrace())
         {
-            if (frame.getClassName().equals(java.util.concurrent.locks.ReentrantLock.class.getName()))
+            if (frame.getClassName().equals(ReentrantLock.class.getName()))
                 return true;
         }
         return false;
