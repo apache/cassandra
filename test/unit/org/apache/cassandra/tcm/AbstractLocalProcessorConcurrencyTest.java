@@ -33,8 +33,10 @@ import java.util.concurrent.atomic.AtomicLong;
 import org.junit.BeforeClass;
 import org.junit.Test;
 
+import org.apache.cassandra.config.CassandraRelevantProperties;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.dht.Murmur3Partitioner;
+import org.apache.cassandra.exceptions.ExceptionCode;
 import org.apache.cassandra.metrics.TCMMetrics;
 import org.apache.cassandra.service.WaitStrategy;
 import org.apache.cassandra.tcm.log.Entry;
@@ -44,6 +46,7 @@ import org.apache.cassandra.tcm.sequences.LockedRanges;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertTrue;
+import static org.junit.Assert.fail;
 
 public class AbstractLocalProcessorConcurrencyTest
 {
@@ -102,7 +105,7 @@ public class AbstractLocalProcessorConcurrencyTest
             try
             {
                 get(queued);
-                org.junit.Assert.fail("Expected membership rejection");
+                fail("Expected membership rejection");
             }
             catch (ExecutionException e)
             {
@@ -183,7 +186,7 @@ public class AbstractLocalProcessorConcurrencyTest
     @Test
     public void concurrentProposalsFuzz() throws Exception
     {
-        long seed = org.apache.cassandra.config.CassandraRelevantProperties.TEST_SEED.getLong(21537L);
+        long seed = CassandraRelevantProperties.TEST_SEED.getLong(21537L);
         Random random = new Random(seed);
         for (int round = 0; round < 20; ++round)
         {
@@ -271,7 +274,7 @@ public class AbstractLocalProcessorConcurrencyTest
                 public Result execute(ClusterMetadata metadata)
                 {
                     if (rejectFirst && 1 == id && metadata.epoch.is(Epoch.EMPTY))
-                        return new Rejected(org.apache.cassandra.exceptions.ExceptionCode.INVALID, "stale metadata");
+                        return new Rejected(ExceptionCode.INVALID, "stale metadata");
                     return Transformation.success(metadata.transformer(), LockedRanges.AffectedRanges.EMPTY);
                 }
             };
