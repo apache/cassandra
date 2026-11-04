@@ -146,7 +146,7 @@ public class ImmutableCoordinatorLogOffsets implements CoordinatorLogOffsets<Off
         boolean first = true;
         for (Long logId : mutations)
         {
-            builder.append(first ? ", " : ", ");
+            builder.append(first ? "" : ", ");
             first = false;
 
             Offsets.Immutable offsets = mutations.getOffsets(logId);
