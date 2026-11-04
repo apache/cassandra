@@ -714,8 +714,8 @@ public class Paxos
                                              long minHLC)
             throws UnavailableException, IsBootstrappingException, RequestFailureException, RequestTimeoutException, InvalidRequestException
     {
-        final long proposeDeadline = requestTime.startedAtNanos() + getCasContentionTimeout(NANOSECONDS);
-        final long commitDeadline = Math.max(proposeDeadline, requestTime.startedAtNanos() + getWriteRpcTimeout(NANOSECONDS));
+        final long proposeDeadline = requestTime.computeDeadline(getCasContentionTimeout(NANOSECONDS));
+        final long commitDeadline = Math.max(proposeDeadline, requestTime.computeDeadline(getWriteRpcTimeout(NANOSECONDS)));
         SinglePartitionReadCommand readCommand = request.readCommand(FBUtilities.nowInSeconds());
         TableMetadata metadata = readCommand.metadata();
 
