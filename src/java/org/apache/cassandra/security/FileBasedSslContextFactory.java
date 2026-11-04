@@ -19,23 +19,32 @@
 package org.apache.cassandra.security;
 
 import java.io.InputStream;
+import java.lang.reflect.Method;
 import java.nio.file.Files;
 import java.security.KeyStore;
 import java.security.KeyStoreException;
+import java.security.cert.Certificate;
 import java.security.cert.X509Certificate;
 import java.util.ArrayList;
 import java.util.Date;
 import java.util.Enumeration;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.ScheduledFuture;
+import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicReferenceFieldUpdater;
 import javax.net.ssl.KeyManagerFactory;
 import javax.net.ssl.SSLException;
 import javax.net.ssl.TrustManagerFactory;
 
+import com.google.common.annotations.VisibleForTesting;
 import org.apache.commons.lang3.StringUtils;
+import org.apache.commons.lang3.reflect.MethodUtils;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import org.apache.cassandra.concurrent.ScheduledExecutors;
 import org.apache.cassandra.io.util.File;
 import org.apache.cassandra.utils.Clock;
 
@@ -49,6 +58,15 @@ import org.apache.cassandra.utils.Clock;
 public abstract class FileBasedSslContextFactory extends AbstractSslContextFactory
 {
     private static final Logger logger = LoggerFactory.getLogger(FileBasedSslContextFactory.class);
+
+    /**
+     * Whether this instance's concrete class overrides {@link #checkExpiredCerts(KeyStore)}. Resolved once, at
+     * construction: if it does we hand that override a {@link KeyStore}; otherwise we feed the already-scanned expiry
+     * map straight to {@link #checkExpiredCerts(Map)} and skip a redundant scan.
+     */
+    @VisibleForTesting
+    final boolean checkExpiredCertsOverridden = isCheckExpiredCertsOverridden(getClass());
+
     protected FileBasedStoreContext keystoreContext;
     protected FileBasedStoreContext outboundKeystoreContext;
     protected FileBasedStoreContext trustStoreContext;
@@ -78,6 +96,21 @@ public abstract class FileBasedSslContextFactory extends AbstractSslContextFacto
     public boolean shouldReload()
     {
         return hotReloadableFiles.stream().anyMatch(HotReloadableFile::shouldReload);
+    }
+
+    @Override
+    public void onReloadSuccess()
+    {
+        for (HotReloadableFile file : hotReloadableFiles)
+            file.commit();
+    }
+
+    @Override
+    public void onReloadRequired()
+    {
+        // Force the next successful load to re-scan certificate expiry for the new keystore contents.
+        keystoreContext.checkedExpiry = false;
+        outboundKeystoreContext.checkedExpiry = false;
     }
 
     @Override
@@ -145,7 +178,7 @@ public abstract class FileBasedSslContextFactory extends AbstractSslContextFacto
      * expiry and logs {@code warning} for each expired PrivateKey's certitificate.
      *
      * @return KeyManagerFactory built from the file based keystore.
-     * @throws SSLException if any issues encountered during the build process
+     * @throws SSLException             if any issues encountered during the build process
      * @throws IllegalArgumentException if the validation for the {@code keystore_password} fails
      * @see #validatePassword(boolean, String)
      */
@@ -199,6 +232,7 @@ public abstract class FileBasedSslContextFactory extends AbstractSslContextFacto
 
     private KeyManagerFactory getKeyManagerFactory(final FileBasedStoreContext context) throws SSLException
     {
+        long nowInMillis = Clock.Global.currentTimeMillis();
         try (InputStream ksf = Files.newInputStream(File.getPath(context.filePath)))
         {
             final String algorithm = this.algorithm == null ? KeyManagerFactory.getDefaultAlgorithm() : this.algorithm;
@@ -207,12 +241,17 @@ public abstract class FileBasedSslContextFactory extends AbstractSslContextFacto
             final char[] password = context.password.toCharArray();
             ks.load(ksf, password);
 
+            Map<String, Date> expiries = certificateExpiries(ks);
             if (!context.checkedExpiry)
             {
-                checkExpiredCerts(ks);
+                if (checkExpiredCertsOverridden)
+                    checkExpiredCerts(ks);       // honor the custom override, its contract takes a KeyStore
+                else
+                    checkExpiredCerts(expiries, nowInMillis); // default path, reuse the scan we already did
                 context.checkedExpiry = true;
             }
             kmf.init(ks, password);
+            scheduleExpiryWarning(context, expiries, nowInMillis);
             return kmf;
         }
         catch (Exception e)
@@ -221,24 +260,114 @@ public abstract class FileBasedSslContextFactory extends AbstractSslContextFacto
         }
     }
 
-    protected boolean checkExpiredCerts(KeyStore ks) throws KeyStoreException
+    protected boolean checkExpiredCerts(Map<String, Date> expiries, long nowInMillis)
     {
         boolean hasExpiredCerts = false;
-        final Date now = new Date(Clock.Global.currentTimeMillis());
-        for (Enumeration<String> aliases = ks.aliases(); aliases.hasMoreElements(); )
+        final Date now = new Date(nowInMillis);
+        for (Map.Entry<String, Date> entry : expiries.entrySet())
         {
-            String alias = aliases.nextElement();
-            if (ks.getCertificate(alias).getType().equals("X.509"))
+            if (entry.getValue().before(now))
             {
-                Date expires = ((X509Certificate) ks.getCertificate(alias)).getNotAfter();
-                if (expires.before(now))
-                {
-                    hasExpiredCerts = true;
-                    logger.warn("Certificate for {} expired on {}", alias, expires);
-                }
+                hasExpiredCerts = true;
+                logger.warn("Certificate for {} expired on {}", entry.getKey(), entry.getValue());
             }
         }
         return hasExpiredCerts;
+    }
+
+    /**
+     * Logs a warning for every already-expired X.509 certificate in the keystore. Retained with its original
+     * {@code KeyStore} signature (this is inherited, overridable API) so custom {@link ISslContextFactory}
+     * subclasses that override or call it are unaffected, the shared scan/log logic lives in
+     * {@link #certificateExpiries}. Prefer overriding the pre-computed {@code Map<String, Date> expiries}
+     * version
+     */
+    protected boolean checkExpiredCerts(KeyStore ks) throws KeyStoreException
+    {
+        return checkExpiredCerts(certificateExpiries(ks), Clock.Global.currentTimeMillis());
+    }
+
+    /**
+     * @return whether {@code clazz} (or any class between it and {@link FileBasedSslContextFactory}) overrides
+     * {@link #checkExpiredCerts(KeyStore)}. {@link MethodUtils#getMatchingMethod} resolves the method through the whole
+     * hierarchy including non-public members (unlike {@link Class#getMethod}, which is public-only, or
+     * {@link Class#getDeclaredMethod}, which does not walk); the override is present iff it resolves to a class other
+     * than {@link FileBasedSslContextFactory}.
+     */
+    private static boolean isCheckExpiredCertsOverridden(Class<?> clazz)
+    {
+        Method resolved = MethodUtils.getMatchingMethod(clazz, "checkExpiredCerts", KeyStore.class);
+        return resolved != null && resolved.getDeclaringClass() != FileBasedSslContextFactory.class;
+    }
+
+    /**
+     * @return the earliest {@code notAfter} in {@code expiries}, or {@code null} if empty.
+     */
+    Date earliestExpiry(Map<String, Date> expiries)
+    {
+        Date earliest = null;
+        for (Date expires : expiries.values())
+        {
+            if (earliest == null || expires.before(earliest))
+                earliest = expires;
+        }
+        return earliest;
+    }
+
+    /**
+     * Collects the {@code notAfter} expiry of every X.509 certificate in {@code ks}, keyed by alias. Non-X.509
+     * entries and aliases without a certificate (e.g. secret-key entries, for which {@link KeyStore#getCertificate}
+     * returns {@code null}) are skipped. This is the single point where the store is scanned for expiries, shared by
+     * {@link #checkExpiredCerts} and {@link #earliestExpiry} so both see identical entries.
+     * <p>
+     * NOTE: this scans <em>every</em> alias, and for a private-key entry {@link KeyStore#getCertificate} returns only
+     * the leaf certificate (not the chain). If the keystore holds unnecessary extra entries (e.g. a stale key entry
+     * from a prior rotation, or a trusted-CA certificate dumped into the keystore) whose {@code notAfter} is earlier
+     * than the certificate actually presented on connections, the earliest-expiry computed here will be skewed early
+     * and the expiry warning may be misattributed to a certificate that is not operationally in use. This only affects
+     * the warning/logging; it cannot break the handshake, since the {@link javax.net.ssl.KeyManager} selects the alias
+     * to present independently at handshake time. Intermediate/root CAs inside a key entry's chain are not scanned.
+     */
+    protected Map<String, Date> certificateExpiries(KeyStore ks) throws KeyStoreException
+    {
+        Map<String, Date> expiries = new HashMap<>();
+        for (Enumeration<String> aliases = ks.aliases(); aliases.hasMoreElements(); )
+        {
+            String alias = aliases.nextElement();
+            Certificate cert = ks.getCertificate(alias);
+            if (cert instanceof X509Certificate)
+                expiries.put(alias, ((X509Certificate) cert).getNotAfter());
+        }
+        return expiries;
+    }
+
+    /**
+     * Schedules a one-shot warning to fire when the earliest-expiring certificate in {@code expiries} reaches its
+     * {@code notAfter}. Cancels and replaces any warning previously scheduled for {@code context}, so a reload
+     * refreshes the timer. Certificates already expired at load time are handled by {@link #checkExpiredCerts}
+     * (an immediate warning), so no future task is scheduled for them.
+     */
+    protected void scheduleExpiryWarning(FileBasedStoreContext context, Map<String, Date> expiries, long nowInMillis)
+    {
+        ScheduledFuture<?> newFuture = null;
+        Date earliest = earliestExpiry(expiries);
+        if (earliest != null)
+        {
+            long delayMillis = earliest.getTime() - nowInMillis;
+            if (delayMillis > 0)
+            {
+                final String path = context.filePath;
+                final Date expiresAt = earliest;
+                newFuture = ScheduledExecutors.scheduledTasks.schedule(
+                () -> logger.warn("Certificate in keystore {} has expired (notAfter={})", path, expiresAt),
+                delayMillis, TimeUnit.MILLISECONDS);
+            }
+            // else already expired; checkExpiredCerts already warned
+        }
+
+        ScheduledFuture<?> old = FileBasedStoreContext.expiryWarningFutureUpdater.getAndSet(context, newFuture);
+        if (old != null)
+            old.cancel(false);
     }
 
     /**
@@ -248,6 +377,7 @@ public abstract class FileBasedSslContextFactory extends AbstractSslContextFacto
     {
         private final File file;
         private volatile long lastModTime;
+        private volatile long lastShouldReloadTime;
 
         HotReloadableFile(String path)
         {
@@ -257,10 +387,15 @@ public abstract class FileBasedSslContextFactory extends AbstractSslContextFacto
 
         boolean shouldReload()
         {
-            long curModTime = file.lastModified();
-            boolean result = curModTime != lastModTime;
-            lastModTime = curModTime;
-            return result;
+            lastShouldReloadTime = file.lastModified();
+            return lastShouldReloadTime != lastModTime;
+        }
+
+        void commit()
+        {
+            long last = file.lastModified();
+            if (last == lastShouldReloadTime) // only commit if not updated since the check
+                lastModTime = lastShouldReloadTime;
         }
 
         @Override
@@ -276,8 +411,12 @@ public abstract class FileBasedSslContextFactory extends AbstractSslContextFacto
     protected static class FileBasedStoreContext
     {
         public volatile boolean checkedExpiry = false;
+        volatile ScheduledFuture<?> expiryWarningFuture;
         public String filePath;
         public String password;
+
+        private static final AtomicReferenceFieldUpdater<FileBasedStoreContext, ScheduledFuture> expiryWarningFutureUpdater
+        = AtomicReferenceFieldUpdater.newUpdater(FileBasedStoreContext.class, ScheduledFuture.class, "expiryWarningFuture");
 
         public FileBasedStoreContext(String keystore, String keystorePassword)
         {
