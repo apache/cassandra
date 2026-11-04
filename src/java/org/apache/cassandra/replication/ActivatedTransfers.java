@@ -184,6 +184,11 @@ public class ActivatedTransfers implements Iterable<ShortMutationId>
         return transfers.isEmpty();
     }
 
+    public int size()
+    {
+        return transfers.size();
+    }
+
     public static Bounds<Token> covering(Collection<SSTableReader> sstables)
     {
         Preconditions.checkArgument(!sstables.isEmpty());
@@ -251,9 +256,32 @@ public class ActivatedTransfers implements Iterable<ShortMutationId>
     @Override
     public String toString()
     {
-        return "ActivatedTransfers{" +
-               "transfers=" + transfers +
-               '}';
+        return toString(false);
+    }
+
+    /**
+     * Transfers have no range structure to collapse, so the verbose form lists ids. Ids are rendered as
+     * {@code hostId:hostLogId:offset} rather than via {@link ShortMutationId#toString()} to keep the line
+     * readable when several transfers are present. Only enable verbose output for trace logging that is expected
+     * to be verbose.
+     */
+    public String toString(boolean verbose)
+    {
+        StringBuilder builder = new StringBuilder("ActivatedTransfers{transfers=").append(size());
+        if (!verbose || transfers.isEmpty())
+            return builder.append('}').toString();
+
+        boolean first = true;
+        for (ActivatedTransfer transfer : transfers)
+        {
+            if (!first)
+                builder.append(',');
+            first = false;
+            builder.append(transfer.id.hostId())
+                   .append(':').append(transfer.id.hostLogId())
+                   .append(':').append(transfer.id.offset());
+        }
+        return builder.append('}').toString();
     }
 
     public static final VersionedSerializer<ActivatedTransfers> serializer = new VersionedSerializer<>()

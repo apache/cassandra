@@ -61,6 +61,7 @@ import org.apache.cassandra.schema.TableMetadata;
 import org.apache.cassandra.service.ActiveRepairService;
 import org.apache.cassandra.service.snapshot.SnapshotManager;
 import org.apache.cassandra.service.snapshot.TableSnapshot;
+import org.apache.cassandra.streaming.PreviewKind;
 import org.apache.cassandra.utils.TimeUUID;
 import org.apache.cassandra.utils.concurrent.Refs;
 
@@ -160,10 +161,15 @@ public class CassandraValidationIterator extends ValidationPartitionIterator
         {
             for (SSTableReader sstable : sstableCandidates.sstables)
             {
-                if (new Bounds<>(sstable.getFirst().getToken(), sstable.getLast().getToken()).intersects(ranges) && predicate.apply(sstable))
-                {
+                boolean intersects = new Bounds<>(sstable.getFirst().getToken(), sstable.getLast().getToken()).intersects(ranges);
+                boolean selected = intersects && predicate.apply(sstable);
+                if (selected)
                     sstablesToValidate.add(sstable);
-                }
+
+                if (validationOffsets != null && logger.isTraceEnabled())
+                    logger.trace("{} Validation selection for {}: {} - {}",
+                                 prs.previewKind.logPrefix(parentId), sstable, selected ? "selected" : "skipped",
+                                 selectionReason(sstable, intersects, selected, validationOffsets));
             }
 
             sstables = Refs.tryRef(sstablesToValidate);
@@ -177,7 +183,31 @@ public class CassandraValidationIterator extends ValidationPartitionIterator
         return sstables;
     }
 
+    private static String selectionReason(SSTableReader sstable, boolean intersects, boolean selected, ValidationOffsets validationOffsets)
+    {
+        String offsets = sstable.getCoordinatorLogOffsets().toString(true);
+        if (!intersects)
+            return "out of range, offsets=" + offsets;
+        if (sstable.isRepaired())
+            return (selected ? "" : "not selected despite being repaired, ") + "repaired, no offset check, offsets=" + offsets;
+        if (selected)
+            return "unrepaired, offsets covered, offsets=" + offsets;
+        return "unrepaired, offsets not covered by " + validationOffsets.toString(true) + ", offsets=" + offsets;
+    }
+
+    TimeUUID parentId()
+    {
+        return parentId;
+    }
+
+    PreviewKind previewKind()
+    {
+        return previewKind;
+    }
+
     private final ColumnFamilyStore cfs;
+    private final TimeUUID parentId;
+    private final PreviewKind previewKind;
     private final Refs<SSTableReader> sstables;
     private final String snapshotName;
     private final boolean isGlobalSnapshotValidation;
@@ -195,6 +225,7 @@ public class CassandraValidationIterator extends ValidationPartitionIterator
     public CassandraValidationIterator(ColumnFamilyStore cfs, SharedContext ctx, Collection<Range<Token>> ranges, TimeUUID parentId, TimeUUID sessionID, boolean isIncremental, long nowInSec, boolean dontPurgeTombstones, ValidationOffsets validationOffsets, TopPartitionTracker.Collector topPartitionCollector) throws IOException, NoSuchRepairSessionException
     {
         this.cfs = cfs;
+        this.parentId = parentId;
 
         isGlobalSnapshotValidation = SnapshotManager.instance.exists(cfs.getKeyspaceName(), cfs.getTableName(), parentId.toString());
         if (isGlobalSnapshotValidation)
@@ -234,6 +265,7 @@ public class CassandraValidationIterator extends ValidationPartitionIterator
         Preconditions.checkArgument(sstables != null);
 
         ActiveRepairService.ParentRepairSession prs = ctx.repair().getParentRepairSession(parentId);
+        previewKind = prs.previewKind;
         logger.info("{}, parentSessionId={}: Performing validation compaction on {} sstables in {}.{}",
                     prs.previewKind.logPrefix(sessionID),
                     parentId,

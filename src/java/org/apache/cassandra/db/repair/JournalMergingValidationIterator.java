@@ -28,6 +28,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.NavigableMap;
 import java.util.TreeMap;
+import java.util.function.LongPredicate;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -38,21 +39,28 @@ import org.apache.cassandra.db.Mutation;
 import org.apache.cassandra.db.RegularAndStaticColumns;
 import org.apache.cassandra.db.partitions.AbstractUnfilteredPartitionIterator;
 import org.apache.cassandra.db.partitions.PartitionUpdate;
+import org.apache.cassandra.db.partitions.PurgeFunction;
 import org.apache.cassandra.db.partitions.UnfilteredPartitionIterator;
 import org.apache.cassandra.db.partitions.UnfilteredPartitionIterators;
 import org.apache.cassandra.db.rows.DeserializationHelper;
 import org.apache.cassandra.db.rows.UnfilteredRowIterator;
 import org.apache.cassandra.db.rows.UnfilteredRowIterators;
 import org.apache.cassandra.db.rows.WrappingUnfilteredRowIterator;
+import org.apache.cassandra.db.transform.Transformation;
 import org.apache.cassandra.dht.Range;
 import org.apache.cassandra.dht.Token;
 import org.apache.cassandra.io.util.DataInputBuffer;
 import org.apache.cassandra.repair.ValidationPartitionIterator;
+import org.apache.cassandra.replication.ImmutableCoordinatorLogOffsets;
 import org.apache.cassandra.replication.MutationJournal;
 import org.apache.cassandra.replication.ShortMutationId;
 import org.apache.cassandra.replication.ValidationOffsets;
 import org.apache.cassandra.schema.TableId;
 import org.apache.cassandra.schema.TableMetadata;
+import org.apache.cassandra.streaming.PreviewKind;
+import org.apache.cassandra.utils.TimeUUID;
+
+import static org.apache.cassandra.db.repair.CassandraValidationIterator.getDefaultGcBefore;
 
 /**
  * Merges a {@link CassandraValidationIterator}'s SSTable-sourced partitions with
@@ -73,14 +81,27 @@ public class JournalMergingValidationIterator extends ValidationPartitionIterato
     public JournalMergingValidationIterator(ColumnFamilyStore cfs,
                                             CassandraValidationIterator sstableIterator,
                                             Collection<Range<Token>> ranges,
-                                            ValidationOffsets validationOffsets)
+                                            ValidationOffsets validationOffsets,
+                                            long nowInSec,
+                                            boolean dontPurgeTombstones)
     {
         this.sstableIterator = sstableIterator;
         // Narrow the offsets for the journal to exclude anything the selected SSTables already cover.
         // The journal isn't pruned on flush, so without this, we could merge the same data from both sources.
-        ValidationOffsets journalOffsets = validationOffsets.without(sstableIterator.sstableCoordinatorLogOffsets());
+        ImmutableCoordinatorLogOffsets sstableOffsets = sstableIterator.sstableCoordinatorLogOffsets();
+        ValidationOffsets journalOffsets = validationOffsets.without(sstableOffsets);
 
-        JournalPartitionAccessor journalAccessor = JournalPartitionAccessor.build(cfs, ranges, journalOffsets);
+        if (logger.isTraceEnabled())
+        {
+            logger.trace("{} Journal validtion iterator segments selected for {}.{}: agreed={}, sstableOffsets={}, journalRequest={}",
+                         sstableIterator.previewKind().logPrefix(sstableIterator.parentId()),
+                         cfs.getKeyspaceName(), cfs.getTableName(),
+                         validationOffsets.toString(true), sstableOffsets.toString(true), journalOffsets.toString(true));
+        }
+
+        JournalPartitionAccessor journalAccessor = JournalPartitionAccessor.build(cfs, ranges, journalOffsets,
+                                                                                sstableIterator.previewKind(),
+                                                                                sstableIterator.parentId());
         try
         {
             JournalPartitionIterator journalIterator = new JournalPartitionIterator(journalAccessor);
@@ -90,7 +111,18 @@ public class JournalMergingValidationIterator extends ValidationPartitionIterato
             this.rangePartitionCounts = new HashMap<>(sstableIterator.getRangePartitionCounts());
             for (Map.Entry<Range<Token>, Long> entry : journalAccessor.rangeCounts.entrySet())
                 rangePartitionCounts.merge(entry.getKey(), entry.getValue(), Long::sum);
-            this.merged = UnfilteredPartitionIterators.merge(List.of(sstableIterator, journalIterator), UnfilteredPartitionIterators.MergeListener.NOOP);
+
+            UnfilteredPartitionIterator iter = UnfilteredPartitionIterators.merge(List.of(sstableIterator, journalIterator), UnfilteredPartitionIterators.MergeListener.NOOP);
+            long gcBefore = dontPurgeTombstones ? Long.MIN_VALUE : getDefaultGcBefore(cfs, nowInSec);
+            PurgeFunction purger = new PurgeFunction(nowInSec, gcBefore, Long.MIN_VALUE, false, cfs.metadata().enforceStrictLiveness())
+            {
+                @Override
+                protected LongPredicate getPurgeEvaluator()
+                {
+                    return time -> true;
+                }
+            };
+            this.merged = Transformation.apply(iter, purger);
         }
         catch (Throwable t)
         {
@@ -170,12 +202,12 @@ public class JournalMergingValidationIterator extends ValidationPartitionIterato
             this.snapshot = snapshot;
         }
 
-        static JournalPartitionAccessor build(ColumnFamilyStore cfs, Collection<Range<Token>> ranges, ValidationOffsets validationOffsets)
+        static JournalPartitionAccessor build(ColumnFamilyStore cfs, Collection<Range<Token>> ranges, ValidationOffsets validationOffsets, PreviewKind previewKind, TimeUUID parentId)
         {
             MutationJournal.Snapshot snapshot = MutationJournal.instance().snapshot(validationOffsets);
             try
             {
-                return buildFromSnapshot(snapshot, cfs, ranges, validationOffsets);
+                return buildFromSnapshot(snapshot, cfs, ranges, validationOffsets, previewKind, parentId);
             }
             catch (Throwable t)
             {
@@ -184,7 +216,7 @@ public class JournalMergingValidationIterator extends ValidationPartitionIterato
             }
         }
 
-        private static JournalPartitionAccessor buildFromSnapshot(MutationJournal.Snapshot snapshot, ColumnFamilyStore cfs, Collection<Range<Token>> ranges, ValidationOffsets validationOffsets)
+        private static JournalPartitionAccessor buildFromSnapshot(MutationJournal.Snapshot snapshot, ColumnFamilyStore cfs, Collection<Range<Token>> ranges, ValidationOffsets validationOffsets, PreviewKind previewKind, TimeUUID parentId)
         {
             TableMetadata metadata = cfs.metadata();
             TableId tableId = metadata.id;
@@ -232,7 +264,11 @@ public class JournalMergingValidationIterator extends ValidationPartitionIterato
                 }
             });
 
-            logger.info("Performing journal validation on {} partitions ({} bytes) in {}.{}", byKey.size(), estimatedBytes[0], metadata.keyspace, metadata.name);
+            String prefix = previewKind.logPrefix(parentId);
+            logger.info("{} Performing journal validation on {} partitions ({} bytes) in {}.{}", prefix, byKey.size(), estimatedBytes[0], metadata.keyspace, metadata.name);
+            if (logger.isTraceEnabled())
+                logger.trace("{} Journal scan for {}.{}: journalRequest={}, rangeCounts={}",
+                             prefix, metadata.keyspace, metadata.name, validationOffsets.toString(true), rangeCounts);
             return new JournalPartitionAccessor(metadata, byKey, estimatedBytes[0], rangeCounts, snapshot);
         }
 
