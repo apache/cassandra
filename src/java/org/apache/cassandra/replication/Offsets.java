@@ -23,6 +23,8 @@ import java.util.Collection;
 import java.util.Iterator;
 import java.util.List;
 
+import javax.annotation.Nullable;
+
 import com.google.common.base.Function;
 import com.google.common.base.Objects;
 import com.google.common.base.Preconditions;
@@ -178,6 +180,28 @@ public abstract class Offsets implements Iterable<ShortMutationId>
             if (i < size) builder.append(',');
         }
         return builder.append('}').toString();
+    }
+
+    static void appendRanges(StringBuilder builder, Offsets.RangeIterator ranges)
+    {
+        builder.append('{');
+        for (int rendered = 0; ranges.tryAdvance(); rendered++)
+        {
+            if (rendered > 0)
+                builder.append(',');
+            builder.append('[').append(ranges.start()).append(',').append(ranges.end()).append(']');
+        }
+        builder.append('}');
+    }
+
+    static void appendRanges(StringBuilder builder, @Nullable Immutable offsets)
+    {
+        if (offsets == null)
+        {
+            builder.append("{}");
+            return;
+        }
+        appendRanges(builder, offsets.rangeIterator());
     }
 
     public boolean contains(int offset)
