@@ -169,6 +169,12 @@ public abstract class AbstractCell<V> extends Cell<V>
                + (path == null ? 0 : path.dataSize());
     }
 
+    @Override
+    public int liveDataSize(long nowInSec)
+    {
+        return isLive(nowInSec) ? dataSize() : 0;
+    }
+
     public void digest(Digest digest)
     {
         if (isCounterCell())

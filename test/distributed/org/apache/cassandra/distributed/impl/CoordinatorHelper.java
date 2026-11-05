@@ -24,6 +24,7 @@ import java.util.ArrayList;
 import java.util.List;
 
 import org.apache.cassandra.cql3.CQLStatement;
+import org.apache.cassandra.cql3.PageSize;
 import org.apache.cassandra.cql3.QueryOptions;
 import org.apache.cassandra.cql3.QueryProcessor;
 import org.apache.cassandra.distributed.api.ConsistencyLevel;
@@ -71,7 +72,7 @@ public class CoordinatorHelper
                                                  QueryOptions.create(toCassandraCL(commitConsistencyLevel),
                                                                      boundBBValues,
                                                                      false,
-                                                                     Integer.MAX_VALUE,
+                                                                     PageSize.NONE,
                                                                      null,
                                                                      toCassandraSerialCL(serialConsistencyLevel),
                                                                      ProtocolVersion.CURRENT,

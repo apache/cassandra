@@ -61,8 +61,7 @@ public class RegexpConstraintTest
     @Test
     public void testInvalidPattern()
     {
-        ColumnConstraints invalid = new ColumnConstraints(of(new Raw(regexpFunctionIdentifier, List.of(), Operator.EQ, "'*abc'").prepare()));
-        assertThatThrownBy(() -> invalid.validate(regularStringColumn))
+        assertThatThrownBy(() -> new ColumnConstraints(of(new Raw(regexpFunctionIdentifier, List.of(), Operator.EQ, "'*abc'").prepare())))
         .hasMessage("String '*abc' is not a valid regular expression")
         .isInstanceOf(InvalidConstraintDefinitionException.class);
     }
