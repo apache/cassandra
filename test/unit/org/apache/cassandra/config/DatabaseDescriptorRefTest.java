@@ -138,6 +138,7 @@ public class DatabaseDescriptorRefTest
     "org.apache.cassandra.repair.autorepair.FullRepairState",
     "org.apache.cassandra.repair.autorepair.IAutoRepairTokenRangeSplitter",
     "org.apache.cassandra.repair.autorepair.IncrementalRepairState",
+    "org.apache.cassandra.repair.autorepair.PaxosCleanupState",
     "org.apache.cassandra.repair.autorepair.PreviewRepairedState",
     "org.apache.cassandra.repair.autorepair.RepairTokenRangeSplitter",
     "org.apache.cassandra.config.DatabaseDescriptor$ByteUnit",
