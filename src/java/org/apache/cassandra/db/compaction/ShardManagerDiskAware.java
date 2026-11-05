@@ -39,9 +39,9 @@ public class ShardManagerDiskAware extends ShardManagerNoDisks
     private final int[] diskStartRangeIndex;
     private final List<Token> diskBoundaries;
 
-    public ShardManagerDiskAware(ColumnFamilyStore.VersionedLocalRanges localRanges, List<Token> diskBoundaries)
+    public ShardManagerDiskAware(ColumnFamilyStore.VersionedLocalRanges localRanges, List<Token> diskBoundaries, long estimatedPartitionCount)
     {
-        super(localRanges);
+        super(localRanges, estimatedPartitionCount);
         assert diskBoundaries != null && !diskBoundaries.isEmpty();
         this.diskBoundaries = diskBoundaries;
 
@@ -117,6 +117,8 @@ public class ShardManagerDiskAware extends ShardManagerNoDisks
         void enterDisk(int diskIndex)
         {
             this.diskIndex = diskIndex;
+            // advanceTo can enter a later disk directly, so start at the previous disk's boundary
+            currentStart = diskIndex > 0 ? diskBoundaries.get(diskIndex - 1) : localRanges.get(0).left();
             currentRange = 0;
             diskStart = diskIndex > 0 ? diskBoundaryPositions[diskIndex - 1] : 0;
             shardStep = (diskBoundaryPositions[diskIndex] - diskStart) / countPerDisk;

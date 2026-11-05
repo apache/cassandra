@@ -743,6 +743,7 @@ public enum CassandraRelevantProperties
     TYPE_UDT_CONFLICT_BEHAVIOR("cassandra.type.udt.conflict_behavior"),
     // See org.apache.cassandra.db.compaction.unified.Controller for the definition of the UCS parameters
     UCS_BASE_SHARD_COUNT("unified_compaction.base_shard_count", "4"),
+    UCS_MAX_SSTABLES_PER_SHARD_FACTOR("unified_compaction.max_sstables_per_shard_factor", "10"),
     UCS_MIN_SSTABLE_SIZE("unified_compaction.min_sstable_size", "100MiB"),
     UCS_OVERLAP_INCLUSION_METHOD("unified_compaction.overlap_inclusion_method"),
     UCS_PARALLELIZE_OUTPUT_SHARDS("unified_compaction.parallelize_output_shards", "true"),

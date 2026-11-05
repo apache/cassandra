@@ -135,7 +135,8 @@ class PartitionStateBuilder extends VisitExecutor
                     // We could apply static columns during the first iteration, but it's more convenient
                     // to reconcile static-level deletions.
                     partitionState.writeStatic(writeStaticOp.sds(), lts);
-                    partitionState.writeRegular(cd, writeOp.vds(), lts, op.kind() == INSERT);
+                    if (op.kind() == INSERT || Arrays.stream(writeOp.vds()).anyMatch(vd -> MagicConstants.UNSET_DESCR != vd))
+                        partitionState.writeRegular(cd, writeOp.vds(), lts, op.kind() == INSERT);
                     break;
                 default:
                     throw new IllegalStateException(op.kind().toString());
@@ -146,7 +147,7 @@ class PartitionStateBuilder extends VisitExecutor
         {
             DeleteColumnsOp deleteColumnsOp = (DeleteColumnsOp) op;
             partitionState.deleteStaticColumns(lts, deleteColumnsOp.staticColumns());
-            partitionState.deleteRegularColumns(lts, deleteColumnsOp.cd(), deleteColumnsOp.staticColumns());
+            partitionState.deleteRegularColumns(lts, deleteColumnsOp.cd(), deleteColumnsOp.regularColumns());
         }
 
         for (Operation rangeDelete : rangeDeletes)
