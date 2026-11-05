@@ -44,6 +44,7 @@ public final class AutoRepairParams
         FULL_ENABLED,
         INCREMENTAL_ENABLED,
         PREVIEW_REPAIRED_ENABLED,
+        PAXOS_CLEANUP_ENABLED,
         PRIORITY;
 
         @Override
@@ -59,6 +60,7 @@ public final class AutoRepairParams
     LocalizeString.toLowerCaseLocalized(Option.FULL_ENABLED.name()), Boolean.toString(true),
     LocalizeString.toLowerCaseLocalized(Option.INCREMENTAL_ENABLED.name()), Boolean.toString(true),
     LocalizeString.toLowerCaseLocalized(Option.PREVIEW_REPAIRED_ENABLED.name()), Boolean.toString(true),
+    LocalizeString.toLowerCaseLocalized(Option.PAXOS_CLEANUP_ENABLED.name()), Boolean.toString(true),
     Option.PRIORITY.toString(), "0"
     );
 
@@ -126,6 +128,12 @@ public final class AutoRepairParams
             throw new ConfigurationException(format("Invalid value %s for '%s' repair sub-option - must be a boolean",
                                                     options.get(LocalizeString.toLowerCaseLocalized(Option.PREVIEW_REPAIRED_ENABLED.toString())),
                                                     Option.PREVIEW_REPAIRED_ENABLED));
+        }
+        if (options.get(LocalizeString.toLowerCaseLocalized(Option.PAXOS_CLEANUP_ENABLED.toString())) != null && !isValidBoolean(options.get(LocalizeString.toLowerCaseLocalized(Option.PAXOS_CLEANUP_ENABLED.toString()))))
+        {
+            throw new ConfigurationException(format("Invalid value %s for '%s' repair sub-option - must be a boolean",
+                                                    options.get(LocalizeString.toLowerCaseLocalized(Option.PAXOS_CLEANUP_ENABLED.toString())),
+                                                    Option.PAXOS_CLEANUP_ENABLED));
         }
         if (options.get(LocalizeString.toLowerCaseLocalized(Option.PRIORITY.toString())) != null && !isValidInt(options.get(LocalizeString.toLowerCaseLocalized(Option.PRIORITY.toString()))))
         {

@@ -37,6 +37,7 @@ import org.apache.cassandra.cql3.CQLTester;
 import org.apache.cassandra.cql3.QueryProcessor;
 import org.apache.cassandra.cql3.UntypedResultSet;
 import org.apache.cassandra.db.Keyspace;
+import org.apache.cassandra.db.marshal.UTF8Type;
 import org.apache.cassandra.db.marshal.UUIDType;
 import org.apache.cassandra.distributed.test.log.ClusterMetadataTestHelper;
 import org.apache.cassandra.locator.InetAddressAndPort;
@@ -45,6 +46,7 @@ import org.apache.cassandra.repair.autorepair.AutoRepairUtils.AutoRepairHistory;
 import org.apache.cassandra.repair.autorepair.AutoRepairUtils.CurrentRepairStatus;
 import org.apache.cassandra.schema.SchemaConstants;
 import org.apache.cassandra.schema.SystemDistributedKeyspace;
+import org.apache.cassandra.schema.TableMetadata;
 import org.apache.cassandra.service.StorageService;
 import org.apache.cassandra.tcm.membership.NodeAddresses;
 import org.apache.cassandra.tcm.membership.NodeVersion;
@@ -611,5 +613,36 @@ public class AutoRepairUtilsTest extends CQLTester
             QueryProcessor.executeInternal("DROP KEYSPACE IF EXISTS ks_nts");
             ClusterMetadataTestHelper.removeEndpoint(otherEndpoint, true);
         }
+    }
+
+    @Test
+    public void testShouldRepairTableForNonPaxosCleanup() throws Throwable
+    {
+        createTable("CREATE TABLE %s (k int PRIMARY KEY, v int)");
+        for (RepairType type : RepairType.values())
+        {
+            if (type != RepairType.PAXOS_CLEANUP)
+                assertTrue(AutoRepairUtils.shouldRepairTable(type, currentTableMetadata()));
+            else
+            {
+                // when there is no prev LWT traffic
+                assertFalse(AutoRepairUtils.shouldRepairTable(type, currentTableMetadata()));
+                // attempt to do some LWT
+                executeNet("INSERT INTO %s (k, v) values (1, ?) IF NOT EXISTS", 2);
+                assertTrue(AutoRepairUtils.shouldRepairTable(type, currentTableMetadata()));
+            }
+        }
+    }
+
+    @Test
+    public void testShouldRepairTableForPaxosCleanupWithoutColumnFamilyStore()
+    {
+        // A table that was dropped between planning and execution has no store to read CAS metrics from.
+        TableMetadata dropped = TableMetadata.builder(KEYSPACE, "dropped_before_paxos_cleanup")
+                                             .addPartitionKeyColumn("k", UTF8Type.instance)
+                                             .build();
+
+        assertFalse(AutoRepairUtils.shouldRepairTable(RepairType.PAXOS_CLEANUP, dropped));
+        assertTrue(AutoRepairUtils.shouldRepairTable(RepairType.FULL, dropped));
     }
 }
