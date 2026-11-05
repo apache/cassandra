@@ -173,7 +173,14 @@ public class UnifiedCompactionStrategy extends AbstractCompactionStrategy
                                                                              SSTableReader.lastKeyComparator);
         if (overlapSets.isEmpty())
             return overlapSets;
+        return combineSetsWithCommonElement(overlapSets);
+    }
 
+    /**
+     * Transitively combine adjacent sets that have a common element, resulting in disjoint sets.
+     */
+    private static List<Set<SSTableReader>> combineSetsWithCommonElement(List<Set<SSTableReader>> overlapSets)
+    {
         Set<SSTableReader> group = overlapSets.get(0);
         List<Set<SSTableReader>> groups = new ArrayList<>();
         for (int i = 1; i < overlapSets.size(); ++i)
@@ -298,14 +305,17 @@ public class UnifiedCompactionStrategy extends AbstractCompactionStrategy
 
     private void maybeUpdateShardManager()
     {
-        if (shardManager != null && !shardManager.isOutOfDate(StorageService.instance.getTokenMetadata().getRingVersion()))
-            return; // the disk boundaries (and thus the local ranges too) have not changed since the last time we calculated
+        long estimatedPartitionCount = ShardManager.estimatedPartitionCountInSSTables(cfs);
+        if (shardManager != null && !shardManager.isOutOfDate(StorageService.instance.getTokenMetadata().getRingVersion(),
+                                                              estimatedPartitionCount))
+            return; // the disk boundaries, local ranges and partition count estimate have not changed since the last time we calculated
 
         synchronized (this)
         {
             // Recheck after entering critical section, another thread may have beaten us to it.
-            while (shardManager == null || shardManager.isOutOfDate(StorageService.instance.getTokenMetadata().getRingVersion()))
-                shardManager = ShardManager.create(cfs);
+            while (shardManager == null || shardManager.isOutOfDate(StorageService.instance.getTokenMetadata().getRingVersion(),
+                                                                    estimatedPartitionCount))
+                shardManager = ShardManager.create(cfs, estimatedPartitionCount);
             // Note: this can just as well be done without the synchronization (races would be benign, just doing some
             // redundant work). For the current usages of this blocking is fine and expected to perform no worse.
         }
@@ -324,11 +334,11 @@ public class UnifiedCompactionStrategy extends AbstractCompactionStrategy
     @VisibleForTesting
     CompactionPick getNextCompactionPick(long gcBefore)
     {
-        SelectionContext context = new SelectionContext(controller);
         List<SSTableReader> suitable = getCompactableSSTables(getSSTables(), UnifiedCompactionStrategy::isSuitableForCompaction);
         Set<SSTableReader> expired = maybeGetExpiredSSTables(gcBefore, suitable);
         suitable.removeAll(expired);
 
+        SelectionContext context = new SelectionContext(controller, getShardManager());
         CompactionPick selected = chooseCompactionPick(suitable, context);
         estimatedRemainingTasks = context.estimatedRemainingTasks;
         if (selected == null)
@@ -369,12 +379,16 @@ public class UnifiedCompactionStrategy extends AbstractCompactionStrategy
     private CompactionPick chooseCompactionPick(List<SSTableReader> suitable, SelectionContext context)
     {
         // Select the level with the highest overlap; when multiple levels have the same overlap, prefer the lower one
-        // (i.e. reduction of RA for bigger token coverage).
+        // (i.e. reduction of RA for bigger token coverage). Levels without a pick are skipped: an oversize shard
+        // pick has an overlap below the threshold, and a later level with a higher overlap but no pick would
+        // otherwise replace it with null.
         int maxOverlap = -1;
         CompactionPick selected = null;
         for (Level level : formLevels(suitable))
         {
             CompactionPick pick = level.getCompactionPick(context);
+            if (pick == null)
+                continue;
             int levelOverlap = level.maxOverlap;
             if (levelOverlap > maxOverlap)
             {
@@ -602,7 +616,8 @@ public class UnifiedCompactionStrategy extends AbstractCompactionStrategy
                 if (logger.isDebugEnabled())
                     logger.debug("Level {} sstables {} max overlap {} buckets with compactions {} tasks {}",
                                  index, sstables.size(), maxOverlap, 0, 0);
-                return null;    // nothing crosses the threshold in this level, nothing to do
+                // Nothing crosses the threshold in this level. Check if some shard has too many sstables instead.
+                return getOversizeShardPick(context);
             }
 
             int estimatedRemainingTasks = 0;
@@ -676,6 +691,56 @@ public class UnifiedCompactionStrategy extends AbstractCompactionStrategy
                                                                       overlaps,
                                                                       this::makeBucket);
             return buckets;
+        }
+
+        /**
+         * Look for shards holding more sstables than fanout times max_sstables_per_shard_factor and compact all
+         * sstables of the smallest group of shards that contains one of them. Sstables that cross a shard boundary
+         * join their shards into one group so that the pick is a valid independent transaction. If several groups
+         * qualify, one is chosen uniformly at random. Only called when the level has no overlap bucket to compact.
+         * Returns null when max_sstables_per_shard_factor is 0.
+         */
+        private CompactionPick getOversizeShardPick(SelectionContext context)
+        {
+            Controller controller = context.controller;
+            double maxSstablesPerShardFactor = controller.getMaxSstablesPerShardFactor();
+            if (maxSstablesPerShardFactor == 0)
+                return null; // check disabled
+            double shardThreshold = fanout * maxSstablesPerShardFactor;
+            if (sstables.size() <= shardThreshold)
+                return null;
+
+            List<Set<SSTableReader>> groups = context.shardManager.splitSSTablesInShards(sstables,
+                                                                                         controller.getNumShards(max * context.shardManager.shardSetCoverage()),
+                                                                                         (sstableShard, shardRange) -> Sets.newHashSet(sstableShard));
+            Set<SSTableReader> sstablesInOversizeGroup = new HashSet<>();
+            for (Set<SSTableReader> shard : groups)
+            {
+                if (shard.size() > shardThreshold)
+                    sstablesInOversizeGroup.addAll(shard);
+            }
+            if (sstablesInOversizeGroup.isEmpty())
+                return null;
+
+            // Combine the groups that share an sstable so that we have valid independent transactions, and pick one
+            // of the groups that contain an oversize shard, uniformly at random as in getCompactionPick.
+            groups = combineSetsWithCommonElement(groups);
+            Set<SSTableReader> selected = null;
+            int matchingCount = 0;
+            for (Set<SSTableReader> group : groups)
+            {
+                if (Collections.disjoint(group, sstablesInOversizeGroup))
+                    continue;
+                if (controller.random().nextInt(++matchingCount) == 0)
+                    selected = group;
+            }
+            assert selected != null;
+            context.estimatedRemainingTasks += 1;
+
+            if (logger.isDebugEnabled())
+                logger.debug("Level {} sstables {} has a shard with more than {} sstables, compacting {} sstables",
+                             index, sstables.size(), shardThreshold, selected.size());
+            return new CompactionPick(index, maxOverlap, selected);
         }
 
         private Bucket makeBucket(List<Set<SSTableReader>> overlaps, int startIndex, int endIndex)
@@ -881,11 +946,13 @@ public class UnifiedCompactionStrategy extends AbstractCompactionStrategy
     static class SelectionContext
     {
         final Controller controller;
+        final ShardManager shardManager;
         int estimatedRemainingTasks = 0;
 
-        SelectionContext(Controller controller)
+        SelectionContext(Controller controller, ShardManager shardManager)
         {
             this.controller = controller;
+            this.shardManager = shardManager;
         }
     }
 }
