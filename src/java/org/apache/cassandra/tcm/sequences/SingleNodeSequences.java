@@ -69,16 +69,14 @@ public interface SingleNodeSequences
             throw new IllegalStateException("This cluster is migrating to cluster metadata, can't decommission until that is done.");
 
         ClusterMetadata metadata = ClusterMetadata.current();
-
-        StorageService.Mode mode = StorageService.instance.operationMode();
-        if (!EnumSet.of(LEAVING, NORMAL, DECOMMISSION_FAILED).contains(mode))
-            throw new UnsupportedOperationException("Node in " + mode + " state; wait for status to become normal");
+        checkCanDecommission(metadata);
         logger.debug("DECOMMISSIONING");
 
+        metadata = ReconfigureCMS.maybeReconfigureCMS(metadata, getBroadcastAddressAndPort());
+        checkCanDecommission(metadata);
         NodeId self = metadata.myNodeId();
-        Collection<Token> tokens = metadata.tokenMap.tokens(self);
-        ReconfigureCMS.maybeReconfigureCMS(metadata, getBroadcastAddressAndPort());
         MultiStepOperation<?> inProgress = metadata.inProgressSequences.get(self);
+        Collection<Token> tokens = metadata.tokenMap.tokens(self);
 
         if (inProgress == null)
         {
@@ -107,7 +105,7 @@ public interface SingleNodeSequences
         InProgressSequences.finishInProgressSequences(self);
         Gossiper.instance.unsafeBroadcastLeftStatus(FBUtilities.getBroadcastAddressAndPort(),
                                                     tokens,
-                                                    metadata.directory.allJoinedEndpoints());
+                                                    ClusterMetadata.current().directory.allJoinedEndpoints());
         if (shutdownNetworking)
             StorageService.instance.shutdownNetworking();
     }
@@ -132,19 +130,12 @@ public interface SingleNodeSequences
         InetAddressAndPort endpoint = metadata.directory.endpoint(toRemove);
         if (endpoint == null)
             throw new UnsupportedOperationException("Host ID not found.");
-        if (Gossiper.instance.getLiveMembers().contains(endpoint))
-            throw new UnsupportedOperationException("Node " + endpoint + " is alive and owns this ID. Use decommission command to remove it from the ring");
-
-        NodeState removeState = metadata.directory.peerState(toRemove);
-        if (removeState == null)
-            throw new UnsupportedOperationException("Node to be removed is not a member of the token ring");
-        if (removeState == NodeState.LEAVING)
+        checkCanRemove(metadata, toRemove, endpoint);
+        if (metadata.directory.peerState(toRemove) == NodeState.LEAVING)
             logger.warn("Node {} is already leaving or being removed, continuing removal anyway", endpoint);
 
-        if (metadata.inProgressSequences.contains(toRemove))
-            throw new UnsupportedOperationException("Can not remove a node that has an in-progress sequence");
-
-        ReconfigureCMS.maybeReconfigureCMS(metadata, endpoint);
+        metadata = ReconfigureCMS.maybeReconfigureCMS(metadata, endpoint);
+        checkCanRemove(metadata, toRemove, endpoint);
 
         logger.info("starting removenode with {} {}", metadata.epoch, toRemove);
         Collection<Token> tokens  = metadata.tokenMap.tokens(toRemove);
@@ -153,12 +144,35 @@ public interface SingleNodeSequences
                                                                   ClusterMetadataService.instance().placementProvider(),
                                                                   LeaveStreams.Kind.REMOVENODE));
         InProgressSequences.finishInProgressSequences(toRemove);
-        Gossiper.instance.unsafeBroadcastLeftStatus(endpoint, tokens, metadata.directory.allJoinedEndpoints());
+        Gossiper.instance.unsafeBroadcastLeftStatus(endpoint, tokens, ClusterMetadata.current().directory.allJoinedEndpoints());
     }
 
     static void abortRemoveNode(String nodeId)
     {
         abortHelper(nodeId, MultiStepOperation.Kind.REMOVE, null);
+    }
+
+    private static void checkCanDecommission(ClusterMetadata metadata)
+    {
+        StorageService.Mode mode = StorageService.instance.operationMode();
+        if (!EnumSet.of(LEAVING, NORMAL, DECOMMISSION_FAILED).contains(mode))
+            throw new UnsupportedOperationException("Node in " + mode + " state; wait for status to become normal");
+
+        MultiStepOperation<?> inProgress = metadata.inProgressSequences.get(metadata.myNodeId());
+        if (inProgress != null && !InProgressSequences.isLeave(inProgress))
+            throw new IllegalArgumentException("Can not decommission a node that has an in-progress sequence");
+    }
+
+    private static void checkCanRemove(ClusterMetadata metadata, NodeId toRemove, InetAddressAndPort endpoint)
+    {
+        if (Gossiper.instance.getLiveMembers().contains(endpoint))
+            throw new UnsupportedOperationException("Node " + endpoint + " is alive and owns this ID. Use decommission command to remove it from the ring");
+
+        if (metadata.directory.peerState(toRemove) == null)
+            throw new UnsupportedOperationException("Node to be removed is not a member of the token ring");
+
+        if (metadata.inProgressSequences.contains(toRemove))
+            throw new UnsupportedOperationException("Can not remove a node that has an in-progress sequence");
     }
 
     /**

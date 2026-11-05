@@ -243,18 +243,18 @@ public class ReconfigureCMS extends MultiStepOperation<AdvanceCMSReconfiguration
                                    MetaStrategy.affectedRanges(metadata));
     }
 
-    public static void maybeReconfigureCMS(ClusterMetadata metadata, InetAddressAndPort toRemove)
+    public static ClusterMetadata maybeReconfigureCMS(ClusterMetadata metadata, InetAddressAndPort toRemove)
     {
-        maybeReconfigureCMS(metadata, toRemove, m -> m.inProgressSequences.get(SequenceKey.instance));
+        return maybeReconfigureCMS(metadata, toRemove, m -> m.inProgressSequences.get(SequenceKey.instance));
     }
 
     @VisibleForTesting
-    public static void maybeReconfigureCMS(ClusterMetadata metadata,
-                                           InetAddressAndPort toRemove,
-                                           Function<ClusterMetadata, MultiStepOperation<?>> inProgressReconfiguration)
+    public static ClusterMetadata maybeReconfigureCMS(ClusterMetadata metadata,
+                                                      InetAddressAndPort toRemove,
+                                                      Function<ClusterMetadata, MultiStepOperation<?>> inProgressReconfiguration)
     {
         if (!metadata.fullCMSMembers().contains(toRemove))
-            return;
+            return ClusterMetadata.current();
 
         long deadlineNanos = nanoTime() + DatabaseDescriptor.getCmsReconfigurationWaitTimeout().to(NANOSECONDS);
         RetryStrategy backoffWithJitter = DatabaseDescriptor.getCmsCommitRetryStrategy();
@@ -264,7 +264,7 @@ public class ReconfigureCMS extends MultiStepOperation<AdvanceCMSReconfiguration
         while (!retry.hasExpired())
         {
             if (!current.fullCMSMembers().contains(toRemove))
-                return;
+                return ClusterMetadata.current();
 
             inProgress = inProgressReconfiguration.apply(current);
             if (inProgress != null)
@@ -299,7 +299,7 @@ public class ReconfigureCMS extends MultiStepOperation<AdvanceCMSReconfiguration
                     InProgressSequences.finishInProgressSequences(SequenceKey.instance);
                     if (ClusterMetadata.current().isCMSMember(toRemove))
                         throw new IllegalStateException(String.format("Could not remove %s from CMS", toRemove));
-                    return;
+                    return ClusterMetadata.current();
                 }
 
                 current = ClusterMetadata.current();
