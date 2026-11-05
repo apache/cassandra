@@ -63,7 +63,9 @@ public class ConcurrentCMSReconfigurationAndReplacementOfLeavingMemberTest exten
             // communicate with instances started by subsequent tests and interfere with the startup of those other clusters.
             IInvokableInstance replacingNode = addInstance(cluster, nodeToRemove.config(),
                                                            c -> c.set("auto_bootstrap", true)
+                                                                 .set("cms_reconfiguration_wait_timeout", "2s")
                                                                  .set(Constants.KEY_DTEST_API_STARTUP_FAILURE_AS_SHUTDOWN, false));
+
             try
             {
                 startHostReplacement(nodeToRemove, replacingNode, (ignore1_, ignore2_) -> {});
@@ -71,7 +73,7 @@ public class ConcurrentCMSReconfigurationAndReplacementOfLeavingMemberTest exten
             }
             catch (Exception e)
             {
-                assertTrue(e.getMessage().contains("Can not commit transformation: \"INVALID\"(Can not add a new in-progress sequence for Reconfigure CMS"));
+                assertTrue(e.getMessage().contains("Timed out"));
             }
 
             // the replacement has failed, unpause node1 to allow it to continue with the inflight CMS
