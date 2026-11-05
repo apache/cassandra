@@ -800,6 +800,7 @@ class TestCqlshCompletion(CqlshCompletionCase):
                                      'sstable_growth', 'max_sstables_to_compact',
                                      'enabled', 'expired_sstable_check_frequency_seconds',
                                      'unsafe_aggressive_sstable_expiration', 'overlap_inclusion_method',
+                                     'max_sstables_per_shard_factor',
                                      'tombstone_threshold', 'tombstone_compaction_interval',
                                      'unchecked_tombstone_compaction', 'provide_overlapping_tombstones',
                                      'max_threshold', 'only_purge_repaired_tombstones'])
