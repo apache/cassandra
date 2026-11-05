@@ -243,7 +243,7 @@ public class Config
      * Deadline for removing a node from the CMS when a CMS reconfiguration is already in progress.
      * Only one reconfiguration may be prepared at a time, so the removal waits for the in-flight one to complete,
      * re-checking with backoff governed by cms_commit_retry_initial_delay/cms_commit_retry_max_delay,
-     * until this deadline expires.
+     * until this deadline expires. Must be positive.
      *
      * Note that a deadline shorter than cms_commit_timeout does not interrupt a commit already in flight; it only
      * stops further attempts from being made.

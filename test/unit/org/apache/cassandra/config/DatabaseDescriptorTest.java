@@ -1281,4 +1281,30 @@ public class DatabaseDescriptorTest
             DatabaseDescriptor.setCompressedReadAheadBufferSizeInKb(original);
         }
     }
+
+    @Test
+    public void testCmsReconfigurationWaitTimeoutRejectsZeroAtStartup()
+    {
+        Config config = DatabaseDescriptor.loadConfig();
+        config.cms_reconfiguration_wait_timeout = new DurationSpec.LongMillisecondsBound("0ms");
+        try
+        {
+            assertThatThrownBy(() -> DatabaseDescriptor.unsafeDaemonInitialization(() -> config))
+                .isInstanceOf(ConfigurationException.class)
+                .hasMessageContaining("cms_reconfiguration_wait_timeout must be positive");
+        }
+        finally
+        {
+            // restore a valid config for the remaining tests in this class
+            DatabaseDescriptor.unsafeDaemonInitialization(DatabaseDescriptor::loadConfig);
+        }
+    }
+
+    @Test
+    public void testCmsReconfigurationWaitTimeoutSetterRejectsZero()
+    {
+        assertThatThrownBy(() -> DatabaseDescriptor.setCmsReconfigurationWaitTimeout(0))
+            .isInstanceOf(IllegalArgumentException.class)
+            .hasMessageContaining("cms_reconfiguration_wait_timeout must be positive");
+    }
 }

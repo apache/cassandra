@@ -1417,7 +1417,7 @@ request_timeout: 10000ms
 # How long removing a node from the Cluster Metadata Service (decommission, removenode, assassinate,
 # or replacing a CMS member) waits for a CMS reconfiguration which is already in progress. Only one
 # reconfiguration may be prepared at a time, so the removal re-checks with backoff until this deadline
-# expires and then fails.
+# expires and then fails. Must be positive.
 # Min unit: ms
 # cms_reconfiguration_wait_timeout: 10m
 

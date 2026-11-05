@@ -1252,6 +1252,9 @@ public class DatabaseDescriptor
                                                            conf.progress_barrier_default_consistency_level, progressBarrierCLsArr));
         }
 
+        if (conf.cms_reconfiguration_wait_timeout.toMilliseconds() <= 0)
+            throw new ConfigurationException("cms_reconfiguration_wait_timeout must be positive, but was " + conf.cms_reconfiguration_wait_timeout, false);
+
         if (conf.native_transport_min_backoff_on_queue_overload.toMilliseconds() <= 0)
             throw new ConfigurationException(" be positive");
 
@@ -6366,6 +6369,7 @@ public class DatabaseDescriptor
 
     public static void setCmsReconfigurationWaitTimeout(long timeoutInMillis)
     {
+        Preconditions.checkArgument(timeoutInMillis > 0, "cms_reconfiguration_wait_timeout must be positive, but was %sms", timeoutInMillis);
         if (timeoutInMillis != conf.cms_reconfiguration_wait_timeout.to(TimeUnit.MILLISECONDS))
         {
             logger.info("Setting cms_reconfiguration_wait_timeout to {}ms", timeoutInMillis);
