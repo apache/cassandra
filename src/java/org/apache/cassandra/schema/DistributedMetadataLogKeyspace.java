@@ -155,6 +155,7 @@ public final class DistributedMetadataLogKeyspace
         }
         catch (Throwable t)
         {
+            JVMStabilityInspector.inspectThrowable(t);
             logger.error("Caught an exception while trying to CAS", t);
             return false;
         }
