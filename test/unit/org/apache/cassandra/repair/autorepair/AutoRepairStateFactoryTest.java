@@ -45,6 +45,10 @@ public class AutoRepairStateFactoryTest
         state = RepairType.getAutoRepairState(RepairType.PREVIEW_REPAIRED, new AutoRepairConfig());
 
         assertTrue(state instanceof PreviewRepairedState);
+
+        state = RepairType.getAutoRepairState(RepairType.PAXOS_CLEANUP, new AutoRepairConfig());
+
+        assertTrue(state instanceof PaxosCleanupState);
     }
 
     @Test

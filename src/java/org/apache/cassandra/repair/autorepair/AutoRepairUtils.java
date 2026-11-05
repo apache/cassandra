@@ -57,6 +57,7 @@ import org.apache.cassandra.cql3.QueryProcessor;
 import org.apache.cassandra.cql3.UntypedResultSet;
 import org.apache.cassandra.cql3.statements.ModificationStatement;
 import org.apache.cassandra.cql3.statements.SelectStatement;
+import org.apache.cassandra.db.ColumnFamilyStore;
 import org.apache.cassandra.db.ConsistencyLevel;
 import org.apache.cassandra.db.Keyspace;
 import org.apache.cassandra.db.marshal.UTF8Type;
@@ -1473,6 +1474,15 @@ public class AutoRepairUtils
     public static String getKeyspaceTableName(String keyspace, String table)
     {
         return keyspace + "." + table;
+    }
+
+    public static boolean shouldRepairTable(RepairType repairType, TableMetadata metadata)
+    {
+        if (repairType != RepairType.PAXOS_CLEANUP)
+            return true;
+        // don't do paxos cleanup if never witness any prepare attempt
+        ColumnFamilyStore cfs = Keyspace.openAndGetStoreIfExists(metadata);
+        return cfs != null && cfs.metric.casPrepare.totalLatency.getCount() > 0;
     }
 
     /**

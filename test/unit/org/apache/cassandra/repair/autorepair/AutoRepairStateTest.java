@@ -32,11 +32,16 @@ import org.junit.runners.Parameterized;
 
 import org.apache.cassandra.config.DurationSpec;
 import org.apache.cassandra.cql3.CQLTester;
+import org.apache.cassandra.repair.RepairCoordinator;
+import org.apache.cassandra.repair.RepairParallelism;
 import org.apache.cassandra.repair.autorepair.AutoRepairConfig.RepairType;
 import org.apache.cassandra.repair.autorepair.AutoRepairUtils.AutoRepairHistory;
+import org.apache.cassandra.repair.messages.RepairOption;
 import org.apache.cassandra.service.AutoRepairService;
+import org.apache.cassandra.streaming.PreviewKind;
 
 import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertNotNull;
 import static org.junit.Assert.assertNull;
 import static org.junit.Assert.assertTrue;
@@ -76,6 +81,36 @@ public class AutoRepairStateTest extends CQLTester
         Runnable runnable = state.getRepairRunnable(KEYSPACE, ImmutableList.of(testTable), ImmutableSet.of(), false);
 
         assertNotNull(runnable);
+    }
+
+    @Test
+    public void testGetRepairRunnableOptions()
+    {
+        AutoRepairService.setup();
+        AutoRepairConfig config = new AutoRepairConfig();
+        AutoRepairState state = RepairType.getAutoRepairState(repairType, config);
+
+        RepairCoordinator coordinator = state.getRepairRunnable(KEYSPACE, ImmutableList.of(testTable), ImmutableSet.of(), true);
+        RepairOption options = coordinator.state.options;
+
+        assertEquals(RepairParallelism.PARALLEL, options.getParallelism());
+        assertTrue(options.isPrimaryRange());
+        assertFalse(options.isTraced());
+        assertFalse(options.isPullRepair());
+        assertFalse(options.isForcedRepair());
+        assertTrue(options.ignoreUnreplicatedKeyspaces());
+        assertEquals(repairType != RepairType.PAXOS_CLEANUP, options.repairData());
+        assertEquals(repairType == RepairType.PAXOS_CLEANUP, options.repairPaxos());
+        assertFalse(options.repairAccord());
+        assertEquals(AutoRepairService.instance.getAutoRepairConfig().getRepairThreads(repairType), options.getJobThreads());
+        assertEquals(ImmutableSet.of(testTable), options.getColumnFamilies());
+
+        // Only paxos cleanup runs a paxos-only repair, and it must not be incremental or a preview since it
+        // rewrites paxos state rather than comparing or promoting sstables.
+        assertEquals(repairType == RepairType.PAXOS_CLEANUP, options.paxosOnly());
+        assertEquals(repairType == RepairType.INCREMENTAL, options.isIncremental());
+        assertEquals(repairType == RepairType.PREVIEW_REPAIRED ? PreviewKind.REPAIRED : PreviewKind.NONE,
+                     options.getPreviewKind());
     }
 
     @Test
