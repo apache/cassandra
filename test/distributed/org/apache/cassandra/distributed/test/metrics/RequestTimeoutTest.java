@@ -23,13 +23,9 @@ import java.lang.reflect.InvocationTargetException;
 import java.lang.reflect.Method;
 import java.util.Map;
 import java.util.concurrent.Callable;
+import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
 import java.util.concurrent.atomic.AtomicInteger;
-
-import org.junit.AfterClass;
-import org.junit.Before;
-import org.junit.BeforeClass;
-import org.junit.Test;
 
 import net.bytebuddy.ByteBuddy;
 import net.bytebuddy.dynamic.loading.ClassLoadingStrategy;
@@ -37,23 +33,31 @@ import net.bytebuddy.implementation.MethodDelegation;
 import net.bytebuddy.implementation.bind.annotation.SuperCall;
 import net.bytebuddy.implementation.bind.annotation.SuperMethod;
 import net.bytebuddy.implementation.bind.annotation.This;
+
 import org.apache.cassandra.config.Config;
+import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.cql3.statements.BatchStatement;
 import org.apache.cassandra.distributed.Cluster;
 import org.apache.cassandra.distributed.api.ConsistencyLevel;
+import org.apache.cassandra.distributed.impl.CoordinatorHelper;
 import org.apache.cassandra.distributed.test.TestBaseImpl;
+import org.apache.cassandra.exceptions.CasWriteTimeoutException;
+import org.apache.cassandra.exceptions.ReadTimeoutException;
 import org.apache.cassandra.exceptions.RequestFailureReason;
+import org.apache.cassandra.exceptions.WriteTimeoutException;
 import org.apache.cassandra.locator.InetAddressAndPort;
 import org.apache.cassandra.net.MessagingService;
 import org.apache.cassandra.net.RequestCallback;
-import org.apache.cassandra.utils.AssertionUtils;
-import org.apache.cassandra.exceptions.CasWriteTimeoutException;
-import org.apache.cassandra.exceptions.ReadTimeoutException;
-import org.apache.cassandra.exceptions.WriteTimeoutException;
 import org.apache.cassandra.net.Verb;
 import org.apache.cassandra.service.paxos.Paxos;
+import org.apache.cassandra.transport.Dispatcher;
+import org.apache.cassandra.utils.AssertionUtils;
 import org.apache.cassandra.utils.concurrent.Condition;
 import org.assertj.core.api.Assertions;
+import org.junit.AfterClass;
+import org.junit.Before;
+import org.junit.BeforeClass;
+import org.junit.Test;
 
 import static net.bytebuddy.matcher.ElementMatchers.named;
 import static net.bytebuddy.matcher.ElementMatchers.takesArguments;
@@ -180,6 +184,68 @@ public class RequestTimeoutTest extends TestBaseImpl
         CLUSTER.filters().verbs(Verb.PAXOS_COMMIT_REQ.id).to(2, 3).drop();
         Assertions.assertThatThrownBy(() -> CLUSTER.coordinator(COORDINATOR).execute(withKeyspace("INSERT INTO %s.tbl (pk, v) VALUES (?, ?) IF NOT EXISTS"), ConsistencyLevel.ALL, NEXT.getAndIncrement(), NEXT.getAndIncrement()))
                   .is(isThrowable(CasWriteTimeoutException.class));
+    }
+
+    /**
+     * CASSANDRA-20691: Paxos CAS must use {@link Dispatcher.RequestTime#computeDeadline(long)} so that
+     * time spent in the native-transport queue counts against the client deadline. A deadline based only
+     * on {@code startedAtNanos} would still have verb headroom here.
+     */
+    @Test
+    public void casInsertTimesOutWhenPastNativeTransportDeadline()
+    {
+        for (Config.PaxosVariant variant : new Config.PaxosVariant[]{ Config.PaxosVariant.v1, Config.PaxosVariant.v2 })
+        {
+            withPaxos(variant);
+            for (Config.CQLStartTime startTime : Config.CQLStartTime.values())
+            {
+                Config.PaxosVariant capturedVariant = variant;
+                Config.CQLStartTime capturedStartTime = startTime;
+                CLUSTER.get(COORDINATOR).runOnInstance(() -> assertCasTimesOutWhenEnqueuedPastNativeTimeout(capturedVariant, capturedStartTime));
+            }
+        }
+    }
+
+    public static void assertCasTimesOutWhenEnqueuedPastNativeTimeout(Config.PaxosVariant variant, Config.CQLStartTime cqlStartTime)
+    {
+        Paxos.setPaxosVariant(variant);
+
+        long previousNative = DatabaseDescriptor.getNativeTransportTimeout(TimeUnit.MILLISECONDS);
+        long previousWrite = DatabaseDescriptor.getWriteRpcTimeout(TimeUnit.MILLISECONDS);
+        long previousCas = DatabaseDescriptor.getCasContentionTimeout(TimeUnit.MILLISECONDS);
+        Config.CQLStartTime previousStart = DatabaseDescriptor.getCQLStartTime();
+        try
+        {
+            DatabaseDescriptor.setNativeTransportTimeout(12_000, TimeUnit.MILLISECONDS);
+            // Generous verb timeouts so only the native-transport/client deadline can expire the request.
+            DatabaseDescriptor.setWriteRpcTimeout(60_000);
+            DatabaseDescriptor.setCasContentionTimeout(60_000);
+            DatabaseDescriptor.setCQLStartTime(cqlStartTime);
+
+            long now = System.nanoTime();
+            // Enqueued longer than native_transport_timeout ago; start time is "now".
+            Dispatcher.RequestTime requestTime = new Dispatcher.RequestTime(now - TimeUnit.SECONDS.toNanos(30), now);
+
+            try
+            {
+                CoordinatorHelper.unsafeExecuteInternal("INSERT INTO " + KEYSPACE + ".tbl (pk, v) VALUES (" + now + ", 1) IF NOT EXISTS",
+                                                        ConsistencyLevel.SERIAL,
+                                                        ConsistencyLevel.ONE,
+                                                        requestTime);
+                throw new AssertionError("Expected WriteTimeoutException for " + variant + " / " + cqlStartTime);
+            }
+            catch (WriteTimeoutException expected)
+            {
+                // expected (CasWriteTimeoutException is a subclass)
+            }
+        }
+        finally
+        {
+            DatabaseDescriptor.setNativeTransportTimeout(previousNative, TimeUnit.MILLISECONDS);
+            DatabaseDescriptor.setWriteRpcTimeout(previousWrite);
+            DatabaseDescriptor.setCasContentionTimeout(previousCas);
+            DatabaseDescriptor.setCQLStartTime(previousStart);
+        }
     }
 
     private static void withPaxos(Config.PaxosVariant variant)
