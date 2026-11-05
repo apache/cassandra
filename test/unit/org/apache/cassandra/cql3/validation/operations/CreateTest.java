@@ -732,6 +732,18 @@ public class CreateTest extends CQLTester
         assertNotEquals(TableId.unsafeDeterministic(tmd.keyspace, tmd.name), tmd.id);
     }
 
+    @Test
+    public void testCreateTableWithInvalidUnifiedCompactionOptions() throws Throwable
+    {
+        assertThrowsConfigurationException("max_sstables_per_shard_factor 0.9 must be 0 to disable or a number greater than or equal to 1",
+                                           "CREATE TABLE %s (a text, b int, c int, primary key (a, b))"
+                                           + " WITH compaction = { 'class' : 'UnifiedCompactionStrategy', 'max_sstables_per_shard_factor' : 0.9 };");
+
+        assertThrowsConfigurationException("abc is not a parsable number for max_sstables_per_shard_factor",
+                                           "CREATE TABLE %s (a text, b int, c int, primary key (a, b))"
+                                           + " WITH compaction = { 'class' : 'UnifiedCompactionStrategy', 'max_sstables_per_shard_factor' : 'abc' };");
+    }
+
     private void assertThrowsConfigurationException(String errorMsg, String createStmt)
     {
         try

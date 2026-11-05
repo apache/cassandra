@@ -113,7 +113,8 @@ class Cql3ParsingRuleSet(CqlParsingRuleSet):
         'max_sstables_to_compact',
         'expired_sstable_check_frequency_seconds',
         'unsafe_aggressive_sstable_expiration',
-        'overlap_inclusion_method'
+        'overlap_inclusion_method',
+        'max_sstables_per_shard_factor'
     )
 
     @classmethod
