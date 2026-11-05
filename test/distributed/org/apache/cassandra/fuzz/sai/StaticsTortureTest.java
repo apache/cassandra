@@ -34,8 +34,8 @@ import org.apache.cassandra.harry.gen.EntropySource;
 import org.apache.cassandra.harry.gen.Generator;
 import org.apache.cassandra.harry.gen.Generators;
 import org.apache.cassandra.harry.gen.rng.JdkRandomEntropySource;
-import org.apache.cassandra.harry.util.BitSet;
 
+import static org.apache.cassandra.harry.dsl.HistoryBuilderHelper.deleteRandomColumns;
 import static org.apache.cassandra.harry.dsl.HistoryBuilderHelper.generateClusteringRelations;
 import static org.apache.cassandra.harry.dsl.HistoryBuilderHelper.generateValueRelations;
 import static org.apache.cassandra.harry.dsl.SingleOperationBuilder.IdxRelation;
@@ -120,8 +120,6 @@ public class StaticsTortureTest extends IntegrationTestBase
                                        schema.table,
                                        schema.staticColumns.get(2).name));
 
-        Generator<BitSet> regularColumnBitSet = Generators.bitSet(schema.regularColumns.size());
-        Generator<BitSet> staticColumnBitSet = Generators.bitSet(schema.staticColumns.size());
         EntropySource rng = new JdkRandomEntropySource(1l);
 
         ReplayingHistoryBuilder history = new ReplayingHistoryBuilder(schema.valueGenerators, hb -> {
@@ -159,7 +157,7 @@ public class StaticsTortureTest extends IntegrationTestBase
 
             if (rng.nextFloat() > 0.9f)
             {
-                history.deleteColumns(i, rng.nextInt(5), regularColumnBitSet.generate(rng), staticColumnBitSet.generate(rng));
+                deleteRandomColumns(schema, i, rng.nextInt(5), rng, history);
             }
 
             if (i % 50 == 0)

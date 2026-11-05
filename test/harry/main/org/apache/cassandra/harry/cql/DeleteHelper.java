@@ -21,7 +21,6 @@ package org.apache.cassandra.harry.cql;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.function.Consumer;
-import java.util.function.IntConsumer;
 
 import org.apache.cassandra.cql3.ast.Symbol;
 import org.apache.cassandra.harry.ColumnSpec;
@@ -29,7 +28,8 @@ import org.apache.cassandra.harry.Relations;
 import org.apache.cassandra.harry.SchemaSpec;
 import org.apache.cassandra.harry.execution.CompiledStatement;
 import org.apache.cassandra.harry.op.Operations;
-import org.apache.cassandra.harry.util.BitSet;
+
+import static org.apache.cassandra.harry.MagicConstants.UNSET_DESCR;
 
 public class DeleteHelper
 {
@@ -105,27 +105,12 @@ public class DeleteHelper
         StringBuilder b = new StringBuilder();
         b.append("DELETE ");
 
-        {
-            String[] names = columnNames(schema.regularColumns, delete.regularColumns());
-            for (int i = 0; i < names.length; i++)
-            {
-                if (i > 0)
-                    b.append(", ");
-                b.append(Symbol.maybeQuote(names[i]));
-            }
-            b.append(" ");
-        }
-
-        {
-            String[] names = columnNames(schema.staticColumns, delete.staticColumns());
-            for (int i = 0; i < names.length; i++)
-            {
-                if (i > 0)
-                    b.append(", ");
-                b.append(Symbol.maybeQuote(names[i]));
-            }
-            b.append(" ");
-        }
+        List<String> names = new ArrayList<>();
+        delete.regularColumns().eachSetBit(i -> names.add(Symbol.maybeQuote(schema.regularColumns.get(i).name)));
+        delete.staticColumns().eachSetBit(i -> names.add(Symbol.maybeQuote(schema.staticColumns.get(i).name)));
+        if (names.isEmpty())
+            throw new IllegalArgumentException("Column deletion must select at least one column");
+        b.append(String.join(", ", names)).append(" ");
 
         b.append("FROM ")
          .append(Symbol.maybeQuote(schema.keyspace))
@@ -146,8 +131,11 @@ public class DeleteHelper
 
         for (int i = 0; i < pk.length; i++)
             writer.write(schema.partitionKeys.get(i), Relations.RelationKind.EQ, pk[i]);
-        for (int i = 0; i < ck.length; i++)
-            writer.write(schema.clusteringKeys.get(i), Relations.RelationKind.EQ, ck[i]);
+        if (!delete.regularColumns().allUnset())
+        {
+            for (int i = 0; i < ck.length; i++)
+                writer.write(schema.clusteringKeys.get(i), Relations.RelationKind.EQ, ck[i]);
+        }
 
         b.append(";");
 
@@ -174,22 +162,19 @@ public class DeleteHelper
         List<Object> bindings = new ArrayList<>();
 
         Object[] pk = schema.valueGenerators.pkGen().inflate(delete.pd());
-        Object[] lowBound = schema.valueGenerators.ckGen().inflate(delete.lowerBound());
-        Object[] highBound = schema.valueGenerators.ckGen().inflate(delete.upperBound());
+        Object[] lowBound = UNSET_DESCR == delete.lowerBound() ? null : schema.valueGenerators.ckGen().inflate(delete.lowerBound());
+        Object[] highBound = UNSET_DESCR == delete.upperBound() ? null : schema.valueGenerators.ckGen().inflate(delete.upperBound());
 
         RelationWriter writer = new RelationWriter(b, bindings::add);
 
         for (int i = 0; i < pk.length; i++)
             writer.write(schema.partitionKeys.get(i), Relations.RelationKind.EQ, pk[i]);
-        for (int i = 0; i < delete.lowerBoundRelation().length; i++)
+        for (int i = 0; i < schema.clusteringKeys.size(); i++)
         {
-            Relations.RelationKind kind;
-            kind = delete.lowerBoundRelation()[i];
-            if (kind != null)
-                writer.write(schema.clusteringKeys.get(i), kind, lowBound[i]);
-            kind = delete.upperBoundRelation()[i];
-            if (kind != null)
-                writer.write(schema.clusteringKeys.get(i), kind, highBound[i]);
+            if (null != lowBound && null != delete.lowerBoundRelation()[i])
+                writer.write(schema.clusteringKeys.get(i), delete.lowerBoundRelation()[i], lowBound[i]);
+            if (null != highBound && null != delete.upperBoundRelation()[i])
+                writer.write(schema.clusteringKeys.get(i), delete.upperBoundRelation()[i], highBound[i]);
         }
 
         b.append(";");
@@ -225,21 +210,5 @@ public class DeleteHelper
              .append("?");
             collectBindings.accept(value);
         }
-    }
-
-
-    private static String[] columnNames(List<ColumnSpec<?>> columns, BitSet selectedColumns)
-    {
-        String[] columnNames = new String[selectedColumns.size()];
-        selectedColumns.eachSetBit(new IntConsumer()
-        {
-            int i = 0;
-
-            public void accept(int idx)
-            {
-                columnNames[i++] = columns.get(idx).name;
-            }
-        });
-        return columnNames;
     }
 }

@@ -17,6 +17,7 @@
  */
 package org.apache.cassandra.metrics;
 
+import java.lang.ref.WeakReference;
 import java.nio.ByteBuffer;
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -28,8 +29,11 @@ import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentMap;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicReference;
+import java.util.function.LongSupplier;
 import java.util.function.Predicate;
 
+import com.codahale.metrics.CachedGauge;
 import com.codahale.metrics.Counter;
 import com.codahale.metrics.Gauge;
 import com.codahale.metrics.Histogram;
@@ -63,6 +67,7 @@ import org.apache.cassandra.utils.EstimatedHistogram;
 import org.apache.cassandra.utils.ExpMovingAverage;
 import org.apache.cassandra.utils.MovingAverage;
 import org.apache.cassandra.utils.Pair;
+import org.apache.cassandra.utils.concurrent.Refs;
 
 import static java.util.concurrent.TimeUnit.MICROSECONDS;
 import static org.apache.cassandra.metrics.CassandraMetricsRegistry.Metrics;
@@ -85,6 +90,9 @@ public class TableMetrics
     public static final long[] EMPTY = new long[0];
     private static final MetricNameFactory GLOBAL_FACTORY = new AllTableMetricNameFactory(TYPE_NAME);
     private static final MetricNameFactory GLOBAL_ALIAS_FACTORY = new AllTableMetricNameFactory(ALIAS_TYPE_NAME);
+
+    @VisibleForTesting // Length of the caching period for estimated partition count. Changed by tests.
+    static long ESTIMATED_PARTITION_COUNT_CACHE_PERIOD_SECONDS = TimeUnit.MINUTES.toSeconds(5);
 
     public final static LatencyMetrics GLOBAL_READ_LATENCY = new LatencyMetrics(GLOBAL_FACTORY, GLOBAL_ALIAS_FACTORY, "Read");
     public final static LatencyMetrics GLOBAL_WRITE_LATENCY = new LatencyMetrics(GLOBAL_FACTORY, GLOBAL_ALIAS_FACTORY, "Write");
@@ -114,6 +122,12 @@ public class TableMetrics
     public final Gauge<long[]> estimatedPartitionSizeHistogram;
     /** Approximate number of keys in table. */
     public final Gauge<Long> estimatedPartitionCount;
+    /** This function is used to calculate estimated partition count in sstables and store the calculated value for the
+     *  current set of sstables. */
+    public final LongSupplier estimatedPartitionCountInSSTables;
+    /** A cached version of the estimated partition count in sstables, used by compaction. This value will be more
+     *  precise when the table has a small number of partitions that keep getting written to. */
+    public final Gauge<Long> estimatedPartitionCountInSSTablesCached;
     /** Histogram of estimated number of columns. */
     public final Gauge<long[]> estimatedColumnCountHistogram;
     /** Histogram of the number of sstable data files accessed per single partition read */
@@ -559,19 +573,54 @@ public class TableMetrics
                                                            () -> combineHistograms(cfs.getSSTables(SSTableSet.CANONICAL),
                                                                                    SSTableReader::getEstimatedPartitionSize), null);
         
+        estimatedPartitionCountInSSTables = new LongSupplier()
+        {
+            // Since the sstables only change when the tracker view changes, we can cache the value.
+            AtomicReference<Pair<WeakReference<View>, Long>> collected = new AtomicReference<>(Pair.create(new WeakReference<>(null), 0L));
+
+            public long getAsLong()
+            {
+                final View currentView = cfs.getTracker().getView();
+                final Pair<WeakReference<View>, Long> currentCollected = collected.get();
+                if (currentView != currentCollected.left.get())
+                {
+                    Refs<SSTableReader> refs = Refs.tryRef(currentView.select(SSTableSet.CANONICAL));
+                    if (refs != null)
+                    {
+                        try (refs)
+                        {
+                            long collectedValue = SSTableReader.getApproximateKeyCount(refs);
+                            final Pair<WeakReference<View>, Long> newCollected = Pair.create(new WeakReference<>(currentView), collectedValue);
+                            collected.compareAndSet(currentCollected, newCollected); // okay if failed, a different thread did it
+                            return collectedValue;
+                        }
+                    }
+                    // If we can't reference, simply return the previous collected value; it can only result in a delay
+                    // in reporting the correct key count.
+                }
+                return currentCollected.right;
+            }
+        };
         estimatedPartitionCount = createTableGauge("EstimatedPartitionCount", "EstimatedRowCount", new Gauge<Long>()
         {
             public Long getValue()
             {
-                long memtablePartitions = 0;
+                long estimatedPartitions = estimatedPartitionCountInSSTables.getAsLong();
                 for (Memtable memtable : cfs.getTracker().getView().getAllMemtables())
-                   memtablePartitions += memtable.partitionCount();
-                try(ColumnFamilyStore.RefViewFragment refViewFragment = cfs.selectAndReference(View.selectFunction(SSTableSet.CANONICAL)))
-                {
-                    return SSTableReader.getApproximateKeyCount(refViewFragment.sstables) + memtablePartitions;
-                }
+                    estimatedPartitions += memtable.partitionCount();
+                return estimatedPartitions;
             }
         }, null);
+        // This cached gauge is used by compaction to calculate a size for single-partition sstables. It does not need
+        // to be up-to-date, only to give a rough indication of the number of partitions.
+        estimatedPartitionCountInSSTablesCached = new CachedGauge<Long>(ESTIMATED_PARTITION_COUNT_CACHE_PERIOD_SECONDS, TimeUnit.SECONDS)
+        {
+            public Long loadValue()
+            {
+                return estimatedPartitionCountInSSTables.getAsLong();
+            }
+        };
+
         estimatedColumnCountHistogram = createTableGauge("EstimatedColumnCountHistogram", "EstimatedColumnCountHistogram",
                                                          () -> combineHistograms(cfs.getSSTables(SSTableSet.CANONICAL), 
                                                                                  SSTableReader::getEstimatedCellPerPartitionCount), null);
