@@ -90,6 +90,9 @@ New features
       deployments that authenticate over mutual TLS. PasswordDefaultRoleInitializer
       remains the default and produces the historical behaviour. See CASSANDRA-21546
       for more information.
+    - A new cms_reconfiguration_wait_timeout option (default 10m) bounds how long removing a node
+      from the Cluster Metadata Service waits for a CMS reconfiguration which is already in
+      progress. See CASSANDRA-21693 for more information.
 
 Upgrading
 ---------

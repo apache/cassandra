@@ -28,16 +28,21 @@ import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
 import java.util.concurrent.ExecutionException;
+import java.util.concurrent.atomic.AtomicReference;
+import java.util.function.Function;
 import java.util.function.Supplier;
 import java.util.stream.Collectors;
 
+import com.google.common.annotations.VisibleForTesting;
 import com.google.common.collect.ImmutableSet;
 import com.google.common.collect.Lists;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.db.TypeSizes;
+import org.apache.cassandra.exceptions.ExceptionCode;
 import org.apache.cassandra.gms.FailureDetector;
 import org.apache.cassandra.io.util.DataInputPlus;
 import org.apache.cassandra.io.util.DataOutputPlus;
@@ -55,6 +60,7 @@ import org.apache.cassandra.schema.DistributedMetadataLogKeyspace;
 import org.apache.cassandra.schema.ReplicationParams;
 import org.apache.cassandra.schema.SchemaConstants;
 import org.apache.cassandra.service.ActiveRepairService;
+import org.apache.cassandra.service.RetryStrategy;
 import org.apache.cassandra.streaming.DataMovement;
 import org.apache.cassandra.streaming.PreviewKind;
 import org.apache.cassandra.streaming.StreamOperation;
@@ -78,8 +84,10 @@ import org.apache.cassandra.tcm.transformations.cms.PrepareCMSReconfiguration;
 import org.apache.cassandra.utils.FBUtilities;
 import org.apache.cassandra.utils.concurrent.Future;
 
+import static java.util.concurrent.TimeUnit.NANOSECONDS;
 import static org.apache.cassandra.locator.MetaStrategy.entireRange;
 import static org.apache.cassandra.streaming.StreamOperation.RESTORE_REPLICA_COUNT;
+import static org.apache.cassandra.utils.Clock.Global.nanoTime;
 
 /**
  * This class is slightly different from most other MultiStepOperations in that it doesn't reify every component
@@ -235,23 +243,76 @@ public class ReconfigureCMS extends MultiStepOperation<AdvanceCMSReconfiguration
                                    MetaStrategy.affectedRanges(metadata));
     }
 
-    public static void maybeReconfigureCMS(ClusterMetadata metadata, InetAddressAndPort toRemove)
+    public static ClusterMetadata maybeReconfigureCMS(ClusterMetadata metadata, InetAddressAndPort toRemove)
+    {
+        return maybeReconfigureCMS(metadata, toRemove, m -> m.inProgressSequences.get(SequenceKey.instance));
+    }
+
+    @VisibleForTesting
+    public static ClusterMetadata maybeReconfigureCMS(ClusterMetadata metadata,
+                                                      InetAddressAndPort toRemove,
+                                                      Function<ClusterMetadata, MultiStepOperation<?>> inProgressReconfiguration)
     {
         if (!metadata.fullCMSMembers().contains(toRemove))
-            return;
-        Set<NodeId> downNodes = new HashSet<>();
-        for (InetAddressAndPort ep : metadata.directory.allJoinedEndpoints())
-            if (!FailureDetector.instance.isAlive(ep))
-                downNodes.add(metadata.directory.peerId(ep));
+            return ClusterMetadata.current();
 
-        PrepareCMSReconfiguration.Simple transformation = new PrepareCMSReconfiguration.Simple(metadata.directory.peerId(toRemove), downNodes);
-        transformation.verify(metadata);
-        // We can force removal from the CMS as it doesn't alter the size of the service
-        ClusterMetadataService.instance().commit(transformation);
+        long deadlineNanos = nanoTime() + DatabaseDescriptor.getCmsReconfigurationWaitTimeout().to(NANOSECONDS);
+        RetryStrategy backoffWithJitter = DatabaseDescriptor.getCmsCommitRetryStrategy();
+        Retry retry = Retry.until(deadlineNanos, TCMMetrics.instance.cmsReconfigurationRetries, backoffWithJitter);
+        MultiStepOperation<?> inProgress = null;
+        ClusterMetadata current = metadata;
+        while (!retry.hasExpired())
+        {
+            if (!current.fullCMSMembers().contains(toRemove))
+                return ClusterMetadata.current();
 
-        InProgressSequences.finishInProgressSequences(SequenceKey.instance);
-        if (ClusterMetadata.current().isCMSMember(toRemove))
-            throw new IllegalStateException(String.format("Could not remove %s from CMS", toRemove));
+            inProgress = inProgressReconfiguration.apply(current);
+            if (inProgress != null)
+            {
+                logger.info("Deferring CMS reconfiguration to remove {} until in-progress reconfiguration {} completes ({}ms remaining before giving up)",
+                            toRemove, inProgress, NANOSECONDS.toMillis(retry.remainingNanos()));
+                retry.maybeSleep();
+                current = ClusterMetadata.current();
+            }
+            else
+            {
+                Set<NodeId> downNodes = new HashSet<>();
+                for (InetAddressAndPort ep : current.directory.allJoinedEndpoints())
+                    if (!FailureDetector.instance.isAlive(ep))
+                        downNodes.add(current.directory.peerId(ep));
+
+                PrepareCMSReconfiguration.Simple transformation = new PrepareCMSReconfiguration.Simple(current.directory.peerId(toRemove), downNodes);
+                transformation.verify(current);
+
+                AtomicReference<ExceptionCode> failureCode = new AtomicReference<>();
+                AtomicReference<String> failureMessage = new AtomicReference<>();
+                // We can force removal from the CMS as it doesn't alter the size of the service
+                ClusterMetadata result = ClusterMetadataService.instance().commit(transformation,
+                                                                                  m -> m,
+                                                                                  (code, message) -> {
+                                                                                      failureCode.set(code);
+                                                                                      failureMessage.set(message);
+                                                                                      return null;
+                                                                                  });
+                if (result != null)
+                {
+                    InProgressSequences.finishInProgressSequences(SequenceKey.instance);
+                    if (ClusterMetadata.current().isCMSMember(toRemove))
+                        throw new IllegalStateException(String.format("Could not remove %s from CMS", toRemove));
+                    return ClusterMetadata.current();
+                }
+
+                current = ClusterMetadata.current();
+                inProgress = inProgressReconfiguration.apply(current);
+                if (inProgress == null)
+                    throw new IllegalStateException(String.format("Can not commit transformation to remove %s from the CMS: \"%s\"(%s).",
+                                                                    toRemove, failureCode.get(), failureMessage.get()));
+            }
+        }
+
+        throw new IllegalStateException(String.format("Timed out after %s waiting to reconfigure the CMS to remove %s: " +
+                                                        "another CMS reconfiguration (%s) is in progress.",
+                                                        DatabaseDescriptor.getCmsReconfigurationWaitTimeout(), toRemove, inProgress));
     }
 
     private static void initiateRemoteStreaming(Replica replicaForStreaming, Set<InetAddressAndPort> streamCandidates)

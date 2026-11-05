@@ -1,4 +1,5 @@
 7.0
+ * Retry node decommission when a different CMS reconfiguration is in progress (CASSANDRA-21693)
  * Clarify off-heap OOM error message in JVMStabilityInspector (CASSANDRA-19831)
  * FQLTool Replay support for full set of login options (CASSANDRA-17559)
  * Extract reusable HttpService from cloud metadata connector (CASSANDRA-21195)
