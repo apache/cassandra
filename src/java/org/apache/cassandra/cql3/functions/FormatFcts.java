@@ -289,8 +289,8 @@ public class FormatFcts
         {
             return new FunctionFactory(FUNCTION_NAME,
                                        fixed(INT, TINYINT, SMALLINT, BIGINT, VARINT, ASCII, TEXT),
-                                       optional(fixed(ASCII)),
-                                       optional(fixed(ASCII)))
+                                       optional(fixed(TEXT, ASCII)),
+                                       optional(fixed(TEXT, ASCII)))
             {
                 @Override
                 protected NativeFunction doGetOrCreateFunction(List<AbstractType<?>> argTypes, AbstractType<?> receiverType)

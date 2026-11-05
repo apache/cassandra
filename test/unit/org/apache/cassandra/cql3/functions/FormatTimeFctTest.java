@@ -112,6 +112,22 @@ public class FormatTimeFctTest extends AbstractFormatFctTest implements WithQuic
     }
 
     @Test
+    public void testAcceptsAsciiAndTextUnits()
+    {
+        createTable(of(BIGINT, ASCII, TEXT),
+                    new Object[][]{ { 1, 1073741826L, "'us'", "'µs'" } });
+
+        assertRows(execute("select format_time(col1, col2, 'ns') from %s where pk = 1"),
+                   row("1073741826000 ns"));
+        assertRows(execute("select format_time(col1, 'ns', col3) from %s where pk = 1"),
+                   row("1073741.83 µs"));
+        assertRows(execute("select format_time(col1, col3, 'ns') from %s where pk = 1"),
+                   row("1073741826000 ns"));
+        assertRows(execute("select format_time(col1, ?, 'ns') from %s where pk = 1", "µs"),
+                   row("1073741826000 ns"));
+    }
+
+    @Test
     public void testNoOverflow()
     {
         createTable(of(BIGINT, INT, SMALLINT, TINYINT),
@@ -208,12 +224,12 @@ public class FormatTimeFctTest extends AbstractFormatFctTest implements WithQuic
         // test arguemnt size = 0
         assertThatThrownBy(() -> execute("select format_time() from %s where pk = 1"))
         .isInstanceOf(InvalidRequestException.class)
-        .hasMessageContaining("Invalid number of arguments for function system.format_time([int|tinyint|smallint|bigint|varint|ascii|text], [ascii], [ascii])");
+        .hasMessageContaining("Invalid number of arguments for function system.format_time");
 
         // Test argument size > 3
         assertThatThrownBy(() -> execute("select format_time(col1, 'ms', 's', 'h') from %s where pk = 1"))
         .isInstanceOf(InvalidRequestException.class)
-        .hasMessageContaining("Invalid number of arguments for function system.format_time([int|tinyint|smallint|bigint|varint|ascii|text], [ascii], [ascii])");
+        .hasMessageContaining("Invalid number of arguments for function system.format_time");
     }
 
     @Test
