@@ -38,7 +38,6 @@ import org.apache.cassandra.db.marshal.ValueAccessor;
 import org.apache.cassandra.db.partitions.PartitionUpdate;
 import org.apache.cassandra.db.partitions.UnfilteredPartitionIterator;
 import org.apache.cassandra.db.rows.Cell;
-import org.apache.cassandra.db.rows.DeserializationHelper;
 import org.apache.cassandra.db.rows.Row;
 import org.apache.cassandra.db.rows.UnfilteredRowIterator;
 import org.apache.cassandra.net.MessagingService;
@@ -182,7 +181,7 @@ public class PaxosRows
             if (!proposalValue.hasRemaining())
                 return true;
 
-            return isEmpty(proposalValue, DeserializationHelper.Flag.LOCAL, key, proposalVersion);
+            return isEmpty(proposalValue, key.getKey(), getTableUuid(row), proposalVersion);
         }
         catch (IOException e)
         {
