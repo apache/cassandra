@@ -94,7 +94,8 @@ ccm create test -n 1 --install-dir=${CASSANDRA_DIR}
 ccm updateconf "user_defined_functions_enabled: true"
 ccm updateconf "cdc_enabled: true"
 
-ccm start --wait-for-binary-proto
+# skip flushing system_schema tables on every DDL and fsync, as unit tests do
+ccm start --wait-for-binary-proto --jvm_arg=-Dcassandra.test.flush_local_schema_changes=false --jvm_arg=-Dcassandra.skip_sync=true
 
 pushd ${CASSANDRA_DIR}/pylib/cqlshlib/ >/dev/null
 
