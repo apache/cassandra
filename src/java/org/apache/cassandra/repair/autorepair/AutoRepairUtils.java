@@ -47,6 +47,7 @@ import com.google.common.collect.Sets;
 import com.clearspring.analytics.stream.cardinality.CardinalityMergeException;
 import com.clearspring.analytics.stream.cardinality.HyperLogLogPlus;
 import com.clearspring.analytics.stream.cardinality.ICardinality;
+import org.apache.cassandra.db.ColumnFamilyStore;
 import org.apache.cassandra.dht.Range;
 import org.apache.cassandra.dht.Splitter;
 import org.apache.cassandra.dht.Token;
@@ -1384,6 +1385,15 @@ public class AutoRepairUtils
     public static String getKeyspaceTableName(String keyspace, String table)
     {
         return keyspace + "." + table;
+    }
+
+    public static boolean shouldRepairTable(RepairType repairType, TableMetadata metadata)
+    {
+        if (repairType != RepairType.PAXOS_CLEANUP)
+            return true;
+        // don't do paxos cleanup if never witness any prepare attempt
+        ColumnFamilyStore cfs = Keyspace.openAndGetStoreIfExists(metadata);
+        return cfs != null && cfs.metric.casPrepare.totalLatency.getCount() > 0;
     }
 
     /**

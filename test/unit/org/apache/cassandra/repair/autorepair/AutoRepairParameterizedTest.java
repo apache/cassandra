@@ -119,6 +119,8 @@ public class AutoRepairParameterizedTest extends CQLTester
 
     // Expected number of repairs to be executed.
     private static int expectedRepairAssignments;
+    // Paxos cleanup skips repair if there are no LWTs, so the number of repair assignments will be lower
+    private static int expectedRepairAssignmentsForPaxosCleanup;
 
     @Parameterized.Parameter()
     public AutoRepairConfig.RepairType repairType;
@@ -147,6 +149,7 @@ public class AutoRepairParameterizedTest extends CQLTester
                                               .automatedRepair(AutoRepairParams.create(ImmutableMap.of(AutoRepairParams.Option.FULL_ENABLED.name().toLowerCase(), Boolean.toString(true),
                                                                                                        AutoRepairParams.Option.INCREMENTAL_ENABLED.name().toLowerCase(), Boolean.toString(true),
                                                                                                        AutoRepairParams.Option.PREVIEW_REPAIRED_ENABLED.name().toLowerCase(), Boolean.toString(true),
+                                                                                                       AutoRepairParams.Option.PAXOS_CLEANUP_ENABLED.name().toLowerCase(), Boolean.toString(true),
                                                                                                        AutoRepairParams.Option.PRIORITY.name().toString(), Integer.toString(0))))
                                               .build())
                            .build();
@@ -160,6 +163,7 @@ public class AutoRepairParameterizedTest extends CQLTester
                                                                 .automatedRepair(AutoRepairParams.create(ImmutableMap.of(AutoRepairParams.Option.FULL_ENABLED.name().toLowerCase(), Boolean.toString(false),
                                                                                                                          AutoRepairParams.Option.INCREMENTAL_ENABLED.name().toLowerCase(), Boolean.toString(false),
                                                                                                                          AutoRepairParams.Option.PREVIEW_REPAIRED_ENABLED.name().toLowerCase(), Boolean.toString(false),
+                                                                                                                         AutoRepairParams.Option.PAXOS_CLEANUP_ENABLED.name().toLowerCase(), Boolean.toString(false),
                                                                                                                          AutoRepairParams.Option.PRIORITY.name().toString(), Integer.toString(0))))
                                                                 .build())
                                              .build();
@@ -195,10 +199,11 @@ public class AutoRepairParameterizedTest extends CQLTester
         }
         // Since the splitter will unwrap a full token range, we expect twice as many repairs.
         expectedRepairAssignments = expectedKeyspacesGoingThroughRepair * 2;
+        expectedRepairAssignmentsForPaxosCleanup = (expectedKeyspacesGoingThroughRepair - 1) * 2;
     }
 
     @Before
-    public void setup()
+    public void setup() throws Throwable
     {
         DatabaseDescriptor.setCDCOnRepairEnabled(false);
         DatabaseDescriptor.setMaterializedViewsOnRepairEnabled(false);
@@ -225,6 +230,9 @@ public class AutoRepairParameterizedTest extends CQLTester
         resetConfig();
 
         AutoRepair.shuffleFunc = java.util.Collections::shuffle;
+
+        // paxos cleanup will only be scheduled when there is some LWT traffic
+        executeNet("INSERT INTO " + KEYSPACE + '.' + TABLE + " (k, i, v) values (?, ?, ?) IF NOT EXISTS", "1", 2, "3");
     }
 
     @After
@@ -633,6 +641,9 @@ public class AutoRepairParameterizedTest extends CQLTester
         assertEquals(1, shuffleKeyspacesCall.get());
         // Expect an invocation for tables for each keyspace
         assertNotEquals(0, keyspaceCount.get());
+        if (repairType == AutoRepairConfig.RepairType.PAXOS_CLEANUP) // only 2 tables have LWT traffic and will be repaired
+            assertEquals(2, shuffleTablesCall.get());
+        else
         assertEquals(keyspaceCount.get(), shuffleTablesCall.get());
     }
 
@@ -675,10 +686,18 @@ public class AutoRepairParameterizedTest extends CQLTester
         AutoRepair.instance.repair(repairType);
 
         // Expect configured retries for each keyspace expected to be repaired
-        assertEquals(config.getRepairMaxRetries(repairType)*expectedRepairAssignments, sleepCalls.get());
+        if (repairType == AutoRepairConfig.RepairType.PAXOS_CLEANUP)
+        {
+            assertEquals(config.getRepairMaxRetries(repairType)*expectedRepairAssignmentsForPaxosCleanup, sleepCalls.get());
+            verify(autoRepairState, times(1)).setFailedTokenRangesCount(expectedRepairAssignmentsForPaxosCleanup);
+        }
+        else
+        {
+            assertEquals(config.getRepairMaxRetries(repairType)*expectedRepairAssignments, sleepCalls.get());
+            verify(autoRepairState, times(1)).setFailedTokenRangesCount(expectedRepairAssignments);
+        }
         verify(autoRepairState, times(1)).setSucceededTokenRangesCount(0);
         verify(autoRepairState, times(1)).setSkippedTokenRangesCount(0);
-        verify(autoRepairState, times(1)).setFailedTokenRangesCount(expectedRepairAssignments);
     }
 
     @Test
@@ -711,7 +730,10 @@ public class AutoRepairParameterizedTest extends CQLTester
         AutoRepair.instance.repair(repairType);
 
         assertEquals(1, sleepCalls.get());
-        verify(autoRepairState, times(1)).setSucceededTokenRangesCount(expectedRepairAssignments);
+        if (repairType == AutoRepairConfig.RepairType.PAXOS_CLEANUP)
+            verify(autoRepairState, times(1)).setSucceededTokenRangesCount(expectedRepairAssignmentsForPaxosCleanup);
+        else
+            verify(autoRepairState, times(1)).setSucceededTokenRangesCount(expectedRepairAssignments);
         verify(autoRepairState, times(1)).setSkippedTokenRangesCount(0);
         verify(autoRepairState, times(1)).setFailedTokenRangesCount(0);
     }
@@ -811,7 +833,10 @@ public class AutoRepairParameterizedTest extends CQLTester
         AutoRepair.instance.repair(repairType);
 
         assertEquals(1, sleepCalls.get());
-        verify(autoRepairState, times(1)).setSucceededTokenRangesCount(expectedRepairAssignments);
+        if (repairType == AutoRepairConfig.RepairType.PAXOS_CLEANUP)
+            verify(autoRepairState, times(1)).setSucceededTokenRangesCount(expectedRepairAssignmentsForPaxosCleanup);
+        else
+            verify(autoRepairState, times(1)).setSucceededTokenRangesCount(expectedRepairAssignments);
         verify(autoRepairState, times(1)).setSkippedTokenRangesCount(0);
         verify(autoRepairState, times(1)).setFailedTokenRangesCount(0);
     }
@@ -834,7 +859,10 @@ public class AutoRepairParameterizedTest extends CQLTester
 
         AutoRepair.instance.repair(repairType);
 
-        verify(autoRepairState, times(1)).setSucceededTokenRangesCount(expectedRepairAssignments);
+        if (repairType == AutoRepairConfig.RepairType.PAXOS_CLEANUP)
+            verify(autoRepairState, times(1)).setSucceededTokenRangesCount(expectedRepairAssignmentsForPaxosCleanup);
+        else
+            verify(autoRepairState, times(1)).setSucceededTokenRangesCount(expectedRepairAssignments);
         verify(autoRepairState, times(1)).setSkippedTokenRangesCount(0);
         verify(autoRepairState, times(1)).setFailedTokenRangesCount(0);
     }

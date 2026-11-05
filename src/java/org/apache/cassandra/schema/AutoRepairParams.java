@@ -41,6 +41,7 @@ public final class AutoRepairParams
         FULL_ENABLED,
         INCREMENTAL_ENABLED,
         PREVIEW_REPAIRED_ENABLED,
+        PAXOS_CLEANUP_ENABLED,
         PRIORITY;
 
         @Override
@@ -56,6 +57,7 @@ public final class AutoRepairParams
     Option.FULL_ENABLED.name().toLowerCase(), Boolean.toString(true),
     Option.INCREMENTAL_ENABLED.name().toLowerCase(), Boolean.toString(true),
     Option.PREVIEW_REPAIRED_ENABLED.name().toLowerCase(), Boolean.toString(true),
+    Option.PAXOS_CLEANUP_ENABLED.name().toLowerCase(), Boolean.toString(true),
     Option.PRIORITY.toString(), "0"
     );
 
@@ -123,6 +125,12 @@ public final class AutoRepairParams
             throw new ConfigurationException(format("Invalid value %s for '%s' repair sub-option - must be a boolean",
                                                     options.get(Option.PREVIEW_REPAIRED_ENABLED.toString().toLowerCase()),
                                                     Option.PREVIEW_REPAIRED_ENABLED));
+        }
+        if (options.get(Option.PAXOS_CLEANUP_ENABLED.toString().toLowerCase()) != null && !isValidBoolean(options.get(Option.PAXOS_CLEANUP_ENABLED.toString().toLowerCase())))
+        {
+            throw new ConfigurationException(format("Invalid value %s for '%s' repair sub-option - must be a boolean",
+                                                    options.get(Option.PAXOS_CLEANUP_ENABLED.toString().toLowerCase()),
+                                                    Option.PAXOS_CLEANUP_ENABLED));
         }
         if (options.get(Option.PRIORITY.toString().toLowerCase()) != null && !isValidInt(options.get(Option.PRIORITY.toString().toLowerCase())))
         {
