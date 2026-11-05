@@ -98,6 +98,13 @@ public class AutoRepairSchedulerTest extends TestBaseImpl
                                                                     // less restrictive about when it can run repair,
                                                                     // so need to check more frequently to allow
                                                                     // incremental to get an attempt in.
+                                                                    "min_repair_interval", "5s"),
+                                                                    AutoRepairConfig.RepairType.PAXOS_CLEANUP.getConfigName(),
+                                                                    ImmutableMap.of(
+                                                                    "initial_scheduler_delay", "5s",
+                                                                    "enabled", "true",
+                                                                    "parallel_repair_count", "3",
+                                                                    "allow_parallel_replica_repair", "true",
                                                                     "min_repair_interval", "5s"))))
                                                .set("auto_repair.enabled", "true")
                                                .set("auto_repair.global_settings.repair_by_keyspace", "true")
@@ -164,6 +171,7 @@ public class AutoRepairSchedulerTest extends TestBaseImpl
 
         validate(AutoRepairConfig.RepairType.FULL.toString());
         validate(AutoRepairConfig.RepairType.INCREMENTAL.toString());
+        validate(AutoRepairConfig.RepairType.PAXOS_CLEANUP.toString());
     }
 
     private void validate(String repairType) throws ParseException

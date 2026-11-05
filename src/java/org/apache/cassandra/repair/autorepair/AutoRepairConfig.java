@@ -74,7 +74,8 @@ public class AutoRepairConfig implements Serializable
     {
         FULL,
         INCREMENTAL,
-        PREVIEW_REPAIRED;
+        PREVIEW_REPAIRED,
+        PAXOS_CLEANUP;
 
         private final String configName;
 
@@ -102,6 +103,8 @@ public class AutoRepairConfig implements Serializable
                     return new IncrementalRepairState(config);
                 case PREVIEW_REPAIRED:
                     return new PreviewRepairedState(config);
+                case PAXOS_CLEANUP:
+                    return new PaxosCleanupState(config);
             }
 
             throw new IllegalArgumentException("Invalid repair type: " + repairType);
@@ -437,6 +440,7 @@ public class AutoRepairConfig implements Serializable
             options.put(AutoRepairConfig.RepairType.FULL, getDefaultOptions());
             options.put(RepairType.INCREMENTAL, getDefaultOptions());
             options.put(RepairType.PREVIEW_REPAIRED, getDefaultOptions());
+            options.put(RepairType.PAXOS_CLEANUP, getDefaultOptions());
 
             return options;
         }

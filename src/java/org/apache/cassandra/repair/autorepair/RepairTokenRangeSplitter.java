@@ -162,6 +162,8 @@ public class RepairTokenRangeSplitter implements IAutoRepairTokenRangeSplitter
                                                                        .build());
         put(AutoRepairConfig.RepairType.PREVIEW_REPAIRED, RepairTypeDefaults.builder(AutoRepairConfig.RepairType.PREVIEW_REPAIRED)
                                                                             .build());
+        put(AutoRepairConfig.RepairType.PAXOS_CLEANUP, RepairTypeDefaults.builder(AutoRepairConfig.RepairType.PAXOS_CLEANUP)
+                                                                            .build());
     }};
 
     public RepairTokenRangeSplitter(AutoRepairConfig.RepairType repairType, Map<String, String> parameters)
