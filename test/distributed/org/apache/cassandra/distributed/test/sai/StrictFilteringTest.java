@@ -19,7 +19,9 @@
 package org.apache.cassandra.distributed.test.sai;
 
 import java.io.IOException;
+import java.util.HashSet;
 import java.util.Iterator;
+import java.util.Set;
 
 import org.assertj.core.api.Assertions;
 import org.junit.AfterClass;
@@ -34,6 +36,7 @@ import org.apache.cassandra.distributed.test.TestBaseImpl;
 import org.apache.cassandra.index.sai.plan.StorageAttachedIndexQueryPlan;
 
 import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertTrue;
 
 import static org.apache.cassandra.distributed.api.Feature.GOSSIP;
 import static org.apache.cassandra.distributed.api.Feature.NETWORK;
@@ -268,6 +271,53 @@ public class StrictFilteringTest extends TestBaseImpl
 
         Long srpRequestsAfter = CLUSTER.get(1).callOnInstance(() -> Keyspace.open(KEYSPACE).getColumnFamilyStore("necessary_short_read").metric.shortReadProtectionRequests.getCount());
         assertEquals(srpRequestsBefore + 2L, srpRequestsAfter.longValue());
+    }
+
+    @Test
+    public void testShortReadProtectionStaysBoundedWithFullRangePredicate()
+    {
+        final int totalRows = 80;
+        final int totalOwners = 10;
+        final long targetOwner = 7;
+
+        CLUSTER.schemaChange(withKeyspace("CREATE TABLE %s.full_range_predicate (id bigint, d timestamp, owner bigint, score int, title text, PRIMARY KEY (id, d))"));
+        CLUSTER.schemaChange(withKeyspace("CREATE INDEX ON %s.full_range_predicate(owner) USING 'sai'"));
+        CLUSTER.schemaChange(withKeyspace("CREATE INDEX ON %s.full_range_predicate(score) USING 'sai'"));
+        SAIUtil.waitForIndexQueryable(CLUSTER, KEYSPACE);
+
+        String insert = withKeyspace("INSERT INTO %s.full_range_predicate (id, d, owner, score, title) VALUES (?, '2020-01-01 00:00:00+0000', ?, ?, ?)");
+        Set<Long> expectedIds = new HashSet<>();
+        for (long i = 0; i < totalRows; i++)
+        {
+            long owner = i % totalOwners;
+            int score = (int) (i % 50);
+            if (owner == targetOwner)
+                expectedIds.add(i);
+            CLUSTER.coordinator(1).execute(insert, ConsistencyLevel.QUORUM, i, owner, score, "title " + i);
+        }
+
+        CLUSTER.get(1).flush(KEYSPACE);
+        CLUSTER.get(2).flush(KEYSPACE);
+
+        // score >= 0 is always true here, so using the index would be pointless
+        String select = withKeyspace("SELECT id FROM %s.full_range_predicate WHERE owner = " + targetOwner + " AND score >= 0");
+
+        Long srpRequestsBefore = CLUSTER.get(1).callOnInstance(() -> Keyspace.open(KEYSPACE).getColumnFamilyStore("full_range_predicate").metric.shortReadProtectionRequests.getCount());
+        Iterator<Object[]> rows = CLUSTER.coordinator(1).executeWithPaging(select, ConsistencyLevel.QUORUM, 5);
+
+        Set<Long> actualIds = new HashSet<>();
+        while (rows.hasNext())
+            actualIds.add((Long) rows.next()[0]);
+
+        // Queries with reasonable selectivity shouldn't need many short-reads...
+        final long acceptableShortReadsPerMatch = 2;
+
+        Long srpRequestsAfter = CLUSTER.get(1).callOnInstance(() -> Keyspace.open(KEYSPACE).getColumnFamilyStore("full_range_predicate").metric.shortReadProtectionRequests.getCount());
+        long actualRequests = srpRequestsAfter - srpRequestsBefore;
+        long acceptableRequests = expectedIds.size() * acceptableShortReadsPerMatch;
+
+        assertEquals(expectedIds, actualIds);
+        assertTrue(actualRequests <= acceptableRequests);
     }
 
     @Test

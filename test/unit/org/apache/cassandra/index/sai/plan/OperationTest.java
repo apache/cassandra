@@ -38,10 +38,14 @@ import org.apache.cassandra.cql3.Operator;
 import org.apache.cassandra.cql3.statements.schema.IndexTarget;
 import org.apache.cassandra.db.Clustering;
 import org.apache.cassandra.db.ColumnFamilyStore;
+import org.apache.cassandra.db.DataRange;
 import org.apache.cassandra.db.DecoratedKey;
 import org.apache.cassandra.db.Keyspace;
 import org.apache.cassandra.db.PartitionRangeReadCommand;
 import org.apache.cassandra.db.ReadCommand;
+import org.apache.cassandra.db.RowUpdateBuilder;
+import org.apache.cassandra.db.filter.ColumnFilter;
+import org.apache.cassandra.db.filter.DataLimits;
 import org.apache.cassandra.db.filter.RowFilter;
 import org.apache.cassandra.db.marshal.AbstractType;
 import org.apache.cassandra.db.marshal.CollectionType;
@@ -80,10 +84,16 @@ public class OperationTest
     private static final String CF_NAME = "test_cf";
     private static final String CLUSTERING_CF_NAME = "clustering_test_cf";
     private static final String STATIC_CF_NAME = "static_sai_test_cf";
+    private static final String NON_STRICT_CF_NAME = "non_strict_test_cf";
+    private static final String NON_STRICT_CLUSTERING_CF_NAME = "non_strict_clustering_test_cf";
+    private static final String MEMTABLE_ONLY_CF_NAME = "memtable_only_test_cf";
 
     private static ColumnFamilyStore BACKEND;
     private static ColumnFamilyStore CLUSTERING_BACKEND;
     private static ColumnFamilyStore STATIC_BACKEND;
+    private static ColumnFamilyStore NON_STRICT_BACKEND;
+    private static ColumnFamilyStore NON_STRICT_CLUSTERING_BACKEND;
+    private static ColumnFamilyStore MEMTABLE_ONLY_BACKEND;
 
     private QueryController controller;
     private QueryController controllerClustering;
@@ -100,11 +110,42 @@ public class OperationTest
                                     KeyspaceParams.simpleTransient(1),
                                     skinnySAITableMetadata(KS_NAME, CF_NAME),
                                     clusteringSAITableMetadata(KS_NAME, CLUSTERING_CF_NAME),
-                                    staticSAITableMetadata(KS_NAME, STATIC_CF_NAME));
+                                    staticSAITableMetadata(KS_NAME, STATIC_CF_NAME),
+                                    nonStrictSAITableMetadata(KS_NAME, NON_STRICT_CF_NAME),
+                                    nonStrictClusteringSAITableMetadata(KS_NAME, NON_STRICT_CLUSTERING_CF_NAME),
+                                    nonStrictSAITableMetadata(KS_NAME, MEMTABLE_ONLY_CF_NAME));
 
         BACKEND = Keyspace.open(KS_NAME).getColumnFamilyStore(CF_NAME);
         CLUSTERING_BACKEND = Keyspace.open(KS_NAME).getColumnFamilyStore(CLUSTERING_CF_NAME);
         STATIC_BACKEND = Keyspace.open(KS_NAME).getColumnFamilyStore(STATIC_CF_NAME);
+        NON_STRICT_BACKEND = Keyspace.open(KS_NAME).getColumnFamilyStore(NON_STRICT_CF_NAME);
+        NON_STRICT_CLUSTERING_BACKEND = Keyspace.open(KS_NAME).getColumnFamilyStore(NON_STRICT_CLUSTERING_CF_NAME);
+        MEMTABLE_ONLY_BACKEND = Keyspace.open(KS_NAME).getColumnFamilyStore(MEMTABLE_ONLY_CF_NAME);
+
+        // A single flushed row gives each indexed column a known, single-point on-disk range (min == max),
+        // so a predicate covers the whole range iff its bound sits on the far side of that single value.
+        new RowUpdateBuilder(NON_STRICT_BACKEND.metadata(), FBUtilities.timestampMicros(), "0").add("tag", "a")
+                                                                                               .add("age", 5)
+                                                                                               .add("score", 5.0d)
+                                                                                               .add("weight", 5.0d)
+                                                                                               .build()
+                                                                                               .apply();
+        NON_STRICT_BACKEND.forceBlockingFlush(ColumnFamilyStore.FlushReason.UNIT_TESTS);
+
+        new RowUpdateBuilder(NON_STRICT_CLUSTERING_BACKEND.metadata(), FBUtilities.timestampMicros(), "0").clustering(5)
+                                                                                                          .add("weight", 5.0d)
+                                                                                                          .add("score", 5.0d)
+                                                                                                          .build()
+                                                                                                          .apply();
+        NON_STRICT_CLUSTERING_BACKEND.forceBlockingFlush(ColumnFamilyStore.FlushReason.UNIT_TESTS);
+
+        // This row only ever exists in the Memtable:
+        new RowUpdateBuilder(MEMTABLE_ONLY_BACKEND.metadata(), FBUtilities.timestampMicros(), "0").add("tag", "a")
+                                                                                                  .add("age", 5)
+                                                                                                  .add("score", 5.0d)
+                                                                                                  .add("weight", 5.0d)
+                                                                                                  .build()
+                                                                                                  .apply();
     }
 
     @Before
@@ -125,6 +166,21 @@ public class OperationTest
         QueryContext context = new QueryContext(command, DatabaseDescriptor.getRangeRpcTimeout(TimeUnit.MILLISECONDS));
         context.hasUnrepairedMatches = true;
         return context;
+    }
+
+    private static QueryController controllerFor(ColumnFamilyStore cfs, boolean needsReconciliation, RowFilter.Expression... expressions)
+    {
+        RowFilter rowFilter = RowFilter.create(needsReconciliation);
+        for (RowFilter.Expression expression : expressions)
+            rowFilter.add(expression.column(), expression.operator(), expression.getIndexValue());
+
+        ReadCommand command = PartitionRangeReadCommand.create(cfs.metadata(),
+                                                                FBUtilities.nowInSeconds(),
+                                                                ColumnFilter.all(cfs.metadata()),
+                                                                rowFilter,
+                                                                DataLimits.NONE,
+                                                                DataRange.allData(cfs.metadata().partitioner));
+        return new QueryController(cfs, command, null, contextWithUnrepairedMatches(command));
     }
 
     @Test
@@ -363,18 +419,227 @@ public class OperationTest
         assertFalse(node.buildFilter(controllerStatic, true).isSatisfiedBy(key, row, staticRow));
     }
 
+    @Test
+    public void testFullRangePredicateDemotedToPostFilterWhenNonStrict()
+    {
+        ColumnMetadata age = getColumn(NON_STRICT_BACKEND, UTF8Type.instance.decompose("age"));
+        ColumnMetadata score = getColumn(NON_STRICT_BACKEND, UTF8Type.instance.decompose("score"));
+
+        RowFilter.Expression ageExpr = new SimpleExpression(age, Operator.GT, Int32Type.instance.decompose(0));
+        RowFilter.Expression scoreExpr = new SimpleExpression(score, Operator.GT, DoubleType.instance.decompose(100.0));
+
+        Operation.Expressions expressions = Operation.buildIndexExpressions(controllerFor(NON_STRICT_BACKEND, true, ageExpr, scoreExpr), Arrays.asList(ageExpr, scoreExpr));
+
+        assertTrue(expressions.isUnindexed(age));
+        assertFalse(expressions.isUnindexed(score));
+    }
+
+    @Test
+    public void testFullRangePredicateNotDemotedWhenOnlyInMemtable()
+    {
+        // MEMTABLE_ONLY_BACKEND's row is never flushed. The demotion check only ever looks at on-disk data, so a 
+        // predicate that's unselective only against live Memtable data stays indexed until the Memtable flushes.
+        ColumnMetadata age = getColumn(MEMTABLE_ONLY_BACKEND, UTF8Type.instance.decompose("age"));
+        ColumnMetadata score = getColumn(MEMTABLE_ONLY_BACKEND, UTF8Type.instance.decompose("score"));
+
+        RowFilter.Expression ageExpr = new SimpleExpression(age, Operator.GT, Int32Type.instance.decompose(0));
+        RowFilter.Expression scoreExpr = new SimpleExpression(score, Operator.GT, DoubleType.instance.decompose(100.0));
+
+        Operation.Expressions expressions = Operation.buildIndexExpressions(controllerFor(MEMTABLE_ONLY_BACKEND, true, ageExpr, scoreExpr), Arrays.asList(ageExpr, scoreExpr));
+
+        assertFalse(expressions.isUnindexed(age));
+        assertFalse(expressions.isUnindexed(score));
+    }
+
+    @Test
+    public void testFullRangePredicateNotDemotedWithOnlyOneIndexedColumn()
+    {
+        ColumnMetadata age = getColumn(NON_STRICT_BACKEND, UTF8Type.instance.decompose("age"));
+        RowFilter.Expression ageExpr = new SimpleExpression(age, Operator.GT, Int32Type.instance.decompose(0));
+        Operation.Expressions expressions = Operation.buildIndexExpressions(controllerFor(NON_STRICT_BACKEND, true, ageExpr), Arrays.asList(ageExpr));
+        assertFalse(expressions.isUnindexed(age));
+    }
+
+    @Test
+    public void testFullRangePredicateNotDemotedUnderStrictFiltering()
+    {
+        ColumnMetadata age = getColumn(NON_STRICT_BACKEND, UTF8Type.instance.decompose("age"));
+        ColumnMetadata score = getColumn(NON_STRICT_BACKEND, UTF8Type.instance.decompose("score"));
+
+        RowFilter.Expression ageExpr = new SimpleExpression(age, Operator.GT, Int32Type.instance.decompose(0));
+        RowFilter.Expression scoreExpr = new SimpleExpression(score, Operator.GT, DoubleType.instance.decompose(100.0));
+
+        Operation.Expressions expressions = Operation.buildIndexExpressions(controllerFor(NON_STRICT_BACKEND, false, ageExpr, scoreExpr), Arrays.asList(ageExpr, scoreExpr));
+
+        assertFalse(expressions.isUnindexed(age));
+        assertFalse(expressions.isUnindexed(score));
+    }
+
+    @Test
+    public void testEqualityPredicateNeverDemoted()
+    {
+        ColumnMetadata age = getColumn(NON_STRICT_BACKEND, UTF8Type.instance.decompose("age"));
+        ColumnMetadata score = getColumn(NON_STRICT_BACKEND, UTF8Type.instance.decompose("score"));
+
+        // age = 5 matches the only on-disk value, but equality predicates are never demoted
+        RowFilter.Expression ageExpr = new SimpleExpression(age, Operator.EQ, Int32Type.instance.decompose(5));
+        RowFilter.Expression scoreExpr = new SimpleExpression(score, Operator.GT, DoubleType.instance.decompose(0.0));
+
+        Operation.Expressions expressions = Operation.buildIndexExpressions(controllerFor(NON_STRICT_BACKEND, true, ageExpr, scoreExpr), Arrays.asList(ageExpr, scoreExpr));
+
+        assertFalse(expressions.isUnindexed(age));
+        assertTrue(expressions.isUnindexed(score));
+    }
+
+    @Test
+    public void testAtLeastOneIndexedColumnSurvivesDemotion()
+    {
+        ColumnMetadata age = getColumn(NON_STRICT_BACKEND, UTF8Type.instance.decompose("age"));
+        ColumnMetadata score = getColumn(NON_STRICT_BACKEND, UTF8Type.instance.decompose("score"));
+
+        RowFilter.Expression ageExpr = new SimpleExpression(age, Operator.GT, Int32Type.instance.decompose(0));
+        RowFilter.Expression scoreExpr = new SimpleExpression(score, Operator.GT, DoubleType.instance.decompose(0.0));
+
+        Operation.Expressions expressions = Operation.buildIndexExpressions(controllerFor(NON_STRICT_BACKEND, true, ageExpr, scoreExpr), Arrays.asList(ageExpr, scoreExpr));
+
+        assertTrue(expressions.isUnindexed(age) != expressions.isUnindexed(score));
+    }
+
+    @Test
+    public void testMultipleCoveringColumnsAllButOneDemoted()
+    {
+        ColumnMetadata age = getColumn(NON_STRICT_BACKEND, UTF8Type.instance.decompose("age"));
+        ColumnMetadata score = getColumn(NON_STRICT_BACKEND, UTF8Type.instance.decompose("score"));
+        ColumnMetadata weight = getColumn(NON_STRICT_BACKEND, UTF8Type.instance.decompose("weight"));
+
+        RowFilter.Expression ageExpr = new SimpleExpression(age, Operator.GT, Int32Type.instance.decompose(0));
+        RowFilter.Expression scoreExpr = new SimpleExpression(score, Operator.GT, DoubleType.instance.decompose(0.0));
+        RowFilter.Expression weightExpr = new SimpleExpression(weight, Operator.GT, DoubleType.instance.decompose(0.0));
+
+        Operation.Expressions expressions = Operation.buildIndexExpressions(controllerFor(NON_STRICT_BACKEND, true, ageExpr, scoreExpr, weightExpr), Arrays.asList(ageExpr, scoreExpr, weightExpr));
+
+        int demoted = 0;
+        if (expressions.isUnindexed(age)) demoted++;
+        if (expressions.isUnindexed(score)) demoted++;
+        if (expressions.isUnindexed(weight)) demoted++;
+
+        // Exactly one of the three fully-covering columns must stay indexed to drive the search.
+        assertEquals(2, demoted);
+    }
+
+    @Test
+    public void testTwoSidedRangeFullyCoveringBothBoundsDemoted()
+    {
+        ColumnMetadata age = getColumn(NON_STRICT_BACKEND, UTF8Type.instance.decompose("age"));
+        ColumnMetadata score = getColumn(NON_STRICT_BACKEND, UTF8Type.instance.decompose("score"));
+
+        RowFilter.Expression ageLower = new SimpleExpression(age, Operator.GTE, Int32Type.instance.decompose(0));
+        RowFilter.Expression ageUpper = new SimpleExpression(age, Operator.LTE, Int32Type.instance.decompose(10));
+        RowFilter.Expression scoreExpr = new SimpleExpression(score, Operator.GT, DoubleType.instance.decompose(100.0));
+
+        Operation.Expressions expressions = Operation.buildIndexExpressions(controllerFor(NON_STRICT_BACKEND, true, ageLower, ageUpper, scoreExpr), Arrays.asList(ageLower, ageUpper, scoreExpr));
+
+        assertTrue(expressions.isUnindexed(age));
+        assertFalse(expressions.isUnindexed(score));
+    }
+
+    @Test
+    public void testUpperOnlyBoundCoveringDemoted()
+    {
+        ColumnMetadata age = getColumn(NON_STRICT_BACKEND, UTF8Type.instance.decompose("age"));
+        ColumnMetadata score = getColumn(NON_STRICT_BACKEND, UTF8Type.instance.decompose("score"));
+
+        RowFilter.Expression ageExpr = new SimpleExpression(age, Operator.LT, Int32Type.instance.decompose(1000));
+        RowFilter.Expression scoreExpr = new SimpleExpression(score, Operator.GT, DoubleType.instance.decompose(100.0));
+
+        Operation.Expressions expressions = Operation.buildIndexExpressions(controllerFor(NON_STRICT_BACKEND, true, ageExpr, scoreExpr), Arrays.asList(ageExpr, scoreExpr));
+
+        assertTrue(expressions.isUnindexed(age));
+        assertFalse(expressions.isUnindexed(score));
+    }
+
+    @Test
+    public void testExactBoundaryRangeMatchDemoted()
+    {
+        ColumnMetadata age = getColumn(NON_STRICT_BACKEND, UTF8Type.instance.decompose("age"));
+        ColumnMetadata score = getColumn(NON_STRICT_BACKEND, UTF8Type.instance.decompose("score"));
+
+        // age is pinned to exactly the single on-disk value via range operators, not equality
+        RowFilter.Expression ageLower = new SimpleExpression(age, Operator.GTE, Int32Type.instance.decompose(5));
+        RowFilter.Expression ageUpper = new SimpleExpression(age, Operator.LTE, Int32Type.instance.decompose(5));
+        RowFilter.Expression scoreExpr = new SimpleExpression(score, Operator.GT, DoubleType.instance.decompose(100.0));
+
+        Operation.Expressions expressions = Operation.buildIndexExpressions(controllerFor(NON_STRICT_BACKEND, true, ageLower, ageUpper, scoreExpr), Arrays.asList(ageLower, ageUpper, scoreExpr));
+
+        assertTrue(expressions.isUnindexed(age));
+        assertFalse(expressions.isUnindexed(score));
+    }
+
+    @Test
+    public void testNarrowlyMissingLowerBoundNotDemoted()
+    {
+        ColumnMetadata age = getColumn(NON_STRICT_BACKEND, UTF8Type.instance.decompose("age"));
+        ColumnMetadata score = getColumn(NON_STRICT_BACKEND, UTF8Type.instance.decompose("score"));
+
+        // age's only on-disk value is 5, so >= 6 excludes it by exactly one
+        RowFilter.Expression ageExpr = new SimpleExpression(age, Operator.GTE, Int32Type.instance.decompose(6));
+        RowFilter.Expression scoreExpr = new SimpleExpression(score, Operator.GT, DoubleType.instance.decompose(0.0));
+
+        Operation.Expressions expressions = Operation.buildIndexExpressions(controllerFor(NON_STRICT_BACKEND, true, ageExpr, scoreExpr), Arrays.asList(ageExpr, scoreExpr));
+
+        assertFalse(expressions.isUnindexed(age));
+        assertTrue(expressions.isUnindexed(score));
+    }
+
+    @Test
+    public void testLiteralRangePredicateIsNeverIndexed()
+    {
+        ColumnMetadata tag = getColumn(NON_STRICT_BACKEND, UTF8Type.instance.decompose("tag"));
+        ColumnMetadata age = getColumn(NON_STRICT_BACKEND, UTF8Type.instance.decompose("age"));
+
+        // SAI only supports range operators on non-literal types, so this never even reaches the demotion
+        // logic as an indexed expression in the first place; it's unindexed from the start, same as a
+        // predicate on a column with no index at all.
+        RowFilter.Expression tagExpr = new SimpleExpression(tag, Operator.GTE, UTF8Type.instance.decompose("a"));
+        RowFilter.Expression ageExpr = new SimpleExpression(age, Operator.GT, Int32Type.instance.decompose(0));
+
+        Operation.Expressions expressions = Operation.buildIndexExpressions(controllerFor(NON_STRICT_BACKEND, true, tagExpr, ageExpr), Arrays.asList(tagExpr, ageExpr));
+
+        assertTrue(expressions.isUnindexed(tag));
+        assertFalse(expressions.isUnindexed(age));
+    }
+
+    @Test
+    public void testIndexedClusteringColumnNeverDemoted()
+    {
+        ColumnMetadata rank = getColumn(NON_STRICT_CLUSTERING_BACKEND, UTF8Type.instance.decompose("rank"));
+        ColumnMetadata weight = getColumn(NON_STRICT_CLUSTERING_BACKEND, UTF8Type.instance.decompose("weight"));
+        ColumnMetadata score = getColumn(NON_STRICT_CLUSTERING_BACKEND, UTF8Type.instance.decompose("score"));
+
+        // isMutableIntersection() only counts non-primary-key columns, so a second regular column (score) is
+        // needed alongside weight to make this a non-strict read in the first place.
+        RowFilter.Expression rankExpr = new SimpleExpression(rank, Operator.GT, Int32Type.instance.decompose(0));
+        RowFilter.Expression weightExpr = new SimpleExpression(weight, Operator.GT, DoubleType.instance.decompose(0.0));
+        RowFilter.Expression scoreExpr = new SimpleExpression(score, Operator.GT, DoubleType.instance.decompose(100.0));
+
+        Operation.Expressions expressions = Operation.buildIndexExpressions(controllerFor(NON_STRICT_CLUSTERING_BACKEND, true, rankExpr, weightExpr, scoreExpr), Arrays.asList(rankExpr, weightExpr, scoreExpr));
+
+        assertFalse(expressions.isUnindexed(rank));
+        assertTrue(expressions.isUnindexed(weight));
+        assertFalse(expressions.isUnindexed(score));
+    }
+
     public static TableMetadata.Builder skinnySAITableMetadata(String keyspace, String table)
     {
-        TableMetadata.Builder builder =
-        TableMetadata.builder(keyspace, table)
-                     .addPartitionKeyColumn("id", UTF8Type.instance)
-                     .addRegularColumn("first_name", UTF8Type.instance)
-                     .addRegularColumn("last_name", UTF8Type.instance)
-                     .addRegularColumn("age", Int32Type.instance)
-                     .addRegularColumn("height", Int32Type.instance)
-                     .addRegularColumn("timestamp", LongType.instance)
-                     .addRegularColumn("address", UTF8Type.instance)
-                     .addRegularColumn("score", DoubleType.instance);
+        TableMetadata.Builder builder = TableMetadata.builder(keyspace, table)
+                                                     .addPartitionKeyColumn("id", UTF8Type.instance)
+                                                     .addRegularColumn("first_name", UTF8Type.instance)
+                                                     .addRegularColumn("last_name", UTF8Type.instance)
+                                                     .addRegularColumn("age", Int32Type.instance)
+                                                     .addRegularColumn("height", Int32Type.instance)
+                                                     .addRegularColumn("timestamp", LongType.instance)
+                                                     .addRegularColumn("address", UTF8Type.instance)
+                                                     .addRegularColumn("score", DoubleType.instance);
 
         Indexes.Builder indexes = Indexes.builder();
         addIndex(indexes, table, "first_name");
@@ -409,15 +674,48 @@ public class OperationTest
                             .indexes(indexes.build());
     }
 
+    public static TableMetadata.Builder nonStrictSAITableMetadata(String keyspace, String table)
+    {
+        TableMetadata.Builder builder = TableMetadata.builder(keyspace, table)
+                                                     .addPartitionKeyColumn("id", UTF8Type.instance)
+                                                     .addRegularColumn("tag", UTF8Type.instance)
+                                                     .addRegularColumn("age", Int32Type.instance)
+                                                     .addRegularColumn("score", DoubleType.instance)
+                                                     .addRegularColumn("weight", DoubleType.instance);
+
+        Indexes.Builder indexes = Indexes.builder();
+        addIndex(indexes, table, "tag");
+        addIndex(indexes, table, "age");
+        addIndex(indexes, table, "score");
+        addIndex(indexes, table, "weight");
+
+        return builder.indexes(indexes.build());
+    }
+
+    public static TableMetadata.Builder nonStrictClusteringSAITableMetadata(String keyspace, String table)
+    {
+        TableMetadata.Builder builder = TableMetadata.builder(keyspace, table)
+                                                     .addPartitionKeyColumn("id", UTF8Type.instance)
+                                                     .addClusteringColumn("rank", Int32Type.instance)
+                                                     .addRegularColumn("weight", DoubleType.instance)
+                                                     .addRegularColumn("score", DoubleType.instance);
+
+        Indexes.Builder indexes = Indexes.builder();
+        addIndex(indexes, table, "rank");
+        addIndex(indexes, table, "weight");
+        addIndex(indexes, table, "score");
+
+        return builder.indexes(indexes.build());
+    }
+
     public static TableMetadata.Builder staticSAITableMetadata(String keyspace, String table)
     {
-        TableMetadata.Builder builder =
-        TableMetadata.builder(keyspace, table)
-                     .addPartitionKeyColumn("sensor_id", Int32Type.instance)
-                     .addStaticColumn("sensor_type", UTF8Type.instance)
-                     .addClusteringColumn("date", LongType.instance)
-                     .addRegularColumn("value", DoubleType.instance)
-                     .addRegularColumn("variance", Int32Type.instance);
+        TableMetadata.Builder builder = TableMetadata.builder(keyspace, table)
+                                                     .addPartitionKeyColumn("sensor_id", Int32Type.instance)
+                                                     .addStaticColumn("sensor_type", UTF8Type.instance)
+                                                     .addClusteringColumn("date", LongType.instance)
+                                                     .addRegularColumn("value", DoubleType.instance)
+                                                     .addRegularColumn("variance", Int32Type.instance);
 
         Indexes.Builder indexes = Indexes.builder();
 
