@@ -905,7 +905,7 @@ public class PartitionUpdate extends AbstractBTreePartition
             try (UnfilteredRowIterator iter = update.unfilteredIterator())
             {
                 return update.metadata.id.serializedSize()
-                     + (version >= MessagingService.VERSION_60 ? Epoch.serializer.serializedSize(update.metadata.epoch) : 0)
+                     + (version >= MessagingService.VERSION_60 ? Epoch.serializer.serializedSize(update.metadata.epoch != null ? update.metadata.epoch : Epoch.EMPTY) : 0)
                      + UnfilteredRowIteratorSerializer.serializer.serializedSize(iter, null, version, update.rowCount());
             }
         }
