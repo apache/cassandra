@@ -1,4 +1,5 @@
 5.0.10
+ * Extend AutoRepair to support PaxosCleanup (coordinated paxos repair) (CASSANDRA-21309)
  * Avoid NPE in GossipShutdownVerbHandler when endpoint state is null (CASSANDRA-20603)
  * Fix ShardManager#coveringRange to include the first partition position (CASSANDRA-20927)
  * Respect cassandra.skip_sync in FileOutputStreamPlus.sync and ChecksumWriter (CASSANDRA-21800)

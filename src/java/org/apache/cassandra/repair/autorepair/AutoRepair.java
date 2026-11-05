@@ -479,6 +479,9 @@ public class AutoRepair
                 continue;
             }
 
+            if (!AutoRepairUtils.shouldRepairTable(repairType, tableMetadata))
+                continue;
+
             // this is done to make autorepair safe as running repair on table with more sstables
             // may have its own challenges
             int totalSSTables = columnFamilyStore.getLiveSSTables().size();

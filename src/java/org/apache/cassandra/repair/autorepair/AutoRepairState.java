@@ -320,6 +320,26 @@ class PreviewRepairedState extends AutoRepairState
     }
 }
 
+class PaxosCleanupState extends AutoRepairState
+{
+    public PaxosCleanupState(AutoRepairConfig config)
+    {
+        super(RepairType.PAXOS_CLEANUP, config);
+    }
+
+    @Override
+    public RepairCoordinator getRepairRunnable(String keyspace, List<String> tables, Set<Range<Token>> ranges, boolean primaryRangeOnly)
+    {
+        RepairOption option = new RepairOption(RepairParallelism.PARALLEL, primaryRangeOnly, false, false,
+                AutoRepairService.instance.getAutoRepairConfig().getRepairThreads(repairType), ranges,
+                !ranges.isEmpty(), false, false, PreviewKind.NONE, false, true, false, true);
+
+        option.getColumnFamilies().addAll(tables);
+
+        return getRepairRunnable(keyspace, option);
+    }
+}
+
 class IncrementalRepairState extends AutoRepairState
 {
     public IncrementalRepairState(AutoRepairConfig config)

@@ -48,6 +48,11 @@ public class AutoRepairStateFactoryTest
 
         assertNotNull(state);
         assertTrue(state.getClass().getSimpleName().equals("PreviewRepairedState"));
+
+        state = RepairType.getAutoRepairState(RepairType.PAXOS_CLEANUP, new AutoRepairConfig());
+
+        assertNotNull(state);
+        assertTrue(state.getClass().getSimpleName().equals("PaxosCleanupState"));
     }
 
     @Test
