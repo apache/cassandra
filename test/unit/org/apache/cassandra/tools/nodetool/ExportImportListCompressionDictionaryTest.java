@@ -20,6 +20,8 @@ package org.apache.cassandra.tools.nodetool;
 
 import java.nio.file.Files;
 import java.time.Instant;
+import java.util.List;
+import java.util.stream.Collectors;
 
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.node.ObjectNode;
@@ -169,12 +171,21 @@ public class ExportImportListCompressionDictionaryTest extends CQLTester
     {
         ToolResult result = invokeNodetool("compressiondictionary", "list", keyspace(), table);
         result.assertOnExitCode();
-        assertTrue(result.getStdout()
-                         .contains(format("%s %s %s %s %s %s %s",
-                                          keyspace(), table, dataObject.dictId,
-                                          dataObject.kind, dataObject.dictChecksum,
-                                          dataObject.dictLength,
-                                          dataObject.createdAt.toString())));
+        // every column is padded to its widest value, the header included, so a checksum of fewer than
+        // 8 digits is followed by more than one space; compare the values of a row, not its text
+        List<List<String>> rows = result.getStdout()
+                                        .lines()
+                                        .map(line -> List.of(line.trim().split("\\s+")))
+                                        .collect(Collectors.toList());
+        assertThat(rows)
+        .as("rows listed for %s.%s", keyspace(), table)
+        .contains(List.of(keyspace(),
+                          table,
+                          String.valueOf(dataObject.dictId),
+                          dataObject.kind,
+                          String.valueOf(dataObject.dictChecksum),
+                          String.valueOf(dataObject.dictLength),
+                          dataObject.createdAt.toString()));
     }
 
     private void rewriteTable(String table, Pair<CompressionDictionaryDataObject, File> pair) throws Throwable
