@@ -40,8 +40,6 @@ import java.util.stream.Stream;
 import javax.annotation.Nullable;
 
 import com.clearspring.analytics.stream.cardinality.CardinalityMergeException;
-import com.clearspring.analytics.stream.cardinality.HyperLogLogPlus;
-import com.clearspring.analytics.stream.cardinality.ICardinality;
 import com.google.common.annotations.VisibleForTesting;
 import com.google.common.base.MoreObjects;
 import com.google.common.collect.Lists;
@@ -68,6 +66,7 @@ import org.apache.cassandra.gms.Gossiper;
 import org.apache.cassandra.io.sstable.format.SSTableReader;
 import org.apache.cassandra.io.sstable.metadata.CompactionMetadata;
 import org.apache.cassandra.io.sstable.metadata.MetadataType;
+import org.apache.cassandra.io.sstable.metadata.PartitionKeyUnion;
 import org.apache.cassandra.locator.AbstractReplicationStrategy;
 import org.apache.cassandra.locator.EndpointsByRange;
 import org.apache.cassandra.locator.EndpointsForRange;
@@ -1376,7 +1375,7 @@ public class AutoRepairUtils
                                                    Range<Token> tokenRange, Refs<SSTableReader> refs)
     {
         List<Range<Token>> singletonRange = Collections.singletonList(tokenRange);
-        ICardinality cardinality = new HyperLogLogPlus(13, 25);
+        PartitionKeyUnion partitionKeys = new PartitionKeyUnion();
         long approxBytesInRange = 0L;
         long totalBytes = 0L;
 
@@ -1388,7 +1387,7 @@ public class AutoRepairUtils
                     continue;
                 CompactionMetadata metadata = (CompactionMetadata) reader.descriptor.getMetadataSerializer().deserialize(reader.descriptor, MetadataType.COMPACTION);
                 if (metadata != null)
-                    cardinality = cardinality.merge(metadata.cardinalityEstimator);
+                    partitionKeys.add(metadata.cardinalityEstimator);
 
                 // use onDiskLength, which is the actual size of the SSTable data file.
                 long sstableSize = reader.onDiskLength();
@@ -1410,7 +1409,7 @@ public class AutoRepairUtils
         {
             // use the ratio from size to estimate the partitions in the range as well
             double ratio = approxBytesInRange / (double) totalBytes;
-            partitions = (long) Math.max(1, Math.ceil(cardinality.cardinality() * ratio));
+            partitions = (long) Math.max(1, Math.ceil(partitionKeys.cardinality() * ratio));
         }
         return new SizeEstimate(repairType, keyspace, table, tokenRange, partitions, approxBytesInRange, totalBytes);
     }
