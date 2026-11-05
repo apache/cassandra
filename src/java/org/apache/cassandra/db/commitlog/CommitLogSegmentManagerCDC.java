@@ -132,17 +132,19 @@ public class CommitLogSegmentManagerCDC extends AbstractCommitLogSegmentManager
 
     private long deleteCDCFiles(File cdcLink, File cdcIndexFile)
     {
+        // Files may be deleted concurrently (CDC consumer, allocator pruning, discard());
+        // note: length() returns 0 if missing
         long total = 0;
-        if (cdcLink != null && cdcLink.exists())
+        if (cdcLink != null)
         {
             total += cdcLink.length();
-            cdcLink.delete();
+            cdcLink.deleteIfExists();
         }
 
-        if (cdcIndexFile != null && cdcIndexFile.exists())
+        if (cdcIndexFile != null)
         {
             total += cdcIndexFile.length();
-            cdcIndexFile.delete();
+            cdcIndexFile.deleteIfExists();
         }
         return total;
     }
