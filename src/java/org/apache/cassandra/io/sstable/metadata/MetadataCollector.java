@@ -18,6 +18,7 @@
 package org.apache.cassandra.io.sstable.metadata;
 
 import java.nio.ByteBuffer;
+import java.util.Arrays;
 import java.util.EnumMap;
 import java.util.Map;
 import java.util.UUID;
@@ -384,17 +385,21 @@ public class MetadataCollector implements PartitionStatisticsCollector
         // because if we detected X is greater than the current MAX, then it cannot be lower than the current MIN
         // at the same time. The only case when we need to update MIN when the current MAX was detected to be updated
         // is the case when MIN was not yet initialized and still point the ClusteringBound.MAX_START
+        // Bounds follow updateClusteringValuesByBoundOrBoundary: a start bound never becomes the max and an end
+        // bound never becomes the min. An early open can read these between a partition's first and last write.
         if (ClusteringComparator.compare(newClustering, maxClusteringDescriptor) > 0)
         {
-            maxClusteringDescriptor.copy(newClustering);
-            if (minClusteringDescriptor.isMaxStart()) // min is unset
-            {
+            if (!newClustering.isStartBound())
+                maxClusteringDescriptor.copy(newClustering);
+            if (!newClustering.isEndBound() && minClusteringDescriptor.isMaxStart()) // min is unset
                 minClusteringDescriptor.copy(newClustering);
-            }
         }
         else if (ClusteringComparator.compare(newClustering, minClusteringDescriptor) < 0)
         {
-            minClusteringDescriptor.copy(newClustering);
+            if (!newClustering.isEndBound())
+                minClusteringDescriptor.copy(newClustering);
+            else if (maxClusteringDescriptor.isMinEnd()) // max is unset
+                maxClusteringDescriptor.copy(newClustering);
         }
     }
 
@@ -508,6 +513,105 @@ public class MetadataCollector implements PartitionStatisticsCollector
     public void release()
     {
         estimatedTombstoneDropTime.releaseBuffers();
+    }
+
+    /**
+     * Holds one unfiltered's stats until its bytes are written, then adds them to this collector in the order
+     * they came. The iterator path collects an unfiltered's stats after it writes it, so an early open in the
+     * middle of a row reads the same stats on both paths. Reused for every unfiltered.
+     */
+    public final class RowStatsBuffer
+    {
+        private final MinMaxLongTracker timestamps = new MinMaxLongTracker();
+        private final MinMaxLongTracker localDeletionTimes = new MinMaxLongTracker();
+        private final MinMaxIntTracker ttls = new MinMaxIntTracker();
+        // the deletion times that go to the tombstone histogram, in the order they came
+        private long[] histogramPoints = new long[16];
+        private int histogramPointCount;
+        private int tombstones;
+        private int cells;
+
+        /** Like {@link MetadataCollector#update(LivenessInfo)}. */
+        public void update(LivenessInfo newInfo)
+        {
+            if (newInfo.isEmpty())
+                return;
+
+            timestamps.update(newInfo.timestamp());
+            ttls.update(newInfo.ttl());
+            updateLocalDeletionTime(newInfo.localExpirationTime());
+            if (!newInfo.isLive(nowInSec))
+                ++tombstones;
+        }
+
+        /** Like {@link MetadataCollector#updateCellLiveness}. */
+        public void updateCellLiveness(CellLivenessInfo newInfo)
+        {
+            ++cells;
+            timestamps.update(newInfo.timestamp());
+            ttls.update(newInfo.ttl());
+            updateLocalDeletionTime(newInfo.localDeletionTime());
+            if (!newInfo.isLive(nowInSec))
+                ++tombstones;
+        }
+
+        /** Like {@link MetadataCollector#update(DeletionTime)}. */
+        public void update(DeletionTime dt)
+        {
+            if (!dt.isLive())
+            {
+                timestamps.update(dt.markedForDeleteAt());
+                updateLocalDeletionTime(dt.localDeletionTime());
+                ++tombstones;
+            }
+        }
+
+        private void updateLocalDeletionTime(long newLocalDeletionTime)
+        {
+            localDeletionTimes.update(newLocalDeletionTime);
+            if (newLocalDeletionTime == Cell.NO_DELETION_TIME)
+                return;
+            if (histogramPointCount == histogramPoints.length)
+                histogramPoints = Arrays.copyOf(histogramPoints, histogramPointCount * 2);
+            histogramPoints[histogramPointCount++] = newLocalDeletionTime;
+        }
+
+        /** Adds the held stats to the collector and clears them. */
+        public void addToCollector()
+        {
+            // The trackers keep only a min and a max, so adding those two gives the same result as each value.
+            if (timestamps.isSet)
+            {
+                timestampTracker.update(timestamps.min);
+                timestampTracker.update(timestamps.max);
+            }
+            if (ttls.isSet)
+            {
+                ttlTracker.update(ttls.min);
+                ttlTracker.update(ttls.max);
+            }
+            if (localDeletionTimes.isSet)
+            {
+                localDeletionTimeTracker.update(localDeletionTimes.min);
+                localDeletionTimeTracker.update(localDeletionTimes.max);
+            }
+            for (int i = 0; i < histogramPointCount; i++)
+                estimatedTombstoneDropTime.update(histogramPoints[i]);
+            totalTombstones += tombstones;
+            currentPartitionCells += cells;
+
+            timestamps.isSet = false;
+            ttls.isSet = false;
+            localDeletionTimes.isSet = false;
+            histogramPointCount = 0;
+            tombstones = 0;
+            cells = 0;
+        }
+    }
+
+    public RowStatsBuffer newRowStatsBuffer()
+    {
+        return new RowStatsBuffer();
     }
 
     public static class MinMaxLongTracker

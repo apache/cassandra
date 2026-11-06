@@ -215,6 +215,102 @@ public class DroppedColumnDifferentialCompactionTest extends DifferentialCompact
     }
 
     /**
+     * The dropped column was the table's ONLY static column, and its cells are above the drop time.
+     * The iterator discards the whole static row when the schema has no static column
+     * (UnfilteredRowIterators.mergeStaticRows), whatever the cell timestamps are. The cursor must do
+     * the same.
+     */
+    @Test
+    public void droppedOnlyStaticColumnSurvivingCells() throws Exception
+    {
+        createTable("CREATE TABLE %s (pk bigint, s text static, ck bigint, v1 bigint, PRIMARY KEY (pk, ck))");
+        ColumnFamilyStore cfs = getCurrentColumnFamilyStore();
+        cfs.disableAutoCompaction();
+
+        writeStaticAndRows(FUTURE_TS, "first-");
+        flush();
+        writeStaticAndRows(FUTURE_TS + 1, "second-");
+        flush();
+
+        alterTable("ALTER TABLE %s DROP s");
+
+        String json = allJson(assertCursorMatchesIterator(cfs));
+        assertEquals("the static row must be discarded once the table has no static column",
+                     0, countOccurrences(json, "\"static_block\""));
+        assertEquals("the regular rows must survive", 3 * 5, countOccurrences(json, "\"name\":\"v1\""));
+    }
+
+    /** As above, but the static column is re-added, so the schema has a static column again. */
+    @Test
+    public void droppedOnlyStaticColumnReAdded() throws Exception
+    {
+        createTable("CREATE TABLE %s (pk bigint, s text static, ck bigint, v1 bigint, PRIMARY KEY (pk, ck))");
+        ColumnFamilyStore cfs = getCurrentColumnFamilyStore();
+        cfs.disableAutoCompaction();
+
+        // below the drop time, so the read discards these static cells
+        writeStaticAndRows(null, "old-");
+        flush();
+        // above the drop time, so these survive
+        writeStaticAndRows(FUTURE_TS, "future-");
+        flush();
+
+        alterTable("ALTER TABLE %s DROP s");
+        alterTable("ALTER TABLE %s ADD s text static");
+
+        for (long pk = 0; pk < 3; pk++)
+            execute("INSERT INTO %s (pk, s) VALUES (?, ?)", pk, "new-" + pk);
+        flush();
+
+        String json = allJson(assertCursorMatchesIterator(cfs));
+        assertEquals("a static row with surviving cells must be kept once the column is back",
+                     3, countOccurrences(json, "\"static_block\""));
+        assertEquals("static cells below the drop time must not survive", 0, countOccurrences(json, cellValue("old-0")));
+    }
+
+    /** One of two static columns is dropped, with cells above the drop time. The static row is kept. */
+    @Test
+    public void droppedStaticColumnWithAnotherStaticColumnKept() throws Exception
+    {
+        createTable("CREATE TABLE %s (pk bigint, s text static, s2 text static, ck bigint, v1 bigint, PRIMARY KEY (pk, ck))");
+        ColumnFamilyStore cfs = getCurrentColumnFamilyStore();
+        cfs.disableAutoCompaction();
+
+        for (int round = 0; round < 2; round++)
+        {
+            for (long pk = 0; pk < 3; pk++)
+            {
+                execute("INSERT INTO %s (pk, s, s2) VALUES (?, ?, ?) USING TIMESTAMP " + (FUTURE_TS + round),
+                        pk, "s-" + round + '-' + pk, "s2-" + round + '-' + pk);
+                for (long ck = 0; ck < 5; ck++)
+                    execute("INSERT INTO %s (pk, ck, v1) VALUES (?, ?, ?)", pk, ck, ck);
+            }
+            flush();
+        }
+
+        alterTable("ALTER TABLE %s DROP s");
+
+        String json = allJson(assertCursorMatchesIterator(cfs));
+        assertEquals("the static row must be kept while the table has a static column",
+                     3, countOccurrences(json, "\"static_block\""));
+    }
+
+    /**
+     * Writes a static value and five rows into each of three partitions. A null timestamp writes
+     * at the current time.
+     */
+    private void writeStaticAndRows(Long timestamp, String staticPrefix)
+    {
+        String using = timestamp == null ? "" : " USING TIMESTAMP " + timestamp;
+        for (long pk = 0; pk < 3; pk++)
+        {
+            execute("INSERT INTO %s (pk, s) VALUES (?, ?)" + using, pk, staticPrefix + pk);
+            for (long ck = 0; ck < 5; ck++)
+                execute("INSERT INTO %s (pk, ck, v1) VALUES (?, ?, ?)" + using, pk, ck, ck);
+        }
+    }
+
+    /**
      * A cell timestamped exactly {@link LivenessInfo#NO_TIMESTAMP}, in an sstable whose header carries a
      * dropped column. Long.MIN_VALUE is that sentinel, {@code DeletionTime.LIVE}'s
      * {@code markedForDeleteAt}, and the cursor's "no drop horizon" sentinel at the same time. One

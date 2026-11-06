@@ -19,8 +19,13 @@
 package org.apache.cassandra.io.sstable;
 
 import java.io.IOException;
+import java.util.function.BiFunction;
 
 import org.apache.cassandra.db.DeletionTime;
+import org.apache.cassandra.db.SerializationHeader;
+import org.apache.cassandra.dht.ReusableDecoratedKey;
+import org.apache.cassandra.io.sstable.format.SSTableWriter;
+import org.apache.cassandra.io.sstable.format.SortedTableWriter;
 
 /**
  * Format-specific partition/row index production for {@link SSTableCursorWriter}.
@@ -33,6 +38,57 @@ import org.apache.cassandra.db.DeletionTime;
  */
 public abstract class CursorIndexWriter
 {
+    /** Builds the index writer for one table writer. See {@link org.apache.cassandra.io.sstable.format.SSTableFormat#cursorIndexWriterFactory}. */
+    public interface Factory
+    {
+        /**
+         * The class of table writer that {@link #create} takes. Cursor compaction falls back to the
+         * iterator path, before it opens any cursor, unless this is a {@link SortedTableWriter}.
+         */
+        Class<? extends SSTableWriter> writerClass();
+
+        CursorIndexWriter create(SortedTableWriter<?, ?> writer, SerializationHeader header);
+
+        /**
+         * A factory for table writers of class {@code writerClass}. {@link #create} checks the
+         * writer's class with {@link #checkWriterType} before it calls {@code create}.
+         *
+         * @param format the name of the format, for the message if the writer has another class
+         */
+        static <W extends SortedTableWriter<?, ?>> Factory of(String format, Class<W> writerClass,
+                                                              BiFunction<W, SerializationHeader, CursorIndexWriter> create)
+        {
+            return new Factory()
+            {
+                @Override
+                public Class<W> writerClass()
+                {
+                    return writerClass;
+                }
+
+                @Override
+                public CursorIndexWriter create(SortedTableWriter<?, ?> writer, SerializationHeader header)
+                {
+                    return create.apply(checkWriterType(format, writer, writerClass), header);
+                }
+            };
+        }
+    }
+
+    /**
+     * Returns {@code writer} as a {@code type}, or throws if it is not one. Cursor compaction calls this
+     * once per sstable writer, so a format whose writer class does not match fails with a clear message.
+     *
+     * @param format the name of the format whose cursor compaction needs the {@code type}
+     */
+    public static <T> T checkWriterType(String format, SSTableWriter writer, Class<T> type)
+    {
+        if (!type.isInstance(writer))
+            throw new IllegalStateException(String.format("cursor compaction for format %s needs a %s, but the writer is a %s",
+                                                          format, type.getName(), writer.getClass().getName()));
+        return type.cast(writer);
+    }
+
     protected long partitionStart;
     // Offset of the current index block from the start of the current partition. Keep this a
     // long: a partition can exceed 2GiB. CursorIndexWriterOffsetWidthTest pins the width.
@@ -79,14 +135,24 @@ public abstract class CursorIndexWriter
                                     DeletionTime openMarker) throws IOException;
 
     /**
-     * The partition ends at partitionEnd, which includes the end-of-partition marker.
+     * The partition ends at partitionEnd, which is past its end-of-partition marker.
      *
-     * @param lastName the clustering of the last non-static unfiltered in this partition. A
-     *                 trailing index block uses it as the block's last name. Null if the
-     *                 partition wrote no non-static unfiltered, which leaves no trailing block
-     *                 to cut.
+     * @param key the partition key; a reusable instance, whose bytes and token the next partition
+     *            overwrites. Anything that keeps it past this call, such as the index summary's
+     *            readable boundary, the key cache or the BTI partition index, takes retainable().
+     * @param lastName the clustering of the last non-static unfiltered written to this
+     *                 partition, or null if the partition wrote none.
      */
-    public abstract void endPartition(byte[] key, int keyLength, int headerLength,
-                                      DeletionTime partitionDeletionTime, long partitionEnd,
-                                      ClusteringDescriptor lastName) throws IOException;
+    public abstract void endPartition(ReusableDecoratedKey key, byte[] keyBytes, int keyLength,
+                                      int headerLength, DeletionTime partitionDeletionTime,
+                                      long partitionEnd, ClusteringDescriptor lastName) throws IOException;
+
+    /**
+     * Releases the per-instance index state. The table writer that built this calls it in its
+     * transaction cleanup, on commit and on abort. The underlying file writers belong to the table
+     * writer, so an implementation must not close them.
+     */
+    public void close()
+    {
+    }
 }

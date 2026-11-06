@@ -22,10 +22,16 @@ import java.math.BigDecimal;
 import java.math.BigInteger;
 import java.net.InetAddress;
 import java.nio.ByteBuffer;
+import java.util.Collection;
 import java.util.Date;
+import java.util.List;
 import java.util.UUID;
 
+import org.junit.After;
+import org.junit.Before;
 import org.junit.Test;
+import org.junit.runner.RunWith;
+import org.junit.runners.Parameterized;
 
 import org.apache.cassandra.cql3.Duration;
 import org.apache.cassandra.db.ColumnFamilyStore;
@@ -57,8 +63,8 @@ import static org.apache.cassandra.config.CassandraRelevantProperties.TEST_DIFFE
  * </ul>
  *
  * This scenario has its own class rather than a case in EdgeCase. Its DDL and its prepared
- * statements are large, and the setup takes most of the run time. A subclass runs the same
- * scenario on the BTI format.
+ * statements are large, and the setup takes most of the run time. It runs once on each sstable
+ * format, big and bti.
  *
  * You can change the width with two system properties. The defaults give 1800 regular columns
  * and 200 static columns. The properties must reach the forked test JVM through -Dtest.jvm.args:
@@ -73,13 +79,35 @@ import static org.apache.cassandra.config.CassandraRelevantProperties.TEST_DIFFE
  * encodings for more than 64 columns, and of the mode boundary. The width sets everything else:
  * the boundary rows, the sparse rows, and the sets of deleted columns.
  */
+@RunWith(Parameterized.class)
 public class PathologicalWideTableDifferentialCompactionTest extends DifferentialCompactionTester
 {
     private static final int REGULARS = TEST_DIFFERENTIAL_WIDE_REGULARS.getInt();
     private static final int STATICS = TEST_DIFFERENTIAL_WIDE_STATICS.getInt();
     private static final int PALETTE = 20;
 
+    @Parameterized.Parameter
+    public String format;
+
+    @Parameterized.Parameters(name = "format={0}")
+    public static Collection<Object[]> formats()
+    {
+        return List.of(new Object[]{ "big" }, new Object[]{ "bti" });
+    }
+
     private String udt;
+
+    @Before
+    public void selectFormat()
+    {
+        selectSSTableFormat(format);
+    }
+
+    @After
+    public void restoreFormat()
+    {
+        restoreSelectedFormat();
+    }
 
     private String typeFor(int i)
     {

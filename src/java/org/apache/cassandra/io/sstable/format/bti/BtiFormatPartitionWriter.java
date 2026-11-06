@@ -38,7 +38,7 @@ import org.apache.cassandra.io.util.SequentialWriter;
  */
 class BtiFormatPartitionWriter extends SortedTablePartitionWriter
 {
-    private static final int DEFAULT_GRANULARITY = 16 * 1024;
+    static final int DEFAULT_GRANULARITY = 16 * 1024;
     private final RowIndexWriter rowTrie;
     private final int rowIndexBlockSize;
     private int rowIndexBlockCount;
