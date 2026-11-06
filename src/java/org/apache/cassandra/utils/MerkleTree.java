@@ -1531,7 +1531,7 @@ public class MerkleTree
         Inner inner = new OnHeapInner(partitioner.getMinimumToken(), left, right);
         inner.fillInnerHashes();
 
-        // Some partioners have variable token sizes, try to estimate as close as we can by using the same
+        // Some partitioners have variable token sizes, try to estimate as close as we can by using the same
         // heap estimate as the memtables use.
         long innerTokenSize = ObjectSizes.measureDeep(partitioner.getMinimumToken());
         long realInnerTokenSize = partitioner.getMinimumToken().getHeapSize();
