@@ -211,12 +211,22 @@ public class Envelope
 
     public static class Decoder extends ByteToMessageDecoder
     {
-        private static final int MAX_TOTAL_LENGTH = DatabaseDescriptor.getNativeTransportMaxFrameSize();
+        private final long maxTotalLength;
 
         private boolean discardingTooLongMessage;
         private long tooLongTotalLength;
         private long bytesToDiscard;
         private int tooLongStreamId;
+
+        public Decoder()
+        {
+            this(DatabaseDescriptor.getNativeTransportMaxFrameSize());
+        }
+
+        public Decoder(long maxTotalLength)
+        {
+            this.maxTotalLength = maxTotalLength;
+        }
 
         /**
          * Used by protocol V5 and later to extract a CQL message header from the buffer containing
@@ -442,7 +452,7 @@ public class Envelope
             idx += Header.BODY_LENGTH_SIZE;
 
             long totalLength = bodyLength + Header.LENGTH;
-            if (totalLength > MAX_TOTAL_LENGTH)
+            if (totalLength > maxTotalLength)
             {
                 // Enter the discard mode and discard everything received so far.
                 discardingTooLongMessage = true;
@@ -494,7 +504,7 @@ public class Envelope
             long tooLongTotalLength = this.tooLongTotalLength;
             this.tooLongTotalLength = 0;
             discardingTooLongMessage = false;
-            String msg = String.format("Request is too big: length %d exceeds maximum allowed length %d.", tooLongTotalLength, MAX_TOTAL_LENGTH);
+            String msg = String.format("Request is too big: length %d exceeds maximum allowed length %d.", tooLongTotalLength, maxTotalLength);
             throw ErrorMessage.wrap(new InvalidRequestException(msg), tooLongStreamId);
         }
     }

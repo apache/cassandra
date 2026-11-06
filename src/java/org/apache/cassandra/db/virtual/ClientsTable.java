@@ -87,23 +87,29 @@ final class ClientsTable extends AbstractVirtualTable
         {
             InetSocketAddress remoteAddress = client.remoteAddress();
 
-            result.row(remoteAddress.getAddress(), remoteAddress.getPort())
-                  .column(HOSTNAME, remoteAddress.getHostString())
-                  .column(USERNAME, client.username().orElse(null))
-                  .column(CONNECTION_STAGE, toLowerCaseLocalized(client.stage().toString()))
-                  .column(PROTOCOL_VERSION, client.protocolVersion())
-                  .column(CLIENT_OPTIONS, client.clientOptions().orElse(null))
-                  .column(DRIVER_NAME, client.driverName().orElse(null))
-                  .column(DRIVER_VERSION, client.driverVersion().orElse(null))
-                  .column(REQUEST_COUNT, client.requestCount())
-                  .column(SSL_ENABLED, client.sslEnabled())
-                  .column(SSL_PROTOCOL, client.sslProtocol().orElse(null))
-                  .column(SSL_CIPHER_SUITE, client.sslCipherSuite().orElse(null))
-                  .column(KEYSPACE_NAME, client.keyspace().orElse(null))
-                  .column(AUTHENTICATION_MODE, client.authenticationMode().toString())
-                  .column(AUTHENTICATION_METADATA, client.authenticationMetadata()
-                                                         .entrySet().stream()
-                                                         .collect(Collectors.toMap(Entry::getKey, entry -> String.valueOf(entry.getValue()))));
+            SimpleDataSet row = result.row(remoteAddress.getAddress(), remoteAddress.getPort())
+                                      .column(HOSTNAME, remoteAddress.getHostString())
+                                      .column(CONNECTION_STAGE, toLowerCaseLocalized(client.stage().toString()))
+                                      .column(PROTOCOL_VERSION, client.protocolVersion())
+                                      .column(REQUEST_COUNT, client.requestCount())
+                                      .column(SSL_ENABLED, client.sslEnabled())
+                                      .column(SSL_PROTOCOL, client.sslProtocol().orElse(null))
+                                      .column(SSL_CIPHER_SUITE, client.sslCipherSuite().orElse(null));
+
+            if (client.loggedIn())
+            {
+                row.column(USERNAME, client.username().orElse(null))
+                   .column(CLIENT_OPTIONS, client.clientOptions().orElse(null))
+                   .column(DRIVER_NAME, client.driverName().orElse(null))
+                   .column(DRIVER_VERSION, client.driverVersion().orElse(null))
+                   .column(KEYSPACE_NAME, client.keyspace().orElse(null))
+                   .column(AUTHENTICATION_MODE, client.authenticationMode().toString())
+                   .column(AUTHENTICATION_METADATA, client.authenticationMetadata()
+                                                          .entrySet()
+                                                          .stream()
+                                                          .collect(Collectors.toMap(Entry::getKey,
+                                                                                    entry -> String.valueOf(entry.getValue()))));
+            }
         }
 
         return result;
