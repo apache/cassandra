@@ -21,6 +21,8 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import org.apache.cassandra.exceptions.RequestFailureReason;
+import org.apache.cassandra.gms.EndpointState;
+import org.apache.cassandra.gms.Gossiper;
 import org.apache.cassandra.tracing.Tracing;
 
 import static java.util.concurrent.TimeUnit.NANOSECONDS;
@@ -35,6 +37,14 @@ class ResponseVerbHandler implements IVerbHandler
     @Override
     public void doVerb(Message message)
     {
+        // Cross-cluster safety checks
+        EndpointState fromEpState = Gossiper.instance.getEndpointStateForEndpoint(message.from());
+        if (!Gossiper.maybeBelongsInCluster(message.from(), fromEpState))
+        {
+            logger.error("Ignoring received response {} from {} which doesn't belong in this cluster", message.id(), message.from());
+            return;
+        }
+
         RequestCallbacks.CallbackInfo callbackInfo = MessagingService.instance().callbacks.remove(message.id(), message.from());
         if (callbackInfo == null)
         {
