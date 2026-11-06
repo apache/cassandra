@@ -34,7 +34,6 @@ import org.apache.cassandra.db.marshal.AbstractType;
 import org.apache.cassandra.db.marshal.ByteBufferAccessor;
 import org.apache.cassandra.db.marshal.CompositeType;
 import org.apache.cassandra.db.partitions.PartitionUpdate;
-import org.apache.cassandra.db.rows.BTreeRow;
 import org.apache.cassandra.db.rows.Cell;
 import org.apache.cassandra.db.rows.ColumnData;
 import org.apache.cassandra.db.rows.ComplexColumnData;
@@ -106,7 +105,7 @@ public class ViewUpdateGenerator
         this.viewMetadata = Schema.instance.getTableMetadata(view.getDefinition().metadata.id);
 
         this.currentViewEntryPartitionKey = new ByteBuffer[viewMetadata.partitionKeyColumns().size()];
-        this.currentViewEntryBuilder = BTreeRow.sortedBuilder();
+        this.currentViewEntryBuilder = PartitionUpdate.rowBuilder(viewMetadata, false, true);
     }
 
     private static ByteBuffer[] extractKeyComponents(DecoratedKey partitionKey, AbstractType<?> type)
@@ -578,7 +577,7 @@ public class ViewUpdateGenerator
         // We can't really know which columns of the view will be updated nor how many row will be updated for this key
         // so we rely on hopefully sane defaults.
         PartitionUpdate.Builder update = updates.computeIfAbsent(partitionKey,
-                                                                 k -> new PartitionUpdate.Builder(viewMetadata,
+                                                                 k -> PartitionUpdate.builder(viewMetadata,
                                                                                                   partitionKey,
                                                                                                   viewMetadata.regularAndStaticColumns(),
                                                                                                   4));

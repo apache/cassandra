@@ -51,7 +51,7 @@ public abstract class HeapAbstractCell<V> extends AbstractCell<V>
     }
 
     @Override
-    protected int localDeletionTimeAsUnsignedInt()
+    public int localDeletionTimeAsUnsignedInt()
     {
         return localDeletionTimeUnsignedInteger;
     }

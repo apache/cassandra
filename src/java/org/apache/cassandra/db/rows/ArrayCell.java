@@ -42,7 +42,7 @@ public class ArrayCell extends HeapAbstractCell<byte[]>
     // available.
     public ArrayCell(ColumnMetadata column, long timestamp, int ttl, long localDeletionTime, byte[] value, CellPath path)
     {
-        this(column, timestamp, ttl, Cell.deletionTimeLongToUnsignedInteger(localDeletionTime), value, path);
+        this(column, timestamp, ttl, CellData.deletionTimeLongToUnsignedInteger(localDeletionTime), value, path);
     }
 
     public ArrayCell(ColumnMetadata column, long timestamp, int ttl, int localDeletionTimeUnsignedInteger, byte[] value, CellPath path)

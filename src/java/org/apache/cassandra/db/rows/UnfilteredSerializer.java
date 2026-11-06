@@ -696,7 +696,7 @@ public class UnfilteredSerializer
                     if (helper.version < MessagingService.VERSION_50)
                         complexDeletion = DeletionTime.build(complexDeletion.markedForDeleteAt(), Cell.INVALID_DELETION_TIME);
                     else
-                        complexDeletion = DeletionTime.build(complexDeletion.markedForDeleteAt(), Cell.deletionTimeUnsignedIntegerToLong((int) complexDeletion.localDeletionTime()));
+                        complexDeletion = DeletionTime.build(complexDeletion.markedForDeleteAt(), CellData.deletionTimeUnsignedIntegerToLong((int) complexDeletion.localDeletionTime()));
                 }
                 if (!helper.isDroppedComplexDeletion(complexDeletion))
                     builder.addComplexDeletion(column, complexDeletion);

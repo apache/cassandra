@@ -21,11 +21,9 @@ import java.util.function.BiConsumer;
 
 import org.apache.cassandra.utils.bytecomparable.ByteComparable;
 
-/**
- * Walker of trie entries, used with Trie.process to walk all content in order and provide the path through which values
- * are reached.
- */
-public abstract class TrieEntriesWalker<T, V> extends TriePathReconstructor implements Trie.Walker<T, V>
+/// Walker of trie entries, used with [Trie#process] to walk all content in order and provide the path through which values
+/// are reached.
+public abstract class TrieEntriesWalker<T, V> extends TriePathReconstructor implements Cursor.Walker<T, V>
 {
     @Override
     public void content(T content)
@@ -35,28 +33,64 @@ public abstract class TrieEntriesWalker<T, V> extends TriePathReconstructor impl
 
     protected abstract void content(T content, byte[] bytes, int byteLength);
 
-    /**
-     * Iterator representing the content of the trie a sequence of (path, content) pairs.
-     */
+    /// Iterator representing the content of the trie a sequence of (path, content) pairs.
     static class WithConsumer<T> extends TrieEntriesWalker<T, Void>
     {
-        private final BiConsumer<ByteComparable, T> consumer;
+        private final BiConsumer<ByteComparable.Preencoded, ? super T> consumer;
+        private final ByteComparable.Version byteComparableVersion;
 
-        public WithConsumer(BiConsumer<ByteComparable, T> consumer)
+        public WithConsumer(BiConsumer<ByteComparable.Preencoded, ? super T> consumer, ByteComparable.Version byteComparableVersion)
         {
             this.consumer = consumer;
+            this.byteComparableVersion = byteComparableVersion;
         }
 
         @Override
         protected void content(T content, byte[] bytes, int byteLength)
         {
-            consumer.accept(toByteComparable(bytes, byteLength), content);
+            consumer.accept(toByteComparable(byteComparableVersion, bytes, byteLength), content);
         }
 
         @Override
         public Void complete()
         {
             return null;
+        }
+    }
+
+    /// Deletion-aware entries walker, listing both deletion (calling [#deletionMarker(RangeState, byte\[\], int)])
+    /// and live (calling [#content(Object, byte\[\], int)]) content in the trie.
+    public static abstract class DeletionAware<T, D extends RangeState<D>, V>
+    extends TrieEntriesWalker<T, V>
+    implements DeletionAwareCursor.DeletionAwareWalker<T, D, V>
+    {
+        int depthAdjustment = 0;
+
+        @Override
+        public void deletionMarker(D marker)
+        {
+            deletionMarker(marker, keyBytes, keyPos);
+        }
+
+        protected abstract void deletionMarker(D marker, byte[] bytes, int byteLength);
+
+        @Override
+        public boolean enterDeletionsBranch()
+        {
+            depthAdjustment = keyPos;
+            return true;
+        }
+
+        @Override
+        public void exitDeletionsBranch()
+        {
+            depthAdjustment = 0;
+        }
+
+        @Override
+        public void resetPathLength(int newLength)
+        {
+            super.resetPathLength(newLength + depthAdjustment);
         }
     }
 }

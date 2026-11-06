@@ -1194,7 +1194,7 @@ public class CompactionIterator extends CompactionInfo.Holder implements Unfilte
                 }
             }
 
-            PartitionUpdate.Builder newVersion = new PartitionUpdate.Builder(AccordKeyspace.Journal, partitionKey, AccordKeyspace.JournalColumns.regular, entries.size());
+            PartitionUpdate.Builder newVersion = PartitionUpdate.builder(AccordKeyspace.Journal, partitionKey, AccordKeyspace.JournalColumns.regular, entries.size());
             for (int i = 0, size = entries.size() ; i < size ; ++i)
             {
                 AccordCommandRowEntry entry = entries.get(i);

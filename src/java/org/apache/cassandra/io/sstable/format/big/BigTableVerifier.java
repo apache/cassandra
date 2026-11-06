@@ -28,7 +28,7 @@ import org.apache.cassandra.db.ClusteringComparator;
 import org.apache.cassandra.db.ColumnFamilyStore;
 import org.apache.cassandra.db.DecoratedKey;
 import org.apache.cassandra.db.rows.BTreeRow;
-import org.apache.cassandra.db.rows.Cell;
+import org.apache.cassandra.db.rows.CellData;
 import org.apache.cassandra.db.rows.DeserializationHelper;
 import org.apache.cassandra.db.rows.Row;
 import org.apache.cassandra.db.rows.Unfiltered;
@@ -65,7 +65,7 @@ public class BigTableVerifier extends SortedTableVerifier<BigTableReader> implem
                 if (first != null && first.clustering().equals(row.clustering()))
                 {
                     duplicateRows++;
-                    for (Cell cell : row.cells())
+                    for (CellData<?, ?> cell : row.cellsData())
                     {
                         maxTimestamp = Math.max(cell.timestamp(), maxTimestamp);
                         minTimestamp = Math.min(cell.timestamp(), minTimestamp);
@@ -181,7 +181,7 @@ public class BigTableVerifier extends SortedTableVerifier<BigTableReader> implem
         String keyString = sstable.metadata().partitionKeyType.getString(key.getKey());
         long firstMaxTs = Long.MIN_VALUE;
         long firstMinTs = Long.MAX_VALUE;
-        for (Cell cell : first.cells())
+        for (CellData<?, ?> cell : first.cellsData())
         {
             firstMaxTs = Math.max(firstMaxTs, cell.timestamp());
             firstMinTs = Math.min(firstMinTs, cell.timestamp());

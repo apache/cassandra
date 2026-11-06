@@ -188,7 +188,11 @@ public class PaxosUncommittedIndex implements Index, PaxosUncommittedTracker.Upd
     public Callable<?> getBlockingFlushTask(Memtable paxos)
     {
         return (Callable<Object>) () -> {
-            uncommittedTracker().flushUpdates(paxos);
+            // Memtables may recycle memory, protect the data while we are reading it.
+            try (OpOrder.Group op = baseCfs.readOrdering.start())
+            {
+                uncommittedTracker().flushUpdates(paxos);
+            }
             ballotTracker().flush();
             return null;
         };

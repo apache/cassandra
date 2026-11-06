@@ -35,8 +35,8 @@ import org.apache.cassandra.db.filter.ClusteringIndexFilter;
 import org.apache.cassandra.db.filter.ColumnFilter;
 import org.apache.cassandra.db.marshal.AbstractType;
 import org.apache.cassandra.db.marshal.CompositeType;
+import org.apache.cassandra.db.partitions.PartitionUpdate;
 import org.apache.cassandra.db.rows.AbstractUnfilteredRowIterator;
-import org.apache.cassandra.db.rows.BTreeRow;
 import org.apache.cassandra.db.rows.BufferCell;
 import org.apache.cassandra.db.rows.EncodingStats;
 import org.apache.cassandra.db.rows.Rows;
@@ -191,7 +191,7 @@ public class SimpleDataSet extends AbstractVirtualTable.AbstractDataSet
 
         private org.apache.cassandra.db.rows.Row toTableRow(RegularAndStaticColumns columns, long now)
         {
-            org.apache.cassandra.db.rows.Row.Builder builder = BTreeRow.unsortedBuilder();
+            org.apache.cassandra.db.rows.Row.Builder builder = PartitionUpdate.rowBuilder(metadata, clustering == Clustering.STATIC_CLUSTERING, false);
             builder.newRow(clustering);
 
             columns.forEach(c ->

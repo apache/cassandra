@@ -168,7 +168,7 @@ public class ByteSourceInverseTest
     }
 
     @Test
-    public void testBadByteSourceForFixedLengthNumbers()
+    public void testBadByteSourceForPreencodedNumbers()
     {
         byte[] bytes = new byte[8];
         new Random().nextBytes(bytes);
@@ -186,7 +186,7 @@ public class ByteSourceInverseTest
                 sources.add(null);
                 sources.add(ByteSource.EMPTY);
                 for (int i = 0; i < length; ++i)
-                    sources.add(ByteSource.fixedLength(bytes, 0, i));
+                    sources.add(ByteSource.preencoded(bytes, 0, i));
                 // Note: not testing invalid bytes (e.g. using the construction below) as they signify a programming
                 // error (throwing AssertionError) rather than something that could happen due to e.g. bad files.
                 //      ByteSource.withTerminatorLegacy(257, ByteSource.fixedLength(bytes, 0, length - 1));
@@ -400,7 +400,7 @@ public class ByteSourceInverseTest
             // The best way to test the read bytes seems to be to assert that just directly using them as a
             // ByteSource (using ByteSource.fixedLength(byte[])) they compare as equal to another ByteSource obtained
             // from the same original value.
-            int compare = ByteComparable.compare(v -> originalSourceCopy, v -> ByteSource.fixedLength(bytes), version);
+            int compare = ByteComparable.compare(v -> originalSourceCopy, v -> ByteSource.preencoded(bytes), version);
             Assert.assertEquals(0, compare);
         }
     }

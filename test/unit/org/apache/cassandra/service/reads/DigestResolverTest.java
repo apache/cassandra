@@ -29,6 +29,7 @@ import org.junit.Test;
 import org.apache.cassandra.db.ConsistencyLevel;
 import org.apache.cassandra.db.SimpleBuilders;
 import org.apache.cassandra.db.SinglePartitionReadCommand;
+import org.apache.cassandra.db.partitions.BTreePartitionUpdate;
 import org.apache.cassandra.db.partitions.PartitionUpdate;
 import org.apache.cassandra.db.rows.Row;
 import org.apache.cassandra.locator.EndpointsForToken;
@@ -44,7 +45,7 @@ public class DigestResolverTest extends AbstractReadResponseTest
 {
     private static PartitionUpdate.Builder update(TableMetadata metadata, String key, Row... rows)
     {
-        PartitionUpdate.Builder builder = new PartitionUpdate.Builder(metadata, dk(key), metadata.regularAndStaticColumns(), rows.length, false);
+        PartitionUpdate.Builder builder = new BTreePartitionUpdate.Builder(metadata, dk(key), metadata.regularAndStaticColumns(), rows.length, false);
         for (Row row: rows)
         {
             builder.add(row);

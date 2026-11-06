@@ -129,7 +129,7 @@ public abstract class AbstractMutableLazyVirtualTable extends AbstractLazyVirtua
         }
         else
         {
-            for (Row row : update)
+            for (Row row : update.rows())
                 applyRow(pks, row);
             if (!update.staticRow().isEmpty())
                 applyRow(pks, update.staticRow());

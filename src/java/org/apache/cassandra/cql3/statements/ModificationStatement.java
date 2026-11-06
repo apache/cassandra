@@ -1081,7 +1081,7 @@ public abstract class ModificationStatement implements CQLStatement.SingleKeyspa
         {
             TxnWrite.Fragment writeFragment = writeFragments.get(i);
             PartitionKey key = writeFragment.key;
-            for (Row row : writeFragment.baseUpdate)
+            for (Row row : writeFragment.baseUpdate.rows())
                 map.merge(new RowKey(key, row.clustering()), param, merge);
         }
     }

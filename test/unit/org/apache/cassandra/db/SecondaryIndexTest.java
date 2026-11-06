@@ -140,7 +140,7 @@ public class SecondaryIndexTest
         int rowCount = 0;
         for (FilteredPartition partition : partitions)
         {
-            for (Row row : partition)
+            for (Row row : partition.rows())
             {
                 ++rowCount;
                 assert ByteBufferUtil.toLong(Util.cell(cfs, row, "birthdate").buffer()) > 1L;

@@ -40,6 +40,7 @@ import org.apache.cassandra.db.compaction.CompactionManager;
 import org.apache.cassandra.db.filter.ColumnFilter;
 import org.apache.cassandra.db.marshal.Int32Type;
 import org.apache.cassandra.db.marshal.UTF8Type;
+import org.apache.cassandra.db.memtable.TrieMemtable;
 import org.apache.cassandra.db.partitions.FilteredPartition;
 import org.apache.cassandra.db.partitions.ImmutableBTreePartition;
 import org.apache.cassandra.db.partitions.Partition;
@@ -619,18 +620,30 @@ public class RangeTombstoneTest
 
         UpdateBuilder.create(cfs.metadata(), key).withTimestamp(0).newRow(1).add("val", 1).applyUnsafe();
 
-        // add a RT which hides the column we just inserted
+        // add a RT which hides the row we just inserted
         new RowUpdateBuilder(cfs.metadata(), 1, key).addRangeTombstone(0, 1).build().applyUnsafe();
 
-        // now re-insert that column
+        boolean isTrieMemtable = cfs.getCurrentMemtable() instanceof TrieMemtable;
+
+        // now re-insert that row
         UpdateBuilder.create(cfs.metadata(), key).withTimestamp(2).newRow(1).add("val", 1).applyUnsafe();
 
         Util.flush(cfs);
 
-        // We should have 1 insert and 1 update to the indexed "1" column
-        // CASSANDRA-6640 changed index update to just update, not insert then delete
-        assertEquals(1, index.rowsInserted.size());
-        assertEquals(1, index.rowsUpdated.size());
+        if (isTrieMemtable)
+        {
+            // TrieMemtable deletes the row on receiving the tombstone, and then inserts it a second time.
+            assertEquals(2, index.rowsInserted.size());
+            assertEquals(0, index.rowsUpdated.size());
+        }
+        else
+        {
+            // Legacy memtables will keep the row shadowed and update it.
+            // We should have 1 insert and 1 update to the indexed "1" column
+            // CASSANDRA-6640 changed index update to just update, not insert then delete
+            assertEquals(1, index.rowsInserted.size());
+            assertEquals(1, index.rowsUpdated.size());
+        }
     }
 
     private static ByteBuffer bb(int i)

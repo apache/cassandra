@@ -545,7 +545,7 @@ public class CompactionsTest
         // Remove key
 
         partition = Util.getOnlyPartitionUnfiltered(Util.cmd(cfs, key).build());
-        assertTrue(partition.iterator().next().cells().iterator().next().isTombstone());
+        assertTrue(partition.rowIterator().next().cells().iterator().next().isTombstone());
 
         // Sleep one second so that the removal is indeed purgeable even with gcgrace == 0
         Thread.sleep(1000);

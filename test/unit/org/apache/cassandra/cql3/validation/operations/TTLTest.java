@@ -38,7 +38,7 @@ import org.apache.cassandra.db.ExpirationDateOverflowHandling;
 import org.apache.cassandra.db.ExpirationDateOverflowHandling.ExpirationDateOverflowPolicy;
 import org.apache.cassandra.db.Keyspace;
 import org.apache.cassandra.db.rows.AbstractCell;
-import org.apache.cassandra.db.rows.Cell;
+import org.apache.cassandra.db.rows.CellData;
 import org.apache.cassandra.distributed.shared.WithProperties;
 import org.apache.cassandra.exceptions.InvalidRequestException;
 import org.apache.cassandra.io.sstable.IScrubber;
@@ -70,7 +70,7 @@ public class TTLTest extends CQLTester
     private Config.CorruptedTombstoneStrategy corruptTombstoneStrategy;
 
     // We should start applying overflow policies depending on supported sstable formats. Either in year 2038 or 2086
-    boolean overflowPoliciesApply = (Clock.Global.currentTimeMillis() / 1000) > (Cell.getVersionedMaxDeletiontionTime() - MAX_TTL);
+    boolean overflowPoliciesApply = (Clock.Global.currentTimeMillis() / 1000) > (CellData.getVersionedMaxDeletiontionTime() - MAX_TTL);
 
     @Before
     public void before()
@@ -397,7 +397,7 @@ public class TTLTest extends CQLTester
     private long computeMaxTTL()
     {
         int nowInSecs = (int) (System.currentTimeMillis() / 1000);
-        return Cell.getVersionedMaxDeletiontionTime() - nowInSecs;
+        return CellData.getVersionedMaxDeletiontionTime() - nowInSecs;
     }
 
     public void testRecoverOverflowedExpirationWithScrub(boolean simple, boolean clustering, boolean runScrub, boolean runSStableScrub,  boolean reinsertOverflowedTTL) throws Throwable

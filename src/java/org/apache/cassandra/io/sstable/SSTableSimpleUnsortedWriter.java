@@ -30,6 +30,7 @@ import org.apache.cassandra.concurrent.CassandraThread;
 import org.apache.cassandra.db.DecoratedKey;
 import org.apache.cassandra.db.RegularAndStaticColumns;
 import org.apache.cassandra.db.SerializationHeader;
+import org.apache.cassandra.db.partitions.BTreePartitionUpdate;
 import org.apache.cassandra.db.partitions.PartitionUpdate;
 import org.apache.cassandra.db.rows.EncodingStats;
 import org.apache.cassandra.db.rows.Row;
@@ -133,7 +134,7 @@ class SSTableSimpleUnsortedWriter extends AbstractSSTableSimpleWriter
 
     private PartitionUpdate.Builder createPartitionUpdateBuilder(DecoratedKey key)
     {
-        return new PartitionUpdate.Builder(metadata.get(), key, columns, 4)
+        return new BTreePartitionUpdate.Builder(metadata.get(), key, columns, 4)
         {
             @Override
             public void add(Row row)

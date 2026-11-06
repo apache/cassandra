@@ -358,7 +358,7 @@ public abstract class QueryPagerTest
         assertEquals(key, string(p.partitionKey().getKey()));
         assertFalse(p.isEmpty());
         int i = 0;
-        for (Row row : Util.once(p.iterator()))
+        for (Row row : Util.once(p.rowIterator()))
         {
             assert i < names.length : "Found more rows than expected (" + (i + 1) + ") in partition " + key;
             ByteBuffer expected = names[i++];
