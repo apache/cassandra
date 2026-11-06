@@ -442,7 +442,7 @@ public class CQL3CasRequest implements CASRequest
         public TxnCondition asTxnCondition()
         {
             TxnReference txnReference = TxnReference.row(txnDataName(CAS_READ));
-            return new TxnCondition.Exists(txnReference, TxnCondition.Kind.IS_NULL);
+            return new TxnCondition.Exists(txnReference, clustering, TxnCondition.Kind.IS_NULL);
         }
     }
 
@@ -467,7 +467,7 @@ public class CQL3CasRequest implements CASRequest
         public TxnCondition asTxnCondition()
         {
             TxnReference txnReference = TxnReference.row(txnDataName(CAS_READ));
-            return new TxnCondition.Exists(txnReference, TxnCondition.Kind.IS_NOT_NULL);
+            return new TxnCondition.Exists(txnReference, clustering, TxnCondition.Kind.IS_NOT_NULL);
         }
     }
 
@@ -553,7 +553,7 @@ public class CQL3CasRequest implements CASRequest
             txnConditions.add(condition.asTxnCondition());
         // CAS forbids empty conditions
         checkState(!txnConditions.isEmpty());
-        return conditions.size() == 1 ? txnConditions.get(0) : new TxnCondition.BooleanGroup(TxnCondition.Kind.AND, txnConditions);
+        return txnConditions.size() == 1 ? txnConditions.get(0) : new TxnCondition.BooleanGroup(TxnCondition.Kind.AND, txnConditions);
     }
 
     private List<TxnWrite.Fragment> createWriteFragments(ClientState state)

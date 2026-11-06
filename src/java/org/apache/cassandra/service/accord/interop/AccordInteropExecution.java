@@ -102,6 +102,9 @@ import static accord.utils.Invariants.illegalState;
 import static accord.utils.Invariants.requireArgument;
 import static org.apache.cassandra.metrics.ClientRequestsMetricsHolder.accordReadMetrics;
 import static org.apache.cassandra.metrics.ClientRequestsMetricsHolder.accordWriteMetrics;
+import static org.apache.cassandra.service.accord.txn.TxnData.TxnDataNameKind.AUTO_READ;
+import static org.apache.cassandra.service.accord.txn.TxnData.TxnDataNameKind.CAS_READ;
+import static org.apache.cassandra.service.accord.txn.TxnData.txnDataName;
 
 /*
  * The core interoperability problem between Accord and C* writes (regular, and read repair)
@@ -288,7 +291,8 @@ public class AccordInteropExecution implements ReadCoordinator
                                          try (RowIterator partition = iterator.next())
                                          {
                                              TxnDataKeyValue value = new TxnDataKeyValue(partition);
-                                             if (value.hasRows() || command.selectsFullPartition())
+                                             // We need to put the value of the static row
+                                             if (value.hasRows() || command.selectsFullPartition() || (!value.staticRow().isEmpty() && (fragment.txnDataName() == txnDataName(CAS_READ) || fragment.txnDataName() == txnDataName(AUTO_READ))))
                                                  result.put(fragment.txnDataName(), value);
                                          }
                                      }

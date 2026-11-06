@@ -145,7 +145,7 @@ public class ConditionStatement
                 return TxnCondition.Else.instance;
             case IS_NOT_NULL:
             case IS_NULL:
-                return new TxnCondition.Exists(reference.toTxnReference(options), kind.toTxnKind(reversed));
+                return new TxnCondition.Exists(reference.toTxnReference(options), null, kind.toTxnKind(reversed));
             case EQ:
             case NEQ:
             case GT:

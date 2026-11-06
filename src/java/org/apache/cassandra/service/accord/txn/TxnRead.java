@@ -140,17 +140,10 @@ public class TxnRead extends AbstractKeySorted<TxnNamedRead> implements Read
         require(domain == Domain.Key || ((Ranges)keys()).mergeTouching() == keys());
     }
 
-    private static void sortReads(List<TxnNamedRead> reads)
-    {
-        if (reads.size() > 1)
-            reads.sort(TXN_NAMED_READ_KEY_COMPARATOR);
-    }
-
     public static TxnRead createTxnRead(TableMetadatas tables, @Nonnull List<TxnNamedRead> items, @Nullable ConsistencyLevel consistencyLevel, Domain domain)
     {
         if (items.isEmpty())
             return empty(domain);
-        sortReads(items);
         return new TxnRead(tables, items, consistencyLevel);
     }
 
@@ -162,7 +155,6 @@ public class TxnRead extends AbstractKeySorted<TxnNamedRead> implements Read
             SinglePartitionReadCommand readCommand = readCommands.get(i);
             reads.add(new TxnNamedRead(txnDataName(USER, i), keyCollector.collect(readCommand.metadata(), readCommand.partitionKey()), readCommand, keyCollector.tables));
         }
-        sortReads(reads);
         return new TxnRead(keyCollector.tables, reads, consistencyLevel);
     }
 
@@ -270,9 +262,9 @@ public class TxnRead extends AbstractKeySorted<TxnNamedRead> implements Read
             }
             case Range:
             {
-                Ranges ranges = (Ranges) select;
+                Ranges ranges = ((Ranges) select).mergeTouching();
                 int i = 0, j = 0;
-                while (i < select.size() && j < items.length)
+                while (i < ranges.size() && j < items.length)
                 {
                     Range range = ranges.get(i);
                     TxnNamedRead read = items[j];
@@ -282,7 +274,7 @@ public class TxnRead extends AbstractKeySorted<TxnNamedRead> implements Read
                     else
                     {
                         reads.add(read.slice(range));
-                        ++j;
+                        ++i;
                     }
                 }
                 break;
@@ -298,6 +290,12 @@ public class TxnRead extends AbstractKeySorted<TxnNamedRead> implements Read
     public Read merge(Read read)
     {
         TxnRead that = (TxnRead)read;
+
+        if (that.items.length == 0)
+            return this;
+        if (items.length == 0)
+            return that;
+
         List<TxnNamedRead> reads = new ArrayList<>(items.length);
 
         switch (domain)
@@ -306,10 +304,11 @@ public class TxnRead extends AbstractKeySorted<TxnNamedRead> implements Read
             case Key:
             {
                 int i = 0, j = 0;
-                while (i < items.length && j < that.items.length)
+                while (i < items.length || j < that.items.length)
                 {
-                    TxnNamedRead r1 = this.items[i], r2 = that.items[j];
-                    int c = compareKey(r1, r2);
+                    TxnNamedRead r1 = i < items.length ? this.items[i] : null;
+                    TxnNamedRead r2 = j < that.items.length ? that.items[j] : null;
+                    int c = r1 == null ? 1 : (r2 == null ? -1 : compareKey(r1, r2));
                     if (c <= 0)
                     {
                         reads.add(r1);
@@ -329,10 +328,11 @@ public class TxnRead extends AbstractKeySorted<TxnNamedRead> implements Read
             {
                 int i = 0, j = 0;
                 TxnNamedRead pending = null;
-                while (i < items.length && j < that.items.length)
+                while (i < items.length || j < that.items.length)
                 {
-                    TxnNamedRead r1 = this.items[i], r2 = that.items[j];
-                    int c = compareRange(r1, r2);
+                    TxnNamedRead r1 = i < items.length ? this.items[i] : null;
+                    TxnNamedRead r2 = j < that.items.length ? that.items[j] : null;
+                    int c = r1 == null ? 1 : (r2 == null ? -1 : compareRange(r1, r2));
                     TxnNamedRead add;
                     if (c == 0)
                     {
@@ -354,7 +354,7 @@ public class TxnRead extends AbstractKeySorted<TxnNamedRead> implements Read
                     if (pending == null) pending = add;
                     else
                     {
-                        c = compareRange(pending, add);
+                        c = pending.key().asRange().compareTouching(add.key().asRange());
                         if (c < 0)
                         {
                             reads.add(pending);
