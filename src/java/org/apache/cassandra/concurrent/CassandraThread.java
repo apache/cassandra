@@ -22,6 +22,7 @@ import java.util.concurrent.atomic.AtomicReferenceFieldUpdater;
 
 import accord.utils.Invariants;
 
+import org.apache.cassandra.metrics.HistogramUpdateBuffers;
 import org.apache.cassandra.metrics.ThreadLocalMetrics;
 import org.apache.cassandra.service.accord.execution.AccordExecutor;
 import org.apache.cassandra.service.accord.execution.Task;
@@ -32,6 +33,7 @@ import io.netty.util.concurrent.FastThreadLocalThread;
 public class CassandraThread extends FastThreadLocalThread implements TaskRunner
 {
     private ThreadLocalMetrics threadLocalMetrics;
+    private HistogramUpdateBuffers.Buffer histogramUpdateBuffer;
     private ExecutorLocals executorLocals;
     private AccordExecutor accordActiveExecutor;
     private AccordExecutor accordLockedExecutor;
@@ -77,6 +79,16 @@ public class CassandraThread extends FastThreadLocalThread implements TaskRunner
 
         threadLocalMetrics = ThreadLocalMetrics.create();
         return threadLocalMetrics;
+    }
+
+    public HistogramUpdateBuffers.Buffer getHistogramUpdateBuffer()
+    {
+        HistogramUpdateBuffers.Buffer current = histogramUpdateBuffer;
+        if (current != null)
+            return current;
+
+        histogramUpdateBuffer = HistogramUpdateBuffers.Buffer.create();
+        return histogramUpdateBuffer;
     }
 
     public ExecutorLocals getExecutorLocals()
@@ -170,8 +182,16 @@ public class CassandraThread extends FastThreadLocalThread implements TaskRunner
         }
         finally
         {
-            if (threadLocalMetrics != null)
-                threadLocalMetrics.release();
+            try
+            {
+                if (histogramUpdateBuffer != null)
+                    histogramUpdateBuffer.release();
+            }
+            finally
+            {
+                if (threadLocalMetrics != null)
+                    threadLocalMetrics.release();
+            }
         }
     }
 }

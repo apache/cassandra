@@ -20,14 +20,11 @@ package org.apache.cassandra.metrics;
 
 import java.lang.ref.PhantomReference;
 import java.lang.ref.ReferenceQueue;
-import java.util.BitSet;
 import java.util.Collections;
 import java.util.List;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.CopyOnWriteArrayList;
-import java.util.concurrent.RejectedExecutionException;
-import java.util.concurrent.ScheduledFuture;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
 import java.util.concurrent.atomic.AtomicInteger;
@@ -39,7 +36,6 @@ import java.util.concurrent.locks.ReentrantReadWriteLock;
 import com.google.common.annotations.VisibleForTesting;
 
 import org.apache.cassandra.concurrent.CassandraThread;
-import org.apache.cassandra.concurrent.ScheduledExecutors;
 import org.apache.cassandra.concurrent.Shutdownable;
 
 import io.netty.util.concurrent.FastThreadLocal;
@@ -376,85 +372,6 @@ public class ThreadLocalMetrics
         }
 
         freeMetricIdSetTracker.markAsFree(metricId);
-    }
-
-    @VisibleForTesting
-    static class FreeMetricIdSetTracker
-    {
-        private final BitSet freeMetricIdSet = new BitSet();
-
-        private final BitSet tickDelayedToFreeMetricIdSet = new BitSet();
-        private final BitSet tockDelayedToFreeMetricIdSet = new BitSet();
-
-        private BitSet delayedToFreeMetricIdSet = tickDelayedToFreeMetricIdSet;
-
-        private ScheduledFuture<?> cleanupTask;
-
-        @VisibleForTesting
-        synchronized void triggerRecycling()
-        {
-            cleanupTask = null;
-            BitSet toProcess = otherSet(delayedToFreeMetricIdSet);
-            freeMetricIdSet.or(toProcess);
-            toProcess.clear();
-            if (!delayedToFreeMetricIdSet.isEmpty())
-                scheduleCleanupTask();
-            delayedToFreeMetricIdSet = toProcess;
-        }
-
-        private BitSet otherSet(BitSet set)
-        {
-            return set == tickDelayedToFreeMetricIdSet ? tockDelayedToFreeMetricIdSet : tickDelayedToFreeMetricIdSet;
-        }
-
-        public synchronized int getFreeMetricId()
-        {
-            int metricId = freeMetricIdSet.nextSetBit(0);
-            if (metricId >= 0)
-                freeMetricIdSet.clear(metricId);
-            return metricId;
-        }
-
-        public synchronized void markAsFree(int metricId)
-        {
-            // there's no an obvious happens-before relation between currentCounterValues[metricId] = 0 write we just did
-            // and an initial read of the entry by a thread which updates the reused metric
-            // as a workaround we introduce a delay in recyling to provide the write visibility in practice
-            //  even if it is not formally guaranteed by the JMM
-            delayedToFreeMetricIdSet.set(metricId);
-            scheduleCleanupTask();
-        }
-
-        // must be called while holding this monitor (from a synchronized method)
-        @VisibleForTesting
-        protected void scheduleCleanupTask()
-        {
-            try
-            {
-                if (cleanupTask == null)
-                    cleanupTask = ScheduledExecutors.scheduledTasks.schedule(this::triggerRecycling, 5, TimeUnit.SECONDS);
-            }
-            catch (RejectedExecutionException e)
-            {
-               // ignore theoretically possible rejections during a shutdown
-            }
-        }
-
-        public synchronized int getFreeMetricSetCardinality()
-        {
-            return freeMetricIdSet.cardinality();
-        }
-
-        @Override
-        public synchronized String toString()
-        {
-            return "FreeMetricIdSetTracker{" +
-                   "freeMetricIdSet=" + freeMetricIdSet +
-                   ", tickDelayedToFreeMetricIdSet=" + tickDelayedToFreeMetricIdSet +
-                   ", tockDelayedToFreeMetricIdSet=" + tockDelayedToFreeMetricIdSet +
-                   ", delayedToFreeMetricIdSet=" + (delayedToFreeMetricIdSet == tickDelayedToFreeMetricIdSet ? "tick" : "tock") +
-                   '}';
-        }
     }
 
     @VisibleForTesting
