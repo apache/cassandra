@@ -340,6 +340,12 @@ public interface StorageServiceMBean extends NotificationEmitter
     public void clearSnapshot(Map<String, Object> options, String tag, String... keyspaceNames) throws IOException;
 
     /**
+     * Clean up paxos state for the supplied keyspace/tables without running full repair.
+     * Blocks until cleanup completes.
+     */
+    void paxosCleanup(String keyspace, String... tables);
+
+    /**
      * Get the details of all the snapshot
      * @return A map of snapshotName to all its details in Tabular form.
      * @deprecated See CASSANDRA-16789
