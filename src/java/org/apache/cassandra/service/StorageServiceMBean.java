@@ -1102,6 +1102,20 @@ public interface StorageServiceMBean extends NotificationEmitter
     public void setColumnIndexSizeInKiB(int columnIndexSizeInKiB);
 
     /**
+     * Returns the compression applied to SSTables as they are flushed, one of the names of
+     * {@link org.apache.cassandra.config.Config.FlushCompression}.
+     */
+    public String getFlushCompression();
+
+    /**
+     * Sets the compression applied to SSTables as they are flushed. Takes effect on the next flush.
+     * The change is node local and is not persisted to cassandra.yaml.
+     *
+     * @param flushCompression one of the names of {@link org.apache.cassandra.config.Config.FlushCompression}
+     */
+    public void setFlushCompression(String flushCompression);
+
+    /**
      * Sets the granularity of the collation index of rows within a partition
      * @deprecated use setColumnIndexSizeInKiB instead as it will not throw non-standard exceptions. See CASSANDRA-17668
      */

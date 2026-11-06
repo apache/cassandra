@@ -332,6 +332,7 @@ public class BtiTableWriter extends SortedTableWriter<BtiFormatPartitionWriter, 
 
             SequentialWriter sequentialWriter = DataComponent.buildWriter(descriptor,
                                                                           getCompressionParams(),
+                                                                          getTableMetadataRef().getLocal().params.flushCompression,
                                                                           getIOOptions().writerOptions,
                                                                           getMetadataCollector(),
                                                                           ensuringInBuildInternalContext(operationType),
