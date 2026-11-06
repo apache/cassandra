@@ -152,6 +152,13 @@ public abstract class UDFunction extends UserFunction implements ScalarFunction
     "java/lang/Thread.class",
     "java/lang/ThreadGroup.class",
     "java/lang/ThreadLocal.class",
+    // Block classes under allowed package prefixes that expose restricted operations.
+    // The class loader must resolve Module because Class references it.
+    // The bytecode verifier blocks Module and ModuleLayer calls.
+    "java/lang/ProcessHandle",     // Provides process access on Java Development Kit (JDK) 9 and later.
+    "java/lang/StackWalker",       // JDK 9 stack and class access
+    "java/lang/foreign/",          // JDK 22 native calls and memory access
+    "java/lang/classfile/",        // JDK 24 class-file generation and parsing
     "java/lang/instrument/",
     "java/lang/invoke/",
     "java/lang/management/",

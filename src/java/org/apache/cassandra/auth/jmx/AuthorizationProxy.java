@@ -21,8 +21,6 @@ package org.apache.cassandra.auth.jmx;
 import java.lang.reflect.InvocationHandler;
 import java.lang.reflect.InvocationTargetException;
 import java.lang.reflect.Method;
-import java.security.AccessControlContext;
-import java.security.AccessController;
 import java.security.Principal;
 import java.util.Collections;
 import java.util.Set;
@@ -53,6 +51,7 @@ import org.apache.cassandra.auth.PermissionDetails;
 import org.apache.cassandra.auth.RoleResource;
 import org.apache.cassandra.auth.Roles;
 import org.apache.cassandra.config.DatabaseDescriptor;
+import org.apache.cassandra.security.JMXSubjects;
 import org.apache.cassandra.service.StorageService;
 import org.apache.cassandra.utils.JmxInvocationListener;
 import org.apache.cassandra.utils.MBeanWrapper;
@@ -161,9 +160,8 @@ public class AuthorizationProxy implements InvocationHandler
     {
         String methodName = method.getName();
 
-        // Retrieve Subject from current AccessControlContext
-        AccessControlContext acc = AccessController.getContext();
-        Subject subject = Subject.getSubject(acc);
+        // Retrieve the Subject for the current JMX invocation.
+        Subject subject = JMXSubjects.current();
 
         try
         {

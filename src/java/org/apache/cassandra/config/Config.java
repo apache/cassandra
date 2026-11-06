@@ -724,8 +724,8 @@ public class Config
     public volatile boolean use_statements_enabled = true;
 
     /**
-     * Optionally disable asynchronous UDF execution.
-     * Disabling asynchronous UDF execution also implicitly disables the security-manager!
+     * Controls asynchronous execution of user-defined functions (UDFs).
+     * If Cassandra uses the security manager, disabling asynchronous execution disables its UDF execution checks.
      * By default, async UDF execution is enabled to be able to detect UDFs that run too long / forever and be
      * able to fail fast - i.e. stop the Cassandra daemon, which is currently the only appropriate approach to
      * "tell" a user that there's something really wrong with the UDF.
@@ -745,7 +745,9 @@ public class Config
     public boolean allow_insecure_udfs = false;
 
     /**
-     * Set this to allow UDFs accessing java.lang.System.* methods, which basically allows UDFs to execute any arbitrary code on the system.
+     * Permits restricted System method calls and indirect property access only when UDF threads are disabled.
+     * With UDF threads enabled, the selected sandbox still enforces its restrictions.
+     * Class loader restrictions and base bytecode checks still apply.
      */
     public boolean allow_extra_insecure_udfs = false;
 
