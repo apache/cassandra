@@ -148,6 +148,16 @@ public class RepairMessageVerbHandler implements IVerbHandler<RepairMessage>
                         }
                         columnFamilyStores.add(columnFamilyStore);
                     }
+                    if (!ActiveRepairService.verifyL0SSTableCountThreshold(prepareMessage.parentRepairSession,
+                                                                          prepareMessage.previewKind,
+                                                                          prepareMessage.isIncremental,
+                                                                          columnFamilyStores))
+                    {
+                        // Error and offending tables are reported by verifyL0SSTableCountThreshold.
+                        state.phase.fail("L0 SSTable count above threshold");
+                        sendFailureResponse(message);
+                        return;
+                    }
                     state.phase.accept();
                     ctx.repair().registerParentRepairSession(prepareMessage.parentRepairSession,
                                                                     message.from(),

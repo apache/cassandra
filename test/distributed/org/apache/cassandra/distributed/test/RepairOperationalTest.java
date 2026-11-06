@@ -28,6 +28,7 @@ import org.assertj.core.api.Assertions;
 import org.junit.Test;
 
 import org.apache.cassandra.config.DatabaseDescriptor;
+import org.apache.cassandra.db.Keyspace;
 import org.apache.cassandra.db.compaction.CompactionManager;
 import org.apache.cassandra.distributed.Cluster;
 import org.apache.cassandra.distributed.api.ConsistencyLevel;
@@ -37,11 +38,75 @@ import org.apache.cassandra.locator.MetaStrategy;
 import static net.bytebuddy.matcher.ElementMatchers.named;
 import static org.apache.cassandra.distributed.api.Feature.GOSSIP;
 import static org.apache.cassandra.distributed.api.Feature.NETWORK;
+import static org.apache.cassandra.distributed.impl.INodeProvisionStrategy.Strategy.OneNetworkInterface;
 import static org.apache.cassandra.schema.SchemaConstants.METADATA_KEYSPACE_NAME;
 import static org.junit.Assert.assertEquals;
 
 public class RepairOperationalTest extends TestBaseImpl
 {
+    private static final String L0_THRESHOLD_TABLE = "l0_threshold";
+
+    @Test
+    public void incrementalRepairRejectedWhenL0SSTableCountExceedsThreshold() throws IOException
+    {
+        try (Cluster cluster = init(Cluster.build(2)
+                                           .withNodeProvisionStrategy(OneNetworkInterface)
+                                           .withConfig(config -> config.with(GOSSIP).with(NETWORK))
+                                           .start()))
+        {
+            cluster.schemaChange("CREATE TABLE " + KEYSPACE + '.' + L0_THRESHOLD_TABLE +
+                                 " (id int PRIMARY KEY, value int)" +
+                                 " WITH compaction = {'class': 'LeveledCompactionStrategy', " +
+                                 "'sstable_size_in_mb': '160'}" +
+                                 " AND compression = {'class': 'ZstdCompressor', 'compression_level': '1'}");
+
+            for (int node = 1; node <= 2; node++)
+            {
+                cluster.get(node).runOnInstance(() -> Keyspace.open(KEYSPACE)
+                                                               .getColumnFamilyStore(L0_THRESHOLD_TABLE)
+                                                               .disableAutoCompaction());
+                cluster.get(node).executeInternal("INSERT INTO " + KEYSPACE + '.' + L0_THRESHOLD_TABLE +
+                                                  " (id, value) VALUES (?, ?)", node, node);
+                cluster.get(node).flush(KEYSPACE);
+            }
+
+            int coordinatorL0SSTableCount = cluster.get(1).callOnInstance(
+                () -> Keyspace.open(KEYSPACE).getColumnFamilyStore(L0_THRESHOLD_TABLE).getUnleveledSSTables());
+            int participantL0SSTableCount = cluster.get(2).callOnInstance(
+                () -> Keyspace.open(KEYSPACE).getColumnFamilyStore(L0_THRESHOLD_TABLE).getUnleveledSSTables());
+            Assertions.assertThat(coordinatorL0SSTableCount).isPositive();
+            Assertions.assertThat(participantL0SSTableCount).isPositive();
+
+            cluster.get(1).runOnInstance(() ->
+                DatabaseDescriptor.setIncrementalRepairL0SSTableCountRejectThreshold(0));
+            cluster.get(2).runOnInstance(() ->
+                DatabaseDescriptor.setIncrementalRepairL0SSTableCountRejectThreshold(Integer.MAX_VALUE));
+
+            long coordinatorLogMark = cluster.get(1).logs().mark();
+            cluster.get(1).nodetoolResult("repair", KEYSPACE, L0_THRESHOLD_TABLE).asserts().failure();
+            Assertions.assertThat(cluster.get(1).logs()
+                                         .grep(coordinatorLogMark, "Rejecting incoming repair, L0 SSTable count")
+                                         .getResult())
+                      .isNotEmpty();
+
+            cluster.get(1).runOnInstance(() ->
+                DatabaseDescriptor.setIncrementalRepairL0SSTableCountRejectThreshold(Integer.MAX_VALUE));
+            cluster.get(2).runOnInstance(() ->
+                DatabaseDescriptor.setIncrementalRepairL0SSTableCountRejectThreshold(0));
+
+            long participantLogMark = cluster.get(2).logs().mark();
+            cluster.get(1).nodetoolResult("repair", KEYSPACE, L0_THRESHOLD_TABLE).asserts().failure();
+            Assertions.assertThat(cluster.get(2).logs()
+                                         .grep(participantLogMark, "Rejecting incoming repair, L0 SSTable count")
+                                         .getResult())
+                      .isNotEmpty();
+
+            cluster.get(2).runOnInstance(() ->
+                DatabaseDescriptor.setIncrementalRepairL0SSTableCountRejectThreshold(participantL0SSTableCount));
+            cluster.get(1).nodetoolResult("repair", KEYSPACE, L0_THRESHOLD_TABLE).asserts().success();
+        }
+    }
+
     @Test
     public void compactionBehindTest() throws IOException
     {
