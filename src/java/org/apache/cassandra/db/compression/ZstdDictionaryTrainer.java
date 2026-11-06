@@ -34,6 +34,7 @@ import org.apache.cassandra.db.compression.CompressionDictionary.DictId;
 import org.apache.cassandra.db.compression.CompressionDictionary.Kind;
 import org.apache.cassandra.io.util.FileUtils;
 import org.apache.cassandra.utils.Clock;
+import org.apache.cassandra.utils.Throwables;
 import org.apache.cassandra.utils.concurrent.AsyncFuture;
 import org.apache.cassandra.utils.concurrent.Future;
 
@@ -188,9 +189,13 @@ public class ZstdDictionaryTrainer implements ICompressionDictionaryTrainer
             }
             catch (Throwable t)
             {
-                // Unexpected failures - log at error level for visibility
-                logger.error("Unexpected error during dictionary training for {}.{}",
-                             keyspaceName, tableName, t);
+                // the shutdown of a node interrupts this task, e.g. while it waits for the dictionary to be stored
+                if (ScheduledExecutors.nonPeriodicTasks.isShutdown() && Throwables.isCausedByInterrupt(t))
+                    logger.info("Dictionary training for {}.{} stopped by the shutdown of the node: {}",
+                                keyspaceName, tableName, t.getMessage());
+                else
+                    logger.error("Unexpected error during dictionary training for {}.{}",
+                                 keyspaceName, tableName, t);
                 tryFailure(t);
             }
         }

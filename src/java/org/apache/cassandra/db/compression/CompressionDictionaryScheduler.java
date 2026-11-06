@@ -34,6 +34,8 @@ import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.db.ColumnFamilyStore;
 import org.apache.cassandra.schema.CompressionParams;
 import org.apache.cassandra.schema.SystemDistributedKeyspace;
+import org.apache.cassandra.utils.JVMStabilityInspector;
+import org.apache.cassandra.utils.Throwables;
 
 /**
  * Manages scheduled tasks for compression dictionary operations.
@@ -184,6 +186,17 @@ public class CompressionDictionaryScheduler implements ICompressionDictionarySch
             logger.warn("Failed to refresh compression dictionary for {}.{}",
                         keyspaceName, tableName, e);
         }
+        catch (Error e)
+        {
+            // A drain of a node interrupts this task. A local read can run on this thread, then it fails e.g. with
+            // FSReadError, caused by ClosedByInterruptException, which is not a failure of the disk. Any other error is
+            // for the executor to handle, it logs the error and keeps the task scheduled.
+            if (!(ScheduledExecutors.scheduledTasks.isShutdown() && Throwables.isCausedByInterrupt(e)))
+                throw e;
+
+            logger.info("Refresh of the compression dictionary for {}.{} stopped by the shutdown of the node: {}",
+                        keyspaceName, tableName, e.getMessage());
+        }
     }
 
     @Override
@@ -239,8 +252,9 @@ public class CompressionDictionaryScheduler implements ICompressionDictionarySch
                        .addCallback((dictionary, throwable) -> {
                            if (throwable != null)
                            {
-                               logger.error("SSTable-based dictionary training failed for {}.{}: {}",
-                                            keyspaceName, tableName, throwable.getMessage());
+                               if (!(ScheduledExecutors.nonPeriodicTasks.isShutdown() && Throwables.isCausedByInterrupt(throwable)))
+                                   logger.error("SSTable-based dictionary training failed for {}.{}: {}",
+                                                keyspaceName, tableName, throwable.getMessage());
                            }
                            else
                            {
@@ -252,11 +266,25 @@ public class CompressionDictionaryScheduler implements ICompressionDictionarySch
                            cleanup(refViewFragment, trainer);
                        });
             }
-            catch (Exception e)
+            catch (Throwable t)
             {
-                logger.error("Failed to sample from SSTables for {}.{}", keyspaceName, tableName, e);
-                finishTraining(trainer.getTrainingState());
+                // The shutdown of a node interrupts this task. Then a read of a SSTable fails e.g. with FSReadError, caused
+                // by ClosedByInterruptException, which is not a failure of the disk.
+                boolean shutdown = ScheduledExecutors.nonPeriodicTasks.isShutdown() && Throwables.isCausedByInterrupt(t);
+                if (shutdown)
+                    logger.info("Sampling from SSTables for {}.{} stopped by the shutdown of the node: {}",
+                                keyspaceName, tableName, t.getMessage());
+                else
+                    logger.error("Failed to sample from SSTables for {}.{}", keyspaceName, tableName, t);
+
+                // the trainer still reports SAMPLING, a training is over only when it completed or failed
+                TrainingState state = trainer.getTrainingState();
+                finishTraining(TrainingState.failed("Failed to sample from SSTables: " + t.getMessage(), state.sampleCount, state.totalSampleSize));
                 cleanup(refViewFragment, trainer);
+
+                // last, as it rethrows e.g. OutOfMemoryError
+                if (!shutdown)
+                    JVMStabilityInspector.inspectThrowable(t);
             }
         }
     }

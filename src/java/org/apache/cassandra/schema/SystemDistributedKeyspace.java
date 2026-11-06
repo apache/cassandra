@@ -461,6 +461,16 @@ public final class SystemDistributedKeyspace
         String fmtQuery = format(query, SchemaConstants.DISTRIBUTED_KEYSPACE_NAME, COMPRESSION_DICTIONARIES, keyspaceName, tableName, tableId);
         try
         {
+            // On startup, a table schedules this read when it opens, and it can run before this keyspace opens, more likely
+            // with a low value of compression_dictionary_refresh_initial_delay. Its instance is published only after all its
+            // tables opened, until then Keyspace.open fails on an assertion, which is an Error the callers would not handle.
+            if (Schema.instance.getKeyspaceInstance(SchemaConstants.DISTRIBUTED_KEYSPACE_NAME) == null)
+            {
+                logger.warn("Could not read the latest compression dictionary for {}.{}: keyspace {} is not loaded yet",
+                            keyspaceName, tableName, SchemaConstants.DISTRIBUTED_KEYSPACE_NAME);
+                return null;
+            }
+
             UntypedResultSet result = QueryProcessor.execute(fmtQuery, ConsistencyLevel.QUORUM);
             // No row means this table has no dictionary stored, which is an ordinary state and not a read
             // failure. It must not reach the catch below: one() throws on an empty result, so the warning
@@ -525,6 +535,16 @@ public final class SystemDistributedKeyspace
         String fmtQuery = format(query, SchemaConstants.DISTRIBUTED_KEYSPACE_NAME, COMPRESSION_DICTIONARIES, keyspaceName, tableName, tableId, dictionaryId);
         try
         {
+            // On startup, a table schedules this read when it opens, and it can run before this keyspace opens, more likely
+            // with a low value of compression_dictionary_refresh_initial_delay. Its instance is published only after all its
+            // tables opened, until then Keyspace.open fails on an assertion, which is an Error the callers would not handle.
+            if (Schema.instance.getKeyspaceInstance(SchemaConstants.DISTRIBUTED_KEYSPACE_NAME) == null)
+            {
+                logger.warn("Could not read compression dictionary {} for {}.{}: keyspace {} is not loaded yet",
+                            dictionaryId, keyspaceName, tableName, SchemaConstants.DISTRIBUTED_KEYSPACE_NAME);
+                return null;
+            }
+
             UntypedResultSet result = QueryProcessor.execute(fmtQuery, ConsistencyLevel.QUORUM);
             if (result.isEmpty())
                 return null;
