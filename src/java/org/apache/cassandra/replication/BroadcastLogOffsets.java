@@ -21,6 +21,10 @@ import java.io.IOException;
 import java.util.List;
 import java.util.Objects;
 
+import javax.annotation.Nullable;
+
+import com.google.common.base.Preconditions;
+
 import org.apache.cassandra.db.TypeSizes;
 import org.apache.cassandra.dht.AbstractBounds;
 import org.apache.cassandra.dht.IPartitioner;
@@ -29,14 +33,18 @@ import org.apache.cassandra.dht.Token;
 import org.apache.cassandra.io.util.DataInputPlus;
 import org.apache.cassandra.io.util.DataOutputPlus;
 import org.apache.cassandra.net.IVerbHandler;
-import org.apache.cassandra.tcm.ClusterMetadata;
-import org.apache.cassandra.tcm.Epoch;
-import org.apache.cassandra.tcm.ownership.VersionedEndpoints;
 import org.apache.cassandra.utils.CollectionSerializers;
 
 public class BroadcastLogOffsets
 {
-    private final ShardMetadata shardMetadata;
+    /*
+     * TODO (expected): once V1 no longer needs to be supported,
+     *  drop keyspace and range fields, and make shardMetadata @Nonnnull
+     */
+    private final String keyspace;
+    private final Range<Token> range;
+    @Nullable private final ShardMetadata shardMetadata;
+
     private final List<Offsets.Immutable> replicatedOffsets;
     private final boolean durable;
 
@@ -49,6 +57,13 @@ public class BroadcastLogOffsets
 
     public BroadcastLogOffsets(ShardMetadata shardMetadata, List<Offsets.Immutable> offsets, boolean durable)
     {
+        this(shardMetadata.keyspace, shardMetadata.range, shardMetadata, offsets, durable);
+    }
+
+    private BroadcastLogOffsets(String keyspace, Range<Token> range, @Nullable ShardMetadata shardMetadata, List<Offsets.Immutable> offsets, boolean durable)
+    {
+        this.keyspace = keyspace;
+        this.range = range;
         this.shardMetadata = shardMetadata;
         this.replicatedOffsets = offsets;
         this.durable = durable;
@@ -71,7 +86,7 @@ public class BroadcastLogOffsets
             isFirst = false;
         }
         sb.append(']');
-        return "ShardReplicatedOffsets{" + shardMetadata + ", " + sb + ", " + durable + '}';
+        return "ShardReplicatedOffsets{" + (shardMetadata != null ? shardMetadata : keyspace + ", " + range) + ", " + sb + ", " + durable + '}';
     }
 
     @Override
@@ -81,6 +96,8 @@ public class BroadcastLogOffsets
         if (!(o instanceof BroadcastLogOffsets)) return false;
         BroadcastLogOffsets that = (BroadcastLogOffsets) o;
         return durable == that.durable
+            && keyspace.equals(that.keyspace)
+            && range.equals(that.range)
             && Objects.equals(shardMetadata, that.shardMetadata)
             && Objects.equals(replicatedOffsets, that.replicatedOffsets);
     }
@@ -88,19 +105,33 @@ public class BroadcastLogOffsets
     @Override
     public int hashCode()
     {
-        return Objects.hash(shardMetadata, replicatedOffsets, durable);
+        return Objects.hash(keyspace, range, shardMetadata, replicatedOffsets, durable);
     }
 
     public static final IVerbHandler<BroadcastLogOffsets> verbHandler = message -> {
         MutationTrackingService.ensureEnabled();
         BroadcastLogOffsets replicatedOffsets = message.payload;
-        MutationTrackingService.instance().updateReplicatedOffsets(replicatedOffsets.shardMetadata.keyspace,
-                                                                   replicatedOffsets.shardMetadata.sinceEpoch,
-                                                                   replicatedOffsets.shardMetadata.range,
-                                                                   replicatedOffsets.shardMetadata.participants,
-                                                                   replicatedOffsets.replicatedOffsets,
-                                                                   replicatedOffsets.durable,
-                                                                   message.from());
+
+        if (replicatedOffsets.shardMetadata == null)
+        {
+            // V1 compatibility
+            MutationTrackingService.instance().updateReplicatedOffsets(replicatedOffsets.keyspace,
+                                                                       replicatedOffsets.range,
+                                                                       replicatedOffsets.replicatedOffsets,
+                                                                       replicatedOffsets.durable,
+                                                                       message.from());
+        }
+        else
+        {
+            // V2+ path
+            MutationTrackingService.instance().updateReplicatedOffsets(replicatedOffsets.shardMetadata.keyspace,
+                                                                       replicatedOffsets.shardMetadata.sinceEpoch,
+                                                                       replicatedOffsets.shardMetadata.range,
+                                                                       replicatedOffsets.shardMetadata.participants,
+                                                                       replicatedOffsets.replicatedOffsets,
+                                                                       replicatedOffsets.durable,
+                                                                       message.from());
+        }
     };
 
     public static final VersionedSerializer<BroadcastLogOffsets> serializer = new VersionedSerializer<>()
@@ -114,8 +145,8 @@ public class BroadcastLogOffsets
             }
             else
             {
-                out.writeUTF(status.shardMetadata.keyspace);
-                AbstractBounds.tokenSerializer.serialize(status.shardMetadata.range, out, version.messagingVersion());
+                out.writeUTF(status.keyspace);
+                AbstractBounds.tokenSerializer.serialize(status.range, out, version.messagingVersion());
             }
             CollectionSerializers.serializeList(status.replicatedOffsets, out, Offsets.serializer);
             out.writeBoolean(status.durable);
@@ -124,31 +155,21 @@ public class BroadcastLogOffsets
         @Override
         public BroadcastLogOffsets deserialize(DataInputPlus in, Version version) throws IOException
         {
-            ShardMetadata shardMetadata;
             if (version.isAtLeast(Version.V2))
             {
-                shardMetadata = ShardMetadata.serializer.deserialize(in, version);
+                ShardMetadata shardMetadata = ShardMetadata.serializer.deserialize(in, version);
+                List<Offsets.Immutable> replicatedOffsets = CollectionSerializers.deserializeList(in, Offsets.serializer);
+                boolean durable = in.readBoolean();
+                return new BroadcastLogOffsets(shardMetadata, replicatedOffsets, durable);
             }
             else
             {
                 String keyspace = in.readUTF();
                 Range<Token> range = (Range<Token>) AbstractBounds.tokenSerializer.deserialize(in, IPartitioner.global(), version.messagingVersion());
-                ClusterMetadata cm = ClusterMetadata.current();
-                Participants participants;
-                try
-                {
-                    VersionedEndpoints.ForRange forRange = cm.placements.get(cm.schema.getKeyspace(keyspace).getMetadata().params.replication).writes.forRange(range);
-                    participants = Participants.fromReplicas(forRange.get(), cm);
-                }
-                catch (Throwable t)
-                {
-                    participants = Participants.EMPTY;
-                }
-                shardMetadata = new ShardMetadata(keyspace, Epoch.EMPTY.getEpoch(), range, participants);
+                List<Offsets.Immutable> replicatedOffsets = CollectionSerializers.deserializeList(in, Offsets.serializer);
+                boolean durable = in.readBoolean();
+                return new BroadcastLogOffsets(keyspace, range, null, replicatedOffsets, durable);
             }
-            List<Offsets.Immutable> replicatedOffsets = CollectionSerializers.deserializeList(in, Offsets.serializer);
-            boolean durable = in.readBoolean();
-            return new BroadcastLogOffsets(shardMetadata, replicatedOffsets, durable);
         }
 
         @Override
@@ -157,12 +178,12 @@ public class BroadcastLogOffsets
             long size = 0;
             if (version.isAtLeast(Version.V2))
             {
-                size += ShardMetadata.serializer.serializedSize(replicatedOffsets.shardMetadata, version);
+                size += ShardMetadata.serializer.serializedSize(Preconditions.checkNotNull(replicatedOffsets.shardMetadata), version);
             }
             else
             {
-                size += TypeSizes.sizeof(replicatedOffsets.shardMetadata.keyspace);
-                size += AbstractBounds.tokenSerializer.serializedSize(replicatedOffsets.shardMetadata.range, version.messagingVersion());
+                size += TypeSizes.sizeof(replicatedOffsets.keyspace);
+                size += AbstractBounds.tokenSerializer.serializedSize(replicatedOffsets.range, version.messagingVersion());
             }
             size += CollectionSerializers.serializedListSize(replicatedOffsets.replicatedOffsets, Offsets.serializer);
             size += TypeSizes.sizeof(replicatedOffsets.durable);

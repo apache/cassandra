@@ -449,7 +449,40 @@ public class MutationTrackingService implements MutationTrackingServiceMBean
             shardLock.readLock().unlock();
         }
 
-        // Notify any registered sync coordinators about the offset update
+        notifySyncCoordinators(keyspace, range);
+    }
+
+    // TODO (expected): get rid of once V1 is no longer supported
+    public void updateReplicatedOffsets(String keyspace, Range<Token> range, List<? extends Offsets> offsets, boolean durable, InetAddressAndPort onHost)
+    {
+        shardLock.readLock().lock();
+        try
+        {
+            KeyspaceShards shards = keyspaceShards.get(keyspace);
+            if (shards == null)
+            {
+                noSpamLogger.debug("Discarding replicated offsets for unknown keyspace {} from {}", keyspace, onHost);
+                return;
+            }
+
+            Shard shard = shards.lookUpByExactRange(range);
+            if (shard == null)
+            {
+                noSpamLogger.debug("Discarding replicated offsets from {}: no unique shard for keyspace {} range {}", onHost, keyspace, range);
+                return;
+            }
+            shard.updateReplicatedOffsets(offsets, durable, onHost);
+        }
+        finally
+        {
+            shardLock.readLock().unlock();
+        }
+
+        notifySyncCoordinators(keyspace, range);
+    }
+
+    private void notifySyncCoordinators(String keyspace, Range<Token> range)
+    {
         Set<MutationTrackingSyncCoordinator> coordinators = syncCoordinatorsByKeyspace.get(keyspace);
         if (coordinators != null)
         {
@@ -1634,6 +1667,18 @@ public class MutationTrackingService implements MutationTrackingServiceMBean
                 throw new UnknownShardException(range, keyspace);
 
             return match;
+        }
+
+        // TODO (expected): get rid of once V1 is no longer supported
+        @Nullable
+        private Shard lookUpByExactRange(Range<Token> range)
+        {
+            List<Shard> matches = shards.foldIntersecting(range, (shard, found) -> {
+                if (shard.range.equals(range))
+                    found.add(shard);
+                return found;
+            }, new ArrayList<>(1));
+            return matches.size() == 1 ? matches.get(0) : null;
         }
 
         /**
