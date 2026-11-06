@@ -226,7 +226,8 @@ public class BootStrapperTest
                                  1,
                                  movements.left,
                                  movements.right,
-                                 true);
+                                 true,
+                                 null);
     }
 
     private boolean includesWraparound(Collection<Range<Token>> toFetch)

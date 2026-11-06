@@ -39,20 +39,27 @@ public class RebuildStreamingTest extends TestBaseImpl
     private static final ByteBuffer BLOB = ByteBuffer.wrap(new byte[1 << 16]);
     // zero copy streaming sends all components, so the events will include non-Data files as well
     private static final int NUM_COMPONENTS = 7;
+    private String[] args;
 
     @Test
     public void zeroCopy() throws IOException
     {
-        test(true);
+        test(true, false);
+    }
+
+    @Test
+    public void specifyTable() throws IOException
+    {
+        test(true, true);
     }
 
     @Test
     public void notZeroCopy() throws IOException
     {
-        test(false);
+        test(false, false);
     }
 
-    private void test(boolean zeroCopyStreaming) throws IOException
+    private void test(boolean zeroCopyStreaming, boolean specifyTable) throws IOException
     {
         try (Cluster cluster = init(Cluster.build(2)
                                            .withConfig(c -> c.with(Feature.values())
@@ -61,20 +68,23 @@ public class RebuildStreamingTest extends TestBaseImpl
         {
             // streaming sends events every 65k, so need to make sure that the files are larger than this to hit
             // all cases of the vtable
-            cluster.schemaChange(withKeyspace("CREATE TABLE %s.users (user_id varchar, spacing blob, PRIMARY KEY (user_id)) WITH compression = { 'enabled' : false };"));
+            String tableName = "users";
+            cluster.schemaChange(withKeyspace("CREATE TABLE %s." + tableName + " (user_id varchar, spacing blob, PRIMARY KEY (user_id)) WITH compression = { 'enabled' : false };"));
             cluster.stream().forEach(i -> i.nodetoolResult("disableautocompaction", KEYSPACE).asserts().success());
             IInvokableInstance first = cluster.get(1);
             IInvokableInstance second = cluster.get(2);
             long expectedFiles = 10;
             for (int i = 0; i < expectedFiles; i++)
             {
-                first.executeInternal(withKeyspace("insert into %s.users(user_id, spacing) values (?, ? )"), "dcapwell" + i, BLOB);
+                first.executeInternal(withKeyspace("insert into %s." + tableName + " (user_id, spacing) values (?, ? )"), "dcapwell" + i, BLOB);
                 first.flush(KEYSPACE);
             }
             if (zeroCopyStreaming) // will include all components so need to account for
                 expectedFiles *= NUM_COMPONENTS;
 
-            second.nodetoolResult("rebuild", "--keyspace", KEYSPACE).asserts().success();
+            args = specifyTable ? new String[]{ "rebuild", "--keyspace", KEYSPACE, "--table", tableName } :
+                                  new String[]{ "rebuild", "--keyspace", KEYSPACE };
+            second.nodetoolResult(args).asserts().success();
 
             SimpleQueryResult qr = first.executeInternalWithResult("SELECT * FROM system_views.streaming");
             String txt = QueryResultUtil.expand(qr);

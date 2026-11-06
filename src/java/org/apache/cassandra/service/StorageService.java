@@ -1185,7 +1185,12 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
 
     public void rebuild(String sourceDc, String keyspace, String tokens, String specificSources, boolean excludeLocalDatacenterNodes)
     {
-        Rebuild.rebuild(sourceDc, keyspace, tokens, specificSources, excludeLocalDatacenterNodes);
+        Rebuild.rebuild(sourceDc, keyspace, tokens, null, specificSources, excludeLocalDatacenterNodes);
+    }
+
+    public void rebuild(String sourceDc, String keyspace, String tokens, Set<String> tables, String specificSources, boolean excludeLocalDatacenterNodes)
+    {
+        Rebuild.rebuild(sourceDc, keyspace, tokens, tables, specificSources, excludeLocalDatacenterNodes);
     }
 
     public void setRpcTimeout(long value)
