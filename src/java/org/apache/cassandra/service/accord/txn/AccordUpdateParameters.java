@@ -70,6 +70,12 @@ public class AccordUpdateParameters
         {
             return timestamp;
         }
+
+        @Override
+        public boolean requiresDeterministicCellPaths()
+        {
+            return true;
+        }
     }
 
     public TxnData getData()
