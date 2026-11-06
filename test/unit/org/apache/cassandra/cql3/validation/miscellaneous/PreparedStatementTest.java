@@ -24,6 +24,7 @@ import org.junit.Assert;
 import org.junit.Test;
 
 import org.apache.cassandra.cql3.CQLTester;
+import org.apache.cassandra.exceptions.InvalidRequestException;
 import org.apache.cassandra.cql3.QueryProcessor;
 import org.apache.cassandra.service.ClientState;
 import org.apache.cassandra.transport.messages.ResultMessage;
@@ -81,5 +82,118 @@ public class PreparedStatementTest extends CQLTester
         // Wait for all threads to finish
         finishLatch.await();
         Assert.assertTrue(preparedStatementPresentInCache.get());
+    }
+
+    /**
+     * CASSANDRA-17693: Using the same named bind variable for columns of incompatible types
+     * should be rejected during preparation.
+     *
+     * For example: INSERT INTO t (id, col_text, col_int) VALUES (:id, :a, :a)
+     * where col_text is text and col_int is int — the :a variable cannot be both types.
+     */
+    @Test
+    public void testReusedNamedBindVariableWithIncompatibleTypes() throws Throwable
+    {
+        createTable("CREATE TABLE %s (id int PRIMARY KEY, col_text text, col_int int)");
+
+        String query = formatQuery("INSERT INTO %s (id, col_text, col_int) VALUES (:id, :a, :a)");
+        ClientState state = ClientState.forInternalCalls();
+
+        try
+        {
+            QueryProcessor.instance.prepare(query, state);
+            Assert.fail("Expected InvalidRequestException for bind variable :a used with incompatible types text and int");
+        }
+        catch (InvalidRequestException e)
+        {
+            Assert.assertTrue("Error should mention the conflicting bind variable",
+                              e.getMessage().contains("'a'"));
+            Assert.assertTrue("Error should mention incompatible types",
+                              e.getMessage().contains("incompatible types"));
+        }
+    }
+
+    /**
+     * CASSANDRA-17693: Reusing a named bind variable for columns of the same type should still be accepted.
+     */
+    @Test
+    public void testReusedNamedBindVariableWithCompatibleTypes() throws Throwable
+    {
+        createTable("CREATE TABLE %s (id int PRIMARY KEY, col_text1 text, col_text2 text)");
+
+        String query = formatQuery("INSERT INTO %s (id, col_text1, col_text2) VALUES (:id, :a, :a)");
+        ClientState state = ClientState.forInternalCalls();
+
+        // Should succeed — :a is used for two text columns, which is compatible
+        ResultMessage.Prepared prepared = QueryProcessor.instance.prepare(query, state);
+        Assert.assertNotNull(prepared);
+    }
+
+    /**
+     * CASSANDRA-17693: When a named bind variable is reused across 3+ columns and only the third
+     * conflicts, preparation should still be rejected.
+     */
+    @Test
+    public void testReusedNamedBindVariableThirdColumnConflicts() throws Throwable
+    {
+        createTable("CREATE TABLE %s (id int PRIMARY KEY, col_text1 text, col_text2 text, col_int int)");
+
+        String query = formatQuery("INSERT INTO %s (id, col_text1, col_text2, col_int) VALUES (:id, :a, :a, :a)");
+        ClientState state = ClientState.forInternalCalls();
+
+        try
+        {
+            QueryProcessor.instance.prepare(query, state);
+            Assert.fail("Expected InvalidRequestException for bind variable :a used with incompatible types");
+        }
+        catch (InvalidRequestException e)
+        {
+            Assert.assertTrue("Error should mention the conflicting bind variable",
+                              e.getMessage().contains("'a'"));
+            Assert.assertTrue("Error should mention incompatible types",
+                              e.getMessage().contains("incompatible types"));
+        }
+    }
+
+    /**
+     * CASSANDRA-17693: When multiple named bind variables are used and only one pair conflicts,
+     * the conflicting pair should be rejected without affecting the valid ones.
+     */
+    @Test
+    public void testMultipleBindVariablesOnlyOneConflicts() throws Throwable
+    {
+        createTable("CREATE TABLE %s (id int PRIMARY KEY, col_text1 text, col_text2 text, col_int int)");
+
+        // :b is used for compatible columns (text, text), but :a is used for incompatible columns (text, int)
+        String query = formatQuery("INSERT INTO %s (id, col_text1, col_int, col_text2) VALUES (:id, :a, :a, :b)");
+        ClientState state = ClientState.forInternalCalls();
+
+        try
+        {
+            QueryProcessor.instance.prepare(query, state);
+            Assert.fail("Expected InvalidRequestException for bind variable :a used with incompatible types");
+        }
+        catch (InvalidRequestException e)
+        {
+            Assert.assertTrue("Error should mention the conflicting bind variable",
+                              e.getMessage().contains("'a'"));
+        }
+    }
+
+    /**
+     * CASSANDRA-17693: Reusing a named bind variable for ascii and text columns should be accepted,
+     * since text (UTF8Type) is compatible with ascii (AsciiType).
+     */
+    @Test
+    public void testReusedNamedBindVariableWithAsciiAndText() throws Throwable
+    {
+        createTable("CREATE TABLE %s (id int PRIMARY KEY, col_ascii ascii, col_text text)");
+
+        String query = formatQuery("INSERT INTO %s (id, col_text, col_ascii) VALUES (:id, :a, :a)");
+        ClientState state = ClientState.forInternalCalls();
+
+        // Should succeed — text is compatible with ascii
+        ResultMessage.Prepared prepared = QueryProcessor.instance.prepare(query, state);
+        Assert.assertNotNull(prepared);
     }
 }
