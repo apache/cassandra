@@ -48,9 +48,10 @@ import org.apache.cassandra.net.MessagingService;
  */
 public enum Version
 {
-    V1(1, MessagingService.VERSION_61);
+    V1(1, MessagingService.VERSION_61),
+    V2(2, MessagingService.VERSION_61);
 
-    static final Version CURRENT = V1;
+    static final Version CURRENT = V2;
 
     private static final Version[] versionMap;
     static
@@ -99,6 +100,11 @@ public enum Version
     public int messagingVersion()
     {
         return messagingVersion;
+    }
+
+    public boolean isAtLeast(Version other)
+    {
+        return this.version >= other.version;
     }
 
     private static Version fromInt(int v)
