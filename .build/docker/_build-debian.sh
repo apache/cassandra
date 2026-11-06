@@ -47,7 +47,12 @@ set -e
 
 # note, this edits files in your working cassandra directory
 pushd $CASSANDRA_DIR >/dev/null
+# Restore the changelog on both success and failure so a retried cell does not stack
+# generated versions from its previous attempt.
+trap 'git -C "${CASSANDRA_DIR}" restore debian/changelog || true' EXIT
 export BUILD_DIR="$(realpath --relative-to=$CASSANDRA_DIR ${DIST_DIR})"
+export DEBFULLNAME="${DEBFULLNAME:-Apache Cassandra build}"
+export DEBEMAIL="${DEBEMAIL:-dev@cassandra.apache.org}"
 
 # Used version for build will always depend on the git referenced used for checkout above
 # Branches will always be created as snapshots, while tags are releases
@@ -128,7 +133,5 @@ set +e
 mv ../cassandra[-_]*${CASSANDRA_VERSION}* "${DIST_DIR}"
 # clean build deps
 rm -f cassandra-build-deps_*
-# restore debian/changelog
-git restore debian/changelog || true
 
 popd >/dev/null
