@@ -665,6 +665,36 @@ public class AbstractReadQueryToCQLStringTest extends CQLTester
     }
 
     @Test
+    public void testContainsOnFrozenCollectionClustering() throws Throwable
+    {
+        testContainsOnFrozenCollectionClustering("ASC");
+        testContainsOnFrozenCollectionClustering("DESC");
+    }
+
+    private void testContainsOnFrozenCollectionClustering(String order) throws Throwable
+    {
+        createTable(String.format("CREATE TABLE %%s (k int, m frozen<map<int, int>>, s frozen<set<int>>, l frozen<list<int>>, " +
+                                  "PRIMARY KEY (k, m, s, l)) WITH CLUSTERING ORDER BY (m %1$s, s %1$s, l %1$s)", order));
+
+        test("SELECT * FROM %s WHERE m CONTAINS KEY 1 ALLOW FILTERING");
+        test("SELECT * FROM %s WHERE m CONTAINS 1 ALLOW FILTERING");
+        test("SELECT * FROM %s WHERE s CONTAINS 1 ALLOW FILTERING");
+        test("SELECT * FROM %s WHERE l CONTAINS 1 ALLOW FILTERING");
+        test("SELECT * FROM %s WHERE k = 0 AND m CONTAINS KEY 1 ALLOW FILTERING");
+        test("SELECT * FROM %s WHERE k = 0 AND m CONTAINS 1 ALLOW FILTERING");
+        test("SELECT * FROM %s WHERE k = 0 AND s CONTAINS 1 ALLOW FILTERING");
+        test("SELECT * FROM %s WHERE k = 0 AND l CONTAINS 1 ALLOW FILTERING");
+        test("SELECT * FROM %s WHERE m NOT CONTAINS KEY 1 ALLOW FILTERING");
+        test("SELECT * FROM %s WHERE m NOT CONTAINS 1 ALLOW FILTERING");
+        test("SELECT * FROM %s WHERE s NOT CONTAINS 1 ALLOW FILTERING");
+        test("SELECT * FROM %s WHERE l NOT CONTAINS 1 ALLOW FILTERING");
+        test("SELECT * FROM %s WHERE k = 0 AND m NOT CONTAINS KEY 1 ALLOW FILTERING");
+        test("SELECT * FROM %s WHERE k = 0 AND m NOT CONTAINS 1 ALLOW FILTERING");
+        test("SELECT * FROM %s WHERE k = 0 AND s NOT CONTAINS 1 ALLOW FILTERING");
+        test("SELECT * FROM %s WHERE k = 0 AND l NOT CONTAINS 1 ALLOW FILTERING");
+    }
+
+    @Test
     public void testVirtualTable() throws Throwable
     {
         TableMetadata metadata =
