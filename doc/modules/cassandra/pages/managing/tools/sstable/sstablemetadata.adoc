@@ -337,7 +337,7 @@ seconds
 |Count Row Size Cell Count |two histograms in two columns; one
 represents distribution of Row Size and the other represents
 distribution of Cell Count
-|Estimated cardinality an estimate of unique
+|Estimated cardinality |an estimate of unique
 values, used for compaction
 |EncodingStats* minTTL |in epoch milliseconds
 |EncodingStats* minLocalDeletionTime |in epoch seconds
