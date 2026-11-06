@@ -2152,26 +2152,22 @@ public class CompactionManager implements CompactionManagerMBean, ICompactionMan
         {
             public void run()
             {
-                if (!AutoSavingCache.flushInProgress.add(writer.cacheType()))
+                try (AutoSavingCache.SaveOperation operation = writer.tryStartSave())
                 {
-                    logger.trace("Cache flushing was already in progress: skipping {}", writer.getCompactionInfo());
-                    return;
-                }
-                try
-                {
+                    if (operation == null)
+                    {
+                        return;
+                    }
+
                     activeCompactions.beginCompaction(writer);
                     try
                     {
-                        writer.saveCache();
+                        operation.saveCache();
                     }
                     finally
                     {
                         activeCompactions.finishCompaction(writer);
                     }
-                }
-                finally
-                {
-                    AutoSavingCache.flushInProgress.remove(writer.cacheType());
                 }
             }
         };
