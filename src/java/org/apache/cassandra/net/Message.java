@@ -911,7 +911,7 @@ public class Message<T> implements ResponseContext
         {
             serializeHeader(message.header, out, version);
             out.writeUnsignedVInt32(message.payloadSize(version));
-            message.verb().serializer().serialize(message.payload, out, version);
+            message.getPayloadSerializer().serialize(message.payload, out, version);
         }
 
         public <T> Message<T> deserialize(DataInputPlus in, InetAddressAndPort peer, int version) throws IOException

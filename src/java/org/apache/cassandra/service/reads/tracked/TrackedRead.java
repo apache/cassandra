@@ -546,7 +546,7 @@ public abstract class TrackedRead<E extends Endpoints<E>, P extends ReplicaPlan.
                                           .beginRead(readId, metadata, command, consistencyLevel, summaryNodes, requestTime, TrackedLocalReads.Completer.DEFAULT);
         }
 
-        private static final VersionedSerializer<DataRequest> serializer = new VersionedSerializer<>()
+        public static final VersionedSerializer<DataRequest> serializer = new VersionedSerializer<>()
         {
             @Override
             public void serialize(DataRequest request, DataOutputPlus out, Version version) throws IOException
@@ -581,6 +581,7 @@ public abstract class TrackedRead<E extends Endpoints<E>, P extends ReplicaPlan.
             }
         };
 
+        // TODO (expected): MT version is fixed when this static serializer is created; make it follow cluster safe version changes made via JMX
         public static final IVersionedAsymmetricSerializer<DataRequest, DataRequest> embedded =
             EmbeddedAsymmetricVersionedSerializer.mtEmbedded(serializer);
 
@@ -611,7 +612,7 @@ public abstract class TrackedRead<E extends Endpoints<E>, P extends ReplicaPlan.
             return ImmediateFuture.success(null);
         }
 
-        private static final VersionedSerializer<SummaryRequest> serializer = new VersionedSerializer<>()
+        public static final VersionedSerializer<SummaryRequest> serializer = new VersionedSerializer<>()
         {
             @Override
             public void serialize(SummaryRequest request, DataOutputPlus out, Version version) throws IOException
@@ -643,6 +644,7 @@ public abstract class TrackedRead<E extends Endpoints<E>, P extends ReplicaPlan.
             }
         };
 
+        // TODO (expected): MT version is fixed when this static serializer is created; make it follow cluster safe version changes made via JMX
         public static final IVersionedAsymmetricSerializer<SummaryRequest, SummaryRequest> embedded =
             EmbeddedAsymmetricVersionedSerializer.mtEmbedded(serializer);
 

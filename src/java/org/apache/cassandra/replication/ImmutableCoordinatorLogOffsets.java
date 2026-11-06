@@ -280,6 +280,7 @@ public class ImmutableCoordinatorLogOffsets implements CoordinatorLogOffsets<Off
         }
     };
 
+    // TODO (expected): MT version is fixed when this static serializer is created; make it follow cluster safe version changes made via JMX
     public static final IVersionedAsymmetricSerializer<ImmutableCoordinatorLogOffsets, ImmutableCoordinatorLogOffsets> embedded =
         EmbeddedAsymmetricVersionedSerializer.mtEmbedded(serializer);
 

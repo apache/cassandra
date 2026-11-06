@@ -374,12 +374,12 @@ public enum Verb
     MT_FORWARD_WRITE_REQ     (904, P3, writeTimeout,             MUTATION,         () -> mtEmbedded(ForwardedWrite.serializer),               () -> ForwardedWrite.verbHandler                                   ),
     MT_BROADCAST_LOG_OFFSETS (905, P1, rpcTimeout,               MISC,             () -> mtEmbedded(BroadcastLogOffsets.serializer),          () -> BroadcastLogOffsets.verbHandler                              ),
 
-    MT_PARTITION_READ_RSP    (906, P2, readTimeout,              REQUEST_RESPONSE, () -> TrackedDataResponse.embedded,                        RESPONSE_HANDLER                                                   ),
-    MT_PARTITION_READ_REQ    (907, P3, readTimeout,              READ,             () -> TrackedRead.DataRequest.embedded,                    () -> TrackedRead.verbHandler,             MT_PARTITION_READ_RSP   ),
-    MT_RANGE_READ_RSP        (908, P2, rangeTimeout,             REQUEST_RESPONSE, () -> TrackedDataResponse.embedded,                        RESPONSE_HANDLER                                                   ),
-    MT_RANGE_READ_REQ        (909, P3, rangeTimeout,             READ,             () -> TrackedRead.DataRequest.embedded,                    () -> TrackedRead.verbHandler,             MT_RANGE_READ_RSP       ),
-    MT_SUMMARY_RSP           (910, P2, readTimeout,              REQUEST_RESPONSE, () -> TrackedSummaryResponse.embedded,                     () -> TrackedSummaryResponse.verbHandler                           ),
-    MT_SUMMARY_REQ           (911, P3, readTimeout,              READ,             () -> TrackedRead.SummaryRequest.embedded,                 () -> TrackedRead.verbHandler,             MT_SUMMARY_RSP          ),
+    MT_PARTITION_READ_RSP    (906, P2, readTimeout,              REQUEST_RESPONSE, () -> mtEmbedded(TrackedDataResponse.serializer),          RESPONSE_HANDLER                                                   ),
+    MT_PARTITION_READ_REQ    (907, P3, readTimeout,              READ,             () -> mtEmbedded(TrackedRead.DataRequest.serializer),      () -> TrackedRead.verbHandler,             MT_PARTITION_READ_RSP   ),
+    MT_RANGE_READ_RSP        (908, P2, rangeTimeout,             REQUEST_RESPONSE, () -> mtEmbedded(TrackedDataResponse.serializer),          RESPONSE_HANDLER                                                   ),
+    MT_RANGE_READ_REQ        (909, P3, rangeTimeout,             READ,             () -> mtEmbedded(TrackedRead.DataRequest.serializer),      () -> TrackedRead.verbHandler,             MT_RANGE_READ_RSP       ),
+    MT_SUMMARY_RSP           (910, P2, readTimeout,              REQUEST_RESPONSE, () -> mtEmbedded(TrackedSummaryResponse.serializer),       () -> TrackedSummaryResponse.verbHandler                           ),
+    MT_SUMMARY_REQ           (911, P3, readTimeout,              READ,             () -> mtEmbedded(TrackedRead.SummaryRequest.serializer),   () -> TrackedRead.verbHandler,             MT_SUMMARY_RSP          ),
 
     MT_TRANSFER_ACTIVATE_RSP (912, P1, repairTimeout,            REQUEST_RESPONSE, () -> mtEmbedded(ActivationResponse.serializer),           RESPONSE_HANDLER                                                   ),
     MT_TRANSFER_ACTIVATE_REQ (913, P1, repairTimeout,            ANTI_ENTROPY,     () -> mtEmbedded(ActivationRequest.serializer),            () -> ActivationRequest.verbHandler,       MT_TRANSFER_ACTIVATE_RSP),
@@ -387,6 +387,8 @@ public enum Verb
     MT_TRANSFER_FAILED_REQ   (915, P1, repairTimeout,            ANTI_ENTROPY,     () -> mtEmbedded(TransferFailedRequest.serializer),        () -> TransferTrackingService.verbHandler, MT_TRANSFER_FAILED_RSP  ),
     MT_SYNC_RSP              (916, P1, repairWithBackoffTimeout, REQUEST_RESPONSE, () -> mtEmbedded(MutationTrackingSyncResponse.serializer), RESPONSE_HANDLER                                                   ),
     MT_SYNC_REQ              (917, P1, repairWithBackoffTimeout, ANTI_ENTROPY,     () -> mtEmbedded(MutationTrackingSyncRequest.serializer),  () -> RepairMessageVerbHandler.instance(), MT_SYNC_RSP             ),
+
+    // TODO (expected): make these use mtEmbedded() as well
     MT_VALIDATION_RSP        (918, P1, repairValidationRspTimeout, ANTI_ENTROPY,     () -> ValidationResponse.serializer,                     () -> RepairMessageVerbHandler.instance(), REPAIR_RSP              ),
     MT_VALIDATION_REQ        (919, P1, repairWithBackoffTimeout,   ANTI_ENTROPY,     () -> ValidationRequest.serializer,                      () -> RepairMessageVerbHandler.instance(), REPAIR_RSP              ),
 

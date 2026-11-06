@@ -18,14 +18,13 @@
 package org.apache.cassandra.io;
 
 import java.io.IOException;
-import java.util.function.Supplier;
 
 import org.apache.cassandra.io.util.DataInputPlus;
 import org.apache.cassandra.io.util.DataOutputPlus;
 
 public class EmbeddedAsymmetricVersionedSerializer<In, Out, Version> implements IVersionedAsymmetricSerializer<In, Out>, AsymmetricUnversionedSerializer<In, Out>
 {
-    private final Supplier<Version> versionSupplier;
+    private final Version version;
     private final UnversionedSerializer<Version> versionSerializer;
     private final AsymmetricVersionedSerializer<In, Out, Version> delegate;
 
@@ -33,14 +32,7 @@ public class EmbeddedAsymmetricVersionedSerializer<In, Out, Version> implements 
                                                  UnversionedSerializer<Version> versionSerializer,
                                                  AsymmetricVersionedSerializer<In, Out, Version> delegate)
     {
-        this(() -> version, versionSerializer, delegate);
-    }
-
-    public EmbeddedAsymmetricVersionedSerializer(Supplier<Version> versionSupplier,
-                                                 UnversionedSerializer<Version> versionSerializer,
-                                                 AsymmetricVersionedSerializer<In, Out, Version> delegate)
-    {
-        this.versionSupplier = versionSupplier;
+        this.version = version;
         this.versionSerializer = versionSerializer;
         this.delegate = delegate;
     }
@@ -54,7 +46,6 @@ public class EmbeddedAsymmetricVersionedSerializer<In, Out, Version> implements 
     @Override
     public void serialize(In t, DataOutputPlus out) throws IOException
     {
-        Version version = versionSupplier.get();
         versionSerializer.serialize(version, out);
         delegate.serialize(t, out, version);
     }
@@ -81,7 +72,6 @@ public class EmbeddedAsymmetricVersionedSerializer<In, Out, Version> implements 
     @Override
     public long serializedSize(In t)
     {
-        Version version = versionSupplier.get();
         return versionSerializer.serializedSize(version)
                + delegate.serializedSize(t, version);
     }
@@ -102,8 +92,8 @@ public class EmbeddedAsymmetricVersionedSerializer<In, Out, Version> implements 
 
     public static <A, B> IVersionedAsymmetricSerializer<A, B> mtEmbedded(AsymmetricVersionedSerializer<A, B, org.apache.cassandra.replication.Version> delegate)
     {
-        return new EmbeddedAsymmetricVersionedSerializer<A, B, org.apache.cassandra.replication.Version>(
-            () -> org.apache.cassandra.replication.Version.getClusterSafeVersion(),
+        return new EmbeddedAsymmetricVersionedSerializer<>(
+            org.apache.cassandra.replication.Version.getClusterSafeVersion(),
             org.apache.cassandra.replication.Version.serializer,
             delegate
         );

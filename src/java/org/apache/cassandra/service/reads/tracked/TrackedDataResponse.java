@@ -147,7 +147,7 @@ public class TrackedDataResponse implements IReadResponse
         return counter.applyTo(makeIteratorUnlimited(command));
     }
 
-    private static final VersionedSerializer<TrackedDataResponse> serializer = new VersionedSerializer<>()
+    public static final VersionedSerializer<TrackedDataResponse> serializer = new VersionedSerializer<>()
     {
         @Override
         public void serialize(TrackedDataResponse response, DataOutputPlus out, Version version) throws IOException
@@ -173,6 +173,7 @@ public class TrackedDataResponse implements IReadResponse
         }
     };
 
+    // TODO (expected): MT version is fixed when this static serializer is created; make it follow cluster safe version changes made via JMX
     public static final IVersionedAsymmetricSerializer<TrackedDataResponse, TrackedDataResponse> embedded =
         EmbeddedAsymmetricVersionedSerializer.mtEmbedded(serializer);
 

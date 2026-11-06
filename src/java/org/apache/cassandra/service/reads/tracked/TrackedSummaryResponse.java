@@ -97,6 +97,7 @@ public class TrackedSummaryResponse implements IReadResponse
         }
     };
 
+    // TODO (expected): MT version is fixed when this static serializer is created; make it follow cluster safe version changes made via JMX
     public static final IVersionedAsymmetricSerializer<TrackedSummaryResponse, TrackedSummaryResponse> embedded =
         EmbeddedAsymmetricVersionedSerializer.mtEmbedded(serializer);
 
