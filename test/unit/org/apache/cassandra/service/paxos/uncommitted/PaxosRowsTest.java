@@ -18,7 +18,9 @@
 
 package org.apache.cassandra.service.paxos.uncommitted;
 
+import java.nio.ByteBuffer;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.List;
 import java.util.UUID;
 
@@ -32,6 +34,7 @@ import org.junit.Test;
 
 import org.apache.cassandra.SchemaLoader;
 import org.apache.cassandra.cql3.ColumnIdentifier;
+import org.apache.cassandra.cql3.QueryProcessor;
 import org.apache.cassandra.cql3.statements.schema.CreateTableStatement;
 import org.apache.cassandra.db.BufferClustering;
 import org.apache.cassandra.db.Clustering;
@@ -49,11 +52,13 @@ import org.apache.cassandra.db.rows.BufferCell;
 import org.apache.cassandra.db.rows.Cell;
 import org.apache.cassandra.db.rows.Row;
 import org.apache.cassandra.db.rows.UnfilteredRowIterator;
+import org.apache.cassandra.net.MessagingService;
 import org.apache.cassandra.schema.ColumnMetadata;
 import org.apache.cassandra.schema.TableId;
 import org.apache.cassandra.schema.TableMetadata;
 import org.apache.cassandra.service.paxos.Ballot;
 import org.apache.cassandra.service.paxos.Commit;
+import org.apache.cassandra.service.paxos.PaxosPartitionUpdateBlob;
 import org.apache.cassandra.tcm.Epoch;
 import org.apache.cassandra.utils.ByteBufferUtil;
 import org.apache.cassandra.utils.CloseableIterator;
@@ -141,6 +146,82 @@ public class PaxosRowsTest
 
         SystemKeyspace.savePaxosCommit(emptyCommitFor(ballots[2], key));
         Assert.assertEquals(new PaxosKeyState(tableId, key, ballots[2], true), PaxosRows.getCommitState(key, paxosRowFor(key), null));
+    }
+
+    @Test
+    public void anUndecodableProposalLeavesTheKeyInProgress()
+    {
+        DecoratedKey key = dk(Integer.MAX_VALUE);
+        Ballot[] ballots = createBallots(2);
+
+        SystemKeyspace.savePaxosCommit(nonEmptyCommitFor(ballots[0], key));
+        SystemKeyspace.savePaxosProposal(nonEmptyCommitFor(ballots[1], key));
+        byte[] garbage = new byte[64];
+        Arrays.fill(garbage, (byte) 0x11);
+        QueryProcessor.executeInternal("UPDATE system.paxos USING TIMESTAMP ? SET proposal = ? WHERE row_key = ? AND cf_id = ?",
+                                       ballots[1].unixMicros() + 1, ByteBuffer.wrap(garbage), key.getKey(), tableId.asUUID());
+
+        PaxosKeyState state = PaxosRows.getCommitState(key, paxosRowFor(key), null);
+        Assert.assertEquals(new PaxosKeyState(tableId, key, ballots[1], false), state);
+    }
+
+    @Test
+    public void aProposalWithoutAVersionCellIsDecodedFromTheBlob()
+    {
+        Ballot[] ballots = createBallots(4);
+
+        // A non-empty blob with no proposal_version cell is a live proposal, so the key stays in
+        // progress.
+        DecoratedKey nonEmptyKey = dk(1);
+        writeCommit(nonEmptyCommitFor(ballots[0], nonEmptyKey));
+        writeProposalWithoutVersion(nonEmptyCommitFor(ballots[1], nonEmptyKey));
+        Row nonEmptyRow = paxosRowFor(nonEmptyKey);
+        Assert.assertNull(nonEmptyRow.getCell(PAXOS_CFM.getColumn(new ColumnIdentifier("proposal_version", false))));
+        Assert.assertEquals(new PaxosKeyState(tableId, nonEmptyKey, ballots[1], false),
+                            PaxosRows.getCommitState(nonEmptyKey, nonEmptyRow, null));
+
+        // An empty blob with no proposal_version cell is an empty proposal: the key is committed.
+        DecoratedKey emptyKey = dk(2);
+        writeCommit(nonEmptyCommitFor(ballots[2], emptyKey));
+        writeProposalWithoutVersion(emptyCommitFor(ballots[3], emptyKey));
+        Assert.assertEquals(new PaxosKeyState(tableId, emptyKey, ballots[3], true),
+                            PaxosRows.getCommitState(emptyKey, paxosRowFor(emptyKey), null));
+    }
+
+    // SystemKeyspace.savePaxosCommit tombstones proposal_version, so write the commit without
+    // touching that column.
+    private static void writeCommit(Commit commit)
+    {
+        DecoratedKey key = commit.update.partitionKey();
+        ByteBuffer blob = PaxosPartitionUpdateBlob.encode(commit.update, MessagingService.current_version,
+                                                          key.getKey(), tableId.asUUID(), commit.ballot);
+        QueryProcessor.executeInternal("UPDATE system.paxos USING TIMESTAMP ? SET most_recent_commit_at = ?, most_recent_commit = ?, most_recent_commit_version = ? WHERE row_key = ? AND cf_id = ?",
+                                       commit.ballot.unixMicros(), commit.ballot, blob, MessagingService.current_version,
+                                       key.getKey(), tableId.asUUID());
+    }
+
+    private static void writeProposalWithoutVersion(Commit proposal)
+    {
+        DecoratedKey key = proposal.update.partitionKey();
+        ByteBuffer blob = PaxosPartitionUpdateBlob.encode(proposal.update, MessagingService.current_version,
+                                                          key.getKey(), tableId.asUUID(), proposal.ballot);
+        QueryProcessor.executeInternal("UPDATE system.paxos USING TIMESTAMP ? SET proposal_ballot = ?, proposal = ? WHERE row_key = ? AND cf_id = ?",
+                                       proposal.ballot.unixMicros(), proposal.ballot, blob, key.getKey(), tableId.asUUID());
+    }
+
+    @Test
+    public void aTombstonedProposalVersionIsReadAsAbsent()
+    {
+        DecoratedKey key = dk(5);
+        Ballot[] ballots = createBallots(2);
+        writeCommit(nonEmptyCommitFor(ballots[0], key));
+        SystemKeyspace.savePaxosProposal(nonEmptyCommitFor(ballots[1], key));
+        QueryProcessor.executeInternal("UPDATE system.paxos USING TIMESTAMP ? SET proposal_version = null WHERE row_key = ? AND cf_id = ?",
+                                       ballots[1].unixMicros() + 1, key.getKey(), tableId.asUUID());
+
+        Row row = paxosRowFor(key);
+        Assert.assertTrue(row.getCell(PAXOS_CFM.getColumn(new ColumnIdentifier("proposal_version", false))).isTombstone());
+        Assert.assertEquals(new PaxosKeyState(tableId, key, ballots[1], false), PaxosRows.getCommitState(key, row, null));
     }
 
     @Test
