@@ -79,7 +79,8 @@ fi
 
 # Set up venv with dtest dependencies
 set -e # enable immediate exit if venv setup fails
-virtualenv --python=$PYTHON_VERSION venv
+# the background periodic update can deadlock virtualenv running on python2.7
+virtualenv --no-periodic-update --python=$PYTHON_VERSION venv
 source venv/bin/activate
 # 3.11 needs the newest pip, 3.8 and older have specific legacy get-pip urls
 PYTHON_MAJOR_MINOR=$($PYTHON_VERSION -V 2>&1 | awk '{print $2}' | cut -d. -f1,2)
