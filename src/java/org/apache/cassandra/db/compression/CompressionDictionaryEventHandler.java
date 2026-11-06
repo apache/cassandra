@@ -105,6 +105,16 @@ public class CompressionDictionaryEventHandler implements ICompressionDictionary
                 logger.warn("Failed to retrieve compression dictionary for {}.{}. {}",
                             keyspaceName, tableName, dictionaryId, e);
             }
+            catch (Error e)
+            {
+                // A drain of a node interrupts this task. A local read can run on this thread, then it fails e.g. with
+                // FSReadError, caused by ClosedByInterruptException, which is not a failure of the disk.
+                if (!ScheduledExecutors.nonPeriodicTasks.isShutdown())
+                    throw e;
+
+                logger.info("Retrieval of compression dictionary {} for {}.{} stopped by the shutdown of the node: {}",
+                            dictionaryId, keyspaceName, tableName, e.getMessage());
+            }
         });
     }
 

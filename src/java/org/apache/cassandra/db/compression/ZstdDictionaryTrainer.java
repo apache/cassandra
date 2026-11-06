@@ -188,9 +188,13 @@ public class ZstdDictionaryTrainer implements ICompressionDictionaryTrainer
             }
             catch (Throwable t)
             {
-                // Unexpected failures - log at error level for visibility
-                logger.error("Unexpected error during dictionary training for {}.{}",
-                             keyspaceName, tableName, t);
+                // the shutdown of a node interrupts this task, e.g. while it waits for the dictionary to be stored
+                if (ScheduledExecutors.nonPeriodicTasks.isShutdown())
+                    logger.info("Dictionary training for {}.{} stopped by the shutdown of the node: {}",
+                                keyspaceName, tableName, t.getMessage());
+                else
+                    logger.error("Unexpected error during dictionary training for {}.{}",
+                                 keyspaceName, tableName, t);
                 tryFailure(t);
             }
         }

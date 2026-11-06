@@ -894,10 +894,11 @@ public class CompressionDictionaryClusterFuzzTest extends TestBaseImpl
                 ClusterUtils.awaitRingHealthy(cluster.get(n));
             awaitQuorumReads(node);
 
-            // the shutdown interrupts a refresh, and until the node reads with consistency level QUORUM, its refresh can
-            // not read dictionaries
+            // the shutdown interrupts a refresh, and until the node loaded the keyspace with dictionaries and reads with
+            // consistency level QUORUM, its refresh and the retrieval of a notified dictionary can not read them
             List<String> whileRestarting = unexpectedLogs();
-            whileRestarting.removeIf(line -> line.contains("Could not read the latest compression dictionary"));
+            whileRestarting.removeIf(line -> line.contains("Could not read the latest compression dictionary")
+                                             || line.contains("Could not read compression dictionary"));
             unexpected.addAll(whileRestarting);
             if (!unexpected.isEmpty())
                 throw new AssertionError(String.join("\n", unexpected));
