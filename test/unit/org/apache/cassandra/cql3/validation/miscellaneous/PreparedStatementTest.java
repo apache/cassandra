@@ -40,7 +40,7 @@ public class PreparedStatementTest extends CQLTester
         execute("CREATE TABLE " + KEYSPACE + ".test_fullyqualified(a int primary key, b int)");
 
         ClientState state = ClientState.forInternalCalls();
-        Assert.assertEquals(0, QueryProcessor.instance.getPreparedStatements().size());
+        Assert.assertEquals(0, QueryProcessor.preparedStatementsCount());
         final ResultMessage.Prepared[] preparedSelect = new ResultMessage.Prepared[NUM_THREADS];
         AtomicBoolean preparedStatementPresentInCache = new AtomicBoolean(true);
         for (int i = 0; i < NUM_THREADS; i++)
