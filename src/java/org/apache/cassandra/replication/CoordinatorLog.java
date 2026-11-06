@@ -51,6 +51,7 @@ import org.apache.cassandra.metrics.MutationTrackingMetrics;
 import org.apache.cassandra.schema.SchemaConstants;
 import org.apache.cassandra.schema.TableId;
 import org.apache.cassandra.tcm.ClusterMetadata;
+import org.apache.cassandra.tcm.Epoch;
 
 import static java.lang.String.format;
 import static org.apache.cassandra.cql3.QueryProcessor.executeInternal;
@@ -61,6 +62,9 @@ import static org.apache.cassandra.utils.Clock.Global.currentTimeMillis;
 public abstract class CoordinatorLog
 {
     private static final Logger logger = LoggerFactory.getLogger(CoordinatorLog.class);
+
+    // shim epoch previously used in dev clusters in anticipation of 20386
+    static final long LEGACY_SINCE_EPOCH = Epoch.FIRST.getEpoch();
 
     protected final int localNodeId;
     protected final long sinceEpoch;
@@ -838,6 +842,22 @@ public abstract class CoordinatorLog
     void deleteFromSystemTable()
     {
         executeInternal(DELETE_QUERY, keyspace, range.left.toString(), range.right.toString(), sinceEpoch, logId.hostId, logId.hostLogId);
+    }
+
+    private static final String DELETE_LEGACY_LOGS_QUERY =
+        format("DELETE FROM %s.%s WHERE keyspace_name = ? AND range_start = ? AND range_end = ? AND since_epoch = ?",
+               SchemaConstants.SYSTEM_KEYSPACE_NAME, SystemKeyspace.COORDINATOR_LOGS);
+
+    // TODO (expected): drop all migration and compatibility logic once we are close to the release
+    static void migrateLegacyLogs(String keyspace, String rangeStart, String rangeEnd, long correctSinceEpoch)
+    {
+        for (UntypedResultSet.Row row : executeInternal(SELECT_QUERY, keyspace, rangeStart, rangeEnd, LEGACY_SINCE_EPOCH))
+        {
+            executeInternal(INSERT_QUERY, keyspace, correctSinceEpoch, rangeStart, rangeEnd,
+                            row.getInt("host_id"), row.getInt("host_log_id"),
+                            row.getBlob("participants"), row.getBlob("witnessed_offsets"), row.getBlob("persisted_offsets"));
+        }
+        executeInternal(DELETE_LEGACY_LOGS_QUERY, keyspace, rangeStart, rangeEnd, LEGACY_SINCE_EPOCH);
     }
 
     @VisibleForTesting

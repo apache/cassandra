@@ -439,12 +439,12 @@ public class Shard
      */
 
     private static final String INSERT_QUERY =
-        format("INSERT INTO %s.%s (keyspace_name, since_epoch, range_start, range_end, participants, state) VALUES (?, ?, ?, ?, ?, ?)",
+        format("INSERT INTO %s.%s (keyspace_name, range_start, range_end, since_epoch, participants, state) VALUES (?, ?, ?, ?, ?, ?)",
                SchemaConstants.SYSTEM_KEYSPACE_NAME, SystemKeyspace.SHARDS);
 
     void persistToSystemTables()
     {
-        executeInternal(INSERT_QUERY, keyspace, sinceEpoch, range.left.toString(), range.right.toString(), participants.asSet(), state.name());
+        executeInternal(INSERT_QUERY, keyspace, range.left.toString(), range.right.toString(), sinceEpoch, participants.asSet(), state.name());
         for (CoordinatorLog log : logs.values())
             log.persistToSystemTable();
     }
@@ -475,6 +475,48 @@ public class Shard
             shards.add(new Shard(localNodeId, keyspace, sinceEpoch, range, new Participants(participants), state, logs, logIdProvider, onNewLog));
         }
         return shards;
+    }
+
+    private static final String DELETE_QUERY =
+        format("DELETE FROM %s.%s WHERE keyspace_name = ? AND range_start = ? AND range_end = ? AND since_epoch = ?",
+               SchemaConstants.SYSTEM_KEYSPACE_NAME, SystemKeyspace.SHARDS);
+
+    interface SinceEpochResolver
+    {
+        long UNRESOLVED = Long.MIN_VALUE;
+
+        long resolve(String keyspace, Range<Token> range, Participants participants);
+    }
+
+    static void migrateLegacySinceEpoch(Token.TokenFactory factory, SinceEpochResolver resolver)
+    {
+        //noinspection DataFlowIssue
+        for (UntypedResultSet.Row row : executeInternal(SELECT_QUERY))
+        {
+            if (row.getLong("since_epoch") != CoordinatorLog.LEGACY_SINCE_EPOCH)
+                continue;
+
+            String keyspace = row.getString("keyspace_name");
+            String rangeStart = row.getString("range_start");
+            String rangeEnd = row.getString("range_end");
+            Range<Token> range = new Range<>(factory.fromString(rangeStart), factory.fromString(rangeEnd));
+            Set<Integer> participants = row.getFrozenSet("participants", Int32Type.instance);
+            String state = row.has("state") ? row.getString("state") : State.ACTIVE.name();
+
+            long sinceEpoch = resolver.resolve(keyspace, range, new Participants(participants));
+            if (sinceEpoch == SinceEpochResolver.UNRESOLVED)
+            {
+                logger.error("Could not determine since_epoch for legacy mutation tracking shard {} {} with participants {}; leaving it as is",
+                             keyspace, range, participants);
+                continue;
+            }
+
+            CoordinatorLog.migrateLegacyLogs(keyspace, rangeStart, rangeEnd, sinceEpoch);
+            executeInternal(INSERT_QUERY, keyspace, rangeStart, rangeEnd, sinceEpoch, participants, state);
+            executeInternal(DELETE_QUERY, keyspace, rangeStart, rangeEnd, CoordinatorLog.LEGACY_SINCE_EPOCH);
+            logger.info("Migrated legacy mutation tracking shard {} {} with participants {} from since_epoch {} to {}",
+                        keyspace, range, participants, CoordinatorLog.LEGACY_SINCE_EPOCH, sinceEpoch);
+        }
     }
 
     /*

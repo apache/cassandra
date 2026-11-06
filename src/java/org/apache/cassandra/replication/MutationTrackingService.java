@@ -1638,6 +1638,8 @@ public class MutationTrackingService implements MutationTrackingServiceMBean
 
         static List<KeyspaceShards> loadFromSystemTables(ClusterMetadata cluster, LongSupplier logIdProvider, BiConsumer<Shard, CoordinatorLog> onNewLog)
         {
+            migrateLegacySinceEpoch(cluster);
+
             Map<String, List<Shard>> groupedShards = new HashMap<>();
             for (Shard shard : Shard.loadFromSystemTables(cluster.myNodeId().id(), logIdProvider, onNewLog))
                 groupedShards.computeIfAbsent(shard.keyspace, k -> new ArrayList<>()).add(shard);
@@ -1648,6 +1650,25 @@ public class MutationTrackingService implements MutationTrackingServiceMBean
                 keyspaceShards.add(new KeyspaceShards(keyspace, ShardIntervalBTree.fromSorted(shards)));
             });
             return keyspaceShards;
+        }
+
+        /*
+         * We used a hard-coded shim value in dev previously instead of using the epoch from placements,
+         * so now we need to migrate all the shards/logs rows in system tables to use the correct values.
+         */
+        private static void migrateLegacySinceEpoch(ClusterMetadata cluster)
+        {
+            Shard.migrateLegacySinceEpoch(cluster.partitioner.getTokenFactory(), (keyspace, range, participants) -> {
+                KeyspaceMetadata ksm = cluster.schema.getKeyspaces().getNullable(keyspace);
+                if (ksm == null)
+                    return Shard.SinceEpochResolver.UNRESOLVED;
+
+                ParticipantsForRange current = calculateParticipantsForRange(ksm, cluster).get(range);
+                if (current == null || !current.participants.equals(participants))
+                    return Shard.SinceEpochResolver.UNRESOLVED;
+
+                return current.forRange.lastModified().getEpoch();
+            });
         }
     }
 
