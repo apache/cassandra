@@ -686,6 +686,80 @@ public class ImportTest extends CQLTester
         assertEquals(0, getCurrentColumnFamilyStore().getLiveSSTables().size());
     }
 
+    /**
+     * SSTables with a version this node cannot read (e.g. written by a newer release) are skipped by the lister.
+     * Importing them must fail the directory instead of silently reporting success with nothing imported.
+     */
+    @Test
+    public void importIncompatibleVersionFailsDirectoryTest() throws Throwable
+    {
+        createTable("create table %s (id int primary key, d int)");
+        for (int i = 0; i < 10; i++)
+            execute("insert into %s (id, d) values (?, ?)", i, i);
+        flush();
+        Set<SSTableReader> sstables = getCurrentColumnFamilyStore().getLiveSSTables();
+        getCurrentColumnFamilyStore().clearUnsafe();
+
+        File backupdir = moveToBackupDir(sstables);
+        renameToIncompatibleVersion(backupdir);
+        Set<File> beforeImport = Sets.newHashSet(backupdir.tryList());
+
+        SSTableImporter.Options options = SSTableImporter.Options.options(backupdir.toString()).build();
+        List<String> failedDirectories = importSSTables(options, 0);
+
+        assertEquals(Collections.singletonList(backupdir.toString()), failedDirectories);
+        assertEquals(0, getCurrentColumnFamilyStore().getLiveSSTables().size());
+        assertEquals("files of a failed directory must be left untouched", beforeImport, Sets.newHashSet(backupdir.tryList()));
+
+        ToolRunner.ToolResult result = assertImportFailed(getCurrentColumnFamilyStore(), options);
+        assertThat(result.getStderr()).contains("Some directories failed to import, check server logs for details");
+        assertThat(result.getStderr()).contains(backupdir.toString());
+    }
+
+    @Test
+    public void importIncompatibleVersionDoesNotBlockOtherDirectoriesTest() throws Throwable
+    {
+        createTable("create table %s (id int primary key, d int)");
+        for (int i = 0; i < 10; i++)
+            execute("insert into %s (id, d) values (?, ?)", i, i);
+        flush();
+        Set<SSTableReader> incompatible = getCurrentColumnFamilyStore().getLiveSSTables();
+        getCurrentColumnFamilyStore().clearUnsafe();
+        File incompatibleDir = moveToBackupDir(incompatible);
+        renameToIncompatibleVersion(incompatibleDir);
+
+        for (int i = 100; i < 110; i++)
+            execute("insert into %s (id, d) values (?, ?)", i, i);
+        flush();
+        Set<SSTableReader> correct = getCurrentColumnFamilyStore().getLiveSSTables();
+        getCurrentColumnFamilyStore().clearUnsafe();
+        File correctDir = moveToBackupDir(correct);
+
+        SSTableImporter.Options options = SSTableImporter.Options.options(Sets.newHashSet(incompatibleDir.toString(), correctDir.toString())).build();
+        List<String> failedDirectories = importSSTables(options, 10);
+
+        assertEquals(Collections.singletonList(incompatibleDir.toString()), failedDirectories);
+        for (UntypedResultSet.Row row : execute("SELECT * FROM %s"))
+        {
+            int pk = row.getInt("id");
+            assertTrue("pk = " + pk, pk >= 100 && pk < 110);
+        }
+    }
+
+    /**
+     * SSTable file names are {@code <version>-<id>-<format>-<component>}. Replaces the version with one newer than
+     * any this node knows about, which makes the SSTable unreadable for the node.
+     */
+    private static void renameToIncompatibleVersion(File dir)
+    {
+        for (File file : dir.tryList())
+        {
+            String name = file.name();
+            File renamed = new File(dir, "zz" + name.substring(name.indexOf('-')));
+            assertTrue("could not rename " + file, file.tryMove(renamed));
+        }
+    }
+
     @Test
     public void importExoticTableNamesTest() throws Throwable
     {
