@@ -450,8 +450,7 @@ public class RandomPartitioner implements IPartitioner
     @Override
     public final void accordSerialize(Token token, DataOutputPlus out) throws IOException
     {
-        byte[] bytes = increment(((BigIntegerToken)token).token.toByteArray());
-        Invariants.require(bytes.length <= 16);
+        byte[] bytes = toAccordSerializedBytes(token);
         if (bytes.length < 16)
             out.write(ZERO_BYTES, 0, 16 - bytes.length);
         out.write(bytes);
@@ -460,8 +459,7 @@ public class RandomPartitioner implements IPartitioner
     @Override
     public final void accordSerialize(Token token, ByteBuffer out)
     {
-        byte[] bytes = increment(((BigIntegerToken)token).token.toByteArray());
-        Invariants.require(bytes.length <= 16);
+        byte[] bytes = toAccordSerializedBytes(token);
         if (bytes.length < 16)
             out.put(ZERO_BYTES, 0, 16 - bytes.length);
         out.put(bytes);
@@ -473,8 +471,7 @@ public class RandomPartitioner implements IPartitioner
         Invariants.require(length == 16);
         byte[] bytes = new byte[16];
         in.readFully(bytes);
-        decrement(bytes);
-        return new BigIntegerToken(new BigInteger(bytes));
+        return fromAccordSerializedBytes(bytes);
     }
 
     @Override
@@ -482,14 +479,25 @@ public class RandomPartitioner implements IPartitioner
     {
         byte[] bytes = new byte[16];
         in.get(bytes);
-        decrement(bytes);
-        return new BigIntegerToken(new BigInteger(bytes));
+        return fromAccordSerializedBytes(bytes);
     }
 
     @Override
     public final <V> Token accordDeserialize(V src, ValueAccessor<V> accessor, int offset, int length)
     {
         byte[] bytes = accessor.toArray(src, offset, 16);
+        return fromAccordSerializedBytes(bytes);
+    }
+
+    private static byte[] toAccordSerializedBytes(Token token)
+    {
+        byte[] bytes = increment(((BigIntegerToken) token).token.toByteArray());
+        Invariants.require(bytes.length <= 16);
+        return bytes;
+    }
+
+    private static Token fromAccordSerializedBytes(byte[] bytes)
+    {
         decrement(bytes);
         return new BigIntegerToken(new BigInteger(bytes));
     }
