@@ -232,4 +232,15 @@ check('seeded defaults remain selected when the Jenkinsfile defines parameters')
 check('Jenkinsfile replaces a removed profile with skinny') {
     assert pipelineParameters([profile: 'removed-profile'], 'trunk').profile.choices[0] == 'skinny'
 }
+check('Harry configurations share one test type in every test profile and two matrix splits') {
+    def script = new GroovyShell(loader, new Binding(
+        params: [profile: 'custom', profile_custom_regexp: 'harry-test', architecture: 'amd64', jdk: '11'],
+        readFile: { Map arguments -> new File(new File(args[1]).absoluteFile.parentFile.parentFile, arguments.file).text }
+    ), compiler).parse(new File(args[1]).text, 'HarryPipeline.groovy')
+    ['skinny', 'pre-commit', 'pre-commit w/ upgrades', 'post-commit'].each {
+        assert script.pipelineProfiles()[it].contains('harry-test')
+    }
+    def cells = script.tasks().tests.keySet().findAll { it.toString().startsWith('harry-test ') }
+    assert cells*.toString().toSet() == ['harry-test jdk11 1/2', 'harry-test jdk11 2/2'].toSet()
+}
 assert failures.empty: "${failures.size()} parameter regression(s) failed: ${failures.join(', ')}"

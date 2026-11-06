@@ -148,6 +148,16 @@ expect_invocation "docker/run-tests.sh passes the target on" "_docker_init_tests
 expect_invocation "docker/run-tests.sh passes the test name and -s on" "\-t StorageServiceServerTest \-s"
 expect_invocation "docker/run-tests.sh sets java from -j" "_set_java.sh 17"
 
+# Harry targets use the normal Java test runner, including their repeated variants.
+for target in harry-test harry-test-repeat; do
+  reset_stub
+  run_case "${cassandra_dir}/.build/docker/run-tests.sh" -a "${target}" -t HistoryBuilderTest -j 17 -s
+  expect_rc "docker/run-tests.sh accepts ${target}" 0
+  expect_invocation "docker forwards ${target}" "_docker_init_tests.sh \-a ${target}"
+  expect_invocation "docker forwards Harry regex and summary" "\-t HistoryBuilderTest \-s"
+  expect_invocation "docker selects the Java test runner for Harry" "TEST_SCRIPT=run-tests.sh"
+done
+
 # the long flags must reach the container as the same short flags
 reset_stub
 run_case "${cassandra_dir}/.build/docker/run-tests.sh" --target test --test StorageServiceServerTest --java 17 --summary

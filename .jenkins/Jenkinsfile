@@ -164,10 +164,10 @@ pipeline {
 def pipelineProfiles() {
   return [
     'packaging': ['artifacts', 'lint', 'debian', 'redhat'],
-    'skinny': ['lint', 'cqlsh-test', 'test', 'jvm-dtest', 'simulator-dtest', 'dtest'],
-    'pre-commit': ['artifacts', 'lint', 'debian', 'redhat', 'fqltool-test', 'sstableloader-test', 'cqlsh-test', 'test', 'test-latest', 'stress-test', 'test-burn', 'jvm-dtest', 'simulator-dtest', 'dtest', 'dtest-latest', 'microbench-test'],
-    'pre-commit w/ upgrades': ['artifacts', 'lint', 'debian', 'redhat', 'fqltool-test', 'sstableloader-test', 'cqlsh-test', 'test', 'test-latest', 'stress-test', 'test-burn', 'jvm-dtest', 'jvm-dtest-upgrade', 'simulator-dtest', 'dtest', 'dtest-novnode', 'dtest-latest', 'dtest-upgrade', 'microbench-test'],
-    'post-commit': ['artifacts', 'lint', 'debian', 'redhat', 'fqltool-test', 'sstableloader-test', 'cqlsh-test', 'test-cdc', 'test', 'test-latest', 'test-compression', 'stress-test', 'test-burn', 'long-test', 'test-oa', 'test-system-keyspace-directory', 'jvm-dtest', 'jvm-dtest-upgrade', 'simulator-dtest', 'dtest', 'dtest-novnode', 'dtest-latest', 'dtest-large', 'dtest-large-novnode', 'dtest-large-latest', 'dtest-upgrade', 'dtest-upgrade-novnode', 'dtest-upgrade-large', 'dtest-upgrade-large-novnode', 'microbench-test'],
+    'skinny': ['lint', 'cqlsh-test', 'test', 'harry-test', 'jvm-dtest', 'simulator-dtest', 'dtest'],
+    'pre-commit': ['artifacts', 'lint', 'debian', 'redhat', 'fqltool-test', 'sstableloader-test', 'cqlsh-test', 'test', 'harry-test', 'test-latest', 'stress-test', 'test-burn', 'jvm-dtest', 'simulator-dtest', 'dtest', 'dtest-latest', 'microbench-test'],
+    'pre-commit w/ upgrades': ['artifacts', 'lint', 'debian', 'redhat', 'fqltool-test', 'sstableloader-test', 'cqlsh-test', 'test', 'harry-test', 'test-latest', 'stress-test', 'test-burn', 'jvm-dtest', 'jvm-dtest-upgrade', 'simulator-dtest', 'dtest', 'dtest-novnode', 'dtest-latest', 'dtest-upgrade', 'microbench-test'],
+    'post-commit': ['artifacts', 'lint', 'debian', 'redhat', 'fqltool-test', 'sstableloader-test', 'cqlsh-test', 'test-cdc', 'test', 'harry-test', 'test-latest', 'test-compression', 'stress-test', 'test-burn', 'long-test', 'test-oa', 'test-system-keyspace-directory', 'jvm-dtest', 'jvm-dtest-upgrade', 'simulator-dtest', 'dtest', 'dtest-novnode', 'dtest-latest', 'dtest-large', 'dtest-large-novnode', 'dtest-large-latest', 'dtest-upgrade', 'dtest-upgrade-novnode', 'dtest-upgrade-large', 'dtest-upgrade-large-novnode', 'microbench-test'],
     'performance': ['microbench'],
     'custom': []
   ]
@@ -219,6 +219,7 @@ def tasks() {
     'sstableloader-test': [splits: 1, size: 'small'],
     'test-cdc': [splits: 20],
     'test': [splits: 20],
+    'harry-test': [splits: 2],
     'test-latest': [splits: 20],
     'test-compression': [splits: 20],
     'stress-test': [splits: 1, size: 'small'],
