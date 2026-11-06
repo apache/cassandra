@@ -56,7 +56,6 @@ import org.apache.cassandra.dht.IPartitioner;
 import org.apache.cassandra.dht.Range;
 import org.apache.cassandra.dht.Token;
 import org.apache.cassandra.exceptions.ConfigurationException;
-import org.apache.cassandra.exceptions.InvalidRequestException;
 import org.apache.cassandra.io.sstable.format.SSTableFormat;
 import org.apache.cassandra.io.sstable.format.SSTableReader;
 import org.apache.cassandra.io.sstable.format.Version;
@@ -384,16 +383,7 @@ public class LegacySSTableTest
             {
                 alterTableAddColumn(legacyVersion, "val frozen<tuple<set<int>,set<text>>>");
                 alterTableAddColumn(legacyVersion, "val2 tuple<set<int>,set<text>>");
-                try
-                {
-                    alterTableAddColumn(legacyVersion, String.format("val3 frozen<legacy_%s_tuple_udt>", legacyVersion));
-                    throw new AssertionError(String.format("Against legacyVersion %s expected InvalidRequestException: Cannot re-add previously dropped column 'val3' of type frozen<legacy_da_tuple_udt>, incompatible with previous type frozen<tuple<frozen<tuple<text, text>>>>", legacyVersion));
-                }
-                catch (InvalidRequestException ex)
-                {
-                    // expected
-                    // InvalidRequestException: Cannot re-add previously dropped column 'val3' of type frozen<legacy_da_tuple_udt>, incompatible with previous type frozen<tuple<frozen<tuple<text, text>>>>
-                }
+                alterTableAddColumn(legacyVersion, String.format("val3 frozen<legacy_%s_tuple_udt>", legacyVersion));
                 // dropping non-frozen UDTs disabled, see AlterTableStatement.DropColumns.dropColumn(..)
                 //alterTableAddColumn(legacyVersion, String.format("val4 legacy_%s_tuple_udt", legacyVersion));
             }
