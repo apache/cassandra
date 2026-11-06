@@ -35,6 +35,7 @@ import org.apache.cassandra.db.rows.UnfilteredRowIterator;
 import org.apache.cassandra.io.sstable.format.SSTableReader;
 import org.apache.cassandra.io.sstable.format.SSTableWriter;
 import org.apache.cassandra.io.util.File;
+import org.apache.cassandra.service.ActiveRepairService;
 import org.apache.cassandra.utils.TimeUUID;
 
 import static org.apache.cassandra.service.ActiveRepairService.NO_PENDING_REPAIR;
@@ -295,4 +296,33 @@ public class SSTableWriterTest extends SSTableWriterTestBase
 
         assertInvalidRepairMetadata(1, nextTimeUUID());
     }
+
+
+    @Test
+    public void testPendingRepairSSTableDoesNotFailDuringFinalization()
+    {
+        Keyspace keyspace = Keyspace.open(KEYSPACE);
+        ColumnFamilyStore cfs = keyspace.getColumnFamilyStore(CF_SMALL_MAX_VALUE);
+        truncate(cfs);
+        File dir = cfs.getDirectories().getDirectoryForNewSSTables();
+        LifecycleTransaction txn = LifecycleTransaction.offline(OperationType.STREAM);
+        TimeUUID pendingRepair = nextTimeUUID();
+        try (SSTableWriter writer = getWriter(cfs,
+                                              dir,
+                                              txn,
+                                              ActiveRepairService.UNREPAIRED_SSTABLE,
+                                              pendingRepair))
+        {
+            UpdateBuilder builder = UpdateBuilder.create(cfs.metadata(), "pending_repair_key").withTimestamp(1);
+            builder.newRow("clustering").add("val", ByteBuffer.allocate(10));
+            writer.append(builder.build().unfilteredIterator());
+            SSTableReader sstable = writer.finish(true);
+            txn.update(sstable, false);
+            assertEquals(ActiveRepairService.UNREPAIRED_SSTABLE, sstable.getSSTableMetadata().repairedAt);
+            assertEquals(pendingRepair, sstable.getSSTableMetadata().pendingRepair);
+            txn.abort();
+            LifecycleTransaction.waitForDeletions();
+        }
+    }
+
 }
