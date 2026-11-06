@@ -29,10 +29,13 @@ import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.db.ConsistencyLevel;
 import org.apache.cassandra.db.Mutation;
 import org.apache.cassandra.exceptions.RequestFailureReason;
+import javax.annotation.Nullable;
+
 import org.apache.cassandra.locator.EndpointsForToken;
 import org.apache.cassandra.locator.InOurDc;
 import org.apache.cassandra.locator.InetAddressAndPort;
 import org.apache.cassandra.locator.Replica;
+import org.apache.cassandra.locator.SlotResponseTracker;
 import org.apache.cassandra.net.IVerbHandler;
 import org.apache.cassandra.net.Message;
 import org.apache.cassandra.net.MessagingService;
@@ -101,6 +104,9 @@ public class PaxosCommit<OnDone extends Consumer<? super PaxosCommit.Status>> ex
     final int required;
     final OnDone onDone;
 
+    @Nullable
+    private final SlotResponseTracker slotTracker;
+
     /**
      * packs two 32-bit integers;
      * bit 00-31: accepts
@@ -120,6 +126,7 @@ public class PaxosCommit<OnDone extends Consumer<? super PaxosCommit.Status>> ex
         this.replicas = participants.all;
         this.onDone = onDone;
         this.required = participants.requiredFor(consistencyForCommit);
+        this.slotTracker = participants.newSlotTracker();
         if (required == 0)
             onDone.accept(status());
     }
@@ -263,11 +270,33 @@ public class PaxosCommit<OnDone extends Consumer<? super PaxosCommit.Status>> ex
         if (consistencyForCommit.isDatacenterLocal() && !InOurDc.endpoints().test(from))
             return;
 
+        int newSatisfiedSlotCount = -1;
+        int newFailedSlotCount = -1;
+        if (slotTracker != null)
+        {
+            if (success)
+                newSatisfiedSlotCount = slotTracker.recordSuccess(from);
+            else
+                newFailedSlotCount = slotTracker.recordFailure(from);
+        }
+
         long responses = responsesUpdater.addAndGet(this, success ? 0x1L : 0x100000000L);
-        // next two clauses mutually exclusive to ensure we only invoke onDone once, when either failed or succeeded
-        if (accepts(responses) == required) // if we have received _precisely_ the required accepts, we have succeeded
-            onDone.accept(status());
-        else if (replicas.size() - failures(responses) == required - 1) // if we are _unable_ to receive the required accepts, we have failed
+        // if we have received _precisely_ the required accepts, we have succeeded
+        boolean done;
+        if (slotTracker != null)
+            done = newSatisfiedSlotCount == required;
+        else
+            done = accepts(responses) == required;
+
+        // if we are _unable_ to receive the required accepts, we have failed
+        boolean failed;
+        if (slotTracker != null)
+            failed = newFailedSlotCount > 0 && !slotTracker.canSucceedWithFailed(newFailedSlotCount, required);
+        else
+            failed = replicas.size() - failures(responses) == required - 1;
+
+        // done and failed are mutually exclusive, ensuring we invoke onDone at most once
+        if (done || failed)
             onDone.accept(status());
     }
 
@@ -285,6 +314,8 @@ public class PaxosCommit<OnDone extends Consumer<? super PaxosCommit.Status>> ex
 
     private boolean isSuccessful(long responses)
     {
+        if (slotTracker != null)
+            return slotTracker.satisfiedCount() >= required;
         return accepts(responses) >= required;
     }
 
