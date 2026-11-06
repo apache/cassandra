@@ -257,6 +257,16 @@ public class SimpleClient implements Closeable
         return this;
     }
 
+    public SimpleClient connect(Map<String, String> options) throws IOException
+    {
+        establishConnection();
+        connection.setThrowOnOverload("1".equals(options.get(StartupMessage.THROW_ON_OVERLOAD)));
+        if ("LZ4".equals(options.get(StartupMessage.COMPRESSION)))
+            connection.setCompressor(Compressor.LZ4Compressor.instance);
+        execute(new StartupMessage(options));
+        return this;
+    }
+
     public void setEventHandler(EventHandler eventHandler)
     {
         responseHandler.eventHandler = eventHandler;
