@@ -66,6 +66,8 @@ import org.apache.cassandra.io.sstable.Descriptor;
 import org.apache.cassandra.io.sstable.SSTable;
 import org.apache.cassandra.io.sstable.SSTableId;
 import org.apache.cassandra.io.sstable.SSTableIdFactory;
+import org.apache.cassandra.io.sstable.format.SSTableFormat.Components;
+import org.apache.cassandra.io.sstable.format.Version;
 import org.apache.cassandra.io.util.File;
 import org.apache.cassandra.io.util.FileStoreUtils;
 import org.apache.cassandra.io.util.FileUtils;
@@ -1164,6 +1166,19 @@ public class Directories
             filtered = true;
         }
 
+        /**
+         * Whether a file name has the shape of an SSTable Data file, {@code <version>-<id>-<format>-Data.db}, without
+         * checking that the version, id or format are actually supported. Used to tell an SSTable this node cannot
+         * read apart from an unrelated file that merely ends in {@code -Data.db}.
+         */
+        private static boolean looksLikeSSTableDataFile(String fileName)
+        {
+            String[] parts = fileName.split("-");
+            return parts.length == 4
+                   && Version.validate(parts[0])
+                   && parts[3].equals(Components.DATA.name);
+        }
+
         private BiPredicate<File, FileType> getFilter(boolean includeForeignTables)
         {
             // This function always return false since it adds to the components map
@@ -1181,9 +1196,9 @@ public class Directories
                         Pair<Descriptor, Component> pair = SSTable.tryComponentFromFilename(file);
                         if (pair == null)
                         {
-                            // Every SSTable has a Data component, so an unparseable Data file means a whole SSTable
-                            // was skipped; remember it so that callers can tell this apart from an empty directory.
-                            if (file.name().endsWith("-Data.db"))
+                            // Remember Data files that look like an SSTable but could not be parsed (e.g. an
+                            // unreadable version), so that callers can tell this apart from an empty directory.
+                            if (looksLikeSSTableDataFile(file.name()))
                                 rejectedDataFiles.add(file);
                             return false;
                         }
