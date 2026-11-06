@@ -33,6 +33,10 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import org.apache.cassandra.db.lifecycle.SSTableSet;
+import org.apache.cassandra.dht.AbstractBounds;
+import org.apache.cassandra.dht.Bounds;
+import org.apache.cassandra.dht.Range;
+import org.apache.cassandra.dht.Token;
 import org.apache.cassandra.index.Index;
 import org.apache.cassandra.index.sai.StorageAttachedIndexGroup;
 import org.apache.cassandra.index.sai.disk.format.IndexDescriptor;
@@ -44,11 +48,16 @@ import org.apache.cassandra.io.sstable.KeyIterator;
 import org.apache.cassandra.io.sstable.SSTable;
 import org.apache.cassandra.io.sstable.format.SSTableFormat.Components;
 import org.apache.cassandra.io.sstable.format.SSTableReader;
+import org.apache.cassandra.io.sstable.format.StatsComponent;
+import org.apache.cassandra.io.sstable.metadata.MetadataType;
+import org.apache.cassandra.io.sstable.metadata.StatsMetadata;
 import org.apache.cassandra.io.util.File;
 import org.apache.cassandra.replication.MutationTrackingService;
 import org.apache.cassandra.schema.TableMetadata;
 import org.apache.cassandra.service.ActiveRepairService;
 import org.apache.cassandra.service.StorageService;
+import org.apache.cassandra.service.replication.migration.KeyspaceMigrationInfo;
+import org.apache.cassandra.tcm.ClusterMetadata;
 import org.apache.cassandra.utils.OutputHandler;
 import org.apache.cassandra.utils.Pair;
 import org.apache.cassandra.utils.concurrent.Refs;
@@ -160,6 +169,8 @@ public class SSTableImporter
         }
 
         Set<SSTableReader> newSSTables = new HashSet<>();
+        Set<SSTableReader> trackedSSTables = new HashSet<>();
+        Set<SSTableReader> untrackedSSTables = new HashSet<>();
         for (Pair<Directories.SSTableLister, String> listerPair : listers)
         {
             Directories.SSTableLister lister = listerPair.left;
@@ -169,6 +180,8 @@ public class SSTableImporter
 
             Set<MovedSSTable> movedSSTables = new HashSet<>();
             Set<SSTableReader> newSSTablesPerDirectory = new HashSet<>();
+            Set<SSTableReader> trackedSSTablesPerDirectory = new HashSet<>();
+            Set<SSTableReader> untrackedSSTablesPerDirectory = new HashSet<>();
             for (Map.Entry<Descriptor, Set<Component>> entry : lister.list(true).entrySet())
             {
                 try
@@ -178,14 +191,23 @@ public class SSTableImporter
                     if (currentDescriptors.contains(oldDescriptor))
                         continue;
 
-                    File targetDir = getTargetDirectory(dir, oldDescriptor, entry.getValue());
-                    Descriptor newDescriptor = cfs.getUniqueDescriptorFor(entry.getKey(), targetDir);
-                    maybeMutateMetadata(entry.getKey(), options);
-                    movedSSTables.add(new MovedSSTable(newDescriptor, entry.getKey(), entry.getValue()));
+                    Set<Component> components = entry.getValue();
+                    File targetDir = getTargetDirectory(dir, oldDescriptor, components);
+                    Descriptor newDescriptor = cfs.getUniqueDescriptorFor(oldDescriptor, targetDir);
+                    maybeMutateMetadata(oldDescriptor, options);
+                    movedSSTables.add(new MovedSSTable(newDescriptor, oldDescriptor, components));
                     // Don't move tracked SSTables, since that will move them to the live set on bounce
-                    SSTableReader sstable = isTracked
-                                ? SSTableReader.open(cfs, oldDescriptor, metadata.ref)
-                                : SSTableReader.moveAndOpenSSTable(cfs, oldDescriptor, newDescriptor, entry.getValue(), options.copyData);
+                    SSTableReader sstable;
+                    if (isTracked && useTrackedTransferPath(metadata, oldDescriptor, components))
+                    {
+                        sstable = SSTableReader.open(cfs, oldDescriptor, metadata.ref);
+                        trackedSSTablesPerDirectory.add(sstable);
+                    }
+                    else
+                    {
+                        sstable = SSTableReader.moveAndOpenSSTable(cfs, oldDescriptor, newDescriptor, components, options.copyData);
+                        untrackedSSTablesPerDirectory.add(sstable);
+                    }
                     newSSTablesPerDirectory.add(sstable);
                 }
                 catch (Throwable t)
@@ -205,6 +227,8 @@ public class SSTableImporter
                         }
                         movedSSTables.clear();
                         newSSTablesPerDirectory.clear();
+                        trackedSSTablesPerDirectory.clear();
+                        untrackedSSTablesPerDirectory.clear();
                         break;
                     }
                     else
@@ -215,6 +239,8 @@ public class SSTableImporter
                 }
             }
             newSSTables.addAll(newSSTablesPerDirectory);
+            trackedSSTables.addAll(trackedSSTablesPerDirectory);
+            untrackedSSTables.addAll(untrackedSSTablesPerDirectory);
         }
 
         if (newSSTables.isEmpty())
@@ -235,13 +261,13 @@ public class SSTableImporter
             if (!cfs.indexManager.validateSSTableAttachedIndexes(newSSTables, false, options.validateIndexChecksum))
                 cfs.indexManager.buildSSTableAttachedIndexesBlocking(newSSTables);
 
-            if (isTracked)
-                MutationTrackingService.instance().executeTransfers(cfs.keyspace.getName(), newSSTables, ConsistencyLevel.ALL);
-            else
-                cfs.getTracker().addSSTables(newSSTables);
+            if (!trackedSSTables.isEmpty())
+                MutationTrackingService.instance().executeTransfers(cfs.keyspace.getName(), trackedSSTables, ConsistencyLevel.ALL);
+            if (!untrackedSSTables.isEmpty())
+                cfs.getTracker().addSSTables(untrackedSSTables);
 
-            for (SSTableReader reader : newSSTables)
-                if (options.invalidateCaches && cfs.isRowCacheEnabled())
+            if (options.invalidateCaches && cfs.isRowCacheEnabled())
+                for (SSTableReader reader : newSSTables)
                     invalidateCachesForSSTable(reader);
         }
         catch (Throwable t)
@@ -313,6 +339,41 @@ public class SSTableImporter
                 sstable.selfRef().release();
         }
         return targetDirectory == null ? cfs.getDirectories().getWriteableLocationToLoadFile(descriptor.baseFile()) : targetDirectory;
+    }
+
+    /**
+     * @return true if the SSTable's token span does not overlap with the current pending migration ranges
+     */
+    private boolean useTrackedTransferPath(TableMetadata metadata, Descriptor descriptor, Set<Component> components) throws IOException
+    {
+        AbstractBounds<Token> bounds = readBounds(descriptor, components);
+        Range<Token> sstableRange = new Range<>(bounds.left.decreaseSlightly(), bounds.right);
+        return KeyspaceMigrationInfo.shouldUseTrackedTransfers(ClusterMetadata.current(), cfs.getKeyspaceName(), metadata.id, List.of(sstableRange));
+    }
+
+    /**
+     * @return the token bounds for an sstable
+     */
+    private AbstractBounds<Token> readBounds(Descriptor descriptor, Set<Component> components) throws IOException
+    {
+        if (descriptor.version.hasKeyRange())
+        {
+            StatsMetadata stats = StatsComponent.load(descriptor, MetadataType.STATS).statsMetadata();
+            if (stats.firstKey != null && stats.lastKey != null)
+                return new Bounds<>(cfs.getPartitioner().getToken(stats.firstKey), cfs.getPartitioner().getToken(stats.lastKey));
+        }
+
+        SSTableReader sstable = null;
+        try
+        {
+            sstable = SSTableReader.open(cfs, descriptor, components, cfs.metadata);
+            return sstable.getBounds();
+        }
+        finally
+        {
+            if (sstable != null)
+                sstable.selfRef().release();
+        }
     }
 
     /**
