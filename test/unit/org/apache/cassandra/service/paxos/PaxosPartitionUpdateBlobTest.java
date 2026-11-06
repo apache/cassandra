@@ -45,6 +45,7 @@ import org.apache.cassandra.net.MessagingService;
 import org.apache.cassandra.schema.TableMetadata;
 import org.apache.cassandra.serializers.MarshalException;
 import org.apache.cassandra.utils.ByteBufferUtil;
+import org.apache.cassandra.utils.StorageCompatibilityMode;
 import org.apache.cassandra.utils.btree.BTree;
 
 import ch.qos.logback.classic.Level;
@@ -109,6 +110,44 @@ public class PaxosPartitionUpdateBlobTest extends CQLTester
             if (event.getLevel().isGreaterOrEqual(level))
                 result.add(event);
         return result;
+    }
+
+    @Test
+    public void footerBlobIsReadableBySimulatedOldReader() throws Exception
+    {
+        // PartitionUpdate.fromBytes and PartitionUpdateSerializer.isEmpty are the readers of the
+        // release before the footer. They take the messaging version from the version column and
+        // ignore the bytes after the update.
+        for (int version : VERSIONS)
+        {
+            PartitionUpdate update = update(7);
+            ByteBuffer blob = PaxosPartitionUpdateBlob.encode(update, version, rowKey, cfId, BALLOT);
+            assertSameUpdate(update, PartitionUpdate.fromBytes(blob.duplicate(), version), version);
+            Assert.assertFalse(PartitionUpdate.PartitionUpdateSerializer.isEmpty(blob.duplicate(), rowKey, cfId, version));
+
+            ByteBuffer emptyBlob = PaxosPartitionUpdateBlob.encode(emptyUpdate(), version, rowKey, cfId, BALLOT, false);
+            Assert.assertTrue(PartitionUpdate.fromBytes(emptyBlob.duplicate(), version).isEmpty());
+            Assert.assertTrue(PartitionUpdate.PartitionUpdateSerializer.isEmpty(emptyBlob.duplicate(), rowKey, cfId, version));
+        }
+    }
+
+    @Test
+    public void theEmptyEncodingIsNotReadableBySimulatedOldReader()
+    {
+        ByteBuffer blob = PaxosPartitionUpdateBlob.encode(emptyUpdate(), MessagingService.VERSION_60, rowKey, cfId, BALLOT, true);
+        assertThatThrownBy(() -> PartitionUpdate.fromBytes(blob.duplicate(), MessagingService.VERSION_60))
+        .isInstanceOf(RuntimeException.class);
+    }
+
+    @Test
+    public void theEmptyEncodingIsPermittedOnlyAtVersion14OrHigherWithCompatibilityModeNone()
+    {
+        for (StorageCompatibilityMode mode : StorageCompatibilityMode.values())
+        {
+            Assert.assertEquals(mode.toString(), mode == StorageCompatibilityMode.NONE,
+                                PaxosPartitionUpdateBlob.permitEmptyEncoding(MessagingService.VERSION_60, mode));
+            Assert.assertFalse(mode.toString(), PaxosPartitionUpdateBlob.permitEmptyEncoding(MessagingService.VERSION_40, mode));
+        }
     }
 
     @Test
@@ -299,8 +338,9 @@ public class PaxosPartitionUpdateBlobTest extends CQLTester
     public void aDamagedBodyThatStillParsesIsRejected()
     {
         int version = MessagingService.current_version;
-        ByteBuffer blob = PaxosPartitionUpdateBlob.encode(update(7), version, rowKey, cfId, BALLOT);
-        int updateLength = PartitionUpdate.toBytes(update(7), version).remaining();
+        PartitionUpdate update = update(7);
+        ByteBuffer blob = PaxosPartitionUpdateBlob.encode(update, version, rowKey, cfId, BALLOT);
+        int updateLength = PartitionUpdate.toBytes(update, version).remaining();
         byte[] bytes = ByteBufferUtil.getArray(blob);
         // The update ends with the four value bytes of v and one END_OF_PARTITION byte.
         bytes[updateLength - 2] ^= (byte) 0xff;

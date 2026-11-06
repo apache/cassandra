@@ -47,6 +47,7 @@ import org.apache.cassandra.serializers.MarshalException;
 import org.apache.cassandra.utils.ByteBufferUtil;
 import org.apache.cassandra.utils.NoSpamLogger;
 import org.apache.cassandra.utils.Pair;
+import org.apache.cassandra.utils.StorageCompatibilityMode;
 
 /**
  * Serialization format for the partition update stored in the system.paxos proposal and
@@ -156,11 +157,19 @@ public final class PaxosPartitionUpdateBlob
 
     private static boolean permitEmptyEncoding(int messagingVersion)
     {
-        // A reader that takes the messaging version from the version column cannot parse an update with no
-        // bytes. The empty encoding is written only at messaging version 14 or higher. A build that lacks
-        // this class and still takes the version from the version column cannot read the 25-byte blob:
-        // its isEmpty runs out of bytes and its fromBytes reads the ballot bytes as a table id.
-        return messagingVersion >= MessagingService.VERSION_60;
+        return permitEmptyEncoding(messagingVersion, StorageCompatibilityMode.current());
+    }
+
+    @VisibleForTesting
+    static boolean permitEmptyEncoding(int messagingVersion, StorageCompatibilityMode compatibilityMode)
+    {
+        // A reader that takes the messaging version from the version column cannot parse an update
+        // with no bytes. A build that lacks this class and still takes the version from the
+        // version column cannot read the 25-byte blob: its isEmpty runs out of bytes and its
+        // fromBytes reads the ballot bytes as a table id. Every storage compatibility mode except
+        // NONE keeps such a build as a rollback target. The empty encoding is written only at
+        // messaging version 14 or higher and with storage compatibility mode NONE.
+        return messagingVersion >= MessagingService.VERSION_60 && compatibilityMode.disabled();
     }
 
     public static ByteBuffer encode(PartitionUpdate update, int messagingVersion,
