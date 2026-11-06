@@ -13,6 +13,13 @@ partition key, the query will be immediately rejected with an `InvalidQueryExcep
 
 == How to denylist a partition key
 
+Denylisting partitions is disabled by default. To use this feature, enable it in the `cassandra.yaml` file.
+
+....
+partition_denylist_enabled: true
+....
+
+
 The ``system_distributed.denylisted_partitions`` table can be used to denylist partitions.
 There are a couple of ways to interact with and mutate this data. First: directly
 via CQL by inserting a record with the following details:

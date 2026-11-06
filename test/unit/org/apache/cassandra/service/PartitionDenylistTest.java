@@ -448,6 +448,31 @@ public class PartitionDenylistTest
             confirmAllowed("table3", Integer.toString(i), Integer.toString(i));
     }
 
+    @Test
+    public void testJmxThrowExcepitonWhenDenylistDisable()
+    {
+        // Disable denylisting
+        DatabaseDescriptor.setPartitionDenylistEnabled(false);
+        // read and write work well
+        process("SELECT * FROM " + ks_cql + ".table1 WHERE keyone='aaa' and keytwo='bbb'", ConsistencyLevel.ONE);
+        process("SELECT * FROM " + ks_cql + ".table1 WHERE keyone='bbb' and keytwo='ccc'", ConsistencyLevel.ONE);
+        process("INSERT INTO " + ks_cql + ".table1 (keyone, keytwo, qux, quz, foo) VALUES ('eee', 'fff', 'ccc', 'ddd', 'v')", ConsistencyLevel.ONE);
+        process("INSERT INTO " + ks_cql + ".table1 (keyone, keytwo, qux, quz, foo) VALUES ('bbb', 'ccc', 'eee', 'fff', 'w')", ConsistencyLevel.ONE);
+        // when denylisting is disabled, JMX operation will throw excepiton
+        assertThatThrownBy(() -> denylist("table1", "foo:bar"))
+                            .isInstanceOf(RuntimeException.class)
+                            .hasMessageContaining("Denylisting partitions is disabled");
+        assertThatThrownBy(() -> refreshList())
+                            .isInstanceOf(RuntimeException.class)
+                            .hasMessageContaining("Denylisting partitions is disabled");
+        assertThatThrownBy(() -> removeDenylist(ks_cql, "table1", "foo:bar"))
+                            .isInstanceOf(RuntimeException.class)
+                            .hasMessageContaining("Denylisting partitions is disabled");
+        assertThatThrownBy(() -> StorageProxy.instance.isKeyDenylisted(ks_cql, "table1", "bbb:ccc"))
+                            .isInstanceOf(RuntimeException.class)
+                            .hasMessageContaining("Denylisting partitions is disabled");
+    }
+
     private void confirmDenied(String table, String keyOne, String keyTwo)
     {
         String query = String.format("SELECT * FROM " + ks_cql + "." + table + " WHERE keyone='%s' and keytwo='%s'", keyOne, keyTwo);
