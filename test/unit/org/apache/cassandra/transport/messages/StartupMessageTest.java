@@ -27,7 +27,9 @@ import org.junit.BeforeClass;
 import org.junit.Test;
 
 import org.apache.cassandra.config.CassandraRelevantProperties;
+import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.distributed.shared.WithProperties;
+import org.apache.cassandra.transport.Envelope;
 import org.apache.cassandra.transport.Message;
 import org.apache.cassandra.transport.ProtocolException;
 import org.apache.cassandra.transport.ProtocolVersion;
@@ -37,8 +39,9 @@ public class StartupMessageTest extends EncodeAndDecodeTestBase<StartupMessage>
     static WithProperties properties;
 
     @BeforeClass
-    public static void setOptionLimits()
+    public static void setUp()
     {
+        DatabaseDescriptor.daemonInitialization();
         // Limits default to -1 (unlimited); set them to the values these tests expect.
         properties = new WithProperties().set(CassandraRelevantProperties.STARTUP_CLIENT_OPTION_MAX_COUNT, 64)
                                          .set(CassandraRelevantProperties.STARTUP_CLIENT_OPTION_KEY_MAX_LENGTH, 256)
@@ -156,6 +159,66 @@ public class StartupMessageTest extends EncodeAndDecodeTestBase<StartupMessage>
         options.put("a".repeat(256), "b".repeat(1024));
 
         StartupMessage.validateOptions(options);
+    }
+
+    @Test
+    public void testMaxEncodedSize()
+    {
+        long expected = Envelope.Header.LENGTH + 2L + 64L * (2L + 256 + 2L + 1024);
+        Assert.assertEquals(expected, StartupMessage.maxEncodedSize());
+    }
+
+    @Test
+    public void testMaxEncodedSizeWithZeroOptions()
+    {
+        try (WithProperties ignored = new WithProperties()
+                                      .set(CassandraRelevantProperties.STARTUP_CLIENT_OPTION_MAX_COUNT, 0))
+        {
+            long expected = Envelope.Header.LENGTH + 2L;
+            Assert.assertEquals(expected, StartupMessage.maxEncodedSize());
+        }
+    }
+
+    @Test
+    public void testMaxEncodedSizeWithUnlimitedCount()
+    {
+        try (WithProperties ignored = new WithProperties()
+                                      .set(CassandraRelevantProperties.STARTUP_CLIENT_OPTION_MAX_COUNT, -1))
+        {
+            Assert.assertEquals(DatabaseDescriptor.getNativeTransportMaxFrameSize(), StartupMessage.maxEncodedSize());
+        }
+    }
+
+    @Test
+    public void testMaxEncodedSizeWithUnlimitedKeyLength()
+    {
+        try (WithProperties ignored = new WithProperties()
+                                      .set(CassandraRelevantProperties.STARTUP_CLIENT_OPTION_KEY_MAX_LENGTH, -1))
+        {
+            Assert.assertEquals(DatabaseDescriptor.getNativeTransportMaxFrameSize(),StartupMessage.maxEncodedSize());
+        }
+    }
+
+    @Test
+    public void testMaxEncodedSizeWithUnlimitedValueLength()
+    {
+        try (WithProperties ignored = new WithProperties()
+                                      .set(CassandraRelevantProperties.STARTUP_CLIENT_OPTION_VALUE_MAX_LENGTH, -1))
+        {
+            Assert.assertEquals(DatabaseDescriptor.getNativeTransportMaxFrameSize(), StartupMessage.maxEncodedSize());
+        }
+    }
+
+    @Test
+    public void testMaxEncodedSizeDoesNotExceedFrameLimit()
+    {
+        try (WithProperties ignored = new WithProperties()
+                                      .set(CassandraRelevantProperties.STARTUP_CLIENT_OPTION_MAX_COUNT, Integer.MAX_VALUE)
+                                      .set(CassandraRelevantProperties.STARTUP_CLIENT_OPTION_KEY_MAX_LENGTH, Integer.MAX_VALUE)
+                                      .set(CassandraRelevantProperties.STARTUP_CLIENT_OPTION_VALUE_MAX_LENGTH, Integer.MAX_VALUE))
+        {
+            Assert.assertEquals(DatabaseDescriptor.getNativeTransportMaxFrameSize(), StartupMessage.maxEncodedSize());
+        }
     }
 
     protected Message.Codec<StartupMessage> getCodec()

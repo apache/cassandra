@@ -279,7 +279,7 @@ public class PipelineConfigurator
             pipeline.addLast(DEBUG_HANDLER, new LoggingHandler(LogLevel.INFO));
 
         pipeline.addLast(ENVELOPE_ENCODER, Envelope.Encoder.instance);
-        pipeline.addLast(INITIAL_HANDLER, new InitialConnectionHandler(new Envelope.Decoder(), connectionFactory, this));
+        pipeline.addLast(INITIAL_HANDLER, new InitialConnectionHandler(new Envelope.Decoder(StartupMessage.maxEncodedSize()), connectionFactory, this));
         // The exceptionHandler will take care of handling exceptionCaught(...) events while still running
         // on the same EventLoop as all previous added handlers in the pipeline. This is important as the used
         // eventExecutorGroup may not enforce strict ordering for channel events.
