@@ -83,6 +83,15 @@ public class InsertTest extends CQLTester.Fuzzed
     }
 
     @Test
+    public void testEmptyTimestamp() throws Throwable
+    {
+        createTable("CREATE TABLE %s (k int PRIMARY KEY, v int)");
+        assertInvalidMessage("Invalid null value of timestamp",
+                             "INSERT INTO %s (k, v) VALUES (1, 1) USING TIMESTAMP ?",
+                             ByteBuffer.wrap(new byte[0]));
+    }
+
+    @Test
     public void testEmptyTTL() throws Throwable
     {
         createTable("CREATE TABLE %s (k int PRIMARY KEY, v int)");
