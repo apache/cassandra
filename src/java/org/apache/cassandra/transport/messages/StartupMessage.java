@@ -34,6 +34,7 @@ import org.apache.cassandra.service.QueryState;
 import org.apache.cassandra.transport.CBUtil;
 import org.apache.cassandra.transport.Compressor;
 import org.apache.cassandra.transport.Dispatcher;
+import org.apache.cassandra.transport.Envelope;
 import org.apache.cassandra.transport.Message;
 import org.apache.cassandra.transport.ProtocolException;
 import org.apache.cassandra.transport.ProtocolVersion;
@@ -266,6 +267,30 @@ public class StartupMessage extends Message.Request
             validateString(entry.getKey(), true, maxKeyLength);
             validateString(entry.getValue(), false, maxValueLength);
         }
+    }
+
+    public static long maxEncodedSize()
+    {
+        int count = CassandraRelevantProperties.STARTUP_CLIENT_OPTION_MAX_COUNT.getInt();
+        int key = CassandraRelevantProperties.STARTUP_CLIENT_OPTION_KEY_MAX_LENGTH.getInt();
+        int value = CassandraRelevantProperties.STARTUP_CLIENT_OPTION_VALUE_MAX_LENGTH.getInt();
+
+        long frameLimit = DatabaseDescriptor.getNativeTransportMaxFrameSize();
+
+        // limit = -1 means check is disabled
+        if (count < 0 || key < 0 || value < 0)
+            return frameLimit;
+
+        // 2L (Map count) + key length (key) + 2L (key length prefix) + value length (value) + 2L (value length prefix)or map count, and two-byte length prefixes for each key and value.
+        long perOption = 2L + key + 2L + value;
+
+        long remaining = frameLimit - Envelope.Header.LENGTH - 2L;
+
+        // Prevent overflow and ensure the calculated limit never exceeds the global limit.
+        if (remaining <= 0 || count > remaining / perOption)
+            return frameLimit;
+
+        return Envelope.Header.LENGTH + 2L + (long) count * perOption;
     }
 
     @Override
