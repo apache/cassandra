@@ -42,9 +42,9 @@ import org.apache.cassandra.net.MessagingService;
  * we'll read the MT version from the payload and use it explicitly to decode the message.
  * <p>
  * The current approach is to manually specify the cluster safe MT version
- * (see {@code CLUSTER_SAFE_VERSION}). If and when a new MT version is
+ * (see {@link #getClusterSafeVersion()}). If and when a new MT version is
  * introduced, once all the nodes have been upgraded to C* versions
- * that support it, {@code CLUSTER_SAFE_VERSION} can be bumped.
+ * that support it, the cluster safe version can be bumped.
  */
 public enum Version
 {
@@ -77,8 +77,13 @@ public enum Version
     }
 
     private static volatile Version clusterSafeVersion =
-        fromInt(CassandraRelevantProperties.MT_CLUSTER_SAFE_VERSION.getInt(CURRENT.version));
+        fromInt(CassandraRelevantProperties.MT_CLUSTER_SAFE_VERSION.getInt(V1.version));
 
+    /**
+     * Version that should be used for messaging serialization where mixed versions may be possible.
+     * Defaults to V1, understood by nodes that predate topology change support. Raise to V2 (via
+     * {@code -Dcassandra.mutation_tracking.cluster_safe_version=2} or JMX) only once every node understands V2.
+     */
     public static Version getClusterSafeVersion()
     {
         return clusterSafeVersion;
