@@ -18,6 +18,7 @@
 
 package org.apache.cassandra.index.sai.view;
 
+import java.nio.ByteBuffer;
 import java.util.Collection;
 import java.util.HashMap;
 import java.util.Iterator;
@@ -71,6 +72,22 @@ public class View implements Iterable<SSTableIndex>
             return getIndexes();
 
         return rangeTermTree.search(expression);
+    }
+
+    /**
+     * @return the minimum term across this view's non-empty indexes, or {@code null} if there isn't one
+     */
+    public ByteBuffer min()
+    {
+        return rangeTermTree.min();
+    }
+
+    /**
+     * @return the maximum term across this view's non-empty indexes, or {@code null} if there isn't one
+     */
+    public ByteBuffer max()
+    {
+        return rangeTermTree.max();
     }
 
     @Override
