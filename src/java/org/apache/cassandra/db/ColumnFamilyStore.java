@@ -3108,6 +3108,18 @@ public <T> T withAllSSTables(final OperationType operationType, Function<Lifecyc
     }
 
     @Override
+    public int[] getSSTableCountPerUCSLevel()
+    {
+        return compactionStrategyManager.getSSTableCountPerUCSLevel();
+    }
+
+    @Override
+    public long[] getPerUCSLevelSizeBytes()
+    {
+        return compactionStrategyManager.getPerUCSLevelSizeBytes();
+    }
+
+    @Override
     public double[] getPerLevelAvgTokenSpace()
     {
         return compactionStrategyManager.getPerLevelAvgTokenSpace();

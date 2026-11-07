@@ -30,6 +30,9 @@ import org.junit.Test;
 import org.yaml.snakeyaml.Yaml;
 
 import org.apache.cassandra.cql3.CQLTester;
+import org.apache.cassandra.db.ColumnFamilyStore;
+import org.apache.cassandra.io.sstable.format.SSTableReader;
+import org.apache.cassandra.io.util.FileUtils;
 import org.apache.cassandra.tools.ToolRunner;
 import org.apache.cassandra.utils.JsonUtils;
 
@@ -81,6 +84,58 @@ public class TableStatsTest extends CQLTester
             tool.assertOnCleanExit();
             assertThat(tool.getStdout()).contains(" KiB");
         });
+    }
+
+    @Test
+    public void testUCSLevelCountAndBytes()
+    {
+        createUCSTableWithOneSSTable();
+
+        ColumnFamilyStore cfs = getCurrentColumnFamilyStore();
+        int sstableCount = cfs.getLiveSSTables().size();
+        long sstableBytes = cfs.getLiveSSTables().stream().mapToLong(SSTableReader::onDiskLength).sum();
+
+        ToolRunner.ToolResult tool = ToolRunner.invokeNodetool("tablestats", KEYSPACE + "." + currentTable());
+        tool.assertOnCleanExit();
+        assertThat(tool.getStdout()).contains("SSTables in each level: [" + sstableCount + "]")
+                                    .contains("SSTable bytes in each level: [" + sstableBytes + "]");
+    }
+
+    @Test
+    public void testUCSAverageSSTableSizeHumanReadable()
+    {
+        createUCSTableWithOneSSTable();
+
+        double averageSize = getCurrentColumnFamilyStore().getPerLevelAvgSize()[0];
+
+        ToolRunner.ToolResult tool = ToolRunner.invokeNodetool("tablestats", "-H", KEYSPACE + "." + currentTable());
+        tool.assertOnCleanExit();
+        assertThat(tool.getStdout()).contains("Average SSTable size in each level: [" + FileUtils.stringifyFileSize(averageSize) + "]");
+    }
+
+    @Test
+    public void testUCSDensityAndAverageSize()
+    {
+        createUCSTableWithOneSSTable();
+
+        ColumnFamilyStore cfs = getCurrentColumnFamilyStore();
+        long maxDensityThreshold = (long) cfs.getPerLevelMaxDensityThreshold()[0];
+        long averageSize = (long) cfs.getPerLevelAvgSize()[0];
+        long averageDensity = (long) cfs.getPerLevelAvgDensity()[0];
+
+        ToolRunner.ToolResult tool = ToolRunner.invokeNodetool("tablestats", KEYSPACE + "." + currentTable());
+        tool.assertOnCleanExit();
+        assertThat(tool.getStdout()).contains("Maximum density threshold for SSTables in each level: [" + maxDensityThreshold + "]")
+                                    .contains("Average SSTable size in each level: [" + averageSize + "]")
+                                    .contains("Average SSTable density in each level: [" + averageDensity + "]");
+    }
+
+    private void createUCSTableWithOneSSTable()
+    {
+        createTable("CREATE TABLE %s (pk int PRIMARY KEY, v int) WITH compaction = {'class': 'UnifiedCompactionStrategy'}");
+        for (int i = 0; i < 100; i++)
+            execute("INSERT INTO %s (pk, v) VALUES (?, ?)", i, i);
+        flush();
     }
 
     @Test
