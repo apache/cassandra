@@ -27,7 +27,9 @@ import org.junit.Test;
 import org.apache.cassandra.db.ColumnFamilyStore;
 import org.apache.cassandra.db.Keyspace;
 import org.apache.cassandra.distributed.Cluster;
+import org.apache.cassandra.io.sstable.format.SSTableReader;
 
+import static org.junit.Assert.assertArrayEquals;
 import static org.junit.Assert.assertTrue;
 
 public class ColumnFamilyStoreMBeansTest extends TestBaseImpl
@@ -55,6 +57,25 @@ public class ColumnFamilyStoreMBeansTest extends TestBaseImpl
     {
         if (CLUSTER != null)
             CLUSTER.close();
+    }
+
+    @Test
+    public void testGetSSTableCountPerUCSLevel() throws Throwable
+    {
+        CLUSTER.get(1).runOnInstance(() -> {
+            ColumnFamilyStore cfs = Keyspace.open(KEYSPACE).getColumnFamilyStore("cf");
+            assertArrayEquals(new int[]{ cfs.getLiveSSTables().size() }, cfs.getSSTableCountPerUCSLevel());
+        });
+    }
+
+    @Test
+    public void testGetPerUCSLevelSizeBytes() throws Throwable
+    {
+        CLUSTER.get(1).runOnInstance(() -> {
+            ColumnFamilyStore cfs = Keyspace.open(KEYSPACE).getColumnFamilyStore("cf");
+            long sstableBytes = cfs.getLiveSSTables().stream().mapToLong(SSTableReader::onDiskLength).sum();
+            assertArrayEquals(new long[]{ sstableBytes }, cfs.getPerUCSLevelSizeBytes());
+        });
     }
 
     @Test
