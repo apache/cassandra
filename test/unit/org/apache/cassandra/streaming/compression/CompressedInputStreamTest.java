@@ -180,14 +180,14 @@ public class CompressedInputStreamTest
         }
 
         // read buffer using CompressedInputStream
-        CompressionInfo info = CompressionInfo.newInstance(chunks, param);
+        CompressionInfo info = CompressionInfo.newInstance(chunks, param, null);
 
         if (testException)
         {
             testException(sections, info);
             return;
         }
-        CompressedInputStream input = new CompressedInputStream(new DataInputBuffer(toRead), info, ChecksumType.CRC32, () -> 1.0);
+        CompressedInputStream input = new CompressedInputStream(new DataInputBuffer(toRead), info, null, ChecksumType.CRC32, () -> 1.0);
 
         try (DataInputStream in = new DataInputStream(input))
         {
@@ -202,7 +202,7 @@ public class CompressedInputStreamTest
 
     private static void testException(List<SSTableReader.PartitionPositionBounds> sections, CompressionInfo info) throws IOException
     {
-        CompressedInputStream input = new CompressedInputStream(new DataInputBuffer(new byte[0]), info, ChecksumType.CRC32, () -> 1.0);
+        CompressedInputStream input = new CompressedInputStream(new DataInputBuffer(new byte[0]), info, null, ChecksumType.CRC32, () -> 1.0);
 
         try (DataInputStream in = new DataInputStream(input))
         {

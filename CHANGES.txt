@@ -1,4 +1,10 @@
 6.0-alpha3
+ * Fix edge cases when starting or shutting down a node for dictionary compression (CASSANDRA-21865)
+ * Do not cache compression dictionaries in the dictionary cache of a dropped table (CASSANDRA-21778)
+ * Reference compression dictionaries when they are looked up, so they can not be released first (CASSANDRA-21771)
+ * Own the Zstd dictionary compressor on the dictionary instance instead of a global cache (CASSANDRA-21772)
+ * Stream the compression dictionary with the compressed chunks of a part of an sstable (CASSANDRA-21774)
+ * Fail compression dictionary training and import when the dictionary can not be stored (CASSANDRA-21775)
  * Prevent concurrent schema changes from failing prematurely due to metadata commit contention (CASSANDRA-21537)
  * Throw CorruptBlockException from DirectReadAheadBuffer on a short read so the chunk buffer is reset (CASSANDRA-21829)
  * Cursor compaction fails with AssertionError when a static collection exceeds a collection guardrail threshold (CASSANDRA-21827)

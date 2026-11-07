@@ -22,7 +22,10 @@ import java.util.Arrays;
 import java.util.List;
 import java.util.Objects;
 
+import javax.annotation.Nullable;
+
 import org.apache.cassandra.db.TypeSizes;
+import org.apache.cassandra.db.compression.CompressionDictionary;
 import org.apache.cassandra.io.IVersionedSerializer;
 import org.apache.cassandra.io.compress.CompressionMetadata;
 import org.apache.cassandra.io.compress.CompressionMetadata.Chunk;
@@ -32,7 +35,8 @@ import org.apache.cassandra.io.util.DataOutputPlus;
 import org.apache.cassandra.schema.CompressionParams;
 
 /**
- * Container that carries compression parameters and chunks to decompress data from stream.
+ * Container that carries compression parameters, chunks and the dictionary they were compressed with to decompress
+ * data from stream.
  */
 public abstract class CompressionInfo
 {
@@ -51,6 +55,14 @@ public abstract class CompressionInfo
      * @return the offset and length of the file chunks.
      */
     public abstract CompressionMetadata.Chunk[] chunks();
+
+    /**
+     * Returns the dictionary the chunks were compressed with.
+     *
+     * @return the dictionary, not referenced by this instance, or null when the chunks were compressed without one
+     */
+    @Nullable
+    public abstract CompressionDictionary dictionary();
 
     /**
      * Computes the size of the file to transfer.
@@ -79,13 +91,14 @@ public abstract class CompressionInfo
         CompressionInfo that = (CompressionInfo) o;
 
         return Objects.equals(parameters(), that.parameters())
-               && Arrays.equals(chunks(), that.chunks());
+               && Arrays.equals(chunks(), that.chunks())
+               && Objects.equals(dictionary(), that.dictionary());
     }
 
     @Override
     public int hashCode()
     {
-        return Objects.hash(parameters(), chunks());
+        return Objects.hash(parameters(), chunks(), dictionary());
     }
 
     /**
@@ -93,8 +106,9 @@ public abstract class CompressionInfo
      *
      * @param chunks the file chunks
      * @param parameters the compression parameters
+     * @param dictionary the dictionary the chunks were compressed with, null if none
      */
-    public static CompressionInfo newInstance(CompressionMetadata.Chunk[] chunks, CompressionParams parameters)
+    public static CompressionInfo newInstance(CompressionMetadata.Chunk[] chunks, CompressionParams parameters, @Nullable CompressionDictionary dictionary)
     {
         assert chunks != null && parameters != null;
 
@@ -110,6 +124,12 @@ public abstract class CompressionInfo
             public CompressionParams parameters()
             {
                 return parameters;
+            }
+
+            @Override
+            public CompressionDictionary dictionary()
+            {
+                return dictionary;
             }
         };
     }
@@ -152,6 +172,13 @@ public abstract class CompressionInfo
             }
 
             @Override
+            public CompressionDictionary dictionary()
+            {
+                // referenced by the metadata of the streamed sstable, which is referenced until it is streamed
+                return metadata.compressionDictionary();
+            }
+
+            @Override
             public long getTotalSize()
             {
                 // If the chunks have not been loaded yet we avoid to compute them.
@@ -180,6 +207,14 @@ public abstract class CompressionInfo
                 CompressionMetadata.Chunk.serializer.serialize(chunks[i], out, version);
             // compression params
             CompressionParams.serializer.serialize(info.parameters(), out, version);
+            // the dictionary, the receiver can not decompress the chunks without it
+            if (carriesDictionary(info.parameters()))
+            {
+                CompressionDictionary dictionary = info.dictionary();
+                out.writeBoolean(dictionary != null);
+                if (dictionary != null)
+                    dictionary.serialize(out);
+            }
         }
 
         public CompressionInfo deserialize(DataInputPlus in, int version) throws IOException
@@ -195,7 +230,8 @@ public abstract class CompressionInfo
 
             // compression params
             CompressionParams parameters = CompressionParams.serializer.deserialize(in, version);
-            return CompressionInfo.newInstance(chunks, parameters);
+            CompressionDictionary dictionary = carriesDictionary(parameters) && in.readBoolean() ? CompressionDictionary.read(in) : null;
+            return CompressionInfo.newInstance(chunks, parameters, dictionary);
         }
 
         public long serializedSize(CompressionInfo info, int version)
@@ -211,7 +247,21 @@ public abstract class CompressionInfo
                 size += CompressionMetadata.Chunk.serializer.serializedSize(chunks[i], version);
             // compression params
             size += CompressionParams.serializer.serializedSize(info.parameters(), version);
+            if (carriesDictionary(info.parameters()))
+            {
+                CompressionDictionary dictionary = info.dictionary();
+                size += TypeSizes.BOOL_SIZE + (dictionary == null ? 0 : dictionary.serializedSize());
+            }
             return size;
+        }
+
+        /**
+         * Only the parameters of a compressor which takes a dictionary are followed by the dictionary, or by its
+         * absence, so the format for other compressors is unchanged.
+         */
+        private static boolean carriesDictionary(CompressionParams parameters)
+        {
+            return parameters.isDictionaryCompressionEnabled();
         }
     }
 }

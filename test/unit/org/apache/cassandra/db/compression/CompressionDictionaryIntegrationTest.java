@@ -18,7 +18,9 @@
 
 package org.apache.cassandra.db.compression;
 
+import java.util.HashSet;
 import java.util.Map;
+import java.util.Set;
 import java.util.concurrent.TimeUnit;
 
 import org.junit.Before;
@@ -32,8 +34,10 @@ import org.apache.cassandra.db.Keyspace;
 import org.apache.cassandra.db.compression.CompressionDictionary.DictId;
 import org.apache.cassandra.db.compression.CompressionDictionary.Kind;
 import org.apache.cassandra.db.compression.ICompressionDictionaryTrainer.TrainingStatus;
+import org.apache.cassandra.io.sstable.format.SSTableReader;
 import org.apache.cassandra.schema.CompressionParams;
 import org.apache.cassandra.utils.Clock;
+import org.apache.cassandra.utils.CompressionDictionaryHelper;
 
 import static org.apache.cassandra.Util.spinUntilTrue;
 import static org.apache.cassandra.io.compress.IDictionaryCompressor.DEFAULT_TRAINING_MAX_DICTIONARY_SIZE_PARAMETER_VALUE;
@@ -141,6 +145,76 @@ public class CompressionDictionaryIntegrationTest extends CQLTester
         assertThat(testDict.rawDictionary())
         .as("The raw dictionary bytes should still be accessible")
         .isNotNull();
+    }
+
+    /**
+     * Flushing caches a compressor which uses the dictionary of the table. Dropping the table must free the dictionary,
+     * the cached compressor must not keep it alive.
+     */
+    @Test
+    public void testDropTable()
+    {
+        createTable(getTableCql());
+        ZstdCompressionDictionary dictionary = createTestDictionary();
+        getCurrentColumnFamilyStore().compressionDictionaryManager().add(dictionary);
+        execute("INSERT INTO %s (pk, data) VALUES (?, ?)", "key", REPEATED_DATA);
+        flush();
+
+        dropTable("DROP TABLE %s");
+
+        // the sstable of the dropped table releases its reference in a separate thread
+        spinUntilTrue(() -> dictionary.selfRef().globalCount() == 0, 10, TimeUnit.SECONDS);
+    }
+
+    /**
+     * A table compressed with a dictionary at level 1 is altered to level 19 while its dictionary stays the same. The
+     * rows flushed afterwards must be compressed at level 19, i.e. to the size a table created with level 19 and the
+     * same dictionary compresses them to.
+     */
+    @Test
+    public void testAlterCompressionLevel()
+    {
+        createTable("CREATE TABLE %s (pk int PRIMARY KEY, data text) WITH compression = " + zstdDictionary(1));
+        CompressionDictionary dictionary = CompressionDictionaryHelper.INSTANCE.trainDictionary(keyspace(), currentTable());
+        getCurrentColumnFamilyStore().compressionDictionaryManager().add(dictionary);
+        long level1 = writeAndFlush();
+
+        alterTable("ALTER TABLE %s WITH compression = " + zstdDictionary(19));
+        long altered = writeAndFlush();
+
+        // the same dictionary under another id, so that this table does not share the compressor of the first one
+        createTable("CREATE TABLE %s (pk int PRIMARY KEY, data text) WITH compression = " + zstdDictionary(19));
+        DictId otherId = new DictId(Kind.ZSTD, dictionary.dictId().id + 1);
+        getCurrentColumnFamilyStore().compressionDictionaryManager().add(new ZstdCompressionDictionary(otherId, dictionary.rawDictionary()));
+        long level19 = writeAndFlush();
+
+        assertThat(level19).as("size of the sstable at level 19, compared to level 1").isLessThan(level1);
+        assertThat(altered).as("size of the sstable flushed after ALTER to level 19 (level 1: %d bytes)", level1).isEqualTo(level19);
+    }
+
+    private static String zstdDictionary(int level)
+    {
+        return "{'class': 'ZstdDictionaryCompressor', 'chunk_length_in_kb': '4', 'compression_level': '" + level + "'}";
+    }
+
+    /**
+     * Writes the same rows with the same timestamp into the current table and flushes them.
+     *
+     * @return size of the data file of the flushed sstable
+     */
+    private long writeAndFlush()
+    {
+        ColumnFamilyStore cfs = getCurrentColumnFamilyStore();
+        Set<SSTableReader> before = new HashSet<>(cfs.getLiveSSTables());
+        for (int pk = 0; pk < 5000; pk++)
+            execute("INSERT INTO %s (pk, data) VALUES (?, ?) USING TIMESTAMP 1",
+                    pk, "2025-10-20 11:00:0" + pk % 10 + " INFO com.example.Service" + pk % 7 + " request " + pk + " processed in " + pk % 100 + "ms");
+        flush();
+
+        Set<SSTableReader> flushed = new HashSet<>(cfs.getLiveSSTables());
+        flushed.removeAll(before);
+        assertThat(flushed).hasSize(1);
+        return flushed.iterator().next().onDiskLength();
     }
 
     private static ZstdCompressionDictionary createTestDictionary()
