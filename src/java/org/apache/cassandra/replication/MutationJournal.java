@@ -568,6 +568,20 @@ public class MutationJournal
                 }
             }
         }, getAvailableProcessors());
+
+        // After replay, clear needsReplay for segments that have no pending memtable writes.
+        // Segments whose mutations were all skipped (already present in SSTables, dropped tables, or
+        // witness-only writes) never dirtied a memtable. Normal flush callbacks will never span these
+        // pre-existing static segments, so they must be queued here or will be retained indefinitely.
+        for (Segment<ShortMutationId, Mutation> segment : journal.getAllSegments())
+        {
+            if (segment.isStatic() && segment.metadata().needsReplay())
+            {
+                SegmentStateTracker tracker = segmentStateTrackers.get(segment.id());
+                if (tracker == null || tracker.removeCleanFromDirty())
+                    pendingClearReplay.add(segment.id());
+            }
+        }
     }
 
     @VisibleForTesting

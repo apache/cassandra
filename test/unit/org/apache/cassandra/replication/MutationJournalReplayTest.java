@@ -300,6 +300,87 @@ public class MutationJournalReplayTest
     }
 
     @Test
+    public void trackerlessStaticSegmentsClearedAfterReplay() throws IOException
+    {
+        File directory = new File(Files.createTempDirectory("mutation-journal-trackerless-replay-test"));
+        directory.deleteRecursiveOnExit();
+
+        MutationJournal testJournal = new MutationJournal(directory, new TestParams(MessagingService.current_version)
+        {
+            @Override
+            public long flushPeriod(TimeUnit units)
+            {
+                return 1;
+            }
+
+            @Override
+            public FlushMode flushMode()
+            {
+                return FlushMode.PERIODIC;
+            }
+        });
+        testJournal.startInternal();
+
+        TableMetadata droppedTable = TableMetadata.builder("ks", "dropped_tbl")
+                                                  .keyspaceReplicationType(ReplicationType.tracked)
+                                                  .addPartitionKeyColumn("pk", UTF8Type.instance)
+                                                  .addRegularColumn("v", UTF8Type.instance)
+                                                  .build();
+        Mutation mutation = new RowUpdateBuilder(droppedTable, 0, "pk1")
+                            .add("v", "val")
+                            .build()
+                            .withMutationId(new MutationId(200L, 1, 1));
+
+        testJournal.write(mutation.id(), mutation);
+        testJournal.closeCurrentSegmentForTestingIfNonEmpty();
+
+        Segment<ShortMutationId, Mutation> staticSegment = null;
+        for (Segment<ShortMutationId, Mutation> seg : testJournal.getAllSegments())
+        {
+            if (seg.isStatic())
+            {
+                staticSegment = seg;
+                break;
+            }
+        }
+        Assert.assertNotNull(staticSegment);
+        Assert.assertTrue(staticSegment.metadata().needsReplay());
+        long staticSegId = staticSegment.id();
+
+        testJournal.shutdownBlocking();
+
+        // Simulate startup of a new daemon on the directory
+        MutationJournal startupJournal = new MutationJournal(directory, new TestParams(MessagingService.current_version)
+        {
+            @Override
+            public long flushPeriod(TimeUnit units)
+            {
+                return 1;
+            }
+
+            @Override
+            public FlushMode flushMode()
+            {
+                return FlushMode.PERIODIC;
+            }
+        });
+        startupJournal.startInternal();
+        try
+        {
+            // Run replayStaticSegments on startup
+            startupJournal.replayStaticSegments();
+
+            // Static segment should be queued into pendingClearReplay because it has no dirty tracker
+            Assert.assertTrue("Trackerless static segment should be queued into pendingClearReplay",
+                              startupJournal.pendingCleanupForTesting().contains(staticSegId));
+        }
+        finally
+        {
+            startupJournal.shutdownBlocking();
+        }
+    }
+
+    @Test
     public void replaySkipsPreviouslyFlushedOffsetsWhenSSTableMissing() throws Exception
     {
         if (!MutationTrackingService.instance().isStarted())
@@ -350,6 +431,12 @@ public class MutationJournalReplayTest
             long memtableOpsAfter = cfs.getTracker().getView().getCurrentMemtable().operationCount();
             Assert.assertEquals("Memtable should not receive writes when mutation was already flushed",
                                 memtableOpsBefore, memtableOpsAfter);
+        }
+        finally
+        {
+            startupJournal.shutdownBlocking();
+        }
+    }
         }
         finally
         {
