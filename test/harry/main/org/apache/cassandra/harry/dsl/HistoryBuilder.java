@@ -284,7 +284,7 @@ public class HistoryBuilder implements SingleOperationBuilder, Model.Replay
     @Override
     public SingleOperationBuilder deleteColumns(int pdIdx, int rowIdx, BitSet regularSelection, BitSet staticSelection)
     {
-        singleOpVisitBuilder().deleteRow(pdIdx, rowIdx);
+        singleOpVisitBuilder().deleteColumns(pdIdx, rowIdx, regularSelection, staticSelection);
         return this;
     }
 

@@ -962,7 +962,9 @@ public abstract class AccordCQLTestBase extends AccordTestBase
                 Unseekables<?> routables = AccordTestUtils.createTxn(sb.toString()).keys().toParticipants();
                 long epoch = AccordService.instance().topology().epoch();
                 Topologies topology;
-                try { topology = AccordService.instance().topology().active().withUnsyncedEpochs(routables, epoch, epoch, SelectShards.ALL); }
+                // preciseEpochs returns only this epoch; withUnsyncedEpochs would also include older epochs
+                // while this epoch isn't quorum ready yet (e.g. a new TCM snapshot epoch)
+                try { topology = AccordService.instance().topology().active().preciseEpochs(routables, epoch, epoch, SelectShards.ALL); }
                 catch (TopologyException e) { throw new RuntimeException(e); }
                 // we don't detect out-of-bounds read/write yet, so use this to validate we reach different shards
                 Assertions.assertThat(topology.totalShards()).isEqualTo(2);

@@ -738,6 +738,25 @@ public class AlterTest extends CQLTester
                                         "ALTER TABLE %s WITH compression = { 'class' : 'SnappyCompressor', 'min_compress_ratio' : 0.5 };");
     }
 
+    @Test
+    public void testAlterTableWithUnifiedCompactionOptions() throws Throwable
+    {
+        createTable("CREATE TABLE %s (a text, b int, c int, primary key (a, b))"
+                    + " WITH compaction = { 'class' : 'UnifiedCompactionStrategy' };");
+
+        assertAlterTableThrowsException(ConfigurationException.class,
+                                        "max_sstables_per_shard_factor 0.9 must be 0 to disable or a number greater than or equal to 1",
+                                        "ALTER TABLE %s WITH compaction = { 'class' : 'UnifiedCompactionStrategy', 'max_sstables_per_shard_factor' : 0.9 };");
+
+        assertAlterTableThrowsException(ConfigurationException.class,
+                                        "abc is not a parsable number for max_sstables_per_shard_factor",
+                                        "ALTER TABLE %s WITH compaction = { 'class' : 'UnifiedCompactionStrategy', 'max_sstables_per_shard_factor' : 'abc' };");
+
+        alterTable("ALTER TABLE %s WITH compaction = { 'class' : 'UnifiedCompactionStrategy', 'max_sstables_per_shard_factor' : 12 };");
+        assertSchemaOption("compaction", map("class", "org.apache.cassandra.db.compaction.UnifiedCompactionStrategy",
+                                             "max_sstables_per_shard_factor", "12"));
+    }
+
     private void assertAlterKeyspaceThrowsException(Class<? extends Throwable> clazz, String msg, String stmt)
     {
         assertThrowsException(clazz, msg, () -> {alterKeyspaceMayThrow(stmt);});

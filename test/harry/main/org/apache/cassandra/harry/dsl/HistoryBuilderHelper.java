@@ -88,13 +88,21 @@ public class HistoryBuilderHelper
 
     public static void deleteRandomColumns(SchemaSpec schema, int partitionIdx, int rowIdx, EntropySource rng, SingleOperationBuilder history)
     {
+        if (schema.regularColumns.isEmpty() && schema.staticColumns.isEmpty())
+            return;
+
         Generator<BitSet> regularMask = Generators.bitSet(schema.regularColumns.size());
         Generator<BitSet> staticMask = Generators.bitSet(schema.staticColumns.size());
+        BitSet regularColumns;
+        BitSet staticColumns;
+        do
+        {
+            regularColumns = regularMask.generate(rng);
+            staticColumns = staticMask.generate(rng);
+        }
+        while (regularColumns.allUnset() && staticColumns.allUnset());
 
-        history.deleteColumns(partitionIdx,
-                              rowIdx,
-                              regularMask.generate(rng),
-                              staticMask.generate(rng));
+        history.deleteColumns(partitionIdx, rowIdx, regularColumns, staticColumns);
     }
 
     private static final Generator<Relations.RelationKind> relationKindGen = Generators.pick(LT, GT, EQ);

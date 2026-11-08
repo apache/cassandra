@@ -197,11 +197,19 @@ _get_env_var() {
   echo "${BASH_REMATCH[1]}"
 }
 
+# a jar's table of contents is written at its end, so a truncated jar (e.g. left by an interrupted Jenkins unstash) cannot be listed
+_is_valid_jar() {
+  [ -f "${1}" ] || return 1
+  jar tf "${1}" >/dev/null 2>&1 && return 0
+  echo "WARNING: ${1} is not a readable jar, rebuilding it"
+  return 1
+}
+
 _build_all_dtest_jars() {
 
     # build the dtest-jar for the branch under test. remember to `ant clean` if you want a new dtest jar built
     dtest_jar_version=$(grep 'property\s*name=\"base.version\"' build.xml |sed -ne 's/.*value=\"\([^"]*\)\".*/\1/p')
-    if [ -f "${DIST_DIR}/dtest-${dtest_jar_version}.jar" ] ; then
+    if _is_valid_jar "${DIST_DIR}/dtest-${dtest_jar_version}.jar" ; then
         echo "Skipping dtest jar build for branch under test as ${DIST_DIR}/dtest-${dtest_jar_version}.jar already exists"
     else
         ant jar dtest-jar ${ANT_TEST_OPTS} -Dbuild.dir=${TMP_DIR}/cassandra-dtest-jars/build
@@ -229,7 +237,7 @@ _build_all_dtest_jars() {
         git clean -qxdff && git reset --hard HEAD  || echo "WARNING: could not reset/clean ${TMP_DIR}/cassandra-dtest-jars… continuing…"
         git checkout --quiet $branch
         dtest_jar_version=$(grep 'property\s*name=\"base.version\"' build.xml |sed -ne 's/.*value=\"\([^"]*\)\".*/\1/p')
-        if [ -f "${DIST_DIR}/dtest-${dtest_jar_version}.jar" ] ; then
+        if _is_valid_jar "${DIST_DIR}/dtest-${dtest_jar_version}.jar" ; then
             echo "Skipping dtest jar build for branch ${branch} as ${DIST_DIR}/dtest-${dtest_jar_version}.jar already exists"
             continue
         fi

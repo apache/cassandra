@@ -79,7 +79,7 @@ public class Operations
         }
     }
 
-    public static class DeleteColumns extends PartitionOperation
+    public static class DeleteColumns extends PartitionOperation implements DeleteColumnsOp
     {
         private final long cd;
         private final BitSet regularColumns;

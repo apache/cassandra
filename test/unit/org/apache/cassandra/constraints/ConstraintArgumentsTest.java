@@ -30,6 +30,7 @@ import org.apache.cassandra.cql3.Operator;
 import org.apache.cassandra.cql3.constraints.ColumnConstraint;
 import org.apache.cassandra.cql3.constraints.ColumnConstraints;
 import org.apache.cassandra.cql3.constraints.ConstraintFunction;
+import org.apache.cassandra.cql3.constraints.ConstraintResolver;
 import org.apache.cassandra.cql3.constraints.ConstraintViolationException;
 import org.apache.cassandra.cql3.constraints.InvalidConstraintDefinitionException;
 import org.apache.cassandra.cql3.constraints.UnaryConstraintFunction;
@@ -53,6 +54,21 @@ public class ConstraintArgumentsTest
 {
     private static final ColumnIdentifier columnIdentifier = new ColumnIdentifier("a_column", false);
     private static final ColumnMetadata columnMetadata = new ColumnMetadata("a", "b", columnIdentifier, UTF8Type.instance, ColumnMetadata.NO_UNIQUE_ID, -1, REGULAR, null);
+
+    @Test
+    public void testPrepareRejectsMalformedTermWithInvalidDefinition()
+    {
+        // "*abc" is neither a valid int nor a valid regular expression. Every built-in function must
+        // report that through InvalidConstraintDefinitionException.
+        String term = "*abc";
+        for (ConstraintResolver.Functions function : ConstraintResolver.Functions.values())
+        {
+            assertThatThrownBy(() -> function.functionCreator.apply(List.of()).prepare(term))
+            .describedAs("Function %s", function)
+            .isInstanceOf(InvalidConstraintDefinitionException.class)
+            .hasMessageContaining(term);
+        }
+    }
 
     @Test
     public void testDeserOfContraintsWithArguments() throws Throwable
