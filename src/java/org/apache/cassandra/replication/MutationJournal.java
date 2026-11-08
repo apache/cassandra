@@ -282,6 +282,7 @@ public class MutationJournal
                 continue;
             }
             Segment<ShortMutationId, Mutation> segment = found.get(0);
+            boolean neededReplay = segment.metadata().needsReplay();
             try
             {
                 segment.metadata().clearNeedsReplay();
@@ -291,6 +292,8 @@ public class MutationJournal
             }
             catch (Throwable t)
             {
+                if (neededReplay)
+                    segment.metadata().setNeedsReplay(true);
                 logger.warn("Deferred cleanup failed for segment {}; will retry next persister tick", segId, t);
                 // leave in live queue
             }
