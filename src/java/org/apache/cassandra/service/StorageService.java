@@ -3928,6 +3928,8 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
             // we don't want to start any new compactions while we are draining
             disableAutoCompaction();
 
+            MutationJournal.closeActiveSegmentIfNonEmpty();
+
             // count CFs first, since forceFlush could block for the flushWriter to get a queue slot empty
             totalCFs = 0;
             for (Keyspace keyspace : Keyspace.nonLocalStrategy())

@@ -102,6 +102,16 @@ public class MutationJournal
         {
             this.segments = segments;
         }
+
+        public int size()
+        {
+            return segments.size();
+        }
+
+        public boolean isEmpty()
+        {
+            return segments.isEmpty();
+        }
     }
 
     private static final MutationJournal instance = DatabaseDescriptor.getMutationTrackingEnabled() ? new MutationJournal() : null;
@@ -206,7 +216,7 @@ public class MutationJournal
                               protected void closeActiveSegmentAndOpenAsStatic(ActiveSegment<ShortMutationId, Mutation> activeSegment, Runnable onDone)
                               {
                                   super.closeActiveSegmentAndOpenAsStatic(activeSegment, () -> {
-                                      maybeCleanupStaticSegment(Invariants.nonNull(getSegment(activeSegment.id())));
+                                      maybeCleanupSegment(Invariants.nonNull(getSegment(activeSegment.id())));
                                       if (onDone != null) onDone.run();
                                   });
                               }
@@ -248,11 +258,14 @@ public class MutationJournal
     // LogStatePersister drain the queue after it has written witnessed offsets to system.coordinator_logs.
     //
     // See the comment in LogStatePersister or CASSANDRA-21443 for an explanation of why we do this
-    private void maybeCleanupStaticSegment(Segment<ShortMutationId, Mutation> segment)
+    private void maybeCleanupSegment(Segment<ShortMutationId, Mutation> segment)
     {
         Invariants.require(segment.isStatic());
+        if (!segment.metadata().needsReplay())
+            return;
+
         SegmentStateTracker tracker = segmentStateTrackers.get(segment.id());
-        if (tracker == null || tracker.removeCleanFromDirty())
+        if (tracker != null && tracker.removeCleanFromDirty())
             pendingClearReplay.add(segment.id());
     }
 
@@ -270,6 +283,11 @@ public class MutationJournal
      * See the comment in LogStatePersister or CASSANDRA-21443 for an explanation of why we do this
      */
     public void drainCleanup(PendingClearReplay toDrain)
+    {
+        drainCleanup(toDrain, true);
+    }
+
+    public void drainCleanup(PendingClearReplay toDrain, boolean triggerCompaction)
     {
         boolean anyCleared = false;
         for (long segId : toDrain.segments)
@@ -299,7 +317,7 @@ public class MutationJournal
             }
         }
 
-        if (anyCleared)
+        if (anyCleared && triggerCompaction)
             triggerSegmentCompaction();
     }
 
@@ -351,21 +369,21 @@ public class MutationJournal
         // TODO (required): why are we using blocking write here? We can/should wait for completion on `close` of WriteContext.
         RecordPointer ptr = journal.blockingWrite(id, mutation);
 
+        // needsReplay is never cleared on segments without trackers, so we create trackers outside of the full
+        // replica check so witness only segments can be cleared
+        SegmentStateTracker tracker = lastSegmentTracker;
+        if (tracker == null || tracker.segmentId() != ptr.segmentId)
+        {
+            tracker = segmentStateTrackers.computeIfAbsent(ptr.segmentId, SegmentStateTracker::new);
+            lastSegmentTracker = tracker;
+        }
+
         // IMPORTANT: there should be no way for mutation to be applied to memtable before we mark it as dirty here,
         // since this will introduce a race between marking as dirty and marking as clean.
         if (isFullReplica)
         {
             for (TableId tableId : mutation.getTableIds())
-            {
-                SegmentStateTracker tracker = lastSegmentTracker;
-                if (tracker == null || tracker.segmentId() != ptr.segmentId)
-                {
-                    tracker = segmentStateTrackers.computeIfAbsent(ptr.segmentId, SegmentStateTracker::new);
-                    lastSegmentTracker = tracker;
-                }
-
                 tracker.markDirty(tableId, ptr);
-            }
         }
 
         return ptr;
@@ -388,7 +406,7 @@ public class MutationJournal
             // We can only safely mark static segments as non-replayable. Active segment can still be written to,
             // so we only persist this metadata on flush.
             if (segment.isStatic())
-                maybeCleanupStaticSegment(segment);
+                maybeCleanupSegment(segment);
         }
     }
 
@@ -1131,10 +1149,22 @@ public class MutationJournal
         lastSegmentTracker = null;
     }
 
+    public void closeCurrentSegmentIfNonEmpty()
+    {
+        journal.closeCurrentSegmentIfNonEmpty();
+    }
+
+    public static void closeActiveSegmentIfNonEmpty()
+    {
+        MutationJournal mutationJournal = instance;
+        if (mutationJournal != null)
+            mutationJournal.closeCurrentSegmentIfNonEmpty();
+    }
+
     @VisibleForTesting
     public void closeCurrentSegmentForTestingIfNonEmpty()
     {
-        journal.closeCurrentSegmentForTestingIfNonEmpty();
+        closeCurrentSegmentIfNonEmpty();
     }
 
     @VisibleForTesting
