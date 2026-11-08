@@ -127,10 +127,20 @@ public class WriteHelper
         Object[] staticColumns = new Object[op.sds().length];
 
         for (int i = 0; i < op.vds().length; i++)
-            regularColumns[i] = schema.valueGenerators.regularColumnGen(i).inflate(op.vds()[i]);
+        {
+            long descriptor = op.vds()[i];
+            regularColumns[i] = MagicConstants.UNSET_DESCR == descriptor
+                                ? MagicConstants.UNSET_VALUE
+                                : schema.valueGenerators.regularColumnGen(i).inflate(descriptor);
+        }
 
         for (int i = 0; i < op.sds().length; i++)
-            staticColumns[i] = schema.valueGenerators.staticColumnGen(i).inflate(op.sds()[i]);
+        {
+            long descriptor = op.sds()[i];
+            staticColumns[i] = MagicConstants.UNSET_DESCR == descriptor
+                               ? MagicConstants.UNSET_VALUE
+                               : schema.valueGenerators.staticColumnGen(i).inflate(descriptor);
+        }
 
         Object[] bindings = new Object[schema.allColumnInSelectOrder.size()];
 
@@ -149,6 +159,7 @@ public class WriteHelper
 
         int bindingsCount = 0;
         bindingsCount += addSetStatements(b, bindings, schema.regularColumns, regularColumns, bindingsCount);
+        boolean updatesRegularColumns = 0 < bindingsCount;
         if (staticColumns.length != 0)
             bindingsCount += addSetStatements(b, bindings, schema.staticColumns, staticColumns, bindingsCount);
 
@@ -156,7 +167,8 @@ public class WriteHelper
         b.append(" WHERE ");
 
         bindingsCount += addWhereStatements(b, bindings, schema.partitionKeys, partitionKey, bindingsCount, true);
-        bindingsCount += addWhereStatements(b, bindings, schema.clusteringKeys, clusteringKey, bindingsCount, false);
+        if (updatesRegularColumns)
+            bindingsCount += addWhereStatements(b, bindings, schema.clusteringKeys, clusteringKey, bindingsCount, false);
         b.append(";");
         return new CompiledStatement(b.toString(), adjustArraySize(bindings, bindingsCount));
     }

@@ -390,22 +390,40 @@ public interface GuardrailsMBean
     void setBulkLoadEnabled(boolean enabled);
 
     /**
-     * @return The threshold to warn when requested page size greater than threshold.
+     * @return The threshold to warn when a requested row page size exceeds the given number of rows.
      * -1 means disabled.
      */
     int getPageSizeWarnThreshold();
 
     /**
-     * @return The threshold to prevent requesting page with more elements than threshold.
+     * @return The threshold to prevent requesting row pages with more rows than threshold.
      * -1 means disabled.
      */
     int getPageSizeFailThreshold();
 
     /**
-     * @param warn The threshold to warn when the requested page size is greater than threshold. -1 means disabled.
-     * @param fail The threshold to prevent requesting pages with more elements than threshold. -1 means disabled.
+     * @param warn The threshold to warn when the requested row page size is greater than threshold. -1 means disabled.
+     * @param fail The threshold to prevent requesting row pages with more rows than threshold. -1 means disabled.
      */
     void setPageSizeThreshold(int warn, int fail);
+
+    /**
+     * @return The byte page size warning threshold, with units such as {@code MiB}. {@code null} disables it.
+     */
+    @Nullable
+    String getPageSizeInBytesWarnThreshold();
+
+    /**
+     * @return The byte page size failure threshold, with units such as {@code MiB}. {@code null} disables it.
+     */
+    @Nullable
+    String getPageSizeInBytesFailThreshold();
+
+    /**
+     * @param warnSize The requested byte page size above which to warn, such as {@code 1MiB}. {@code null} disables it.
+     * @param failSize The requested byte page size above which to fail, such as {@code 2MiB}. {@code null} disables it.
+     */
+    void setPageSizeInBytesThreshold(@Nullable String warnSize, @Nullable String failSize);
 
     /**
      * Returns whether list operations that require read before write are allowed.

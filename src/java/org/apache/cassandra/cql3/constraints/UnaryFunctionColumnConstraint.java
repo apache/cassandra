@@ -196,8 +196,13 @@ public class UnaryFunctionColumnConstraint extends AbstractFunctionConstraint<Un
         @Override
         public long serializedSize(UnaryFunctionColumnConstraint columnConstraint, Version version)
         {
-            return TypeSizes.sizeof(columnConstraint.function.getClass().getName())
-                   + TypeSizes.sizeof(columnConstraint.columnName.toCQLString());
+            int argsSizes = 0;
+            for (String arg : columnConstraint.function.args)
+                argsSizes += TypeSizes.sizeof(arg);
+
+            return TypeSizes.sizeof(columnConstraint.function.name)
+                   + TypeSizes.sizeof(columnConstraint.function.args.size())
+                   + argsSizes;
         }
     }
 

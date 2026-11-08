@@ -21,9 +21,12 @@ import java.io.IOException;
 
 import org.junit.Assert;
 import org.junit.BeforeClass;
+import org.junit.Test;
 
 import org.apache.cassandra.SchemaLoader;
 import org.apache.cassandra.dht.OrderPreservingPartitioner.StringToken;
+
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 public class OrderPreservingPartitionerTest extends PartitionerTestCase
 {
@@ -52,5 +55,17 @@ public class OrderPreservingPartitionerTest extends PartitionerTestCase
         StringToken rt = (StringToken) roundTrip;
         Assert.assertEquals(orig.token, rt.token.substring(0, orig.token.length()));
         Assert.assertTrue(rt.token.substring(orig.token.length()).matches("\0*"));
+    }
+
+    @Test
+    public void testNextValidToken()
+    {
+        assertThatThrownBy(() -> tok("b").nextValidToken()).hasMessageContaining("not support token allocation");
+    }
+
+    @Test
+    public void testPrevValidToken()
+    {
+        assertThatThrownBy(() -> tok("b").prevValidToken()).hasMessageContaining("not support token allocation");
     }
 }

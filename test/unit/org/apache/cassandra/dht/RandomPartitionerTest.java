@@ -26,6 +26,8 @@ import org.junit.Test;
 import org.apache.cassandra.cql3.functions.types.utils.Bytes;
 import org.apache.cassandra.harry.checker.TestHelper;
 
+import static org.assertj.core.api.Assertions.assertThat;
+
 public class RandomPartitionerTest extends PartitionerTestCase
 {
     public void initPartitioner()
@@ -111,5 +113,21 @@ public class RandomPartitionerTest extends PartitionerTestCase
                 }
             }
         });
+    }
+
+    @Test
+    public void testPrevValidToken()
+    {
+        Token token = new RandomPartitioner.BigIntegerToken(BigInteger.ONE);
+        assertThat(token.prevValidToken()).isEqualTo(new RandomPartitioner.BigIntegerToken(BigInteger.ZERO));
+
+        token = new RandomPartitioner.BigIntegerToken(BigInteger.ZERO);
+        assertThat(token.prevValidToken()).isEqualTo(RandomPartitioner.MINIMUM);
+
+        token = RandomPartitioner.instance.getMaximumTokenForSplitting();
+        assertThat(token.prevValidToken()).isEqualTo(new RandomPartitioner.BigIntegerToken(RandomPartitioner.MAXIMUM.subtract(BigInteger.ONE)));
+
+        token = RandomPartitioner.instance.getMinimumToken();
+        assertThat(token.prevValidToken()).isEqualTo(RandomPartitioner.instance.getMaximumTokenForSplitting());
     }
 }

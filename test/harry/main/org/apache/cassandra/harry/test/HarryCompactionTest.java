@@ -39,6 +39,7 @@ import org.apache.cassandra.db.Keyspace;
 import org.apache.cassandra.harry.ColumnSpec;
 import org.apache.cassandra.harry.SchemaSpec;
 import org.apache.cassandra.harry.dsl.HistoryBuilder;
+import org.apache.cassandra.harry.dsl.HistoryBuilderHelper;
 import org.apache.cassandra.harry.execution.CQLTesterVisitExecutor;
 import org.apache.cassandra.harry.execution.CQLVisitExecutor;
 import org.apache.cassandra.harry.execution.CompiledStatement;
@@ -47,7 +48,6 @@ import org.apache.cassandra.harry.gen.Generator;
 import org.apache.cassandra.harry.model.QuiescentChecker;
 import org.apache.cassandra.harry.op.Operations;
 import org.apache.cassandra.harry.op.Visit;
-import org.apache.cassandra.harry.util.BitSet;
 import org.apache.cassandra.harry.util.ThrowingRunnable;
 import org.apache.cassandra.io.sstable.HarrySSTableWriter;
 import org.apache.cassandra.io.util.File;
@@ -61,8 +61,6 @@ public class HarryCompactionTest extends CQLTester
     public static final int TEST_REPS = 100;
     public static final int PARTITIONS_RANGE = 100;
     public static final int COLUMNS_RANGE = 10;
-    private final Generator<BitSet> staticColumnsGenerator = BitSet.generator(3);
-    private final Generator<BitSet> regularColumnsGenerator = BitSet.generator(9);
 
     private String keyspace;
     private String table;
@@ -180,9 +178,8 @@ public class HarryCompactionTest extends CQLTester
                     {
                         history.insert(rng.nextInt(0, 2 * PARTITIONS_RANGE), rng.nextInt(0, 2 * COLUMNS_RANGE)); // some overlap, but not all
                         history.deleteRow(rng.nextInt(0, 2 * PARTITIONS_RANGE), rng.nextInt(0, 2 * COLUMNS_RANGE)); // some overlap, but not all
-                        history.deleteColumns(rng.nextInt(0, 2 * PARTITIONS_RANGE), rng.nextInt(0, 20),
-                                              regularColumnsGenerator.generate(rng),
-                                              staticColumnsGenerator.generate(rng));
+                        HistoryBuilderHelper.deleteRandomColumns(schema, rng.nextInt(0, 2 * PARTITIONS_RANGE),
+                                                                 rng.nextInt(0, 20), rng, history);
                     }
                     history.deletePartition(rng.nextInt(0, 2 * PARTITIONS_RANGE)); // some overlap, but not all
                 }

@@ -30,6 +30,7 @@ import org.apache.cassandra.harry.ColumnSpec;
 import org.apache.cassandra.harry.MagicConstants;
 import org.apache.cassandra.harry.SchemaSpec;
 import org.apache.cassandra.harry.checker.ModelChecker;
+import org.apache.cassandra.harry.cql.DeleteHelper;
 import org.apache.cassandra.harry.dsl.HistoryBuilder;
 import org.apache.cassandra.harry.dsl.HistoryBuilderHelper;
 import org.apache.cassandra.harry.execution.CQLTesterVisitExecutor;
@@ -41,11 +42,15 @@ import org.apache.cassandra.harry.gen.SchemaGenerators;
 import org.apache.cassandra.harry.model.QuiescentChecker;
 import org.apache.cassandra.harry.op.Operations;
 import org.apache.cassandra.harry.op.Visit;
+import org.apache.cassandra.harry.util.BitSet;
 
 import static org.apache.cassandra.harry.Relations.RelationKind.GTE;
 import static org.apache.cassandra.harry.Relations.RelationKind.LTE;
 import static org.apache.cassandra.harry.checker.TestHelper.withRandom;
 import static org.apache.cassandra.harry.dsl.SingleOperationBuilder.IdxRelation;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
+import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertSame;
 
 public class HistoryBuilderTest extends CQLTester
 {
@@ -112,6 +117,70 @@ public class HistoryBuilderTest extends CQLTester
     }
 
     @Test
+    public void historyBuilderDeleteColumnsTest()
+    {
+        withRandom(rng -> {
+            SchemaSpec schema = simple_schema.generate(rng);
+            createTable(schema.compile());
+            HistoryBuilder history = new HistoryBuilder(schema.valueGenerators);
+            for (int pd = 0; pd < 3; ++pd)
+            {
+                history.insert(pd, 0, values(0, 0, 0), values(0, 0, 0));
+                history.insert(pd, 1, values(1, 1, 1), values(1, 1, 1));
+                BitSet regularColumns = 1 == pd ? BitSet.allUnset(3) : BitSet.create(2L, 3);
+                BitSet staticColumns = 0 == pd ? BitSet.allUnset(3) : BitSet.create(4L, 3);
+                int lts = history.size();
+                history.deleteColumns(pd, 0, regularColumns, staticColumns);
+                assertEquals(Operations.Kind.DELETE_COLUMNS, history.replay(lts, 0).kind());
+                Operations.DeleteColumns deletion = (Operations.DeleteColumns) history.replay(lts, 0);
+                assertSame(regularColumns, deletion.regularColumns());
+                assertSame(staticColumns, deletion.staticColumns());
+                history.selectPartition(pd);
+            }
+            replay(schema, history);
+
+            history.deleteColumns(0, 0, BitSet.allUnset(3), BitSet.allUnset(3));
+            Operations.DeleteColumns emptyDeletion = (Operations.DeleteColumns) history.replay(history.size() - 1, 0);
+
+            assertThatThrownBy(() -> DeleteHelper.inflateDelete(emptyDeletion, schema, emptyDeletion.lts()))
+            .isInstanceOf(IllegalArgumentException.class);
+        });
+    }
+
+    @Test
+    public void historyBuilderSliceDeleteTest()
+    {
+        SchemaSpec schema = new SchemaSpec(21615L, 100, KEYSPACE, "slice_deletes",
+                                           Arrays.asList(ColumnSpec.pk("pk", ColumnSpec.int64Type)),
+                                           Arrays.asList(ColumnSpec.ck("ck", ColumnSpec.int64Type, false)),
+                                           Arrays.asList(ColumnSpec.regularColumn("v", ColumnSpec.int64Type)),
+                                           Arrays.asList());
+        createTable(schema.compile());
+        HistoryBuilder history = new HistoryBuilder(schema.valueGenerators);
+        for (int pd = 0; pd < 4; ++pd)
+        {
+            for (int cd = 0; cd < 4; ++cd)
+                history.insert(pd, cd);
+            if (2 > pd)
+                history.deleteRowSliceByLowerBound(pd, 2, 0, 0 == pd);
+            else
+                history.deleteRowSliceByUpperBound(pd, 2, 0, 2 == pd);
+            history.selectPartition(pd);
+        }
+        replay(schema, history);
+
+        int[][] survivingRows = { { 0, 1 }, { 0, 1, 2 }, { 3 }, { 2, 3 } };
+        for (int pd = 0; pd < survivingRows.length; ++pd)
+        {
+            Object pk = schema.valueGenerators.pkGen().inflate(history.valueGenerators().pkGen().descriptorAt(pd))[0];
+            Object[][] expected = new Object[survivingRows[pd].length][];
+            for (int i = 0; i < expected.length; ++i)
+                expected[i] = schema.valueGenerators.ckGen().inflate(history.valueGenerators().ckGen().descriptorAt(survivingRows[pd][i]));
+            assertRows(execute("SELECT ck FROM " + schema.keyspace + '.' + schema.table + " WHERE pk = ?", pk), expected);
+        }
+    }
+
+    @Test
     public void historyBuilderInsertTest()
     {
         withRandom(rng -> {
@@ -128,6 +197,46 @@ public class HistoryBuilderTest extends CQLTester
 
                 replay(schema, history);
             }
+        });
+    }
+
+    @Test
+    public void historyBuilderUpdateWithUnsetTest()
+    {
+        withRandom(rng -> {
+            SchemaSpec schema = simple_schema.generate(rng);
+            createTable(schema.compile());
+            HistoryBuilder history = new HistoryBuilder(schema.valueGenerators);
+            int unset = MagicConstants.UNSET_IDX;
+            for (int pd = 0; pd < 2; ++pd)
+            {
+                history.insert(pd, 0, values(0, 0, 0), values(0, 0, 0));
+                history.insert(pd, 1, values(0, 0, 0), values(0, 0, 0));
+                history.update(pd, 0, values(1, unset, 1), values(unset, 0 == pd ? unset : 1, unset));
+                history.selectPartition(pd);
+            }
+            replay(schema, history);
+        });
+    }
+
+    @Test
+    public void historyBuilderStaticOnlyUpdateTest()
+    {
+        withRandom(rng -> {
+            SchemaSpec schema = simple_schema.generate(rng);
+            createTable(schema.compile());
+            HistoryBuilder history = new HistoryBuilder(schema.valueGenerators);
+            int unset = MagicConstants.UNSET_IDX;
+            history.insert(0, 0, values(0, 0, 0), values(0, 0, 0));
+            history.insert(0, 1, values(1, 1, 1), values(0, 0, 0));
+            // Update an existing row, a missing row, and an otherwise empty partition.
+            history.update(0, 0, values(unset, unset, unset), values(unset, 1, unset));
+            history.selectPartition(0);
+            history.update(0, 2, values(unset, unset, unset), values(1, unset, unset));
+            history.selectPartition(0);
+            history.update(1, 0, values(unset, unset, unset), values(unset, 1, unset));
+            history.selectPartition(1);
+            replay(schema, history);
         });
     }
 

@@ -54,6 +54,7 @@ public class ConstraintsProviderTest
         customConstraintProvider = new CustomConstraintProvider();
 
         ConstraintFunction constraintFunction = getConstraintFunction(MyCustomConstraint.NAME, List.of());
+        constraintFunction.prepare("20");
         assertNotNull(constraintFunction);
         constraintFunction.evaluate(UTF8Type.instance,
                                     Operator.EQ,

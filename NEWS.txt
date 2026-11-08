@@ -80,6 +80,10 @@ using the provided 'sstableupgrade' tool.
 New features
 ------------
 
+    - UnifiedCompactionStrategy has a new table option max_sstables_per_shard_factor (default 10). When a level has
+      no overlapping sstables to compact and one of its shards holds more than this factor times the level's fanout
+      sstables, all sstables in that shard are compacted together. Set it to 0 to keep the previous behaviour.
+      (CASSANDRA-21615)
     - CEP-49 - it is possible to implement custom compression providers, e.g.
       integrating with a specialized hardware which makes de/compression faster.
       See CASSANDRA-20975 for more information.
@@ -93,6 +97,12 @@ New features
 
 Upgrading
 ---------
+    - Do not set the UnifiedCompactionStrategy table option max_sstables_per_shard_factor until every node runs
+      6.0-alpha3 or later, or 5.0.10 or later. Earlier versions, including 6.0-alpha1 and 6.0-alpha2, do not
+      recognize the option. When one of them coordinates a schema change that validates the whole table definition,
+      such as ALTER TABLE ... ADD, it rejects the change for any table that sets the option. Before downgrading,
+      remove the option from those tables with ALTER TABLE ... WITH compaction = {...} listing the other options
+      only. (CASSANDRA-21615)
     - memtable_offheap_space: 0 is now rejected at startup when memtable_allocation_type is 
     offheap_buffers or offheap_objects. Set a positive memtable_offheap_space, or an allocation 
     type that does not allocate off-heap. See CASSANDRA-21019.
@@ -117,6 +127,17 @@ Deprecation
 
 New features
 ------------
+    - Query paging supports byte budgets for client fetch pages and internal replica reads (CASSANDRA-11745).
+      Set a byte fetch size through a supporting client using native protocol v5 or later; replica reads inherit
+      that budget. For aggregation queries without a client page size, configure aggregation_subpage_size in
+      cassandra.yaml (default 2MiB; 0B disables the limit). Explicit client row page sizes take precedence;
+      aggregation queries reject explicit client byte page sizes.
+      Configure page_size_in_bytes_warn_threshold and page_size_in_bytes_fail_threshold in cassandra.yaml
+      to warn or reject oversized client page requests. Both accept storage units and default to null (disabled).
+      Byte paging requires all cluster members to run Cassandra 6.0-alpha3 or later; until then, reads use row pages.
+      Byte budgets measure internal row data and can be exceeded to include the last row of a page.
+      See "Result paging" in doc/modules/cassandra/pages/developing/cql/dml.adoc for usage and upgrade details,
+      and doc/native_protocol_v5.spec for client capability discovery and request encoding.
     - JDK21 and Generational ZGC are now officially supported and generational ZGC is now the default Garbage Collector
     when using JDK21. See jvm21-server.options for more details and configuration parameters. We do not recommend using
     non-generational ZGC with Apache Cassandra.

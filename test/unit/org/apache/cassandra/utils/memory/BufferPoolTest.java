@@ -866,6 +866,11 @@ public class BufferPoolTest
         assertEquals(macroChunkSize + overflowBuffer.capacity(), bufferPool.usedSizeInBytes());
         assertEquals(overflowBuffer.capacity(), bufferPool.overflowMemoryInBytes());
 
+        // trimming an overflow buffer frees nothing, so overflow is unchanged until put
+        overflowBuffer.limit(overflowBuffer.capacity() / 2);
+        bufferPool.putUnusedPortion(overflowBuffer);
+        assertEquals(overflowBuffer.capacity(), bufferPool.overflowMemoryInBytes());
+
         // free all buffer
         bufferPool.put(overflowBuffer);
         release(buffers);

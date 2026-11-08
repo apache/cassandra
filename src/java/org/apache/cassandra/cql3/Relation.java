@@ -218,6 +218,13 @@ public final class Relation
         ColumnSpecification receiver = columnsExpression.columnSpecification();
         if (!operator.appliesToColumnValues())
             receiver = ((CollectionType<?>) receiver.type).makeCollectionReceiver(receiver, operator.appliesToMapKeys());
+        else if (receiver instanceof ColumnMetadata && operator != Operator.EQ && !operator.isIN())
+            // Only EQ and IN bind markers identify a value the column must equal, so only those are safe
+            // to report as partition-key bind indexes for token-aware routing (see getPartitionKeyBindVariableIndexes).
+            // Every other operator (slices, NOT_IN, NEQ, LIKE, ...) binds a value that is excluded, a range bound,
+            // or a pattern - not a value identifying the restricted column - so we must not let VariableSpecifications
+            // treat it as one by handing it the real ColumnMetadata.
+            receiver = new ColumnSpecification(receiver.ksName, receiver.cfName, receiver.name, receiver.type);
 
         Terms terms = rawTerms.prepare(table.keyspace, receiver);
         terms.collectMarkerSpecification(boundNames, owner);
