@@ -40,6 +40,8 @@ import org.apache.cassandra.db.marshal.UTF8Type;
 import org.apache.cassandra.harry.checker.TestHelper;
 import org.apache.cassandra.io.util.File;
 import org.apache.cassandra.journal.DeserializedRecordConsumer;
+import org.apache.cassandra.journal.RecordPointer;
+import org.apache.cassandra.journal.Segment;
 import org.apache.cassandra.journal.TestParams;
 import org.apache.cassandra.net.MessagingService;
 import org.apache.cassandra.schema.KeyspaceParams;
@@ -204,6 +206,97 @@ public class MutationJournalReplayTest
                                   Assert.assertEquals(original.size() - flushed,
                                                       replayed.size());
                               });
+    }
+
+    @Test
+    public void cleanActiveSegmentClearedOnShutdown() throws IOException
+    {
+        File directory = new File(Files.createTempDirectory("mutation-journal-active-shutdown-test"));
+        directory.deleteRecursiveOnExit();
+
+        MutationJournal testJournal = new MutationJournal(directory, TestParams.MUTATION_JOURNAL);
+        testJournal.startInternal();
+
+        TableMetadata table = TABLES[0];
+        ShortMutationId id = new ShortMutationId(100L, 1);
+        RecordPointer ptr = testJournal.write(id, mutation(0, 1));
+        testJournal.closeCurrentSegmentIfNonEmpty();
+        testJournal.notifyFlushed(table.id, ptr, ptr);
+
+        Assert.assertEquals(1, testJournal.snapshotPendingClearReplay().size());
+        testJournal.drainCleanup(testJournal.snapshotPendingClearReplay(), false);
+        testJournal.shutdownBlocking();
+
+        MutationJournal reopenedJournal = new MutationJournal(directory, TestParams.MUTATION_JOURNAL);
+        reopenedJournal.startInternal();
+        try
+        {
+            boolean foundSegment = false;
+            for (Segment<ShortMutationId, Mutation> seg : reopenedJournal.getAllSegments())
+            {
+                if (seg.isStatic())
+                {
+                    foundSegment = true;
+                    Assert.assertFalse("Static segment on disk should not need replay", seg.metadata().needsReplay());
+                }
+            }
+            Assert.assertTrue("Should have found at least one static segment", foundSegment);
+        }
+        finally
+        {
+            reopenedJournal.shutdownBlocking();
+        }
+    }
+
+    @Test
+    public void unreplayedStaticSegmentRetainsNeedsReplayOnShutdown() throws IOException
+    {
+        File directory = new File(Files.createTempDirectory("mutation-journal-unreplayed-shutdown-test"));
+        directory.deleteRecursiveOnExit();
+
+        MutationJournal testJournal = new MutationJournal(directory, TestParams.MUTATION_JOURNAL);
+        testJournal.startInternal();
+
+        TableMetadata table = TABLES[0];
+        ShortMutationId id = new ShortMutationId(100L, 1);
+        testJournal.write(id, mutation(0, 1));
+        testJournal.closeCurrentSegmentIfNonEmpty();
+        testJournal.shutdownBlocking();
+
+        MutationJournal reopenedJournal = new MutationJournal(directory, TestParams.MUTATION_JOURNAL);
+        reopenedJournal.startInternal();
+        try
+        {
+            // Do not replay; shutdown directly without draining
+            Assert.assertEquals(0, reopenedJournal.snapshotPendingClearReplay().size());
+            reopenedJournal.shutdownBlocking();
+        }
+        catch (Throwable t)
+        {
+            reopenedJournal.shutdownBlocking();
+            throw t;
+        }
+
+        MutationJournal thirdJournal = new MutationJournal(directory, TestParams.MUTATION_JOURNAL);
+        thirdJournal.startInternal();
+        try
+        {
+            boolean foundSegment = false;
+            for (Segment<ShortMutationId, Mutation> seg : thirdJournal.getAllSegments())
+            {
+                if (seg.isStatic())
+                {
+                    foundSegment = true;
+                    Assert.assertTrue("Unreplayed static segment on disk must still need replay",
+                                      seg.metadata().needsReplay());
+                }
+            }
+            Assert.assertTrue("Should have found at least one static segment", foundSegment);
+        }
+        finally
+        {
+            thirdJournal.shutdownBlocking();
+        }
     }
 
     @Test
