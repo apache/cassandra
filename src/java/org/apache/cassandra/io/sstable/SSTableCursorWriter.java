@@ -237,6 +237,8 @@ public class SSTableCursorWriter implements AutoCloseable
         int partitionKeyLength = sourceKey.getKeyLength();
         SERIALIZER.writeEndOfPartition(dataWriter);
         long partitionEnd = dataWriter.position();
+        // before the metadata, as SortedTableWriter.endPartition calls partitionWriter.finish() first
+        cursorIndexWriter.finishRowIndex(partitionEnd, lastName);
         long partitionSize = partitionEnd - partitionStart;
         addPartitionMetadata(partitionKey, partitionKeyLength, partitionSize, partitionDeletionTime);
 
@@ -675,9 +677,22 @@ public class SSTableCursorWriter implements AutoCloseable
 
         dataWriter.write(rowHeaderBuffer.getData(), 0, rowHeaderBuffer.getLength());
         writeRowCellSection(hasComplexDeletion);
-        rowStats.addToCollector();
 
         long unfilteredEndPosition = getPosition();
+
+        if (isStatic)
+        {
+            // Nothing writes to dataWriter between the unfilteredEndPosition read above and here.
+            cursorIndexWriter.staticRowWritten(unfilteredEndPosition);
+        }
+        else
+        {
+            updateMetadataAndIndexBlock(rHeader, unfilteredStartPosition, unfilteredEndPosition, updateClusteringMetadata);
+        }
+
+        // The row's stats go to the collector after its index block, as in SortedTableWriter.addRow. A BTI
+        // early open can run from inside the index write, and must not see this row's stats.
+        rowStats.addToCollector();
 
         /**
          * These calls, and the cell metadata updates above, match
@@ -696,16 +711,6 @@ public class SSTableCursorWriter implements AutoCloseable
             // column counts towards totalColumnsSet only if it gave one cell or more. A column that
             // has a deletion and no cell still appears in the column subset above, but not here.
             metadataCollector.updateColumnSetPerRow(columnsWrittenCount - deletionOnlyMarkers);
-        }
-
-        if (isStatic)
-        {
-            // Nothing writes to dataWriter between the unfilteredEndPosition read above and here.
-            cursorIndexWriter.staticRowWritten(unfilteredEndPosition);
-        }
-        else
-        {
-            updateMetadataAndIndexBlock(rHeader, unfilteredStartPosition, unfilteredEndPosition, updateClusteringMetadata);
         }
     }
 
@@ -858,13 +863,14 @@ public class SSTableCursorWriter implements AutoCloseable
         // route: it adds that field's vint width to a body size that leaves the field out.
         dataWriter.writeUnsignedVInt32(rowHeaderBuffer.getLength());
         dataWriter.write(rowHeaderBuffer.getData(), 0, rowHeaderBuffer.getLength());
-        rowStats.addToCollector();
 
         long unfilteredEndPosition = getPosition();
 
         /** {@link org.apache.cassandra.io.sstable.format.big.BigFormatPartitionWriter#addUnfiltered(org.apache.cassandra.db.rows.Unfiltered)} */
         // The index writer cuts a new index block when this marker takes the block past its size.
         updateMetadataAndIndexBlock(rangeTombstone, unfilteredStartPosition, unfilteredEndPosition, updateClusteringMetadata);
+        // after the index block, as in SortedTableWriter.addRangeTomstoneMarker
+        rowStats.addToCollector();
     }
 
     private void updateMetadataAndIndexBlock(UnfilteredDescriptor unfilteredDescriptor,
@@ -872,8 +878,9 @@ public class SSTableCursorWriter implements AutoCloseable
                                              long unfilteredEndPosition,
                                              boolean updateClusteringMetadata) throws IOException
     {
-        if (updateClusteringMetadata) updateClusteringMetadata(unfilteredDescriptor);
+        // the index block first, then the clustering, as in SortedTableWriter.addRow
         cursorIndexWriter.rowWritten(unfilteredDescriptor, unfilteredStartPosition, unfilteredEndPosition, openMarker);
+        if (updateClusteringMetadata) updateClusteringMetadata(unfilteredDescriptor);
     }
 
     public void updateClusteringMetadata(ClusteringDescriptor clusteringDescriptor)
