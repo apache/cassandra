@@ -115,10 +115,10 @@ public class SegmentStateTracker
         }
 
         // Remove all fully covered items, while holding a lock
-        if (removeCount > 0)
+        lock.lock();
+        try
         {
-            lock.lock();
-            try
+            if (removeCount > 0)
             {
                 if (this.states.size() == removeCount)
                 {
@@ -132,13 +132,12 @@ public class SegmentStateTracker
                     this.states.remove(e.getKey());
                 }
             }
-            finally
-            {
-                lock.unlock();
-            }
+            return this.states.isEmpty();
         }
-
-        return false;
+        finally
+        {
+            lock.unlock();
+        }
     }
 
     public void markDirty(TableId tableId, CommitLogPosition ptr)
