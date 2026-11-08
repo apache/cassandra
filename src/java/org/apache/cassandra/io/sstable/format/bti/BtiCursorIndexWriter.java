@@ -49,6 +49,8 @@ public class BtiCursorIndexWriter extends CursorIndexWriter
     private boolean blockOpen; // a first clustering has been captured for the current block
     private int rowIndexBlockCount;
     private DeletionTime blockStartOpenMarker = DeletionTime.LIVE;
+    // the current partition's row trie root, set by finishRowIndex; -1 if the partition has no row trie
+    private long trieRoot;
     // PartitionIndexBuilder still reads the previous two keys while it adds the next one, so three keys are
     // reused in turn. It copies the keys it keeps for longer.
     private final ReusableDecoratedKey[] keySlots = new ReusableDecoratedKey[3];
@@ -110,11 +112,9 @@ public class BtiCursorIndexWriter extends CursorIndexWriter
     }
 
     @Override
-    public void endPartition(ReusableDecoratedKey key, byte[] keyBytes, int keyLength, int headerLength,
-                             DeletionTime partitionDeletionTime, long partitionEnd,
-                             ClusteringDescriptor lastName) throws IOException
+    public void finishRowIndex(long partitionEnd, ClusteringDescriptor lastName) throws IOException
     {
-        /** {@link BtiFormatPartitionWriter#finish()} + {@link BtiTableWriter#createRowIndexEntry} */
+        /** {@link BtiFormatPartitionWriter#finish()} */
         // the last row may not fall on a block boundary; cut the final block here
         if (rowIndexBlockCount > 0 && blockOpen)
             addIndexBlock(partitionEnd, DeletionTime.LIVE, lastName);
@@ -122,7 +122,15 @@ public class BtiCursorIndexWriter extends CursorIndexWriter
         // SortedTablePartitionWriter.finish measures the partition length before it writes the
         // end-of-partition marker, and complete() takes that length. partitionEnd here is the
         // position after the marker, so subtract its one byte
-        long trieRoot = rowIndexBlockCount > 1 ? rowTrie.complete(partitionEnd - 1 - partitionStart) : -1;
+        trieRoot = rowIndexBlockCount > 1 ? rowTrie.complete(partitionEnd - 1 - partitionStart) : -1;
+    }
+
+    @Override
+    public void endPartition(ReusableDecoratedKey key, byte[] keyBytes, int keyLength, int headerLength,
+                             DeletionTime partitionDeletionTime, long partitionEnd,
+                             ClusteringDescriptor lastName) throws IOException
+    {
+        /** {@link BtiTableWriter#createRowIndexEntry} */
         TrieIndexEntry entry = TrieIndexEntry.create(partitionStart, trieRoot,
                                                      partitionDeletionTime, rowIndexBlockCount);
         ReusableDecoratedKey slot = keySlots[nextKeySlot];

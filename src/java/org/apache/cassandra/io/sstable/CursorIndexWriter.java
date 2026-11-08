@@ -135,7 +135,21 @@ public abstract class CursorIndexWriter
                                     DeletionTime openMarker) throws IOException;
 
     /**
-     * The partition ends at partitionEnd, which is past its end-of-partition marker.
+     * The partition's data ends at partitionEnd, which is past its end-of-partition marker. Writes what is
+     * left of the partition's row index. The cursor writer calls this before it adds the partition to the
+     * metadata, as {@link SortedTableWriter} does, because a BTI early open can run from inside this write.
+     * This does nothing for a format that keeps the row index in memory until {@link #endPartition}.
+     *
+     * @param lastName the clustering of the last non-static unfiltered written to this
+     *                 partition, or null if the partition wrote none.
+     */
+    public void finishRowIndex(long partitionEnd, ClusteringDescriptor lastName) throws IOException
+    {
+    }
+
+    /**
+     * The partition ends at partitionEnd, which is past its end-of-partition marker. Called after
+     * {@link #finishRowIndex}, once the partition is in the metadata.
      *
      * @param key the partition key; a reusable instance, whose bytes and token the next partition
      *            overwrites. Anything that keeps it past this call, such as the index summary's
