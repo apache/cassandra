@@ -18,12 +18,48 @@
 
 package org.apache.cassandra.cql3.validation.operations;
 
+import java.util.ArrayList;
+import java.util.Collection;
+import java.util.List;
+
+import com.google.common.collect.ImmutableList;
+
+import org.junit.Before;
 import org.junit.Test;
+import org.junit.runner.RunWith;
+import org.junit.runners.Parameterized;
 
 import org.apache.cassandra.cql3.CQLTester;
+import org.apache.cassandra.service.consensus.TransactionalMode;
 
+@RunWith(Parameterized.class)
 public class BatchTest extends CQLTester
 {
+    @Parameterized.Parameter
+    public TransactionalMode transactionalMode;
+
+    @Parameterized.Parameters(name = "{index}: transactionalMode={0}")
+    public static Collection<Object[]> data()
+    {
+        List<Object[]> result = new ArrayList<>();
+        for (TransactionalMode mode : ImmutableList.of(TransactionalMode.off, TransactionalMode.full))
+            result.add(new Object[]{ mode });
+        return result;
+    }
+
+    @Before
+    public void before()
+    {
+        if (transactionalMode != TransactionalMode.off)
+            enableCoordinatorExecution();
+    }
+
+    @Override
+    protected String createTable(String query)
+    {
+        return super.createTable(query + " WITH " + transactionalMode.asCqlParam());
+    }
+
     /**
      * Test batch statements
      * migrated from cql_tests.py:TestCQL.batch_test()
@@ -180,8 +216,8 @@ public class BatchTest extends CQLTester
         String tbl1 = KEYSPACE + "." + createTableName();
         String tbl2 = KEYSPACE + "." + createTableName();
 
-        schemaChange(String.format("CREATE TABLE %s (k1 int PRIMARY KEY, v11 int, v12 int)", tbl1));
-        schemaChange(String.format("CREATE TABLE %s (k2 int PRIMARY KEY, v21 int, v22 int)", tbl2));
+        schemaChange(String.format("CREATE TABLE %s (k1 int PRIMARY KEY, v11 int, v12 int) WITH %s", tbl1, transactionalMode.asCqlParam()));
+        schemaChange(String.format("CREATE TABLE %s (k2 int PRIMARY KEY, v21 int, v22 int) WITH %s", tbl2, transactionalMode.asCqlParam()));
 
         execute("BEGIN BATCH " +
                 String.format("UPDATE %s SET v11 = 1 WHERE k1 = 0;", tbl1) +
@@ -205,8 +241,8 @@ public class BatchTest extends CQLTester
         String tbl1 = KEYSPACE + "." + createTableName();
         String tbl2 = KEYSPACE + "." + createTableName();
 
-        schemaChange(String.format("CREATE TABLE %s (k1 int PRIMARY KEY, v1 int)", tbl1));
-        schemaChange(String.format("CREATE TABLE %s (k2 int PRIMARY KEY, v2 int)", tbl2));
+        schemaChange(String.format("CREATE TABLE %s (k1 int PRIMARY KEY, v1 int) WITH %s", tbl1, transactionalMode.asCqlParam()));
+        schemaChange(String.format("CREATE TABLE %s (k2 int PRIMARY KEY, v2 int) WITH %s", tbl2, transactionalMode.asCqlParam()));
 
         String query = "BEGIN BATCH " +
                    String.format("UPDATE %s SET v1 = 1 WHERE k1 = ?;", tbl1) +

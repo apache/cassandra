@@ -3402,6 +3402,94 @@ public abstract class AccordCQLTestBase extends AccordTestBase
             });
     }
 
+    @Test
+    public void testCASStaticConditionOnMissingRowSeesStaticValue() throws Exception
+    {
+        test("CREATE TABLE " + qualifiedAccordTableName + " (p int, k int, s int static, v int, PRIMARY KEY (p, k)) WITH " + transactionalMode.asCqlParam(), cluster -> {
+            cluster.coordinator(1).execute("INSERT INTO " + qualifiedAccordTableName + " (p, s) VALUES (0, 1)", ConsistencyLevel.ALL);
+            assertRowEquals(cluster, new Object[]{ true }, "UPDATE " + qualifiedAccordTableName + " SET v = 1 WHERE p = 0 AND k = 0 IF v = null AND s = 1");
+            assertRowSerial(cluster, "SELECT k, s, v FROM " + qualifiedAccordTableName + " WHERE p = 0", row(0, 1, 1));
+        });
+    }
+
+    @Test
+    public void testFailedCASOnMissingRowReturnsStaticValues() throws Exception
+    {
+        test("CREATE TABLE " + qualifiedAccordTableName + " (p int, k int, s int static, v int, PRIMARY KEY (p, k)) WITH " + transactionalMode.asCqlParam(), cluster -> {
+            cluster.coordinator(1).execute("INSERT INTO " + qualifiedAccordTableName + " (p, s) VALUES (0, 1)", ConsistencyLevel.ALL);
+            assertRowEquals(cluster, new Object[]{ false, null, 1 }, "UPDATE " + qualifiedAccordTableName + " SET v = 1 WHERE p = 0 AND k = 0 IF v = 2 AND s = 2");
+        });
+    }
+
+    @Test
+    public void testCASBatchIfExistsFailsWhenOneRowIsMissing() throws Exception
+    {
+        test("CREATE TABLE " + qualifiedAccordTableName + " (p int, k int, v int, PRIMARY KEY (p, k)) WITH " + transactionalMode.asCqlParam(), cluster -> {
+            cluster.coordinator(1).execute("INSERT INTO " + qualifiedAccordTableName + " (p, k, v) VALUES (0, 0, 0)", ConsistencyLevel.ALL);
+            String query = "BEGIN BATCH\n" +
+                           "  UPDATE " + qualifiedAccordTableName + " SET v = 1 WHERE p = 0 AND k = 0 IF EXISTS;\n" +
+                           "  UPDATE " + qualifiedAccordTableName + " SET v = 1 WHERE p = 0 AND k = 1 IF EXISTS;\n" +
+                           "APPLY BATCH";
+            Object[][] result = cluster.coordinator(1).execute(query, ConsistencyLevel.ALL);
+            assertEquals(false, result[0][0]);
+            assertRowSerial(cluster, "SELECT k, v FROM " + qualifiedAccordTableName + " WHERE p = 0", row(0, 0));
+        });
+    }
+
+    @Test
+    public void testCASBatchPartitionDeleteKeepsInsertedRows() throws Exception
+    {
+        test("CREATE TABLE " + qualifiedAccordTableName + " (k int, c int, v int, w int, s int static, PRIMARY KEY (k, c)) WITH " + transactionalMode.asCqlParam(), cluster -> {
+            String batch = "BEGIN BATCH\n" +
+                           "  DELETE FROM " + qualifiedAccordTableName + " WHERE k = 0;\n" +
+                           "  INSERT INTO " + qualifiedAccordTableName + " (k, c, v, s) VALUES (0, 5, 1, 7);\n" +
+                           "  UPDATE " + qualifiedAccordTableName + " SET w = 1 WHERE k = 0 AND c = 20 IF w = null;\n" +
+                           "APPLY BATCH";
+            assertRowEquals(cluster, new Object[]{ true }, batch);
+            assertRowSerial(cluster, "SELECT c, v, w, s FROM " + qualifiedAccordTableName + " WHERE k = 0", row(5, 1, null, 7), row(20, null, 1, 7));
+        });
+    }
+
+    @Test
+    public void testCASBatchRangeDeleteKeepsInsertedRow() throws Exception
+    {
+        test("CREATE TABLE " + qualifiedAccordTableName + " (k int, c int, v int, w int, PRIMARY KEY (k, c)) WITH " + transactionalMode.asCqlParam(), cluster -> {
+            String batch =  "BEGIN BATCH\n" +
+                            "  DELETE FROM " + qualifiedAccordTableName + " WHERE k = 0 AND c >= 0 AND c <= 10;\n" +
+                            "  INSERT INTO " + qualifiedAccordTableName + " (k, c, v) VALUES (0, 5, 1);\n" +
+                            "  UPDATE " + qualifiedAccordTableName + " SET w = 1 WHERE k = 0 AND c = 20 IF w = null;\n" +
+                            "APPLY BATCH";
+
+            assertRowEquals(cluster, new Object[]{ true }, batch);
+            assertRowSerial(cluster, "SELECT c, v, w FROM " + qualifiedAccordTableName + " WHERE k = 0", row(5, 1, null), row(20, null, 1));
+        });
+    }
+
+    @Test
+    public void testCASBatchRangeDeleteRemovesExistingRow() throws Exception
+    {
+        test("CREATE TABLE " + qualifiedAccordTableName + " (k int, c int, v int, w int, PRIMARY KEY (k, c)) WITH " + transactionalMode.asCqlParam(), cluster -> {
+            cluster.coordinator(1).execute("INSERT INTO " + qualifiedAccordTableName + " (k, c, v) VALUES (0, 3, 9)", ConsistencyLevel.ALL);
+            String batch = "BEGIN BATCH\n" +
+                           "  DELETE FROM " + qualifiedAccordTableName + " WHERE k = 0 AND c >= 0 AND c <= 10;\n" +
+                           "  INSERT INTO " + qualifiedAccordTableName + " (k, c, v) VALUES (0, 5, 1);\n" +
+                           "  UPDATE " + qualifiedAccordTableName + " SET w = 1 WHERE k = 0 AND c = 20 IF w = null;\n" +
+                           "APPLY BATCH";
+            assertRowEquals(cluster, new Object[]{ true }, batch);
+            assertRowSerial(cluster, "SELECT c, v, w FROM " + qualifiedAccordTableName + " WHERE k = 0", row(5, 1, null), row(20, null, 1));
+        });
+    }
+
+    @Test
+    public void testTxnSetStaticListElementOnMissingRow() throws Exception
+    {
+        test("CREATE TABLE " + qualifiedAccordTableName + " (k int, c int, sl list<int> static, v int, PRIMARY KEY (k, c)) WITH " + transactionalMode.asCqlParam(), cluster -> {
+            cluster.coordinator(1).execute("INSERT INTO " + qualifiedAccordTableName + " (k, sl) VALUES (0, [1, 2])", ConsistencyLevel.ALL);
+            cluster.coordinator(1).execute(wrapInTxn("UPDATE " + qualifiedAccordTableName + " SET sl[0] = 5, v = 1 WHERE k = 0 AND c = 1"), ConsistencyLevel.ALL);
+            assertRowSerial(cluster, "SELECT c, sl, v FROM " + qualifiedAccordTableName + " WHERE k = 0", row(1, Arrays.asList(5, 2), 1));
+        });
+    }
+
     // Reproduces some bugs that simulator finds
     @Test
     public void testCASSimulatorLite() throws Exception

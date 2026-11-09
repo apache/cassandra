@@ -346,7 +346,7 @@ The following features cannot be used within `BEGIN TRANSACTION ... COMMIT TRANS
 * **Aggregation functions** (COUNT, SUM, AVG, etc.)
 * **ORDER BY** and **GROUP BY** clauses
 * **Custom TTL** and **timestamp** specifications (transaction manages timestamps)
-* **Range DELETE** operations (must specify complete primary key)
+* **Range partition DELETE** operations
 * **Non-equality partition key** restrictions in LET/SELECT
 * **Individual statement conditions** (use transaction-level IF blocks instead)
 

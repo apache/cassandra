@@ -67,6 +67,9 @@ import static org.apache.cassandra.utils.CollectionSerializers.serializeCollecti
 import static org.apache.cassandra.utils.CollectionSerializers.serializeList;
 import static org.apache.cassandra.utils.CollectionSerializers.serializedCollectionSize;
 import static org.apache.cassandra.utils.CollectionSerializers.serializedListSize;
+import static org.apache.cassandra.utils.NullableSerializer.deserializeNullable;
+import static org.apache.cassandra.utils.NullableSerializer.serializeNullable;
+import static org.apache.cassandra.utils.NullableSerializer.serializedNullableSize;
 
 public abstract class TxnCondition
 {
@@ -274,14 +277,15 @@ public abstract class TxnCondition
     public static class Exists extends TxnCondition
     {
         private static final Set<Kind> KINDS = ImmutableSet.of(Kind.IS_NOT_NULL, Kind.IS_NULL);
-
         public final TxnReference reference;
+        public final Clustering<?> clustering;
 
-        public Exists(TxnReference reference, Kind kind)
+        public Exists(TxnReference reference, Clustering<?> clustering, Kind kind)
         {
             super(kind);
             Preconditions.checkArgument(KINDS.contains(kind), "Kind " + kind + " cannot be used with an existence condition");
             this.reference = reference;
+            this.clustering = clustering;
         }
 
         @Override
@@ -291,7 +295,7 @@ public abstract class TxnCondition
             if (o == null || getClass() != o.getClass()) return false;
             if (!super.equals(o)) return false;
             Exists exists = (Exists) o;
-            return reference.equals(exists.reference);
+            return reference.equals(exists.reference) && Objects.equals(clustering, exists.clustering);
         }
 
         @Override
@@ -303,13 +307,13 @@ public abstract class TxnCondition
         @Override
         public int hashCode()
         {
-            return Objects.hash(super.hashCode(), reference);
+            return Objects.hash(super.hashCode(), clustering, reference);
         }
 
         @Override
         public String toString()
         {
-            return reference.toString() + ' ' + kind.toString();
+            return reference.toString() + ' ' + (clustering == null ? kind.toString() : clustering.toString() + ' ' + kind.toString());
         }
 
         private boolean applies(FilteredPartition partition, boolean exists, TxnReference.ColumnReference ref)
@@ -413,7 +417,11 @@ public abstract class TxnCondition
         public boolean applies(TxnData data)
         {
             FilteredPartition partition = reference.getPartition(data);
-            boolean exists = partition != null && !partition.isEmpty();
+            boolean partitionExists = partition != null && !partition.isEmpty();
+
+            boolean exists = partitionExists;
+            if (partitionExists && clustering != null)
+                exists = partition.getRow(clustering) != null;
 
             if (reference.kind == TxnReference.Kind.COLUMN)
                 exists = applies(partition, exists, reference.asColumn());
@@ -440,18 +448,19 @@ public abstract class TxnCondition
             public void serialize(Exists condition, TableMetadatas tables, DataOutputPlus out) throws IOException
             {
                 TxnReference.serializer.serialize(condition.reference, tables, out);
+                serializeNullable(condition.clustering, out, clusteringSerializer);
             }
 
             @Override
             public Exists deserialize(TableMetadatas tables, DataInputPlus in, Kind kind) throws IOException
             {
-                return new Exists(TxnReference.serializer.deserialize(tables, in), kind);
+                return new Exists(TxnReference.serializer.deserialize(tables, in), deserializeNullable(in, clusteringSerializer), kind);
             }
 
             @Override
             public long serializedSize(Exists condition, TableMetadatas tables)
             {
-                return TxnReference.serializer.serializedSize(condition.reference, tables);
+                return TxnReference.serializer.serializedSize(condition.reference, tables) + serializedNullableSize(condition.clustering, clusteringSerializer);
             }
         };
     }
