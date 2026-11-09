@@ -154,6 +154,43 @@ public class Operation
             }
         }
 
+        // A non-strict read unions, rather than intersects, indexed columns' candidates. A predicate that fully
+        // covers its column's on-disk data matches every row, so demote it to a post-filter.
+        if (!queryController.usesStrictFiltering() && analyzed.keySet().size() > 1)
+        {
+            long indexedColumns = 0;
+            for (ColumnMetadata column : analyzed.keySet())
+                if (!analyzed.get(column).get(0).isNotIndexed())
+                    indexedColumns++;
+
+            for (ColumnMetadata column : analyzed.keySet())
+            {
+                // Demoting a primary key column would desync it from the analyzed set.
+                if (column.isPrimaryKeyColumn())
+                    continue;
+
+                List<Expression> columnExpressions = analyzed.get(column);
+                Expression expression = columnExpressions.get(0);
+                if (columnExpressions.size() != 1 || expression.isNotIndexed())
+                    continue;
+
+                // Leave at least one indexed column to drive the search...
+                if (indexedColumns <= 1)
+                    break;
+
+                if (expression.matchesEntireOnDiskRange())
+                {
+                    columnExpressions.set(0, expression.toUnindexed());
+                    indexedColumns--;
+
+                    if (unindexedColumns.isEmpty())
+                        unindexedColumns = new HashSet<>((int) indexedColumns);
+
+                    unindexedColumns.add(column);
+                }
+            }
+        }
+
         return new Expressions(analyzed, unindexedColumns);
     }
 
@@ -171,7 +208,7 @@ public class Operation
         else
         {
             Expression range;
-            if (perColumn.size() == 0)
+            if (perColumn.isEmpty())
             {
                 range = Expression.create(indexTermType);
                 perColumn.add(range);
@@ -207,7 +244,7 @@ public class Operation
                 // not-equals is combined with the range iff operator is AND.
                 {
                     Expression range;
-                    if (perColumn.size() == 0)
+                    if (perColumn.isEmpty())
                     {
                         range = Expression.create(index);
                         perColumn.add(range);
@@ -245,7 +282,7 @@ public class Operation
             else
             {
                 Expression range;
-                if (perColumn.size() == 0)
+                if (perColumn.isEmpty())
                 {
                     range = Expression.create(index);
                     perColumn.add(range);

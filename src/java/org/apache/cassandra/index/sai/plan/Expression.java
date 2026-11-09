@@ -29,6 +29,7 @@ import org.apache.cassandra.cql3.Operator;
 import org.apache.cassandra.index.sai.StorageAttachedIndex;
 import org.apache.cassandra.index.sai.analyzer.AbstractAnalyzer;
 import org.apache.cassandra.index.sai.utils.IndexTermType;
+import org.apache.cassandra.index.sai.view.View;
 
 /**
  * An {@link Expression} is an internal representation of an index query operation. They are built from
@@ -73,6 +74,41 @@ public abstract class Expression
     public static boolean supportsOperator(Operator operator)
     {
         return IndexOperator.valueOf(operator) != null;
+    }
+
+    public Expression toUnindexed()
+    {
+        Expression unindexed = create(indexTermType);
+        unindexed.lower = lower;
+        unindexed.upper = upper;
+        unindexed.operator = operator;
+        unindexed.lowerInclusive = lowerInclusive;
+        unindexed.upperInclusive = upperInclusive;
+        return unindexed;
+    }
+
+    /**
+     * @return {@code true} if this expression matches all rows in the backing index's on-disk data
+     */
+    public boolean matchesEntireOnDiskRange()
+    {
+        if (indexTermType.columnMetadata().isPrimaryKeyColumn())
+            throw new UnsupportedOperationException("matchesEntireOnDiskRange() does not support primary key columns");
+
+        if (operator.isEquality() || indexTermType.isLiteral() || indexTermType.isVector())
+            return false;
+
+        View view = getIndex().view();
+        ByteBuffer min = view.min();
+        ByteBuffer max = view.max();
+
+        // Nothing indexed on disk yet...
+        if (min == null)
+            return false;
+
+        boolean lowerContained = lower == null || indexTermType.indexType().compare(lower.value.raw, min) <= 0;
+        boolean upperContained = upper == null || indexTermType.indexType().compare(upper.value.raw, max) >= 0;
+        return lowerContained && upperContained;
     }
 
     public enum IndexOperator
