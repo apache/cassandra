@@ -46,6 +46,7 @@ import org.slf4j.LoggerFactory;
 import accord.utils.Invariants;
 
 import org.apache.cassandra.concurrent.Stage;
+import org.apache.cassandra.config.CassandraRelevantProperties;
 import org.apache.cassandra.config.Config;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.config.DurationSpec;
@@ -553,6 +554,13 @@ public class MutationJournal
      */
     public void replayStaticSegments()
     {
+        final boolean skipReplayToMemtable = CassandraRelevantProperties.MUTATION_JOURNAL_SKIP_REPLAY_TO_MEMTABLE.getBoolean();
+        if (skipReplayToMemtable)
+        {
+            logger.warn("Replay bypass enabled via {}: skipping mutation application to memtables while registering IDs with tracking service",
+                        CassandraRelevantProperties.MUTATION_JOURNAL_SKIP_REPLAY_TO_MEMTABLE.getKey());
+        }
+
         final Map<TableId, ImmutableCoordinatorLogOffsets> liveSSTableOffsets = new ConcurrentHashMap<>();
 
         replay(new DeserializedRecordConsumer<>(MutationSerializer.INSTANCE)
@@ -583,6 +591,12 @@ public class MutationJournal
                     return;
 
                 MutationTrackingService mts = MutationTrackingService.instance();
+
+                if (skipReplayToMemtable)
+                {
+                    mts.recordWriteForReplay(value);
+                    return;
+                }
 
                 // TODO: if (commitLogReplayer.pointInTimeExceeded(mutation))
                 final Keyspace keyspace = Keyspace.open(value.getKeyspaceName());
@@ -643,9 +657,16 @@ public class MutationJournal
         {
             if (segment.isStatic() && segment.metadata().needsReplay())
             {
-                SegmentStateTracker tracker = segmentStateTrackers.get(segment.id());
-                if (tracker == null || tracker.removeCleanFromDirty())
+                if (skipReplayToMemtable)
+                {
                     pendingClearReplay.add(segment.id());
+                }
+                else
+                {
+                    SegmentStateTracker tracker = segmentStateTrackers.get(segment.id());
+                    if (tracker == null || tracker.removeCleanFromDirty())
+                        pendingClearReplay.add(segment.id());
+                }
             }
         }
     }
@@ -1254,6 +1275,12 @@ public class MutationJournal
     public int countStaticSegmentsForTesting()
     {
         return journal.countStaticSegments();
+    }
+
+    @VisibleForTesting
+    public Collection<Segment<ShortMutationId, Mutation>> getAllSegmentsForTesting()
+    {
+        return journal.getAllSegments();
     }
 
     /**

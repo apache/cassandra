@@ -48,6 +48,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import org.apache.cassandra.concurrent.ScheduledExecutorPlus;
+import org.apache.cassandra.config.CassandraRelevantProperties;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.config.DurationSpec;
 import org.apache.cassandra.config.MutationTrackingSpec;
@@ -377,7 +378,7 @@ public class MutationTrackingService implements MutationTrackingServiceMBean
         // attempt to persist offsets and mark segments as not needing replay one last time before shutdown, then
         // reclaim any now-droppable segments synchronously (the executor is stopped, so scheduled attempts from
         // drainCleanup would never run).
-        if (isStarted() && !offsetsPersister.isBlocked())
+        if (isStarted())
         {
             offsetsPersister.persistAndDrain();
             MutationJournal.instance().drainBlocking();
@@ -2017,8 +2018,7 @@ public class MutationTrackingService implements MutationTrackingServiceMBean
         // private static final long PERSIST_INTERVAL_MILLIS = 60_000;
         private static final long PERSIST_INTERVAL_MILLIS = 1_000;
 
-        private volatile boolean isPaused = false;
-        private volatile boolean isBlocked = false;
+        private volatile boolean isPaused = CassandraRelevantProperties.TEST_MUTATION_TRACKING_PAUSE_PERSISTER.getBoolean();
 
         void start()
         {
@@ -2030,30 +2030,16 @@ public class MutationTrackingService implements MutationTrackingServiceMBean
             isPaused = pause;
         }
 
-        void blockForTesting(boolean block)
-        {
-            isBlocked = block;
-            isPaused = block;
-        }
-
-        boolean isBlocked()
-        {
-            return isBlocked;
-        }
-
         @Override
         public void run()
         {
-            if (isPaused || isBlocked)
+            if (isPaused)
                 return;
             persistAndDrain();
         }
 
         void persistAndDrain()
         {
-            if (isBlocked)
-                return;
-
             MutationJournal.PendingClearReplay toDrain = MutationJournal.instance().snapshotPendingClearReplay();
 
             boolean writesOk;
@@ -2120,12 +2106,6 @@ public class MutationTrackingService implements MutationTrackingServiceMBean
     public void pauseOffsetsPersisterForTesting()
     {
         offsetsPersister.pauseForTesting(true);
-    }
-
-    @VisibleForTesting
-    public void blockLogMetadataPersistenceForTesting(boolean block)
-    {
-        offsetsPersister.blockForTesting(block);
     }
 
     @VisibleForTesting
