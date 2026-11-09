@@ -296,12 +296,12 @@ public class CompactionsTest
         compactionOptions.put("unchecked_tombstone_compaction", "true");
         SchemaTestUtil.announceTableUpdate(store.metadata().unbuild().gcGraceSeconds(1).compaction(CompactionParams.stcs(compactionOptions)).build());
 
-        //submit background task again and wait for it to complete
+        Set<SSTableReader> originalSSTables = new HashSet<>(store.getLiveSSTables());
+
         FBUtilities.waitOnFutures(CompactionManager.instance.submitBackground(store));
-        do
-        {
-            TimeUnit.SECONDS.sleep(1);
-        } while (CompactionManager.instance.getPendingTasks() > 0 || CompactionManager.instance.getActiveCompactions() > 0);
+
+        // Ensure that both SSTables have been tombstone compacted since we now have enabled unchecked_tombstone_compaction
+        Util.spinUntilTrue(() -> Collections.disjoint(originalSSTables, store.getLiveSSTables()), 30);
 
         //we still have 2 sstables, since they were not compacted against each other
         assertEquals(2, store.getLiveSSTables().size());
