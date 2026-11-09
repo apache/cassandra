@@ -65,7 +65,7 @@ public class BounceGossipTest extends TestBaseImpl
     {
         Generator<SchemaSpec> schemaGen = SchemaGenerators.schemaSpecGen("bounce_gossip_test", "bounce_test", 1000);
         try (Cluster cluster = init(builder().withNodes(3)
-                                             .withConfig(config -> config.set("mutation_tracking.enabled", false).with(NETWORK, GOSSIP)
+                                             .withConfig(config -> config.with(NETWORK, GOSSIP)
                                                                          .set(Constants.KEY_DTEST_FULL_STARTUP, true))
                                              .start()))
         {

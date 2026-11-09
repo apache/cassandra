@@ -60,6 +60,11 @@ public abstract class GossipExpiryTestBase extends TestBaseImpl
 
     abstract void doRemoval(Cluster cluster, IInvokableInstance toRemove);
 
+    boolean disableMutationTracking()
+    {
+        return false;
+    }
+
     @Test
     public void testExpiryOfLeftStateWithoutQuarantine() throws IOException
     {
@@ -92,9 +97,12 @@ public abstract class GossipExpiryTestBase extends TestBaseImpl
         try (WithProperties ignored = new WithProperties().set(VERY_LONG_TIME_MS, 11000);
              Cluster cluster = builder().withNodes(5)
                                         .withInstanceInitializer(GossipExpiryTestBase.BB::install)
-                                        .withConfig(config -> config.with(NETWORK, GOSSIP)
-                                                                    .set("mutation_tracking.enabled", false)
-                                                                    .set("gossip_quarantine_disabled", withQuarantineDisabled))
+                                        .withConfig(config -> {
+                                            config.with(NETWORK, GOSSIP)
+                                                  .set("gossip_quarantine_disabled", withQuarantineDisabled);
+                                            if (disableMutationTracking())
+                                                config.set("mutation_tracking.enabled", false);
+                                        })
                                         .start())
         {
             cluster.forEach(i -> i.runOnInstance(() -> BB.injectDelay.set(true)));

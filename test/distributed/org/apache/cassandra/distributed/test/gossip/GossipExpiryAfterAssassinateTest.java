@@ -25,6 +25,13 @@ import org.apache.cassandra.distributed.api.IInvokableInstance;
 
 public class GossipExpiryAfterAssassinateTest extends GossipExpiryTestBase
 {
+    // assassinate is rejected while mutation tracking is enabled
+    @Override
+    boolean disableMutationTracking()
+    {
+        return true;
+    }
+
     @Override
     void doRemoval(Cluster cluster, IInvokableInstance toRemove)
     {
