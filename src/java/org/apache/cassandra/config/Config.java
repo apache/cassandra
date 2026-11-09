@@ -799,13 +799,24 @@ public class Config
      *
      * block_for_peers_timeout_in_secs: controls how long this node will wait to connect to peers. To completely disable
      * any startup connectivity checks set this to -1. To trigger the internode connections but immediately continue
-     * startup, set this to to 0. The default is 10 seconds.
+     * startup, set this to 0. The default is 10 seconds.
      *
      * block_for_peers_in_remote_dcs: controls if this node will consider remote datacenters to wait for. The default
      * is to _not_ wait on remote datacenters.
      */
     public int block_for_peers_timeout_in_secs = 10;
     public boolean block_for_peers_in_remote_dcs = false;
+
+    /**
+     * Maximum number of outbound internode TCP connections this Cassandra instance will
+     * initiate per second, across all peers (messaging and streaming). Every attempt counts,
+     * including reconnects, SSL fallback attempts, and messaging-version retries.
+     * Connections over the limit are delayed, not rejected. The startup wait
+     * (block_for_peers_timeout_in_secs) is extended automatically to account for the delay.
+     * Can be changed at runtime via JMX (StorageService). Set to 0 or less to disable.
+     * Default is 0 (disabled).
+     */
+    public volatile int internode_max_outbound_connections_per_second = 0;
 
     public volatile boolean automatic_sstable_upgrade = false;
     public volatile int max_concurrent_automatic_sstable_upgrades = 1;

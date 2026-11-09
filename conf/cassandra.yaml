@@ -1428,6 +1428,15 @@ request_timeout: 10000ms
 # Min unit: ms
 # internode_tcp_user_timeout: 30000ms
 
+# Maximum number of outbound internode TCP connections this Cassandra instance will
+# initiate per second, across all peers (messaging and streaming). Every attempt counts,
+# including reconnects, SSL fallback attempts and messaging-version retries.
+# Connections over the limit are delayed, not rejected. The startup wait
+# (block_for_peers_timeout_in_secs) is extended automatically to account for the delay.
+# Can be changed at runtime via JMX (StorageService). Set to 0 or less to disable.
+# Default is 0 (disabled).
+# internode_max_outbound_connections_per_second: 0
+
 # The amount of time unacknowledged data is allowed on a streaming connection.
 # The default is 5 minutes. Increase it or set it to 0 in order to increase the timeout.
 # Min unit: ms

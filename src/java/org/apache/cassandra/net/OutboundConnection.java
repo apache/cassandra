@@ -42,7 +42,6 @@ import org.apache.cassandra.io.util.DataOutputBufferFixed;
 import org.apache.cassandra.net.OutboundConnectionInitiator.Result.MessagingSuccess;
 import org.apache.cassandra.service.accord.debug.AccordRemoteTracing;
 import org.apache.cassandra.tracing.Tracing;
-import org.apache.cassandra.utils.Clock;
 import org.apache.cassandra.utils.FBUtilities;
 import org.apache.cassandra.utils.JVMStabilityInspector;
 import org.apache.cassandra.utils.NoSpamLogger;
@@ -79,6 +78,7 @@ import static org.apache.cassandra.net.ResourceLimits.Outcome.SUCCESS;
 import static org.apache.cassandra.net.SocketFactory.encryptionConnectionSummary;
 import static org.apache.cassandra.net.SocketFactory.isCausedByConnectionReset;
 import static org.apache.cassandra.net.SocketFactory.isConnectionReset;
+import static org.apache.cassandra.utils.Clock.Global.nanoTime;
 import static org.apache.cassandra.utils.FBUtilities.prettyPrintMemory;
 import static org.apache.cassandra.utils.MonotonicClock.Global.approxTime;
 import static org.apache.cassandra.utils.Throwables.isCausedBy;
@@ -488,7 +488,7 @@ public class OutboundConnection
         if (logger.isTraceEnabled())
             logger.trace("{} dropping message of type {} with payload {} whose timeout ({}ms) expired before reaching the network. {}ms elapsed after expiration. {}ms since creation.",
                          id(), message.verb(), message.payload, DatabaseDescriptor.getRpcTimeout(MILLISECONDS),
-                         NANOSECONDS.toMillis(Clock.Global.nanoTime() - message.expiresAtNanos()),
+                         NANOSECONDS.toMillis(nanoTime() - message.expiresAtNanos()),
                          message.elapsedSinceCreated(MILLISECONDS));
         else
             noSpamLogger.warn("{} dropping message of type {} whose timeout expired before reaching the network", id(), message.verb());
@@ -1102,6 +1102,7 @@ public class OutboundConnection
             // our connection settings, possibly updated on retry
             int messagingVersion = template.endpointToVersion().get(template.to);
             OutboundConnectionSettings settings;
+            long attemptStartNanos;
 
             /**
              * If we failed for any reason, try again
@@ -1168,11 +1169,12 @@ public class OutboundConnection
                         });
                         ++successfulConnections;
 
-                        logger.info("{} successfully connected, version = {}, framing = {}, encryption = {}",
-                                    id(true),
+                        logger.info("{} successfully connected, version = {}, framing = {}, encryption = {}, connection time = {}ms (attempt {})",                                    id(true),
                                     success.messagingVersion,
                                     settings.framing,
-                                    encryptionConnectionSummary(channel));
+                                    encryptionConnectionSummary(channel),
+                                    NANOSECONDS.toMillis(nanoTime() - attemptStartNanos),
+                                    connectionAttempts);
                         break;
 
                     case RETRY:
@@ -1210,6 +1212,7 @@ public class OutboundConnection
             private void attempt(Promise<Result<MessagingSuccess>> result, boolean sslFallbackEnabled)
             {
                 ++connectionAttempts;
+                attemptStartNanos = nanoTime();
 
                 /*
                  * Re-evaluate messagingVersion before re-attempting the connection in case

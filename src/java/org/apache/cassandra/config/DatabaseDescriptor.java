@@ -5240,6 +5240,16 @@ public class DatabaseDescriptor
         return conf.block_for_peers_timeout_in_secs;
     }
 
+    public static int getInternodeMaxOutboundConnectionsPerSecond()
+    {
+        return conf.internode_max_outbound_connections_per_second;
+    }
+
+    public static void setInternodeMaxOutboundConnectionsPerSecond(int value)
+    {
+        conf.internode_max_outbound_connections_per_second = value;
+    }
+
     public static boolean automaticSSTableUpgrade()
     {
         return conf.automatic_sstable_upgrade;
