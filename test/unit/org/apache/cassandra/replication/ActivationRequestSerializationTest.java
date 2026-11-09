@@ -104,7 +104,7 @@ public class ActivationRequestSerializationTest extends CassandraTestBase
             ActivationRequest.serializer.serialize(activation, output, Version.V1);
             org.apache.cassandra.io.util.DataInputBuffer in = new org.apache.cassandra.io.util.DataInputBuffer(output.buffer(), false);
             ActivationRequest deserialized = ActivationRequest.serializer.deserialize(in, Version.V1);
-            org.junit.Assert.assertEquals(0L, deserialized.sinceEpoch);
+            org.junit.Assert.assertNull(deserialized.sinceEpoch);
             org.junit.Assert.assertEquals(activation.keyspace, deserialized.keyspace);
             org.junit.Assert.assertEquals(activation.range, deserialized.range);
         }

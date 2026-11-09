@@ -61,7 +61,11 @@ public class ActivationRequest
     public final ShortMutationId transferId;
     public final NodeId coordinatorId;
     public final String keyspace;
-    public final long sinceEpoch;
+    /*
+     * TODO (expected): once V1 no longer needs to be supported,
+     *  make sinceEpoch a @Nonnull primitive long
+     */
+    @Nullable public final Long sinceEpoch;
     public final Range<Token> range;
 
     @Nullable
@@ -103,6 +107,19 @@ public class ActivationRequest
                              long sinceEpoch,
                              String keyspace,
                              TimeUUID planId)
+    {
+        this(operation, pair, phase, transferId, coordinatorId, range, (Long) sinceEpoch, keyspace, planId);
+    }
+
+    private ActivationRequest(StreamOperation operation,
+                              Pair<InetAddressAndPort, InetAddressAndPort> pair,
+                              Phase phase,
+                              ShortMutationId transferId,
+                              NodeId coordinatorId,
+                              Range<Token> range,
+                              @Nullable Long sinceEpoch,
+                              String keyspace,
+                              TimeUUID planId)
     {
         Preconditions.checkArgument(operation.isTrackable(), "Operation " + operation.getDescription() + " is not trackable");
         Preconditions.checkNotNull(pair, "Activations require an address pair");
@@ -172,7 +189,7 @@ public class ActivationRequest
             NodeId coordinatorId = NodeId.messagingSerializer.deserialize(in, version.messagingVersion());
             Phase phase = Phase.from(in.readByte());
             String keyspace = in.readUTF();
-            long sinceEpoch = version.isAtLeast(Version.V2) ? in.readLong() : 0L;
+            Long sinceEpoch = version.isAtLeast(Version.V2) ? in.readLong() : null; // V1 compatibility
             Range<Token> range = Range.serializer.deserialize(in, null);
             TimeUUID planId = TimeUUID.Serializer.nullable.deserialize(in);
 
@@ -253,7 +270,7 @@ public class ActivationRequest
                Objects.equals(transferId, that.transferId) &&
                Objects.equals(coordinatorId, that.coordinatorId) &&
                Objects.equals(keyspace, that.keyspace) &&
-               sinceEpoch == that.sinceEpoch &&
+               Objects.equals(sinceEpoch, that.sinceEpoch) &&
                Objects.equals(range, that.range) &&
                Objects.equals(planId, that.planId);
     }

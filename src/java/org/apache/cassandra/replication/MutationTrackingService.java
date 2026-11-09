@@ -765,7 +765,13 @@ public class MutationTrackingService implements MutationTrackingServiceMBean
         try
         {
             if (committed)
-                keyspaceShards.get(keyspace).lookUpForActivation(request.range, request.sinceEpoch).finishActivation(bounds, request);
+            {
+                KeyspaceShards shards = keyspaceShards.get(keyspace);
+                Shard shard = request.sinceEpoch == null
+                            ? shards.lookUpForActivation(request.range) // V1 compatibility
+                            : shards.lookUpForActivation(request.range, request.sinceEpoch);
+                shard.finishActivation(bounds, request);
+            }
         }
         finally
         {
@@ -1660,6 +1666,25 @@ public class MutationTrackingService implements MutationTrackingServiceMBean
                 if (found != null)
                     throw new IllegalStateException(format("Ambiguous shard lookup for keyspace %s, epoch %d, range %s: [%s, %s]",
                                                           keyspace, sinceEpoch, range, found, shard));
+                return shard;
+            }, null);
+
+            if (match == null)
+                throw new UnknownShardException(range, keyspace);
+
+            return match;
+        }
+
+        // TODO (expected): get rid of once V1 is no longer supported
+        @Nonnull
+        private Shard lookUpForActivation(Range<Token> range)
+        {
+            Shard match = shards.foldIntersecting(range, (shard, found) -> {
+                if (!shard.range.contains(range))
+                    return found;
+                if (found != null)
+                    throw new IllegalStateException(format("Ambiguous shard lookup for keyspace %s, range %s: [%s, %s]",
+                                                           keyspace, range, found, shard));
                 return shard;
             }, null);
 
