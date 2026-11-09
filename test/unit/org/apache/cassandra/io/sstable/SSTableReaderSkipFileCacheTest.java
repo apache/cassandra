@@ -57,7 +57,7 @@ public class SSTableReaderSkipFileCacheTest extends CQLTester
     @Test
     public void testTrySkipFileCacheBefore() throws Throwable
     {
-        createTable("CREATE TABLE %s (k int PRIMARY KEY, v text)");
+        createTable("CREATE TABLE %s (k int PRIMARY KEY, v text) WITH compression = {'class': 'LZ4Compressor'}");
         for (int i = 0; i < 1000; i++)
             execute("INSERT INTO %s (k, v) VALUES (?, ?)", i, "x".repeat(100));
         flush();

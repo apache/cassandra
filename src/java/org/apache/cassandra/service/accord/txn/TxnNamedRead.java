@@ -306,8 +306,9 @@ public class TxnNamedRead extends AbstractParameterisedVersionedSerialized<ReadC
                         try (RowIterator row = iterator.next())
                         {
                             TxnDataKeyValue value = new TxnDataKeyValue(row);
+                            TxnData.TxnDataNameKind kind = TxnData.txnDataNameKind(name);
                             // We need to put the value of the static row
-                            if (value.hasRows() || command.selectsFullPartition() || (!value.staticRow().isEmpty() && ((TxnData.txnDataNameKind(name) == CAS_READ || TxnData.txnDataNameKind(name) == AUTO_READ))))
+                            if (value.hasRows() || command.selectsFullPartition() || (!value.staticRow().isEmpty() && (kind == CAS_READ || kind == AUTO_READ)))
                                 result.put(name, value);
                         }
                     }

@@ -20,7 +20,6 @@ package org.apache.cassandra.service.accord.txn;
 
 import java.io.IOException;
 import java.util.ArrayList;
-import java.util.Comparator;
 import java.util.List;
 
 import javax.annotation.Nonnull;
@@ -83,7 +82,6 @@ public class TxnRead extends AbstractKeySorted<TxnNamedRead> implements Read
     private static final TxnRead EMPTY_KEY = new TxnRead(TableMetadatas.none(), Domain.Key);
     private static final TxnRead EMPTY_RANGE = new TxnRead(TableMetadatas.none(), Domain.Range);
     private static final long EMPTY_SIZE = ObjectSizes.measure(EMPTY_KEY);
-    private static final Comparator<TxnNamedRead> TXN_NAMED_READ_KEY_COMPARATOR = Comparator.comparing(a -> ((PartitionKey) a.key()));
     private static final byte TYPE_EMPTY_KEY = 0;
     private static final byte TYPE_EMPTY_RANGE = 1;
     private static final byte TYPE_NOT_EMPTY = 2;
