@@ -45,6 +45,7 @@ public class ColumnFamilyStoreMBeansTest extends TestBaseImpl
         CLUSTER.schemaChange(withKeyspace("DROP KEYSPACE %s"));
         CLUSTER.schemaChange(withKeyspace("CREATE KEYSPACE %s WITH replication = {'class': 'SimpleStrategy', 'replication_factor': 1}"));
         CLUSTER.schemaChange(withKeyspace("CREATE TABLE %s.cf (k text, c1 text, c2 text, PRIMARY KEY (k)) WITH compaction = {'class': 'UnifiedCompactionStrategy', 'scaling_parameters': 'L10'}"));
+        disableCompaction(CLUSTER, KEYSPACE, "cf");
 
         for (int i = 0; i < 10000; i++)
             CLUSTER.get(1).executeInternal(withKeyspace("INSERT INTO %s.cf (k, c1, c2) VALUES (?, 'value1', 'value2');"), Integer.toString(i));
