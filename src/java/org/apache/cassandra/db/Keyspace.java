@@ -41,6 +41,7 @@ import org.slf4j.LoggerFactory;
 import org.apache.cassandra.concurrent.Stage;
 import org.apache.cassandra.config.CassandraRelevantProperties;
 import org.apache.cassandra.config.DatabaseDescriptor;
+import org.apache.cassandra.db.commitlog.CommitLog;
 import org.apache.cassandra.db.lifecycle.SSTableSet;
 import org.apache.cassandra.db.partitions.PartitionUpdate;
 import org.apache.cassandra.db.repair.CassandraKeyspaceRepairManager;
@@ -310,14 +311,25 @@ public class Keyspace
     }
 
     // best invoked on the compaction manager.
-    public void dropCf(TableId tableId, boolean dropData)
+    public void removeAndUnloadColumnFamilyStores(Collection<TableId> tableIds, boolean dropData)
     {
-        ColumnFamilyStore cfs = columnFamilyStores.remove(tableId);
-        if (cfs == null)
+        Set<ColumnFamilyStore> cfss = new HashSet<>();
+        for (TableId tableId : tableIds)
+        {
+            ColumnFamilyStore cfs = columnFamilyStores.remove(tableId);
+            if (cfs != null)
+            {
+                cfss.add(cfs);
+                cfs.onTableDroppedPreCommitlogSegmentRecycling();
+            }
+        }
+        if (cfss.isEmpty())
             return;
-
-        cfs.onTableDropped();
-        unloadCf(cfs, dropData);
+        CommitLog.instance.forceRecycleAllSegments(tableIds);
+        cfss.forEach((cfs) -> {
+            cfs.onTableDroppedPostCommitlogSegmentRecycling();
+            unloadCf(cfs, dropData);
+        });
     }
 
     /**

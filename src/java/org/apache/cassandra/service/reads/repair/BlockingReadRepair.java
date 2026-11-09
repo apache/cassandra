@@ -132,7 +132,7 @@ public class BlockingReadRepair<E extends Endpoints<E>, P extends ReplicaPlan.Fo
             return -1;
         }
 
-        ForWrite repairPlan();
+        void checkPlacements(ClusterMetadata metadata);
     }
 
     BlockingReadRepair(ReadCoordinator coordinator, ReadCommand command, ReplicaPlan.Shared<E, P> replicaPlan, Dispatcher.RequestTime requestTime)
@@ -165,8 +165,9 @@ public class BlockingReadRepair<E extends Endpoints<E>, P extends ReplicaPlan.Fo
     public void awaitWrites()
     {
         PendingPartitionRepair timedOut = null;
-        ReplicaPlan.ForWrite repairPlan = null;
 
+        if (repairs.isEmpty())
+            return;
         for (PendingPartitionRepair repair : repairs)
         {
             long deadline = requestTime.computeDeadline(DatabaseDescriptor.getReadRpcTimeout(NANOSECONDS));
@@ -176,7 +177,6 @@ public class BlockingReadRepair<E extends Endpoints<E>, P extends ReplicaPlan.Fo
                 timedOut = repair;
                 break;
             }
-            repairPlan = repair.repairPlan();
         }
         if (timedOut != null)
         {
@@ -192,8 +192,9 @@ public class BlockingReadRepair<E extends Endpoints<E>, P extends ReplicaPlan.Fo
             throw new ReadTimeoutException(replicaPlan().consistencyLevel(), received, blockFor, true);
         }
 
-        if (repairs.isEmpty() || repairPlan.stillAppliesTo(ClusterMetadata.current()))
-            return;
+        ClusterMetadata metadata = ClusterMetadata.current();
+        for (PendingPartitionRepair repair : repairs)
+            repair.checkPlacements(metadata);
     }
 
     @Override
@@ -262,16 +263,12 @@ public class BlockingReadRepair<E extends Endpoints<E>, P extends ReplicaPlan.Fo
                 }
                 catch (TimeoutException e)
                 {
-
                     return false;
                 }
             }
 
             @Override
-            public ForWrite repairPlan()
-            {
-                return writePlan;
-            }
+            public void checkPlacements(ClusterMetadata metadata) {}
         });
     }
 
