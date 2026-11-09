@@ -30,6 +30,7 @@ import org.junit.BeforeClass;
 import org.junit.Test;
 
 import org.apache.cassandra.SchemaLoader;
+import org.apache.cassandra.config.CassandraRelevantProperties;
 import org.apache.cassandra.config.DataStorageSpec;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.db.ColumnFamilyStore;
@@ -454,6 +455,71 @@ public class MutationJournalReplayTest
         {
             DatabaseDescriptor.getMutationTrackingConfig().journal_reclaim_threshold = originalThreshold;
             testJournal.shutdownBlocking();
+        }
+    }
+
+    @Test
+    public void replayBypassSkipsMemtableApplicationAndQueuesPendingClear() throws IOException
+    {
+        File directory = new File(Files.createTempDirectory("mutation-journal-bypass-replay-test"));
+        directory.deleteRecursiveOnExit();
+
+        MutationJournal testJournal = new MutationJournal(directory, TestParams.MUTATION_JOURNAL);
+        testJournal.startInternal();
+
+        TableMetadata table = TABLES[0];
+        MutationId id = new MutationId(400L, 1, 1);
+        Mutation mut = mutation(0, 1).withMutationId(id);
+        testJournal.write(id, mut);
+        testJournal.closeCurrentSegmentForTestingIfNonEmpty();
+
+        Segment<ShortMutationId, Mutation> staticSegment = null;
+        for (Segment<ShortMutationId, Mutation> seg : testJournal.getAllSegments())
+        {
+            if (seg.isStatic())
+            {
+                staticSegment = seg;
+                break;
+            }
+        }
+        Assert.assertNotNull(staticSegment);
+        Assert.assertTrue(staticSegment.metadata().needsReplay());
+        long staticSegId = staticSegment.id();
+
+        testJournal.shutdownBlocking();
+
+        // Ensure table memtable is clean before replay
+        ColumnFamilyStore cfs = Schema.instance.getColumnFamilyStoreInstance(table.id);
+        cfs.forceBlockingFlush(ColumnFamilyStore.FlushReason.USER_FORCED);
+        long memtableOpsBefore = cfs.getTracker().getView().getCurrentMemtable().operationCount();
+
+        String prevBypass = CassandraRelevantProperties.MUTATION_JOURNAL_SKIP_REPLAY_TO_MEMTABLE.getString();
+        CassandraRelevantProperties.MUTATION_JOURNAL_SKIP_REPLAY_TO_MEMTABLE.setString("true");
+
+        MutationJournal startupJournal = new MutationJournal(directory, TestParams.MUTATION_JOURNAL);
+        startupJournal.startInternal();
+        try
+        {
+            startupJournal.replayStaticSegments();
+
+            // Memtable was not updated
+            long memtableOpsAfter = cfs.getTracker().getView().getCurrentMemtable().operationCount();
+            Assert.assertEquals("Memtable should not receive writes when replay is bypassed",
+                                memtableOpsBefore, memtableOpsAfter);
+
+            // Static segment should be queued into pendingClearReplay, but needsReplay is not cleared synchronously
+            Assert.assertTrue("Segment should be queued into pendingClearReplay",
+                              startupJournal.pendingCleanupForTesting().contains(staticSegId));
+            Assert.assertTrue("Segment needsReplay flag should not be cleared synchronously before drain",
+                              staticSegment.metadata().needsReplay());
+        }
+        finally
+        {
+            if (prevBypass != null)
+                CassandraRelevantProperties.MUTATION_JOURNAL_SKIP_REPLAY_TO_MEMTABLE.setString(prevBypass);
+            else
+                System.clearProperty(CassandraRelevantProperties.MUTATION_JOURNAL_SKIP_REPLAY_TO_MEMTABLE.getKey());
+            startupJournal.shutdownBlocking();
         }
     }
 

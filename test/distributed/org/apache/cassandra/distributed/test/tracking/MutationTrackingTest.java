@@ -18,25 +18,44 @@
 
 package org.apache.cassandra.distributed.test.tracking;
 
+import java.util.HashSet;
+import java.util.List;
+import java.util.Map;
+import java.util.Set;
 import java.util.UUID;
+import java.util.concurrent.Callable;
 import java.util.concurrent.TimeUnit;
 
 import org.junit.Assert;
 import org.junit.Ignore;
 import org.junit.Test;
 
+import net.bytebuddy.ByteBuddy;
+import net.bytebuddy.dynamic.loading.ClassLoadingStrategy;
+import net.bytebuddy.implementation.MethodDelegation;
+import net.bytebuddy.implementation.bind.annotation.SuperCall;
 import org.apache.cassandra.Util;
+import org.apache.cassandra.config.CassandraRelevantProperties;
+import org.apache.cassandra.cql3.QueryProcessor;
+import org.apache.cassandra.cql3.UntypedResultSet;
 import org.apache.cassandra.db.ColumnFamilyStore;
 import org.apache.cassandra.db.DecoratedKey;
+import org.apache.cassandra.db.marshal.Int32Type;
+import org.apache.cassandra.db.marshal.ListType;
+import org.apache.cassandra.db.memtable.Memtable;
 import org.apache.cassandra.dht.Murmur3Partitioner;
 import org.apache.cassandra.distributed.Cluster;
+import org.apache.cassandra.distributed.action.GossipHelper;
 import org.apache.cassandra.distributed.api.ConsistencyLevel;
 import org.apache.cassandra.distributed.api.Feature;
 import org.apache.cassandra.distributed.api.IInvokableInstance;
 import org.apache.cassandra.distributed.shared.ClusterUtils;
+import org.apache.cassandra.distributed.shared.WithProperties;
 import org.apache.cassandra.distributed.test.TestBaseImpl;
 import org.apache.cassandra.gms.Gossiper;
 import org.apache.cassandra.hints.HintsService;
+import org.apache.cassandra.io.sstable.format.SSTableReader;
+import org.apache.cassandra.journal.Segment;
 import org.apache.cassandra.locator.InetAddressAndPort;
 import org.apache.cassandra.metrics.StorageMetrics;
 import org.apache.cassandra.net.Verb;
@@ -51,7 +70,10 @@ import org.apache.cassandra.schema.Schema;
 import org.apache.cassandra.schema.TableMetadata;
 import org.apache.cassandra.service.StorageService;
 import org.apache.cassandra.utils.ByteBufferUtil;
+import org.apache.cassandra.utils.Shared;
 
+import static net.bytebuddy.matcher.ElementMatchers.named;
+import static net.bytebuddy.matcher.ElementMatchers.takesArguments;
 import static org.apache.cassandra.distributed.test.tracking.MutationTrackingReadReconciliationTest.awaitNodeAlive;
 import static org.apache.cassandra.distributed.test.tracking.MutationTrackingReadReconciliationTest.awaitNodeDead;
 import static org.apache.cassandra.distributed.test.tracking.MutationTrackingUtils.assertMatchingSummaryIdSpaceForKey;
@@ -60,6 +82,7 @@ import static org.apache.cassandra.distributed.test.tracking.MutationTrackingUti
 import static org.apache.cassandra.distributed.test.tracking.MutationTrackingUtils.summaryForKey;
 import static org.apache.cassandra.distributed.test.tracking.MutationTrackingUtils.summaryIdSpace;
 import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertNotNull;
 import static org.junit.Assert.assertTrue;
 
@@ -857,4 +880,221 @@ public class MutationTrackingTest extends TestBaseImpl
             assertEquals(0, numLogReconciliations(cluster.get(3)));
         }
     }
+
+    @Shared
+    public static class BBState
+    {
+        public static volatile boolean skipMTSShutdown = false;
+
+        public static void reset()
+        {
+            skipMTSShutdown = false;
+        }
+    }
+
+    public static class BBInstaller
+    {
+        public static void install(ClassLoader cl, Integer num)
+        {
+            if (num == 1)
+            {
+                new ByteBuddy().rebase(MutationTrackingService.class)
+                               .method(named("shutdown").and(takesArguments(0)))
+                               .intercept(MethodDelegation.to(BBInterceptor.class))
+                               .make()
+                               .load(cl, ClassLoadingStrategy.Default.INJECTION);
+            }
+        }
+    }
+
+    public static class BBInterceptor
+    {
+        public static void shutdown(@SuperCall Callable<Void> zuper) throws Exception
+        {
+            if (BBState.skipMTSShutdown)
+                return;
+            zuper.call();
+        }
+    }
+
+    @Test
+    public void testReplayBypassEscapeHatch() throws Throwable
+    {
+        final int key = 1;
+        final int writes = 5;
+
+        BBState.reset();
+        try (Cluster cluster = Cluster.build(1)
+                                      .withConfig(cfg -> cfg.with(Feature.NETWORK).with(Feature.GOSSIP))
+                                      .withInstanceInitializer(BBInstaller::install)
+                                      .start())
+        {
+            // Pause log metadata persistence so offsets are not written to system.coordinator_logs
+            // in the background while the node is running.
+            cluster.get(1).runOnInstance(() -> MutationTrackingService.instance().pauseOffsetsPersisterForTesting());
+
+            cluster.schemaChange(withKeyspace("CREATE KEYSPACE %s WITH replication = " +
+                                              "{'class': 'SimpleStrategy', 'replication_factor': 1} " +
+                                              "AND replication_type='tracked';"));
+            cluster.schemaChange(withKeyspace("CREATE TABLE %s.tbl (k int PRIMARY KEY, v int);"));
+
+            for (int i = 0; i < writes; i++)
+                cluster.coordinator(1).execute(withKeyspace("INSERT INTO %s.tbl (k, v) VALUES (?, ?)"),
+                                                ConsistencyLevel.QUORUM, key, i);
+
+            String keyspaceName = KEYSPACE;
+            int preBounceOffsetCount = getOffsetCount(cluster.get(1), keyspaceName, key);
+            assertEquals("Pre-bounce witness count must equal write count", writes, preBounceOffsetCount);
+
+            // Flush data to SSTable and capture live SSTables
+            cluster.get(1).nodetoolResult("flush", KEYSPACE).asserts().success();
+            Set<String> preRestartSSTables = cluster.get(1).callOnInstance(() -> {
+                ColumnFamilyStore cfs = ColumnFamilyStore.getIfExists(KEYSPACE, "tbl");
+                assertNotNull(cfs);
+                Set<String> files = new HashSet<>();
+                for (SSTableReader sstable : cfs.getLiveSSTables())
+                    files.add(sstable.getFilename());
+                return files;
+            });
+            assertFalse("Flushed SSTables must not be empty", preRestartSSTables.isEmpty());
+
+            // Close active segment as static
+            cluster.get(1).runOnInstance(() -> MutationJournal.instance().closeCurrentSegmentForTestingIfNonEmpty());
+
+            // Confirm that offsets are NOT yet persisted to system.coordinator_logs and the static segment still needs replay
+            cluster.get(1).runOnInstance(() -> {
+                UntypedResultSet rows = QueryProcessor.executeInternal("SELECT * FROM system.coordinator_logs WHERE keyspace_name = ? ALLOW FILTERING", KEYSPACE);
+                boolean hasPersistedOffsets = false;
+                for (UntypedResultSet.Row row : rows)
+                {
+                    Map<Integer, List<Integer>> persisted = row.getFrozenMap("persisted_offsets", Int32Type.instance, ListType.getInstance(Int32Type.instance, false));
+                    if (persisted != null)
+                    {
+                        for (List<Integer> list : persisted.values())
+                        {
+                            if (!list.isEmpty())
+                                hasPersistedOffsets = true;
+                        }
+                    }
+                }
+                assertFalse("system.coordinator_logs must not contain persisted mutation offsets before restart", hasPersistedOffsets);
+
+                boolean foundNeedsReplay = false;
+                for (Segment<?, ?> segment : MutationJournal.instance().getAllSegmentsForTesting())
+                {
+                    if (segment.isStatic() && segment.metadata().needsReplay())
+                        foundNeedsReplay = true;
+                }
+                assertTrue("Static segment must still need replay before restart", foundNeedsReplay);
+            });
+
+            // Shutdown node without persisting offsets (simulate crash by skipping MTS shutdown hook)
+            BBState.skipMTSShutdown = true;
+            try
+            {
+                ClusterUtils.stopUnchecked(cluster.get(1));
+            }
+            finally
+            {
+                BBState.skipMTSShutdown = false;
+            }
+
+            // Restart node with skip_replay_to_memtable and persister pause enabled
+            try (WithProperties props = new WithProperties())
+            {
+                props.set(CassandraRelevantProperties.MUTATION_JOURNAL_SKIP_REPLAY_TO_MEMTABLE, true);
+                props.set(CassandraRelevantProperties.TEST_MUTATION_TRACKING_PAUSE_PERSISTER, true);
+                cluster.get(1).startup();
+            }
+            cluster.get(1).runOnInstance(() -> MutationTrackingService.instance().pauseOffsetsPersisterForTesting());
+
+            // 1. Confirm offsets were not loaded from system.coordinator_logs (mutation offsets were not persisted)
+            cluster.get(1).runOnInstance(() -> {
+                UntypedResultSet rows = QueryProcessor.executeInternal("SELECT * FROM system.coordinator_logs WHERE keyspace_name = ? ALLOW FILTERING", KEYSPACE);
+                boolean hasPersistedOffsets = false;
+                for (UntypedResultSet.Row row : rows)
+                {
+                    Map<Integer, List<Integer>> persisted = row.getFrozenMap("persisted_offsets", Int32Type.instance, ListType.getInstance(Int32Type.instance, false));
+                    if (persisted != null)
+                    {
+                        for (List<Integer> list : persisted.values())
+                        {
+                            if (!list.isEmpty())
+                                hasPersistedOffsets = true;
+                        }
+                    }
+                }
+                assertFalse("system.coordinator_logs must not contain persisted mutation offsets after restart", hasPersistedOffsets);
+            });
+
+            // 2. Witnessed state in MutationTrackingService matches pre-restart state (populated strictly via startWritingForReplay)
+            int postBounceOffsetCount = getOffsetCount(cluster.get(1), keyspaceName, key);
+            assertEquals("Witness count must match pre-restart count", preBounceOffsetCount, postBounceOffsetCount);
+
+            // 3. Confirm memtable is completely empty (no data was replayed to memtables)
+            cluster.get(1).runOnInstance(() -> {
+                ColumnFamilyStore cfs = ColumnFamilyStore.getIfExists(KEYSPACE, "tbl");
+                assertNotNull(cfs);
+                Memtable memtable = cfs.getTracker().getView().getCurrentMemtable();
+                assertEquals("Memtable operation count should be 0", 0, memtable.operationCount());
+                assertEquals("Memtable partition count should be 0", 0, memtable.partitionCount());
+            });
+
+            // 4. Confirm SSTables have not been updated (no new SSTables flushed)
+            Set<String> postRestartSSTables = cluster.get(1).callOnInstance(() -> {
+                ColumnFamilyStore cfs = ColumnFamilyStore.getIfExists(KEYSPACE, "tbl");
+                Set<String> files = new HashSet<>();
+                for (SSTableReader sstable : cfs.getLiveSSTables())
+                    files.add(sstable.getFilename());
+                return files;
+            });
+            assertEquals("Live SSTables must not change after replay bypass", preRestartSSTables, postRestartSSTables);
+
+            // 5. Data is still readable from pre-existing SSTables
+            Object[][] rows = cluster.coordinator(1).execute(withKeyspace("SELECT v FROM %s.tbl WHERE k = ?"),
+                                                             ConsistencyLevel.QUORUM, key);
+            assertEquals(1, rows.length);
+            assertEquals(writes - 1, rows[0][0]);
+
+            // 6. Confirm needsReplay is not cleared synchronously
+            cluster.get(1).runOnInstance(() -> {
+                boolean foundNeedsReplay = false;
+                for (Segment<?, ?> segment : MutationJournal.instance().getAllSegmentsForTesting())
+                {
+                    if (segment.isStatic() && segment.metadata().needsReplay())
+                        foundNeedsReplay = true;
+                }
+                assertTrue("Static segment should still need replay before persister drain", foundNeedsReplay);
+            });
+
+            // 7. needsReplay clears on static segments and offsets persist once LogStatePersister drains
+            cluster.get(1).runOnInstance(() -> {
+                MutationTrackingService.instance().persistLogStateForTesting(true);
+
+                UntypedResultSet persistedRows = QueryProcessor.executeInternal("SELECT * FROM system.coordinator_logs WHERE keyspace_name = ? ALLOW FILTERING", KEYSPACE);
+                boolean hasPersistedOffsets = false;
+                for (UntypedResultSet.Row row : persistedRows)
+                {
+                    Map<Integer, List<Integer>> persisted = row.getFrozenMap("persisted_offsets", Int32Type.instance, ListType.getInstance(Int32Type.instance, false));
+                    if (persisted != null)
+                    {
+                        for (List<Integer> list : persisted.values())
+                        {
+                            if (!list.isEmpty())
+                                hasPersistedOffsets = true;
+                        }
+                    }
+                }
+                assertTrue("system.coordinator_logs must contain persisted offsets after drain", hasPersistedOffsets);
+
+                for (Segment<?, ?> segment : MutationJournal.instance().getAllSegmentsForTesting())
+                {
+                    if (segment.isStatic())
+                        assertFalse("Static segment should not need replay after persister drain",
+                                    segment.metadata().needsReplay());
+                }
+            });
+        }
+    }
 }
+
