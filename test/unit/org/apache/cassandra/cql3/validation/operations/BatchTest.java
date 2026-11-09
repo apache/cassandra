@@ -216,8 +216,8 @@ public class BatchTest extends CQLTester
         String tbl1 = KEYSPACE + "." + createTableName();
         String tbl2 = KEYSPACE + "." + createTableName();
 
-        schemaChange(String.format("CREATE TABLE %s (k1 int PRIMARY KEY, v11 int, v12 int)", tbl1));
-        schemaChange(String.format("CREATE TABLE %s (k2 int PRIMARY KEY, v21 int, v22 int)", tbl2));
+        schemaChange(String.format("CREATE TABLE %s (k1 int PRIMARY KEY, v11 int, v12 int) WITH %s", tbl1, transactionalMode.asCqlParam()));
+        schemaChange(String.format("CREATE TABLE %s (k2 int PRIMARY KEY, v21 int, v22 int) WITH %s", tbl2, transactionalMode.asCqlParam()));
 
         execute("BEGIN BATCH " +
                 String.format("UPDATE %s SET v11 = 1 WHERE k1 = 0;", tbl1) +
@@ -241,8 +241,8 @@ public class BatchTest extends CQLTester
         String tbl1 = KEYSPACE + "." + createTableName();
         String tbl2 = KEYSPACE + "." + createTableName();
 
-        schemaChange(String.format("CREATE TABLE %s (k1 int PRIMARY KEY, v1 int)", tbl1));
-        schemaChange(String.format("CREATE TABLE %s (k2 int PRIMARY KEY, v2 int)", tbl2));
+        schemaChange(String.format("CREATE TABLE %s (k1 int PRIMARY KEY, v1 int) WITH %s", tbl1, transactionalMode.asCqlParam()));
+        schemaChange(String.format("CREATE TABLE %s (k2 int PRIMARY KEY, v2 int) WITH %s", tbl2, transactionalMode.asCqlParam()));
 
         String query = "BEGIN BATCH " +
                    String.format("UPDATE %s SET v1 = 1 WHERE k1 = ?;", tbl1) +
