@@ -1414,16 +1414,13 @@ public abstract class SSTableReader extends SSTable implements UnfilteredSource,
     }
 
     /**
-     * Promote a reconciled sstable to repaired and clear its coordinator log offsets
+     * Promote a reconciled sstable to repaired
      */
     public void mutatePromotedToRepairedAndReload(long newRepairedAt) throws IOException
     {
         Preconditions.checkArgument(newRepairedAt != ActiveRepairService.UNREPAIRED_SSTABLE);
 
-        // setting repaired > UNREPAIRED_SSTABLE automatically clears the offsets
         mutateRepairedAndReload(newRepairedAt, ActiveRepairService.NO_PENDING_REPAIR);
-
-        Preconditions.checkState(getSSTableMetadata().coordinatorLogOffsets.isEmpty());
     }
 
     /**
