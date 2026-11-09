@@ -34,6 +34,7 @@ import com.google.common.collect.ImmutableSet;
 import com.google.common.collect.Iterators;
 
 import org.agrona.collections.Long2ObjectHashMap;
+import org.agrona.collections.LongObjConsumer;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -355,6 +356,12 @@ public class ImmutableCoordinatorLogOffsets implements CoordinatorLogOffsets<Off
         public Iterator<Long> iterator()
         {
             return Iterators.unmodifiableIterator(ids.keySet().iterator());
+        }
+
+        @Override
+        public void forEach(LongObjConsumer<Offsets.Immutable> consumer)
+        {
+            ids.forEachLong(consumer);
         }
 
         @Override

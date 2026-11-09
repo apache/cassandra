@@ -200,6 +200,25 @@ public class UnreconciledMutationsTest
     }
 
     @Test
+    public void duplicateStartWritingRemainsVisibleWhenFinished()
+    {
+        UnreconciledMutations unreconciled = new UnreconciledMutations();
+        Mutation mutation = createMutation(200, 3000, 10);
+        Token token = mutation.key().getToken();
+
+        unreconciled.startWriting(mutation);
+        unreconciled.startWriting(mutation);
+        unreconciled.finishWriting(mutation);
+
+        Offsets.Mutable visibleOnly = new Offsets.Mutable(new CoordinatorLogId(1, 1));
+        boolean foundVisible = unreconciled.collect(token, TABLE_ID, false, visibleOnly);
+
+        Assert.assertTrue("Mutation should be visible after finishWriting even if startWriting was called twice", foundVisible);
+        assertEquals("Should have 1 visible mutation", 1, visibleOnly.offsetCount());
+        Assert.assertTrue("Should contain visible mutation offset", visibleOnly.contains(10));
+    }
+
+    @Test
     public void testMultipleMutationsSameToken()
     {
         UnreconciledMutations unreconciled = new UnreconciledMutations();
