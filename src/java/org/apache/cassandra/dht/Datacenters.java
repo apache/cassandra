@@ -23,6 +23,8 @@ import java.util.Set;
 
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.tcm.ClusterMetadata;
+import org.apache.cassandra.tcm.RegistrationStatus;
+import org.apache.cassandra.tcm.membership.Location;
 
 public class Datacenters
 {
@@ -33,6 +35,11 @@ public class Datacenters
 
     public static String thisDatacenter()
     {
+        // Don't memoize a DC before the node is able to identify itself in ClusterMetadata.
+        // This mitigates scenarios where a restarted node is replaying entries from the metadata log
+        // immediately after changing its broadcast address.
+        if (RegistrationStatus.instance.getCurrent() != RegistrationStatus.State.REGISTERED)
+            return Location.UNKNOWN.datacenter;
         return DCHandle.thisDc;
     }
 
@@ -44,7 +51,9 @@ public class Datacenters
     {
         final Set<String> validDataCenters = new HashSet<>();
         // Add data center of localhost.
-        validDataCenters.add(thisDatacenter());
+        String localDC = thisDatacenter();
+        if (!localDC.equals(Location.UNKNOWN.datacenter))
+            validDataCenters.add(thisDatacenter());
         // Fetch and add DCs of all peers.
         validDataCenters.addAll(metadata.directory.knownDatacenters());
         return validDataCenters;
