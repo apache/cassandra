@@ -1,4 +1,5 @@
 5.0.10
+ * CONTAINS KEY restriction on a frozen map clustering column with descending order is rejected: "Cannot use CONTAINS KEY on non-map column" (CASSANDRA-21742)
  * Prevent tiny SSTables from accumulating under UCS (CASSANDRA-21615)
  * Avoid NPE in GossipShutdownVerbHandler when endpoint state is null (CASSANDRA-20603)
  * Fix ShardManager#coveringRange to include the first partition position (CASSANDRA-20927)

@@ -428,6 +428,45 @@ public class FrozenCollectionsTest extends CQLTester
     }
 
     @Test
+    public void testContainsOnClusteringKey() throws Throwable
+    {
+        testContainsOnClusteringKey("ASC");
+        testContainsOnClusteringKey("DESC");
+    }
+
+    private void testContainsOnClusteringKey(String order) throws Throwable
+    {
+        createTable(String.format("CREATE TABLE %%s (a int, b frozen<map<int, int>>, c frozen<set<int>>, d frozen<list<int>>, e int, " +
+                                  "PRIMARY KEY (a, b, c, d, e)) WITH CLUSTERING ORDER BY (b %1$s, c %1$s, d %1$s, e %1$s)", order));
+
+        execute("INSERT INTO %s (a, b, c, d, e) VALUES (?, ?, ?, ?, ?)", 0, map(1, 10, 2, 20), set(1, 2), list(1, 2), 0);
+        execute("INSERT INTO %s (a, b, c, d, e) VALUES (?, ?, ?, ?, ?)", 0, map(3, 30), set(3), list(3), 0);
+        execute("INSERT INTO %s (a, b, c, d, e) VALUES (?, ?, ?, ?, ?)", 1, map(1, 10), set(3), list(2), 0);
+
+        Object[] row1 = row(0, map(1, 10, 2, 20), set(1, 2), list(1, 2), 0);
+        Object[] row2 = row(0, map(3, 30), set(3), list(3), 0);
+        Object[] row3 = row(1, map(1, 10), set(3), list(2), 0);
+
+        beforeAndAfterFlush(() -> {
+            assertRowsIgnoringOrder(execute("SELECT * FROM %s WHERE b CONTAINS KEY ? ALLOW FILTERING", 1), row1, row3);
+            assertRows(execute("SELECT * FROM %s WHERE a = ? AND b CONTAINS KEY ? ALLOW FILTERING", 0, 1), row1);
+
+            assertRowsIgnoringOrder(execute("SELECT * FROM %s WHERE b CONTAINS ? ALLOW FILTERING", 30), row2);
+
+            assertRowsIgnoringOrder(execute("SELECT * FROM %s WHERE c CONTAINS ? ALLOW FILTERING", 3), row2, row3);
+
+            assertRowsIgnoringOrder(execute("SELECT * FROM %s WHERE d CONTAINS ? ALLOW FILTERING", 2), row1, row3);
+        });
+
+        assertInvalidMessage("Cannot use CONTAINS KEY on non-map column c",
+                             "SELECT * FROM %s WHERE c CONTAINS KEY ? ALLOW FILTERING", 1);
+        assertInvalidMessage("Cannot use CONTAINS KEY on non-map column e",
+                             "SELECT * FROM %s WHERE e CONTAINS KEY ? ALLOW FILTERING", 1);
+        assertInvalidMessage("Cannot use CONTAINS on non-collection column e",
+                             "SELECT * FROM %s WHERE e CONTAINS ? ALLOW FILTERING", 1);
+    }
+
+    @Test
     public void testNestedClusteringKeyUsage() throws Throwable
     {
         createTable("CREATE TABLE %s (a int, b frozen<map<set<int>, list<int>>>, c frozen<set<int>>, d int, PRIMARY KEY (a, b, c))");
