@@ -20,8 +20,10 @@ package org.apache.cassandra.replication;
 
 import java.util.ArrayList;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.concurrent.atomic.AtomicLongFieldUpdater;
 import java.util.concurrent.atomic.AtomicReferenceFieldUpdater;
 import java.util.concurrent.locks.Lock;
@@ -133,6 +135,25 @@ public class SegmentStateTracker
                 }
             }
             return this.states.isEmpty();
+        }
+        finally
+        {
+            lock.unlock();
+        }
+    }
+
+    public Set<TableId> getDirtyTableIds()
+    {
+        lock.lock();
+        try
+        {
+            Set<TableId> dirty = new HashSet<>();
+            for (Map.Entry<TableId, IntervalState> entry : states.entrySet())
+            {
+                if (entry.getValue().isDirty())
+                    dirty.add(entry.getKey());
+            }
+            return dirty;
         }
         finally
         {

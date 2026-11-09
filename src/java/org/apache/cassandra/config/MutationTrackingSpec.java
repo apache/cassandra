@@ -35,19 +35,26 @@ public class MutationTrackingSpec
      */
     public volatile boolean journal_compaction_enabled = true;
     /**
-     * When the on-disk mutation journal grows beyond this size, out-of-band promotion of already
-     * durably-reconciled but still-unrepaired sstables to repaired is triggered so the journal segments they hold
-     * can be released and reclaimed (CASSANDRA-21406). {@code null} disables the mechanism. The default is 256MiB.
+     * When the on-disk mutation journal grows beyond this size, out-of-band promotion of already durably-reconciled but
+     * still-unrepaired sstables to repaired is triggered so the journal segments they hold can be released and
+     * reclaimed (CASSANDRA-21406). It will also cause memtables to be flushed if they are preventing otherwise
+     * droppable segments from being dropped. {@code null} or 0 disables the mechanism.
      */
-    public volatile DataStorageSpec.LongBytesBound journal_promotion_threshold = new DataStorageSpec.LongBytesBound("256MiB");
+    public volatile DataStorageSpec.LongBytesBound journal_reclaim_threshold = new DataStorageSpec.LongBytesBound("256MiB");
 
     /**
      * @return the on-disk mutation journal size (in bytes) beyond which out-of-band promotion of durably-reconciled
-     * unrepaired sstables is triggered, or 0 if the mechanism is disabled.
+     * unrepaired sstables and flushes of pinned reconciled segments are triggered, or 0 if the mechanism is disabled.
      */
+    public long getJournalReclaimThresholdBytes()
+    {
+        DataStorageSpec.LongBytesBound threshold = journal_reclaim_threshold;
+        return threshold == null ? 0 : threshold.toBytes();
+    }
+
+    @Deprecated(since = "6.0")
     public long getJournalPromotionThresholdBytes()
     {
-        DataStorageSpec.LongBytesBound threshold = journal_promotion_threshold;
-        return threshold == null ? 0 : threshold.toBytes();
+        return getJournalReclaimThresholdBytes();
     }
 }
