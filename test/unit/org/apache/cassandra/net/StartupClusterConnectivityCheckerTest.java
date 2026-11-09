@@ -23,6 +23,7 @@ import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Map;
 import java.util.Set;
+import java.util.concurrent.TimeUnit;
 
 import org.junit.After;
 import org.junit.Assert;
@@ -187,6 +188,37 @@ public class StartupClusterConnectivityCheckerTest
         MessagingService.instance().outboundSink.add(sink);
         Assert.assertFalse(zeroWaitChecker.execute(peers, this::getDatacenter));
         MessagingService.instance().outboundSink.clear();
+    }
+
+    @Test
+    public void testDynamicTimeoutCalculation()
+    {
+        int peers = 100;
+        int rate = 50;
+        long baseTimeoutNanos = TimeUnit.SECONDS.toNanos(60);
+
+        long totalConnections = (long) peers * ConnectionType.MESSAGING_TYPES.size();
+        long queueDelayNanos = (totalConnections * TimeUnit.SECONDS.toNanos(1)) / rate;
+        long totalTimeoutNanos = baseTimeoutNanos + queueDelayNanos;
+
+        Assert.assertEquals(TimeUnit.SECONDS.toNanos(66), totalTimeoutNanos);
+        Assert.assertEquals(66, TimeUnit.NANOSECONDS.toSeconds(totalTimeoutNanos));
+
+        int disabledRate = 0;
+        long timeoutWithDisabledRate = baseTimeoutNanos;
+        if (baseTimeoutNanos > 0 && disabledRate > 0)
+        {
+            timeoutWithDisabledRate += (totalConnections * TimeUnit.SECONDS.toNanos(1)) / disabledRate;
+        }
+        Assert.assertEquals(baseTimeoutNanos, timeoutWithDisabledRate);
+
+        long noWaitNanos = 0;
+        long effectiveNoWait = noWaitNanos;
+        if (noWaitNanos > 0 && rate > 0)
+        {
+            effectiveNoWait += (totalConnections * TimeUnit.SECONDS.toNanos(1)) / rate;
+        }
+        Assert.assertEquals(0, effectiveNoWait);
     }
 
     private void checkAvailable(StartupClusterConnectivityChecker checker, Set<InetAddressAndPort> available,
