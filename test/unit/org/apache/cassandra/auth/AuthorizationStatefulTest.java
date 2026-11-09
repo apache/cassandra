@@ -42,7 +42,6 @@ import accord.utils.Gen;
 import accord.utils.Gens;
 import accord.utils.Property;
 import accord.utils.RandomSource;
-import org.apache.cassandra.utils.LoggingCommand;
 
 import org.apache.cassandra.ServerTestUtils;
 import org.apache.cassandra.config.DatabaseDescriptor;
@@ -50,10 +49,12 @@ import org.apache.cassandra.cql3.CQLTester;
 import org.apache.cassandra.distributed.test.log.ClusterMetadataTestHelper;
 import org.apache.cassandra.schema.ReplicationParams;
 import org.apache.cassandra.service.CassandraDaemon;
+import org.apache.cassandra.utils.LoggingCommand;
 
 import static accord.utils.Property.commands;
 import static accord.utils.Property.stateful;
 import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertTrue;
 import static org.junit.Assert.fail;
 
 /**
@@ -129,6 +130,7 @@ public class AuthorizationStatefulTest extends CQLTester
     }
 
     private static final Gen<Gen<String>> ROLES_MIXED = Gens.mixedDistribution(ALL_ROLES);
+    private static final Gen<Gen<IResource>> ALL_RESOURCES_MIXED = Gens.mixedDistribution(ALL_RESOURCES);
     private static final Gen<Gen<IResource>> DATA_RESOURCES_MIXED = Gens.mixedDistribution(
         DataResource.root(), DataResource.keyspace(KS), DataResource.allTables(KS), DataResource.table(KS, TBL)
     );
@@ -156,6 +158,7 @@ public class AuthorizationStatefulTest extends CQLTester
         final Gen<Permission> dataPermsGen;
         final Gen<IResource> roleResourcesGen;
         final Gen<Permission> rolePermsGen;
+        final Gen<IResource> allResourcesGen;
 
         State(RandomSource rs)
         {
@@ -165,6 +168,7 @@ public class AuthorizationStatefulTest extends CQLTester
             this.dataPermsGen = DATA_PERMS_MIXED.next(rs);
             this.roleResourcesGen = ROLE_RESOURCE_MIXED.next(rs);
             this.rolePermsGen = ROLE_PERMS_MIXED.next(rs);
+            this.allResourcesGen = ALL_RESOURCES_MIXED.next(rs);
         }
 
         @Override
@@ -223,6 +227,28 @@ public class AuthorizationStatefulTest extends CQLTester
         });
     }
 
+    private void executeAndValidateGrant(State s, String cql, String grantee, Permission perm, IResource resource)
+    {
+        boolean alreadyHad = s.model.permissions.get(grantee).hasDirectGrant(perm, resource);
+        ResultSet res = executeNet(cql);
+        if (alreadyHad)
+            assertWarningsEquals(res, String.format("Role '%s' was already granted %s on %s", grantee, perm.name(), resource));
+        else
+            assertTrue("Expected no client warnings but got: " + res.getExecutionInfo().getWarnings(),
+                       res.getExecutionInfo().getWarnings().isEmpty());
+    }
+
+    private void executeAndValidateRevoke(State s, String cql, String grantee, Permission perm, IResource resource)
+    {
+        boolean had = s.model.permissions.get(grantee).hasDirectGrant(perm, resource);
+        ResultSet res = executeNet(cql);
+        if (!had)
+            assertWarningsEquals(res, String.format("Role '%s' was not granted %s on %s", grantee, perm.name(), resource));
+        else
+            assertTrue("Expected no client warnings but got: " + res.getExecutionInfo().getWarnings(),
+                       res.getExecutionInfo().getWarnings().isEmpty());
+    }
+
     private Property.Command<State, Void, ?> grantDataPermission(RandomSource rs, State state)
     {
         Permission perm = state.dataPermsGen.next(rs);
@@ -230,9 +256,9 @@ public class AuthorizationStatefulTest extends CQLTester
         String grantee = state.rolesGen.next(rs);
         String cql = String.format("GRANT %s ON %s TO %s;", perm.name(), formatTarget(resource), grantee);
 
-        return new Property.SimpleCommand<>(cql, s  -> {
+        return new Property.SimpleCommand<>(cql, s -> {
             useSuperUser();
-            executeNet(cql);
+            executeAndValidateGrant(s, cql, grantee, perm, resource);
             s.model.permissions.get(grantee).grant(perm, resource);
         });
     }
@@ -244,9 +270,9 @@ public class AuthorizationStatefulTest extends CQLTester
         String grantee = state.rolesGen.next(rs);
         String cql = String.format("REVOKE %s ON %s FROM %s;", perm.name(), formatTarget(resource), grantee);
 
-        return new Property.SimpleCommand<>(cql, s  -> {
+        return new Property.SimpleCommand<>(cql, s -> {
             useSuperUser();
-            executeNet(cql);
+            executeAndValidateRevoke(s, cql, grantee, perm, resource);
             s.model.permissions.get(grantee).revoke(perm, resource);
         });
     }
@@ -258,9 +284,9 @@ public class AuthorizationStatefulTest extends CQLTester
         String grantee = state.rolesGen.next(rs);
         String cql = String.format("GRANT %s ON %s TO %s;", perm.name(), formatTarget(resource), grantee);
 
-        return new Property.SimpleCommand<>(cql, s  -> {
+        return new Property.SimpleCommand<>(cql, s -> {
             useSuperUser();
-            executeNet(cql);
+            executeAndValidateGrant(s, cql, grantee, perm, resource);
             s.model.permissions.get(grantee).grant(perm, resource);
         });
     }
@@ -272,9 +298,9 @@ public class AuthorizationStatefulTest extends CQLTester
         String grantee = state.rolesGen.next(rs);
         String cql = String.format("REVOKE %s ON %s FROM %s;", perm.name(), formatTarget(resource), grantee);
 
-        return new Property.SimpleCommand<>(cql, s  -> {
+        return new Property.SimpleCommand<>(cql, s -> {
             useSuperUser();
-            executeNet(cql);
+            executeAndValidateRevoke(s, cql, grantee, perm, resource);
             s.model.permissions.get(grantee).revoke(perm, resource);
         });
     }
@@ -285,9 +311,11 @@ public class AuthorizationStatefulTest extends CQLTester
         String grantee = state.rolesGen.next(rs);
         String cql = String.format("GRANT ALL PERMISSIONS ON %s TO %s;", formatTarget(resource), grantee);
 
-        return new Property.SimpleCommand<>(cql, s  -> {
+        return new Property.SimpleCommand<>(cql, s -> {
             useSuperUser();
-            executeNet(cql);
+            ResultSet res = executeNet(cql);
+            assertTrue("Expected no client warnings for ALL but got: " + res.getExecutionInfo().getWarnings(),
+                       res.getExecutionInfo().getWarnings().isEmpty());
             s.model.permissions.get(grantee).grantAll(resource);
         });
     }
@@ -298,9 +326,11 @@ public class AuthorizationStatefulTest extends CQLTester
         String grantee = state.rolesGen.next(rs);
         String cql =  String.format("REVOKE ALL PERMISSIONS ON %s FROM %s;", formatTarget(resource), grantee);
 
-        return new Property.SimpleCommand<>(cql, s  -> {
+        return new Property.SimpleCommand<>(cql, s -> {
             useSuperUser();
-            executeNet(cql);
+            ResultSet res = executeNet(cql);
+            assertTrue("Expected no client warnings for ALL but got: " + res.getExecutionInfo().getWarnings(),
+                       res.getExecutionInfo().getWarnings().isEmpty());
             s.model.permissions.get(grantee).revokeAll(resource);
         });
     }
@@ -318,7 +348,7 @@ public class AuthorizationStatefulTest extends CQLTester
     private Property.Command<State, Void, ?> verifyEffectivePerms(RandomSource rs, State state)
     {
         String roleName = state.rolesGen.next(rs);
-        IResource resource = ALL_RESOURCES.get(rs.nextInt(ALL_RESOURCES.size()));
+        IResource resource = state.allResourcesGen.next(rs);
 
         return new Property.SimpleCommand<>("Query effective permissions for " + roleName + " on " + formatTarget(resource), s  -> {
            AuthenticatedUser auth = new AuthenticatedUser(roleName);
@@ -548,6 +578,11 @@ public class AuthorizationStatefulTest extends CQLTester
     private static class PermissionsModel
     {
         private final Map<IResource, Set<Permission>> directGrants = new HashMap<>();
+
+        boolean hasDirectGrant(Permission perm, IResource res)
+        {
+            return directGrants.getOrDefault(res, Collections.emptySet()).contains(perm);
+        }
 
         void grant(Permission perm, IResource res)
         {
