@@ -125,8 +125,8 @@ public class ProxyHandlerConnectionsTest
             Assert.assertEquals(0, connectionLatch.getCount());
 
             // Slow things down
-            unsafeSetExpiration(Verb._TEST_1, unit -> unit.convert(50, MILLISECONDS));
-            handler.withLatency(100, MILLISECONDS);
+            unsafeSetExpiration(Verb._TEST_1, unit -> unit.convert(500, MILLISECONDS));
+            handler.withLatency(1000, MILLISECONDS);
 
             unsafeSetHandler(Verb._TEST_1, () -> v -> {
                 throw new RuntimeException("Should have not been triggered " + v);
@@ -136,7 +136,8 @@ public class ProxyHandlerConnectionsTest
                 outbound.enqueue(Message.out(Verb._TEST_1, 1L));
 
             InboundMessageHandlers handlers = MessagingService.instance().getInbound(endpoint);
-            waitForCondition(() -> handlers.expiredCount() == expireMessages);
+            waitForCondition(() -> handlers.expiredCount() == expireMessages,
+                             () -> String.format("Inbound expired: %d, outbound expired: %d", handlers.expiredCount(), outbound.expiredCount()));
             Assert.assertEquals(expireMessages, handlers.expiredCount());
         });
     }
@@ -159,13 +160,14 @@ public class ProxyHandlerConnectionsTest
                 outbound.enqueue(Message.out(Verb._TEST_1, 1L));
             waitForCondition(() -> counter.get() == 10);
 
-            unsafeSetExpiration(Verb._TEST_1, unit -> unit.convert(50, MILLISECONDS));
-            handler.withLatency(100, MILLISECONDS);
+            unsafeSetExpiration(Verb._TEST_1, unit -> unit.convert(500, MILLISECONDS));
+            handler.withLatency(1000, MILLISECONDS);
 
             InboundMessageHandlers handlers = MessagingService.instance().getInbound(endpoint);
             for (int i = 0; i < expireMessages; i++)
                 outbound.enqueue(Message.out(Verb._TEST_1, 1L));
-            waitForCondition(() -> handlers.expiredCount() == 10);
+            waitForCondition(() -> handlers.expiredCount() == 10,
+                             () -> String.format("Inbound expired: %d, outbound expired: %d", handlers.expiredCount(), outbound.expiredCount()));
 
             handler.withLatency(2, MILLISECONDS);
 
