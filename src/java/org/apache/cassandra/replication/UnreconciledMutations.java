@@ -129,6 +129,13 @@ public class UnreconciledMutations
 
     public void startWriting(Mutation mutation)
     {
+        // short circuit if a key already exists for this mutation. TreeSet is backed by TreeMap, and
+        // the entry comparator used by stateSet only compares on token and offset. Without this short
+        // circuit, this method is not idempotent and adding a duplicate entry object for this token/offset
+        // combo will overwrite the entry in statesMap but not statesSet. Since the entry in statesMap
+        // is the one moved from PENDING top VISIBLE, the entry in statesSet would neve move to VISIBLE.
+        if (statesMap.containsKey(mutation.id().offset()))
+            return;
         Entry entry = Entry.create(mutation);
         statesMap.put(entry.offset, entry);
         statesSet.add(entry);

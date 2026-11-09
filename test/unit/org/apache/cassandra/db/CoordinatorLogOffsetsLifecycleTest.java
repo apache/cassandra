@@ -199,9 +199,10 @@ public class CoordinatorLogOffsetsLifecycleTest
 
             SSTableReader sstable = Iterables.getOnlyElement(view.liveSSTables());
             // Single-participant, so mutations are immediately reconciled once applied, and a reconciled flush is
-            // promoted as it is written.
+            // promoted as it is written. It retains coordinatorLogOffsets.
             Assertions.assertThat(sstable.isRepaired()).isTrue();
-            Assertions.assertThat(sstable.getCoordinatorLogOffsets().isEmpty()).isTrue();
+            Assertions.assertThat(sstable.getCoordinatorLogOffsets().isEmpty()).isFalse();
+            Assertions.assertThat(sstable.getCoordinatorLogOffsets().contains(id2)).isTrue();
             Assertions.assertThat(CompactionGroup.of(sstable)).isEqualTo(CompactionGroup.REPAIRED);
         }
 
@@ -233,7 +234,7 @@ public class CoordinatorLogOffsetsLifecycleTest
             for (SSTableReader sstable : view.liveSSTables())
             {
                 Assertions.assertThat(sstable.isRepaired()).isTrue();
-                Assertions.assertThat(sstable.getCoordinatorLogOffsets().isEmpty()).isTrue();
+                Assertions.assertThat(sstable.getCoordinatorLogOffsets().isEmpty()).isFalse();
             }
         }
 
@@ -246,9 +247,11 @@ public class CoordinatorLogOffsetsLifecycleTest
             assertNumSSTables(view, 1);
 
             SSTableReader sstable = Iterables.getOnlyElement(view.liveSSTables());
-            // Compacting repaired inputs yields a repaired output, still with no offsets to carry forward.
+            // Compacting repaired inputs yields a repaired output, which preserves the union of offsets.
             Assertions.assertThat(sstable.isRepaired()).isTrue();
-            Assertions.assertThat(sstable.getCoordinatorLogOffsets().isEmpty()).isTrue();
+            Assertions.assertThat(sstable.getCoordinatorLogOffsets().isEmpty()).isFalse();
+            Assertions.assertThat(sstable.getCoordinatorLogOffsets().contains(id2)).isTrue();
+            Assertions.assertThat(sstable.getCoordinatorLogOffsets().contains(id4)).isTrue();
         }
     }
 

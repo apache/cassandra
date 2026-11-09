@@ -151,6 +151,24 @@ public class CoordinatorLogTest
         assertUnreconciled(tk, tableId, log, false, reconciled, ids[1], ids[2]);
     }
 
+    @Test
+    public void duplicateStartWritingVisibleAfterFinishWriting()
+    {
+        Token tk = tk("key");
+        TableMetadata metadata = Schema.instance.getTableMetadata(KEYSPACE, TABLE);
+        TableId tableId = metadata.id;
+        CoordinatorLogPrimary log = new CoordinatorLogPrimary(KEYSPACE, new Range<>(tk, tk), LOCAL_HOST_ID, LOCAL_LOG_ID, PARTICIPANTS);
+        MutationId id = log.nextId();
+        Mutation mutation = createMutation(id);
+
+        log.startWriting(mutation);
+        log.startWriting(mutation);
+        log.finishWriting(mutation);
+
+        Offsets.Mutable reconciled = new Offsets.Mutable(LOCAL_LOG_ID);
+        assertUnreconciled(tk, tableId, log, false, reconciled, id);
+    }
+
     private Mutation createMutation(MutationId id)
     {
         TableMetadata metadata = Schema.instance.getTableMetadata(KEYSPACE, TABLE);

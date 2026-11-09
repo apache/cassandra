@@ -1507,7 +1507,7 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean, Memtable.Owner
             {
                 for (SSTableReader sstable : sstables)
                 {
-                    if (sstable != null && !sstable.getCoordinatorLogOffsets().isEmpty())
+                    if (!sstable.getCoordinatorLogOffsets().isEmpty())
                         MutationTrackingService.instance().recordFlushedOffsets(cfs.metadata().id, sstable.getCoordinatorLogOffsets());
                 }
             }

@@ -365,6 +365,39 @@ public class CoordinatorLogOffsetsTest
         CommitLog.instance.stopUnsafe(true);
     }
 
+    @Test
+    public void testContains()
+    {
+        CoordinatorLogId logId1 = new CoordinatorLogId(10, 1);
+        CoordinatorLogId logId2 = new CoordinatorLogId(20, 2);
+
+        MutationId m1 = new MutationId(logId1.asLong(), MutationId.sequenceId(5, 100));
+        MutationId m2 = new MutationId(logId1.asLong(), MutationId.sequenceId(15, 200));
+        MutationId m3 = new MutationId(logId2.asLong(), MutationId.sequenceId(25, 300));
+        MutationId absent = new MutationId(logId1.asLong(), MutationId.sequenceId(99, 400));
+        MutationId absentLog = new MutationId(new CoordinatorLogId(99, 99).asLong(), MutationId.sequenceId(5, 100));
+
+        ImmutableCoordinatorLogOffsets offsets = new ImmutableCoordinatorLogOffsets.Builder()
+                                                 .add(m1)
+                                                 .add(m2)
+                                                 .add(m3)
+                                                 .build();
+
+        Assertions.assertThat(offsets.contains(m1)).isTrue();
+        Assertions.assertThat(offsets.contains(m2)).isTrue();
+        Assertions.assertThat(offsets.contains(m3)).isTrue();
+        Assertions.assertThat(offsets.contains((ShortMutationId) m1)).isTrue();
+        Assertions.assertThat(offsets.contains((ShortMutationId) m2)).isTrue();
+        Assertions.assertThat(offsets.contains((ShortMutationId) m3)).isTrue();
+
+        Assertions.assertThat(offsets.contains(absent)).isFalse();
+        Assertions.assertThat(offsets.contains(absentLog)).isFalse();
+        Assertions.assertThat(offsets.contains((MutationId) null)).isFalse();
+        Assertions.assertThat(offsets.contains((ShortMutationId) null)).isFalse();
+        Assertions.assertThat(offsets.contains(MutationId.NONE)).isFalse();
+        Assertions.assertThat(offsets.contains(ShortMutationId.NONE)).isFalse();
+    }
+
     private Range<Token> getShardRange(Mutation mutation)
     {
         Map<String, Range<Token>> ksRanges = new HashMap<>();

@@ -1557,8 +1557,6 @@ public class CompactionStrategyManager implements INotificationConsumer
             {
                 sstable.mutatePromotedToRepairedAndReload(repairedAt);
                 verifyMetadata(sstable, repairedAt, ActiveRepairService.NO_PENDING_REPAIR);
-                if (!sstable.getSSTableMetadata().coordinatorLogOffsets.isEmpty())
-                    throw new IllegalStateException(String.format("Failed clearing coordinator log offsets on %s", sstable));
                 changed.add(sstable);
             }
         }

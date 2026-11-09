@@ -603,6 +603,21 @@ public class MutationTrackingService implements MutationTrackingServiceMBean
         }
     }
 
+    /**
+     * Register and finish writing for a replayed mutation that is not applied to memtables.
+     *
+     * @return true if the mutation was registered and finished, false if no shard covers it or it is a duplicate
+     */
+    public boolean recordWriteForReplay(Mutation mutation)
+    {
+        if (startWritingForReplay(mutation))
+        {
+            finishWriting(mutation);
+            return true;
+        }
+        return false;
+    }
+
     public void finishWriting(Mutation mutation)
     {
         shardLock.readLock().lock();

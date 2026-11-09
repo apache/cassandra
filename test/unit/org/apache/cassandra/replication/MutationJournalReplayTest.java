@@ -30,6 +30,9 @@ import org.junit.BeforeClass;
 import org.junit.Test;
 
 import org.apache.cassandra.SchemaLoader;
+import org.apache.cassandra.config.DatabaseDescriptor;
+import org.apache.cassandra.db.ColumnFamilyStore;
+import org.apache.cassandra.db.DecoratedKey;
 import org.apache.cassandra.db.Mutation;
 import org.apache.cassandra.db.RowUpdateBuilder;
 import org.apache.cassandra.db.commitlog.CommitLogPosition;
@@ -41,6 +44,7 @@ import org.apache.cassandra.journal.TestParams;
 import org.apache.cassandra.net.MessagingService;
 import org.apache.cassandra.schema.KeyspaceParams;
 import org.apache.cassandra.schema.ReplicationType;
+import org.apache.cassandra.schema.Schema;
 import org.apache.cassandra.schema.TableMetadata;
 import org.apache.cassandra.tools.FieldUtil;
 
@@ -202,6 +206,109 @@ public class MutationJournalReplayTest
                               });
     }
 
+    @Test
+    public void replaySkipsPreviouslyFlushedOffsetsWhenSSTableMissing() throws Exception
+    {
+        if (!MutationTrackingService.instance().isStarted())
+            MutationTrackingService.start();
+
+        File directory = new File(Files.createTempDirectory("mutation-journal-flushed-replay-test"));
+        directory.deleteRecursiveOnExit();
+
+        TableMetadata table = TABLES[0];
+        ColumnFamilyStore cfs = Schema.instance.getColumnFamilyStoreInstance(table.id);
+        cfs.forceBlockingFlush(ColumnFamilyStore.FlushReason.USER_FORCED);
+        cfs.truncateBlocking();
+
+        MutationJournal testJournal = new MutationJournal(directory, TestParams.MUTATION_JOURNAL);
+        testJournal.startInternal();
+
+        DecoratedKey key = table.partitioner.decorateKey(UTF8Type.instance.decompose("flushed_test_key"));
+        MutationId mutationId = MutationTrackingService.instance().nextMutationId(table.keyspace, key.getToken());
+
+        Mutation mutation = new RowUpdateBuilder(table, 0, key)
+                            .clustering("ck")
+                            .add("value", "flushed_val")
+                            .build()
+                            .withMutationId(mutationId);
+
+        testJournal.write(mutation.id(), mutation);
+        testJournal.closeCurrentSegmentForTestingIfNonEmpty();
+        testJournal.shutdownBlocking();
+
+        // Prove the table has no live SSTables
+        Assert.assertTrue(cfs.getLiveSSTables().isEmpty());
+        long memtableOpsBefore = cfs.getTracker().getView().getCurrentMemtable().operationCount();
+
+        // Record the offset as flushed in MutationTrackingService
+        ImmutableCoordinatorLogOffsets offsets = new ImmutableCoordinatorLogOffsets.Builder()
+                                                 .add(mutationId)
+                                                 .build();
+        MutationTrackingService.instance().ensureFlushedOffsetsDurable(table.id, offsets);
+        Assert.assertTrue(MutationTrackingService.instance().isFlushed(table.id, mutationId));
+
+        MutationJournal startupJournal = new MutationJournal(directory, TestParams.MUTATION_JOURNAL);
+        startupJournal.startInternal();
+        try
+        {
+            startupJournal.replayStaticSegments();
+
+            // Memtable should not receive writes because the mutation ID was already flushed
+            long memtableOpsAfter = cfs.getTracker().getView().getCurrentMemtable().operationCount();
+            Assert.assertEquals("Memtable should not receive writes when mutation was already flushed",
+                                memtableOpsBefore, memtableOpsAfter);
+        }
+        finally
+        {
+            startupJournal.shutdownBlocking();
+        }
+    }
+
+    @Test
+    public void replayMutationsAreVisibleInSummariesWithoutPending() throws Exception
+    {
+        if (!MutationTrackingService.instance().isStarted())
+            MutationTrackingService.start();
+
+        File directory = new File(Files.createTempDirectory("mutation-journal-visible-replay-test"));
+        directory.deleteRecursiveOnExit();
+
+        TableMetadata table = TABLES[0];
+        ColumnFamilyStore cfs = Schema.instance.getColumnFamilyStoreInstance(table.id);
+        cfs.forceBlockingFlush(ColumnFamilyStore.FlushReason.USER_FORCED);
+        cfs.truncateBlocking();
+
+        MutationJournal testJournal = new MutationJournal(directory, TestParams.MUTATION_JOURNAL);
+        testJournal.startInternal();
+
+        DecoratedKey key = table.partitioner.decorateKey(UTF8Type.instance.decompose("visible_replay_key"));
+        MutationId mutationId = MutationTrackingService.instance().nextMutationId(table.keyspace, key.getToken());
+
+        Mutation mutation = new RowUpdateBuilder(table, 0, key)
+                            .clustering("ck")
+                            .add("value", "visible_val")
+                            .build()
+                            .withMutationId(mutationId);
+
+        testJournal.write(mutation.id(), mutation);
+        testJournal.closeCurrentSegmentForTestingIfNonEmpty();
+        testJournal.shutdownBlocking();
+
+        MutationJournal startupJournal = new MutationJournal(directory, TestParams.MUTATION_JOURNAL);
+        startupJournal.startInternal();
+        try
+        {
+            startupJournal.replayStaticSegments();
+
+            MutationSummary summary = MutationTrackingService.instance().createSummaryForKey(key, table.id, false);
+            Assert.assertTrue("Replayed mutation should be visible in summary when includePending=false",
+                              summary.contains(mutationId));
+        }
+        finally
+        {
+            startupJournal.shutdownBlocking();
+        }
+    }
 
     private static String CACHED_STRING = null;
     private static Mutation mutation(int table, int value)

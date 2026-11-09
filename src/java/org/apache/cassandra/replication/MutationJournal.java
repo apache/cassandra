@@ -48,12 +48,14 @@ import org.apache.cassandra.concurrent.Stage;
 import org.apache.cassandra.config.Config;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.config.DurationSpec;
+import org.apache.cassandra.db.ColumnFamilyStore;
 import org.apache.cassandra.db.Keyspace;
 import org.apache.cassandra.db.Mutation;
 import org.apache.cassandra.db.TypeSizes;
 import org.apache.cassandra.db.commitlog.CommitLogPosition;
 import org.apache.cassandra.db.partitions.PartitionUpdate;
 import org.apache.cassandra.exceptions.UnknownTableException;
+import org.apache.cassandra.io.sstable.format.SSTableReader;
 import org.apache.cassandra.io.util.DataInputPlus;
 import org.apache.cassandra.io.util.DataOutputPlus;
 import org.apache.cassandra.io.util.File;
@@ -455,8 +457,17 @@ public class MutationJournal
         }
     }
 
+    /**
+     * Replay the mutation journal on startup. On replay we always need to notify the mutation tracking system of replayable
+     * writes, since the coordinator logs may not have synced their views of offsets to disk before being shutdown if the
+     * node crashed. We also need to skip replaying writes into the memtable if they have already been flushed to sstables.
+     * Replaying flushed writes into the memtable can resurrect deleted data if the deleting tombstone is not also replayed.
+     * This is analagous to checking the sstable replay position interval tree on startup on commit log replay.
+     */
     public void replayStaticSegments()
     {
+        final Map<TableId, ImmutableCoordinatorLogOffsets> liveSSTableOffsets = new ConcurrentHashMap<>();
+
         replay(new DeserializedRecordConsumer<>(MutationSerializer.INSTANCE)
         {
             @Override
@@ -483,12 +494,14 @@ public class MutationJournal
             {
                 if (Schema.instance.getKeyspaceMetadata(value.getKeyspaceName()) == null)
                     return;
+
+                MutationTrackingService mts = MutationTrackingService.instance();
+
                 // TODO: if (commitLogReplayer.pointInTimeExceeded(mutation))
                 final Keyspace keyspace = Keyspace.open(value.getKeyspaceName());
                 final boolean isFullReplica = keyspace.isFullReplicaFor(value.key().getToken(), ClusterMetadata.current());
 
                 Mutation.PartitionUpdateCollector newPUCollector = null;
-                // TODO (required): replayFilter
                 for (Map.Entry<TableId, PartitionUpdate> e : value.modifications().entrySet())
                 {
                     PartitionUpdate update = e.getValue();
@@ -497,19 +510,43 @@ public class MutationJournal
                         continue; // dropped
                     TableId tableId = e.getKey();
 
+                    ImmutableCoordinatorLogOffsets tableOffsets = liveSSTableOffsets.computeIfAbsent(tableId, id -> {
+                        ColumnFamilyStore cfs = Schema.instance.getColumnFamilyStoreInstance(id);
+                        if (cfs == null)
+                            return ImmutableCoordinatorLogOffsets.NONE;
+                        ImmutableCoordinatorLogOffsets.Builder builder = new ImmutableCoordinatorLogOffsets.Builder();
+                        for (SSTableReader sstable : cfs.getLiveSSTables())
+                            builder.addAll(sstable.getCoordinatorLogOffsets());
+                        return builder.build();
+                    });
+
+                    boolean alreadyFlushed = tableOffsets.contains(value.id()) || mts.isFlushed(tableId, value.id());
+
+                    if (alreadyFlushed)
+                    {
+                        logger.trace("Skipping replay of mutation {} for table {} because it is already present in SSTables or was previously flushed",
+                                     value.id(), tableId);
+                        continue;
+                    }
+
                     if (isFullReplica)
                         segmentStateTrackers.computeIfAbsent(segmentId, SegmentStateTracker::new)
                                             .markDirty(tableId, segmentId, position);
-                    // TODO (required): shouldReplay
                     if (newPUCollector == null)
                         newPUCollector = new Mutation.PartitionUpdateCollector(value.id(), value.getKeyspaceName(), value.key());
                     newPUCollector.add(update);
-                    // TODO (required): replayedCount
                 }
                 if (newPUCollector != null)
                 {
                     assert !newPUCollector.isEmpty();
+                    // Register the full mutation so unreconciled tracking keeps tables skipped above.
+                    // The startWriting in applyForReplay then finds the existing entry (idempotent).
+                    mts.startWritingForReplay(value);
                     keyspace.applyForReplay(newPUCollector.build());
+                }
+                else
+                {
+                    mts.recordWriteForReplay(value);
                 }
             }
         }, getAvailableProcessors());
