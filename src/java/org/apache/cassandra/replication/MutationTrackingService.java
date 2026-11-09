@@ -49,6 +49,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import org.apache.cassandra.concurrent.ScheduledExecutorPlus;
+import org.apache.cassandra.config.CassandraRelevantProperties;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.config.DurationSpec;
 import org.apache.cassandra.config.MutationTrackingSpec;
@@ -95,12 +96,15 @@ import org.apache.cassandra.tcm.ownership.VersionedEndpoints;
 import org.apache.cassandra.utils.FBUtilities;
 import org.apache.cassandra.utils.MBeanWrapper;
 import org.apache.cassandra.utils.NoSpamLogger;
+import org.apache.cassandra.utils.concurrent.CountDownLatch;
+import org.apache.cassandra.utils.concurrent.UncheckedInterruptedException;
 
 import static com.google.common.base.Preconditions.checkNotNull;
 import static java.lang.String.format;
 import static org.apache.cassandra.concurrent.ExecutorFactory.Global.executorFactory;
 import static org.apache.cassandra.concurrent.ExecutorFactory.SimulatorSemantics.NORMAL;
 import static org.apache.cassandra.cql3.QueryProcessor.executeInternal;
+import static org.apache.cassandra.utils.concurrent.CountDownLatch.newCountDownLatch;
 
 // TODO (expected): persistence (handle restarts)
 // TODO (expected): handle topology changes
@@ -230,6 +234,7 @@ public class MutationTrackingService implements MutationTrackingServiceMBean
     private volatile boolean hostLogIdLoaded = false;
 
     private volatile boolean started = false;
+    private final CountDownLatch startedLatch = newCountDownLatch(1);
 
     private MutationTrackingService()
     {
@@ -278,6 +283,7 @@ public class MutationTrackingService implements MutationTrackingServiceMBean
         TransferTrackingService.instance().recoverPendingTransfers();
 
         started = true;
+        startedLatch.decrement();
     }
 
     @Override
@@ -345,6 +351,21 @@ public class MutationTrackingService implements MutationTrackingServiceMBean
     public synchronized boolean isStarted()
     {
         return started;
+    }
+
+    private void awaitStarted()
+    {
+        if (started)
+            return;
+        try
+        {
+            if (!startedLatch.await(1, TimeUnit.MINUTES))
+                throw new IllegalStateException("MutationTrackingService did not start within 1 minute");
+        }
+        catch (InterruptedException e)
+        {
+            throw new UncheckedInterruptedException(e);
+        }
     }
 
     private void shutdownBlocking() throws InterruptedException
@@ -582,6 +603,21 @@ public class MutationTrackingService implements MutationTrackingServiceMBean
         {
             shardLock.readLock().unlock();
         }
+    }
+
+    /**
+     * Register and finish writing for a replayed mutation that is not applied to memtables.
+     *
+     * @return true if the mutation was registered and finished, false if no shard covers it or it is a duplicate
+     */
+    public boolean recordWriteForReplay(Mutation mutation)
+    {
+        if (startWritingForReplay(mutation))
+        {
+            finishWriting(mutation);
+            return true;
+        }
+        return false;
     }
 
     public void finishWriting(Mutation mutation)
@@ -1018,6 +1054,123 @@ public class MutationTrackingService implements MutationTrackingServiceMBean
         }
     }
 
+    /**
+     * Record flushed offsets to the coordinator log. It's important that we don't replay mutations that have already
+     * been flushed to disk on startup. Flushed offsets are persisted in both the sstables and in the log metadata.
+     * SSTables need to track the offsets the contain for log segment dropping, however sstables can be dropped by
+     * compaction (intentionally or incidentally) so we also keep them on the log metadata and block on it's flushing
+     * to disk before dropping sstables. We then consult both sources on startup to prevent replaying shadowed writes.
+     * @param tableId
+     * @param logOffsets
+     */
+    public void recordFlushedOffsets(TableId tableId, ImmutableCoordinatorLogOffsets logOffsets)
+    {
+        if (logOffsets == null || logOffsets.isEmpty() || !isEnabled())
+            return;
+
+        awaitStarted();
+
+        shardLock.readLock().lock();
+        try
+        {
+            logOffsets.mutations().forEach((rawLogId, offsets) -> {
+                CoordinatorLogId logId = CoordinatorLogId.fromLong(rawLogId);
+                Shard shard = getShardNullable(logId);
+                if (shard != null && offsets != null && !offsets.isEmpty())
+                    shard.attemptRecordFlushedOffsets(tableId, logId, offsets);
+            });
+        }
+        finally
+        {
+            shardLock.readLock().unlock();
+        }
+    }
+
+    public boolean isDurablyFlushed(TableId tableId, ImmutableCoordinatorLogOffsets logOffsets)
+    {
+        if (logOffsets == null || logOffsets.isEmpty() || !isEnabled())
+            return true;
+
+        awaitStarted();
+
+        shardLock.readLock().lock();
+        try
+        {
+            return logOffsets.mutations().all((rawLogId, offsets) -> {
+                if (offsets == null || offsets.isEmpty())
+                    return true;
+
+                CoordinatorLogId logId = CoordinatorLogId.fromLong(rawLogId);
+                Shard shard = getShardNullable(logId);
+                if (shard == null)
+                    return true;
+
+                return shard.isDurablyFlushed(tableId, logId, offsets);
+            });
+        }
+        finally
+        {
+            shardLock.readLock().unlock();
+        }
+    }
+
+    public boolean isFlushed(TableId tableId, ShortMutationId mutationId)
+    {
+        if (mutationId == null || mutationId.isNone() || !isEnabled())
+            return false;
+
+        awaitStarted();
+
+        shardLock.readLock().lock();
+        try
+        {
+            CoordinatorLogId logId = mutationId.asLogId();
+            Shard shard = getShardNullable(logId);
+            if (shard == null)
+                return false;
+            return shard.isFlushed(tableId, logId, mutationId.offset());
+        }
+        finally
+        {
+            shardLock.readLock().unlock();
+        }
+    }
+
+    public void ensureFlushedOffsetsDurable(TableId tableId, ImmutableCoordinatorLogOffsets logOffsets)
+    {
+        if (logOffsets == null || logOffsets.isEmpty() || !isEnabled())
+            return;
+
+        awaitStarted();
+
+        try
+        {
+            if (isDurablyFlushed(tableId, logOffsets))
+                return;
+
+            recordFlushedOffsets(tableId, logOffsets);
+
+            shardLock.readLock().lock();
+            try
+            {
+                logOffsets.mutations().forEach((rawLogId, offsets) -> {
+                    CoordinatorLogId logId = CoordinatorLogId.fromLong(rawLogId);
+                    Shard shard = getShardNullable(logId);
+                    if (shard != null)
+                        shard.attemptSyncFlushedOffsetsBlocking(logId);
+                });
+            }
+            finally
+            {
+                shardLock.readLock().unlock();
+            }
+        }
+        finally
+        {
+            CommitLog.instance.syncBlocking();
+        }
+    }
+
     private synchronized void onNewClusterMetadata(@Nullable ClusterMetadata prev, ClusterMetadata next)
     {
         if (logger.isTraceEnabled())
@@ -1289,7 +1442,7 @@ public class MutationTrackingService implements MutationTrackingServiceMBean
     {
         logger.warn("Mutation journal compaction is disabled but mutation tracking keyspaces exist: {}. " +
                     "Journal segments will not be reclaimed and durably-reconciled sstables will not be promoted " +
-                    "to repaired (mutation_tracking.journal_promotion_threshold has no effect while compaction is " +
+                    "to repaired (mutation_tracking.journal_reclaim_threshold has no effect while compaction is " +
                     "disabled); the on-disk journal will grow without bound.", keyspaces);
     }
 
@@ -1887,7 +2040,7 @@ public class MutationTrackingService implements MutationTrackingServiceMBean
         // private static final long PERSIST_INTERVAL_MILLIS = 60_000;
         private static final long PERSIST_INTERVAL_MILLIS = 1_000;
 
-        private volatile boolean isPaused = false;
+        private volatile boolean isPaused = CassandraRelevantProperties.TEST_MUTATION_TRACKING_PAUSE_PERSISTER.getBoolean();
 
         void start()
         {
@@ -1915,6 +2068,7 @@ public class MutationTrackingService implements MutationTrackingServiceMBean
             try
             {
                 MutationTrackingService.instance().forEachKeyspace(this::run);
+                CommitLog.instance.syncBlocking();
                 writesOk = true;
             }
             catch (Throwable t)

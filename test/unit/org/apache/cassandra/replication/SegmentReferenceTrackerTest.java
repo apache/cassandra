@@ -336,9 +336,9 @@ public class SegmentReferenceTrackerTest
         for (long segment = 5; segment <= 7; segment++)
             assertEquals(1L, tracker.referenceCountForTesting(segment));
 
-        // When promoted, SSTableReader.mutatePromotedToRepairedAndReload marks repaired and clears coordinatorLogOffsets.
+        // When promoted, SSTableReader.mutatePromotedToRepairedAndReload marks repaired.
+        // It retains coordinatorLogOffsets, but because it is repaired, SegmentReferenceTracker releases its refs.
         repaired.set(true);
-        offsetsRef.set(ImmutableCoordinatorLogOffsets.NONE);
         tracker.handleNotification(new SSTableRepairStatusChanged(List.of(sstable)), null);
 
         for (long segment = 5; segment <= 7; segment++)

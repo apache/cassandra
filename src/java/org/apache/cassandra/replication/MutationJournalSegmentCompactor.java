@@ -103,14 +103,28 @@ class MutationJournalSegmentCompactor implements SegmentCompactor<ShortMutationI
     @Override
     public void onCompacted()
     {
+        long threshold = DatabaseDescriptor.getMutationTrackingConfig().getJournalReclaimThresholdBytes();
+        if (threshold <= 0 || journal.getDiskSpaceUsed() <= threshold)
+            return;
+
         try
         {
-            maybePromoteReconciledSSTables();
+            maybePromoteReconciledSSTables(threshold);
         }
         catch (Throwable t)
         {
             JVMStabilityInspector.inspectThrowable(t);
             noSpamLogger.warn("Failed to promote reconciled sstables to repaired; will retry on a later pass", t);
+        }
+
+        try
+        {
+            journal.maybeFlushReclaimableSegments(threshold, durablyReconciledOffsets());
+        }
+        catch (Throwable t)
+        {
+            JVMStabilityInspector.inspectThrowable(t);
+            noSpamLogger.warn("Failed to flush reclaimable journal segments; will retry on a later pass", t);
         }
     }
 
@@ -129,7 +143,7 @@ class MutationJournalSegmentCompactor implements SegmentCompactor<ShortMutationI
     /**
      * Out-of-band promotion of already durably-reconciled but still-unrepaired sstables to repaired, attempted at
      * the end of every compaction pass while the on-disk mutation journal is over the
-     * {@code mutation_tracking.journal_promotion_threshold}.
+     * {@code mutation_tracking.journal_reclaim_threshold}.
      *
      * <p>Best-effort: an sstable we cannot make a decision about is skipped, and a failure to flip
      * one table's sstables is logged and retried on a later pass.
@@ -137,7 +151,12 @@ class MutationJournalSegmentCompactor implements SegmentCompactor<ShortMutationI
     @VisibleForTesting
     void maybePromoteReconciledSSTables()
     {
-        long threshold = DatabaseDescriptor.getMutationTrackingConfig().getJournalPromotionThresholdBytes();
+        long threshold = DatabaseDescriptor.getMutationTrackingConfig().getJournalReclaimThresholdBytes();
+        maybePromoteReconciledSSTables(threshold);
+    }
+
+    void maybePromoteReconciledSSTables(long threshold)
+    {
         if (threshold <= 0)
             return;
 

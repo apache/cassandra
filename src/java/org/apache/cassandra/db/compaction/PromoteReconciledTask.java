@@ -60,8 +60,7 @@ class PromoteReconciledTask extends AbstractCompactionTask
         try
         {
             logger.info("Promoting {} to repaired; {} have reconciled", transaction.originals(), reason);
-            // One metadata mutation sets repairedAt and clears the offsets, so a repaired sstable never still claims
-            // journal provenance, and an unrepaired one never loses it.
+            // Promotion sets repairedAt and retains the offsets, so the sstable keeps its journal provenance.
             cfs.getCompactionStrategyManager().promoteReconciled(transaction.originals(),
                                                                 Clock.Global.currentTimeMillis());
             completed = true;

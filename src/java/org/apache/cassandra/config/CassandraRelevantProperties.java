@@ -409,6 +409,9 @@ public enum CassandraRelevantProperties
     MONITORING_REPORT_INTERVAL_MS("cassandra.monitoring_report_interval_ms", "5000"),
     /** The most recent version that's supported by all nodes in the cluster **/
     MT_CLUSTER_SAFE_VERSION("cassandra.mutation_tracking.cluster_safe_version"),
+    /** skip memtable replay on startup while still registering IDs and clearing needsReplay. Only set if node was
+     * drained cleanly and you know what you're doing. Unset before next restart **/
+    MUTATION_JOURNAL_SKIP_REPLAY_TO_MEMTABLE("cassandra.mutation_journal.skip_replay_to_memtable", "false"),
     MV_ALLOW_FILTERING_NONKEY_COLUMNS_UNSAFE("cassandra.mv.allow_filtering_nonkey_columns_unsafe"),
     MV_ENABLE_COORDINATOR_BATCHLOG("cassandra.mv_enable_coordinator_batchlog"),
     /** mx4jaddress */
@@ -644,6 +647,7 @@ public enum CassandraRelevantProperties
     TEST_JVM_DTEST_DISABLE_SSL("cassandra.test.disable_ssl"),
     TEST_JVM_SHUTDOWN_MESSAGING_GRACEFULLY("cassandra.test.messagingService.gracefulShutdown", "false"),
     TEST_LEGACY_SSTABLE_ROOT("legacy-sstable-root"),
+    TEST_MUTATION_TRACKING_PAUSE_PERSISTER("cassandra.test.mutation_tracking.pause_persister", "false"),
     TEST_ORG_CAFFINITAS_OHC_SEGMENTCOUNT("org.caffinitas.ohc.segmentCount"),
     TEST_PRESERVE_THREAD_CREATION_STACKTRACE("cassandra.test.preserve_thread_creation_stacktrace", "false"),
     TEST_RANDOM_SEED("cassandra.test.random.seed"),

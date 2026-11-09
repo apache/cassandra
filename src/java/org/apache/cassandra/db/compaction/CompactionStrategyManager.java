@@ -1539,8 +1539,8 @@ public class CompactionStrategyManager implements INotificationConsumer
     }
 
     /**
-     * Promote reconciled sstables to repaired and clear their coordinator log offsets in the same metadata mutation,
-     * then move them between strategies under the write lock as {@link #mutateRepaired} does.
+     * Promote reconciled sstables to repaired, retaining their coordinator log offsets, then move them between
+     * strategies under the write lock as {@link #mutateRepaired} does.
      *
      * @return the sstables that were promoted
      */
@@ -1557,8 +1557,6 @@ public class CompactionStrategyManager implements INotificationConsumer
             {
                 sstable.mutatePromotedToRepairedAndReload(repairedAt);
                 verifyMetadata(sstable, repairedAt, ActiveRepairService.NO_PENDING_REPAIR);
-                if (!sstable.getSSTableMetadata().coordinatorLogOffsets.isEmpty())
-                    throw new IllegalStateException(String.format("Failed clearing coordinator log offsets on %s", sstable));
                 changed.add(sstable);
             }
         }

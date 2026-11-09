@@ -1449,8 +1449,7 @@ public class Journal<K, V> implements Shutdownable
         compactor.runNowBlocking();
     }
 
-    @VisibleForTesting
-    public void closeCurrentSegmentForTestingIfNonEmpty()
+    public void closeCurrentSegmentIfNonEmpty()
     {
         ActiveSegment<K, V> segment = currentSegment;
         if (segment.isEmpty())
@@ -1473,6 +1472,12 @@ public class Journal<K, V> implements Shutdownable
         {
             throw new RuntimeException(e);
         }
+    }
+
+    @VisibleForTesting
+    public void closeCurrentSegmentForTestingIfNonEmpty()
+    {
+        closeCurrentSegmentIfNonEmpty();
     }
 
     @VisibleForTesting

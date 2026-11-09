@@ -20,6 +20,7 @@ package org.apache.cassandra.replication;
 import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.util.Collection;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -45,15 +46,18 @@ import org.slf4j.LoggerFactory;
 import accord.utils.Invariants;
 
 import org.apache.cassandra.concurrent.Stage;
+import org.apache.cassandra.config.CassandraRelevantProperties;
 import org.apache.cassandra.config.Config;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.config.DurationSpec;
+import org.apache.cassandra.db.ColumnFamilyStore;
 import org.apache.cassandra.db.Keyspace;
 import org.apache.cassandra.db.Mutation;
 import org.apache.cassandra.db.TypeSizes;
 import org.apache.cassandra.db.commitlog.CommitLogPosition;
 import org.apache.cassandra.db.partitions.PartitionUpdate;
 import org.apache.cassandra.exceptions.UnknownTableException;
+import org.apache.cassandra.io.sstable.format.SSTableReader;
 import org.apache.cassandra.io.util.DataInputPlus;
 import org.apache.cassandra.io.util.DataOutputPlus;
 import org.apache.cassandra.io.util.File;
@@ -99,6 +103,16 @@ public class MutationJournal
         public PendingClearReplay(ImmutableSet<Long> segments)
         {
             this.segments = segments;
+        }
+
+        public int size()
+        {
+            return segments.size();
+        }
+
+        public boolean isEmpty()
+        {
+            return segments.isEmpty();
         }
     }
 
@@ -204,7 +218,7 @@ public class MutationJournal
                               protected void closeActiveSegmentAndOpenAsStatic(ActiveSegment<ShortMutationId, Mutation> activeSegment, Runnable onDone)
                               {
                                   super.closeActiveSegmentAndOpenAsStatic(activeSegment, () -> {
-                                      maybeCleanupStaticSegment(Invariants.nonNull(getSegment(activeSegment.id())));
+                                      maybeCleanupSegment(Invariants.nonNull(getSegment(activeSegment.id())));
                                       if (onDone != null) onDone.run();
                                   });
                               }
@@ -246,12 +260,80 @@ public class MutationJournal
     // LogStatePersister drain the queue after it has written witnessed offsets to system.coordinator_logs.
     //
     // See the comment in LogStatePersister or CASSANDRA-21443 for an explanation of why we do this
-    private void maybeCleanupStaticSegment(Segment<ShortMutationId, Mutation> segment)
+    private void maybeCleanupSegment(Segment<ShortMutationId, Mutation> segment)
     {
         Invariants.require(segment.isStatic());
+        if (!segment.metadata().needsReplay())
+            return;
+
         SegmentStateTracker tracker = segmentStateTrackers.get(segment.id());
-        if (tracker == null || tracker.removeCleanFromDirty())
+        if (tracker != null && tracker.removeCleanFromDirty())
             pendingClearReplay.add(segment.id());
+    }
+
+    @VisibleForTesting
+    public void maybeFlushReclaimableSegments()
+    {
+        long threshold = DatabaseDescriptor.getMutationTrackingConfig().getJournalReclaimThresholdBytes();
+        maybeFlushReclaimableSegments(threshold, segmentCompactor.durablyReconciledOffsets());
+    }
+
+    void maybeFlushReclaimableSegments(long threshold, Log2OffsetsMap<?> durablyReconciled)
+    {
+        long diskSpaceUsed = journal.getDiskSpaceUsed();
+        if (threshold <= 0 || diskSpaceUsed <= threshold)
+            return;
+
+        long bytesToReclaim = diskSpaceUsed - threshold;
+        long bytesSelected = 0;
+        Set<TableId> tablesToFlush = new HashSet<>();
+
+        for (Segment<ShortMutationId, Mutation> segment : journal.getAllSegments())
+        {
+            if (!segment.isStatic() || !segment.metadata().needsReplay())
+                continue;
+
+            StaticSegment<ShortMutationId, Mutation> staticSegment = (StaticSegment<ShortMutationId, Mutation>) segment;
+            MutationJournal.StaticOffsetRanges keyStats = (StaticOffsetRanges) staticSegment.keyStats();
+            if (segmentReferenceTracker.isReferenced(staticSegment) || !keyStats.isFullyCovered(durablyReconciled))
+                continue;
+
+            SegmentStateTracker tracker = segmentStateTrackers.get(segment.id());
+            if (tracker != null)
+            {
+                Set<TableId> dirtyTables = tracker.getDirtyTableIds();
+                for (TableId tableId : dirtyTables)
+                {
+                    ColumnFamilyStore cfs = ColumnFamilyStore.getIfExists(tableId);
+                    if (cfs != null)
+                    {
+                        tablesToFlush.add(tableId);
+                    }
+                    else
+                    {
+                        logger.info("Marking clean dropped table {} in reclaimable journal segment {}", tableId, segment.id());
+                        tracker.markClean(tableId, CommitLogPosition.NONE, new CommitLogPosition(segment.id(), Integer.MAX_VALUE));
+                        if (tracker.removeCleanFromDirty())
+                            pendingClearReplay.add(segment.id());
+                    }
+                }
+            }
+
+            bytesSelected += segment.segmentSizeOnDisk();
+            if (bytesSelected >= bytesToReclaim)
+                break;
+        }
+
+        for (TableId tableId : tablesToFlush)
+        {
+            ColumnFamilyStore cfs = ColumnFamilyStore.getIfExists(tableId);
+            if (cfs != null)
+            {
+                logger.info("Triggering flush for {}.{} to release reclaimable journal segments (journal space {} > threshold {})",
+                            cfs.getKeyspaceName(), cfs.getTableName(), diskSpaceUsed, threshold);
+                cfs.forceFlush(ColumnFamilyStore.FlushReason.COMMITLOG_DIRTY);
+            }
+        }
     }
 
     /**
@@ -269,6 +351,11 @@ public class MutationJournal
      */
     public void drainCleanup(PendingClearReplay toDrain)
     {
+        drainCleanup(toDrain, true);
+    }
+
+    public void drainCleanup(PendingClearReplay toDrain, boolean triggerCompaction)
+    {
         boolean anyCleared = false;
         for (long segId : toDrain.segments)
         {
@@ -280,6 +367,7 @@ public class MutationJournal
                 continue;
             }
             Segment<ShortMutationId, Mutation> segment = found.get(0);
+            boolean neededReplay = segment.metadata().needsReplay();
             try
             {
                 segment.metadata().clearNeedsReplay();
@@ -289,12 +377,14 @@ public class MutationJournal
             }
             catch (Throwable t)
             {
+                if (neededReplay)
+                    segment.metadata().setNeedsReplay(true);
                 logger.warn("Deferred cleanup failed for segment {}; will retry next persister tick", segId, t);
                 // leave in live queue
             }
         }
 
-        if (anyCleared)
+        if (anyCleared && triggerCompaction)
             triggerSegmentCompaction();
     }
 
@@ -346,21 +436,21 @@ public class MutationJournal
         // TODO (required): why are we using blocking write here? We can/should wait for completion on `close` of WriteContext.
         RecordPointer ptr = journal.blockingWrite(id, mutation);
 
+        // needsReplay is never cleared on segments without trackers, so we create trackers outside of the full
+        // replica check so witness only segments can be cleared
+        SegmentStateTracker tracker = lastSegmentTracker;
+        if (tracker == null || tracker.segmentId() != ptr.segmentId)
+        {
+            tracker = segmentStateTrackers.computeIfAbsent(ptr.segmentId, SegmentStateTracker::new);
+            lastSegmentTracker = tracker;
+        }
+
         // IMPORTANT: there should be no way for mutation to be applied to memtable before we mark it as dirty here,
         // since this will introduce a race between marking as dirty and marking as clean.
         if (isFullReplica)
         {
             for (TableId tableId : mutation.getTableIds())
-            {
-                SegmentStateTracker tracker = lastSegmentTracker;
-                if (tracker == null || tracker.segmentId() != ptr.segmentId)
-                {
-                    tracker = segmentStateTrackers.computeIfAbsent(ptr.segmentId, SegmentStateTracker::new);
-                    lastSegmentTracker = tracker;
-                }
-
                 tracker.markDirty(tableId, ptr);
-            }
         }
 
         return ptr;
@@ -383,7 +473,7 @@ public class MutationJournal
             // We can only safely mark static segments as non-replayable. Active segment can still be written to,
             // so we only persist this metadata on flush.
             if (segment.isStatic())
-                maybeCleanupStaticSegment(segment);
+                maybeCleanupSegment(segment);
         }
     }
 
@@ -455,8 +545,24 @@ public class MutationJournal
         }
     }
 
+    /**
+     * Replay the mutation journal on startup. On replay we always need to notify the mutation tracking system of replayable
+     * writes, since the coordinator logs may not have synced their views of offsets to disk before being shutdown if the
+     * node crashed. We also need to skip replaying writes into the memtable if they have already been flushed to sstables.
+     * Replaying flushed writes into the memtable can resurrect deleted data if the deleting tombstone is not also replayed.
+     * This is analagous to checking the sstable replay position interval tree on startup on commit log replay.
+     */
     public void replayStaticSegments()
     {
+        final boolean skipReplayToMemtable = CassandraRelevantProperties.MUTATION_JOURNAL_SKIP_REPLAY_TO_MEMTABLE.getBoolean();
+        if (skipReplayToMemtable)
+        {
+            logger.warn("Replay bypass enabled via {}: skipping mutation application to memtables while registering IDs with tracking service",
+                        CassandraRelevantProperties.MUTATION_JOURNAL_SKIP_REPLAY_TO_MEMTABLE.getKey());
+        }
+
+        final Map<TableId, ImmutableCoordinatorLogOffsets> liveSSTableOffsets = new ConcurrentHashMap<>();
+
         replay(new DeserializedRecordConsumer<>(MutationSerializer.INSTANCE)
         {
             @Override
@@ -483,36 +589,86 @@ public class MutationJournal
             {
                 if (Schema.instance.getKeyspaceMetadata(value.getKeyspaceName()) == null)
                     return;
+
+                MutationTrackingService mts = MutationTrackingService.instance();
+
+                if (skipReplayToMemtable)
+                {
+                    mts.recordWriteForReplay(value);
+                    return;
+                }
+
                 // TODO: if (commitLogReplayer.pointInTimeExceeded(mutation))
                 final Keyspace keyspace = Keyspace.open(value.getKeyspaceName());
                 final boolean isFullReplica = keyspace.isFullReplicaFor(value.key().getToken(), ClusterMetadata.current());
 
                 Mutation.PartitionUpdateCollector newPUCollector = null;
-                // TODO (required): replayFilter
-                for (Map.Entry<TableId, PartitionUpdate> e : value.modifications().entrySet())
+                for (PartitionUpdate update : value.getPartitionUpdates())
                 {
-                    PartitionUpdate update = e.getValue();
                     update.validate();
-                    if (Schema.instance.getTableMetadata(update.metadata().id) == null)
+                    TableId tableId = update.metadata().id;
+                    ColumnFamilyStore cfs = ColumnFamilyStore.getIfExists(tableId);
+                    if (cfs == null)
                         continue; // dropped
-                    TableId tableId = e.getKey();
+
+                    ImmutableCoordinatorLogOffsets tableOffsets = liveSSTableOffsets.computeIfAbsent(tableId, id -> {
+                        ImmutableCoordinatorLogOffsets.Builder builder = new ImmutableCoordinatorLogOffsets.Builder();
+                        for (SSTableReader sstable : cfs.getLiveSSTables())
+                            builder.addAll(sstable.getCoordinatorLogOffsets());
+                        return builder.build();
+                    });
+
+                    boolean alreadyFlushed = tableOffsets.contains(value.id()) || mts.isFlushed(tableId, value.id());
+
+                    if (alreadyFlushed)
+                    {
+                        logger.trace("Skipping replay of mutation {} for table {} because it is already present in SSTables or was previously flushed",
+                                     value.id(), tableId);
+                        continue;
+                    }
 
                     if (isFullReplica)
                         segmentStateTrackers.computeIfAbsent(segmentId, SegmentStateTracker::new)
                                             .markDirty(tableId, segmentId, position);
-                    // TODO (required): shouldReplay
                     if (newPUCollector == null)
                         newPUCollector = new Mutation.PartitionUpdateCollector(value.id(), value.getKeyspaceName(), value.key());
                     newPUCollector.add(update);
-                    // TODO (required): replayedCount
                 }
                 if (newPUCollector != null)
                 {
                     assert !newPUCollector.isEmpty();
+                    // Register the full mutation so unreconciled tracking keeps tables skipped above.
+                    // The startWriting in applyForReplay then finds the existing entry (idempotent).
+                    mts.startWritingForReplay(value);
                     keyspace.applyForReplay(newPUCollector.build());
+                }
+                else
+                {
+                    mts.recordWriteForReplay(value);
                 }
             }
         }, getAvailableProcessors());
+
+        // After replay, clear needsReplay for segments that have no pending memtable writes.
+        // Segments whose mutations were all skipped (already present in SSTables, dropped tables, or
+        // witness-only writes) never dirtied a memtable. Normal flush callbacks will never span these
+        // pre-existing static segments, so they must be queued here or will be retained indefinitely.
+        for (Segment<ShortMutationId, Mutation> segment : journal.getAllSegments())
+        {
+            if (segment.isStatic() && segment.metadata().needsReplay())
+            {
+                if (skipReplayToMemtable)
+                {
+                    pendingClearReplay.add(segment.id());
+                }
+                else
+                {
+                    SegmentStateTracker tracker = segmentStateTrackers.get(segment.id());
+                    if (tracker == null || tracker.removeCleanFromDirty())
+                        pendingClearReplay.add(segment.id());
+                }
+            }
+        }
     }
 
     @VisibleForTesting
@@ -1091,10 +1247,22 @@ public class MutationJournal
         lastSegmentTracker = null;
     }
 
+    public void closeCurrentSegmentIfNonEmpty()
+    {
+        journal.closeCurrentSegmentIfNonEmpty();
+    }
+
+    public static void closeActiveSegmentIfNonEmpty()
+    {
+        MutationJournal mutationJournal = instance;
+        if (mutationJournal != null)
+            mutationJournal.closeCurrentSegmentIfNonEmpty();
+    }
+
     @VisibleForTesting
     public void closeCurrentSegmentForTestingIfNonEmpty()
     {
-        journal.closeCurrentSegmentForTestingIfNonEmpty();
+        closeCurrentSegmentIfNonEmpty();
     }
 
     @VisibleForTesting
@@ -1107,6 +1275,12 @@ public class MutationJournal
     public int countStaticSegmentsForTesting()
     {
         return journal.countStaticSegments();
+    }
+
+    @VisibleForTesting
+    public Collection<Segment<ShortMutationId, Mutation>> getAllSegmentsForTesting()
+    {
+        return journal.getAllSegments();
     }
 
     /**

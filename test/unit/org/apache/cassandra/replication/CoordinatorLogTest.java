@@ -20,6 +20,10 @@ package org.apache.cassandra.replication;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+import java.util.concurrent.Future;
 
 import org.junit.AfterClass;
 import org.junit.Before;
@@ -42,6 +46,7 @@ import org.apache.cassandra.schema.TableMetadata;
 import org.apache.cassandra.utils.ByteBufferUtil;
 
 import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertSame;
 import static org.junit.Assert.assertTrue;
 
@@ -147,6 +152,25 @@ public class CoordinatorLogTest
         assertUnreconciled(tk, tableId, log, false, reconciled, ids[1], ids[2]);
     }
 
+    @Test
+    public void duplicateStartWritingVisibleAfterFinishWriting()
+    {
+        Token tk = tk("key");
+        TableMetadata metadata = Schema.instance.getTableMetadata(KEYSPACE, TABLE);
+        TableId tableId = metadata.id;
+        CoordinatorLogPrimary log = new CoordinatorLogPrimary(KEYSPACE, new Range<>(tk, tk), LOCAL_HOST_ID, LOCAL_LOG_ID, PARTICIPANTS);
+        MutationId id = log.nextId();
+        Mutation mutation = createMutation(id);
+
+        assertTrue(log.startWriting(mutation));
+        assertTrue(log.startWriting(mutation));
+        log.finishWriting(mutation);
+        assertFalse("this mutation was already witnessed", log.startWriting(mutation));
+
+        Offsets.Mutable reconciled = new Offsets.Mutable(LOCAL_LOG_ID);
+        assertUnreconciled(tk, tableId, log, false, reconciled, id);
+    }
+
     private Mutation createMutation(MutationId id)
     {
         TableMetadata metadata = Schema.instance.getTableMetadata(KEYSPACE, TABLE);
@@ -193,8 +217,14 @@ public class CoordinatorLogTest
         MutationJournal.instance().write(mutation1.id(), mutation1);
         MutationJournal.instance().write(mutation2.id(), mutation2);
 
+        TableId tableId = Schema.instance.getTableMetadata(KEYSPACE, TABLE).id;
+        Table2OffsetsMap flushed = new Table2OffsetsMap();
+        Offsets.Mutable flushedOffsets = new Offsets.Mutable(logId);
+        flushedOffsets.add(1, 2);
+        flushed.add(tableId, flushedOffsets);
+
         CoordinatorLog log =
-            CoordinatorLog.recreate(KEYSPACE, range, LOCAL_HOST_ID, logId, PARTICIPANTS, witnessed, witnessed, unreconciled);
+            CoordinatorLog.recreate(KEYSPACE, range, LOCAL_HOST_ID, logId, PARTICIPANTS, witnessed, witnessed, flushed, flushed.copyImmutable(), unreconciled);
 
         Offsets.Mutable reconciled = new Offsets.Mutable(logId);
         reconciled.add(3, 4);
@@ -225,6 +255,8 @@ public class CoordinatorLogTest
         assertEquals(log.witnessedOffsets, loaded.witnessedOffsets);
         assertEquals(log.persistedOffsets, loaded.persistedOffsets);
         assertEquals(log.reconciledOffsets, loaded.reconciledOffsets);
+        assertEquals(log.flushedOffsets(), loaded.flushedOffsets());
+        assertEquals(log.durablyFlushedOffsets(), loaded.durablyFlushedOffsets());
 
         assertTrue(log.unreconciledMutations.equalsForTesting(loaded.unreconciledMutations));
     }
@@ -315,5 +347,63 @@ public class CoordinatorLogTest
         // offset 10 should be promoted to reconciled since the node without it (3) has been removed
         assertEquals(offsetsWithOffsets(10, 40), newLog.reconciledOffsets);
         assertTrue(newLog.unreconciledMutations.isEmpty());
+    }
+
+    @Test
+    public void concurrentSystemTableUpdateTest() throws Exception
+    {
+        Token tk = Murmur3Partitioner.instance.getMinimumToken();
+        CoordinatorLogPrimary log = new CoordinatorLogPrimary(KEYSPACE, new Range<>(tk, tk), LOCAL_HOST_ID, LOCAL_LOG_ID, PARTICIPANTS);
+        log.persistToSystemTable();
+
+        int numThreads = 8;
+        int iterationsPerThread = 25;
+        ExecutorService executor = Executors.newFixedThreadPool(numThreads);
+        CountDownLatch readyLatch = new CountDownLatch(numThreads);
+        CountDownLatch startLatch = new CountDownLatch(1);
+        List<Future<?>> futures = new ArrayList<>();
+
+        TableId tableId = Schema.instance.getTableMetadata(KEYSPACE, TABLE).id;
+        for (int t = 0; t < numThreads; t++)
+        {
+            final int threadIdx = t;
+            futures.add(executor.submit(() -> {
+                readyLatch.countDown();
+                try
+                {
+                    startLatch.await();
+                    for (int i = 0; i < iterationsPerThread; i++)
+                    {
+                        int offset = threadIdx * iterationsPerThread + i + 1;
+                        Offsets.Mutable toAdd = new Offsets.Mutable(LOCAL_LOG_ID);
+                        toAdd.add(offset);
+                        log.recordFlushedOffsets(tableId, toAdd);
+                        log.updateLogsInSystemTable();
+                    }
+                }
+                catch (InterruptedException e)
+                {
+                    Thread.currentThread().interrupt();
+                    throw new RuntimeException(e);
+                }
+            }));
+        }
+
+        readyLatch.await();
+        startLatch.countDown();
+
+        for (Future<?> f : futures)
+            f.get();
+
+        executor.shutdown();
+
+        assertEquals(log.flushedOffsets(), log.durablyFlushedOffsets());
+
+        List<CoordinatorLog> loaded = CoordinatorLog.loadFromSystemTable(KEYSPACE, log.range, LOCAL_HOST_ID);
+        assertEquals(1, loaded.size());
+        assertEquals(log.flushedOffsets(), loaded.get(0).flushedOffsets());
+        assertEquals(log.flushedOffsets(), loaded.get(0).durablyFlushedOffsets());
+
+        log.deleteFromSystemTable();
     }
 }

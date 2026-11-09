@@ -53,6 +53,7 @@ import org.apache.cassandra.schema.ReplicationType;
 import org.apache.cassandra.schema.TableMetadata;
 import org.apache.cassandra.schema.TableParams;
 import org.apache.cassandra.utils.ByteBufferUtil;
+import org.apache.cassandra.utils.FBUtilities;
 
 @RunWith(Parameterized.class)
 public class CoordinatorLogOffsetsLifecycleTest
@@ -198,9 +199,10 @@ public class CoordinatorLogOffsetsLifecycleTest
 
             SSTableReader sstable = Iterables.getOnlyElement(view.liveSSTables());
             // Single-participant, so mutations are immediately reconciled once applied, and a reconciled flush is
-            // promoted as it is written.
+            // promoted as it is written. It retains coordinatorLogOffsets.
             Assertions.assertThat(sstable.isRepaired()).isTrue();
-            Assertions.assertThat(sstable.getCoordinatorLogOffsets().isEmpty()).isTrue();
+            Assertions.assertThat(sstable.getCoordinatorLogOffsets().isEmpty()).isFalse();
+            Assertions.assertThat(sstable.getCoordinatorLogOffsets().contains(id2)).isTrue();
             Assertions.assertThat(CompactionGroup.of(sstable)).isEqualTo(CompactionGroup.REPAIRED);
         }
 
@@ -232,7 +234,7 @@ public class CoordinatorLogOffsetsLifecycleTest
             for (SSTableReader sstable : view.liveSSTables())
             {
                 Assertions.assertThat(sstable.isRepaired()).isTrue();
-                Assertions.assertThat(sstable.getCoordinatorLogOffsets().isEmpty()).isTrue();
+                Assertions.assertThat(sstable.getCoordinatorLogOffsets().isEmpty()).isFalse();
             }
         }
 
@@ -245,9 +247,71 @@ public class CoordinatorLogOffsetsLifecycleTest
             assertNumSSTables(view, 1);
 
             SSTableReader sstable = Iterables.getOnlyElement(view.liveSSTables());
-            // Compacting repaired inputs yields a repaired output, still with no offsets to carry forward.
+            // Compacting repaired inputs yields a repaired output, which preserves the union of offsets.
             Assertions.assertThat(sstable.isRepaired()).isTrue();
-            Assertions.assertThat(sstable.getCoordinatorLogOffsets().isEmpty()).isTrue();
+            Assertions.assertThat(sstable.getCoordinatorLogOffsets().isEmpty()).isFalse();
+            Assertions.assertThat(sstable.getCoordinatorLogOffsets().contains(id2)).isTrue();
+            Assertions.assertThat(sstable.getCoordinatorLogOffsets().contains(id4)).isTrue();
+        }
+    }
+
+    @Test
+    public void purgedCompactionPersistsFlushedOffsetsToSystemTable()
+    {
+        String ks = nextKeyspaceName();
+        String tbl = "tbl_purged";
+        TableParams tableParams =
+            TableParams.builder()
+                       .gcGraceSeconds(0)
+                       .memtable(MemtableParams.get(memtableConfig))
+                       .build();
+
+        TableMetadata tableMetadata =
+            TableMetadata.builder(ks, tbl)
+                         .addPartitionKeyColumn("k", Int32Type.instance)
+                         .addRegularColumn("v", Int32Type.instance)
+                         .params(tableParams)
+                         .build();
+
+        SchemaLoader.createKeyspace(ks, KeyspaceParams.simple(1, ReplicationType.tracked), tableMetadata);
+
+        Keyspace keyspace = Keyspace.open(ks);
+        ColumnFamilyStore cfs = keyspace.getColumnFamilyStore(tbl);
+        cfs.disableAutoCompaction();
+
+        // Pause the periodic persister before any flush. Flushed sstables are promoted to repaired once their offsets
+        // are durably reconciled, and a repaired sstable is compacted apart from the unrepaired one, so the tombstone
+        // would not be compacted with the data it shadows.
+        MutationTrackingService.instance().pauseOffsetsPersisterForTesting();
+        try
+        {
+            // 1. Insert row k=1, v=1
+            MutationId insertId = applyMutation(cfs.metadata(), 1, 1);
+            cfs.forceBlockingFlush(ColumnFamilyStore.FlushReason.UNIT_TESTS);
+            assertNumSSTables(cfs.getTracker().getView(), 1);
+
+            // 2. Delete partition k=1
+            DecoratedKey key = cfs.metadata().partitioner.decorateKey(ByteBufferUtil.bytes(1));
+            MutationId deleteId = MutationTrackingService.instance().nextMutationId(ks, key.getToken());
+            long nowInSec = FBUtilities.nowInSeconds();
+            long ts = FBUtilities.timestampMicros() + 1000;
+            PartitionUpdate deleteUpdate = PartitionUpdate.fullPartitionDelete(cfs.metadata(), key, ts, nowInSec - 10);
+            new Mutation(deleteUpdate).withMutationId(deleteId).apply();
+
+            cfs.forceBlockingFlush(ColumnFamilyStore.FlushReason.UNIT_TESTS);
+            assertNumSSTables(cfs.getTracker().getView(), 2);
+
+            // 3. Compact everything. Tombstone purges row and itself, yielding 0 output SSTables
+            cfs.forceMajorCompaction();
+            assertNumSSTables(cfs.getTracker().getView(), 0);
+
+            // 4. Verify that insertId and deleteId are recorded as flushed and durable
+            Assertions.assertThat(MutationTrackingService.instance().isFlushed(cfs.metadata().id, insertId)).isTrue();
+            Assertions.assertThat(MutationTrackingService.instance().isFlushed(cfs.metadata().id, deleteId)).isTrue();
+        }
+        finally
+        {
+            MutationTrackingService.instance().resumeOffsetsPersisterForTesting();
         }
     }
 }

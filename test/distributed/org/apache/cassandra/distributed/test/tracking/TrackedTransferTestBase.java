@@ -101,6 +101,11 @@ public abstract class TrackedTransferTestBase extends TestBaseImpl
         Assertions.assertThat(sstable.getCoordinatorLogOffsets().transfers()).isEmpty();
         Assertions.assertThat(sstable.isRepaired()).isTrue();
     };
+    // Promotion to repaired keeps the activated transfers, so reads still report them
+    protected static final IIsolatedExecutor.SerializableConsumer<SSTableReader> TRANSFERS_PROMOTED = sstable -> {
+        Assertions.assertThat(sstable.getCoordinatorLogOffsets().transfers()).isNotEmpty();
+        Assertions.assertThat(sstable.isRepaired()).isTrue();
+    };
     protected static final IIsolatedExecutor.SerializableConsumer<SSTableReader> NOOP = sstable -> {};
 
     protected static final int NODES = 3;

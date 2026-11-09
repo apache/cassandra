@@ -72,6 +72,11 @@ public final class Metadata
         this.needsReplay = false;
     }
 
+    public void setNeedsReplay(boolean needsReplay)
+    {
+        this.needsReplay = needsReplay;
+    }
+
     int fsyncLimit()
     {
         return fsyncLimit;

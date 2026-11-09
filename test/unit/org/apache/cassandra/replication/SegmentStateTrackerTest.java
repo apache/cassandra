@@ -61,6 +61,32 @@ public class SegmentStateTrackerTest
     }
 
     @Test
+    public void removeCleanFromDirtyReturnsTrueWhenClean()
+    {
+        long segment = 124L;
+        SegmentStateTracker tracker = new SegmentStateTracker(segment);
+        TableId tbl1 = TableId.generate();
+        TableId tbl2 = TableId.generate();
+
+        // Empty tracker should return true
+        assertTrue(tracker.removeCleanFromDirty());
+
+        tracker.markDirty(tbl1, segment, 10);
+        tracker.markDirty(tbl2, segment, 20);
+        assertFalse(tracker.removeCleanFromDirty());
+
+        tracker.markClean(tbl1, pos(segment, 0), pos(segment, 15));
+        // tbl2 is still dirty
+        assertFalse(tracker.removeCleanFromDirty());
+
+        tracker.markClean(tbl2, pos(segment, 0), pos(segment, 25));
+        // both tables now clean
+        assertTrue(tracker.removeCleanFromDirty());
+        // subsequent call on already-empty tracker should also return true
+        assertTrue(tracker.removeCleanFromDirty());
+    }
+
+    @Test
     public void memtableSpannignMultipleSegmentsTest()
     {
         SegmentStateTracker segment1 = new SegmentStateTracker(1);
