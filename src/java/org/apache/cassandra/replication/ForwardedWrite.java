@@ -27,6 +27,8 @@ import java.util.Map;
 import java.util.Set;
 import java.util.function.Consumer;
 
+import javax.annotation.Nullable;
+
 import com.google.common.base.Preconditions;
 import com.google.common.collect.Sets;
 
@@ -194,10 +196,12 @@ public class ForwardedWrite
         /**
          * Epoch of the {@link ReplicaPlan.ForWrite} the coordinator built
          * {@link #liveReplicas} and {@link #downReplicas} from.
+         * <p>
+         * TODO (expected): once V1 no longer needs to be supported, make planEpoch @Nonnull
          */
-        private final Epoch planEpoch;
+        @Nullable private final Epoch planEpoch;
 
-        public MutationRequest(Mutation mutation, Participants liveReplicas, Participants downReplicas, Epoch planEpoch)
+        public MutationRequest(Mutation mutation, Participants liveReplicas, Participants downReplicas, @Nullable Epoch planEpoch)
         {
             Preconditions.checkArgument(mutation.id().isNone());
             this.mutation = mutation;
@@ -604,7 +608,7 @@ public class ForwardedWrite
             {
                 Set<NodeId> recipients = CollectionSerializers.deserializeSet(in, version.messagingVersion(), NodeId.messagingSerializer);
                 Participants liveReplicas = Participants.fromNodeIds(recipients);
-                return new MutationRequest(mutation, liveReplicas, Participants.EMPTY, Epoch.EMPTY);
+                return new MutationRequest(mutation, liveReplicas, Participants.EMPTY, null); // V1 compatibility
             }
         }
 
@@ -650,6 +654,21 @@ public class ForwardedWrite
 
         VersionedEndpoints.ForToken writePlacements = writePlacements(metadata, keyspace, key);
 
+        // TODO (expected): get rid of once V1 is no longer supported
+        if (planEpoch == null)
+        {
+            if (!writePlacements.get().containsSelf())
+            {
+                StorageService.instance.incOutOfRangeOperationCount();
+                Keyspace.open(keyspace).metric.outOfRangeTokenWrites.inc();
+                throw InvalidRoutingException.forWrite(incoming.from(), key.getToken(), metadata.epoch, request.mutation);
+            }
+
+            CoordinatorAckInfo ackTo = CoordinatorAckInfo.toCoordinator(incoming.from(), incoming.id());
+            request.applyLocallyAndForwardToReplicas(metadata, writePlacements, ackTo);
+            return;
+        }
+
         /*
          * Reconcile leader's metadata epoch with the coordinator's to ensure that the replicas
          * calculated on the coordinator are the same as replicas calculated on the leader; this is
@@ -661,56 +680,44 @@ public class ForwardedWrite
          * set of participants that the recepients the coordinator has calculated.
          */
 
-        if (!planEpoch.is(Epoch.EMPTY))
+        if (planEpoch.isAfter(metadata.epoch))
         {
-            if (planEpoch.isAfter(metadata.epoch))
-            {
-                if (!writePlacements.get().containsSelf())
-                {
-                    metadata = ClusterMetadataService.instance().fetchLogFromPeerOrCMS(metadata, incoming.from(), planEpoch);
-                    writePlacements = writePlacements(metadata, keyspace, key);
-                }
-                else
-                {
-                    ClusterMetadataService.instance().fetchLogFromPeerOrCMSAsync(metadata, incoming.from(), planEpoch); // async
-                }
-            }
-
             if (!writePlacements.get().containsSelf())
             {
-                StorageService.instance.incOutOfRangeOperationCount();
-                Keyspace.open(keyspace).metric.outOfRangeTokenWrites.inc();
-                throw InvalidRoutingException.forWrite(incoming.from(), key.getToken(), metadata.epoch, request.mutation);
+                metadata = ClusterMetadataService.instance().fetchLogFromPeerOrCMS(metadata, incoming.from(), planEpoch);
+                writePlacements = writePlacements(metadata, keyspace, key);
             }
-
-            if (writePlacements.lastModified().isAfter(planEpoch))
+            else
             {
-                TCMMetrics.instance.coordinatorBehindPlacements.mark();
-                String msg =
-                    format("Routing is correct, but coordinator needs to catch-up at least to epoch %s to maintain consistency. " +
-                           "Current coordinator epoch is %s", writePlacements.lastModified(), planEpoch);
-                throw new CoordinatorBehindException(msg);
-            }
-
-            // at this stage it's possible that local (leader) writePlacements.lastModified() is *before* coordinator's
-            // planEpoch and this may be completely fine, or not, so we must compare actual replica sets.
-            Participants liveAndDownParticipants = Participants.merge(request.liveReplicas, request.downReplicas);
-            if (!liveAndDownParticipants.matches(writePlacements.get(), metadata))
-            {
-                String msg =
-                    format("Leader is possibly behind coordinator for tracked write; live: %s, down: %s, placements: %s",
-                           request.liveReplicas, request.downReplicas, writePlacements.get());
-                throw new CoordinatorBehindException(msg);
+                ClusterMetadataService.instance().fetchLogFromPeerOrCMSAsync(metadata, incoming.from(), planEpoch); // async
             }
         }
-        else
+
+        if (!writePlacements.get().containsSelf())
         {
-            if (!writePlacements.get().containsSelf())
-            {
-                StorageService.instance.incOutOfRangeOperationCount();
-                Keyspace.open(keyspace).metric.outOfRangeTokenWrites.inc();
-                throw InvalidRoutingException.forWrite(incoming.from(), key.getToken(), metadata.epoch, request.mutation);
-            }
+            StorageService.instance.incOutOfRangeOperationCount();
+            Keyspace.open(keyspace).metric.outOfRangeTokenWrites.inc();
+            throw InvalidRoutingException.forWrite(incoming.from(), key.getToken(), metadata.epoch, request.mutation);
+        }
+
+        if (writePlacements.lastModified().isAfter(planEpoch))
+        {
+            TCMMetrics.instance.coordinatorBehindPlacements.mark();
+            String msg =
+                format("Routing is correct, but coordinator needs to catch-up at least to epoch %s to maintain consistency. " +
+                       "Current coordinator epoch is %s", writePlacements.lastModified(), planEpoch);
+            throw new CoordinatorBehindException(msg);
+        }
+
+        // at this stage it's possible that local (leader) writePlacements.lastModified() is *before* coordinator's
+        // planEpoch and this may be completely fine, or not, so we must compare actual replica sets.
+        Participants liveAndDownParticipants = Participants.merge(request.liveReplicas, request.downReplicas);
+        if (!liveAndDownParticipants.matches(writePlacements.get(), metadata))
+        {
+            String msg =
+                format("Leader is possibly behind coordinator for tracked write; live: %s, down: %s, placements: %s",
+                       request.liveReplicas, request.downReplicas, writePlacements.get());
+            throw new CoordinatorBehindException(msg);
         }
 
         CoordinatorAckInfo ackTo = CoordinatorAckInfo.toCoordinator(incoming.from(), incoming.id());
