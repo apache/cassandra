@@ -20,6 +20,7 @@ package org.apache.cassandra.replication;
 import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.util.Collection;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -267,6 +268,71 @@ public class MutationJournal
         SegmentStateTracker tracker = segmentStateTrackers.get(segment.id());
         if (tracker != null && tracker.removeCleanFromDirty())
             pendingClearReplay.add(segment.id());
+    }
+
+    @VisibleForTesting
+    public void maybeFlushReclaimableSegments()
+    {
+        long threshold = DatabaseDescriptor.getMutationTrackingConfig().getJournalReclaimThresholdBytes();
+        maybeFlushReclaimableSegments(threshold, segmentCompactor.durablyReconciledOffsets());
+    }
+
+    void maybeFlushReclaimableSegments(long threshold, Log2OffsetsMap<?> durablyReconciled)
+    {
+        long diskSpaceUsed = journal.getDiskSpaceUsed();
+        if (threshold <= 0 || diskSpaceUsed <= threshold)
+            return;
+
+        long bytesToReclaim = diskSpaceUsed - threshold;
+        long bytesSelected = 0;
+        Set<TableId> tablesToFlush = new HashSet<>();
+
+        for (Segment<ShortMutationId, Mutation> segment : journal.getAllSegments())
+        {
+            if (!segment.isStatic() || !segment.metadata().needsReplay())
+                continue;
+
+            StaticSegment<ShortMutationId, Mutation> staticSegment = (StaticSegment<ShortMutationId, Mutation>) segment;
+            MutationJournal.StaticOffsetRanges keyStats = (StaticOffsetRanges) staticSegment.keyStats();
+            if (segmentReferenceTracker.isReferenced(staticSegment) || !keyStats.isFullyCovered(durablyReconciled))
+                continue;
+
+            SegmentStateTracker tracker = segmentStateTrackers.get(segment.id());
+            if (tracker != null)
+            {
+                Set<TableId> dirtyTables = tracker.getDirtyTableIds();
+                for (TableId tableId : dirtyTables)
+                {
+                    ColumnFamilyStore cfs = ColumnFamilyStore.getIfExists(tableId);
+                    if (cfs != null)
+                    {
+                        tablesToFlush.add(tableId);
+                    }
+                    else
+                    {
+                        logger.info("Marking clean dropped table {} in reclaimable journal segment {}", tableId, segment.id());
+                        tracker.markClean(tableId, CommitLogPosition.NONE, new CommitLogPosition(segment.id(), Integer.MAX_VALUE));
+                        if (tracker.removeCleanFromDirty())
+                            pendingClearReplay.add(segment.id());
+                    }
+                }
+            }
+
+            bytesSelected += segment.segmentSizeOnDisk();
+            if (bytesSelected >= bytesToReclaim)
+                break;
+        }
+
+        for (TableId tableId : tablesToFlush)
+        {
+            ColumnFamilyStore cfs = ColumnFamilyStore.getIfExists(tableId);
+            if (cfs != null)
+            {
+                logger.info("Triggering flush for {}.{} to release reclaimable journal segments (journal space {} > threshold {})",
+                            cfs.getKeyspaceName(), cfs.getTableName(), diskSpaceUsed, threshold);
+                cfs.forceFlush(ColumnFamilyStore.FlushReason.COMMITLOG_DIRTY);
+            }
+        }
     }
 
     /**

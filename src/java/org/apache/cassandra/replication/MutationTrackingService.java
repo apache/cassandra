@@ -1471,7 +1471,7 @@ public class MutationTrackingService implements MutationTrackingServiceMBean
     {
         logger.warn("Mutation journal compaction is disabled but mutation tracking keyspaces exist: {}. " +
                     "Journal segments will not be reclaimed and durably-reconciled sstables will not be promoted " +
-                    "to repaired (mutation_tracking.journal_promotion_threshold has no effect while compaction is " +
+                    "to repaired (mutation_tracking.journal_reclaim_threshold has no effect while compaction is " +
                     "disabled); the on-disk journal will grow without bound.", keyspaces);
     }
 

@@ -30,6 +30,7 @@ import org.junit.BeforeClass;
 import org.junit.Test;
 
 import org.apache.cassandra.SchemaLoader;
+import org.apache.cassandra.config.DataStorageSpec;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.db.ColumnFamilyStore;
 import org.apache.cassandra.db.DecoratedKey;
@@ -42,6 +43,7 @@ import org.apache.cassandra.io.util.File;
 import org.apache.cassandra.journal.DeserializedRecordConsumer;
 import org.apache.cassandra.journal.RecordPointer;
 import org.apache.cassandra.journal.Segment;
+import org.apache.cassandra.journal.StaticSegment;
 import org.apache.cassandra.journal.TestParams;
 import org.apache.cassandra.net.MessagingService;
 import org.apache.cassandra.schema.KeyspaceParams;
@@ -381,6 +383,81 @@ public class MutationJournalReplayTest
     }
 
     @Test
+    public void thresholdBasedFlushTriggersMemtableFlushForPinnedSegments() throws Exception
+    {
+        File directory = new File(Files.createTempDirectory("mutation-journal-flush-threshold-test"));
+        directory.deleteRecursiveOnExit();
+
+        Log2OffsetsMap.Mutable offsets = new Log2OffsetsMap.Mutable();
+        offsets.add(new ShortMutationId(100L, 1));
+        offsets.add(new ShortMutationId(300L, 1));
+        offsets.add(new ShortMutationId(301L, 1));
+        MutationJournal testJournal = new MutationJournal(directory, new TestParams(MessagingService.current_version)
+        {
+            @Override
+            public long flushPeriod(TimeUnit units)
+            {
+                return 1;
+            }
+
+            @Override
+            public FlushMode flushMode()
+            {
+                return FlushMode.PERIODIC;
+            }
+        }, () -> offsets);
+        testJournal.startInternal();
+
+        DataStorageSpec.LongBytesBound originalThreshold = DatabaseDescriptor.getMutationTrackingConfig().journal_reclaim_threshold;
+        try
+        {
+            // Set reclaim threshold to 1 byte so any journal usage exceeds it
+            DatabaseDescriptor.getMutationTrackingConfig().journal_reclaim_threshold =
+                new DataStorageSpec.LongBytesBound("1B");
+
+            TableMetadata table = TABLES[0];
+            MutationId id = new MutationId(300L, 1, 1);
+            Mutation mut = mutation(0, 1).withMutationId(id);
+            testJournal.write(id, mut);
+            testJournal.closeCurrentSegmentForTestingIfNonEmpty();
+
+            TableMetadata droppedTable = TableMetadata.builder("ks", "dropped_tbl_flush")
+                                                      .keyspaceReplicationType(ReplicationType.tracked)
+                                                      .addPartitionKeyColumn("pk", UTF8Type.instance)
+                                                      .addRegularColumn("v", UTF8Type.instance)
+                                                      .build();
+            Mutation mutDropped = new RowUpdateBuilder(droppedTable, 0, "pk1")
+                                  .add("v", "val")
+                                  .build()
+                                  .withMutationId(new MutationId(301L, 1, 1));
+            testJournal.write(mutDropped.id(), mutDropped);
+            testJournal.closeCurrentSegmentForTestingIfNonEmpty();
+
+            List<StaticSegment<ShortMutationId, Mutation>> staticSegments = new ArrayList<>();
+            for (Segment<ShortMutationId, Mutation> seg : testJournal.getAllSegments())
+            {
+                if (seg.isStatic())
+                    staticSegments.add((StaticSegment<ShortMutationId, Mutation>) seg);
+            }
+            Assert.assertEquals(2, staticSegments.size());
+            staticSegments.sort(StaticSegment::compareTo);
+            long seg2Id = staticSegments.get(1).id();
+
+            // Run maybeFlushPinnedSegments
+            testJournal.maybeFlushReclaimableSegments();
+
+            // Segment 2 has dropped table (no CFS), so it was marked clean and added to pendingClearReplay
+            Assert.assertTrue("Dropped table segment should be queued into pendingClearReplay",
+                              testJournal.pendingCleanupForTesting().contains(seg2Id));
+        }
+        finally
+        {
+            DatabaseDescriptor.getMutationTrackingConfig().journal_reclaim_threshold = originalThreshold;
+            testJournal.shutdownBlocking();
+        }
+    }
+
+    @Test
     public void replaySkipsPreviouslyFlushedOffsetsWhenSSTableMissing() throws Exception
     {
         if (!MutationTrackingService.instance().isStarted())
@@ -431,12 +508,6 @@ public class MutationJournalReplayTest
             long memtableOpsAfter = cfs.getTracker().getView().getCurrentMemtable().operationCount();
             Assert.assertEquals("Memtable should not receive writes when mutation was already flushed",
                                 memtableOpsBefore, memtableOpsAfter);
-        }
-        finally
-        {
-            startupJournal.shutdownBlocking();
-        }
-    }
         }
         finally
         {
