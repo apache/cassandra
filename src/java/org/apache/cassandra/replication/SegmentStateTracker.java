@@ -18,14 +18,10 @@
 
 package org.apache.cassandra.replication;
 
-import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.HashSet;
-import java.util.List;
 import java.util.Map;
 import java.util.Set;
-import java.util.concurrent.atomic.AtomicLongFieldUpdater;
-import java.util.concurrent.atomic.AtomicReferenceFieldUpdater;
 import java.util.concurrent.locks.Lock;
 import java.util.concurrent.locks.ReentrantLock;
 
@@ -72,69 +68,19 @@ public class SegmentStateTracker
     @VisibleForTesting
     public boolean isClean()
     {
-        removeCleanFromDirty();
-        lock.lock();
-        try
-        {
-            return states.isEmpty();
-        }
-        finally
-        {
-            lock.unlock();
-        }
+        return removeCleanFromDirty();
     }
 
     /**
-     * Should be called _only_ for a static segment to ensure there can be no way for interval state
-     * to go back from clean to dirty.
-     *
-     * Removes all clean (i.e. memtable -> sstable flushed) from dirty interval. If metadata tracking for all intervals of all tables
-     * are clean, returns true. False otherwise.
+     * Removes clean table intervals from tracked states. Returns true if all intervals are clean.
      */
     public boolean removeCleanFromDirty()
     {
-        List<Map.Entry<TableId, IntervalState>> states;
-        // Take a "snapshot" of states, while holding a lock
         lock.lock();
         try
         {
-            states = new ArrayList<>(this.states.entrySet());
-        }
-        finally
-        {
-            lock.unlock();
-        }
-
-        int[] remove = new int[states.size()];
-        int removeCount = 0;
-
-        // Check if any of the remaining items can be cleaned up, without holding a lock
-        for (int i = 0; i < states.size(); i++)
-        {
-            IntervalState state = states.get(i).getValue();
-            if (!state.isDirty())
-                remove[removeCount++] = i;
-        }
-
-        // Remove all fully covered items, while holding a lock
-        lock.lock();
-        try
-        {
-            if (removeCount > 0)
-            {
-                if (this.states.size() == removeCount)
-                {
-                    this.states.clear();
-                    return true;
-                }
-
-                for (int i = 0; i < removeCount; i++)
-                {
-                    Map.Entry<TableId, IntervalState> e = states.get(remove[i]);
-                    this.states.remove(e.getKey());
-                }
-            }
-            return this.states.isEmpty();
+            states.values().removeIf(state -> !state.isDirty());
+            return states.isEmpty();
         }
         finally
         {
@@ -169,21 +115,16 @@ public class SegmentStateTracker
     public void markDirty(TableId tableId, long segmentId, int position)
     {
         Invariants.require(segmentId == this.segmentId);
-        IntervalState state;
         lock.lock();
         try
         {
-            state = states.computeIfAbsent(tableId, (k) -> {
-                // Initialize with given position as both low and high bound to ensure we correctly set
-                // lower bound when marking as clean
-                return new IntervalState(position, position);
-            });
+            IntervalState state = states.computeIfAbsent(tableId, k -> new IntervalState(position, position));
+            state.markDirty(position);
         }
         finally
         {
             lock.unlock();
         }
-        state.markDirty(position);
     }
 
     public void markClean(TableId tableId, CommitLogPosition lowerBound, CommitLogPosition upperBound)
@@ -192,24 +133,19 @@ public class SegmentStateTracker
         if (lowerBound.segmentId > segmentId || upperBound.segmentId < segmentId)
             return;
 
-        IntervalState state;
+        int lower = lowerBound.segmentId == segmentId ? lowerBound.position : 0;
+        int upper = upperBound.segmentId == segmentId ? upperBound.position : Integer.MAX_VALUE;
+
         lock.lock();
         try
         {
-            state = states.get(tableId);
+            IntervalState state = states.get(tableId);
+            if (state != null)
+                state.markClean(lower, upper);
         }
         finally
         {
             lock.unlock();
-        }
-
-        if (state != null)
-        {
-            // TODO (required): test this logic
-            // Only mark clean ranges for _this_ segment
-            int lower = lowerBound.segmentId == segmentId ? lowerBound.position : 0;
-            int upper = upperBound.segmentId == segmentId ? upperBound.position : Integer.MAX_VALUE;
-            state.markClean(lower, upper);
         }
     }
 
@@ -218,12 +154,9 @@ public class SegmentStateTracker
         static final long[] EMPTY = new long[0];
 
         // dirty interval in this segment; if interval is not covered by the clean set, the log contains unflushed data
-        volatile long dirty;
+        private long dirty;
         // clean intervals; separate map from above to permit marking Cfs clean whilst the log is still in use
-        volatile long[] clean = EMPTY;
-
-        private static final AtomicLongFieldUpdater<IntervalState>              dirtyUpdater = AtomicLongFieldUpdater.newUpdater     (IntervalState.class,               "dirty");
-        private static final AtomicReferenceFieldUpdater<IntervalState, long[]> cleanUpdater = AtomicReferenceFieldUpdater.newUpdater(IntervalState.class, long[].class, "clean");
+        private long[] clean = EMPTY;
 
         public IntervalState(int lower, int upper)
         {
@@ -237,43 +170,26 @@ public class SegmentStateTracker
 
         public void markClean(int start, int end)
         {
-            long[] prev;
-            long[] next;
-            do
-            {
-                prev = this.clean;
-                next = IntegerInterval.Set.add(prev, start, end);
-            }
-            while (!cleanUpdater.compareAndSet(this, prev, next));
+            this.clean = IntegerInterval.Set.add(clean, start, end);
         }
 
         public boolean isDirty()
         {
-            long[] clean = this.clean;
-            long dirty = this.dirty;
             return !IntegerInterval.Set.covers(clean, lower(dirty), upper(dirty));
         }
 
         /**
          * Expands the interval to cover the given value by extending one of its sides if necessary.
-         * Mutates this. Thread-safe.
          */
         public void markDirty(int value)
         {
-            long prev;
-            int lower;
-            int upper;
-            do
-            {
-                prev = dirty;
-                upper = upper(prev);
-                lower = lower(prev);
-                if (value > upper) // common case
-                    upper = value;
-                else if (value < lower)
-                    lower = value;
-            }
-            while (!dirtyUpdater.compareAndSet(this, prev, make(lower, upper)));
+            int upper = upper(dirty);
+            int lower = lower(dirty);
+            if (value > upper)
+                upper = value;
+            else if (value < lower)
+                lower = value;
+            this.dirty = make(lower, upper);
         }
 
         public String toString()
