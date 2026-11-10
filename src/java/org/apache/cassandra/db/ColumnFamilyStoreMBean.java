@@ -278,6 +278,18 @@ public interface ColumnFamilyStoreMBean
     public long[] getPerLevelSizeBytes();
 
     /**
+     * @return sstable count for each UCS level. null unless unified compaction strategy is used.
+     *         array index corresponds to level(int[0] is for level 0, ...).
+     */
+    public int[] getSSTableCountPerUCSLevel();
+
+    /**
+     * @return total size on disk for each UCS level. null unless unified compaction strategy is used.
+     *         array index corresponds to level(int[0] is for level 0, ...).
+     */
+    public long[] getPerUCSLevelSizeBytes();
+
+    /**
      * @return average of sstable covered token spaces in each level.
      *         null unless unified compaction strategy is used.
      *         array index corresponds to level(int[0] is for level 0, ...).

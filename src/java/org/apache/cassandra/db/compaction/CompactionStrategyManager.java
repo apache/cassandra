@@ -694,35 +694,58 @@ public class CompactionStrategyManager implements INotificationConsumer
         }
     }
 
+    public int[] getSSTableCountPerUCSLevel()
+    {
+        return computeUCSMetric(
+                data -> {
+                    data.sstableCountPerLevel[data.levelIndex]++;
+                },
+                data -> Arrays.copyOf(data.sstableCountPerLevel, data.numberOfLevels)
+        );
+    }
+
+    public long[] getPerUCSLevelSizeBytes()
+    {
+        return computeUCSMetric(
+                data -> {
+                    data.totalOnDiskSizePerLevel[data.levelIndex] += data.sstable.onDiskLength();
+                },
+                data -> Arrays.copyOf(data.totalOnDiskSizePerLevel, data.numberOfLevels)
+        );
+    }
+
     public double[] getPerLevelAvgTokenSpace()
     {
         return computeUCSMetric(
                 data -> {
-                    data.sum[data.levelIndex] += data.sstable.tokenSpaceCoverage();
-                    data.count[data.levelIndex]++;
+                    double reported = data.sstable.tokenSpaceCoverage();
+                    double coverage;
+                    if (reported > 0)
+                        coverage = reported;
+                    else
+                        coverage = data.strategy.getShardManager().rangeSpanned(data.sstable.getFirst(), data.sstable.getLast());
+                    data.totalTokenSpaceCoveragePerLevel[data.levelIndex] += coverage;
+                    data.sstableCountPerLevel[data.levelIndex]++;
                 },
-                CompactionStrategyManager::averageArrayFinalizer
+                data -> averageArrayFinalizer(data, data.totalTokenSpaceCoveragePerLevel)
         );
     }
 
     public double[] getPerLevelMaxDensityThreshold()
     {
-        return computeUCSMetric(
-                data -> {
-                    data.max[data.levelIndex] = Math.max(data.max[data.levelIndex], data.level.max);
-                },
-                CompactionStrategyManager::maxArrayFinalizer
-        );
+        // thresholds are recorded per level by computeUCSMetric because the accumulator logic
+        // is ran per SSTable, so in the case with no SSTables, the accumulator is not ran
+        return computeUCSMetric(data -> {}, data -> Arrays.copyOf(data.maxDensityThresholdPerLevel, data.numberOfLevels));
     }
 
     public double[] getPerLevelAvgSize()
     {
         return computeUCSMetric(
                 data -> {
-                    data.sum[data.levelIndex] += data.sstable.onDiskLength();
-                    data.count[data.levelIndex]++;
+                    data.totalOnDiskSizePerLevel[data.levelIndex] += data.sstable.onDiskLength();
+                    data.sstableCountPerLevel[data.levelIndex]++;
                 },
-                CompactionStrategyManager::averageArrayFinalizer
+                data -> averageArrayFinalizer(data, data.totalOnDiskSizePerLevel)
         );
     }
 
@@ -730,34 +753,37 @@ public class CompactionStrategyManager implements INotificationConsumer
     {
         return computeUCSMetric(
                 data -> {
-                    data.sum[data.levelIndex] += data.strategy.getDensity(data.sstable);
-                    data.count[data.levelIndex]++;
+                    data.totalDensityPerLevel[data.levelIndex] += data.strategy.getDensity(data.sstable);
+                    data.sstableCountPerLevel[data.levelIndex]++;
                 },
-                CompactionStrategyManager::averageArrayFinalizer
+                data -> averageArrayFinalizer(data, data.totalDensityPerLevel)
         );
     }
 
     public double[] getPerLevelAvgDensityMaxDensityThresholdRatio()
     {
-        double[] avgDensity = getPerLevelAvgDensity();
-        if (avgDensity == null)
-            return null;
-
-        double[] maxThreshold = getPerLevelMaxDensityThreshold();
-        double[] res = new double[avgDensity.length];
-        for (int i = 0; i < avgDensity.length; i++)
-            res[i] = avgDensity[i] / maxThreshold[i];
-        return res;
+        return computeUCSMetric(
+                data -> {
+                    data.totalDensityPerLevel[data.levelIndex] += data.strategy.getDensity(data.sstable);
+                    data.sstableCountPerLevel[data.levelIndex]++;
+                },
+                data -> {
+                    double[] ratioPerLevel = averageArrayFinalizer(data, data.totalDensityPerLevel);
+                    for (int level = 0; level < ratioPerLevel.length; level++)
+                        ratioPerLevel[level] /= data.maxDensityThresholdPerLevel[level];
+                    return ratioPerLevel;
+                }
+        );
     }
 
     public double[] getPerLevelMaxDensityMaxDensityThresholdRatio()
     {
         return computeUCSMetric(
                 data -> {
-                    data.sum[data.levelIndex] = Math.max(data.sum[data.levelIndex], data.strategy.getDensity(data.sstable));
-                    data.max[data.levelIndex] = Math.max(data.max[data.levelIndex], data.level.max);
+                    double ratio = data.strategy.getDensity(data.sstable) / data.level.max;
+                    data.maxDensityToThresholdRatioPerLevel[data.levelIndex] = Math.max(data.maxDensityToThresholdRatioPerLevel[data.levelIndex], ratio);
                 },
-                CompactionStrategyManager::ratioArrayFinalizer
+                data -> Arrays.copyOf(data.maxDensityToThresholdRatioPerLevel, data.numberOfLevels)
         );
     }
 
@@ -780,9 +806,12 @@ public class CompactionStrategyManager implements INotificationConsumer
     @VisibleForTesting
     static class CompactionStatsMetricsData
     {
-        final double[] sum = new double[UnifiedCompactionStrategy.MAX_LEVELS];
-        final int[] count = new int[UnifiedCompactionStrategy.MAX_LEVELS];
-        final double[] max = new double[UnifiedCompactionStrategy.MAX_LEVELS];
+        final long[] totalOnDiskSizePerLevel = new long[UnifiedCompactionStrategy.MAX_LEVELS];
+        final double[] totalTokenSpaceCoveragePerLevel = new double[UnifiedCompactionStrategy.MAX_LEVELS];
+        final double[] totalDensityPerLevel = new double[UnifiedCompactionStrategy.MAX_LEVELS];
+        final int[] sstableCountPerLevel = new int[UnifiedCompactionStrategy.MAX_LEVELS];
+        final double[] maxDensityThresholdPerLevel = new double[UnifiedCompactionStrategy.MAX_LEVELS];
+        final double[] maxDensityToThresholdRatioPerLevel = new double[UnifiedCompactionStrategy.MAX_LEVELS];
         int numberOfLevels = 0;
 
         int levelIndex;
@@ -799,7 +828,7 @@ public class CompactionStrategyManager implements INotificationConsumer
      * @param finalizer computes the final result array from the accumulated metrics data
      * @return computed metric array, one value per level, or null if not using UCS
      */
-    private double[] computeUCSMetric(Consumer<CompactionStatsMetricsData> accumulator, Function<CompactionStatsMetricsData, double[]> finalizer)
+    private <T> T computeUCSMetric(Consumer<CompactionStatsMetricsData> accumulator, Function<CompactionStatsMetricsData, T> finalizer)
     {
         readLock.lock();
         try
@@ -820,6 +849,7 @@ public class CompactionStrategyManager implements INotificationConsumer
                     {
                         data.levelIndex = i;
                         data.level = levels.get(i);
+                        data.maxDensityThresholdPerLevel[i] = Math.max(data.maxDensityThresholdPerLevel[i], data.level.max);
                         for (SSTableReader sstable : levels.get(i).getSSTables())
                         {
                             data.sstable = sstable;
@@ -838,26 +868,21 @@ public class CompactionStrategyManager implements INotificationConsumer
     }
 
     @VisibleForTesting
-    static double[] averageArrayFinalizer(CompactionStatsMetricsData data)
+    static double[] averageArrayFinalizer(CompactionStatsMetricsData data, double[] totalsPerLevel)
     {
-        double[] res = new double[data.numberOfLevels];
+        double[] averagePerLevel = new double[data.numberOfLevels];
         for (int i = 0; i < data.numberOfLevels; i++)
-            res[i] = data.count[i] == 0 ? 0 : data.sum[i] / data.count[i];
-        return res;
+            averagePerLevel[i] = data.sstableCountPerLevel[i] == 0 ? 0 : totalsPerLevel[i] / data.sstableCountPerLevel[i];
+        return averagePerLevel;
     }
 
     @VisibleForTesting
-    static double[] maxArrayFinalizer(CompactionStatsMetricsData data)
+    static double[] averageArrayFinalizer(CompactionStatsMetricsData data, long[] totalsPerLevel)
     {
-        return Arrays.copyOf(data.max, data.numberOfLevels);
-    }
-
-    @VisibleForTesting
-    static double[] ratioArrayFinalizer(CompactionStatsMetricsData data) {
-        double[] res = new double[data.numberOfLevels];
+        double[] averagePerLevel = new double[data.numberOfLevels];
         for (int i = 0; i < data.numberOfLevels; i++)
-            res[i] = data.sum[i] / data.max[i];
-        return res;
+            averagePerLevel[i] = data.sstableCountPerLevel[i] == 0 ? 0 : (double) totalsPerLevel[i] / data.sstableCountPerLevel[i];
+        return averagePerLevel;
     }
 
     public int[] getSSTableCountPerTWCSBucket()

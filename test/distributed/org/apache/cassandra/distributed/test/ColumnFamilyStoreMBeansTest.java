@@ -27,7 +27,9 @@ import org.junit.Test;
 import org.apache.cassandra.db.ColumnFamilyStore;
 import org.apache.cassandra.db.Keyspace;
 import org.apache.cassandra.distributed.Cluster;
+import org.apache.cassandra.io.sstable.format.SSTableReader;
 
+import static org.junit.Assert.assertArrayEquals;
 import static org.junit.Assert.assertTrue;
 
 public class ColumnFamilyStoreMBeansTest extends TestBaseImpl
@@ -43,6 +45,7 @@ public class ColumnFamilyStoreMBeansTest extends TestBaseImpl
         CLUSTER.schemaChange(withKeyspace("DROP KEYSPACE %s"));
         CLUSTER.schemaChange(withKeyspace("CREATE KEYSPACE %s WITH replication = {'class': 'SimpleStrategy', 'replication_factor': 1}"));
         CLUSTER.schemaChange(withKeyspace("CREATE TABLE %s.cf (k text, c1 text, c2 text, PRIMARY KEY (k)) WITH compaction = {'class': 'UnifiedCompactionStrategy', 'scaling_parameters': 'L10'}"));
+        disableCompaction(CLUSTER, KEYSPACE, "cf");
 
         for (int i = 0; i < 10000; i++)
             CLUSTER.get(1).executeInternal(withKeyspace("INSERT INTO %s.cf (k, c1, c2) VALUES (?, 'value1', 'value2');"), Integer.toString(i));
@@ -55,6 +58,25 @@ public class ColumnFamilyStoreMBeansTest extends TestBaseImpl
     {
         if (CLUSTER != null)
             CLUSTER.close();
+    }
+
+    @Test
+    public void testGetSSTableCountPerUCSLevel() throws Throwable
+    {
+        CLUSTER.get(1).runOnInstance(() -> {
+            ColumnFamilyStore cfs = Keyspace.open(KEYSPACE).getColumnFamilyStore("cf");
+            assertArrayEquals(new int[]{ cfs.getLiveSSTables().size() }, cfs.getSSTableCountPerUCSLevel());
+        });
+    }
+
+    @Test
+    public void testGetPerUCSLevelSizeBytes() throws Throwable
+    {
+        CLUSTER.get(1).runOnInstance(() -> {
+            ColumnFamilyStore cfs = Keyspace.open(KEYSPACE).getColumnFamilyStore("cf");
+            long sstableBytes = cfs.getLiveSSTables().stream().mapToLong(SSTableReader::onDiskLength).sum();
+            assertArrayEquals(new long[]{ sstableBytes }, cfs.getPerUCSLevelSizeBytes());
+        });
     }
 
     @Test

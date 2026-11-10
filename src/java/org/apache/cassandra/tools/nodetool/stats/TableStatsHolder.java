@@ -30,6 +30,7 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.TimeZone;
+import java.util.function.DoubleFunction;
 
 import javax.management.InstanceNotFoundException;
 
@@ -44,6 +45,7 @@ import org.apache.cassandra.io.util.FileUtils;
 import org.apache.cassandra.metrics.CassandraMetricsRegistry;
 import org.apache.cassandra.schema.SchemaConstants;
 import org.apache.cassandra.tools.NodeProbe;
+import org.apache.cassandra.utils.FBUtilities;
 
 public class TableStatsHolder implements StatsHolder
 {
@@ -295,13 +297,35 @@ public class TableStatsHolder implements StatsHolder
                     }
                 }
 
+                int[] ucsSSTables = table.getSSTableCountPerUCSLevel();
+                if (ucsSSTables != null)
+                {
+                    statsTable.isUCSSstable = true;
+                    for (int level = 0; level < ucsSSTables.length; level++)
+                    {
+                        int count = ucsSSTables[level];
+                        statsTable.sstablesInEachLevel.add(Integer.toString(count));
+                    }
+                }
+
+                long[] ucsSSTablesBytes = table.getPerUCSLevelSizeBytes();
+                if (ucsSSTablesBytes != null)
+                {
+                    statsTable.isUCSSstable = true;
+                    for (int level = 0; level < ucsSSTablesBytes.length; level++)
+                    {
+                        long size = ucsSSTablesBytes[level];
+                        statsTable.sstableBytesInEachLevel.add(FileUtils.stringifyFileSize(size, humanReadable));
+                    }
+                }
+
                 addUCSMetric(statsTable, statsTable.sstableAvgTokenSpaceInEachLevel, table.getPerLevelAvgTokenSpace());
 
-                addUCSMetric(statsTable, statsTable.sstableMaxDensityThresholdInEachLevel, table.getPerLevelMaxDensityThreshold());
+                addUCSMetric(statsTable, statsTable.sstableMaxDensityThresholdInEachLevel, table.getPerLevelMaxDensityThreshold(), TableStatsHolder::formatWholeNumber);
 
-                addUCSMetric(statsTable, statsTable.sstableAvgSizeInEachLevel, table.getPerLevelAvgSize());
+                addUCSMetric(statsTable, statsTable.sstableAvgSizeInEachLevel, table.getPerLevelAvgSize(), this::formatFileSize);
 
-                addUCSMetric(statsTable, statsTable.sstableAvgDensityInEachLevel, table.getPerLevelAvgDensity());
+                addUCSMetric(statsTable, statsTable.sstableAvgDensityInEachLevel, table.getPerLevelAvgDensity(), TableStatsHolder::formatWholeNumber);
 
                 addUCSMetric(statsTable, statsTable.sstableAvgDensityMaxDensityThresholdRatioInEachLevel, table.getPerLevelAvgDensityMaxDensityThresholdRatio());
 
@@ -488,14 +512,29 @@ public class TableStatsHolder implements StatsHolder
 
     private void addUCSMetric(StatsTable statsTable, List<String> acc, double[] values)
     {
+        addUCSMetric(statsTable, acc, values, FBUtilities::prettyPrintRatio);
+    }
+
+    private void addUCSMetric(StatsTable statsTable, List<String> acc, double[] values, DoubleFunction<String> formatter)
+    {
         if (values != null)
         {
             statsTable.isUCSSstable = true;
             for (int level = 0; level < values.length; level++)
             {
-                acc.add(String.format("%.03f", values[level]));
+                acc.add(formatter.apply(values[level]));
             }
         }
+    }
+
+    private static String formatWholeNumber(double value)
+    {
+        return Long.toString((long) value);
+    }
+
+    private String formatFileSize(double bytes)
+    {
+        return humanReadable ? FileUtils.stringifyFileSize(bytes) : formatWholeNumber(bytes);
     }
 
     private double getMetricMean(Object metricObject) {

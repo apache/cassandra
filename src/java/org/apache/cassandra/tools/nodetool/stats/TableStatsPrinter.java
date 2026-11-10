@@ -92,7 +92,7 @@ public class TableStatsPrinter<T extends StatsHolder>
             out.println(indent + "Max SSTable size: " + formatDataSize(table.maxSSTableSize, humanReadable));
             if (table.twcs != null)
                 out.println(indent + "SSTables Time Window: " + table.twcs);
-            if (table.isLeveledSstable)
+            if (table.isLeveledSstable || table.isUCSSstable)
             {
                 out.println(indent + "SSTables in each level: [" + String.join(", ",
                                                                                table.sstablesInEachLevel) + "]");
