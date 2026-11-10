@@ -18,6 +18,7 @@
 
 package org.apache.cassandra.service.accord.txn;
 
+import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -32,11 +33,14 @@ import java.util.stream.IntStream;
 
 import javax.annotation.Nullable;
 
+import org.assertj.core.api.Assertions;
 import org.junit.Test;
 
 import accord.api.Key;
 import accord.primitives.Keys;
 import accord.primitives.Ranges;
+import accord.primitives.Routable.Domain;
+import accord.primitives.Txn;
 import accord.utils.Gen;
 import accord.utils.Gens;
 import accord.utils.RandomSource;
@@ -44,6 +48,7 @@ import accord.utils.SimpleBitSet;
 import accord.utils.SortedArrays;
 
 import org.apache.cassandra.config.DatabaseDescriptor;
+import org.apache.cassandra.db.ConsistencyLevel;
 import org.apache.cassandra.db.DecoratedKey;
 import org.apache.cassandra.db.marshal.BytesType;
 import org.apache.cassandra.db.partitions.PartitionUpdate;
@@ -51,12 +56,16 @@ import org.apache.cassandra.dht.Murmur3Partitioner;
 import org.apache.cassandra.dht.Murmur3Partitioner.LongToken;
 import org.apache.cassandra.io.Serializers;
 import org.apache.cassandra.io.util.DataInputBuffer;
+import org.apache.cassandra.io.util.DataInputPlus;
 import org.apache.cassandra.io.util.DataOutputBuffer;
+import org.apache.cassandra.io.util.DataOutputPlus;
 import org.apache.cassandra.schema.TableId;
 import org.apache.cassandra.schema.TableMetadata;
 import org.apache.cassandra.service.PreserveTimestamp;
+import org.apache.cassandra.service.accord.IAccordService;
 import org.apache.cassandra.service.accord.TokenRange;
 import org.apache.cassandra.service.accord.api.PartitionKey;
+import org.apache.cassandra.service.accord.serializers.AccordSerializers;
 import org.apache.cassandra.service.accord.serializers.TableMetadatas;
 import org.apache.cassandra.service.accord.serializers.TableMetadatasAndKeys;
 import org.apache.cassandra.service.accord.serializers.Version;
@@ -67,7 +76,9 @@ import org.apache.cassandra.service.accord.txn.TxnUpdate.ConditionalBlock;
 import org.apache.cassandra.service.accord.txn.TxnWrite.Fragment;
 import org.apache.cassandra.utils.AccordGenerators;
 import org.apache.cassandra.utils.CassandraGenerators;
+import org.apache.cassandra.utils.CollectionSerializers;
 import org.apache.cassandra.utils.Generators;
+import org.apache.cassandra.utils.NullableSerializer;
 
 import static accord.utils.Property.qt;
 import static accord.utils.SortedArrays.Search.FAST;
@@ -174,7 +185,7 @@ public class TxnUpdateTest
         {
             List<Block> blocks = build();
             if (blocks == null) return null;
-            return TxnUpdate.create(tables, Keys.of(all(), f -> f.key), blocks, null, PreserveTimestamp.no);
+            return TxnUpdate.create(tables, Keys.of(all(), f -> f.key), blocks, null);
         }
     }
 
@@ -241,7 +252,7 @@ public class TxnUpdateTest
             for (Block block : blocks)
                 assertBlockInvariants(block);
 
-            TxnUpdate update = TxnUpdate.create(input.tables, Keys.of(input.all(), f -> f.key), blocks, null, PreserveTimestamp.no);
+            TxnUpdate update = TxnUpdate.create(input.tables, Keys.of(input.all(), f -> f.key), blocks, null);
             TableMetadatasAndKeys tablesAndKeys = new TableMetadatasAndKeys(input.tables, update.keys());
             output.clear();
             Serializers.testSerde(output, TxnUpdate.serializer, update, tablesAndKeys, Version.LATEST);
@@ -377,7 +388,7 @@ public class TxnUpdateTest
             List<TableMetadata> tables = tablesGen.next(rs);
             TableMetadatas metadatas = TableMetadatas.of(tables);
             List<Fragment> fragments = Gens.lists(fragment(tables)).ofSizeBetween(1, 10).next(rs);
-            TxnUpdate update = new TxnUpdate(metadatas, fragments, TxnCondition.none(), null, PreserveTimestamp.no);
+            TxnUpdate update = new TxnUpdate(metadatas, fragments, TxnCondition.none(), null);
 
             // ask for ranges outside the update; should be empty
             for (var block : update.slice(Ranges.single(TokenRange.create(TableId.UNDEFINED, T0, T42))).blocks)
@@ -422,7 +433,7 @@ public class TxnUpdateTest
             List<TableMetadata> tables = tablesGen.next(rs);
             TableMetadatas metadatas = TableMetadatas.of(tables);
             List<Fragment> fragments = Gens.lists(fragment(tables)).ofSizeBetween(1, 10).next(rs);
-            TxnUpdate update = new TxnUpdate(metadatas, fragments, TxnCondition.none(), null, PreserveTimestamp.no);
+            TxnUpdate update = new TxnUpdate(metadatas, fragments, TxnCondition.none(), null);
             TxnUpdate emptyUpdate = update.slice(Ranges.single(TokenRange.create(TableId.UNDEFINED, T0, T42)));
             List<TxnUpdate> perKeyUpdate = new ArrayList<>(update.keys().size());
             for (int i = 0; i < update.keys().size(); i++)
@@ -486,13 +497,174 @@ public class TxnUpdateTest
             TableMetadatas metadatas = TableMetadatas.of(tables);
             List<Fragment> fragments = Gens.lists(fragment(tables)).ofSizeBetween(1, 100).next(rs);
             TableMetadatasAndKeys tablesAndKeys = new TableMetadatasAndKeys(metadatas, Keys.of(fragments, f -> f.key));
-            TxnUpdate update = new TxnUpdate(metadatas, fragments, TxnCondition.none(), null, PreserveTimestamp.no);
+            TxnUpdate update = new TxnUpdate(metadatas, fragments, TxnCondition.none(), null);
             output.clear();
             TxnUpdate.serializer.serialize(update, tablesAndKeys, output, Version.LATEST);
             ByteBuffer buffer = output.unsafeGetBufferAndFlip();
             TxnUpdate.serializer.skip(tablesAndKeys, new DataInputBuffer(buffer, false), Version.LATEST);
             assertThat(buffer.remaining()).isEqualTo(0);
         });
+    }
+
+    /**
+     * The serializer prior to the introduction of general purpose flags, which only knew FLAG_PRESERVE_TIMESTAMPS
+     */
+    private static void legacySerialize(TxnUpdate update, TableMetadatasAndKeys tablesAndKeys, DataOutputPlus out) throws IOException
+    {
+        out.writeByte(update.preserveTimestamps() ? 0x1 : 0);
+        tablesAndKeys.serializeKeys(update.keys, out);
+        NullableSerializer.serializeNullable(update.cassandraCommitCL(), out, AccordSerializers.consistencyLevelSerializer);
+        CollectionSerializers.serializeList(update.blocks, tablesAndKeys, out, Block.serializer);
+    }
+
+    /**
+     * The deserializer prior to the introduction of general purpose flags; returns {preserveTimestamps, cassandraCommitCL}
+     */
+    private static Object[] legacyDeserialize(TableMetadatasAndKeys tablesAndKeys, DataInputPlus in) throws IOException
+    {
+        int flags = in.readByte();
+        boolean preserveTimestamps = (0x1 & flags) == 1;
+        tablesAndKeys.deserializeKeys(in);
+        ConsistencyLevel consistencyLevel = NullableSerializer.deserializeNullable(in, AccordSerializers.consistencyLevelSerializer);
+        CollectionSerializers.deserializeList(tablesAndKeys, in, Block.serializer);
+        return new Object[] { preserveTimestamps, consistencyLevel };
+    }
+
+    private static final ConsistencyLevel[] COMMIT_CLS = IAccordService.SUPPORTED_COMMIT_CONSISTENCY_LEVELS.toArray(new ConsistencyLevel[0]);
+
+    @Test
+    public void flagsSerde()
+    {
+        @SuppressWarnings({ "resource", "IOResourceOpenedButNotSafelyClosed" }) DataOutputBuffer output = new DataOutputBuffer();
+        qt().check(rs -> {
+            List<TableMetadata> tables = tablesGen.next(rs);
+            TableMetadatas metadatas = TableMetadatas.of(tables);
+            List<Fragment> fragments = Gens.lists(fragment(tables)).ofSizeBetween(1, 10).next(rs);
+            TableMetadatasAndKeys tablesAndKeys = new TableMetadatasAndKeys(metadatas, Keys.of(fragments, f -> f.key));
+            ConsistencyLevel commitCL = rs.nextBoolean() ? null : COMMIT_CLS[rs.nextInt(COMMIT_CLS.length)];
+            PreserveTimestamp preserveTimestamp = PreserveTimestamp.values()[rs.nextInt(PreserveTimestamp.values().length)];
+            boolean requestReplicaExecution = rs.nextBoolean();
+            boolean fromFragments = rs.nextBoolean();
+            TxnUpdate update = fromFragments ? new TxnUpdate(metadatas, fragments, TxnCondition.none(), commitCL, preserveTimestamp, requestReplicaExecution)
+                                             : TxnUpdate.create(metadatas, Keys.of(fragments, f -> f.key), new TxnUpdate(metadatas, fragments, TxnCondition.none(), null).blocks, commitCL, preserveTimestamp, requestReplicaExecution);
+            // replica execution cannot honour a commit CL, and a TxnUpdate constructed from fragments must also perform no read
+            boolean replicaExecutable = requestReplicaExecution && (commitCL == null || commitCL == ConsistencyLevel.ANY) && (!fromFragments || fragments.stream().allMatch(Fragment::isComplete));
+            assertThat(update.preserveTimestamps()).isEqualTo(preserveTimestamp.preserve);
+            assertThat(update.permitsReplicaExecution()).isEqualTo(replicaExecutable);
+            assertThat(update.cassandraCommitCL()).isEqualTo(commitCL);
+
+            output.clear();
+            TxnUpdate.serializer.serialize(update, tablesAndKeys, output, Version.LATEST);
+            assertThat((long) output.getLength()).isEqualTo(TxnUpdate.serializer.serializedSize(update, tablesAndKeys, Version.LATEST));
+            byte[] bytes = output.toByteArray();
+
+            try (DataInputBuffer in = new DataInputBuffer(bytes))
+            {
+                TxnUpdate roundTrip = TxnUpdate.serializer.deserialize(tablesAndKeys, in, Version.LATEST);
+                assertThat(in.available()).isZero();
+                assertThat(roundTrip).isEqualTo(update);
+                assertThat(roundTrip.preserveTimestamps()).isEqualTo(preserveTimestamp.preserve);
+                assertThat(roundTrip.permitsReplicaExecution()).isEqualTo(replicaExecutable);
+                assertThat(roundTrip.cassandraCommitCL()).isEqualTo(commitCL);
+                assertThat(roundTrip.keys()).isEqualTo(update.keys());
+            }
+            try (DataInputBuffer in = new DataInputBuffer(bytes))
+            {
+                TxnUpdate.serializer.skip(tablesAndKeys, in, Version.LATEST);
+                assertThat(in.available()).isZero();
+            }
+
+            // the prior version's encoding is unchanged (except for flags it ignores), and remains readable in both directions
+            output.clear();
+            legacySerialize(update, tablesAndKeys, output);
+            byte[] legacyBytes = output.toByteArray();
+            if (replicaExecutable) legacyBytes[0] |= TxnUpdate.FLAG_PERMIT_REPLICA_EXECUTION;
+            assertThat(bytes).isEqualTo(legacyBytes);
+            try (DataInputBuffer in = new DataInputBuffer(bytes))
+            {
+                Object[] legacy = legacyDeserialize(tablesAndKeys, in);
+                assertThat(in.available()).isZero();
+                assertThat(legacy[0]).isEqualTo(update.preserveTimestamps());
+                assertThat(legacy[1]).isEqualTo(commitCL);
+            }
+
+            // flags in the first byte that we do not know (e.g. introduced by a later version) are ignored
+            byte[] unknownFlags = bytes.clone();
+            unknownFlags[0] |= (byte) (rs.nextInt(0x40) << 2);
+            try (DataInputBuffer in = new DataInputBuffer(unknownFlags))
+            {
+                TxnUpdate withUnknownFlags = TxnUpdate.serializer.deserialize(tablesAndKeys, in, Version.LATEST);
+                assertThat(in.available()).isZero();
+                assertThat(withUnknownFlags.preserveTimestamps()).isEqualTo(preserveTimestamp.preserve);
+                assertThat(withUnknownFlags.permitsReplicaExecution()).isEqualTo(replicaExecutable);
+                assertThat(withUnknownFlags.cassandraCommitCL()).isEqualTo(commitCL);
+            }
+        });
+    }
+
+    @Test
+    public void flags()
+    {
+        assertThat(TxnUpdate.flags(null, PreserveTimestamp.no)).isZero();
+        assertThat(TxnUpdate.flags(null, PreserveTimestamp.yes)).isEqualTo(TxnUpdate.FLAG_PRESERVE_TIMESTAMPS);
+        assertThat(TxnUpdate.flags(null, PreserveTimestamp.mixedTimeSource)).isEqualTo(TxnUpdate.FLAG_PRESERVE_TIMESTAMPS);
+        for (ConsistencyLevel commitCL : COMMIT_CLS)
+        {
+            // the commit CL is encoded by its protocol code, not its ordinal
+            assertThat(TxnUpdate.flags(commitCL, PreserveTimestamp.no) >>> 16).isEqualTo(commitCL.code);
+            TxnUpdate update = new TxnUpdate(TableMetadatas.none(), new ArrayList<>(), TxnCondition.none(), commitCL, PreserveTimestamp.yes);
+            assertThat(update.cassandraCommitCL()).isEqualTo(commitCL);
+            assertThat(update.preserveTimestamps()).isTrue();
+        }
+    }
+
+    @Test
+    public void replicaExecutable()
+    {
+        qt().check(rs -> {
+            List<TableMetadata> tables = tablesGen.next(rs);
+            TableMetadatas metadatas = TableMetadatas.of(tables);
+            List<Fragment> fragments = Gens.lists(fragment(tables)).ofSizeBetween(1, 10).next(rs);
+            Keys keys = Keys.of(fragments, f -> f.key);
+            assertThat(fragments).allMatch(Fragment::isComplete);
+            TxnUpdate update = new TxnUpdate(metadatas, fragments, TxnCondition.none(), null, PreserveTimestamp.no, true);
+            assertThat(update.permitsReplicaExecution()).isTrue();
+            assertThat(TxnUpdate.permitsReplicaExecution(new Txn.InMemory(keys, TxnRead.empty(Domain.Key), TxnQuery.NONE, update))).isTrue();
+            // slicing preserves the flag (the predicate is evaluated against both Txn and PartialTxn)
+            assertThat(update.slice(Ranges.single(TokenRange.create(TableId.UNDEFINED, T0, T42))).permitsReplicaExecution()).isTrue();
+            assertThat(update.intersecting(keys.toParticipants()).permitsReplicaExecution()).isTrue();
+            // we must not produce a result, nor require a commit CL
+            assertThat(TxnUpdate.permitsReplicaExecution(new Txn.InMemory(keys, TxnRead.empty(Domain.Key), TxnQuery.ALL, update))).isFalse();
+            TxnUpdate withCommitCL = new TxnUpdate(metadatas, fragments, TxnCondition.none(), ConsistencyLevel.QUORUM, PreserveTimestamp.no, true);
+            assertThat(withCommitCL.permitsReplicaExecution()).isFalse();
+            assertThat(TxnUpdate.permitsReplicaExecution(new Txn.InMemory(keys, TxnRead.empty(Domain.Key), TxnQuery.NONE, withCommitCL))).isFalse();
+            TxnUpdate createdWithCommitCL = TxnUpdate.create(metadatas, keys, update.blocks, ConsistencyLevel.QUORUM, PreserveTimestamp.no, true);
+            assertThat(createdWithCommitCL.permitsReplicaExecution()).isFalse();
+            // a transaction that returns no result may be executed by replicas (reading locally, if ReplicaExecution.ALL)
+            TxnUpdate created = TxnUpdate.create(metadatas, keys, update.blocks, null, PreserveTimestamp.no, true);
+            assertThat(created.permitsReplicaExecution()).isTrue();
+            assertThat(TxnUpdate.permitsReplicaExecution(new Txn.InMemory(keys, TxnRead.empty(Domain.Key), TxnQuery.NONE, created))).isTrue();
+            // and must be explicitly flagged
+            TxnUpdate notFlagged = new TxnUpdate(metadatas, fragments, TxnCondition.none(), null);
+            assertThat(notFlagged.permitsReplicaExecution()).isFalse();
+            assertThat(TxnUpdate.permitsReplicaExecution(new Txn.InMemory(keys, TxnRead.empty(Domain.Key), TxnQuery.NONE, notFlagged))).isFalse();
+        });
+    }
+
+    @Test
+    public void unsupportedCommitCL()
+    {
+        TableMetadatas metadatas = TableMetadatas.none();
+        for (ConsistencyLevel commitCL : ConsistencyLevel.values())
+        {
+            if (IAccordService.SUPPORTED_COMMIT_CONSISTENCY_LEVELS.contains(commitCL))
+                continue;
+
+            Assertions.assertThatThrownBy(() -> new TxnUpdate(metadatas, new ArrayList<>(), TxnCondition.none(), commitCL))
+                      .isInstanceOf(IllegalArgumentException.class);
+            Assertions.assertThatThrownBy(() -> TxnUpdate.create(metadatas, Keys.EMPTY, Collections.emptyList(), commitCL))
+                      .isInstanceOf(IllegalArgumentException.class);
+        }
     }
 
     private boolean ensureThatConditionalBlockIndexesAreDisjointAcrossBlocks(List<Block> blocks)

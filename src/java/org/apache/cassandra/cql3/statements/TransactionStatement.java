@@ -613,9 +613,10 @@ public class TransactionStatement implements CQLStatement.CompositeCQLStatement,
             ConsistencyLevel commitCL = consistencyLevelForAccordCommit(cm, tables, keyCollector, options.getConsistency());
             Keys keys = keyCollector.build();
 
-            AccordUpdate update = TxnUpdate.create(tables, writeKeys, builder.build(), commitCL, PreserveTimestamp.no);
+            boolean returnsNoResult = returningSelect == null && returningReferences == null;
+            AccordUpdate update = TxnUpdate.create(tables, writeKeys, builder.build(), commitCL, PreserveTimestamp.no, returnsNoResult);
             TxnRead read = createTxnRead(tables, reads, null, Domain.Key);
-            return new Txn.InMemory(keys, read, TxnQuery.ALL, update, new TableMetadatasAndKeys(tables, keys));
+            return new Txn.InMemory(keys, read, returnsNoResult ? TxnQuery.NONE : TxnQuery.ALL, update, new TableMetadatasAndKeys(tables, keys));
         }
     }
 

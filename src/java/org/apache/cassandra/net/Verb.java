@@ -386,7 +386,7 @@ public enum Verb
     ACCORD_FETCH_WATERMARKS_REQ     (168, P0, shortTimeout, FETCH_METADATA,     () -> NoPayload.serializer,                                      AccordService::watermarkHandlerOrNoop,   ACCORD_FETCH_WATERMARKS_RSP),
     ACCORD_FETCH_TOPOLOGY_RSP       (169, P0, shortTimeout, FETCH_METADATA,     () -> accordEmbedded(FetchTopologies.responseSerializer),        RESPONSE_HANDLER),
     ACCORD_FETCH_TOPOLOGY_REQ       (170, P0, shortTimeout, FETCH_METADATA,     () -> accordEmbedded(FetchTopologies.serializer),                () -> FetchTopologies.handler,           ACCORD_FETCH_TOPOLOGY_RSP),
-    ACCORD_REMOTE_SUCCESS_REQ       (173, P0, shortTimeout, IMMEDIATE,          () -> accordEmbedded(RemoteSuccessSerializers.remoteSuccess),    AccordService::requestHandlerOrNoop),
+    ACCORD_REMOTE_SUCCESS_REQ       (173, P2, shortTimeout, IMMEDIATE,          () -> accordEmbedded(RemoteSuccessSerializers.remoteSuccess),    AccordService::requestHandlerOrNoop),
     ACCORD_REMOTE_TRACE(174, P0, shortTimeout, IMMEDIATE, () -> AccordRemoteTracing.traceSerializer, () -> AccordRemoteTracing.traceMessageHandler),
 
     DICTIONARY_UPDATE_RSP           (171, P1, rpcTimeout,   REQUEST_RESPONSE,  () -> NoPayload.serializer,                  RESPONSE_HANDLER                             ),

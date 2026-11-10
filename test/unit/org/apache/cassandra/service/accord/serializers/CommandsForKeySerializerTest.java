@@ -276,7 +276,8 @@ public class CommandsForKeySerializerTest
             while (txnId.isSyncPoint() && (saveStatus.compareTo(SaveStatus.Committed) < 0 || saveStatus.compareTo(SaveStatus.PreApplied) > 0))
                 saveStatus = saveStatusSupplier.get();
             Timestamp executeAt = txnId;
-            if (!txnId.kind().awaitsOnlyDeps() && !saveStatus.known.is(ExecuteAtErased) && !saveStatus.known.is(ExecuteAtUnknown))
+            // the medium path only ever proposes executeAt == txnId (see KnownDeps.DepsProposedFixed)
+            if (!txnId.kind().awaitsOnlyDeps() && !saveStatus.known.is(ExecuteAtErased) && !saveStatus.known.is(ExecuteAtUnknown) && !saveStatus.is(Status.AcceptedMedium))
                 executeAt = timestampSupplier.apply(txnId);
 
             boolean isDurable = false;
@@ -301,6 +302,9 @@ public class CommandsForKeySerializerTest
                 case Stable:
                     ballot = ballotSupplier.get();
             }
+            // privileged coordinator states (prior to recovery) require a zero promised ballot
+            if (saveStatus.isPrivilegedCoordinatorZeroBallot())
+                ballot = Ballot.ZERO;
 
             cmds[i] = new Cmd(txnId, txnId.is(Domain.Key) ? new FullKeyRoute(key, new RoutingKey[] { key }) : new FullRangeRoute(key, new Range[] { key.asRange() }),
                               txnSupplier.apply(txnId), saveStatus, isDurable, executeAt, ballot);
@@ -311,7 +315,7 @@ public class CommandsForKeySerializerTest
             if (!cmds[i].saveStatus.known.deps().hasPreAcceptedOrProposedOrDecidedDeps())
                 continue;
 
-            Timestamp knownBefore = cmds[i].saveStatus.known.deps().hasCommittedOrDecidedDeps() ? cmds[i].executeAt : cmds[i].txnId;
+            Timestamp knownBefore = cmds[i].saveStatus.known.deps().isKnownUntilExecuteAt() ? cmds[i].executeAt : cmds[i].txnId;
             int limit = SortedArrays.binarySearch(cmds, 0, cmds.length, knownBefore, (a, b) -> a.compareTo(b.txnId), FAST);
             if (limit < 0) limit = -1 - limit;
 
@@ -409,6 +413,7 @@ public class CommandsForKeySerializerTest
     public void serde()
     {
         testOne(7082228630293368049L);
+        testOne(-2303096351023828066L); // previously generated AcceptedMediumPrivCoord (now AcceptedPrivCoord) with a non-zero ballot / executeAt != txnId
         Random random = new Random();
         for (int i = 0 ; i < 10000 ; ++i)
         {

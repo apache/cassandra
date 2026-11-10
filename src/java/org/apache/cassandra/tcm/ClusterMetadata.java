@@ -1362,7 +1362,8 @@ public class ClusterMetadata
             {
                 AccordNodeInfos.serializer.serialize(metadata.accordNodeInfos, out, version);
                 ConsensusMigrationState.serializer.serialize(metadata.consensusMigrationState, out, version);
-                out.writeUnsignedVInt32(0); // defunct AccordStaleReplicas, now part of AccordNodeInfos
+                // defunct AccordStaleReplicas (now part of AccordNodeInfos); retain an empty instance for compatibility
+                AccordNodeInfos.LegacyStaleReplicas.serializeEmpty(out, version);
             }
 
             LockedRanges.serializer.serialize(metadata.lockedRanges, out, version);
@@ -1414,7 +1415,8 @@ public class ClusterMetadata
             {
                 accordNodeInfos = AccordNodeInfos.serializer.deserialize(in, version);
                 consensusMigrationState = ConsensusMigrationState.serializer.deserialize(in, version);
-                in.readUnsignedVInt32(); // defunct AccordStaleReplicas, now part of AccordNodeInfos
+                // defunct AccordStaleReplicas (now part of AccordNodeInfos); not migrated, but must be consumed
+                AccordNodeInfos.LegacyStaleReplicas.skip(in, version);
             }
             else
             {
@@ -1522,7 +1524,7 @@ public class ClusterMetadata
             {
                 size += AccordNodeInfos.serializer.serializedSize(metadata.accordNodeInfos, version) +
                         ConsensusMigrationState.serializer.serializedSize(metadata.consensusMigrationState, version) +
-                        TypeSizes.sizeofUnsignedVInt(0); // defunct AccordStaleReplicas
+                        AccordNodeInfos.LegacyStaleReplicas.serializedEmptySize(version);
             }
 
             size += LockedRanges.serializer.serializedSize(metadata.lockedRanges, version) +

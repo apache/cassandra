@@ -303,7 +303,8 @@ public class ConsensusMigrationMutationHelper
         // Potentially ignore commit consistency level if the TransactionalMode specifies full
         ConsistencyLevel clForCommit = consistencyLevelForCommit(cm, mutations, consistencyLevel);
         TableMetadatasAndKeys tablesAndKeys = new TableMetadatasAndKeys(tables, keyCollector.build());
-        TxnUpdate update = new TxnUpdate(tables, fragments, TxnCondition.none(), clForCommit, preserveTimestamps);
+        // plain mutations write only their payload and perform no read, so may be executed directly by any replica
+        TxnUpdate update = new TxnUpdate(tables, fragments, TxnCondition.none(), clForCommit, preserveTimestamps, true);
         Txn.InMemory txn = new Txn.InMemory(tablesAndKeys.keys, TxnRead.empty(Domain.Key), TxnQuery.NONE, update, tablesAndKeys);
         return AccordService.instance().coordinateAsync(minEpoch, txn, clForCommit, requestTime);
     }

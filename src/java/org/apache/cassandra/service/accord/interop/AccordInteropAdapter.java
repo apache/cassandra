@@ -128,7 +128,7 @@ public class AccordInteropAdapter extends TxnAdapter
         Update update = txn.update();
         ConsistencyLevel consistencyLevel = update instanceof AccordUpdate ? ((AccordUpdate) update).cassandraCommitCL() : null;
         // TODO (expected): do we care about consistency level on recovery? we aren't reporting to the client so we shouldn't.
-        if (consistencyLevel == null || consistencyLevel == ConsistencyLevel.ANY || writes.isEmpty())
+        if (consistencyLevel == null || consistencyLevel == ConsistencyLevel.ANY || update.keys().isEmpty())
             return false;
 
         AccordInteropPersist persist;

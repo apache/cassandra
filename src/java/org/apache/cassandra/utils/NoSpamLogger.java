@@ -353,6 +353,13 @@ public class NoSpamLogger
 
             return id;
         }
+
+        public static long id(Object[] params)
+        {
+            if (params.length > 0 && params[params.length - 1] instanceof Throwable)
+                return exceptionId((Throwable) params[params.length - 1]);
+            return 0;
+        }
     }
 
     private static final NonBlockingHashMap<Logger, NoSpamLogger> wrappedLoggers = new NonBlockingHashMap<>();

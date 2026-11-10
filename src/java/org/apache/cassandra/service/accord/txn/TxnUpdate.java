@@ -39,7 +39,9 @@ import accord.primitives.Participants;
 import accord.primitives.Ranges;
 import accord.primitives.RoutableKey;
 import accord.primitives.Timestamp;
+import accord.primitives.Txn;
 import accord.utils.ArrayBuffers.IntBuffers;
+import accord.utils.Functions;
 import accord.utils.Invariants;
 import accord.utils.SimpleBitSet;
 import accord.utils.SimpleBitSets;
@@ -78,7 +80,6 @@ import static accord.utils.Invariants.requireArgument;
 import static accord.utils.SortedArrays.Search.CEIL;
 import static com.google.common.base.Preconditions.checkState;
 import static java.lang.Boolean.FALSE;
-import static org.apache.cassandra.service.accord.serializers.AccordSerializers.consistencyLevelSerializer;
 import static org.apache.cassandra.service.accord.txn.TxnUpdate.BlockFragment.NO_BLOCK_FRAGMENTS;
 import static org.apache.cassandra.service.accord.txn.TxnUpdate.ConditionalBlock.NO_CONDITIONAL_BLOCKS;
 import static org.apache.cassandra.utils.ArraySerializers.skipArray;
@@ -86,9 +87,6 @@ import static org.apache.cassandra.utils.ByteBufferUtil.readWithVIntLength;
 import static org.apache.cassandra.utils.ByteBufferUtil.serializedSizeWithVIntLength;
 import static org.apache.cassandra.utils.ByteBufferUtil.skipWithVIntLength;
 import static org.apache.cassandra.utils.ByteBufferUtil.writeWithVIntLength;
-import static org.apache.cassandra.utils.NullableSerializer.deserializeNullable;
-import static org.apache.cassandra.utils.NullableSerializer.serializeNullable;
-import static org.apache.cassandra.utils.NullableSerializer.serializedNullableSize;
 
 public final class TxnUpdate extends AccordUpdate
 {
@@ -618,8 +616,49 @@ public final class TxnUpdate extends AccordUpdate
         }
     }
 
-    private static final long EMPTY_SIZE = ObjectSizes.measure(new TxnUpdate(TableMetadatas.none(), Keys.EMPTY, Collections.emptyList(), null, PreserveTimestamp.no));
-    private static final int FLAG_PRESERVE_TIMESTAMPS = 0x1;
+    private static final long EMPTY_SIZE = ObjectSizes.measure(new TxnUpdate(TableMetadatas.none(), Keys.EMPTY, Collections.emptyList(), 0));
+
+    /**
+     * Hints and batchlog write with their original timestamp so they don't resurrect data.
+     * This breaks future read detection, so cannot be used for linearizable writes.
+     * TODO (expected): verify safety - we might need to move detectsFutureReads to epoch/topology state
+     */
+    public static final int FLAG_PRESERVE_TIMESTAMPS = 0x1;
+
+    /** The transaction may be applied directly by any replica knowing only the transaction's applyAt */
+    public static final int FLAG_PERMIT_REPLICA_EXECUTION = 0x2;
+
+    private static final int HAS_COMMIT_CL = 0x100;
+    private static final int COMMIT_CL_SHIFT = 16;
+    private static final int COMMIT_CL_MASK = 0xff;
+
+    public static int flags(@Nullable ConsistencyLevel commitCL, PreserveTimestamp preserveTimestamps)
+    {
+        return flags(commitCL, preserveTimestamps, false);
+    }
+
+    private static boolean permitsReplicaExecution(@Nullable ConsistencyLevel commitCL, boolean performsNoRead)
+    {
+        return performsNoRead && (commitCL == null || commitCL == ConsistencyLevel.ANY);
+    }
+
+    public static int flags(@Nullable ConsistencyLevel commitCL, PreserveTimestamp preserveTimestamps, boolean replicaExecutable)
+    {
+        // Once in accord "mixedTimeSource" and "yes" are the same, so only care about the side effect: that the timestamp is preserved or not
+        int flags = preserveTimestamps.preserve ? FLAG_PRESERVE_TIMESTAMPS : 0;
+        if (replicaExecutable)
+        {
+            requireArgument(commitCL == null || commitCL == ConsistencyLevel.ANY, "Replica execution incompatible with commit CL %s", commitCL);
+            flags |= FLAG_PERMIT_REPLICA_EXECUTION;
+        }
+
+        if (commitCL != null)
+        {
+            requireArgument((commitCL.code & ~COMMIT_CL_MASK) == 0, "Unsupported commit consistency level %s", commitCL);
+            flags |= HAS_COMMIT_CL | (commitCL.code << COMMIT_CL_SHIFT);
+        }
+        return flags;
+    }
 
     final TableMetadatas tables;
     final Keys keys;
@@ -690,13 +729,13 @@ public final class TxnUpdate extends AccordUpdate
      */
     final List<Block> blocks;
 
-    @Nullable
-    private final ConsistencyLevel cassandraCommitCL;
-
-    // Hints and batchlog want to write with the lower timestamp they generated when applying their writes via Accord
-    // so they don't resurrect data if they are applied at a later time. Accord should be fine with this because
-    // the writes are still deterministic from the perspective of coordinators/recovery coordinators.
-    private final PreserveTimestamp preserveTimestamps;
+    /*
+     * bit 0: preserve timestamps
+     * bit 1: replica executable
+     * bit 8: has commit CL (conditions serialization of third byte)
+     * bits 16-23: commit CL code (if has commit CL)
+     */
+    private final int flags;
 
     // Memoize computation of condition
     private Boolean anyConditionResult;
@@ -704,9 +743,24 @@ public final class TxnUpdate extends AccordUpdate
     @Nullable
     private transient volatile Object validationException = this;
 
-    public TxnUpdate(TableMetadatas tables, List<Fragment> fragments, TxnCondition condition, @Nullable ConsistencyLevel cassandraCommitCL, PreserveTimestamp preserveTimestamps)
+    public TxnUpdate(TableMetadatas tables, List<Fragment> fragments, TxnCondition condition, @Nullable ConsistencyLevel cassandraCommitCL)
     {
+        this(tables, fragments, condition, cassandraCommitCL, PreserveTimestamp.no);
+    }
+
+    public TxnUpdate(TableMetadatas tables, List<Fragment> fragments, TxnCondition condition, @Nullable ConsistencyLevel cassandraCommitCL, PreserveTimestamp preserveTimestamp)
+    {
+        this(tables, fragments, condition, cassandraCommitCL, preserveTimestamp, false);
+    }
+
+    public TxnUpdate(TableMetadatas tables, List<Fragment> fragments, TxnCondition condition, @Nullable ConsistencyLevel cassandraCommitCL, PreserveTimestamp preserveTimestamp, boolean performsNoRead)
+    {
+        this(tables, fragments, condition, flags(cassandraCommitCL, preserveTimestamp, permitsReplicaExecution(cassandraCommitCL, performsNoRead && condition == TxnCondition.none() && Functions.allMatches(Fragment::isComplete, fragments))));
         requireArgument(cassandraCommitCL == null || IAccordService.SUPPORTED_COMMIT_CONSISTENCY_LEVELS.contains(cassandraCommitCL));
+    }
+
+    private TxnUpdate(TableMetadatas tables, List<Fragment> fragments, TxnCondition condition, int flags)
+    {
         fragments.sort(Fragment::compareKeys);
         this.tables = tables;
         this.keys = Keys.of(fragments, fragment -> fragment.key);
@@ -723,28 +777,39 @@ public final class TxnUpdate extends AccordUpdate
 
         SerializedTxnCondition serializedCondition = new SerializedTxnCondition(condition, tables);
         this.blocks = Collections.singletonList(new Block(blockFragments, new ConditionalBlock[] { new ConditionalBlock(0, serializedCondition, fragmentIds) }));
-        this.cassandraCommitCL = cassandraCommitCL;
-        this.preserveTimestamps = preserveTimestamps;
+        this.flags = flags;
     }
 
-    public static TxnUpdate create(TableMetadatas tables, Keys keys, List<Block> blocks, @Nullable ConsistencyLevel cassandraCommitCL, PreserveTimestamp preserveTimestamps)
+    public static TxnUpdate create(TableMetadatas tables, Keys keys, List<Block> blocks, @Nullable ConsistencyLevel cassandraCommitCL)
+    {
+        return create(tables, keys, blocks, cassandraCommitCL, PreserveTimestamp.no);
+    }
+
+    public static TxnUpdate create(TableMetadatas tables, Keys keys, List<Block> blocks, @Nullable ConsistencyLevel cassandraCommitCL, PreserveTimestamp preserveTimestamp)
+    {
+        return create(tables, keys, blocks, cassandraCommitCL, preserveTimestamp, false);
+    }
+
+    /**
+     * @param performsNoRead transaction returns no result to client, so that replica execution may be considered
+     */
+    public static TxnUpdate create(TableMetadatas tables, Keys keys, List<Block> blocks, @Nullable ConsistencyLevel cassandraCommitCL, PreserveTimestamp preserveTimestamp, boolean performsNoRead)
     {
         requireArgument(cassandraCommitCL == null || IAccordService.SUPPORTED_COMMIT_CONSISTENCY_LEVELS.contains(cassandraCommitCL));
-        return new TxnUpdate(tables, keys, blocks, cassandraCommitCL, preserveTimestamps);
+        return new TxnUpdate(tables, keys, blocks, flags(cassandraCommitCL, preserveTimestamp, permitsReplicaExecution(cassandraCommitCL, performsNoRead)));
     }
 
-    private TxnUpdate(TableMetadatas tables, Keys keys, List<Block> blocks, ConsistencyLevel cassandraCommitCL, PreserveTimestamp preserveTimestamps)
+    private TxnUpdate(TableMetadatas tables, Keys keys, List<Block> blocks, int flags)
     {
         this.tables = tables;
         this.keys = keys;
         this.blocks = blocks;
-        this.cassandraCommitCL = cassandraCommitCL;
-        this.preserveTimestamps = preserveTimestamps;
+        this.flags = flags;
     }
 
     public static TxnUpdate empty()
     {
-        return new TxnUpdate(TableMetadatas.none(), Keys.EMPTY, Collections.emptyList(), null, PreserveTimestamp.no);
+        return new TxnUpdate(TableMetadatas.none(), Keys.EMPTY, Collections.emptyList(), 0);
     }
 
     public static TxnValidationRejection validationRejection(@Nullable Update update)
@@ -812,9 +877,27 @@ public final class TxnUpdate extends AccordUpdate
 
     // Batch log and hints want to keep their lower timestamp for the applied writes to avoid resurrecting old data
     // when they are applied later, possibly after further updates have already been acknowledged.
-    public PreserveTimestamp preserveTimestamps()
+    public boolean preserveTimestamps()
     {
-        return preserveTimestamps;
+        return (flags & FLAG_PRESERVE_TIMESTAMPS) != 0;
+    }
+
+    public boolean permitsReplicaExecution()
+    {
+        return (flags & FLAG_PERMIT_REPLICA_EXECUTION) != 0;
+    }
+
+    public static boolean permitsReplicaExecution(Txn txn)
+    {
+        if (txn.query() != TxnQuery.NONE)
+            return false;
+
+        Update update = txn.update();
+        if (update == null || update.getClass() != TxnUpdate.class)
+            return false;
+
+        TxnUpdate txnUpdate = (TxnUpdate) update;
+        return txnUpdate.permitsReplicaExecution();
     }
 
     @Override
@@ -836,7 +919,7 @@ public final class TxnUpdate extends AccordUpdate
         List<Block> blocks = new ArrayList<>(this.blocks.size());
         for (Block block : this.blocks)
             blocks.add(block.select(newKeys));
-        return new TxnUpdate(tables, newKeys, blocks, cassandraCommitCL, preserveTimestamps);
+        return new TxnUpdate(tables, newKeys, blocks, flags);
     }
 
     @Override
@@ -850,7 +933,7 @@ public final class TxnUpdate extends AccordUpdate
         for (int i = 0; i < this.blocks.size(); i++)
             mergedBlocks.add(this.blocks.get(i).merge(that.blocks.get(i)));
         
-        return new TxnUpdate(tables, keys, mergedBlocks, cassandraCommitCL, preserveTimestamps);
+        return new TxnUpdate(tables, keys, mergedBlocks, flags);
     }
 
     @Override
@@ -925,40 +1008,45 @@ public final class TxnUpdate extends AccordUpdate
         {
             // Serializing it with the condition result set shouldn't be needed
 //            checkState(update.anyConditionResult == null, "Can't serialize if conditionResult is set without adding it to serialization");
-            // Once in accord "mixedTimeSource" and "yes" are the same, so only care about the side effect: that the timestamp is preserved or not
-            out.writeByte(update.preserveTimestamps.preserve ? FLAG_PRESERVE_TIMESTAMPS : 0);
+            out.writeByte(update.flags & 0xff);
             tablesAndKeys.serializeKeys(update.keys, out);
-            serializeNullable(update.cassandraCommitCL, out, consistencyLevelSerializer);
+            out.writeByte((update.flags >>> 8) & 0xff);
+            if ((update.flags & HAS_COMMIT_CL) != 0)
+                out.writeByte((update.flags >>> COMMIT_CL_SHIFT) & COMMIT_CL_MASK);
             CollectionSerializers.serializeList(update.blocks, tablesAndKeys, out, Block.serializer);
         }
 
         @Override
         public TxnUpdate deserialize(TableMetadatasAndKeys tablesAndKeys, DataInputPlus in, Version version) throws IOException
         {
-            int flags = in.readByte();
-            boolean preserveTimestamps = (FLAG_PRESERVE_TIMESTAMPS & flags) == 1;
+            int flags = in.readUnsignedByte();
             Keys keys = tablesAndKeys.deserializeKeys(in);
-            ConsistencyLevel consistencyLevel = deserializeNullable(in, consistencyLevelSerializer);
+            flags |= in.readUnsignedByte() << 8;
+            if ((flags & HAS_COMMIT_CL) != 0)
+                flags |= in.readUnsignedByte() << COMMIT_CL_SHIFT;
             List<Block> blocks = CollectionSerializers.deserializeList(tablesAndKeys, in, Block.serializer);
-
-            return new TxnUpdate(tablesAndKeys.tables, keys, blocks, consistencyLevel, preserveTimestamps ? PreserveTimestamp.yes : PreserveTimestamp.no);
+            return new TxnUpdate(tablesAndKeys.tables, keys, blocks, flags);
         }
 
         @Override
         public void skip(TableMetadatasAndKeys tablesAndKeys, DataInputPlus in, Version version) throws IOException
         {
-            in.readByte(); // flags
+            int flags = in.readUnsignedByte();
             tablesAndKeys.skipKeys(in);
-            deserializeNullable(in, consistencyLevelSerializer); // consistency level
+            flags |= in.readUnsignedByte() << 8;
+            if ((flags & HAS_COMMIT_CL) != 0)
+                in.readUnsignedByte();
             skipArray(tablesAndKeys, in, Block.serializer);
         }
 
         @Override
         public long serializedSize(TxnUpdate update, TableMetadatasAndKeys tablesAndKeys, Version version)
         {
-            long size = 1; // flags
+            long size = 1; // low flags
             size += tablesAndKeys.serializedKeysSize(update.keys);
-            size += serializedNullableSize(update.cassandraCommitCL, consistencyLevelSerializer);
+            size += 1; // high flags and HAS_COMMIT_CL
+            if ((update.flags & HAS_COMMIT_CL) != 0)
+                size += 1;
             size += CollectionSerializers.serializedListSize(update.blocks, tablesAndKeys, Block.serializer);
             return size;
         }
@@ -1065,7 +1153,7 @@ public final class TxnUpdate extends AccordUpdate
     @Override
     public ConsistencyLevel cassandraCommitCL()
     {
-        return cassandraCommitCL;
+        return (flags & HAS_COMMIT_CL) == 0 ? null : ConsistencyLevel.fromCode((flags >>> COMMIT_CL_SHIFT) & COMMIT_CL_MASK);
     }
 
     @VisibleForTesting

@@ -27,6 +27,7 @@ import com.google.common.collect.AbstractIterator;
 
 import accord.utils.Invariants;
 
+import org.apache.cassandra.db.ClusteringBound;
 import org.apache.cassandra.db.ColumnFamilyStore;
 import org.apache.cassandra.db.EmptyIterators;
 import org.apache.cassandra.db.lifecycle.SSTableSet;
@@ -55,7 +56,7 @@ class TableKeyIterator extends AbstractIterator<JournalKey> implements Closeable
         Invariants.require((min != null && max != null) || min == max);
         view = table.selectAndReference(View.select(SSTableSet.LIVE, r -> (max == null || SUPPORT.compare(getJournalKey(r.getFirst()), max) <= 0)
                                                                           && (min == null || SUPPORT.compare(getJournalKey(r.getLast()), min) >= 0)
-                                                                          && (r.getSSTableMetadata().coveredClustering.end().isArtificial() || LongType.instance.compose(r.getSSTableMetadata().coveredClustering.end().bufferAt(0)) >= minSegment)
+                                                                          && (maxSegment(r) >= minSegment)
         ));
         List<ISSTableScanner> scanners = new ArrayList<>();
         for (SSTableReader sstable : view.sstables)
@@ -69,6 +70,16 @@ class TableKeyIterator extends AbstractIterator<JournalKey> implements Closeable
         mergeIterator = view.sstables.isEmpty()
                         ? EmptyIterators.unfilteredPartition(table.metadata())
                         : UnfilteredPartitionIterators.merge(scanners, UnfilteredPartitionIterators.MergeListener.NOOP);
+    }
+
+    /**
+     * The largest segment in {@code sstable}.
+     * NOTE: orders descending, so this is {@code coveredClustering.start()}, not {@code end()}.
+     */
+    static long maxSegment(SSTableReader sstable)
+    {
+        ClusteringBound<?> bound = sstable.getSSTableMetadata().coveredClustering.start();
+        return bound.isArtificial() ? Long.MAX_VALUE : LongType.instance.compose(bound.bufferAt(0));
     }
 
     @CheckForNull

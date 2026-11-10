@@ -112,7 +112,7 @@ public class CommandChangeWriter implements Journal.Writer
                     out.writeUnsignedVInt(command.waitingOn().minUniqueHlc());
                     break;
                 case SAVE_STATUS:
-                    out.writeByte(command.saveStatus().ordinal());
+                    out.writeByte(command.saveStatus().id);
                     break;
                 case DURABILITY:
                     out.writeByte(command.durability().encoded());

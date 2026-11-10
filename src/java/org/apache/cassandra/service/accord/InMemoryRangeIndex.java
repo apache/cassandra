@@ -147,7 +147,7 @@ public class InMemoryRangeIndex extends InMemoryRangeSummaryIndex implements Ran
     {
         RedundantBefore redundantBefore = commandStore.unsafeGetRedundantBefore();
         MaxDecidedRX maxDecidedRX = commandStore.unsafeGetMaxDecidedRX();
-        return SummaryLoader.loader(redundantBefore, maxDecidedRX, primaryTxnId, primaryExecuteAt, findKeys, keysOrRanges, this::newLoader);
+        return SummaryLoader.loader(this, redundantBefore, maxDecidedRX, primaryTxnId, primaryExecuteAt, findKeys, keysOrRanges, InMemoryRangeIndex::newLoader);
     }
 
     @Override
