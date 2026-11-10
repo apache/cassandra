@@ -36,7 +36,6 @@ import org.apache.cassandra.cql3.Operator;
 import org.apache.cassandra.cql3.statements.schema.IndexTarget;
 import org.apache.cassandra.db.filter.RowFilter;
 import org.apache.cassandra.db.marshal.AbstractType;
-import org.apache.cassandra.db.marshal.CollectionType;
 import org.apache.cassandra.exceptions.InvalidRequestException;
 import org.apache.cassandra.index.sai.QueryContext;
 import org.apache.cassandra.index.sai.StorageAttachedIndex;
@@ -265,27 +264,23 @@ public class Operation
      */
     private static IndexTarget.Type determineIndexTargetType(RowFilter.Expression expression)
     {
-        AbstractType<?> type  = expression.column().type;
+        AbstractType<?> type  = expression.column().type.unwrap();
         IndexTarget.Type indexTargetType = IndexTarget.Type.SIMPLE;
-        if (type.isCollection() && type.isMultiCell())
+        if (type.isCollection())
         {
-            CollectionType<?> collection = ((CollectionType<?>) type);
-            if (collection.kind == CollectionType.Kind.MAP)
+            switch (expression.operator())
             {
-                switch (expression.operator())
-                {
-                    case EQ:
-                        indexTargetType = IndexTarget.Type.KEYS_AND_VALUES;
-                        break;
-                    case CONTAINS:
-                        indexTargetType = IndexTarget.Type.VALUES;
-                        break;
-                    case CONTAINS_KEY:
-                        indexTargetType = IndexTarget.Type.KEYS;
-                        break;
-                    default:
-                        throw new InvalidRequestException("Invalid operator");
-                }
+                case EQ:
+                    indexTargetType = expression.isMapElementExpression() ? IndexTarget.Type.KEYS_AND_VALUES : IndexTarget.Type.FULL;
+                    break;
+                case CONTAINS:
+                    indexTargetType = IndexTarget.Type.VALUES;
+                    break;
+                case CONTAINS_KEY:
+                    indexTargetType = IndexTarget.Type.KEYS;
+                    break;
+                default:
+                    throw new InvalidRequestException("Invalid operator");
             }
         }
         return indexTargetType;
