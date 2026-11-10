@@ -21,22 +21,18 @@ package org.apache.cassandra.anttasks;
 import org.apache.commons.io.FilenameUtils;
 import org.apache.tools.ant.Project;
 import org.apache.tools.ant.Task;
-import org.apache.tools.ant.taskdefs.Echo;
 
 import org.apache.cassandra.io.util.File;
 
+/**
+ * Sets the eclipse-libs-list property to the library entries of the Eclipse .classpath file, built from the jars in
+ * the eclipse-project-libs property. An entry has the sources of a jar attached when they were retrieved.
+ */
 public class EchoEclipseProjectLibs extends Task
 {
     public void execute()
     {
-        Project project = getProject();
-        StringBuilder msg = buildMsg();
-
-        Echo echo = (Echo) project.createTask("echo");
-        echo.setMessage(msg.toString());
-        echo.setFile(new File(".classpath").toJavaIOFile());
-        echo.setAppend(true);
-        echo.perform();
+        getProject().setNewProperty("eclipse-libs-list", buildMsg().toString());
     }
 
     public StringBuilder buildMsg()
@@ -49,16 +45,18 @@ public class EchoEclipseProjectLibs extends Task
         for (int i=0; i< jars.length; i++)
         {
             String srcJar = FilenameUtils.getBaseName(jars[i]) + "-sources.jar";
-            String srcDir = FilenameUtils.concat(project.getProperty("build.test.dir"), "sources");
+            // the sources of the jars in a "jars" directory are in the "sources" directory next to it
+            String jarDir = FilenameUtils.getFullPathNoEndSeparator(jars[i]);
+            String srcDir = FilenameUtils.concat(FilenameUtils.getFullPath(jarDir), "sources");
             File srcFile = new File(FilenameUtils.concat(srcDir, srcJar));
 
-            msg.append("\" <classpathentry kind=\"lib\" path=\"").append(jars[i]).append('"');
+            if (i > 0)
+                msg.append('\n');
+            msg.append("  <classpathentry kind=\"lib\" path=\"").append(jars[i]).append('"');
             if (srcFile.exists())
                 msg.append(" sourcepath=\"").append(srcFile.path()).append('"');
-            msg.append("/>\n");
+            msg.append("/>");
         }
-
-        msg.append("</classpath>");
 
         return msg;
     }
