@@ -445,7 +445,6 @@ public class TokenMetadata
             lock.readLock().unlock();
         }
     }
-
     public void removeBootstrapTokens(Collection<Token> tokens)
     {
         assert tokens != null && !tokens.isEmpty();
