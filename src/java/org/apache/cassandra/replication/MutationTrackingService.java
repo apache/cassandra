@@ -94,12 +94,15 @@ import org.apache.cassandra.tcm.ownership.VersionedEndpoints;
 import org.apache.cassandra.utils.FBUtilities;
 import org.apache.cassandra.utils.MBeanWrapper;
 import org.apache.cassandra.utils.NoSpamLogger;
+import org.apache.cassandra.utils.concurrent.CountDownLatch;
+import org.apache.cassandra.utils.concurrent.UncheckedInterruptedException;
 
 import static com.google.common.base.Preconditions.checkNotNull;
 import static java.lang.String.format;
 import static org.apache.cassandra.concurrent.ExecutorFactory.Global.executorFactory;
 import static org.apache.cassandra.concurrent.ExecutorFactory.SimulatorSemantics.NORMAL;
 import static org.apache.cassandra.cql3.QueryProcessor.executeInternal;
+import static org.apache.cassandra.utils.concurrent.CountDownLatch.newCountDownLatch;
 
 // TODO (expected): persistence (handle restarts)
 // TODO (expected): handle topology changes
@@ -229,6 +232,7 @@ public class MutationTrackingService implements MutationTrackingServiceMBean
     private volatile boolean hostLogIdLoaded = false;
 
     private volatile boolean started = false;
+    private final CountDownLatch startedLatch = newCountDownLatch(1);
 
     private MutationTrackingService()
     {
@@ -277,6 +281,7 @@ public class MutationTrackingService implements MutationTrackingServiceMBean
         TransferTrackingService.instance().recoverPendingTransfers();
 
         started = true;
+        startedLatch.decrement();
     }
 
     @Override
@@ -346,6 +351,21 @@ public class MutationTrackingService implements MutationTrackingServiceMBean
         return started;
     }
 
+    public void awaitStarted()
+    {
+        if (started)
+            return;
+        try
+        {
+            if (!startedLatch.await(1, TimeUnit.MINUTES))
+                throw new IllegalStateException("MutationTrackingService did not start within 1 minute");
+        }
+        catch (InterruptedException e)
+        {
+            throw new UncheckedInterruptedException(e);
+        }
+    }
+
     private void shutdownBlocking() throws InterruptedException
     {
         ClusterMetadataService.instance().log().removeListener(tcmListener);
@@ -357,7 +377,7 @@ public class MutationTrackingService implements MutationTrackingServiceMBean
         // attempt to persist offsets and mark segments as not needing replay one last time before shutdown, then
         // reclaim any now-droppable segments synchronously (the executor is stopped, so scheduled attempts from
         // drainCleanup would never run).
-        if (isStarted())
+        if (isStarted() && !offsetsPersister.isBlocked())
         {
             offsetsPersister.persistAndDrain();
             MutationJournal.instance().drainBlocking();
@@ -1010,6 +1030,119 @@ public class MutationTrackingService implements MutationTrackingServiceMBean
                     return false;
             }
             return true;
+        }
+        finally
+        {
+            shardLock.readLock().unlock();
+        }
+    }
+
+    /**
+     * Record flushed offsets to the coordinator log. It's important that we don't replay mutations that have already
+     * been flushed to disk on startup. Flushed offsets are persisted in both the sstables and in the log metadata.
+     * SSTables need to track the offsets the contain for log segment dropping, however sstables can be dropped by
+     * compaction (intentionally or incidentally) so we also keep them on the log metadata and block on it's flushing
+     * to disk before dropping sstables. We then consult both sources on startup to prevent replaying shadowed writes.
+     * @param logOffsets
+     */
+    public void recordFlushedOffsets(ImmutableCoordinatorLogOffsets logOffsets)
+    {
+        if (logOffsets == null || logOffsets.isEmpty() || !isEnabled())
+            return;
+
+        awaitStarted();
+
+        shardLock.readLock().lock();
+        try
+        {
+            logOffsets.mutations().forEach((rawLogId, offsets) -> {
+                CoordinatorLogId logId = CoordinatorLogId.fromLong(rawLogId);
+                Shard shard = getShardNullable(logId);
+                if (shard != null)
+                {
+                    if (offsets != null && !offsets.isEmpty())
+                        shard.recordFlushedOffsets(logId, offsets);
+                }
+            });
+        }
+        finally
+        {
+            shardLock.readLock().unlock();
+        }
+    }
+
+    public boolean isDurablyFlushed(ImmutableCoordinatorLogOffsets logOffsets)
+    {
+        if (logOffsets == null || logOffsets.isEmpty())
+            return true;
+        if (!isEnabled())
+            return true;
+
+        awaitStarted();
+
+        shardLock.readLock().lock();
+        try
+        {
+            return logOffsets.mutations().all((rawLogId, offsets) -> {
+                CoordinatorLogId logId = CoordinatorLogId.fromLong(rawLogId);
+                Shard shard = getShardNullable(logId);
+                if (shard == null)
+                    return true;
+
+                return offsets == null || offsets.isEmpty() || shard.isDurablyFlushed(logId, offsets);
+            });
+        }
+        finally
+        {
+            shardLock.readLock().unlock();
+        }
+    }
+
+    public boolean isFlushed(ShortMutationId mutationId)
+    {
+        if (mutationId == null || mutationId.isNone() || !isEnabled())
+            return false;
+
+        awaitStarted();
+
+        shardLock.readLock().lock();
+        try
+        {
+            CoordinatorLogId logId = mutationId.asLogId();
+            Shard shard = getShardNullable(logId);
+            if (shard == null)
+                return false;
+            return shard.isFlushed(logId, mutationId.offset());
+        }
+        finally
+        {
+            shardLock.readLock().unlock();
+        }
+    }
+
+    public void ensureFlushedOffsetsDurable(ImmutableCoordinatorLogOffsets logOffsets)
+    {
+        if (logOffsets == null || logOffsets.isEmpty())
+            return;
+        if (!isEnabled())
+            return;
+
+        awaitStarted();
+
+        if (isDurablyFlushed(logOffsets))
+            return;
+
+        recordFlushedOffsets(logOffsets);
+
+        shardLock.readLock().lock();
+        try
+        {
+            logOffsets.mutations().forEach((rawLogId, offsets) -> {
+                CoordinatorLogId logId = CoordinatorLogId.fromLong(rawLogId);
+                Shard shard = getShardNullable(logId);
+                if (shard != null)
+                    shard.syncFlushedOffsetsBlocking(logId);
+            });
         }
         finally
         {
@@ -1870,6 +2003,7 @@ public class MutationTrackingService implements MutationTrackingServiceMBean
         private static final long PERSIST_INTERVAL_MILLIS = 1_000;
 
         private volatile boolean isPaused = false;
+        private volatile boolean isBlocked = false;
 
         void start()
         {
@@ -1881,16 +2015,30 @@ public class MutationTrackingService implements MutationTrackingServiceMBean
             isPaused = pause;
         }
 
+        void blockForTesting(boolean block)
+        {
+            isBlocked = block;
+            isPaused = block;
+        }
+
+        boolean isBlocked()
+        {
+            return isBlocked;
+        }
+
         @Override
         public void run()
         {
-            if (isPaused)
+            if (isPaused || isBlocked)
                 return;
             persistAndDrain();
         }
 
         void persistAndDrain()
         {
+            if (isBlocked)
+                return;
+
             MutationJournal.PendingClearReplay toDrain = MutationJournal.instance().snapshotPendingClearReplay();
 
             boolean writesOk;
@@ -1957,6 +2105,12 @@ public class MutationTrackingService implements MutationTrackingServiceMBean
     public void pauseOffsetsPersisterForTesting()
     {
         offsetsPersister.pauseForTesting(true);
+    }
+
+    @VisibleForTesting
+    public void blockLogMetadataPersistenceForTesting(boolean block)
+    {
+        offsetsPersister.blockForTesting(block);
     }
 
     @VisibleForTesting

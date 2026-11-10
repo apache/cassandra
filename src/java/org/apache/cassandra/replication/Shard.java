@@ -294,6 +294,32 @@ public class Shard
         return logs.get(logId).isDurablyReconciled(logOffsets);
     }
 
+    void recordFlushedOffsets(CoordinatorLogId logId, Offsets offsets)
+    {
+        CoordinatorLog log = logs.get(logId.asLong());
+        if (log != null)
+            log.recordFlushedOffsets(offsets);
+    }
+
+    boolean isDurablyFlushed(CoordinatorLogId logId, Offsets offsets)
+    {
+        CoordinatorLog log = logs.get(logId.asLong());
+        return log == null || log.isDurablyFlushed(offsets);
+    }
+
+    boolean isFlushed(CoordinatorLogId logId, int offset)
+    {
+        CoordinatorLog log = logs.get(logId.asLong());
+        return log != null && log.isFlushed(offset);
+    }
+
+    void syncFlushedOffsetsBlocking(CoordinatorLogId logId)
+    {
+        CoordinatorLog log = logs.get(logId.asLong());
+        if (log != null)
+            log.updateLogsInSystemTable();
+    }
+
     /**
      * Collects replicated offsets for the logs owned by this coordinator on this shard.
      */

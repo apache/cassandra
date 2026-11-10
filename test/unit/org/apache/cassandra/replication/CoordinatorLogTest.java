@@ -193,8 +193,11 @@ public class CoordinatorLogTest
         MutationJournal.instance().write(mutation1.id(), mutation1);
         MutationJournal.instance().write(mutation2.id(), mutation2);
 
+        Offsets.Mutable flushed = new Offsets.Mutable(logId);
+        flushed.add(1, 2);
+
         CoordinatorLog log =
-            CoordinatorLog.recreate(KEYSPACE, range, LOCAL_HOST_ID, logId, PARTICIPANTS, witnessed, witnessed, unreconciled);
+            CoordinatorLog.recreate(KEYSPACE, range, LOCAL_HOST_ID, logId, PARTICIPANTS, witnessed, witnessed, flushed, Offsets.Immutable.copy(flushed), unreconciled);
 
         Offsets.Mutable reconciled = new Offsets.Mutable(logId);
         reconciled.add(3, 4);
@@ -225,6 +228,8 @@ public class CoordinatorLogTest
         assertEquals(log.witnessedOffsets, loaded.witnessedOffsets);
         assertEquals(log.persistedOffsets, loaded.persistedOffsets);
         assertEquals(log.reconciledOffsets, loaded.reconciledOffsets);
+        assertEquals(log.flushedOffsets(), loaded.flushedOffsets());
+        assertEquals(log.durablyFlushedOffsets(), loaded.durablyFlushedOffsets());
 
         assertTrue(log.unreconciledMutations.equalsForTesting(loaded.unreconciledMutations));
     }

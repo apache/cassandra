@@ -18,6 +18,9 @@
 
 package org.apache.cassandra.replication;
 
+import org.agrona.collections.LongObjConsumer;
+import org.agrona.collections.LongObjPredicate;
+
 import org.apache.cassandra.io.sstable.metadata.StatsMetadata;
 
 /**
@@ -46,6 +49,26 @@ public interface CoordinatorLogOffsets<O extends Offsets>
         default boolean isEmpty()
         {
             return size() == 0;
+        }
+
+        default void forEach(LongObjConsumer<O> consumer)
+        {
+            for (long logId: this)
+            {
+                O offsets = offsets(logId);
+                consumer.accept(logId, offsets);
+            }
+        }
+
+        default boolean all(LongObjPredicate<O> predicate)
+        {
+            for (long logId: this)
+            {
+                O offsets = offsets(logId);
+                if (!predicate.test(logId, offsets))
+                    return false;
+            }
+            return true;
         }
     }
 

@@ -56,6 +56,7 @@ import org.apache.cassandra.io.sstable.format.SSTableReader;
 import org.apache.cassandra.io.sstable.metadata.MetadataCollector;
 import org.apache.cassandra.io.util.File;
 import org.apache.cassandra.replication.ImmutableCoordinatorLogOffsets;
+import org.apache.cassandra.replication.MutationTrackingService;
 import org.apache.cassandra.service.ActiveRepairService;
 import org.apache.cassandra.service.snapshot.SnapshotManager;
 import org.apache.cassandra.service.snapshot.SnapshotOptions;
@@ -189,6 +190,7 @@ public class CompactionTask extends AbstractCompactionTask
             if (!fullyExpiredSSTables.isEmpty())
             {
                 logger.debug("Compaction {} dropping expired sstables: {}", transaction.opIdString(), fullyExpiredSSTables);
+                ensureCoordinatorLogOffsetsDurable(fullyExpiredSSTables);
                 fullyExpiredSSTables.forEach(transaction::obsolete);
                 actuallyCompact.removeAll(fullyExpiredSSTables);
             }
@@ -293,6 +295,11 @@ public class CompactionTask extends AbstractCompactionTask
                         CompactionManager.instance.compactionRateLimiterAcquire(limiter, ci.getTotalBytesScanned(), lastBytesScanned, compressionRatio);
                     }
                     timeSpentWritingKeys = TimeUnit.NANOSECONDS.toMillis(nanoTime() - start);
+
+                    // nothing was written. confirm mutation tracking offsets have been persisted before
+                    // removing the obsolete input sstables so we don't replay them on startup.
+                    if (ci.getTotalKeysWritten() == 0)
+                        ensureCoordinatorLogOffsetsDurable(actuallyCompact);
 
                     // point of no return
                     newSStables = finish(ci);
@@ -455,6 +462,18 @@ public class CompactionTask extends AbstractCompactionTask
         for (SSTableReader sstable : sstables)
             builder.addAll(sstable.getCoordinatorLogOffsets());
         return builder.build();
+    }
+
+    private static void ensureCoordinatorLogOffsetsDurable(Set<SSTableReader> sstables)
+    {
+        if (sstables == null || sstables.isEmpty())
+            return;
+        if (!MutationTrackingService.isEnabled())
+            return;
+
+        ImmutableCoordinatorLogOffsets offsets = getCoordinatorLogOffsets(sstables);
+        if (!offsets.isEmpty())
+            MutationTrackingService.instance().ensureFlushedOffsetsDurable(offsets);
     }
 
     /*
