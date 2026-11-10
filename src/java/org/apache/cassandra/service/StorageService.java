@@ -4060,6 +4060,17 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
 
             try
             {
+                if (ClusterMetadataService.instance() != null)
+                {
+                    try
+                    {
+                        ClusterMetadataService.instance().shutdownLogTasksNow();
+                    }
+                    catch (TimeoutException e)
+                    {
+                        logger.warn("Timed out waiting for the cluster metadata log tasks to stop", e);
+                    }
+                }
                 // we are not shutting down ScheduledExecutors#scheduledFastTasks to be still able to progress time
                 // fast-tasks executor is shut down in StorageService's shutdown hook added to Runtime
                 ExecutorUtils.shutdownNowAndWait(1, MINUTES,
