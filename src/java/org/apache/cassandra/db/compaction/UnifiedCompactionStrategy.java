@@ -402,7 +402,6 @@ public class UnifiedCompactionStrategy extends AbstractCompactionStrategy
         }
     }
 
-    @VisibleForTesting
     ShardManager getShardManager()
     {
         maybeUpdateShardManager();

@@ -720,7 +720,7 @@ public class CompactionStrategyManager implements INotificationConsumer
                 data -> {
                     double reported = data.sstable.tokenSpaceCoverage();
                     double coverage;
-                    if (reported > 0)
+                    if (reported > 0)   // also false for NaN
                         coverage = reported;
                     else
                         coverage = data.strategy.getShardManager().rangeSpanned(data.sstable.getFirst(), data.sstable.getLast());
@@ -733,8 +733,6 @@ public class CompactionStrategyManager implements INotificationConsumer
 
     public double[] getPerLevelMaxDensityThreshold()
     {
-        // thresholds are recorded per level by computeUCSMetric because the accumulator logic
-        // is ran per SSTable, so in the case with no SSTables, the accumulator is not ran
         return computeUCSMetric(data -> {}, data -> Arrays.copyOf(data.maxDensityThresholdPerLevel, data.numberOfLevels));
     }
 

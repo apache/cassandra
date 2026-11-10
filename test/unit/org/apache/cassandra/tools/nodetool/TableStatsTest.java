@@ -33,6 +33,7 @@ import org.apache.cassandra.cql3.CQLTester;
 import org.apache.cassandra.db.ColumnFamilyStore;
 import org.apache.cassandra.io.sstable.format.SSTableReader;
 import org.apache.cassandra.io.util.FileUtils;
+import org.apache.cassandra.schema.MockSchema;
 import org.apache.cassandra.tools.ToolRunner;
 import org.apache.cassandra.utils.FBUtilities;
 import org.apache.cassandra.utils.JsonUtils;
@@ -146,6 +147,21 @@ public class TableStatsTest extends CQLTester
         ToolRunner.ToolResult tool = ToolRunner.invokeNodetool("tablestats", KEYSPACE + "." + currentTable());
         tool.assertOnCleanExit();
         assertThat(tool.getStdout()).contains("Average token space for SSTables in each level: [" + FBUtilities.prettyPrintRatio(averageTokenSpace) + "]");
+    }
+
+    @Test
+    public void testUCSMetricsForSkippedLevels()
+    {
+        createTable("CREATE TABLE %s (pk int PRIMARY KEY, v int) WITH compaction = {'class': 'UnifiedCompactionStrategy'}");
+        disableCompaction();
+        ColumnFamilyStore cfs = getCurrentColumnFamilyStore();
+
+        // create sstable in level > 0
+        cfs.addSSTable(MockSchema.sstable(1, 1 << 20, true, 0, 1L << 54, cfs));
+        assertThat(cfs.getSSTableCountPerUCSLevel()[0]).isZero();
+        assertThat(cfs.getPerLevelMaxDensityThreshold()[0]).isPositive();
+        assertThat(cfs.getPerLevelAvgDensityMaxDensityThresholdRatio()[0]).isZero();
+        assertThat(cfs.getPerLevelMaxDensityMaxDensityThresholdRatio()[0]).isZero();
     }
 
     private void createTableWithOneSSTable(String compactionClass)
