@@ -1836,6 +1836,16 @@ public class DatabaseDescriptor
         conf.read_request_timeout = new DurationSpec.LongMillisecondsBound(timeOutInMillis);
     }
 
+    public static boolean getReadFallbackOnOverloadedConnection()
+    {
+        return conf.read_fallback_on_overloaded_connection;
+    }
+
+    public static void setReadFallbackOnOverloadedConnection(boolean enabled)
+    {
+        conf.read_fallback_on_overloaded_connection = enabled;
+    }
+
     public static long getRangeRpcTimeout(TimeUnit unit)
     {
         return conf.range_request_timeout.to(unit);

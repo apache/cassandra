@@ -36,6 +36,7 @@ import org.apache.cassandra.io.IVersionedAsymmetricSerializer;
 import org.apache.cassandra.locator.InetAddressAndPort;
 import org.apache.cassandra.locator.Replica;
 import org.apache.cassandra.metrics.InternodeOutboundMetrics;
+import org.apache.cassandra.net.ResourceLimits.Outcome;
 import org.apache.cassandra.service.AbstractWriteResponseHandler;
 
 import static java.lang.String.format;
@@ -128,6 +129,12 @@ public class RequestCallbacks implements OutboundMessageCallbacks
         if (null != ci) onExpired(ci);
     }
 
+    private void removeAndOverload(long id, InetAddressAndPort peer, Outcome outcome)
+    {
+        CallbackInfo ci = remove(id, peer);
+        if (null != ci) onOverloaded(ci, outcome);
+    }
+
     private void expire()
     {
         long start = preciseTime.now();
@@ -162,6 +169,18 @@ public class RequestCallbacks implements OutboundMessageCallbacks
 
         if (info.invokeOnFailure())
             INTERNAL_RESPONSE.submit(() -> info.callback.onFailure(info.peer, RequestFailureReason.TIMEOUT));
+    }
+
+
+    private void onOverloaded(CallbackInfo info, Outcome outcome)
+    {
+        if (!info.invokeOnFailure())
+            return;
+
+        if (info.callback.invokeOnOverloadedInline())
+            info.callback.onOverloaded(info.peer, outcome);
+        else
+            INTERNAL_RESPONSE.submit(() -> info.callback.onOverloaded(info.peer, outcome));
     }
 
     void shutdownNow(boolean expireCallbacks)
@@ -277,9 +296,9 @@ public class RequestCallbacks implements OutboundMessageCallbacks
     }
 
     @Override
-    public void onOverloaded(Message<?> message, InetAddressAndPort peer)
+    public void onOverloaded(Message<?> message, InetAddressAndPort peer, Outcome outcome)
     {
-        removeAndExpire(message, peer);
+        removeAndOverload(message, peer, outcome);
     }
 
     @Override
@@ -308,6 +327,16 @@ public class RequestCallbacks implements OutboundMessageCallbacks
         ForwardingInfo forwardTo = message.forwardTo();
         if (null != forwardTo)
             forwardTo.forEach(this::removeAndExpire);
+    }
+
+    private void removeAndOverload(Message message, InetAddressAndPort peer, Outcome outcome)
+    {
+        removeAndOverload(message.id(), peer, outcome);
+
+        /* in case of a write sent to a different DC, also fail all forwarding targets */
+        ForwardingInfo forwardTo = message.forwardTo();
+        if (null != forwardTo)
+            forwardTo.forEach((id, target) -> removeAndOverload(id, target, outcome));
     }
 
     public static long defaultExpirationInterval()
