@@ -6631,7 +6631,7 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
 
     public void rebuildSecondaryIndex(String ksName, String cfName, String... idxNames)
     {
-        String[] indices = asList(idxNames).stream()
+        String[] indices = Arrays.stream(idxNames)
                                            .map(p -> isIndexColumnFamily(p) ? getIndexName(p) : p)
                                            .collect(toList())
                                            .toArray(new String[idxNames.length]);
