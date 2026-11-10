@@ -297,7 +297,8 @@ public class StartupMessage extends Message.Request
         if (count < 0 || key < 0 || value < 0)
             return frameLimit;
 
-        // 2L (Map count) + key length (key) + 2L (key length prefix) + value length (value) + 2L (value length prefix)or map count, and two-byte length prefixes for each key and value.
+        // Each option is a [string] key and a [string] value: a 2-byte length prefix plus the UTF-8 bytes for each.
+        // The 2-byte map count is per message, not per option, so it is added once below.
         long perOption = 2L + key + 2L + value;
 
         long remaining = frameLimit - Envelope.Header.LENGTH - 2L;
