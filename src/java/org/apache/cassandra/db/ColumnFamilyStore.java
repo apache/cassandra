@@ -145,6 +145,7 @@ import org.apache.cassandra.repair.consistent.admin.PendingStat;
 import org.apache.cassandra.replication.ImmutableCoordinatorLogOffsets;
 import org.apache.cassandra.replication.MutationId;
 import org.apache.cassandra.replication.MutationJournal;
+import org.apache.cassandra.replication.MutationTrackingService;
 import org.apache.cassandra.schema.ColumnMetadata;
 import org.apache.cassandra.schema.CompactionParams;
 import org.apache.cassandra.schema.CompactionParams.TombstoneOption;
@@ -1502,6 +1503,14 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean, Memtable.Owner
                 }
             }
             cfs.replaceFlushed(memtable, sstables);
+            if (MutationTrackingService.isEnabled())
+            {
+                for (SSTableReader sstable : sstables)
+                {
+                    if (sstable != null && !sstable.getCoordinatorLogOffsets().isEmpty())
+                        MutationTrackingService.instance().recordFlushedOffsets(cfs.metadata().id, sstable.getCoordinatorLogOffsets());
+                }
+            }
             memtable.notifyFlushed();
             reclaim(memtable);
             cfs.compactionStrategyManager.compactionLogger.flush(sstables);
