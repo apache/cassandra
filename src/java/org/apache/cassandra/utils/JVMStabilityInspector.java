@@ -19,7 +19,6 @@ package org.apache.cassandra.utils;
 
 import java.io.FileNotFoundException;
 import java.net.SocketException;
-import java.nio.channels.ClosedByInterruptException;
 import java.nio.file.FileSystemException;
 import java.util.ArrayList;
 import java.util.List;
@@ -161,7 +160,7 @@ public final class JVMStabilityInspector
             throw (UncheckedInterruptedException)t;
 
         if (DatabaseDescriptor.getDiskFailurePolicy() == Config.DiskFailurePolicy.die)
-            if ((t instanceof FSError || t instanceof CorruptSSTableException) && !(t.getCause() instanceof ClosedByInterruptException))
+            if ((t instanceof FSError || t instanceof CorruptSSTableException) && !Throwables.isCausedByInterrupt(t))
                 isUnstable = true;
 
         // Check for file handle exhaustion

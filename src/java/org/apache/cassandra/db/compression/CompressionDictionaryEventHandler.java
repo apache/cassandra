@@ -32,6 +32,7 @@ import org.apache.cassandra.net.Verb;
 import org.apache.cassandra.schema.SystemDistributedKeyspace;
 import org.apache.cassandra.tcm.ClusterMetadata;
 import org.apache.cassandra.utils.FBUtilities;
+import org.apache.cassandra.utils.Throwables;
 
 /**
  * Handles compression dictionary events including training completion and cluster notifications.
@@ -104,6 +105,16 @@ public class CompressionDictionaryEventHandler implements ICompressionDictionary
             {
                 logger.warn("Failed to retrieve compression dictionary for {}.{}. {}",
                             keyspaceName, tableName, dictionaryId, e);
+            }
+            catch (Error e)
+            {
+                // A drain of a node interrupts this task. A local read can run on this thread, then it fails e.g. with
+                // FSReadError, caused by ClosedByInterruptException, which is not a failure of the disk.
+                if (!(ScheduledExecutors.nonPeriodicTasks.isShutdown() && Throwables.isCausedByInterrupt(e)))
+                    throw e;
+
+                logger.info("Retrieval of compression dictionary {} for {}.{} stopped by the shutdown of the node: {}",
+                            dictionaryId, keyspaceName, tableName, e.getMessage());
             }
         });
     }

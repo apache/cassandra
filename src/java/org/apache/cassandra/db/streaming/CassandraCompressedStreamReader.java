@@ -23,6 +23,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import org.apache.cassandra.db.ColumnFamilyStore;
+import org.apache.cassandra.db.compression.CompressionDictionary;
 import org.apache.cassandra.io.sstable.SSTableMultiWriter;
 import org.apache.cassandra.io.sstable.format.SSTableReader;
 import org.apache.cassandra.io.util.DataInputPlus;
@@ -32,6 +33,7 @@ import org.apache.cassandra.streaming.StreamSession;
 import org.apache.cassandra.streaming.messages.StreamMessageHeader;
 import org.apache.cassandra.utils.ChecksumType;
 import org.apache.cassandra.utils.FBUtilities;
+import org.apache.cassandra.utils.concurrent.Ref;
 
 /**
  * CassandraStreamReader that reads from streamed compressed SSTable
@@ -71,7 +73,16 @@ public class CassandraCompressedStreamReader extends CassandraStreamReader
 
         StreamDeserializer deserializer = null;
         SSTableMultiWriter writer = null;
-        try (CompressedInputStream cis = new CompressedInputStream(inputPlus, compressionInfo, ChecksumType.CRC32, cfs::getCrcCheckChance))
+        // the chunks are decompressed with the dictionary they were compressed with, which the stream carries
+        CompressionDictionary dictionary = compressionInfo.dictionary();
+        Ref<? extends CompressionDictionary> dictionaryRef = dictionary == null
+                                                             ? null
+                                                             : CompressionDictionary.refForReading(dictionary, cfs.compressionDictionaryManager());
+        try (CompressedInputStream cis = new CompressedInputStream(inputPlus,
+                                                                   compressionInfo,
+                                                                   dictionaryRef == null ? null : dictionaryRef.get(),
+                                                                   ChecksumType.CRC32,
+                                                                   cfs::getCrcCheckChance))
         {
             TrackedDataInputPlus in = new TrackedDataInputPlus(cis);
             writer = createWriter(cfs, totalSize, repairedAt, pendingRepair, inputVersion.format);
@@ -116,6 +127,11 @@ public class CassandraCompressedStreamReader extends CassandraStreamReader
             if (writer != null)
                 e = writer.abort(e);
             throw e;
+        }
+        finally
+        {
+            if (dictionaryRef != null)
+                dictionaryRef.release();
         }
     }
 

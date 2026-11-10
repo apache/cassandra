@@ -20,6 +20,8 @@ package org.apache.cassandra.db.compression;
 
 import javax.annotation.Nullable;
 
+import org.apache.cassandra.utils.concurrent.Ref;
+
 /**
  * Interface for managing compression dictionary caching and current dictionary state.
  * <p>
@@ -39,6 +41,17 @@ public interface ICompressionDictionaryCache extends AutoCloseable
     CompressionDictionary getCurrent();
 
     /**
+     * References the current dictionary for the caller, which owns the returned reference and has to release it.
+     * The instance {@link #getCurrent()} returns is not referenced, so an eviction can release it before the caller
+     * references it, which also ends it being the current one.
+     *
+     * @return reference to the current compression dictionary, or null if there is none, also when it was evicted
+     *         before it could be referenced
+     */
+    @Nullable
+    Ref<? extends CompressionDictionary> refCurrent();
+
+    /**
      * Retrieves a specific compression dictionary by its identifier.
      *
      * @param dictId the dictionary identifier to look up
@@ -56,10 +69,24 @@ public interface ICompressionDictionaryCache extends AutoCloseable
      * than their argument — referencing a redundant "loser" instance would lazily create a selfRef the cache
      * never owns and therefore never releases, leaking it (CASSANDRA-21047).
      *
+     * <p>
+     * After {@link #close()} the dictionary is not cached: the returned instance is released.
+     *
      * @param compressionDictionary the compression dictionary to cache, may be null
      * @return the canonical cached dictionary for this id, or null if the argument was null
      */
     CompressionDictionary add(@Nullable CompressionDictionary compressionDictionary);
+
+    /**
+     * Caches a compression dictionary like {@link #add(CompressionDictionary)} and references it for the caller, which
+     * owns the returned reference and has to release it. The instance {@code add} returns is not referenced, so an
+     * eviction can release it before the caller references it. This method does not fail that way: when the cached
+     * instance was released meanwhile, a fresh instance, which is not cached, is referenced.
+     *
+     * @param compressionDictionary the compression dictionary to cache
+     * @return reference to the canonical cached dictionary for this id, or to a fresh instance of it
+     */
+    Ref<? extends CompressionDictionary> refForReading(CompressionDictionary compressionDictionary);
 
     /**
      * Gives number of bytes cached compression dictionaries occupy in this cache.

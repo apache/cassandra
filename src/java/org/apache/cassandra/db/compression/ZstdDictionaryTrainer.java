@@ -34,6 +34,7 @@ import org.apache.cassandra.db.compression.CompressionDictionary.DictId;
 import org.apache.cassandra.db.compression.CompressionDictionary.Kind;
 import org.apache.cassandra.io.util.FileUtils;
 import org.apache.cassandra.utils.Clock;
+import org.apache.cassandra.utils.Throwables;
 import org.apache.cassandra.utils.concurrent.AsyncFuture;
 import org.apache.cassandra.utils.concurrent.Future;
 
@@ -110,6 +111,7 @@ public class ZstdDictionaryTrainer implements ICompressionDictionaryTrainer
 
         currentTrainingStatus = TrainingStatus.TRAINING;
         failureMessage = null; // Clear any previous failure message
+        CompressionDictionary dictionary;
         try
         {
             logger.debug("Training with sample count: {}, sample size: {}, isReady: {}",
@@ -117,12 +119,9 @@ public class ZstdDictionaryTrainer implements ICompressionDictionaryTrainer
             byte[] dictBytes = zstdTrainer.trainSamples();
             long zstdDictId = Zstd.getDictIdFromDict(dictBytes);
             DictId dictId = new DictId(Kind.ZSTD, makeDictionaryId(Clock.Global.currentTimeMillis(), zstdDictId));
-            currentTrainingStatus = TrainingStatus.COMPLETED;
             logger.debug("New dictionary is trained with {}", dictId);
             int checksum = CompressionDictionary.calculateChecksum((byte) dictId.kind.ordinal(), dictId.id, dictBytes);
-            CompressionDictionary dictionary = Kind.ZSTD.createDictionary(dictId, dictBytes, checksum);
-            notifyDictionaryTrainedListener(dictionary);
-            return dictionary;
+            dictionary = Kind.ZSTD.createDictionary(dictId, dictBytes, checksum);
         }
         catch (Exception e)
         {
@@ -130,6 +129,21 @@ public class ZstdDictionaryTrainer implements ICompressionDictionaryTrainer
             currentTrainingStatus = TrainingStatus.FAILED;
             throw new RuntimeException(failureMessage, e);
         }
+
+        // the training completes only once the listener, e.g. one storing the dictionary, succeeded
+        try
+        {
+            notifyDictionaryTrainedListener(dictionary);
+        }
+        catch (RuntimeException e)
+        {
+            failureMessage = "Listener of the trained Zstd dictionary " + dictionary.dictId().id + " failed: " + e.getMessage();
+            currentTrainingStatus = TrainingStatus.FAILED;
+            throw e;
+        }
+
+        currentTrainingStatus = TrainingStatus.COMPLETED;
+        return dictionary;
     }
 
     @Override
@@ -175,9 +189,13 @@ public class ZstdDictionaryTrainer implements ICompressionDictionaryTrainer
             }
             catch (Throwable t)
             {
-                // Unexpected failures - log at error level for visibility
-                logger.error("Unexpected error during dictionary training for {}.{}",
-                             keyspaceName, tableName, t);
+                // the shutdown of a node interrupts this task, e.g. while it waits for the dictionary to be stored
+                if (ScheduledExecutors.nonPeriodicTasks.isShutdown() && Throwables.isCausedByInterrupt(t))
+                    logger.info("Dictionary training for {}.{} stopped by the shutdown of the node: {}",
+                                keyspaceName, tableName, t.getMessage());
+                else
+                    logger.error("Unexpected error during dictionary training for {}.{}",
+                                 keyspaceName, tableName, t);
                 tryFailure(t);
             }
         }
@@ -355,16 +373,7 @@ public class ZstdDictionaryTrainer implements ICompressionDictionaryTrainer
     {
         Consumer<CompressionDictionary> listener = this.dictionaryTrainedListener;
         if (listener != null)
-        {
-            try
-            {
-                listener.accept(dictionary);
-            }
-            catch (Exception e)
-            {
-                logger.warn("Error notifying dictionary trained listener for {}.{}", keyspaceName, tableName, e);
-            }
-        }
+            listener.accept(dictionary);
     }
 
     @Override

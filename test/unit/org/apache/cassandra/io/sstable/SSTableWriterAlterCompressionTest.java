@@ -22,6 +22,7 @@ import java.util.ArrayList;
 import java.util.Collections;
 import java.util.Comparator;
 import java.util.List;
+import java.util.concurrent.Future;
 
 import org.junit.Test;
 
@@ -29,6 +30,7 @@ import org.apache.cassandra.UpdateBuilder;
 import org.apache.cassandra.cql3.CQLTester;
 import org.apache.cassandra.db.ColumnFamilyStore;
 import org.apache.cassandra.db.SerializationHeader;
+import org.apache.cassandra.db.commitlog.CommitLogPosition;
 import org.apache.cassandra.db.compaction.OperationType;
 import org.apache.cassandra.db.lifecycle.LifecycleTransaction;
 import org.apache.cassandra.db.partitions.PartitionUpdate;
@@ -47,6 +49,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 public class SSTableWriterAlterCompressionTest extends CQLTester
 {
     private static final int PARTITIONS = 100;
+    private static final int TOGGLES = 1000;
 
     @Test
     public void disableWhileBuilding()
@@ -60,23 +63,26 @@ public class SSTableWriterAlterCompressionTest extends CQLTester
         alterWhileBuilding("{'enabled': 'false'}", "{'class': 'LZ4Compressor'}");
     }
 
-    /**
-     * Each ALTER flushes the memtable, the next ALTER runs while that flush builds its writer.
-     */
     @Test
-    public void toggleWhileFlushing()
+    public void toggleWhileFlushing() throws Exception
     {
         createTable("CREATE TABLE %s (pk int PRIMARY KEY, v text) WITH compression = {'class': 'LZ4Compressor'}");
+        ColumnFamilyStore cfs = getCurrentColumnFamilyStore();
+        cfs.disableAutoCompaction();
+        List<Future<CommitLogPosition>> flushes = new ArrayList<>();
         int rows = 0;
-        for (int round = 0; round < 20; round++)
+        for (int round = 0; round < TOGGLES; round++)
         {
             for (int i = 0; i < 100; i++, rows++)
                 execute("INSERT INTO %s (pk, v) VALUES (?, ?)", rows, "value " + rows);
+            flushes.add(cfs.forceFlush(ColumnFamilyStore.FlushReason.UNIT_TESTS));
             alterTable(round % 2 == 0 ? "ALTER TABLE %s WITH compression = {'enabled': 'false'}"
                                       : "ALTER TABLE %s WITH compression = {'class': 'LZ4Compressor'}");
         }
-        flush();
+        for (Future<CommitLogPosition> flush : flushes)
+            flush.get();
 
+        assertThat(cfs.getLiveSSTables()).hasSize(TOGGLES);
         assertThat(execute("SELECT * FROM %s").size()).isEqualTo(rows);
     }
 

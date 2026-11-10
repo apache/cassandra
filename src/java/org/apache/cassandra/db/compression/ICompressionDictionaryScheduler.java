@@ -51,7 +51,7 @@ public interface ICompressionDictionaryScheduler extends AutoCloseable
      * @param refViewFragment the view of SSTables to sample from
      * @param compressionParams parameters for compression
      * @param config the training configuration
-     * @param listener listener invoked when a dictionary is trained
+     * @param listener listener invoked with the trained dictionary, the training fails when it throws
      * @param force force the dictionary training even if there are not enough samples
      * @throws IllegalStateException if training is already in progress
      */

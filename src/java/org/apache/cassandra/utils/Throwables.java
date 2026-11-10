@@ -20,6 +20,7 @@ package org.apache.cassandra.utils;
 
 import java.io.IOException;
 import java.lang.reflect.InvocationTargetException;
+import java.nio.channels.ClosedByInterruptException;
 import java.util.Arrays;
 import java.util.Iterator;
 import java.util.Objects;
@@ -81,6 +82,20 @@ public final class Throwables
                 return true;
         } while ((t = t.getCause()) != null);
         return false;
+    }
+
+    /**
+     * @return true if {@code t}, or any throwable in its cause chain, signals that the thread running it was
+     *         interrupted, e.g. a blocking read failing with {@link ClosedByInterruptException} when a drain or
+     *         shutdown interrupts the thread. Callers which also check whether their executor is shutting down
+     *         still decide for themselves whether that combination means "stop quietly" or something else -
+     *         this only answers whether {@code t} is shaped like an interrupt.
+     */
+    public static boolean isCausedByInterrupt(Throwable t)
+    {
+        return anyCauseMatches(t, cause -> cause instanceof InterruptedException
+                                          || cause instanceof ClosedByInterruptException
+                                          || cause instanceof UncheckedInterruptedException);
     }
 
     public static <T extends Throwable> T merge(T existingFail, T newFail)
