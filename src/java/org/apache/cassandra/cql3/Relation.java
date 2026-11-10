@@ -217,7 +217,7 @@ public final class Relation
 
         ColumnSpecification receiver = columnsExpression.columnSpecification();
         if (!operator.appliesToColumnValues())
-            receiver = ((CollectionType<?>) receiver.type).makeCollectionReceiver(receiver, operator.appliesToMapKeys());
+            receiver = ((CollectionType<?>) receiver.type.unwrap()).makeCollectionReceiver(receiver, operator.appliesToMapKeys());
         else if (receiver instanceof ColumnMetadata && operator != Operator.EQ && !operator.isIN())
             // Only EQ and IN bind markers identify a value the column must equal, so only those are safe
             // to report as partition-key bind indexes for token-aware routing (see getPartitionKeyBindVariableIndexes).
