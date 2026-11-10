@@ -19,6 +19,8 @@
 package org.apache.cassandra.db.streaming;
 
 import java.util.ArrayList;
+import java.io.IOException;
+import java.io.UncheckedIOException;
 import java.util.Collection;
 import java.util.List;
 import java.util.function.Consumer;
@@ -47,6 +49,7 @@ import org.apache.cassandra.dht.Token;
 import org.apache.cassandra.io.sstable.ISSTableScanner;
 import org.apache.cassandra.io.sstable.SSTableTxnSingleStreamWriter;
 import org.apache.cassandra.io.sstable.format.SSTableReader;
+import org.apache.cassandra.replication.ImmutableCoordinatorLogOffsets;
 import org.apache.cassandra.replication.MutationId;
 import org.apache.cassandra.replication.MutationTrackingService;
 import org.apache.cassandra.replication.PendingLocalTransfer;
@@ -232,6 +235,24 @@ public class CassandraStreamReceiver implements StreamReceiver
                || (session.streamOperation().requiresViewBuild() && hasViews(cfs) && DatabaseDescriptor.isMaterializedViewsOnRepairEnabled());
     }
 
+    @VisibleForTesting
+    static void clearSenderCoordinatorLogOffsets(Collection<SSTableReader> readers)
+    {
+        for (SSTableReader reader : readers)
+        {
+            if (reader.getCoordinatorLogOffsets().isEmpty())
+                continue;
+            try
+            {
+                reader.mutateCoordinatorLogOffsetsAndReload(ImmutableCoordinatorLogOffsets.NONE);
+            }
+            catch (IOException e)
+            {
+                throw new UncheckedIOException(e);
+            }
+        }
+    }
+
     private void sendThroughWritePath(ColumnFamilyStore cfs, Collection<SSTableReader> readers)
     {
         boolean writeCDCCommitLog = cdcRequiresWriteCommitLog(cfs);
@@ -302,6 +323,12 @@ public class CassandraStreamReceiver implements StreamReceiver
                 if (receivedEntireSSTable)
                     // If we do validate, any exception thrown doing so will also abort the streaming transaction:
                     cfs.indexManager.validateSSTableAttachedIndexes(readers, true, true);
+
+                // Tracked transfers replace the sender's offsets at activation. Otherwise the offsets describe the whole
+                // sender SSTable, which may hold mutations for partitions that were not streamed, so they must not be kept.
+                // Done before the transaction finishes so a restart cannot load an SSTable that still has them.
+                if (!useTrackedTransferPath())
+                    clearSenderCoordinatorLogOffsets(readers);
 
                 finishTransaction();
 

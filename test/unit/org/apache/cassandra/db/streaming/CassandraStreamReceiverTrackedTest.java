@@ -18,6 +18,7 @@
 
 package org.apache.cassandra.db.streaming;
 
+import java.io.IOException;
 import java.util.Collections;
 import java.util.List;
 
@@ -26,12 +27,17 @@ import org.junit.Test;
 import org.mockito.Mockito;
 
 import org.apache.cassandra.ServerTestUtils;
+import org.apache.cassandra.Util;
+import org.apache.cassandra.cql3.QueryProcessor;
 import org.apache.cassandra.config.CassandraRelevantProperties;
 import org.apache.cassandra.db.ColumnFamilyStore;
 import org.apache.cassandra.db.Keyspace;
 import org.apache.cassandra.dht.Murmur3Partitioner;
 import org.apache.cassandra.dht.Range;
 import org.apache.cassandra.dht.Token;
+import org.apache.cassandra.io.sstable.format.SSTableReader;
+import org.apache.cassandra.replication.ImmutableCoordinatorLogOffsets;
+import org.apache.cassandra.replication.MutationId;
 import org.apache.cassandra.replication.MutationJournal;
 import org.apache.cassandra.service.ActiveRepairService;
 import org.apache.cassandra.streaming.StreamOperation;
@@ -39,6 +45,7 @@ import org.apache.cassandra.streaming.StreamSession;
 
 import static org.apache.cassandra.cql3.CQLTester.schemaChange;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
+import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertTrue;
 import static org.mockito.Mockito.when;
 
@@ -80,6 +87,28 @@ public class CassandraStreamReceiverTrackedTest
         assertThatThrownBy(() -> new CassandraStreamReceiver(cfs, untrackedRepairSession(), Collections.emptyList(), 1))
         .isInstanceOf(IllegalStateException.class)
         .hasMessageContaining("Received a transfer for tracked table cassandra_stream_receiver_tracked_test.tbl with no ranges.");
+    }
+
+    @Test
+    public void clearsSenderMutationOffsetsFromReceivedSSTables() throws IOException
+    {
+        // untracked table: only the SSTable metadata matters here, and untracked writes do not need shards
+        String untrackedKs = KS + "_untracked";
+        schemaChange("CREATE KEYSPACE " + untrackedKs + " WITH replication = {'class': 'SimpleStrategy', 'replication_factor': '1'}");
+        schemaChange("CREATE TABLE " + untrackedKs + ".tbl (pk int PRIMARY KEY, val int)");
+        ColumnFamilyStore untracked = Keyspace.open(untrackedKs).getColumnFamilyStore("tbl");
+        untracked.disableAutoCompaction();
+        QueryProcessor.executeInternal("INSERT INTO " + untrackedKs + ".tbl (pk, val) VALUES (1, 1)");
+        Util.flush(untracked);
+        SSTableReader sstable = untracked.getLiveSSTables().iterator().next();
+        sstable.mutateCoordinatorLogOffsetsAndReload(new ImmutableCoordinatorLogOffsets.Builder()
+                                                     .add(new MutationId(1L, 1L))
+                                                     .build());
+        assertFalse(sstable.getCoordinatorLogOffsets().isEmpty());
+
+        CassandraStreamReceiver.clearSenderCoordinatorLogOffsets(Collections.singletonList(sstable));
+
+        assertTrue(sstable.getCoordinatorLogOffsets().isEmpty());
     }
 
     private static StreamSession untrackedRepairSession()
