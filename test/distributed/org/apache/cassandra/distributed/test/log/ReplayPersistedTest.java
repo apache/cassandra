@@ -27,7 +27,6 @@ import com.google.common.collect.ImmutableList;
 
 import org.junit.Test;
 
-import org.apache.cassandra.concurrent.ScheduledExecutors;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.cql3.QueryProcessor;
 import org.apache.cassandra.cql3.UntypedResultSet;
@@ -116,7 +115,8 @@ public class ReplayPersistedTest extends TestBaseImpl
     {
         try
         {
-            ScheduledExecutors.nonPeriodicTasks.submit(() -> null).get(); // we schedule the seal period on nonPeriodicTasks, just wait for any scheduled tasks to finish
+            // the seal period snapshot runs on the CMSLogTasks executor, just wait for any queued tasks to finish
+            ClusterMetadataService.instance().awaitLogTasks();
         }
         catch (Exception e)
         {

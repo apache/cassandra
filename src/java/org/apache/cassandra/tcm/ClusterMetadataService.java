@@ -27,6 +27,7 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.concurrent.ExecutionException;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
 import java.util.concurrent.atomic.AtomicBoolean;
@@ -42,6 +43,7 @@ import org.slf4j.LoggerFactory;
 
 import accord.utils.Invariants;
 
+import org.apache.cassandra.concurrent.ExecutorPlus;
 import org.apache.cassandra.concurrent.ScheduledExecutors;
 import org.apache.cassandra.config.CassandraRelevantProperties;
 import org.apache.cassandra.config.DatabaseDescriptor;
@@ -87,6 +89,7 @@ import org.apache.cassandra.tcm.transformations.ForceSnapshot;
 import org.apache.cassandra.tcm.transformations.TriggerSnapshot;
 import org.apache.cassandra.tcm.transformations.cms.PreInitialize;
 import org.apache.cassandra.tcm.transformations.cms.PrepareCMSReconfiguration;
+import org.apache.cassandra.utils.ExecutorUtils;
 import org.apache.cassandra.utils.FBUtilities;
 import org.apache.cassandra.utils.JVMStabilityInspector;
 import org.apache.cassandra.utils.Pair;
@@ -96,6 +99,7 @@ import org.apache.cassandra.utils.concurrent.ImmediateFuture;
 
 import static java.util.concurrent.TimeUnit.NANOSECONDS;
 import static java.util.stream.Collectors.toSet;
+import static org.apache.cassandra.concurrent.ExecutorFactory.Global.executorFactory;
 import static org.apache.cassandra.config.CassandraRelevantProperties.TCM_SKIP_CMS_RECONFIGURATION_AFTER_TOPOLOGY_CHANGE;
 import static org.apache.cassandra.config.DatabaseDescriptor.getCmsAwaitTimeout;
 import static org.apache.cassandra.tcm.ClusterMetadataService.State.GOSSIP;
@@ -142,6 +146,15 @@ public class ClusterMetadataService
 
     private final PlacementProvider placementProvider;
     private final Processor processor;
+
+    /*
+     * Runs work that can wait on log progress without a deadline. That work must not run on a shared
+     * ScheduledExecutors executor. The log follower waits on some of them, and
+     * LogTransaction.waitForDeletions drains nonPeriodicTasks. A task parked on a shared executor can
+     * deadlock the follower. This executor has one thread, because every task on it is stuck when the
+     * log is stuck.
+     */
+    private final ExecutorPlus logTasks = executorFactory().pooled("CMSLogTasks", 1);
     private final LocalLog log;
     private final MetadataSnapshots snapshots;
 
@@ -1091,6 +1104,28 @@ public class ClusterMetadataService
     public ClusterMetadata triggerSnapshot()
     {
         return ClusterMetadataService.instance.commit(TriggerSnapshot.instance);
+    }
+
+    public Future<ClusterMetadata> triggerSnapshotAsync()
+    {
+        return logTasks.submit(this::triggerSnapshot);
+    }
+
+    /**
+     * Interrupts the tasks on {@code logTasks} and waits up to ten seconds for them to stop.
+     */
+    public void shutdownLogTasksNow() throws InterruptedException, TimeoutException
+    {
+        ExecutorUtils.shutdownNowAndWait(10, TimeUnit.SECONDS, logTasks);
+    }
+
+    /**
+     * Returns when every task queued on {@code logTasks} before this call has finished.
+     */
+    @VisibleForTesting
+    public void awaitLogTasks() throws ExecutionException, InterruptedException
+    {
+        logTasks.submit(() -> null).get();
     }
 
     public boolean isMigrating()
