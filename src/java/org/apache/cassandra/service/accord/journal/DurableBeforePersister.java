@@ -40,8 +40,14 @@ public class DurableBeforePersister implements PersistentField.Persister<Durable
     @Override
     public AsyncResult<?> persist(DurableBefore addValue, DurableBefore newValue)
     {
+        return persist(addValue);
+    }
+
+    @Override
+    public AsyncResult<?> persist(DurableBefore persist)
+    {
         AsyncResult.Settable<Void> result = AsyncResults.settable();
-        journal.append(JOURNAL_KEY, addValue, () -> result.setSuccess(null));
+        journal.append(JOURNAL_KEY, persist, () -> result.setSuccess(null));
         return result;
     }
 

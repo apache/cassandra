@@ -21,10 +21,13 @@ package org.apache.cassandra.metrics;
 import java.lang.reflect.Field;
 import java.util.concurrent.TimeUnit;
 
+import com.codahale.metrics.Counter;
 import com.codahale.metrics.Counting;
 
 import accord.api.ReplicaEventListener;
+import accord.api.Result;
 import accord.local.Command;
+import accord.local.Node;
 import accord.local.SafeCommandStore;
 import accord.primitives.PartialDeps;
 import accord.primitives.TxnId;
@@ -51,6 +54,7 @@ public class AccordReplicaMetrics
     public static final String REPLICA_PREAPPLY_LATENCY = "PreApplyLatency";
     public static final String REPLICA_APPLY_LATENCY = "ApplyLatency";
     public static final String REPLICA_DEPENDENCIES = "Dependencies";
+    public static final String REPLICA_LOCAL_EXECUTIONS = "LocalExecutions";
 
     static final class SubShard
     {
@@ -99,6 +103,12 @@ public class AccordReplicaMetrics
      */
     public final ShardedDecayingHistogram dependencies = HISTOGRAMS.newHistogram(1 << 12);
 
+    /**
+     * The number of transactions executed by this replica without the coordinator, i.e. by replica execution
+     * (see accord.replica_execution) or by executing a backlog of transactions (see accord.coordinator_backlog_execution).
+     */
+    public final Counter localExecutions;
+
     private AccordReplicaMetrics(String scope)
     {
         DefaultNameFactory replica = new DefaultNameFactory(ACCORD_REPLICA, scope);
@@ -106,6 +116,7 @@ public class AccordReplicaMetrics
         Metrics.register(replica.createMetricName(REPLICA_PREAPPLY_LATENCY), preapplyLatency);
         Metrics.register(replica.createMetricName(REPLICA_APPLY_LATENCY), applyLatency);
         Metrics.register(replica.createMetricName(REPLICA_DEPENDENCIES), dependencies);
+        localExecutions = Metrics.counter(replica.createMetricName(REPLICA_LOCAL_EXECUTIONS));
     }
 
     @Override
@@ -149,6 +160,22 @@ public class AccordReplicaMetrics
                     return shard.syncPoints;
             }
             return null;
+        }
+
+        private static AccordReplicaMetrics forTransaction(TxnId txnId)
+        {
+            if (txnId.isWrite()) return writeMetrics;
+            else if (txnId.isSomeRead()) return readMetrics;
+            else if (txnId.isSyncPoint()) return syncPointMetrics;
+            return null;
+        }
+
+        @Override
+        public void onLocalExecution(Node node, TxnId txnId, Result result)
+        {
+            AccordReplicaMetrics metrics = forTransaction(txnId);
+            if (metrics != null)
+                metrics.localExecutions.inc();
         }
 
         private static long unixNanos()

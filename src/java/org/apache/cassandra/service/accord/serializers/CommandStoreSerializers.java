@@ -822,7 +822,7 @@ public class CommandStoreSerializers
             byte flags = (byte) ((t.getClass() == IdSingleEntry.class) ? 0 : 1);
             out.writeByte(flags);
             CommandSerializers.txnId.serialize(t, out);
-            out.writeUnsignedVInt32(t.encoded());
+            out.writeUnsignedVInt32(t.serialize());
             if (flags == 0)
             {
                 IdSingleEntry e = (IdSingleEntry) t;

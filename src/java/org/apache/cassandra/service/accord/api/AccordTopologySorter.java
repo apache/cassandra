@@ -74,7 +74,7 @@ public class AccordTopologySorter implements TopologySorter
     }
 
     private final AccordEndpointMap mapper;
-    private final Comparator<Endpoint> comparator;
+    private final Comparator<Endpoint> comparator; // sorts best first (opposite order to #compare)
 
     private AccordTopologySorter(AccordEndpointMap mapper, Comparator<Endpoint> comparator)
     {
@@ -92,12 +92,14 @@ public class AccordTopologySorter implements TopologySorter
         }
     }
 
+    // sort best last
     @Override
     public int compare(Node.Id node1, Node.Id node2, ShardSelection shards)
     {
         InetAddressAndPort ep1 = mapper.mappedEndpointOrNull(node1);
         InetAddressAndPort ep2 = mapper.mappedEndpointOrNull(node2);
-        return compare(comparator, ep1, ep2);
+        // invert result to match semantics of existing C* comparators to the parent sort method
+        return compare(comparator, ep2, ep1);
     }
 
     @Override

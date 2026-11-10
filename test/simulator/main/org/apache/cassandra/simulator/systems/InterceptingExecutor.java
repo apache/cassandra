@@ -557,8 +557,7 @@ public interface InterceptingExecutor extends OrderOn
                         }
 
                         executing = false;
-                        boolean shutdown = isShutdown;
-                        if ((0 == completePending(task) && shutdown))
+                        if ((0 == completePending(task) && isShutdown))
                             return;
 
                         thread.interceptTermination(false);

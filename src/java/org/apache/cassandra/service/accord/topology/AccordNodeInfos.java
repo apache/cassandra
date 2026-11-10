@@ -37,6 +37,7 @@ import org.apache.cassandra.db.TypeSizes;
 import org.apache.cassandra.exceptions.InvalidRequestException;
 import org.apache.cassandra.io.util.DataInputPlus;
 import org.apache.cassandra.io.util.DataOutputPlus;
+import org.apache.cassandra.service.accord.serializers.TopologySerializers;
 import org.apache.cassandra.tcm.ClusterMetadata;
 import org.apache.cassandra.tcm.Epoch;
 import org.apache.cassandra.tcm.MetadataValue;
@@ -45,6 +46,7 @@ import org.apache.cassandra.tcm.membership.NodeId;
 import org.apache.cassandra.tcm.serialization.MetadataSerializer;
 import org.apache.cassandra.tcm.serialization.Version;
 import org.apache.cassandra.utils.CassandraVersion;
+import org.apache.cassandra.utils.CollectionSerializers;
 
 /**
  * Cluster availability info for services that need a consistent view of availability for a given epoch, such
@@ -784,4 +786,48 @@ public class AccordNodeInfos implements MetadataValue<AccordNodeInfos>
                    + Epoch.serializer.serializedSize(nodeInfos.lastModified, version);
         }
     };
+
+    /**
+     * Prior to CASSANDRA-21687 stale and hard removed replicas were maintained by a separate {@code AccordStaleReplicas}
+     * that was serialized as part of {@link ClusterMetadata} (from {@link Version#MIN_ACCORD_VERSION}) immediately after
+     * {@code ConsensusMigrationState}. This information is now maintained by {@link AccordNodeInfos}, but the
+     * serialization version was not changed, so we must continue to consume and produce the same layout:
+     * <pre>
+     *   vint flags (0x1: has stale ids, 0x2: has hard removed ids)
+     *   [collection of Node.Id stale]        if 0x1
+     *   [collection of Node.Id hard removed] if 0x2
+     *   Epoch lastModified
+     * </pre>
+     * Stale and hard removed replicas are not migrated across this change, so on read any content is discarded, and on
+     * write we always emit an empty {@code AccordStaleReplicas} (i.e. as the prior version would with no stale or hard
+     * removed replicas), so that peers still running the prior version can consume it.
+     */
+    public static final class LegacyStaleReplicas
+    {
+        private static final int HAS_STALE_IDS = 0x1;
+        private static final int HAS_HARD_REMOVED_IDS = 0x2;
+
+        private LegacyStaleReplicas() {}
+
+        public static void serializeEmpty(DataOutputPlus out, Version version) throws IOException
+        {
+            out.writeUnsignedVInt32(0);
+            Epoch.serializer.serialize(Epoch.EMPTY, out, version);
+        }
+
+        public static void skip(DataInputPlus in, Version version) throws IOException
+        {
+            int flags = in.readUnsignedVInt32();
+            if (0 != (flags & HAS_STALE_IDS))
+                CollectionSerializers.deserializeSortedArrayList(in, TopologySerializers.nodeId, Node.Id[]::new);
+            if (0 != (flags & HAS_HARD_REMOVED_IDS))
+                CollectionSerializers.deserializeSortedArrayList(in, TopologySerializers.nodeId, Node.Id[]::new);
+            Epoch.serializer.deserialize(in, version);
+        }
+
+        public static long serializedEmptySize(Version version)
+        {
+            return TypeSizes.sizeofUnsignedVInt(0) + Epoch.serializer.serializedSize(Epoch.EMPTY, version);
+        }
+    }
 }

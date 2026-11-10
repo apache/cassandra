@@ -282,7 +282,7 @@ public class AccordObjectSizes
         return size;
     }
 
-    private static final long EMPTY_WRITES_SIZE = measure(new Writes(null, null, null, null));
+    private static final long EMPTY_WRITES_SIZE = measure(new Writes(null, null, Keys.EMPTY, null));
     public static long writes(Writes writes)
     {
         long size = EMPTY_WRITES_SIZE;
@@ -345,12 +345,18 @@ public class AccordObjectSizes
                 case PreAccepted:
                 case PreAcceptedWithDeps:
                 case PreAcceptedWithVote:
+                case PreAcceptedPrivCoord:
+                case PreAcceptedPrivCoordRecovery:
+                case FastAcceptedPrivCoord:
                     return PREACCEPTED;
                 case AcceptedInvalidate:
                     return NOTACCEPTED;
                 case AcceptedInvalidateWithDefinition:
                 case AcceptedMedium:
+                case AcceptedPrivCoord:
+                case AcceptedPrivCoordRecovery:
                 case AcceptedMediumWithDefinition:
+                case AcceptedMediumWithDefAndVote:
                 case AcceptedSlow:
                 case AcceptedSlowWithDefAndVote:
                 case AcceptedSlowWithDefinition:
