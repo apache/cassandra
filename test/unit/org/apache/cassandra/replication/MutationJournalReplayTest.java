@@ -28,18 +28,25 @@ import org.junit.AfterClass;
 import org.junit.Assert;
 import org.junit.BeforeClass;
 import org.junit.Test;
+import org.slf4j.LoggerFactory;
 
 import org.apache.cassandra.SchemaLoader;
+import org.apache.cassandra.Util;
 import org.apache.cassandra.config.CassandraRelevantProperties;
 import org.apache.cassandra.config.DataStorageSpec;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.db.ColumnFamilyStore;
 import org.apache.cassandra.db.DecoratedKey;
+import org.apache.cassandra.db.Keyspace;
 import org.apache.cassandra.db.Mutation;
 import org.apache.cassandra.db.RowUpdateBuilder;
 import org.apache.cassandra.db.commitlog.CommitLogPosition;
 import org.apache.cassandra.db.marshal.UTF8Type;
+import org.apache.cassandra.db.memtable.Memtable;
+import org.apache.cassandra.db.partitions.PartitionUpdate;
+import org.apache.cassandra.db.rows.Row;
 import org.apache.cassandra.harry.checker.TestHelper;
+import org.apache.cassandra.io.sstable.format.SSTableReader;
 import org.apache.cassandra.io.util.File;
 import org.apache.cassandra.journal.DeserializedRecordConsumer;
 import org.apache.cassandra.journal.RecordPointer;
@@ -52,6 +59,11 @@ import org.apache.cassandra.schema.ReplicationType;
 import org.apache.cassandra.schema.Schema;
 import org.apache.cassandra.schema.TableMetadata;
 import org.apache.cassandra.tools.FieldUtil;
+
+import ch.qos.logback.classic.Level;
+import ch.qos.logback.classic.Logger;
+import ch.qos.logback.classic.spi.ILoggingEvent;
+import ch.qos.logback.core.read.ListAppender;
 
 import static org.apache.cassandra.replication.MutationJournalTest.assertMutationsEqual;
 
@@ -97,6 +109,14 @@ public class MutationJournalReplayTest
                                      .build();
         }
         SchemaLoader.createKeyspace(KEYSPACE, KeyspaceParams.simple(1, ReplicationType.tracked), TABLES);
+        if (!MutationTrackingService.instance().isStarted())
+            MutationTrackingService.start();
+    }
+
+    @org.junit.Before
+    public void beforeTest()
+    {
+        journal.truncateForTesting();
     }
 
     @AfterClass
@@ -303,6 +323,127 @@ public class MutationJournalReplayTest
     }
 
     @Test
+    public void dirtyActiveSegmentRetainsNeedsReplayAcrossShutdown() throws IOException
+    {
+        File directory = new File(Files.createTempDirectory("mutation-journal-dirty-shutdown-test"));
+        directory.deleteRecursiveOnExit();
+
+        MutationJournal testJournal = new MutationJournal(directory, TestParams.MUTATION_JOURNAL);
+        testJournal.startInternal();
+
+        TableMetadata table0 = TABLES[0];
+        TableMetadata table1 = TABLES[1];
+        ShortMutationId id0 = new ShortMutationId(100L, 1);
+        ShortMutationId id1 = new ShortMutationId(100L, 2);
+        RecordPointer ptr0 = testJournal.write(id0, mutation(0, 1));
+        testJournal.write(id1, mutation(1, 2));
+
+        testJournal.closeCurrentSegmentIfNonEmpty();
+        testJournal.notifyFlushed(table0.id, ptr0, ptr0);
+
+        Assert.assertEquals(0, testJournal.snapshotPendingClearReplay().size());
+        testJournal.drainCleanup(testJournal.snapshotPendingClearReplay(), false);
+        testJournal.shutdownBlocking();
+
+        MutationJournal reopenedJournal = new MutationJournal(directory, TestParams.MUTATION_JOURNAL);
+        reopenedJournal.startInternal();
+        try
+        {
+            boolean foundSegment = false;
+            for (Segment<ShortMutationId, Mutation> seg : reopenedJournal.getAllSegments())
+            {
+                if (seg.isStatic())
+                {
+                    foundSegment = true;
+                    Assert.assertTrue("Dirty static segment on disk must retain needsReplay",
+                                      seg.metadata().needsReplay());
+                }
+            }
+            Assert.assertTrue("Should have found at least one static segment", foundSegment);
+        }
+        finally
+        {
+            reopenedJournal.shutdownBlocking();
+        }
+    }
+
+    @Test
+    public void drainCleanupRevertsNeedsReplayWhenPersistMetadataFails() throws IOException
+    {
+        File directory = new File(Files.createTempDirectory("mutation-journal-persist-fail-test"));
+        directory.deleteRecursiveOnExit();
+
+        MutationJournal testJournal = new MutationJournal(directory, TestParams.MUTATION_JOURNAL);
+        testJournal.startInternal();
+
+        TableMetadata table = TABLES[0];
+        ShortMutationId id = new ShortMutationId(100L, 1);
+        RecordPointer ptr = testJournal.write(id, mutation(0, 1));
+        testJournal.closeCurrentSegmentIfNonEmpty();
+        testJournal.notifyFlushed(table.id, ptr, ptr);
+
+        Assert.assertEquals(1, testJournal.snapshotPendingClearReplay().size());
+        long segId = testJournal.pendingCleanupForTesting().iterator().next();
+
+        Segment<ShortMutationId, Mutation> targetSegment = null;
+        for (Segment<ShortMutationId, Mutation> seg : testJournal.getAllSegments())
+        {
+            if (seg.id() == segId)
+            {
+                targetSegment = seg;
+                break;
+            }
+        }
+        Assert.assertNotNull("Target segment must exist", targetSegment);
+        Assert.assertTrue("Segment must need replay before drain", targetSegment.metadata().needsReplay());
+
+        java.io.File dirFile = directory.toPath().toFile();
+        Assert.assertTrue(dirFile.setWritable(false));
+        try
+        {
+            testJournal.drainCleanup(testJournal.snapshotPendingClearReplay(), false);
+
+            Assert.assertTrue("needsReplay must be reverted to true on metadata persistence failure",
+                              targetSegment.metadata().needsReplay());
+            Assert.assertTrue("Segment must remain in pendingCleanup after failure",
+                              testJournal.pendingCleanupForTesting().contains(segId));
+        }
+        finally
+        {
+            Assert.assertTrue(dirFile.setWritable(true));
+        }
+
+        testJournal.drainCleanup(testJournal.snapshotPendingClearReplay(), false);
+        Assert.assertFalse("needsReplay must be false after successful metadata persistence",
+                           targetSegment.metadata().needsReplay());
+        Assert.assertTrue("pendingCleanup must be empty after successful drain",
+                          testJournal.pendingCleanupForTesting().isEmpty());
+
+        testJournal.shutdownBlocking();
+
+        MutationJournal reopenedJournal = new MutationJournal(directory, TestParams.MUTATION_JOURNAL);
+        reopenedJournal.startInternal();
+        try
+        {
+            boolean foundSegment = false;
+            for (Segment<ShortMutationId, Mutation> seg : reopenedJournal.getAllSegments())
+            {
+                if (seg.id() == segId)
+                {
+                    foundSegment = true;
+                    Assert.assertFalse("Static segment on disk should not need replay after clean drain",
+                                       seg.metadata().needsReplay());
+                }
+            }
+            Assert.assertTrue("Should have found target static segment", foundSegment);
+        }
+        finally
+        {
+            reopenedJournal.shutdownBlocking();
+        }
+    }
+
+    @Test
     public void trackerlessStaticSegmentsClearedAfterReplay() throws IOException
     {
         File directory = new File(Files.createTempDirectory("mutation-journal-trackerless-replay-test"));
@@ -383,16 +524,18 @@ public class MutationJournalReplayTest
         }
     }
 
-    @Test
-    public void thresholdBasedFlushTriggersMemtableFlushForPinnedSegments() throws Exception
+    @FunctionalInterface
+    private interface ThresholdTestRunner
     {
-        File directory = new File(Files.createTempDirectory("mutation-journal-flush-threshold-test"));
+        void run(MutationJournal testJournal, Log2OffsetsMap.Mutable offsets) throws Exception;
+    }
+
+    private void runThresholdTest(String prefix, ThresholdTestRunner test) throws Exception
+    {
+        File directory = new File(Files.createTempDirectory(prefix));
         directory.deleteRecursiveOnExit();
 
         Log2OffsetsMap.Mutable offsets = new Log2OffsetsMap.Mutable();
-        offsets.add(new ShortMutationId(100L, 1));
-        offsets.add(new ShortMutationId(300L, 1));
-        offsets.add(new ShortMutationId(301L, 1));
         MutationJournal testJournal = new MutationJournal(directory, new TestParams(MessagingService.current_version)
         {
             @Override
@@ -412,55 +555,226 @@ public class MutationJournalReplayTest
         DataStorageSpec.LongBytesBound originalThreshold = DatabaseDescriptor.getMutationTrackingConfig().journal_reclaim_threshold;
         try
         {
-            // Set reclaim threshold to 1 byte so any journal usage exceeds it
-            DatabaseDescriptor.getMutationTrackingConfig().journal_reclaim_threshold =
-                new DataStorageSpec.LongBytesBound("1B");
-
-            TableMetadata table = TABLES[0];
-            MutationId id = new MutationId(300L, 1, 1);
-            Mutation mut = mutation(0, 1).withMutationId(id);
-            testJournal.write(id, mut);
-            testJournal.closeCurrentSegmentForTestingIfNonEmpty();
-
-            TableMetadata droppedTable = TableMetadata.builder("ks", "dropped_tbl_flush")
-                                                      .keyspaceReplicationType(ReplicationType.tracked)
-                                                      .addPartitionKeyColumn("pk", UTF8Type.instance)
-                                                      .addRegularColumn("v", UTF8Type.instance)
-                                                      .build();
-            Mutation mutDropped = new RowUpdateBuilder(droppedTable, 0, "pk1")
-                                  .add("v", "val")
-                                  .build()
-                                  .withMutationId(new MutationId(301L, 1, 1));
-            testJournal.write(mutDropped.id(), mutDropped);
-            testJournal.closeCurrentSegmentForTestingIfNonEmpty();
-
-            List<StaticSegment<ShortMutationId, Mutation>> staticSegments = new ArrayList<>();
-            for (Segment<ShortMutationId, Mutation> seg : testJournal.getAllSegments())
-            {
-                if (seg.isStatic())
-                    staticSegments.add((StaticSegment<ShortMutationId, Mutation>) seg);
-            }
-            Assert.assertEquals(2, staticSegments.size());
-            staticSegments.sort(StaticSegment::compareTo);
-            long seg2Id = staticSegments.get(1).id();
-
-            // Run maybeFlushPinnedSegments
-            testJournal.maybeFlushReclaimableSegments();
-
-            // Segment 2 has dropped table (no CFS), so it was marked clean and added to pendingClearReplay
-            Assert.assertTrue("Dropped table segment should be queued into pendingClearReplay",
-                              testJournal.pendingCleanupForTesting().contains(seg2Id));
+            test.run(testJournal, offsets);
         }
         finally
         {
             DatabaseDescriptor.getMutationTrackingConfig().journal_reclaim_threshold = originalThreshold;
             testJournal.shutdownBlocking();
+            for (TableMetadata table : TABLES)
+            {
+                ColumnFamilyStore cfs = Schema.instance.getColumnFamilyStoreInstance(table.id);
+                if (cfs != null && !cfs.getTracker().getView().getCurrentMemtable().isClean())
+                    resetTable(cfs);
+            }
         }
+    }
+
+    private static MutationId writeTracked(MutationJournal journal, TableMetadata table, String keyName, Log2OffsetsMap.Mutable offsets)
+    {
+        DecoratedKey key = key(table, keyName);
+        MutationId id = MutationTrackingService.instance().nextMutationId(table.keyspace, key.getToken());
+        Mutation mut = mutation(table, key, keyName + "_val", id);
+        if (offsets != null)
+            offsets.add(new ShortMutationId(id));
+        Keyspace.open(table.keyspace).apply(mut, false);
+        journal.write(id, mut);
+        journal.closeCurrentSegmentForTestingIfNonEmpty();
+        return id;
+    }
+
+    private static long writeDroppedTableSegment(MutationJournal journal, String tableName, long offset, Log2OffsetsMap.Mutable offsets)
+    {
+        TableMetadata droppedTable = TableMetadata.builder("ks", tableName)
+                                                  .keyspaceReplicationType(ReplicationType.tracked)
+                                                  .addPartitionKeyColumn("pk", UTF8Type.instance)
+                                                  .addRegularColumn("v", UTF8Type.instance)
+                                                  .build();
+        MutationId droppedId = new MutationId(offset, 1, 1);
+        Mutation mutDropped = new RowUpdateBuilder(droppedTable, 0, "pk1")
+                              .add("v", "val")
+                              .build()
+                              .withMutationId(droppedId);
+        if (offsets != null)
+            offsets.add(new ShortMutationId(droppedId));
+        journal.write(mutDropped.id(), mutDropped);
+        journal.closeCurrentSegmentForTestingIfNonEmpty();
+
+        List<StaticSegment<ShortMutationId, Mutation>> staticSegments = new ArrayList<>();
+        for (Segment<ShortMutationId, Mutation> seg : journal.getAllSegments())
+            if (seg.isStatic()) staticSegments.add((StaticSegment<ShortMutationId, Mutation>) seg);
+        staticSegments.sort(StaticSegment::compareTo);
+        return staticSegments.get(staticSegments.size() - 1).id();
+    }
+
+    private static void setJournalReclaimThreshold(String spec)
+    {
+        DatabaseDescriptor.getMutationTrackingConfig().journal_reclaim_threshold = new DataStorageSpec.LongBytesBound(spec);
+    }
+
+    @Test
+    public void thresholdBasedFlushTriggersMemtableFlushForPinnedSegments() throws Exception
+    {
+        runThresholdTest("mutation-journal-flush-threshold-test", (testJournal, offsets) -> {
+            TableMetadata table = TABLES[0];
+            ColumnFamilyStore cfs = Schema.instance.getColumnFamilyStoreInstance(table.id);
+
+            writeTracked(testJournal, table, "threshold_live_key", offsets);
+            long seg2Id = writeDroppedTableSegment(testJournal, "dropped_tbl_flush_combined", 301L, offsets);
+
+            long initialSwitches = cfs.metric.memtableSwitchCount.getCount();
+            setJournalReclaimThreshold("1B");
+
+            testJournal.maybeFlushReclaimableSegments();
+
+            Util.spinAssertEquals(initialSwitches + 1, () -> cfs.metric.memtableSwitchCount.getCount());
+            Assert.assertTrue(testJournal.pendingCleanupForTesting().contains(seg2Id));
+        });
+    }
+
+    @Test
+    public void thresholdBasedFlushEarlyReturnsWhenThresholdZeroOrNotExceeded() throws Exception
+    {
+        runThresholdTest("mutation-journal-early-return-test", (testJournal, offsets) -> {
+            TableMetadata table = TABLES[0];
+            ColumnFamilyStore cfs = Schema.instance.getColumnFamilyStoreInstance(table.id);
+
+            writeTracked(testJournal, table, "early_return_key", offsets);
+
+            Memtable memtableBefore = cfs.getTracker().getView().getCurrentMemtable();
+            long initialSwitches = cfs.metric.memtableSwitchCount.getCount();
+
+            testJournal.maybeFlushReclaimableSegments(0, offsets);
+            Assert.assertSame(memtableBefore, cfs.getTracker().getView().getCurrentMemtable());
+            Assert.assertEquals(initialSwitches, cfs.metric.memtableSwitchCount.getCount());
+
+            testJournal.maybeFlushReclaimableSegments(-1, offsets);
+            Assert.assertSame(memtableBefore, cfs.getTracker().getView().getCurrentMemtable());
+            Assert.assertEquals(initialSwitches, cfs.metric.memtableSwitchCount.getCount());
+
+            long diskSpaceUsed = testJournal.getDiskSpaceUsed();
+            testJournal.maybeFlushReclaimableSegments(diskSpaceUsed, offsets);
+            Assert.assertSame(memtableBefore, cfs.getTracker().getView().getCurrentMemtable());
+            Assert.assertEquals(initialSwitches, cfs.metric.memtableSwitchCount.getCount());
+
+            testJournal.maybeFlushReclaimableSegments(diskSpaceUsed + 1024, offsets);
+            Assert.assertSame(memtableBefore, cfs.getTracker().getView().getCurrentMemtable());
+            Assert.assertEquals(initialSwitches, cfs.metric.memtableSwitchCount.getCount());
+        });
+    }
+
+    @Test
+    public void thresholdBasedFlushStopsAtBytesToReclaimCutoff() throws Exception
+    {
+        runThresholdTest("mutation-journal-cutoff-test", (testJournal, offsets) -> {
+            TableMetadata table0 = TABLES[0];
+            TableMetadata table1 = TABLES[1];
+            ColumnFamilyStore cfs0 = Schema.instance.getColumnFamilyStoreInstance(table0.id);
+            ColumnFamilyStore cfs1 = Schema.instance.getColumnFamilyStoreInstance(table1.id);
+
+            writeTracked(testJournal, table0, "cutoff_key_0", offsets);
+            writeTracked(testJournal, table1, "cutoff_key_1", offsets);
+
+            List<StaticSegment<ShortMutationId, Mutation>> staticSegments = new ArrayList<>();
+            for (Segment<ShortMutationId, Mutation> seg : testJournal.getAllSegments())
+                if (seg.isStatic()) staticSegments.add((StaticSegment<ShortMutationId, Mutation>) seg);
+            Assert.assertEquals(2, staticSegments.size());
+            staticSegments.sort(StaticSegment::compareTo);
+            long seg0Size = staticSegments.get(0).segmentSizeOnDisk();
+
+            long diskSpaceUsed = testJournal.getDiskSpaceUsed();
+            long bytesToReclaim = Math.max(1, seg0Size / 2);
+            long threshold = diskSpaceUsed - bytesToReclaim;
+
+            Memtable memtableBefore0 = cfs0.getTracker().getView().getCurrentMemtable();
+            Memtable memtableBefore1 = cfs1.getTracker().getView().getCurrentMemtable();
+            long initialSwitches0 = cfs0.metric.memtableSwitchCount.getCount();
+            long initialSwitches1 = cfs1.metric.memtableSwitchCount.getCount();
+
+            testJournal.maybeFlushReclaimableSegments(threshold, offsets);
+
+            Assert.assertNotSame(memtableBefore0, cfs0.getTracker().getView().getCurrentMemtable());
+            Assert.assertSame(memtableBefore1, cfs1.getTracker().getView().getCurrentMemtable());
+            Util.spinAssertEquals(initialSwitches0 + 1, () -> cfs0.metric.memtableSwitchCount.getCount());
+            Assert.assertEquals(initialSwitches1, cfs1.metric.memtableSwitchCount.getCount());
+        });
+    }
+
+    @Test
+    public void thresholdBasedFlushSkipsReferencedSegments() throws Exception
+    {
+        runThresholdTest("mutation-journal-skip-referenced-test", (testJournal, offsets) -> {
+            TableMetadata table = TABLES[0];
+            ColumnFamilyStore cfs = Schema.instance.getColumnFamilyStoreInstance(table.id);
+
+            DecoratedKey sstableKey = key(table, "sstable_ref_key");
+            MutationId sstableMutationId = MutationTrackingService.instance().nextMutationId(table.keyspace, sstableKey.getToken());
+            Mutation sstableMut = mutation(table, sstableKey, "sstable_val", sstableMutationId);
+            Keyspace.open(table.keyspace).apply(sstableMut, false);
+            cfs.forceBlockingFlush(ColumnFamilyStore.FlushReason.USER_FORCED);
+
+            Assert.assertFalse(cfs.getLiveSSTables().isEmpty());
+            SSTableReader referrer = cfs.getLiveSSTables().iterator().next();
+
+            writeTracked(testJournal, table, "skip_ref_key", offsets);
+
+            List<StaticSegment<ShortMutationId, Mutation>> staticSegments = new ArrayList<>();
+            for (Segment<ShortMutationId, Mutation> seg : testJournal.getAllSegments())
+                if (seg.isStatic()) staticSegments.add((StaticSegment<ShortMutationId, Mutation>) seg);
+            Assert.assertEquals(1, staticSegments.size());
+            long segId = staticSegments.get(0).id();
+
+            testJournal.segmentReferenceTracker().addReferenceForTesting(segId, referrer);
+
+            Memtable memtableBefore = cfs.getTracker().getView().getCurrentMemtable();
+            long initialSwitches = cfs.metric.memtableSwitchCount.getCount();
+
+            testJournal.maybeFlushReclaimableSegments(1L, offsets);
+            Assert.assertSame(memtableBefore, cfs.getTracker().getView().getCurrentMemtable());
+            Assert.assertEquals(initialSwitches, cfs.metric.memtableSwitchCount.getCount());
+
+            testJournal.segmentReferenceTracker().removeReferenceForTesting(segId, referrer);
+            testJournal.maybeFlushReclaimableSegments(1L, offsets);
+            Assert.assertNotSame(memtableBefore, cfs.getTracker().getView().getCurrentMemtable());
+            Util.spinAssertEquals(initialSwitches + 1, () -> cfs.metric.memtableSwitchCount.getCount());
+        });
+    }
+
+    @Test
+    public void compactorOnCompactedGatingTriggersFlushOnlyWhenThresholdExceeded() throws Exception
+    {
+        runThresholdTest("mutation-journal-compactor-gating-test", (testJournal, offsets) -> {
+            TableMetadata table = TABLES[0];
+            ColumnFamilyStore cfs = Schema.instance.getColumnFamilyStoreInstance(table.id);
+
+            writeTracked(testJournal, table, "compactor_gating_key", offsets);
+
+            Memtable memtableBefore = cfs.getTracker().getView().getCurrentMemtable();
+            long initialSwitches = cfs.metric.memtableSwitchCount.getCount();
+
+            setJournalReclaimThreshold("0B");
+            testJournal.segmentCompactor.onCompacted();
+            Assert.assertSame(memtableBefore, cfs.getTracker().getView().getCurrentMemtable());
+            Assert.assertEquals(initialSwitches, cfs.metric.memtableSwitchCount.getCount());
+
+            setJournalReclaimThreshold(String.valueOf(testJournal.getDiskSpaceUsed() + 1024) + "B");
+            testJournal.segmentCompactor.onCompacted();
+            Assert.assertSame(memtableBefore, cfs.getTracker().getView().getCurrentMemtable());
+            Assert.assertEquals(initialSwitches, cfs.metric.memtableSwitchCount.getCount());
+
+            setJournalReclaimThreshold("1B");
+            testJournal.segmentCompactor.onCompacted();
+            Assert.assertNotSame(memtableBefore, cfs.getTracker().getView().getCurrentMemtable());
+            Util.spinAssertEquals(initialSwitches + 1, () -> cfs.metric.memtableSwitchCount.getCount());
+        });
     }
 
     @Test
     public void replayBypassSkipsMemtableApplicationAndQueuesPendingClear() throws IOException
     {
+        if (!MutationTrackingService.instance().isStarted())
+            MutationTrackingService.start();
+
         File directory = new File(Files.createTempDirectory("mutation-journal-bypass-replay-test"));
         directory.deleteRecursiveOnExit();
 
@@ -468,8 +782,9 @@ public class MutationJournalReplayTest
         testJournal.startInternal();
 
         TableMetadata table = TABLES[0];
-        MutationId id = new MutationId(400L, 1, 1);
-        Mutation mut = mutation(0, 1).withMutationId(id);
+        DecoratedKey key = key(table, "bypass_test_key");
+        MutationId id = MutationTrackingService.instance().nextMutationId(table.keyspace, key.getToken());
+        Mutation mut = mutation(table, key, "bypass_val", id);
         testJournal.write(id, mut);
         testJournal.closeCurrentSegmentForTestingIfNonEmpty();
 
@@ -493,6 +808,9 @@ public class MutationJournalReplayTest
         cfs.forceBlockingFlush(ColumnFamilyStore.FlushReason.USER_FORCED);
         long memtableOpsBefore = cfs.getTracker().getView().getCurrentMemtable().operationCount();
 
+        MutationSummary summaryBefore = MutationTrackingService.instance().createSummaryForKey(key, table.id, false);
+        Assert.assertFalse("Mutation ID should not be witnessed before replay", summaryBefore.contains(id));
+
         String prevBypass = CassandraRelevantProperties.MUTATION_JOURNAL_SKIP_REPLAY_TO_MEMTABLE.getString();
         CassandraRelevantProperties.MUTATION_JOURNAL_SKIP_REPLAY_TO_MEMTABLE.setString("true");
 
@@ -507,6 +825,10 @@ public class MutationJournalReplayTest
             Assert.assertEquals("Memtable should not receive writes when replay is bypassed",
                                 memtableOpsBefore, memtableOpsAfter);
 
+            MutationSummary summaryAfter = MutationTrackingService.instance().createSummaryForKey(key, table.id, false);
+            Assert.assertTrue("Mutation ID should be witnessed in MutationTrackingService after bypass replay",
+                              summaryAfter.contains(id));
+
             // Static segment should be queued into pendingClearReplay, but needsReplay is not cleared synchronously
             Assert.assertTrue("Segment should be queued into pendingClearReplay",
                               startupJournal.pendingCleanupForTesting().contains(staticSegId));
@@ -515,6 +837,44 @@ public class MutationJournalReplayTest
         }
         finally
         {
+            if (prevBypass != null)
+                CassandraRelevantProperties.MUTATION_JOURNAL_SKIP_REPLAY_TO_MEMTABLE.setString(prevBypass);
+            else
+                System.clearProperty(CassandraRelevantProperties.MUTATION_JOURNAL_SKIP_REPLAY_TO_MEMTABLE.getKey());
+            startupJournal.shutdownBlocking();
+        }
+    }
+
+    @Test
+    public void replayBypassLogsWarningWhenPropertySet() throws IOException
+    {
+        File directory = new File(Files.createTempDirectory("mutation-journal-bypass-warning-test"));
+        directory.deleteRecursiveOnExit();
+
+        String prevBypass = CassandraRelevantProperties.MUTATION_JOURNAL_SKIP_REPLAY_TO_MEMTABLE.getString();
+        CassandraRelevantProperties.MUTATION_JOURNAL_SKIP_REPLAY_TO_MEMTABLE.setString("true");
+
+        ListAppender<ILoggingEvent> listAppender = new ListAppender<>();
+        Logger mjLogger = (Logger) LoggerFactory.getLogger(MutationJournal.class);
+        mjLogger.addAppender(listAppender);
+        listAppender.start();
+
+        MutationJournal startupJournal = new MutationJournal(directory, TestParams.MUTATION_JOURNAL);
+        startupJournal.startInternal();
+        try
+        {
+            startupJournal.replayStaticSegments();
+
+            boolean foundWarning = listAppender.list.stream().anyMatch(event ->
+                event.getLevel() == Level.WARN &&
+                event.getFormattedMessage().contains("Replay bypass enabled via " + CassandraRelevantProperties.MUTATION_JOURNAL_SKIP_REPLAY_TO_MEMTABLE.getKey())
+            );
+            Assert.assertTrue("Expected warning log when replay bypass property is set", foundWarning);
+        }
+        finally
+        {
+            mjLogger.detachAppender(listAppender);
+            listAppender.stop();
             if (prevBypass != null)
                 CassandraRelevantProperties.MUTATION_JOURNAL_SKIP_REPLAY_TO_MEMTABLE.setString(prevBypass);
             else
@@ -625,6 +985,219 @@ public class MutationJournalReplayTest
         {
             startupJournal.shutdownBlocking();
         }
+    }
+
+    @FunctionalInterface
+    private interface ReplayWriter
+    {
+        void write(MutationJournal testJournal) throws Exception;
+    }
+
+    private void runReplayTest(String testPrefix, ReplayWriter writer, Runnable verifyAfterReplay) throws Exception
+    {
+        if (!MutationTrackingService.instance().isStarted())
+            MutationTrackingService.start();
+
+        File directory = new File(Files.createTempDirectory(testPrefix));
+        directory.deleteRecursiveOnExit();
+
+        MutationJournal testJournal = new MutationJournal(directory, TestParams.MUTATION_JOURNAL);
+        testJournal.startInternal();
+        FieldUtil.setInstanceUnsafe(MutationJournal.class, testJournal, "instance");
+        try
+        {
+            writer.write(testJournal);
+            testJournal.closeCurrentSegmentForTestingIfNonEmpty();
+            testJournal.shutdownBlocking();
+
+            MutationJournal startupJournal = new MutationJournal(directory, TestParams.MUTATION_JOURNAL);
+            startupJournal.startInternal();
+            try
+            {
+                startupJournal.replayStaticSegments();
+                verifyAfterReplay.run();
+            }
+            finally
+            {
+                startupJournal.shutdownBlocking();
+            }
+        }
+        finally
+        {
+            FieldUtil.setInstanceUnsafe(MutationJournal.class, journal, "instance");
+        }
+    }
+
+    private void clearInFlightMtsFlushedOffset(MutationId mutationId)
+    {
+        MutationTrackingService.KeyspaceShards shards =
+            MutationTrackingService.TestAccess.getKeyspaceShards(MutationTrackingService.instance(), KEYSPACE);
+        if (shards != null)
+            shards.forEachShard(shard -> shard.forEachLog(log -> log.flushedOffsets.remove(mutationId.offset())));
+    }
+
+    private static DecoratedKey key(TableMetadata table, String key)
+    {
+        return table.partitioner.decorateKey(UTF8Type.instance.decompose(key));
+    }
+
+    private static Mutation mutation(TableMetadata table, DecoratedKey key, String value, MutationId id)
+    {
+        return mutation(table, 0, key, value, id);
+    }
+
+    private static Mutation mutation(TableMetadata table, long timestamp, DecoratedKey key, String value, MutationId id)
+    {
+        return new RowUpdateBuilder(table, timestamp, key)
+               .clustering("ck")
+               .add("value", value)
+               .build()
+               .withMutationId(id);
+    }
+
+    private static PartitionUpdate partitionUpdate(TableMetadata table, DecoratedKey key, String value)
+    {
+        return new RowUpdateBuilder(table, 0, key)
+               .clustering("ck")
+               .add("value", value)
+               .buildUpdate();
+    }
+
+    private static String readValue(ColumnFamilyStore cfs, TableMetadata table, DecoratedKey key)
+    {
+        Row row = Util.getOnlyRow(Util.cmd(cfs, key).build());
+        Assert.assertNotNull(row);
+        return UTF8Type.instance.compose(row.getCell(table.getColumn(UTF8Type.instance.decompose("value"))).buffer());
+    }
+
+    private static void resetTable(ColumnFamilyStore cfs)
+    {
+        cfs.forceBlockingFlush(ColumnFamilyStore.FlushReason.USER_FORCED);
+        cfs.truncateBlocking();
+    }
+
+    @Test
+    public void replaySkipsMutationsCoveredByLiveSSTableOffsets() throws Exception
+    {
+        TableMetadata table = TABLES[0];
+        ColumnFamilyStore cfs = Schema.instance.getColumnFamilyStoreInstance(table.id);
+        resetTable(cfs);
+
+        DecoratedKey key = key(table, "sstable_filter_key");
+        MutationId mutationId = new MutationId(999001L, 1, 1);
+        Mutation mutation = mutation(table, key, "sstable_val", mutationId);
+
+        runReplayTest("mutation-journal-sstable-filter-test",
+                      testJournal -> {
+                          Keyspace.open(table.keyspace).apply(mutation, false);
+                          cfs.forceBlockingFlush(ColumnFamilyStore.FlushReason.USER_FORCED);
+
+                          Assert.assertFalse(cfs.getLiveSSTables().isEmpty());
+                          SSTableReader sstable = cfs.getLiveSSTables().iterator().next();
+                          Assert.assertTrue(sstable.getCoordinatorLogOffsets().contains(mutationId));
+
+                          clearInFlightMtsFlushedOffset(mutationId);
+                          Assert.assertFalse(MutationTrackingService.instance().isFlushed(mutationId));
+                      },
+                      () -> Assert.assertEquals(0, cfs.getTracker().getView().getCurrentMemtable().operationCount()));
+    }
+
+    @Test
+    public void replayAppliesMutationsWhenOffsetsAbsentFromLiveSSTables() throws Exception
+    {
+        TableMetadata table = TABLES[0];
+        ColumnFamilyStore cfs = Schema.instance.getColumnFamilyStoreInstance(table.id);
+        resetTable(cfs);
+
+        DecoratedKey key1 = key(table, "flushed_key");
+        MutationId id1 = new MutationId(999002L, 1, 1);
+        Mutation mutation1 = mutation(table, key1, "flushed_val", id1);
+
+        DecoratedKey key2 = key(table, "unflushed_key");
+        MutationId id2 = new MutationId(999002L, 2, 2);
+        Mutation mutation2 = mutation(table, key2, "unflushed_val", id2);
+
+        runReplayTest("mutation-journal-absent-offset-test",
+                      testJournal -> {
+                          Keyspace.open(table.keyspace).apply(mutation1, false);
+                          cfs.forceBlockingFlush(ColumnFamilyStore.FlushReason.USER_FORCED);
+
+                          testJournal.write(id2, mutation2);
+                      },
+                      () -> {
+                          Assert.assertTrue(cfs.getTracker().getView().getCurrentMemtable().operationCount() > 0);
+                          Assert.assertEquals("unflushed_val", readValue(cfs, table, key2));
+                      });
+    }
+
+    @Test
+    public void replayFiltersOnlyCoveredTablesInMultiTableMutation() throws Exception
+    {
+        TableMetadata table0 = TABLES[0];
+        TableMetadata table1 = TABLES[1];
+        ColumnFamilyStore cfs0 = Schema.instance.getColumnFamilyStoreInstance(table0.id);
+        ColumnFamilyStore cfs1 = Schema.instance.getColumnFamilyStoreInstance(table1.id);
+        resetTable(cfs0);
+        resetTable(cfs1);
+
+        DecoratedKey key = key(table0, "multi_table_key");
+        MutationId mutationId = new MutationId(999003L, 1, 1);
+
+        Mutation multiMutation = new Mutation.PartitionUpdateCollector(mutationId, KEYSPACE, key)
+                                 .add(partitionUpdate(table0, key, "multi_val_0"))
+                                 .add(partitionUpdate(table1, key, "multi_val_1"))
+                                 .build();
+
+        runReplayTest("mutation-journal-multi-table-replay-test",
+                      testJournal -> {
+                          Keyspace.open(KEYSPACE).apply(multiMutation, false);
+                          cfs0.forceBlockingFlush(ColumnFamilyStore.FlushReason.USER_FORCED);
+                          cfs1.truncateBlocking();
+
+                          Assert.assertFalse(cfs0.getLiveSSTables().isEmpty());
+                          Assert.assertTrue(cfs0.getLiveSSTables().iterator().next().getCoordinatorLogOffsets().contains(mutationId));
+                          Assert.assertTrue(cfs1.getLiveSSTables().isEmpty());
+
+                          clearInFlightMtsFlushedOffset(mutationId);
+                          Assert.assertFalse(MutationTrackingService.instance().isFlushed(mutationId));
+                      },
+                      () -> {
+                          Assert.assertEquals(0, cfs0.getTracker().getView().getCurrentMemtable().operationCount());
+                          Assert.assertTrue(cfs1.getTracker().getView().getCurrentMemtable().operationCount() > 0);
+                          Assert.assertEquals("multi_val_1", readValue(cfs1, table1, key));
+                      });
+    }
+
+    @Test
+    public void replayPreventsDataResurrectionForFlushedAndDeletedRow() throws Exception
+    {
+        TableMetadata table = TABLES[2];
+        ColumnFamilyStore cfs = Schema.instance.getColumnFamilyStoreInstance(table.id);
+        resetTable(cfs);
+
+        DecoratedKey key = key(table, "resurrect_key");
+        MutationId insertId = new MutationId(999004L, 1, 1);
+        MutationId deleteId = new MutationId(999004L, 2, 2);
+
+        Mutation insertMutation = mutation(table, 1000, key, "resurrect_val", insertId);
+        Mutation deleteMutation = RowUpdateBuilder.deleteRow(table, 2000, key, "ck").withMutationId(deleteId);
+
+        runReplayTest("mutation-journal-resurrection-test",
+                      testJournal -> {
+                          Keyspace.open(KEYSPACE).apply(insertMutation, false);
+                          cfs.forceBlockingFlush(ColumnFamilyStore.FlushReason.USER_FORCED);
+
+                          Assert.assertFalse(cfs.getLiveSSTables().isEmpty());
+                          Assert.assertTrue(cfs.getLiveSSTables().iterator().next().getCoordinatorLogOffsets().contains(insertId));
+
+                          deleteMutation.apply();
+                          cfs.forceBlockingFlush(ColumnFamilyStore.FlushReason.USER_FORCED);
+                          Util.assertEmpty(Util.cmd(cfs, key).build());
+                      },
+                      () -> {
+                          Assert.assertEquals(0, cfs.getTracker().getView().getCurrentMemtable().operationCount());
+                          Util.assertEmpty(Util.cmd(cfs, key).build());
+                      });
     }
 
     private static String CACHED_STRING = null;

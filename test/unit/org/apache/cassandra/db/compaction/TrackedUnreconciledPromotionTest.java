@@ -231,7 +231,7 @@ public class TrackedUnreconciledPromotionTest
         for (SSTableReader sstable : cfs.getLiveSSTables())
         {
             assertTrue(sstable.isRepaired());
-            assertTrue(sstable.getSSTableMetadata().coordinatorLogOffsets.isEmpty());
+            assertFalse(sstable.getSSTableMetadata().coordinatorLogOffsets.isEmpty());
             assertEquals(CompactionGroup.REPAIRED, CompactionGroup.of(sstable));
             // Tombstone purging is gated on repairedAt, so the timestamp has to be real rather than the sentinel.
             Assert.assertNotEquals(ActiveRepairService.UNREPAIRED_SSTABLE, sstable.getRepairedAt());
@@ -467,7 +467,7 @@ public class TrackedUnreconciledPromotionTest
 
         SSTableReader promoted = Iterables.getOnlyElement(cfs.getLiveSSTables());
         assertTrue(promoted.isRepaired());
-        assertTrue(promoted.getSSTableMetadata().coordinatorLogOffsets.isEmpty());
+        assertEquals(before, idsOf(promoted));
     }
 
     private static Set<ShortMutationId> idsOf(SSTableReader sstable)
@@ -503,15 +503,22 @@ public class TrackedUnreconciledPromotionTest
         assertEquals("unrepaired with no offsets must be counted",
                      1, (int) cfs.metric.unpromotableSSTables.getValue());
 
-        // A promoted sstable also has no offsets, but it is repaired, so it must not be counted.
+        // A promoted sstable is repaired, so the gauge does not count it.
         ColumnFamilyStore other = newTrackedTable();
         flushUnreconciled(other, 1);
         persistLogState();
         runPromotion(promotionTasks(other));
         SSTableReader promoted = Iterables.getOnlyElement(other.getLiveSSTables());
-        assertTrue(promoted.getSSTableMetadata().coordinatorLogOffsets.isEmpty());
+        assertFalse(promoted.getSSTableMetadata().coordinatorLogOffsets.isEmpty());
         assertTrue(promoted.isRepaired());
         assertEquals("repaired, so not unpromotable however few offsets it carries",
+                     0, (int) other.metric.unpromotableSSTables.getValue());
+
+        // A repaired sstable without offsets must also not be counted.
+        promoted.mutateCoordinatorLogOffsetsAndReload(new ImmutableCoordinatorLogOffsets.Builder().build());
+        assertTrue(promoted.getSSTableMetadata().coordinatorLogOffsets.isEmpty());
+        assertTrue(promoted.isRepaired());
+        assertEquals("repaired with no offsets must not be counted",
                      0, (int) other.metric.unpromotableSSTables.getValue());
     }
 
