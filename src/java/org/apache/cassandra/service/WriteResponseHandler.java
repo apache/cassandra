@@ -21,7 +21,9 @@ import java.util.concurrent.atomic.AtomicIntegerFieldUpdater;
 import java.util.function.Supplier;
 
 import org.apache.cassandra.db.Mutation;
+import org.apache.cassandra.locator.InetAddressAndPort;
 import org.apache.cassandra.locator.ReplicaPlan;
+import org.apache.cassandra.utils.FBUtilities;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -57,8 +59,26 @@ public class WriteResponseHandler<T> extends AbstractWriteResponseHandler<T>
 
     public void onResponse(Message<T> m)
     {
-        if (responsesUpdater.decrementAndGet(this) == 0)
-            signal();
+        // Determine the endpoint that sent this response
+        // if m is null, it means the response is from local
+        InetAddressAndPort from = (m == null) ? FBUtilities.getBroadcastAddressAndPort() : m.from();
+
+        // Use slot-aware counting when feature is enabled
+        if (isSlotGroupingActive())
+        {
+            // O(1) slot-aware response processing
+            if (processSlotResponse(from))
+            {
+                signal();
+            }
+        }
+        else
+        {
+            // Existing behavior: simple counter decrement
+            if (responsesUpdater.decrementAndGet(this) == 0)
+                signal();
+        }
+
         //Must be last after all subclass processing
         //The two current subclasses both assume logResponseToIdealCLDelegate is called
         //here.
@@ -67,6 +87,11 @@ public class WriteResponseHandler<T> extends AbstractWriteResponseHandler<T>
 
     protected int ackCount()
     {
+        // When slot grouping is active, return satisfied slot count
+        if (isSlotGroupingActive())
+        {
+            return satisfiedSlotCount();
+        }
         return blockFor() - responses;
     }
 }
