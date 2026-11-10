@@ -93,7 +93,7 @@ public class MemtableIndexManager
         }
         else if (index.termType().isFrozenCollection() && index.termType().indexTargetType() != IndexTarget.Type.FULL)
         {
-            Iterator<ByteBuffer> bufferIterator = index.termType().valuesOfFrozenCollection(row, FBUtilities.nowInSeconds());
+            Iterator<ByteBuffer> bufferIterator = index.termType().valuesOfFrozenCollection(key, row, FBUtilities.nowInSeconds());
             if (bufferIterator != null)
             {
                 while (bufferIterator.hasNext())
