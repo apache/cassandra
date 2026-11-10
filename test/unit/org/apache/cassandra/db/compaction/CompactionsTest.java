@@ -292,11 +292,11 @@ public class CompactionsTest
         assertEquals("candidate sstable should not be tombstone-compacted because its key range overlap with other sstable",
                       originalSize2, newSize2);
 
+        Set<SSTableReader> originalSSTables = new HashSet<>(store.getLiveSSTables());
+
         // now let's enable the magic property
         compactionOptions.put("unchecked_tombstone_compaction", "true");
         SchemaTestUtil.announceTableUpdate(store.metadata().unbuild().gcGraceSeconds(1).compaction(CompactionParams.stcs(compactionOptions)).build());
-
-        Set<SSTableReader> originalSSTables = new HashSet<>(store.getLiveSSTables());
 
         FBUtilities.waitOnFutures(CompactionManager.instance.submitBackground(store));
 
