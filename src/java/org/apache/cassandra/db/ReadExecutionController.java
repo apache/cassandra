@@ -23,11 +23,13 @@ import java.util.concurrent.TimeUnit;
 import com.google.common.annotations.VisibleForTesting;
 
 import org.apache.cassandra.db.filter.DataLimits;
+import org.apache.cassandra.exceptions.QueryCancelledException;
 import org.apache.cassandra.index.Index;
 import org.apache.cassandra.schema.TableMetadata;
 import org.apache.cassandra.utils.MonotonicClock;
 import org.apache.cassandra.utils.concurrent.OpOrder;
 
+import static org.apache.cassandra.utils.MonotonicClock.Global.approxTime;
 import static org.apache.cassandra.utils.MonotonicClock.Global.preciseTime;
 
 public class ReadExecutionController implements AutoCloseable
@@ -48,6 +50,9 @@ public class ReadExecutionController implements AutoCloseable
 
     private final RepairedDataInfo repairedDataInfo;
     private long oldestUnrepairedTombstone = Long.MAX_VALUE;
+
+    // The approxTime tick at which checkForCancellation last asked the command if it was aborted
+    private long lastCancellationCheck;
 
     ReadExecutionController(ReadCommand command,
                             OpOrder.Group baseOp,
@@ -109,6 +114,30 @@ public class ReadExecutionController implements AutoCloseable
     boolean validForReadOn(ColumnFamilyStore cfs)
     {
         return baseOp != null && cfs.metadata.id.equals(baseMetadata.id);
+    }
+
+    /**
+     * Throws {@link QueryCancelledException} if the read has been aborted, normally because it ran past its timeout.
+     * Asks the command at most once per tick of {@link MonotonicClock.Global#approxTime}, which makes it cheap enough
+     * to call for every row.
+     * <p>
+     * Merges call this for every item that merges to nothing and is skipped, e.g. a row covered by a range or
+     * partition deletion. Such items never reach the cancellation check that {@link ReadCommand#executeLocally}
+     * applies to the merged data. Without this, a read that skips through a lot of deleted data runs on past its
+     * timeout, keeping its read OpOrder group open (and memtable reclaim blocked) for as long as that takes.
+     */
+    public void checkForCancellation()
+    {
+        if (command == null)
+            return;
+
+        long now = approxTime.now();
+        if (now == lastCancellationCheck)
+            return;
+        lastCancellationCheck = now;
+
+        if (command.isAborted())
+            throw new QueryCancelledException(command);
     }
 
     public static ReadExecutionController empty()
@@ -227,7 +256,7 @@ public class ReadExecutionController implements AutoCloseable
     {
         return repairedDataInfo.isConclusive();
     }
-    
+
     public RepairedDataInfo getRepairedDataInfo()
     {
         return repairedDataInfo;

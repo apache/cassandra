@@ -19,6 +19,7 @@ package org.apache.cassandra.db.rows;
 
 import java.nio.ByteBuffer;
 import java.util.*;
+import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.IntUnaryOperator;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
@@ -100,6 +101,59 @@ public class UnfilteredRowIteratorsMergeTest
                      "66<[13] [13]<67");
     }
 
+    @Test
+    public void testWithPartitionLevelDeletion()
+    {
+        testForInput("D5|68[7]",
+                     "67<=[11] [11]<69" );
+    }
+
+    @Test
+    public void testSkippedItemsAreReported()
+    {
+        // Rows 1-9 are deleted by a range tombstone in the other source, except row 5 which is newer than the deletion.
+        List<UnfilteredRowIterator> sources = sources("1 2 3 4 5 6 7 8 9", "0<=[5] 5[10] [5]<=10");
+        AtomicInteger skipped = new AtomicInteger();
+        List<Unfiltered> merged;
+        try (UnfilteredRowIterator iterator = UnfilteredRowIterators.merge(sources, skipped::incrementAndGet))
+        {
+            merged = ImmutableList.copyOf(iterator);
+        }
+        // Only the tombstone's bounds and row 5 are returned, the other 8 rows are skipped.
+        Assert.assertEquals(merged.toString(), 3, merged.size());
+        Assert.assertEquals(8, skipped.get());
+    }
+
+    @Test
+    public void testSkippedItemCallbackCanStopMerge()
+    {
+        List<UnfilteredRowIterator> sources = sources("1 2 3 4 5 6 7 8 9", "0<=[5] [5]<=10");
+        AtomicInteger skipped = new AtomicInteger();
+        Runnable cancelOnThird = () -> {
+            if (skipped.incrementAndGet() == 3)
+                throw new IllegalStateException("cancelled");
+        };
+        try (UnfilteredRowIterator iterator = UnfilteredRowIterators.merge(sources, cancelOnThird))
+        {
+            Iterators.size(iterator);
+            Assert.fail("An exception thrown by the callback should stop the merge");
+        }
+        catch (IllegalStateException e)
+        {
+            Assert.assertEquals("cancelled", e.getMessage());
+        }
+        Assert.assertEquals(3, skipped.get());
+    }
+
+    private static List<UnfilteredRowIterator> sources(String... inputs)
+    {
+        UnfilteredRowsGenerator generator = new UnfilteredRowsGenerator(comparator, false);
+        List<UnfilteredRowIterator> sources = new ArrayList<>();
+        for (String input : inputs)
+            sources.add(UnfilteredRowsGenerator.source(generator.parse(input, 1), metadata, partitionKey));
+        return sources;
+    }
+
     @SuppressWarnings("unused")
     public void testTombstoneMerge(boolean reversed, boolean iterations)
     {
@@ -123,7 +177,7 @@ public class UnfilteredRowIteratorsMergeTest
             for (int i=0; i<ITERATORS; ++i)
                 sources.add(generator.generateSource(r, ITEMS, RANGE, DEL_RANGE, timeGenerators.get(r.nextInt(timeGenerators.size()))));
             List<Unfiltered> merged = merge(sources, iterations);
-    
+
             if (ITEMS <= 20)
                 System.out.println("results in");
             if (ITEMS <= 20)
@@ -410,7 +464,7 @@ public class UnfilteredRowIteratorsMergeTest
             RangeTombstoneMarker marker = (RangeTombstoneMarker) curr;
             if (marker.isClose(reversed))
                 val = "[" + marker.closeDeletionTime(reversed).markedForDeleteAt() + "]" + (marker.closeIsInclusive(reversed) ? "<=" : "<") + val;
-            if (marker.isOpen(reversed)) 
+            if (marker.isOpen(reversed))
                 val = val + (marker.openIsInclusive(reversed) ? "<=" : "<") + "[" + marker.openDeletionTime(reversed).markedForDeleteAt() + "]";
         }
         return val;

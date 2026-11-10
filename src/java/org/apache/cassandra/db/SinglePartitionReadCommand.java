@@ -837,7 +837,7 @@ public class SinglePartitionReadCommand extends ReadCommand implements SinglePar
             StorageHook.instance.reportRead(cfs.metadata().id, partitionKey());
 
             List<UnfilteredRowIterator> iterators = inputCollector.finalizeIterators(cfs, nowInSec(), controller.oldestUnrepairedTombstone());
-            return withSSTablesIterated(iterators, cfs.metric, metricsCollector);
+            return withSSTablesIterated(iterators, cfs.metric, metricsCollector, controller::checkForCancellation);
         }
         catch (RuntimeException | Error e)
         {
@@ -906,9 +906,10 @@ public class SinglePartitionReadCommand extends ReadCommand implements SinglePar
      */
     private UnfilteredRowIterator withSSTablesIterated(List<UnfilteredRowIterator> iterators,
                                                        TableMetrics metrics,
-                                                       SSTableReadMetricsCollector metricsCollector)
+                                                       SSTableReadMetricsCollector metricsCollector,
+                                                       Runnable onEmptyMerge)
     {
-        UnfilteredRowIterator merged = UnfilteredRowIterators.merge(iterators);
+        UnfilteredRowIterator merged = UnfilteredRowIterators.merge(iterators, onEmptyMerge);
 
         if (!merged.isEmpty())
         {

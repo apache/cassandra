@@ -44,9 +44,12 @@ import org.apache.cassandra.db.filter.ClusteringIndexSliceFilter;
 import org.apache.cassandra.db.filter.ColumnFilter;
 import org.apache.cassandra.db.filter.RowFilter;
 import org.apache.cassandra.db.partitions.UnfilteredPartitionIterator;
+import org.apache.cassandra.db.rows.RangeTombstoneMarker;
+import org.apache.cassandra.db.rows.Row;
 import org.apache.cassandra.db.rows.RowIterator;
 import org.apache.cassandra.db.rows.UnfilteredRowIterator;
 import org.apache.cassandra.db.rows.UnfilteredRowIterators;
+import org.apache.cassandra.db.transform.Transformation;
 import org.apache.cassandra.dht.AbstractBounds;
 import org.apache.cassandra.index.Index;
 import org.apache.cassandra.index.internal.composites.CollectionValueIndex;
@@ -84,13 +87,39 @@ public abstract class CassandraIndexSearcher implements Index.Searcher
         UnfilteredRowIterator indexIter = queryIndex(indexKey, command, executionController);
         try
         {
-            return queryDataFromIndex(indexKey, UnfilteredRowIterators.filter(indexIter, command.nowInSec()), command, executionController);
+            UnfilteredRowIterator checkedIndexIter = withCancellationCheck(indexIter, executionController);
+            return queryDataFromIndex(indexKey, UnfilteredRowIterators.filter(checkedIndexIter, command.nowInSec()), command, executionController);
         }
         catch (RuntimeException | Error e)
         {
             indexIter.close();
             throw e;
         }
+    }
+
+    /**
+     * Index entries that turn out to be stale, and entries that have been deleted, produce no results, so a read going
+     * through many of them never reaches the cancellation check in {@link ReadCommand#executeLocally}. Check on every
+     * entry, before the filtering drops the deleted ones.
+     */
+    private static UnfilteredRowIterator withCancellationCheck(UnfilteredRowIterator indexIter, ReadExecutionController executionController)
+    {
+        return Transformation.apply(indexIter, new Transformation<UnfilteredRowIterator>()
+        {
+            @Override
+            protected Row applyToRow(Row row)
+            {
+                executionController.checkForCancellation();
+                return row;
+            }
+
+            @Override
+            protected RangeTombstoneMarker applyToMarker(RangeTombstoneMarker marker)
+            {
+                executionController.checkForCancellation();
+                return marker;
+            }
+        });
     }
 
     private UnfilteredRowIterator queryIndex(DecoratedKey indexKey, ReadCommand command, ReadExecutionController executionController)
