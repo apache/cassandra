@@ -26,6 +26,10 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import org.apache.cassandra.cql3.Operator;
+import org.apache.cassandra.db.marshal.CollectionType;
+import org.apache.cassandra.db.marshal.ListType;
+import org.apache.cassandra.db.marshal.MapType;
+import org.apache.cassandra.db.marshal.SetType;
 import org.apache.cassandra.index.sai.StorageAttachedIndex;
 import org.apache.cassandra.index.sai.analyzer.AbstractAnalyzer;
 import org.apache.cassandra.index.sai.utils.IndexTermType;
@@ -236,6 +240,10 @@ public abstract class Expression
             return false;
         }
 
+        // A frozen collection is stored as a single value, so CONTAINS and CONTAINS KEY must look inside it
+        if (indexTermType.isFrozenCollection() && (operator == IndexOperator.CONTAINS_VALUE || operator == IndexOperator.CONTAINS_KEY))
+            return frozenCollectionContains(columnValue);
+
         Value value = new Value(columnValue, indexTermType);
 
         if (lower != null)
@@ -271,6 +279,31 @@ public abstract class Expression
         }
 
         return true;
+    }
+
+    /**
+     * Mirrors {@link org.apache.cassandra.db.filter.RowFilter.SimpleExpression} for CONTAINS and CONTAINS KEY on a
+     * frozen collection: deserialize the stored collection and look for the requested element, key or value in it.
+     */
+    private boolean frozenCollectionContains(ByteBuffer columnValue)
+    {
+        CollectionType<?> type = (CollectionType<?>) indexTermType.columnMetadata().type.unwrap();
+        ByteBuffer term = lower.value.raw;
+        switch (type.kind)
+        {
+            case LIST:
+                ListType<?> listType = (ListType<?>) type;
+                return listType.compose(columnValue).contains(listType.getElementsType().compose(term));
+            case SET:
+                SetType<?> setType = (SetType<?>) type;
+                return setType.compose(columnValue).contains(setType.getElementsType().compose(term));
+            case MAP:
+                MapType<?, ?> mapType = (MapType<?, ?>) type;
+                return operator == IndexOperator.CONTAINS_KEY
+                       ? mapType.compose(columnValue).containsKey(mapType.getKeysType().compose(term))
+                       : mapType.compose(columnValue).containsValue(mapType.getValuesType().compose(term));
+        }
+        throw new AssertionError();
     }
 
     private boolean validateStringValue(ByteBuffer columnValue, ByteBuffer requestedValue)
