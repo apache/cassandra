@@ -288,6 +288,22 @@ public class Operation
                 }
             }
         }
+        else if (type.unwrap().isCollection())
+        {
+            // A frozen collection is a single value. CONTAINS and CONTAINS KEY are evaluated against its elements,
+            // anything else (e.g. equality) against the whole value.
+            switch (expression.operator())
+            {
+                case CONTAINS:
+                    indexTargetType = IndexTarget.Type.VALUES;
+                    break;
+                case CONTAINS_KEY:
+                    indexTargetType = IndexTarget.Type.KEYS;
+                    break;
+                default:
+                    indexTargetType = IndexTarget.Type.FULL;
+            }
+        }
         return indexTargetType;
     }
 

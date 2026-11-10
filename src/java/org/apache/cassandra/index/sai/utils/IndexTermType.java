@@ -479,7 +479,12 @@ public class IndexTermType
         ByteBuffer buffer;
 
         if (columnMetadata.kind == ColumnMetadata.Kind.CLUSTERING)
-             buffer = row.clustering().bufferAt(columnMetadata.position());
+        {
+            // the static row has an empty clustering
+            if (row.isStatic())
+                return null;
+            buffer = row.clustering().bufferAt(columnMetadata.position());
+        }
         else
         {
             Cell<?> cell = row.getCell(columnMetadata);
