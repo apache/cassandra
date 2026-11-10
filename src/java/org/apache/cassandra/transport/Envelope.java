@@ -212,9 +212,11 @@ public class Envelope
     public static class Decoder extends ByteToMessageDecoder
     {
         private final long maxTotalLength;
+        private final long maxStartupTotalLength;
 
         private boolean discardingTooLongMessage;
         private long tooLongTotalLength;
+        private long tooLongMaxLength;
         private long bytesToDiscard;
         private int tooLongStreamId;
 
@@ -225,7 +227,13 @@ public class Envelope
 
         public Decoder(long maxTotalLength)
         {
+            this(maxTotalLength, maxTotalLength);
+        }
+
+        public Decoder(long maxTotalLength, long maxStartupTotalLength)
+        {
             this.maxTotalLength = maxTotalLength;
+            this.maxStartupTotalLength = maxStartupTotalLength;
         }
 
         /**
@@ -275,6 +283,13 @@ public class Envelope
                 version = ProtocolVersion.decode(versionNum, DatabaseDescriptor.getNativeTransportAllowOlderProtocols());
                 validateFlags(version, flags, streamId);
                 type = Message.Type.fromOpcode(opcode, direction);
+                long maxLength = type == Message.Type.STARTUP ? maxStartupTotalLength : maxTotalLength;
+                long totalLength = bodyLength + Header.LENGTH;
+                if (totalLength > maxLength)
+                {
+                    return new HeaderExtractionResult.Error(new ProtocolException(String.format("Request is too big: length %d exceeds maximum allowed length %d.",
+                                                                                                totalLength, maxLength)), streamId, bodyLength);
+                }
                 return new HeaderExtractionResult.Success(new Header(version, flags, streamId, type, bodyLength));
             }
             catch (ProtocolException e)
@@ -451,13 +466,15 @@ public class Envelope
             long bodyLength = buffer.getUnsignedInt(idx);
             idx += Header.BODY_LENGTH_SIZE;
 
+            long maxLength = type == Message.Type.STARTUP? maxStartupTotalLength : maxTotalLength;
             long totalLength = bodyLength + Header.LENGTH;
-            if (totalLength > maxTotalLength)
+            if (totalLength > maxLength)
             {
                 // Enter the discard mode and discard everything received so far.
                 discardingTooLongMessage = true;
                 tooLongStreamId = streamId;
                 tooLongTotalLength = totalLength;
+                tooLongMaxLength = maxLength;
                 bytesToDiscard = discard(buffer, totalLength);
                 if (bytesToDiscard <= 0)
                     fail();
@@ -502,9 +519,11 @@ public class Envelope
         {
             // Reset to the initial state and throw the exception
             long tooLongTotalLength = this.tooLongTotalLength;
+            long tooLongMaxLength = this.tooLongMaxLength;
             this.tooLongTotalLength = 0;
+            this.tooLongMaxLength = 0;
             discardingTooLongMessage = false;
-            String msg = String.format("Request is too big: length %d exceeds maximum allowed length %d.", tooLongTotalLength, maxTotalLength);
+            String msg = String.format("Request is too big: length %d exceeds maximum allowed length %d.", tooLongTotalLength, tooLongMaxLength);
             throw ErrorMessage.wrap(new InvalidRequestException(msg), tooLongStreamId);
         }
     }

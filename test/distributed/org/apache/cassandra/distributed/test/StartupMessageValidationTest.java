@@ -21,17 +21,22 @@ package org.apache.cassandra.distributed.test;
 
 import java.io.IOException;
 import java.util.HashMap;
+import java.util.LinkedHashMap;
 import java.util.Map;
 
 import org.junit.Assert;
 import org.junit.BeforeClass;
 import org.junit.Test;
 
+import org.apache.cassandra.config.CassandraRelevantProperties;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.distributed.Cluster;
+import org.apache.cassandra.distributed.shared.WithProperties;
+import org.apache.cassandra.transport.Message;
 import org.apache.cassandra.transport.ProtocolException;
 import org.apache.cassandra.transport.ProtocolVersion;
 import org.apache.cassandra.transport.SimpleClient;
+import org.apache.cassandra.transport.messages.ErrorMessage;
 import org.apache.cassandra.transport.messages.StartupMessage;
 
 import static org.apache.cassandra.config.DatabaseDescriptor.getNativeTransportPort;
@@ -86,6 +91,60 @@ public class StartupMessageValidationTest extends TestBaseImpl
                                                    .build())
             {
                 client.connect(options);
+            }
+        }
+    }
+
+    @Test
+    public void oversizedStartupAfterFailedStartupIsRejectedBeforeDecoding() throws Throwable
+    {
+        try (WithProperties ignored = new WithProperties()
+                                      .set(CassandraRelevantProperties.STARTUP_CLIENT_OPTION_MAX_COUNT, "3")
+                                      .set(CassandraRelevantProperties.STARTUP_CLIENT_OPTION_KEY_MAX_LENGTH, "16")
+                                      .set(CassandraRelevantProperties.STARTUP_CLIENT_OPTION_VALUE_MAX_LENGTH, "16"))
+        {
+            try (Cluster cluster = init(Cluster.build()
+                                               .withNodes(1)
+                                               .withConfig(config -> config.with(GOSSIP, NETWORK, NATIVE_PROTOCOL))
+                                               .start()))
+            {
+                InetSocketHost host = hostAndPort(cluster);
+
+                Map<String, String> invalidOptions = new HashMap<>();
+                invalidOptions.put("FOO", "bar");
+
+                try (SimpleClient client = SimpleClient.builder(host.address, host.port)
+                                                       .protocolVersion(ProtocolVersion.V4)
+                                                       .build())
+                {
+                    try
+                    {
+                        client.connect(invalidOptions);
+                        Assert.fail("Expected STARTUP validation failure");
+                    }
+                    catch (RuntimeException e)
+                    {
+                        Assert.assertNotNull(e.getCause());
+                        Assert.assertTrue("Unexpected error: " + e.getCause(),
+                                          e.getCause().getMessage().contains("Missing value CQL_VERSION"));
+                    }
+
+                    Map<String, String> oversizedOptions = new LinkedHashMap<>();
+                    oversizedOptions.put(StartupMessage.CQL_VERSION, "1234567890123456");
+                    oversizedOptions.put("a".repeat(17), "b".repeat(17));
+                    oversizedOptions.put("c".repeat(18), "d".repeat(18));
+
+                    Message.Response response =
+                    client.execute(new StartupMessage(oversizedOptions), false);
+
+                    Assert.assertTrue("Expected ErrorMessage but received: " + response,
+                                      response instanceof ErrorMessage);
+
+                    ErrorMessage error = (ErrorMessage) response;
+
+                    Assert.assertTrue("Expected envelope size rejection but received: " + error.error,
+                                      error.error.getMessage().contains("Request is too big"));
+                }
             }
         }
     }

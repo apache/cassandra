@@ -269,6 +269,22 @@ public class StartupMessage extends Message.Request
         }
     }
 
+    /**
+     * Calculates the maximum encoded size of a STARTUP envelope based on the configured client option limits.
+     *
+     * <p>A STARTUP envelope consists of:
+     * <ul>
+     *     <li>The envelope header</li>
+     *     <li>A 2-byte map entry count</li>
+     *     <li>For each option, a 2-byte key length prefix, the key bytes,
+     *         a 2-byte value length prefix, and the value bytes</li>
+     * </ul>
+     *
+     * <p>The calculated size is capped at the maximum native transport frame size.
+     * If any option limit is negative (unlimited), the native transport frame size is returned.
+     *
+     * @return the maximum encoded STARTUP envelope size in bytes
+     */
     public static long maxEncodedSize()
     {
         int count = CassandraRelevantProperties.STARTUP_CLIENT_OPTION_MAX_COUNT.getInt();
