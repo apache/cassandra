@@ -718,7 +718,13 @@ public class CompactionStrategyManager implements INotificationConsumer
     {
         return computeUCSMetric(
                 data -> {
-                    data.totalTokenSpaceCoveragePerLevel[data.levelIndex] += data.sstable.tokenSpaceCoverage();
+                    double reported = data.sstable.tokenSpaceCoverage();
+                    double coverage;
+                    if (reported > 0)
+                        coverage = reported;
+                    else
+                        coverage = data.strategy.getShardManager().rangeSpanned(data.sstable.getFirst(), data.sstable.getLast());
+                    data.totalTokenSpaceCoveragePerLevel[data.levelIndex] += coverage;
                     data.sstableCountPerLevel[data.levelIndex]++;
                 },
                 data -> averageArrayFinalizer(data, data.totalTokenSpaceCoveragePerLevel)

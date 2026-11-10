@@ -34,6 +34,7 @@ import org.apache.cassandra.db.ColumnFamilyStore;
 import org.apache.cassandra.io.sstable.format.SSTableReader;
 import org.apache.cassandra.io.util.FileUtils;
 import org.apache.cassandra.tools.ToolRunner;
+import org.apache.cassandra.utils.FBUtilities;
 import org.apache.cassandra.utils.JsonUtils;
 
 import static org.assertj.core.api.Assertions.assertThat;
@@ -89,7 +90,7 @@ public class TableStatsTest extends CQLTester
     @Test
     public void testUCSLevelCountAndBytes()
     {
-        createUCSTableWithOneSSTable();
+        createTableWithOneSSTable("UnifiedCompactionStrategy");
 
         ColumnFamilyStore cfs = getCurrentColumnFamilyStore();
         int sstableCount = cfs.getLiveSSTables().size();
@@ -104,7 +105,7 @@ public class TableStatsTest extends CQLTester
     @Test
     public void testUCSAverageSSTableSizeHumanReadable()
     {
-        createUCSTableWithOneSSTable();
+        createTableWithOneSSTable("UnifiedCompactionStrategy");
 
         double averageSize = getCurrentColumnFamilyStore().getPerLevelAvgSize()[0];
 
@@ -116,7 +117,7 @@ public class TableStatsTest extends CQLTester
     @Test
     public void testUCSDensityAndAverageSize()
     {
-        createUCSTableWithOneSSTable();
+        createTableWithOneSSTable("UnifiedCompactionStrategy");
 
         ColumnFamilyStore cfs = getCurrentColumnFamilyStore();
         long maxDensityThreshold = (long) cfs.getPerLevelMaxDensityThreshold()[0];
@@ -130,9 +131,26 @@ public class TableStatsTest extends CQLTester
                                     .contains("Average SSTable density in each level: [" + averageDensity + "]");
     }
 
-    private void createUCSTableWithOneSSTable()
+    @Test
+    public void testUCSAverageTokenSpaceForSSTablesWrittenBeforeUCS()
     {
-        createTable("CREATE TABLE %s (pk int PRIMARY KEY, v int) WITH compaction = {'class': 'UnifiedCompactionStrategy'}");
+        createTableWithOneSSTable("SizeTieredCompactionStrategy");
+        execute("ALTER TABLE %s WITH compaction = {'class': 'UnifiedCompactionStrategy'}");
+
+        ColumnFamilyStore cfs = getCurrentColumnFamilyStore();
+        assertThat(cfs.getLiveSSTables()).allMatch(sstable -> Double.isNaN(sstable.tokenSpaceCoverage()));
+
+        double averageTokenSpace = cfs.getPerLevelAvgTokenSpace()[0];
+        assertThat(averageTokenSpace).isNotNaN();
+
+        ToolRunner.ToolResult tool = ToolRunner.invokeNodetool("tablestats", KEYSPACE + "." + currentTable());
+        tool.assertOnCleanExit();
+        assertThat(tool.getStdout()).contains("Average token space for SSTables in each level: [" + FBUtilities.prettyPrintRatio(averageTokenSpace) + "]");
+    }
+
+    private void createTableWithOneSSTable(String compactionClass)
+    {
+        createTable("CREATE TABLE %s (pk int PRIMARY KEY, v int) WITH compaction = {'class': '" + compactionClass + "'}");
         for (int i = 0; i < 100; i++)
             execute("INSERT INTO %s (pk, v) VALUES (?, ?)", i, i);
         flush();
