@@ -15,6 +15,7 @@
  * Allow nodetool garbagecollect to take a user defined list of SSTables (CASSANDRA-16767)
  * Add a guardrail for misprepared statements (CASSANDRA-21139)
 Merged from 6.0:
+ * Add backoff and retry for CMS reconfiguration during node removal (CASSANDRA-21693)
  * Fix edge cases when starting or shutting down a node for dictionary compression (CASSANDRA-21865)
  * Do not cache compression dictionaries in the dictionary cache of a dropped table (CASSANDRA-21778)
  * Reference compression dictionaries when they are looked up, so they can not be released first (CASSANDRA-21771)

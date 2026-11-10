@@ -136,9 +136,8 @@ class OnClusterReplace extends OnClusterChangeTopology
             super("Prepare Replace", actions, joining, () -> {
                 ClusterMetadata metadata = ClusterMetadata.current();
                 NodeId leaving = new NodeId(leavingNodeId);
-                ReconfigureCMS.maybeReconfigureCMS(metadata, metadata.directory.endpoint(leaving));
+                metadata = ReconfigureCMS.maybeReconfigureCMS(metadata, metadata.directory.endpoint(leaving));
 
-                metadata = ClusterMetadata.current();
                 ClusterMetadataService.instance().commit(new PrepareReplace(leaving,
                                                                             metadata.myNodeId(),
                                                                             ClusterMetadataService.instance().placementProvider(),
