@@ -3498,6 +3498,19 @@ public abstract class AccordCQLTestBase extends AccordTestBase
         });
     }
 
+    @Test
+    public void testTxnLetReadsStaticRowWithoutRegularRows() throws Exception
+    {
+        test("CREATE TABLE " + qualifiedAccordTableName + " (k int, c int, s int static, v int, PRIMARY KEY (k, c)) WITH " + transactionalMode.asCqlParam(), cluster -> {
+            cluster.coordinator(1).execute("INSERT INTO " + qualifiedAccordTableName + " (k, s) VALUES (0, 1)", ConsistencyLevel.ALL);
+            String query = "BEGIN TRANSACTION\n" +
+                           "  LET row0 = (SELECT s FROM " + qualifiedAccordTableName + " WHERE k = 0 LIMIT 1);\n" +
+                           "  SELECT row0.s;\n" +
+                           "COMMIT TRANSACTION";
+            assertRowSerial(cluster, query, new Object[]{ 1 });
+        });
+    }
+
     // Reproduces some bugs that simulator finds
     @Test
     public void testCASSimulatorLite() throws Exception
