@@ -821,14 +821,18 @@ public class IndexTermType
      */
     private static int compareInet(ByteBuffer b1, ByteBuffer b2)
     {
-        assert isIPv6(b1) && isIPv6(b2);
-
+        assert isEmptyOrIPv6(b1) && isEmptyOrIPv6(b2);
         return FastByteOperations.compareUnsigned(b1, b2);
     }
 
     private static boolean isIPv6(ByteBuffer address)
     {
         return address.remaining() == INET_ADDRESS_SIZE;
+    }
+
+    private static boolean isEmptyOrIPv6(ByteBuffer address)
+    {
+        return address.remaining() == 0 || isIPv6(address);
     }
 
     /**

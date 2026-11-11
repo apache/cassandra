@@ -227,7 +227,7 @@ public abstract class Expression
     {
         // If the expression represents an ANN ordering then we return true because the actual result
         // is approximate and will rarely / never match the expression value
-        if (indexTermType.isVector())
+        if (indexTermType.isVector() && operator == IndexOperator.ANN)
             return true;
 
         if (!indexTermType.isValid(columnValue))
@@ -307,7 +307,7 @@ public abstract class Expression
             case EQ:
             case CONTAINS_KEY:
             case CONTAINS_VALUE:
-                isMatch = indexTermType.compare(term, requestedValue) == 0;
+                isMatch = indexTermType.compare(indexTermType.asIndexBytes(term), indexTermType.asIndexBytes(requestedValue)) == 0;
                 break;
             case RANGE:
                 isMatch = isLowerSatisfiedBy(term) && isUpperSatisfiedBy(term);
