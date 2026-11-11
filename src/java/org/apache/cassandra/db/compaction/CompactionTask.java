@@ -454,7 +454,7 @@ public class CompactionTask extends AbstractCompactionTask
      *
      * Removing ids as they reconcile leaves an sstable that is still journal-derived but no longer says so, and once
      * its last id goes it cannot be told apart from commit-log-derived data it must not be combined with while
-     * unrepaired. {@link SSTableReader#mutatePromotedToRepairedAndReload} removes them in one step at promotion.
+     * unrepaired. {@link SSTableReader#mutatePromotedToRepairedAndReload} retains them at promotion.
      */
     public static ImmutableCoordinatorLogOffsets getCoordinatorLogOffsets(Set<SSTableReader> sstables)
     {
