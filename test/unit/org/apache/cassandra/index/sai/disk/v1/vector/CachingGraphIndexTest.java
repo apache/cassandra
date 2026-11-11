@@ -40,11 +40,6 @@ import io.github.jbellis.jvector.graph.ListRandomAccessVectorValues;
 import io.github.jbellis.jvector.graph.NodesIterator;
 import io.github.jbellis.jvector.graph.SearchResult;
 import io.github.jbellis.jvector.graph.disk.OnDiskGraphIndex;
-import io.github.jbellis.jvector.graph.disk.OnDiskSequentialGraphIndexWriter;
-import io.github.jbellis.jvector.graph.disk.OrdinalMapper;
-import io.github.jbellis.jvector.graph.disk.feature.Feature;
-import io.github.jbellis.jvector.graph.disk.feature.FeatureId;
-import io.github.jbellis.jvector.graph.disk.feature.InlineVectors;
 import io.github.jbellis.jvector.graph.similarity.DefaultSearchScoreProvider;
 import io.github.jbellis.jvector.util.Bits;
 import io.github.jbellis.jvector.vector.VectorSimilarityFunction;
@@ -86,14 +81,9 @@ public class CachingGraphIndexTest
                 builder.addGraphNode(i, ravv.getVector(i));
             builder.cleanup();
 
-            try (SimpleWriter out = new SimpleWriter(path);
-                 OnDiskSequentialGraphIndexWriter writer = new OnDiskSequentialGraphIndexWriter.Builder(builder.getGraph(), out)
-                                                           .withVersion(JVectorUtils.ON_DISK_FORMAT_VERSION)
-                                                           .withMapper(new OrdinalMapper.IdentityMapper(SIZE - 1))
-                                                           .with(new InlineVectors(DIMENSION))
-                                                           .build())
+            try (SimpleWriter out = new SimpleWriter(path))
             {
-                writer.write(Feature.singleStateFactory(FeatureId.INLINE_VECTORS, o -> new InlineVectors.State(ravv.getVector(o))));
+                OnHeapGraph.writeGraph(builder.getGraph(), ravv, out);
             }
         }
 

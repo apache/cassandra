@@ -56,8 +56,11 @@ import org.apache.cassandra.utils.ByteBufferUtil;
 import org.apache.cassandra.utils.CloseableIterator;
 import org.apache.cassandra.utils.concurrent.Semaphore;
 
+import io.github.jbellis.jvector.disk.IndexWriter;
 import io.github.jbellis.jvector.graph.GraphIndexBuilder;
 import io.github.jbellis.jvector.graph.GraphSearcher;
+import io.github.jbellis.jvector.graph.ImmutableGraphIndex;
+import io.github.jbellis.jvector.graph.RandomAccessVectorValues;
 import io.github.jbellis.jvector.graph.SearchResult;
 import io.github.jbellis.jvector.graph.disk.OnDiskSequentialGraphIndexWriter;
 import io.github.jbellis.jvector.graph.disk.OrdinalMapper;
@@ -413,16 +416,25 @@ public class OnHeapGraph<T>
 
     private void writeGraph(SequentialWriter writer) throws IOException
     {
-        // Ordinals must not be renumbered because the postings written above refer to them.
-        int maxOrdinal = builder.getGraph().size() - 1;
-        try (var graphWriter = new OnDiskSequentialGraphIndexWriter.Builder(builder.getGraph(), new SequentialWriterAdapter(writer))
+        writeGraph(builder.getGraph(), vectorValues, new SequentialWriterAdapter(writer));
+    }
+
+    /**
+     * Writes {@code graph} in the SAI on-disk graph format, with its vectors inline.
+     */
+    @VisibleForTesting
+    static void writeGraph(ImmutableGraphIndex graph, RandomAccessVectorValues vectors, IndexWriter out) throws IOException
+    {
+        // Ordinals must not be renumbered because the postings refer to them.
+        int maxOrdinal = graph.size() - 1;
+        try (var graphWriter = new OnDiskSequentialGraphIndexWriter.Builder(graph, out)
                                .withVersion(JVectorUtils.ON_DISK_FORMAT_VERSION)
                                .withMapper(new OrdinalMapper.IdentityMapper(maxOrdinal))
-                               .with(new InlineVectors(vectorValues.dimension()))
+                               .with(new InlineVectors(vectors.dimension()))
                                .build())
         {
             graphWriter.write(Feature.singleStateFactory(FeatureId.INLINE_VECTORS,
-                                                         ordinal -> new InlineVectors.State(vectorValues.getVector(ordinal))));
+                                                         ordinal -> new InlineVectors.State(vectors.getVector(ordinal))));
         }
     }
 
