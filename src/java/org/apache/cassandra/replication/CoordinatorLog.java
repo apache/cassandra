@@ -111,21 +111,9 @@ public abstract class CoordinatorLog
         this.durablyFlushedOffsets = durablyFlushedOffsets;
     }
 
-    CoordinatorLog(String keyspace,
-                   Range<Token> range,
-                   int localNodeId,
-                   CoordinatorLogId logId,
-                   Participants participants,
-                   Node2OffsetsMap witnessedOffsets,
-                   Node2OffsetsMap persistedOffsets,
-                   UnreconciledMutations unreconciledMutations)
-    {
-        this(keyspace, range, localNodeId, logId, participants, witnessedOffsets, persistedOffsets, new Table2OffsetsMap(), Table2OffsetsMap.Immutable.EMPTY, unreconciledMutations);
-    }
-
     CoordinatorLog(String keyspace, Range<Token> range, int localNodeId, CoordinatorLogId logId, Participants participants)
     {
-        this(keyspace, range, localNodeId, logId, participants, forParticipants(logId, participants), forParticipants(logId, participants), new UnreconciledMutations());
+        this(keyspace, range, localNodeId, logId, participants, forParticipants(logId, participants), forParticipants(logId, participants), new Table2OffsetsMap(), Table2OffsetsMap.Immutable.EMPTY, new UnreconciledMutations());
     }
 
     static CoordinatorLog create(String keyspace, Range<Token> range, int localNodeId, CoordinatorLogId id, Participants participants)
@@ -756,13 +744,6 @@ public abstract class CoordinatorLog
             super(keyspace, range, localNodeId, logId, participants, witnessedOffsets, persistedOffsets, flushedOffsets, durablyFlushedOffsets, unreconciledMutations);
         }
 
-        CoordinatorLogPrimary(
-            String keyspace, Range<Token> range, int localNodeId, CoordinatorLogId logId, Participants participants,
-            Node2OffsetsMap witnessedOffsets, Node2OffsetsMap persistedOffsets, UnreconciledMutations unreconciledMutations)
-        {
-            super(keyspace, range, localNodeId, logId, participants, witnessedOffsets, persistedOffsets, unreconciledMutations);
-        }
-
         CoordinatorLogPrimary(String keyspace, Range<Token> range, int localNodeId, CoordinatorLogId logId, Participants participants)
         {
             super(keyspace, range, localNodeId, logId, participants);
@@ -844,13 +825,6 @@ public abstract class CoordinatorLog
             Table2OffsetsMap flushedOffsets, Table2OffsetsMap.Immutable durablyFlushedOffsets, UnreconciledMutations unreconciledMutations)
         {
             super(keyspace, range, localNodeId, logId, participants, witnessedOffsets, persistedOffsets, flushedOffsets, durablyFlushedOffsets, unreconciledMutations);
-        }
-
-        CoordinatorLogReplica(
-            String keyspace, Range<Token> range, int localNodeId, CoordinatorLogId logId, Participants participants,
-            Node2OffsetsMap witnessedOffsets, Node2OffsetsMap persistedOffsets, UnreconciledMutations unreconciledMutations)
-        {
-            super(keyspace, range, localNodeId, logId, participants, witnessedOffsets, persistedOffsets, unreconciledMutations);
         }
 
         CoordinatorLogReplica(String keyspace, Range<Token> range, int localNodeId, CoordinatorLogId logId, Participants participants)
