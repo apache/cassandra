@@ -284,7 +284,22 @@ public class TxnNamedRead extends AbstractParameterisedVersionedSerialized<ReadC
         return withoutReconciliation;
     }
 
+    public static boolean keepStaticRow(TxnDataKeyValue value, TxnDataNameKind kind)
+    {
+        // For AUTO_READ - Without the value of the static row, we miss the case
+        // where there is an update on a static row that requires a read modify write
+        // and the regular row specified by the WHERE clause does not exist.
+        // We do not keep the value of the static row causing the update
+        // to either fail or no-op.
+        // See testTxnSetStaticListElementOnMissingRow, testTxnIncrementStaticColumnOnMissingRow
 
+        // For CAS_READ - Without the value of the static row, we can miss the case where there is a condition on a static
+        // column and the regular row specified by the WHERE clause does not exist. The IF condition is then evaluated
+        // against null, and a failed LWT does not return the static column's current value as Paxos does.
+        // See testCASStaticConditionOnMissingRowSeesStaticValue, testFailedCASOnMissingRowReturnsStaticValues
+        return !value.staticRow().isEmpty() && (kind == CAS_READ || kind == AUTO_READ);
+    }
+    
     public ReadCommand command(TableMetadatas tables)
     {
         return deserialize(tables);
@@ -306,9 +321,7 @@ public class TxnNamedRead extends AbstractParameterisedVersionedSerialized<ReadC
                         try (RowIterator row = iterator.next())
                         {
                             TxnDataKeyValue value = new TxnDataKeyValue(row);
-                            TxnData.TxnDataNameKind kind = TxnData.txnDataNameKind(name);
-                            // We need to put the value of the static row
-                            if (value.hasRows() || command.selectsFullPartition() || (!value.staticRow().isEmpty() && (kind == CAS_READ || kind == AUTO_READ)))
+                            if (value.hasRows() || command.selectsFullPartition() || keepStaticRow(value, TxnData.txnDataNameKind(name)))
                                 result.put(name, value);
                         }
                     }

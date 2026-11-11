@@ -442,7 +442,7 @@ public class CQL3CasRequest implements CASRequest
         public TxnCondition asTxnCondition()
         {
             TxnReference txnReference = TxnReference.row(txnDataName(CAS_READ));
-            return new TxnCondition.Exists(txnReference, clustering, TxnCondition.Kind.IS_NULL);
+            return new TxnCondition.Exists(txnReference, clustering, TxnCondition.Kind.IS_NULL_WITH_CLUSTERING);
         }
     }
 
@@ -467,7 +467,7 @@ public class CQL3CasRequest implements CASRequest
         public TxnCondition asTxnCondition()
         {
             TxnReference txnReference = TxnReference.row(txnDataName(CAS_READ));
-            return new TxnCondition.Exists(txnReference, clustering, TxnCondition.Kind.IS_NOT_NULL);
+            return new TxnCondition.Exists(txnReference, clustering, TxnCondition.Kind.IS_NOT_NULL_WITH_CLUSTERING);
         }
     }
 

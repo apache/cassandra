@@ -118,7 +118,9 @@ public abstract class TxnCondition
         LESS_THAN("<", Operator.LT),
         LESS_THAN_OR_EQUAL("<=", Operator.LTE),
         COLUMN_CONDITIONS("COLUMN_CONDITIONS", null),
-        ELSE("ELSE", null);
+        ELSE("ELSE", null),
+        IS_NOT_NULL_WITH_CLUSTERING("IS NOT NULL", null),
+        IS_NULL_WITH_CLUSTERING("IS NULL", null);
 
         @Nonnull
         private final String symbol;
@@ -138,6 +140,8 @@ public abstract class TxnCondition
             {
                 case IS_NOT_NULL:
                 case IS_NULL:
+                case IS_NOT_NULL_WITH_CLUSTERING:
+                case IS_NULL_WITH_CLUSTERING:
                     return Exists.serializer;
                 case EQUAL:
                 case NOT_EQUAL:
@@ -273,7 +277,8 @@ public abstract class TxnCondition
 
     public static class Exists extends TxnCondition
     {
-        private static final Set<Kind> KINDS = ImmutableSet.of(Kind.IS_NOT_NULL, Kind.IS_NULL);
+        private static final Set<Kind> KINDS = ImmutableSet.of(Kind.IS_NOT_NULL, Kind.IS_NULL, Kind.IS_NOT_NULL_WITH_CLUSTERING, Kind.IS_NULL_WITH_CLUSTERING);
+        private static final Set<Kind> KINDS_WITH_CLUSTERING = ImmutableSet.of(Kind.IS_NOT_NULL_WITH_CLUSTERING, Kind.IS_NULL_WITH_CLUSTERING);
         public final TxnReference reference;
         public final Clustering<?> clustering;
 
@@ -281,6 +286,7 @@ public abstract class TxnCondition
         {
             super(kind);
             Preconditions.checkArgument(KINDS.contains(kind), "Kind " + kind + " cannot be used with an existence condition");
+            Preconditions.checkArgument((clustering != null) == KINDS_WITH_CLUSTERING.contains(kind), "Kind %s %s a clustering", kind, clustering == null ? "requires" : "does not accept");
             this.reference = reference;
             this.clustering = clustering;
         }
@@ -310,7 +316,7 @@ public abstract class TxnCondition
         @Override
         public String toString()
         {
-            return reference.toString() + ' ' + (clustering == null ? kind.toString() : clustering.toString() + ' ' + kind.toString());
+            return reference + " " + (clustering == null ? kind : clustering + " " + kind);
         }
 
         private boolean applies(FilteredPartition partition, boolean exists, TxnReference.ColumnReference ref)
@@ -426,8 +432,10 @@ public abstract class TxnCondition
             switch (kind())
             {
                 case IS_NOT_NULL:
+                case IS_NOT_NULL_WITH_CLUSTERING:
                     return exists;
                 case IS_NULL:
+                case IS_NULL_WITH_CLUSTERING:
                     return !exists;
                 default:
                     throw new IllegalStateException();
@@ -441,58 +449,28 @@ public abstract class TxnCondition
 
         private static final ConditionSerializer<Exists> serializer = new ConditionSerializer<>()
         {
-            // TOP_BIT is packed into the reference's kind flags to mark an Exists condition that encodes a clustering,
-            // in order to check whether the targeted row exists rather than the partition.
-            // The reason we use TOP_BIT is to support users who have been deploying off trunk
-            // to upgrade nodes without breaking them. Conditions without a clustering keep their prior encoding.
-            private static final int TOP_BIT = 0x40000000;
-
             @Override
             public void serialize(Exists condition, TableMetadatas tables, DataOutputPlus out) throws IOException
             {
-                // In the case where we have clustering != null, we perform the serialization of
-                // TxnReference ourselves, so we can include the TOP_BIT for reasons stated above.
+                TxnReference.serializer.serialize(condition.reference, tables, out);
                 if (condition.clustering != null)
-                {
-                    out.writeUnsignedVInt32(TxnReference.kindFlags(condition.reference) | TOP_BIT);
-                    TxnReference.serializeBody(condition.reference, tables, out);
                     clusteringSerializer.serialize(condition.clustering, out);
-                }
-                else
-                {
-                    TxnReference.serializer.serialize(condition.reference, tables, out);
-                }
             }
 
             @Override
             public Exists deserialize(TableMetadatas tables, DataInputPlus in, Kind kind) throws IOException
             {
-                int flags = in.readUnsignedVInt32();
-                if ((flags & TOP_BIT) != 0)
-                {
-                    TxnReference reference = TxnReference.deserializeBody(flags ^ TOP_BIT, tables, in);
-                    return new Exists(reference, clusteringSerializer.deserialize(in), kind);
-                }
-                else
-                {
-                    return new Exists(TxnReference.deserializeBody(flags, tables, in), null, kind);
-                }
+                TxnReference reference = TxnReference.serializer.deserialize(tables, in);
+                Clustering<?> clustering = KINDS_WITH_CLUSTERING.contains(kind) ? clusteringSerializer.deserialize(in) : null;
+                return new Exists(reference, clustering, kind);
             }
 
             @Override
             public long serializedSize(Exists condition, TableMetadatas tables)
             {
-                long size;
+                long size = TxnReference.serializer.serializedSize(condition.reference, tables);
                 if (condition.clustering != null)
-                {
-                    size = TypeSizes.sizeofUnsignedVInt(TxnReference.kindFlags(condition.reference) | TOP_BIT);
-                    size += TxnReference.serializedBodySize(condition.reference, tables);
                     size += clusteringSerializer.serializedSize(condition.clustering);
-                }
-                else
-                {
-                    size = TxnReference.serializer.serializedSize(condition.reference, tables);
-                }
                 return size;
             }
         };

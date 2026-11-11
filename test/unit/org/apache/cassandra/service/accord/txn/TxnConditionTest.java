@@ -145,6 +145,7 @@ public class TxnConditionTest
 
     private static Gen<TxnCondition.Kind> BOOLEAN_KIND_GEN = Gens.pick(TxnCondition.Kind.AND, TxnCondition.Kind.OR);
     private static Gen<TxnCondition.Kind> EXISTS_KIND_GEN = Gens.pick(TxnCondition.Kind.IS_NOT_NULL, TxnCondition.Kind.IS_NULL);
+    private static Gen<TxnCondition.Kind> EXISTS_WITH_CLUSTERING_KIND_GEN = Gens.pick(TxnCondition.Kind.IS_NOT_NULL_WITH_CLUSTERING, TxnCondition.Kind.IS_NULL_WITH_CLUSTERING);
     private static Gen<TxnCondition.Kind> VALUE_KIND_GEN = Gens.pick(TxnCondition.Kind.EQUAL, TxnCondition.Kind.NOT_EQUAL,
                                                                      TxnCondition.Kind.GREATER_THAN, TxnCondition.Kind.GREATER_THAN_OR_EQUAL,
                                                                      TxnCondition.Kind.LESS_THAN, TxnCondition.Kind.LESS_THAN_OR_EQUAL);
@@ -168,6 +169,7 @@ public class TxnConditionTest
         }
     };
     private static Gen<Clustering<?>> CLUSTERING_GEN = toGen(CassandraGenerators.CLUSTERING_GEN);
+    private static Gen<TxnReference> EXISTS_REF_GEN = rs -> rs.nextBoolean() ? TxnReference.row(rs.nextInt(0, Integer.MAX_VALUE)) : TXN_REF_GEN.next(rs);
     private static Gen<ColumnCondition.Bound> BOUND_GEN = ColumnConditionTest.boundGen().map(b -> {
         SCHEMA.add(b.column);
         return b;
@@ -189,15 +191,13 @@ public class TxnConditionTest
     @Test
     public void existsWithoutClusteringIsCompatibleWithPreviousEncoding()
     {
-        qt().forAll(TXN_REF_GEN, EXISTS_KIND_GEN).check((reference, kind) -> {
+        qt().forAll(EXISTS_REF_GEN, EXISTS_KIND_GEN).check((reference, kind) -> {
             TableMetadatas.Collector collector = new TableMetadatas.Collector();
             reference.collect(collector);
             TableMetadatas tables = collector.build();
             TxnCondition.Exists condition = new TxnCondition.Exists(reference, null, kind);
 
             DataOutputBuffer previous = new DataOutputBuffer();
-
-            // Encoding prior to CASSANDRA-21813, the condition kind followed by the reference
             previous.writeUnsignedVInt32(kind.ordinal());
             TxnReference.serializer.serialize(reference, tables, previous);
 
@@ -528,7 +528,8 @@ public class TxnConditionTest
             switch (rs.nextInt(1, 6))
             {
                 case 0: return TxnCondition.none();
-                case 1: return new TxnCondition.Exists(TXN_REF_GEN.next(rs), rs.nextBoolean() ? CLUSTERING_GEN.next(rs) : null, EXISTS_KIND_GEN.next(rs));
+                case 1: return rs.nextBoolean() ? new TxnCondition.Exists(EXISTS_REF_GEN.next(rs), null, EXISTS_KIND_GEN.next(rs))
+                                                : new TxnCondition.Exists(EXISTS_REF_GEN.next(rs), CLUSTERING_GEN.next(rs), EXISTS_WITH_CLUSTERING_KIND_GEN.next(rs));
                 case 2: return new TxnCondition.Value(TXN_REF_GEN.next(rs).asColumn(), VALUE_KIND_GEN.next(rs), BYTES_GEN.next(rs), PROTOCOL_VERSION_GEN.next(rs));
                 case 3: return new TxnCondition.ColumnConditionsAdapter(CLUSTERING_GEN.next(rs), Gens.lists(BOUND_GEN).ofSizeBetween(0, 3).next(rs));
                 case 4: return new TxnCondition.BooleanGroup(BOOLEAN_KIND_GEN.next(rs), Gens.lists(txnConditionGen()).ofSizeBetween(0, 3).next(rs));

@@ -87,6 +87,7 @@ import org.apache.cassandra.service.accord.txn.AccordUpdate;
 import org.apache.cassandra.service.accord.txn.TxnData;
 import org.apache.cassandra.service.accord.txn.TxnDataKeyValue;
 import org.apache.cassandra.service.accord.txn.TxnDataRangeValue;
+import org.apache.cassandra.service.accord.txn.TxnNamedRead;
 import org.apache.cassandra.service.accord.txn.TxnRead;
 import org.apache.cassandra.service.accord.txn.UnrecoverableRepairUpdate;
 import org.apache.cassandra.service.consensus.migration.ConsensusRequestRouter;
@@ -102,8 +103,6 @@ import static accord.utils.Invariants.illegalState;
 import static accord.utils.Invariants.requireArgument;
 import static org.apache.cassandra.metrics.ClientRequestsMetricsHolder.accordReadMetrics;
 import static org.apache.cassandra.metrics.ClientRequestsMetricsHolder.accordWriteMetrics;
-import static org.apache.cassandra.service.accord.txn.TxnData.TxnDataNameKind.AUTO_READ;
-import static org.apache.cassandra.service.accord.txn.TxnData.TxnDataNameKind.CAS_READ;
 
 /*
  * The core interoperability problem between Accord and C* writes (regular, and read repair)
@@ -290,9 +289,7 @@ public class AccordInteropExecution implements ReadCoordinator
                                          try (RowIterator partition = iterator.next())
                                          {
                                              TxnDataKeyValue value = new TxnDataKeyValue(partition);
-                                             TxnData.TxnDataNameKind kind = TxnData.txnDataNameKind(fragment.txnDataName());
-                                             // We need to put the value of the static row
-                                             if (value.hasRows() || command.selectsFullPartition() || (!value.staticRow().isEmpty() && (kind == CAS_READ || kind == AUTO_READ)))
+                                             if (value.hasRows() || command.selectsFullPartition() || TxnNamedRead.keepStaticRow(value, TxnData.txnDataNameKind(fragment.txnDataName())))
                                                  result.put(fragment.txnDataName(), value);
                                          }
                                      }

@@ -215,62 +215,46 @@ public abstract class TxnReference
         public void serialize(TxnReference reference, TableMetadatas tables, DataOutputPlus out) throws IOException
         {
             out.writeUnsignedVInt32(TinyEnumSet.encode(reference.kind));
-            serializeBody(reference, tables, out);
+            switch (reference.kind)
+            {
+                case ROW:
+                    rowSerializer.serialize(reference.asRow(), out);
+                    break;
+                case COLUMN:
+                    columnSerializer.serialize(reference.asColumn(), tables, out);
+                    break;
+                default:
+                    throw new UnhandledEnum(reference.kind);
+            }
         }
 
         @Override
         public TxnReference deserialize(TableMetadatas tables, DataInputPlus in) throws IOException
         {
-            return deserializeBody(in.readUnsignedVInt32(), tables, in);
+            TinyEnumSet<TxnReference.Kind> kind = new TinyEnumSet<>(in.readUnsignedVInt32());
+            if (kind.contains(Kind.ROW)) return rowSerializer.deserialize(in);
+            if (kind.contains(Kind.COLUMN)) return columnSerializer.deserialize(tables, in);
+            throw Invariants.illegalArgument("Unexpected kind: " + kind);
         }
 
         @Override
         public long serializedSize(TxnReference reference, TableMetadatas tables)
         {
-            return VIntCoding.sizeOfUnsignedVInt(TinyEnumSet.encode(reference.kind)) + serializedBodySize(reference, tables);
+            long size = VIntCoding.sizeOfUnsignedVInt(TinyEnumSet.encode(reference.kind));
+            switch (reference.kind)
+            {
+                case ROW:
+                    size += rowSerializer.serializedSize(reference.asRow());
+                    break;
+                case COLUMN:
+                    size += columnSerializer.serializedSize(reference.asColumn(), tables);
+                    break;
+                default:
+                    throw new UnhandledEnum(reference.kind);
+            }
+            return size;
         }
     };
-
-    static int kindFlags(TxnReference reference)
-    {
-        return TinyEnumSet.encode(reference.kind);
-    }
-
-    static void serializeBody(TxnReference reference, TableMetadatas tables, DataOutputPlus out) throws IOException
-    {
-        switch (reference.kind)
-        {
-            case ROW:
-                rowSerializer.serialize(reference.asRow(), out);
-                break;
-            case COLUMN:
-                columnSerializer.serialize(reference.asColumn(), tables, out);
-                break;
-            default:
-                throw new UnhandledEnum(reference.kind);
-        }
-    }
-
-    static TxnReference deserializeBody(int kindFlags, TableMetadatas tables, DataInputPlus in) throws IOException
-    {
-        TinyEnumSet<TxnReference.Kind> kind = new TinyEnumSet<>(kindFlags);
-        if (kind.contains(Kind.ROW)) return rowSerializer.deserialize(in);
-        if (kind.contains(Kind.COLUMN)) return columnSerializer.deserialize(tables, in);
-        throw Invariants.illegalArgument("Unexpected kind: " + kindFlags);
-    }
-
-    static long serializedBodySize(TxnReference reference, TableMetadatas tables)
-    {
-        switch (reference.kind)
-        {
-            case ROW:
-                return rowSerializer.serializedSize(reference.asRow());
-            case COLUMN:
-                return columnSerializer.serializedSize(reference.asColumn(), tables);
-            default:
-                throw new UnhandledEnum(reference.kind);
-        }
-    }
 
     public enum Kind { ROW, COLUMN }
 

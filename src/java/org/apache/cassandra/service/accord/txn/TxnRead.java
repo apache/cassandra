@@ -320,15 +320,9 @@ public class TxnRead extends AbstractKeySorted<TxnNamedRead> implements Read
                     }
                 }
                 while (i < items.length)
-                {
-                    reads.add(this.items[i]);
-                    ++i;
-                }
+                    reads.add(this.items[i++]);
                 while (j < that.items.length)
-                {
-                    reads.add(that.items[j]);
-                    ++j;
-                }
+                    reads.add(that.items[j++]);
                 break;
             }
             case Range:
