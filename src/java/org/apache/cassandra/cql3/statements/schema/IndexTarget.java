@@ -93,7 +93,22 @@ public class IndexTarget
 
     public enum Type
     {
-        VALUES, KEYS, KEYS_AND_VALUES, FULL, SIMPLE;
+        VALUES(true), KEYS(true), KEYS_AND_VALUES(true), FULL(false), SIMPLE(false);
+
+        private final boolean elementTarget;
+
+        Type(boolean elementTarget)
+        {
+            this.elementTarget = elementTarget;
+        }
+
+        /**
+         * @return {@code true} if this target addresses individual elements of a collection
+         */
+        public boolean hasElementTarget()
+        {
+            return elementTarget;
+        }
 
         public String toString()
         {
