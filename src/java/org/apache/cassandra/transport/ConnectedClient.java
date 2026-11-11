@@ -175,26 +175,25 @@ public final class ConnectedClient
 
     public Map<String, String> asMap()
     {
-        ImmutableMap.Builder<String, String> builder = ImmutableMap.<String, String>builder()
-                                                                   .put(ADDRESS, remoteAddress().toString())
-                                                                   .put(USER, username().orElse(UNDEFINED))
-                                                                   .put(VERSION, String.valueOf(protocolVersion()))
-                                                                   .put(REQUESTS, String.valueOf(requestCount()))
-                                                                   .put(KEYSPACE, keyspace().orElse(""))
-                                                                   .put(SSL, Boolean.toString(sslEnabled()))
-                                                                   .put(CIPHER, sslCipherSuite().orElse(UNDEFINED))
-                                                                   .put(PROTOCOL, sslProtocol().orElse(UNDEFINED))
-                                                                   .put(AUTHENTICATION_MODE, authenticationMode().toString())
-                                                                   .put(AUTHENTICATION_METADATA, joinEscaped(authenticationMetadata()));
         // Only the STARTUP options and the driver name and version taken from them are supplied by the client before
-        // it authenticates; every entry above is derived by the server.
-        if (loggedIn())
-        {
-            builder.put(CLIENT_OPTIONS, joinEscaped(clientOptions().orElse(Collections.emptyMap())))
-                   .put(DRIVER_NAME, driverName().orElse(UNDEFINED))
-                   .put(DRIVER_VERSION, driverVersion().orElse(UNDEFINED));
-        }
-        return builder.build();
+        // it authenticates; every other entry is derived by the server. Until then those three show what a connection
+        // that has not sent STARTUP shows, so that the map always carries the same keys for its JMX consumers.
+        boolean withhold = !loggedIn();
+        return ImmutableMap.<String, String>builder()
+                           .put(ADDRESS, remoteAddress().toString())
+                           .put(USER, username().orElse(UNDEFINED))
+                           .put(VERSION, String.valueOf(protocolVersion()))
+                           .put(CLIENT_OPTIONS, withhold ? "" : joinEscaped(clientOptions().orElse(Collections.emptyMap())))
+                           .put(DRIVER_NAME, withhold ? UNDEFINED : driverName().orElse(UNDEFINED))
+                           .put(DRIVER_VERSION, withhold ? UNDEFINED : driverVersion().orElse(UNDEFINED))
+                           .put(REQUESTS, String.valueOf(requestCount()))
+                           .put(KEYSPACE, keyspace().orElse(""))
+                           .put(SSL, Boolean.toString(sslEnabled()))
+                           .put(CIPHER, sslCipherSuite().orElse(UNDEFINED))
+                           .put(PROTOCOL, sslProtocol().orElse(UNDEFINED))
+                           .put(AUTHENTICATION_MODE, authenticationMode().toString())
+                           .put(AUTHENTICATION_METADATA, joinEscaped(authenticationMetadata()))
+                           .build();
     }
 
     /**

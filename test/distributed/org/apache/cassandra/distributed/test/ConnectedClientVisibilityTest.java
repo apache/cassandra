@@ -46,7 +46,6 @@ import static org.apache.cassandra.distributed.api.Feature.NATIVE_PROTOCOL;
 import static org.apache.cassandra.distributed.api.Feature.NETWORK;
 import static org.apache.cassandra.distributed.util.Auth.waitForExistingRoles;
 import static org.junit.Assert.assertEquals;
-import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertNotNull;
 import static org.junit.Assert.assertNull;
 import static org.junit.Assert.assertTrue;
@@ -150,8 +149,12 @@ public class ConnectedClientVisibilityTest extends TestBaseImpl
                 assertEquals("undefined", map.get(ConnectedClient.USER));
                 assertEquals("Unauthenticated", map.get(ConnectedClient.AUTHENTICATION_MODE));
 
+                // Client-supplied entries keep their keys but show what a connection that has not sent STARTUP shows.
                 for (String field : CLIENT_SUPPLIED_FIELDS)
-                    assertFalse(field + " must be absent before authentication", map.containsKey(field));
+                    assertTrue(field + " should keep its key before authentication", map.containsKey(field));
+                assertEquals("", map.get(ConnectedClient.CLIENT_OPTIONS));
+                assertEquals("undefined", map.get(ConnectedClient.DRIVER_NAME));
+                assertEquals("undefined", map.get(ConnectedClient.DRIVER_VERSION));
 
                 // Complete authentication on the same connection.
                 waitForExistingRoles(node);
