@@ -54,6 +54,7 @@ import org.apache.cassandra.db.partitions.SimplePartition;
 import org.apache.cassandra.db.rows.CellPath;
 import org.apache.cassandra.dht.Murmur3Partitioner;
 import org.apache.cassandra.io.Serializers;
+import org.apache.cassandra.io.util.DataInputBuffer;
 import org.apache.cassandra.io.util.DataOutputBuffer;
 import org.apache.cassandra.schema.ColumnMetadata;
 import org.apache.cassandra.schema.MockSchema;
@@ -181,6 +182,36 @@ public class TxnConditionTest
             condition.collect(collector);
             TableMetadatas tables = collector.build();
             Serializers.testSerde(output, TxnCondition.serializer, condition, tables);
+            SCHEMA.clear();
+        });
+    }
+
+    @Test
+    public void existsWithoutClusteringIsCompatibleWithPreviousEncoding()
+    {
+        qt().forAll(TXN_REF_GEN, EXISTS_KIND_GEN).check((reference, kind) -> {
+            TableMetadatas.Collector collector = new TableMetadatas.Collector();
+            reference.collect(collector);
+            TableMetadatas tables = collector.build();
+            TxnCondition.Exists condition = new TxnCondition.Exists(reference, null, kind);
+
+            DataOutputBuffer previous = new DataOutputBuffer();
+
+            // Encoding prior to CASSANDRA-21813, the condition kind followed by the reference
+            previous.writeUnsignedVInt32(kind.ordinal());
+            TxnReference.serializer.serialize(reference, tables, previous);
+
+            // Upgraded nodes can read conditions written by older nodes
+            try (DataInputBuffer in = new DataInputBuffer(previous.toByteArray()))
+            {
+                Assertions.assertThat(TxnCondition.serializer.deserialize(tables, in)).isEqualTo(condition);
+                Assertions.assertThat(in.available()).isZero();
+            }
+
+            // Older nodes can read conditions written by upgraded nodes
+            DataOutputBuffer current = new DataOutputBuffer();
+            TxnCondition.serializer.serialize(condition, tables, current);
+            Assertions.assertThat(current.toByteArray()).isEqualTo(previous.toByteArray());
             SCHEMA.clear();
         });
     }

@@ -302,11 +302,10 @@ public class TxnRead extends AbstractKeySorted<TxnNamedRead> implements Read
             case Key:
             {
                 int i = 0, j = 0;
-                while (i < items.length || j < that.items.length)
+                while (i < items.length && j < that.items.length)
                 {
-                    TxnNamedRead r1 = i < items.length ? this.items[i] : null;
-                    TxnNamedRead r2 = j < that.items.length ? that.items[j] : null;
-                    int c = r1 == null ? 1 : (r2 == null ? -1 : compareKey(r1, r2));
+                    TxnNamedRead r1 = this.items[i], r2 = that.items[j];
+                    int c = compareKey(r1, r2);
                     if (c <= 0)
                     {
                         reads.add(r1);
@@ -319,6 +318,16 @@ public class TxnRead extends AbstractKeySorted<TxnNamedRead> implements Read
                         reads.add(r2);
                         ++j;
                     }
+                }
+                while (i < items.length)
+                {
+                    reads.add(this.items[i]);
+                    ++i;
+                }
+                while (j < that.items.length)
+                {
+                    reads.add(that.items[j]);
+                    ++j;
                 }
                 break;
             }

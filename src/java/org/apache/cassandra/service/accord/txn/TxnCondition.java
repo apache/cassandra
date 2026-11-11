@@ -67,9 +67,6 @@ import static org.apache.cassandra.utils.CollectionSerializers.serializeCollecti
 import static org.apache.cassandra.utils.CollectionSerializers.serializeList;
 import static org.apache.cassandra.utils.CollectionSerializers.serializedCollectionSize;
 import static org.apache.cassandra.utils.CollectionSerializers.serializedListSize;
-import static org.apache.cassandra.utils.NullableSerializer.deserializeNullable;
-import static org.apache.cassandra.utils.NullableSerializer.serializeNullable;
-import static org.apache.cassandra.utils.NullableSerializer.serializedNullableSize;
 
 public abstract class TxnCondition
 {
@@ -444,23 +441,59 @@ public abstract class TxnCondition
 
         private static final ConditionSerializer<Exists> serializer = new ConditionSerializer<>()
         {
+            // TOP_BIT is packed into the reference's kind flags to mark an Exists condition that encodes a clustering,
+            // in order to check whether the targeted row exists rather than the partition.
+            // The reason we use TOP_BIT is to support users who have been deploying off trunk
+            // to upgrade nodes without breaking them. Conditions without a clustering keep their prior encoding.
+            private static final int TOP_BIT = 0x40000000;
+
             @Override
             public void serialize(Exists condition, TableMetadatas tables, DataOutputPlus out) throws IOException
             {
-                TxnReference.serializer.serialize(condition.reference, tables, out);
-                serializeNullable(condition.clustering, out, clusteringSerializer);
+                // In the case where we have clustering != null, we perform the serialization of
+                // TxnReference ourselves, so we can include the TOP_BIT for reasons stated above.
+                if (condition.clustering != null)
+                {
+                    out.writeUnsignedVInt32(TxnReference.kindFlags(condition.reference) | TOP_BIT);
+                    TxnReference.serializeBody(condition.reference, tables, out);
+                    clusteringSerializer.serialize(condition.clustering, out);
+                }
+                else
+                {
+                    TxnReference.serializer.serialize(condition.reference, tables, out);
+                }
             }
 
             @Override
             public Exists deserialize(TableMetadatas tables, DataInputPlus in, Kind kind) throws IOException
             {
-                return new Exists(TxnReference.serializer.deserialize(tables, in), deserializeNullable(in, clusteringSerializer), kind);
+                int flags = in.readUnsignedVInt32();
+                if ((flags & TOP_BIT) != 0)
+                {
+                    TxnReference reference = TxnReference.deserializeBody(flags ^ TOP_BIT, tables, in);
+                    return new Exists(reference, clusteringSerializer.deserialize(in), kind);
+                }
+                else
+                {
+                    return new Exists(TxnReference.deserializeBody(flags, tables, in), null, kind);
+                }
             }
 
             @Override
             public long serializedSize(Exists condition, TableMetadatas tables)
             {
-                return TxnReference.serializer.serializedSize(condition.reference, tables) + serializedNullableSize(condition.clustering, clusteringSerializer);
+                long size;
+                if (condition.clustering != null)
+                {
+                    size = TypeSizes.sizeofUnsignedVInt(TxnReference.kindFlags(condition.reference) | TOP_BIT);
+                    size += TxnReference.serializedBodySize(condition.reference, tables);
+                    size += clusteringSerializer.serializedSize(condition.clustering);
+                }
+                else
+                {
+                    size = TxnReference.serializer.serializedSize(condition.reference, tables);
+                }
+                return size;
             }
         };
     }

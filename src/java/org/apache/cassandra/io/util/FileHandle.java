@@ -260,12 +260,15 @@ public class FileHandle extends SharedCloseableImpl
      */
     public void dropPageCache(long before)
     {
-        long position = compressionMetadata.map(metadata -> {
+        long position = before;
+        if (compressionMetadata.isPresent())
+        {
+            CompressionMetadata metadata = compressionMetadata.get();
             if (before >= metadata.dataLength)
-                return metadata.compressedFileLength;
+                position = metadata.compressedFileLength;
             else
-                return metadata.chunkFor(before).offset;
-        }).orElse(before);
+                position = metadata.chunkFor(before).offset;
+        }
 
         if (position > 0)
             NativeLibrary.trySkipCache(channel.getFileDescriptor(), 0, position, file().absolutePath());
