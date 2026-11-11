@@ -28,11 +28,17 @@ import org.junit.Assume;
 import org.junit.Before;
 import org.junit.BeforeClass;
 import org.junit.Test;
+import org.slf4j.LoggerFactory;
 
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.distributed.shared.WithProperties;
 import org.apache.cassandra.io.util.File;
 import org.apache.cassandra.io.util.FileUtils;
+
+import ch.qos.logback.classic.Level;
+import ch.qos.logback.classic.Logger;
+import ch.qos.logback.classic.spi.ILoggingEvent;
+import ch.qos.logback.core.read.ListAppender;
 
 import static java.lang.String.format;
 import static org.apache.cassandra.config.CassandraRelevantProperties.ASYNC_PROFILER_ENABLED;
@@ -292,6 +298,11 @@ public class AsyncProfilerServiceTest
             }
         };
 
+        Logger startupChecksLogger = (Logger) LoggerFactory.getLogger(StartupChecks.class);
+        ListAppender<ILoggingEvent> appender = new ListAppender<>();
+        appender.start();
+        startupChecksLogger.addAppender(appender);
+
         try (WithProperties properties = new WithProperties().set(ASYNC_PROFILER_UNSAFE_MODE, false))
         {
             Map<String, String> startParameters = Map.of(ASYNC_PROFILER_START_EVENTS_PARAM, cpu.name(),
@@ -304,11 +315,18 @@ public class AsyncProfilerServiceTest
             profiler = AsyncProfilerService.instance(testOutputPath, false, restrictiveCheck);
             assertFalse(restrictiveCheck.hasCorrectKernelParams());
             assertTrue(profiler.start(startParameters));
+            assertTrue("Restrictive kernel params should be logged as a warning",
+                       appender.list.stream().anyMatch(e -> e.getLevel() == Level.WARN &&
+                                                            e.getFormattedMessage().contains("Async-profiler experience likely affected")));
             Thread.sleep(5000);
             assertTrue(profiler.stop(stopParameters));
 
             assertTrue("Output profile file should exist", testOutputFile.exists());
             assertTrue("Output profile file should not be empty", testOutputFile.length() > 0);
+        }
+        finally
+        {
+            startupChecksLogger.detachAppender(appender);
         }
     }
 
