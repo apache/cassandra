@@ -1107,7 +1107,8 @@ public class StartupChecks
 
     public static class AsyncProfilerKernelParamsCheck implements StartupCheck
     {
-        private static final String MESSAGE = "Async-profiler experience likely affected. Kernel symbols are unavailable due to restrictions. " +
+        @VisibleForTesting
+        public static final String MESSAGE = "Async-profiler experience likely affected. Kernel symbols are unavailable due to restrictions. " +
                                               "Try 'sysctl kernel.perf_event_paranoid=1' and 'sysctl kernel.kptr_restrict=0' or its " +
                                               "variation on your system to resolve the issue.";
 

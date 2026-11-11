@@ -317,7 +317,7 @@ public class AsyncProfilerServiceTest
             assertTrue(profiler.start(startParameters));
             assertTrue("Restrictive kernel params should be logged as a warning",
                        appender.list.stream().anyMatch(e -> e.getLevel() == Level.WARN &&
-                                                            e.getFormattedMessage().contains("Async-profiler experience likely affected")));
+                                                            e.getFormattedMessage().equals(StartupChecks.AsyncProfilerKernelParamsCheck.MESSAGE)));
             Thread.sleep(5000);
             assertTrue(profiler.stop(stopParameters));
 
