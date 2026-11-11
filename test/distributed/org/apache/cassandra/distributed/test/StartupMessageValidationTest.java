@@ -41,8 +41,8 @@ import org.apache.cassandra.transport.messages.StartupMessage;
 
 import static org.apache.cassandra.config.DatabaseDescriptor.getNativeTransportPort;
 import static org.apache.cassandra.distributed.api.Feature.GOSSIP;
-import static org.apache.cassandra.distributed.api.Feature.NETWORK;
 import static org.apache.cassandra.distributed.api.Feature.NATIVE_PROTOCOL;
+import static org.apache.cassandra.distributed.api.Feature.NETWORK;
 
 
 public class StartupMessageValidationTest extends TestBaseImpl
