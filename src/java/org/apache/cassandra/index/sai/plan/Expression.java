@@ -21,6 +21,8 @@ package org.apache.cassandra.index.sai.plan;
 import java.nio.ByteBuffer;
 import java.util.Objects;
 
+import javax.annotation.concurrent.NotThreadSafe;
+
 import org.apache.commons.lang3.builder.HashCodeBuilder;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -41,6 +43,7 @@ import org.apache.cassandra.index.sai.utils.IndexTermType;
  * an {@link UnindexedExpression} that does not provide a {@link StorageAttachedIndex} and can only be used for
  * post-filtering
  */
+@NotThreadSafe
 public abstract class Expression
 {
     Logger logger = LoggerFactory.getLogger(Expression.class);
@@ -227,7 +230,7 @@ public abstract class Expression
     {
         // If the expression represents an ANN ordering then we return true because the actual result
         // is approximate and will rarely / never match the expression value
-        if (indexTermType.isVector())
+        if (indexTermType.isVector() && operator == IndexOperator.ANN)
             return true;
 
         if (!indexTermType.isValid(columnValue))
@@ -307,7 +310,7 @@ public abstract class Expression
             case EQ:
             case CONTAINS_KEY:
             case CONTAINS_VALUE:
-                isMatch = indexTermType.compare(term, requestedValue) == 0;
+                isMatch = indexTermType.comparePostFilterRaw(requestedValue, term) == 0;
                 break;
             case RANGE:
                 isMatch = isLowerSatisfiedBy(term) && isUpperSatisfiedBy(term);

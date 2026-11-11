@@ -501,18 +501,28 @@ public class IndexTermType
     {
         if (isInetAddress())
             return compareInet(requestedValue.encoded, columnValue.encoded);
+        return comparePostFilterRaw(requestedValue.raw, columnValue.raw);
+    }
+
+    /**
+     * Exact comparison of two raw, undecorated term values for post-filtering
+     */
+    public int comparePostFilterRaw(ByteBuffer requestedValue, ByteBuffer columnValue)
+    {
+        if (isInetAddress())
+            return compareInet(asIndexBytes(requestedValue), asIndexBytes(columnValue));
         // bigint, decimal, and varint are not indexed in reversed byte-comparable form or treated as reversed types by
         // Expression, so it is correct to compare with the base/unwrapped type
         else if (isLong() || isBigDecimal() || isBigInteger())
-            return indexType.unwrap().compare(requestedValue.raw, columnValue.raw);
+            return indexType.unwrap().compare(requestedValue, columnValue);
         // Override comparisons for frozen collections and composite types (map entries)
         else if (isComposite() || isFrozen())
-            return FastByteOperations.compareUnsigned(requestedValue.raw, columnValue.raw);
+            return FastByteOperations.compareUnsigned(requestedValue, columnValue);
 
         // Reversed types are treated as such by Expression here, so we cannot blindly compare with the unwrapped type.
         // In the future, we might consider simplifying things to have SAI ignore reversed types altogether, but this
         // will require a change to the on-disk formats.
-        return indexType.compare(requestedValue.raw, columnValue.raw);
+        return indexType.compare(requestedValue, columnValue);
     }
 
     /**
@@ -821,14 +831,18 @@ public class IndexTermType
      */
     private static int compareInet(ByteBuffer b1, ByteBuffer b2)
     {
-        assert isIPv6(b1) && isIPv6(b2);
-
+        assert isEmptyOrIPv6(b1) && isEmptyOrIPv6(b2);
         return FastByteOperations.compareUnsigned(b1, b2);
     }
 
     private static boolean isIPv6(ByteBuffer address)
     {
         return address.remaining() == INET_ADDRESS_SIZE;
+    }
+
+    private static boolean isEmptyOrIPv6(ByteBuffer address)
+    {
+        return address.remaining() == 0 || isIPv6(address);
     }
 
     /**
