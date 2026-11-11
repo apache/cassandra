@@ -24,11 +24,17 @@ import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
+import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
+import java.util.Map;
 import java.util.Random;
+import java.util.Set;
+import java.util.TreeSet;
 
 import com.google.common.collect.Iterables;
 import com.google.common.collect.Lists;
+import com.google.common.collect.Sets;
 import org.junit.After;
 import org.junit.Assert;
 import org.junit.BeforeClass;
@@ -40,6 +46,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import org.apache.cassandra.SchemaLoader;
+import org.apache.cassandra.Util;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.cql3.QueryProcessor;
 import org.apache.cassandra.cql3.UntypedResultSet;
@@ -48,6 +55,7 @@ import org.apache.cassandra.db.Keyspace;
 import org.apache.cassandra.db.SinglePartitionSliceCommandTest;
 import org.apache.cassandra.db.compaction.AbstractCompactionTask;
 import org.apache.cassandra.db.compaction.CompactionManager;
+import org.apache.cassandra.db.lifecycle.LifecycleTransaction;
 import org.apache.cassandra.db.repair.PendingAntiCompaction;
 import org.apache.cassandra.db.rows.RangeTombstoneMarker;
 import org.apache.cassandra.db.rows.Unfiltered;
@@ -64,6 +72,8 @@ import org.apache.cassandra.io.sstable.format.big.BigFormat;
 import org.apache.cassandra.io.util.File;
 import org.apache.cassandra.io.util.FileInputStreamPlus;
 import org.apache.cassandra.io.util.FileOutputStreamPlus;
+import org.apache.cassandra.schema.ColumnMetadata;
+import org.apache.cassandra.schema.Schema;
 import org.apache.cassandra.service.CacheService;
 import org.apache.cassandra.service.StorageService;
 import org.apache.cassandra.streaming.OutgoingStream;
@@ -395,6 +405,185 @@ public class LegacySSTableTest
         QueryProcessor.executeInternal(String.format("ALTER TABLE legacy_tables.legacy_%s_tuple ADD IF NOT EXISTS %s", legacyVersion, column_definition));
     }
 
+    /**
+     * Loads each tuple sstable generation on its own, as the two me generations serialise frozen types differently in
+     * the header (CASSANDRA-15035), and checks its rows are read correctly after the tuple and frozen UDT columns are
+     * dropped and re-added, new values are written, and the sstables are reopened, verified and compacted.
+     */
+    @Test
+    public void testReadOldTupleSSTablesAfterReAddingDroppedColumns() throws Exception
+    {
+        for (String legacyVersion : legacyVersions)
+        {
+            File tupleDir = getTestDataTableDir(legacyVersion, String.format("legacy_%s_tuple", legacyVersion));
+            Set<String> generations = new TreeSet<>();
+            for (File file : tupleDir.tryList())
+                generations.add(Descriptor.fromFile(file).id.toString());
+            if (legacyVersion.equals("me"))
+                assertEquals(Sets.newHashSet("3025", "31111"), generations);
+
+            for (String generation : generations)
+                readOldTupleSSTableAfterReAddingDroppedColumns(legacyVersion, tupleDir, generation);
+        }
+    }
+
+    private static void readOldTupleSSTableAfterReAddingDroppedColumns(String legacyVersion,
+                                                                       File tupleDir,
+                                                                       String generation) throws Exception
+    {
+        String table = String.format("legacy_%s_tuple_readd_%s", legacyVersion, generation.replaceAll("[^a-z0-9]", ""));
+        executeOn(table, "CREATE TABLE %s (" + tupleTableColumns(legacyVersion) + ')');
+        ColumnFamilyStore cfs = Keyspace.open(LEGACY_TABLES_KEYSPACE).getColumnFamilyStore(table);
+        File cfDir = cfs.getDirectories().getDirectoryForNewSSTables();
+        for (File file : tupleDir.tryList())
+            if (Descriptor.fromFile(file).id.toString().equals(generation))
+                copyFileToDir(file, cfDir);
+        cfs.loadNewSSTables();
+
+        Set<String> written = new HashSet<>();
+        SSTableReader legacySSTable = Iterables.getOnlyElement(cfs.getLiveSSTables());
+        for (ColumnMetadata column : legacySSTable.header.columns())
+            written.add(column.name.toString());
+        logger.info("Read {} sstable {} with columns {}", legacyVersion, legacySSTable, written);
+
+        String tuple = "[[1, 2, 3], [\"a\", \"b\", \"c\"]]";
+        String udt = "{\"name\": [\"abc\", \"def\"]}";
+        Map<String, String> extra = new HashMap<>();
+        for (UntypedResultSet.Row row : readTupleTable(table, 5))
+        {
+            assertJson(written.contains("val") ? tuple : null, row, "val");
+            assertJson(written.contains("val2") ? tuple : null, row, "val2");
+            assertJson(written.contains("val3") ? udt : null, row, "val3");
+            assertJson(written.contains("val4") ? udt : null, row, "val4");
+            extra.put(row.getString("pk"), row.has("extra") ? row.getString("extra") : null);
+        }
+
+        executeOn(table, "ALTER TABLE %s DROP val");
+        executeOn(table, "ALTER TABLE %s DROP val2");
+        executeOn(table, "ALTER TABLE %s DROP val3");
+        // re-add against the dropped columns as read back from the schema tables, as after a restart
+        Schema.instance.reloadSchemaAndAnnounceVersion();
+        executeOn(table, "ALTER TABLE %s ADD val frozen<tuple<set<int>,set<text>>>");
+        executeOn(table, "ALTER TABLE %s ADD val2 tuple<set<int>,set<text>>");
+        executeOn(table, "ALTER TABLE %s ADD val3 frozen<legacy_" + legacyVersion + "_tuple_udt>");
+
+        executeOn(table, "UPDATE %s SET val3 = {name: ('ghi', 'jkl')}, val2 = ({4}, {'d'}) WHERE pk = '0'");
+        executeOn(table, "INSERT INTO %s (pk, val, val3, extra) " +
+                         "VALUES ('5', ({5}, {'e'}), {name: ('mno', 'pqr')}, 'new')");
+        extra.put("5", "new");
+
+        Runnable checkRows = () -> {
+            for (UntypedResultSet.Row row : readTupleTable(table, 6))
+            {
+                String pk = row.getString("pk");
+                assertJson(pk.equals("5") ? "[[5], [\"e\"]]" : null, row, "val");
+                assertJson(pk.equals("0") ? "[[4], [\"d\"]]" : null, row, "val2");
+                if (pk.equals("0"))
+                    assertJson("{\"name\": [\"ghi\", \"jkl\"]}", row, "val3");
+                else
+                    assertJson(pk.equals("5") ? "{\"name\": [\"mno\", \"pqr\"]}" : null, row, "val3");
+                assertJson(written.contains("val4") && !pk.equals("5") ? udt : null, row, "val4");
+                assertEquals(extra.get(pk), row.has("extra") ? row.getString("extra") : null);
+            }
+            // only reads extra, so the values of the other columns are skipped
+            UntypedResultSet extraOnly = executeOn(table, "SELECT pk, extra FROM %s");
+            assertEquals(6, extraOnly.size());
+            for (UntypedResultSet.Row row : extraOnly)
+                assertEquals(extra.get(row.getString("pk")), row.has("extra") ? row.getString("extra") : null);
+        };
+        checkRows.run();
+
+        cfs.forceBlockingFlush(ColumnFamilyStore.FlushReason.UNIT_TESTS);
+        assertEquals(2, cfs.getLiveSSTables().size());
+        checkRows.run();
+        verifyExtended(cfs);
+
+        // as repair or bootstrap would, stream the old sstable in again now that the columns are re-added
+        streamTupleSSTable(table, tupleDir, generation);
+        int sstables = cfs.getLiveSSTables().size();
+        assertTrue(sstables > 2);
+        checkRows.run();
+        verifyExtended(cfs);
+
+        cfs.clearUnsafe();
+        cfs.loadNewSSTables();
+        assertEquals(sstables, cfs.getLiveSSTables().size());
+        checkRows.run();
+
+        Schema.instance.reloadSchemaAndAnnounceVersion();
+        checkRows.run();
+
+        Util.compact(cfs, cfs.getLiveSSTables());
+        assertEquals(1, cfs.getLiveSSTables().size());
+        assertTrue(Iterables.getOnlyElement(cfs.getLiveSSTables()).descriptor.version.isLatestVersion());
+        checkRows.run();
+        verifyExtended(cfs);
+
+        LifecycleTransaction.waitForDeletions();
+        cfs.clearUnsafe();
+        cfs.loadNewSSTables();
+        assertEquals(1, cfs.getLiveSSTables().size());
+        checkRows.run();
+
+        executeOn(table, "DROP TABLE %s");
+    }
+
+    private static void streamTupleSSTable(String table, File tupleDir, String generation) throws Exception
+    {
+        File streamDir = new File(tempFolder.newFolder(LEGACY_TABLES_KEYSPACE, table));
+        Descriptor descriptor = null;
+        for (File file : tupleDir.tryList())
+        {
+            if (Descriptor.fromFile(file).id.toString().equals(generation))
+            {
+                copyFileToDir(file, streamDir);
+                descriptor = Descriptor.fromFile(new File(streamDir, file.name()));
+            }
+        }
+        SSTableReader sstable = SSTableReader.open(null, descriptor);
+        IPartitioner p = sstable.getPartitioner();
+        List<Range<Token>> ranges = Lists.newArrayList(new Range<>(p.getMinimumToken(), p.getToken(ByteBufferUtil.bytes("2"))),
+                                                       new Range<>(p.getToken(ByteBufferUtil.bytes("2")), p.getMinimumToken()));
+        List<OutgoingStream> streams = Lists.newArrayList(new CassandraOutgoingFile(StreamOperation.OTHER,
+                                                                                    sstable.ref(),
+                                                                                    sstable.getPositionsForRanges(ranges),
+                                                                                    ranges,
+                                                                                    sstable.estimatedKeysForRanges(ranges)));
+        new StreamPlan(StreamOperation.OTHER).transferStreams(FBUtilities.getBroadcastAddressAndPort(), streams).execute().get();
+    }
+
+    private static UntypedResultSet executeOn(String table, String query)
+    {
+        return QueryProcessor.executeInternal(String.format(query, LEGACY_TABLES_KEYSPACE + '.' + table));
+    }
+
+    private static UntypedResultSet readTupleTable(String table, int expectedRows)
+    {
+        UntypedResultSet rows = executeOn(table, "SELECT pk, toJson(val) AS val, toJson(val2) AS val2, " +
+                                                 "toJson(val3) AS val3, toJson(val4) AS val4, extra FROM %s");
+        assertEquals(expectedRows, rows.size());
+        return rows;
+    }
+
+    private static void assertJson(String expected, UntypedResultSet.Row row, String column)
+    {
+        assertEquals(column + " of pk " + row.getString("pk"),
+                     expected == null ? "null" : expected,
+                     row.getString(column));
+    }
+
+    private static void verifyExtended(ColumnFamilyStore cfs)
+    {
+        IVerifier.Options options = IVerifier.options().extendedVerification(true).build();
+        for (SSTableReader sstable : cfs.getLiveSSTables())
+        {
+            try (IVerifier verifier = sstable.getVerifier(cfs, new OutputHandler.LogOutput(), false, options))
+            {
+                verifier.verify();
+            }
+        }
+    }
+
     private void verifyOldSSTables(String tableSuffix) throws IOException
     {
         for (String legacyVersion : legacyVersions)
@@ -651,16 +840,22 @@ public class LegacySSTableTest
 
         QueryProcessor.executeInternal(String.format("CREATE TYPE legacy_tables.legacy_%s_tuple_udt (name tuple<text,text>)", legacyVersion));
 
+        QueryProcessor.executeInternal(String.format("CREATE TABLE legacy_tables.legacy_%s_tuple (%s)",
+                                                     legacyVersion, tupleTableColumns(legacyVersion)));
+    }
+
+    private static String tupleTableColumns(String legacyVersion)
+    {
         if (legacyVersion.startsWith("m"))
         {
             // sstable formats possibly from 3.0.x would have had a schema with everything frozen
-            QueryProcessor.executeInternal(String.format("CREATE TABLE legacy_tables.legacy_%1$s_tuple (pk text PRIMARY KEY, " +
-                    "val frozen<tuple<set<int>,set<text>>>, val2 frozen<tuple<set<int>,set<text>>>, val3 frozen<legacy_%1$s_tuple_udt>, val4 frozen<legacy_%1$s_tuple_udt>, extra text)", legacyVersion));
+            return String.format("pk text PRIMARY KEY, " +
+                    "val frozen<tuple<set<int>,set<text>>>, val2 frozen<tuple<set<int>,set<text>>>, val3 frozen<legacy_%1$s_tuple_udt>, val4 frozen<legacy_%1$s_tuple_udt>, extra text", legacyVersion);
         }
         else
         {
-            QueryProcessor.executeInternal(String.format("CREATE TABLE legacy_tables.legacy_%1$s_tuple (pk text PRIMARY KEY, " +
-                "val frozen<tuple<set<int>,set<text>>>, val2 tuple<set<int>,set<text>>, val3 frozen<legacy_%1$s_tuple_udt>, val4 legacy_%1$s_tuple_udt, extra text)", legacyVersion));
+            return String.format("pk text PRIMARY KEY, " +
+                "val frozen<tuple<set<int>,set<text>>>, val2 tuple<set<int>,set<text>>, val3 frozen<legacy_%1$s_tuple_udt>, val4 legacy_%1$s_tuple_udt, extra text", legacyVersion);
         }
     }
 

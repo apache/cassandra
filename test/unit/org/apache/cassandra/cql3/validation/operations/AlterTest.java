@@ -25,8 +25,12 @@ import org.junit.Test;
 import org.apache.cassandra.Util;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.cql3.CQLTester;
+import org.apache.cassandra.cql3.ColumnIdentifier;
+import org.apache.cassandra.cql3.UntypedResultSet;
 import org.apache.cassandra.db.ColumnFamilyStore;
 import org.apache.cassandra.db.Keyspace;
+import org.apache.cassandra.db.lifecycle.LifecycleTransaction;
+import org.apache.cassandra.db.marshal.AbstractType;
 import org.apache.cassandra.db.memtable.Memtable;
 import org.apache.cassandra.db.memtable.SkipListMemtable;
 import org.apache.cassandra.db.memtable.TestMemtable;
@@ -35,14 +39,19 @@ import org.apache.cassandra.exceptions.InvalidRequestException;
 import org.apache.cassandra.exceptions.SyntaxException;
 import org.apache.cassandra.locator.InetAddressAndPort;
 import org.apache.cassandra.locator.TokenMetadata;
+import org.apache.cassandra.schema.CQLTypeParser;
 import org.apache.cassandra.schema.MemtableParams;
+import org.apache.cassandra.schema.Schema;
 import org.apache.cassandra.schema.SchemaConstants;
 import org.apache.cassandra.schema.SchemaKeyspaceTables;
+import org.apache.cassandra.schema.Types;
 import org.apache.cassandra.service.StorageService;
+import org.apache.cassandra.utils.ByteBufferUtil;
 import org.apache.cassandra.utils.FBUtilities;
 
 import static java.lang.String.format;
 import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertNull;
 import static org.junit.Assert.assertSame;
 import static org.junit.Assert.assertTrue;
@@ -569,31 +578,376 @@ public class AlterTest extends CQLTester
     }
 
     @Test
-    public void testDropAndReAddFrozenUDT() throws Throwable
+    public void testDropAndReAddFrozenUDTWithPersistedData() throws Throwable
     {
         String udt = createType("CREATE TYPE %s (a int, b text)");
-        createTable("CREATE TABLE %s (k int PRIMARY KEY, x frozen<" + udt + ">)");
-        execute("INSERT INTO %s (k, x) VALUES (0, {a: 1, b: 'one'})");
-
-        alterTable("ALTER TABLE %s DROP x");
-        alterTable("ALTER TABLE %s ADD x frozen<" + udt + ">");
-
-        assertRows(execute("SELECT x FROM %s WHERE k = 0"), row((Object) null));
-        execute("INSERT INTO %s (k, x) VALUES (1, {a: 2, b: 'two'})");
-        assertRows(execute("SELECT x.a, x.b FROM %s WHERE k = 1"), row(2, "two"));
+        testDropAndReAddWithPersistedData("frozen<" + udt + '>',
+                                          "{a: 1, b: 'old'}",
+                                          "{a: 2, b: 'new'}",
+                                          "x = {a: 3, b: 'upd'}",
+                                          "{\"a\": 2, \"b\": \"new\"}",
+                                          "{\"a\": 3, \"b\": \"upd\"}");
     }
 
     @Test
-    public void testDropAndReAddNestedFrozenUDT() throws Throwable
+    public void testDropAndReAddFrozenUDTInTupleWithPersistedData() throws Throwable
     {
         String udt = createType("CREATE TYPE %s (a int, b text)");
-        for (String type : new String[] { "list<frozen<" + udt + ">>",
-                                          "map<text, frozen<" + udt + ">>",
-                                          "frozen<tuple<int, frozen<" + udt + ">>>" })
+        testDropAndReAddWithPersistedData("frozen<tuple<int, frozen<" + udt + ">>>",
+                                          "(1, {a: 1, b: 'old'})",
+                                          "(2, {a: 2, b: 'new'})",
+                                          "x = (3, {a: 3, b: 'upd'})",
+                                          "[2, {\"a\": 2, \"b\": \"new\"}]",
+                                          "[3, {\"a\": 3, \"b\": \"upd\"}]");
+    }
+
+    @Test
+    public void testDropAndReAddFrozenUDTInListWithPersistedData() throws Throwable
+    {
+        String udt = createType("CREATE TYPE %s (a int, b text)");
+        testDropAndReAddWithPersistedData("list<frozen<" + udt + ">>",
+                                          "[{a: 1, b: 'old'}, {a: 3, b: 'upd'}]",
+                                          "[{a: 2, b: 'new'}]",
+                                          "x = x + [{a: 3, b: 'upd'}]",
+                                          "[{\"a\": 2, \"b\": \"new\"}]",
+                                          "[{\"a\": 3, \"b\": \"upd\"}]");
+    }
+
+    @Test
+    public void testDropAndReAddFrozenUDTInSetWithPersistedData() throws Throwable
+    {
+        // The re-added element is also in the dropped data, so the same cell path exists in the old and new sstables
+        String udt = createType("CREATE TYPE %s (a int, b text)");
+        testDropAndReAddWithPersistedData("set<frozen<" + udt + ">>",
+                                          "{{a: 1, b: 'old'}, {a: 3, b: 'upd'}}",
+                                          "{{a: 2, b: 'new'}}",
+                                          "x = x + {{a: 3, b: 'upd'}}",
+                                          "[{\"a\": 2, \"b\": \"new\"}]",
+                                          "[{\"a\": 3, \"b\": \"upd\"}]");
+    }
+
+    @Test
+    public void testDropAndReAddFrozenUDTAsMapKeyWithPersistedData() throws Throwable
+    {
+        String udt = createType("CREATE TYPE %s (a int, b text)");
+        testDropAndReAddWithPersistedData("map<frozen<" + udt + ">, int>",
+                                          "{{a: 1, b: 'old'}: 1, {a: 3, b: 'upd'}: 1}",
+                                          "{{a: 2, b: 'new'}: 2}",
+                                          "x = x + {{a: 3, b: 'upd'}: 3}",
+                                          "{\"{\\\"a\\\": 2, \\\"b\\\": \\\"new\\\"}\": 2}",
+                                          "{\"{\\\"a\\\": 3, \\\"b\\\": \\\"upd\\\"}\": 3}");
+    }
+
+    @Test
+    public void testDropAndReAddFrozenUDTAsMapValueWithPersistedData() throws Throwable
+    {
+        String udt = createType("CREATE TYPE %s (a int, b text)");
+        testDropAndReAddWithPersistedData("map<int, frozen<" + udt + ">>",
+                                          "{1: {a: 1, b: 'old'}, 3: {a: 1, b: 'old'}}",
+                                          "{2: {a: 2, b: 'new'}}",
+                                          "x = x + {3: {a: 3, b: 'upd'}}",
+                                          "{\"2\": {\"a\": 2, \"b\": \"new\"}}",
+                                          "{\"3\": {\"a\": 3, \"b\": \"upd\"}}");
+    }
+
+    @Test
+    public void testDropAndReAddFrozenUDTInFrozenCollectionsWithPersistedData() throws Throwable
+    {
+        String udt = createType("CREATE TYPE %s (a int, b text)");
+        testDropAndReAddWithPersistedData("frozen<set<frozen<" + udt + ">>>",
+                                          "{{a: 1, b: 'old'}}",
+                                          "{{a: 2, b: 'new'}}",
+                                          "x = {{a: 3, b: 'upd'}}",
+                                          "[{\"a\": 2, \"b\": \"new\"}]",
+                                          "[{\"a\": 3, \"b\": \"upd\"}]");
+        testDropAndReAddWithPersistedData("frozen<map<frozen<" + udt + ">, frozen<" + udt + ">>>",
+                                          "{{a: 1, b: 'old'}: {a: 1, b: 'old'}}",
+                                          "{{a: 2, b: 'new'}: {a: 2, b: 'new'}}",
+                                          "x = {{a: 3, b: 'upd'}: {a: 3, b: 'upd'}}",
+                                          "{\"{\\\"a\\\": 2, \\\"b\\\": \\\"new\\\"}\": {\"a\": 2, \"b\": \"new\"}}",
+                                          "{\"{\\\"a\\\": 3, \\\"b\\\": \\\"upd\\\"}\": {\"a\": 3, \"b\": \"upd\"}}");
+    }
+
+    @Test
+    public void testDropAndReAddFrozenUDTWithCollectionAndUDTFieldsWithPersistedData() throws Throwable
+    {
+        String inner = createType("CREATE TYPE %s (n int)");
+        String udt = createType("CREATE TYPE %s (a int, l list<int>, i frozen<" + inner + ">)");
+        testDropAndReAddWithPersistedData("frozen<" + udt + '>',
+                                          "{a: 1, l: [1, 2], i: {n: 1}}",
+                                          "{a: 2, l: [3], i: {n: 2}}",
+                                          "x = {a: 3, l: [4, 5], i: {n: 3}}",
+                                          "{\"a\": 2, \"l\": [3], \"i\": {\"n\": 2}}",
+                                          "{\"a\": 3, \"l\": [4, 5], \"i\": {\"n\": 3}}");
+    }
+
+    @Test
+    public void testDropAndReAddStaticFrozenUDTWithPersistedData() throws Throwable
+    {
+        String udt = createType("CREATE TYPE %s (a int, b text)");
+        createTable("CREATE TABLE %s (k int, c int, x frozen<" + udt + "> static, s text, PRIMARY KEY (k, c))");
+        for (int k = 0; k < 3; k++)
+            execute("INSERT INTO %s (k, c, x, s) VALUES (?, 0, {a: 1, b: 'old'}, ?)", k, "s" + k);
+        flush();
+
+        alterTable("ALTER TABLE %s DROP x");
+        Schema.instance.reloadSchemaAndAnnounceVersion();
+        assertInvalidMessage("Cannot re-add previously dropped column 'x' of kind REGULAR, incompatible with previous kind STATIC",
+                             "ALTER TABLE %s ADD x frozen<" + udt + '>');
+        alterTable("ALTER TABLE %s ADD x frozen<" + udt + "> static");
+
+        execute("UPDATE %s SET x = {a: 3, b: 'upd'} WHERE k = 0");
+        execute("INSERT INTO %s (k, c, x, s) VALUES (4, 0, {a: 2, b: 'new'}, 's4')");
+        Object[][] expected = new Object[][] { row(1, 0, "null", "s1"),
+                                               row(0, 0, "{\"a\": 3, \"b\": \"upd\"}", "s0"),
+                                               row(2, 0, "null", "s2"),
+                                               row(4, 0, "{\"a\": 2, \"b\": \"new\"}", "s4") };
+        assertRows(execute("SELECT k, c, toJson(x), s FROM %s"), expected);
+
+        flush();
+        ColumnFamilyStore cfs = getCurrentColumnFamilyStore();
+        cfs.clearUnsafe();
+        cfs.loadNewSSTables();
+        assertRows(execute("SELECT k, c, toJson(x), s FROM %s"), expected);
+
+        Util.compact(cfs, cfs.getLiveSSTables());
+        assertEquals(1, cfs.getLiveSSTables().size());
+        assertRows(execute("SELECT k, c, toJson(x), s FROM %s"), expected);
+    }
+
+    @Test
+    public void testDropAndReAddFrozenUDTWrittenAsCompactStorage() throws Throwable
+    {
+        String udt = createType("CREATE TYPE %s (a int, b text)");
+        DatabaseDescriptor.setEnableDropCompactStorage(true);
+        try
         {
-            createTable("CREATE TABLE %s (k int PRIMARY KEY, x " + type + ')');
-            alterTable("ALTER TABLE %s DROP x");
-            alterTable("ALTER TABLE %s ADD x " + type);
+            for (String type : new String[] { "frozen<" + udt + '>', "frozen<tuple<int, text>>" })
+            {
+                boolean isUDT = !type.startsWith("frozen<tuple");
+                createTable("CREATE TABLE %s (k int PRIMARY KEY, x " + type + ", s text) WITH COMPACT STORAGE");
+                for (int k = 0; k < 3; k++)
+                    execute("INSERT INTO %s (k, x, s) VALUES (?, " + (isUDT ? "{a: 1, b: 'old'}" : "(1, 'old')") + ", ?)", k, "s" + k);
+                flush();
+                alterTable("ALTER TABLE %s DROP COMPACT STORAGE");
+
+                String kind = currentTableMetadata().getColumn(ColumnIdentifier.getInterned("x", true)).isStatic() ? " static" : "";
+                alterTable("ALTER TABLE %s DROP x");
+                Schema.instance.reloadSchemaAndAnnounceVersion();
+                alterTable("ALTER TABLE %s ADD x " + type + kind);
+
+                execute("UPDATE %s SET x = " + (isUDT ? "{a: 3, b: 'upd'}" : "(3, 'upd')") + " WHERE k = 0");
+                String updated = isUDT ? "{\"a\": 3, \"b\": \"upd\"}" : "[3, \"upd\"]";
+                Object[][] expected = new Object[][] { row(1, "null", "s1"), row(0, updated, "s0"), row(2, "null", "s2") };
+                String select = "SELECT k, toJson(x), s FROM %s";
+                assertRows(execute(select), expected);
+
+                flush();
+                ColumnFamilyStore cfs = getCurrentColumnFamilyStore();
+                cfs.clearUnsafe();
+                cfs.loadNewSSTables();
+                assertRows(execute(select), expected);
+
+                Util.compact(cfs, cfs.getLiveSSTables());
+                assertEquals(1, cfs.getLiveSSTables().size());
+                assertRows(execute(select), expected);
+            }
+        }
+        finally
+        {
+            DatabaseDescriptor.setEnableDropCompactStorage(false);
+        }
+    }
+
+    @Test
+    public void testDropColumnThenDropAndRecreateUDTAndReAdd() throws Throwable
+    {
+        String udt = createType("CREATE TYPE %s (a int, b text)");
+        createTable("CREATE TABLE %s (k int PRIMARY KEY, x frozen<" + udt + ">, s text)");
+        execute("INSERT INTO %s (k, x, s) VALUES (0, {a: 1, b: 'old'}, 's0')");
+        flush();
+
+        alterTable("ALTER TABLE %s DROP x");
+        // the dropped column no longer references the type, so it can be dropped and recreated
+        schemaChange("DROP TYPE " + KEYSPACE + '.' + udt);
+        schemaChange("CREATE TYPE " + KEYSPACE + '.' + udt + " (a int, b text)");
+        alterTable("ALTER TABLE %s ADD x frozen<" + udt + '>');
+
+        execute("INSERT INTO %s (k, x, s) VALUES (1, {a: 2, b: 'new'}, 's1')");
+        flush();
+        Object[][] expected = new Object[][] { row(1, "{\"a\": 2, \"b\": \"new\"}", "s1"), row(0, "null", "s0") };
+        assertRows(execute("SELECT k, toJson(x), s FROM %s"), expected);
+        compact();
+        assertRows(execute("SELECT k, toJson(x), s FROM %s"), expected);
+    }
+
+    /**
+     * Drops and re-adds column {@code x} of the given type while it has data in an sstable and in the memtable, writes
+     * new values, then checks that the dropped values stay hidden, the new values are returned and the other columns
+     * are unaffected: before and after flushing, reopening the sstables, reloading the schema and compacting.
+     */
+    private void testDropAndReAddWithPersistedData(String type,
+                                                   String oldValue,
+                                                   String newValue,
+                                                   String update,
+                                                   String newValueJson,
+                                                   String updatedValueJson) throws Throwable
+    {
+        createTable("CREATE TABLE %s (k int PRIMARY KEY, a int, x " + type + ", s text)");
+        for (int k = 0; k < 3; k++)
+            execute("INSERT INTO %s (k, a, x, s) VALUES (?, ?, " + oldValue + ", ?)", k, k, "s" + k);
+        flush();
+        // not flushed explicitly, so it is still in the memtable when the column is dropped
+        execute("INSERT INTO %s (k, a, x, s) VALUES (3, 3, " + oldValue + ", 's3')");
+
+        alterTable("ALTER TABLE %s DROP x");
+        assertRows(execute("SELECT k, a, s FROM %s"),
+                   row(1, 1, "s1"), row(0, 0, "s0"), row(2, 2, "s2"), row(3, 3, "s3"));
+
+        // re-add against the dropped column as read back from the schema tables, as after a restart
+        assertDroppedColumnTypeIsSameOnDisk("x");
+        Schema.instance.reloadSchemaAndAnnounceVersion();
+        alterTable("ALTER TABLE %s ADD x " + type);
+        assertReAddedRows(row(1, 1, "null", "s1"), row(0, 0, "null", "s0"), row(2, 2, "null", "s2"), row(3, 3, "null", "s3"));
+
+        execute("INSERT INTO %s (k, a, x, s) VALUES (4, 4, " + newValue + ", 's4')");
+        execute("UPDATE %s SET " + update + " WHERE k = 0");
+
+        Object[][] expected = new Object[][] { row(1, 1, "null", "s1"),
+                                               row(0, 0, updatedValueJson, "s0"),
+                                               row(2, 2, "null", "s2"),
+                                               row(4, 4, newValueJson, "s4"),
+                                               row(3, 3, "null", "s3") };
+        assertReAddedRows(expected);
+
+        flush();
+        ColumnFamilyStore cfs = getCurrentColumnFamilyStore();
+        int sstables = cfs.getLiveSSTables().size();
+        assertTrue(sstables >= 2);
+        assertReAddedRows(expected);
+
+        cfs.clearUnsafe();
+        cfs.loadNewSSTables();
+        assertEquals(sstables, cfs.getLiveSSTables().size());
+        assertReAddedRows(expected);
+
+        Schema.instance.reloadSchemaAndAnnounceVersion();
+        assertReAddedRows(expected);
+
+        Util.compact(cfs, cfs.getLiveSSTables());
+        assertEquals(1, cfs.getLiveSSTables().size());
+        assertReAddedRows(expected);
+        LifecycleTransaction.waitForDeletions();
+
+        cfs.clearUnsafe();
+        cfs.loadNewSSTables();
+        assertEquals(1, cfs.getLiveSSTables().size());
+        assertReAddedRows(expected);
+    }
+
+    /**
+     * Checks all columns, then the other columns and {@code x} on their own, so that {@code x} is both read and skipped.
+     */
+    private void assertReAddedRows(Object[]... expected) throws Throwable
+    {
+        assertRows(execute("SELECT k, a, toJson(x), s FROM %s"), expected);
+        Object[][] others = new Object[expected.length][];
+        Object[][] onlyX = new Object[expected.length][];
+        for (int i = 0; i < expected.length; i++)
+        {
+            others[i] = row(expected[i][0], expected[i][1], expected[i][3]);
+            onlyX[i] = row(expected[i][0], expected[i][2]);
+        }
+        assertRows(execute("SELECT k, a, s FROM %s"), others);
+        assertRows(execute("SELECT k, toJson(x) FROM %s"), onlyX);
+    }
+
+    /**
+     * Parses the dropped column type stored in the schema tables the same way it is loaded on startup.
+     */
+    private void assertDroppedColumnTypeIsSameOnDisk(String column) throws Throwable
+    {
+        UntypedResultSet stored = execute(format("SELECT type FROM %s.%s WHERE keyspace_name = ? AND table_name = ? AND column_name = ?",
+                                                 SchemaConstants.SCHEMA_KEYSPACE_NAME, SchemaKeyspaceTables.DROPPED_COLUMNS),
+                                          KEYSPACE, currentTable(), column);
+        AbstractType<?> fromDisk = CQLTypeParser.parse(KEYSPACE, stored.one().getString("type"), Types.none());
+        assertEquals(currentTableMetadata().droppedColumns.get(ByteBufferUtil.bytes(column)).column.type, fromDisk);
+    }
+
+    /**
+     * Dropped column types are recorded with user types expanded into tuples, so re-adding a column with a user type
+     * must be accepted or rejected exactly as re-adding it with the equivalent tuple is, in every position: this
+     * covers comparator changes for set elements and map keys, and value changes elsewhere.
+     */
+    @Test
+    public void testReAddWithUDTMatchesReAddWithEquivalentTuple() throws Throwable
+    {
+        String udt = createType("CREATE TYPE %s (a int, b text)");
+        String[][] replacements = new String[][] {
+            { udt, "tuple<int, text>" },
+            { createType("CREATE TYPE %s (a blob, b text)"), "tuple<blob, text>" },
+            { createType("CREATE TYPE %s (a text, b text)"), "tuple<text, text>" },
+            { createType("CREATE TYPE %s (a int, b text, c int)"), "tuple<int, text, int>" },
+            { createType("CREATE TYPE %s (renamed_a int, renamed_b text)"), "tuple<int, text>" },
+            { createType("CREATE TYPE %s (a int)"), "tuple<int>" },
+        };
+        String[] positions = new String[] { "frozen<%s>",
+                                            "frozen<tuple<int, frozen<%s>>>",
+                                            "list<frozen<%s>>",
+                                            "set<frozen<%s>>",
+                                            "map<frozen<%s>, int>",
+                                            "map<int, frozen<%s>>",
+                                            "frozen<list<frozen<%s>>>",
+                                            "frozen<set<frozen<%s>>>",
+                                            "frozen<map<frozen<%s>, int>>",
+                                            "frozen<map<int, frozen<%s>>>" };
+
+        for (String position : positions)
+        {
+            for (String[] replacement : replacements)
+            {
+                String droppedUDT = format(position, udt);
+                String addedUDT = format(position, replacement[0]);
+                String droppedTuple = format(position, "tuple<int, text>");
+                String addedTuple = format(position, replacement[1]);
+
+                boolean udtAccepted = isReAddAccepted(droppedUDT, addedUDT, false);
+                boolean tupleAccepted = isReAddAccepted(droppedTuple, addedTuple, false);
+                String message = format("dropped %s, added %s / dropped %s, added %s",
+                                        droppedUDT, addedUDT, droppedTuple, addedTuple);
+                assertEquals(message, tupleAccepted, udtAccepted);
+                assertEquals("after schema reload: " + message, udtAccepted, isReAddAccepted(droppedUDT, addedUDT, true));
+                assertEquals("after schema reload: " + message, tupleAccepted, isReAddAccepted(droppedTuple, addedTuple, true));
+
+                if (replacement[0].equals(udt))
+                    assertTrue("re-adding the same type must be accepted: " + droppedUDT, udtAccepted);
+                if (replacement[1].equals("tuple<text, text>"))
+                    assertFalse("text values cannot be read as int: " + addedUDT, udtAccepted);
+                boolean sorted = position.startsWith("set") || position.startsWith("map<frozen")
+                                 || position.startsWith("frozen<set") || position.startsWith("frozen<map<frozen");
+                if (replacement[1].equals("tuple<blob, text>") && sorted)
+                    assertFalse("blob does not sort like int: " + addedUDT, udtAccepted);
+            }
+        }
+    }
+
+    private boolean isReAddAccepted(String droppedType, String addedType, boolean reloadSchema) throws Throwable
+    {
+        createTable("CREATE TABLE %s (k int PRIMARY KEY, x " + droppedType + ')');
+        alterTable("ALTER TABLE %s DROP x");
+        if (reloadSchema)
+        {
+            assertDroppedColumnTypeIsSameOnDisk("x");
+            Schema.instance.reloadSchemaAndAnnounceVersion();
+        }
+        try
+        {
+            execute("ALTER TABLE %s ADD x " + addedType);
+            return true;
+        }
+        catch (InvalidRequestException e)
+        {
+            return false;
         }
     }
 
@@ -606,6 +960,14 @@ public class AlterTest extends CQLTester
 
         assertInvalidMessage("incompatible with previously dropped column 'x' of type frozen<tuple<int, text>>",
                              "ALTER TABLE %s ADD x " + udt);
+
+        // the dropped column read back from the schema tables is the same, and the restriction still applies to it
+        assertDroppedColumnTypeIsSameOnDisk("x");
+        Schema.instance.reloadSchemaAndAnnounceVersion();
+        assertInvalidMessage("incompatible with previously dropped column 'x' of type frozen<tuple<int, text>>",
+                             "ALTER TABLE %s ADD x " + udt);
+
+        alterTable("ALTER TABLE %s ADD x frozen<" + udt + '>');
     }
 
     @Test
