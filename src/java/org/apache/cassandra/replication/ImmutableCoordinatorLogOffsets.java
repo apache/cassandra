@@ -113,14 +113,6 @@ public class ImmutableCoordinatorLogOffsets implements CoordinatorLogOffsets<Off
         return mutations().isEmpty() && transfers().isEmpty();
     }
 
-    public boolean contains(MutationId mutationId)
-    {
-        if (mutationId == null || mutationId.isNone())
-            return false;
-        Offsets.Immutable offsets = mutations.getOffsets(mutationId.logId());
-        return offsets != null && offsets.contains(mutationId.offset());
-    }
-
     public boolean contains(ShortMutationId mutationId)
     {
         if (mutationId == null || mutationId.isNone())
