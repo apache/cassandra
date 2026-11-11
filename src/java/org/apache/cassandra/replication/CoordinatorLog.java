@@ -26,6 +26,7 @@ import java.util.Objects;
 import java.util.Set;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.locks.ReadWriteLock;
+import java.util.concurrent.locks.ReentrantLock;
 import java.util.concurrent.locks.ReentrantReadWriteLock;
 
 import javax.annotation.Nullable;
@@ -79,6 +80,7 @@ public abstract class CoordinatorLog
     protected final Offsets.Mutable reconciledPersistedOffsets;
 
     protected final ReadWriteLock lock = new ReentrantReadWriteLock();
+    private final ReentrantLock persistenceLock = new ReentrantLock();
 
     abstract void receivedWriteResponse(ShortMutationId mutationId, int fromNodeId);
 
@@ -878,66 +880,82 @@ public abstract class CoordinatorLog
 
     void persistToSystemTable()
     {
-        Map<Integer, List<Integer>> witnessed = new Int2ObjectHashMap<>();
-        Map<Integer, List<Integer>> persisted = new Int2ObjectHashMap<>();
-        Offsets.Immutable localFlushed;
-        List<Integer> flushed;
-
-        lock.readLock().lock();
+        persistenceLock.lock();
         try
         {
-            localFlushed = Offsets.Immutable.copy(flushedOffsets);
-            witnessedOffsets.convertToPrimitiveMap(witnessed);
-            persistedOffsets.convertToPrimitiveMap(persisted);
-            flushed = localFlushed.asList();
-        }
-        finally
-        {
-            lock.readLock().unlock();
-        }
-        executeInternal(INSERT_QUERY, keyspace, range.left.toString(), range.right.toString(), logId.hostId,
-                        logId.hostLogId, participants.asSet(), witnessed, persisted, flushed);
-        durablyFlushedOffsets = localFlushed;
-    }
+            Map<Integer, List<Integer>> witnessed = new Int2ObjectHashMap<>();
+            Map<Integer, List<Integer>> persisted = new Int2ObjectHashMap<>();
+            Offsets.Immutable localFlushed;
+            List<Integer> flushed;
 
-    void updateLogsInSystemTable()
-    {
-        Offsets.Mutable localWitnessed;
-        Offsets.Immutable localFlushed;
-        Map<Integer, List<Integer>> witnessed = new Int2ObjectHashMap<>();
-        Map<Integer, List<Integer>> persisted = new Int2ObjectHashMap<>();
-        List<Integer> flushed;
-
-        lock.readLock().lock();
-        try
-        {
-            localWitnessed = Offsets.Mutable.copy(witnessedOffsets.get(localNodeId));
-            localFlushed = Offsets.Immutable.copy(flushedOffsets);
-
-            witnessedOffsets.convertToPrimitiveMap(witnessed);
-            persistedOffsets.convertToPrimitiveMap(persisted);
-
-            persisted.put(localNodeId, witnessed.get(localNodeId));
-            flushed = localFlushed.asList();
-        }
-        finally
-        {
-            lock.readLock().unlock();
-        }
-
-        executeInternal(INSERT_QUERY, keyspace, range.left.toString(), range.right.toString(), logId.hostId,
-                        logId.hostLogId, participants.asSet(), witnessed, persisted, flushed);
-
-        lock.writeLock().lock();
-        try
-        {
-            persistedOffsets.set(localNodeId, localWitnessed);
-            reconciledPersistedOffsets.addAll(persistedOffsets.intersection());
+            lock.readLock().lock();
+            try
+            {
+                localFlushed = Offsets.Immutable.copy(flushedOffsets);
+                witnessedOffsets.convertToPrimitiveMap(witnessed);
+                persistedOffsets.convertToPrimitiveMap(persisted);
+                flushed = localFlushed.asList();
+            }
+            finally
+            {
+                lock.readLock().unlock();
+            }
+            executeInternal(INSERT_QUERY, keyspace, range.left.toString(), range.right.toString(), logId.hostId,
+                            logId.hostLogId, participants.asSet(), witnessed, persisted, flushed);
             durablyFlushedOffsets = localFlushed;
         }
         finally
         {
-            lock.writeLock().unlock();
+            persistenceLock.unlock();
+        }
+    }
+
+    void updateLogsInSystemTable()
+    {
+        persistenceLock.lock();
+        try
+        {
+            Offsets.Mutable localWitnessed;
+            Offsets.Immutable localFlushed;
+            Map<Integer, List<Integer>> witnessed = new Int2ObjectHashMap<>();
+            Map<Integer, List<Integer>> persisted = new Int2ObjectHashMap<>();
+            List<Integer> flushed;
+
+            lock.readLock().lock();
+            try
+            {
+                localWitnessed = Offsets.Mutable.copy(witnessedOffsets.get(localNodeId));
+                localFlushed = Offsets.Immutable.copy(flushedOffsets);
+
+                witnessedOffsets.convertToPrimitiveMap(witnessed);
+                persistedOffsets.convertToPrimitiveMap(persisted);
+
+                persisted.put(localNodeId, witnessed.get(localNodeId));
+                flushed = localFlushed.asList();
+            }
+            finally
+            {
+                lock.readLock().unlock();
+            }
+
+            executeInternal(INSERT_QUERY, keyspace, range.left.toString(), range.right.toString(), logId.hostId,
+                            logId.hostLogId, participants.asSet(), witnessed, persisted, flushed);
+
+            lock.writeLock().lock();
+            try
+            {
+                persistedOffsets.set(localNodeId, localWitnessed);
+                reconciledPersistedOffsets.addAll(persistedOffsets.intersection());
+                durablyFlushedOffsets = localFlushed;
+            }
+            finally
+            {
+                lock.writeLock().unlock();
+            }
+        }
+        finally
+        {
+            persistenceLock.unlock();
         }
     }
 
@@ -1034,7 +1052,15 @@ public abstract class CoordinatorLog
 
     void deleteFromSystemTable()
     {
-        executeInternal(DELETE_QUERY, keyspace, range.left.toString(), range.right.toString(), logId.hostId, logId.hostLogId);
+        persistenceLock.lock();
+        try
+        {
+            executeInternal(DELETE_QUERY, keyspace, range.left.toString(), range.right.toString(), logId.hostId, logId.hostLogId);
+        }
+        finally
+        {
+            persistenceLock.unlock();
+        }
     }
 
     @VisibleForTesting

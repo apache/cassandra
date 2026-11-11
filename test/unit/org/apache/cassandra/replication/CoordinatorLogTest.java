@@ -20,6 +20,10 @@ package org.apache.cassandra.replication;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+import java.util.concurrent.Future;
 
 import org.junit.AfterClass;
 import org.junit.Before;
@@ -338,5 +342,62 @@ public class CoordinatorLogTest
         // offset 10 should be promoted to reconciled since the node without it (3) has been removed
         assertEquals(offsetsWithOffsets(10, 40), newLog.reconciledOffsets);
         assertTrue(newLog.unreconciledMutations.isEmpty());
+    }
+
+    @Test
+    public void concurrentSystemTableUpdateTest() throws Exception
+    {
+        Token tk = Murmur3Partitioner.instance.getMinimumToken();
+        CoordinatorLogPrimary log = new CoordinatorLogPrimary(KEYSPACE, new Range<>(tk, tk), LOCAL_HOST_ID, LOCAL_LOG_ID, PARTICIPANTS);
+        log.persistToSystemTable();
+
+        int numThreads = 8;
+        int iterationsPerThread = 25;
+        ExecutorService executor = Executors.newFixedThreadPool(numThreads);
+        CountDownLatch readyLatch = new CountDownLatch(numThreads);
+        CountDownLatch startLatch = new CountDownLatch(1);
+        List<Future<?>> futures = new ArrayList<>();
+
+        for (int t = 0; t < numThreads; t++)
+        {
+            final int threadIdx = t;
+            futures.add(executor.submit(() -> {
+                readyLatch.countDown();
+                try
+                {
+                    startLatch.await();
+                    for (int i = 0; i < iterationsPerThread; i++)
+                    {
+                        int offset = threadIdx * iterationsPerThread + i + 1;
+                        Offsets.Mutable toAdd = new Offsets.Mutable(LOCAL_LOG_ID);
+                        toAdd.add(offset);
+                        log.recordFlushedOffsets(toAdd);
+                        log.updateLogsInSystemTable();
+                    }
+                }
+                catch (InterruptedException e)
+                {
+                    Thread.currentThread().interrupt();
+                    throw new RuntimeException(e);
+                }
+            }));
+        }
+
+        readyLatch.await();
+        startLatch.countDown();
+
+        for (Future<?> f : futures)
+            f.get();
+
+        executor.shutdown();
+
+        assertEquals(log.flushedOffsets(), log.durablyFlushedOffsets());
+
+        List<CoordinatorLog> loaded = CoordinatorLog.loadFromSystemTable(KEYSPACE, log.range, LOCAL_HOST_ID);
+        assertEquals(1, loaded.size());
+        assertEquals(log.flushedOffsets(), loaded.get(0).flushedOffsets());
+        assertEquals(log.flushedOffsets(), loaded.get(0).durablyFlushedOffsets());
+
+        log.deleteFromSystemTable();
     }
 }

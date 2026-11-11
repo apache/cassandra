@@ -1164,6 +1164,8 @@ public class MutationTrackingService implements MutationTrackingServiceMBean
         {
             shardLock.readLock().unlock();
         }
+
+        CommitLog.instance.syncBlocking();
     }
 
     private synchronized void onNewClusterMetadata(@Nullable ClusterMetadata prev, ClusterMetadata next)
@@ -2046,6 +2048,7 @@ public class MutationTrackingService implements MutationTrackingServiceMBean
             try
             {
                 MutationTrackingService.instance().forEachKeyspace(this::run);
+                CommitLog.instance.syncBlocking();
                 writesOk = true;
             }
             catch (Throwable t)

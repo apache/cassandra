@@ -18,9 +18,9 @@
 
 package org.apache.cassandra.db.streaming;
 
-import java.util.ArrayList;
 import java.io.IOException;
 import java.io.UncheckedIOException;
+import java.util.ArrayList;
 import java.util.Collection;
 import java.util.List;
 import java.util.function.Consumer;
