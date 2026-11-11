@@ -275,6 +275,44 @@ public class AsyncProfilerServiceTest
     }
 
     @Test
+    public void testStartWithRestrictiveKernelParams() throws Throwable
+    {
+        StartupChecks.AsyncProfilerKernelParamsCheck restrictiveCheck = new StartupChecks.AsyncProfilerKernelParamsCheck()
+        {
+            @Override
+            public int readPerfEventParanoid()
+            {
+                return 2;
+            }
+
+            @Override
+            public int readKptrRestrict()
+            {
+                return 1;
+            }
+        };
+
+        try (WithProperties properties = new WithProperties().set(ASYNC_PROFILER_UNSAFE_MODE, false))
+        {
+            Map<String, String> startParameters = Map.of(ASYNC_PROFILER_START_EVENTS_PARAM, cpu.name(),
+                                                         ASYNC_PROFILER_START_OUTPUT_FORMAT_PARAM, flamegraph.name(),
+                                                         ASYNC_PROFILER_START_DURATION_PARAM, "10s",
+                                                         ASYNC_PROFILER_START_OUTPUT_FILE_NAME_PARAM, testOutputFile.name());
+            Map<String, String> stopParameters = Map.of(ASYNC_PROFILER_STOP_OUTPUT_FILE_NAME_PARAM, testOutputFile.name());
+
+            AsyncProfilerService.reset();
+            profiler = AsyncProfilerService.instance(testOutputPath, false, restrictiveCheck);
+            assertFalse(restrictiveCheck.hasCorrectKernelParams());
+            assertTrue(profiler.start(startParameters));
+            Thread.sleep(5000);
+            assertTrue(profiler.stop(stopParameters));
+
+            assertTrue("Output profile file should exist", testOutputFile.exists());
+            assertTrue("Output profile file should not be empty", testOutputFile.length() > 0);
+        }
+    }
+
+    @Test
     public void testAdvancedModeEnabledSuccess() throws Throwable
     {
         try (WithProperties properties = new WithProperties().set(ASYNC_PROFILER_UNSAFE_MODE, true))

@@ -222,7 +222,8 @@ public class AsyncProfilerService implements AsyncProfilerMBean
                 public Object apply(AsyncProfiler profiler) throws Throwable
                 {
                     maybeCreateProfilesLogDir();
-                    kernelParamsCheck.execute(null, true);
+                    if (kernelParamsCheck != null)
+                        kernelParamsCheck.execute(null, false);
 
                     String parsedFormat = AsyncProfilerFormat.parseFormat(parameters.get(ASYNC_PROFILER_START_OUTPUT_FORMAT_PARAM));
                     String parsedEvents = AsyncProfilerEvent.parseEvents(parameters.get(ASYNC_PROFILER_START_EVENTS_PARAM));
