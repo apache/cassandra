@@ -283,12 +283,14 @@ public class Envelope
                 version = ProtocolVersion.decode(versionNum, DatabaseDescriptor.getNativeTransportAllowOlderProtocols());
                 validateFlags(version, flags, streamId);
                 type = Message.Type.fromOpcode(opcode, direction);
-                long maxLength = type == Message.Type.STARTUP ? maxStartupTotalLength : maxTotalLength;
-                long totalLength = bodyLength + Header.LENGTH;
-                if (totalLength > maxLength)
+                // Only STARTUP is bounded here. The size of any other message is not limited by the maximum frame size
+                // in V5 and later, it is limited by native_transport_max_message_size, which CQLMessageHandler enforces
+                // without closing the connection.
+                long totalLength = Header.LENGTH + bodyLength;
+                if (type == Message.Type.STARTUP && totalLength > maxStartupTotalLength)
                 {
                     return new HeaderExtractionResult.Error(new ProtocolException(String.format("Request is too big: length %d exceeds maximum allowed length %d.",
-                                                                                                totalLength, maxLength)), streamId, bodyLength);
+                                                                                                totalLength, maxStartupTotalLength)), streamId, bodyLength);
                 }
                 return new HeaderExtractionResult.Success(new Header(version, flags, streamId, type, bodyLength));
             }
@@ -466,7 +468,7 @@ public class Envelope
             long bodyLength = buffer.getUnsignedInt(idx);
             idx += Header.BODY_LENGTH_SIZE;
 
-            long maxLength = type == Message.Type.STARTUP? maxStartupTotalLength : maxTotalLength;
+            long maxLength = type == Message.Type.STARTUP ? maxStartupTotalLength : maxTotalLength;
             long totalLength = bodyLength + Header.LENGTH;
             if (totalLength > maxLength)
             {

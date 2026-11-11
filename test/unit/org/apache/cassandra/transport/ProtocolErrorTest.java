@@ -440,26 +440,29 @@ public class ProtocolErrorTest {
     }
 
     @Test
-    public void extractHeaderUsesGeneralLimitForNonStartup() throws Exception
+    public void extractHeaderDoesNotLimitNonStartup() throws Exception
     {
         Envelope.Decoder dec = new Envelope.Decoder(1024, 128);
 
-        // Same 129-byte envelope, but opcode = OPTIONS.
-        byte[] header = new byte[] {
-        (byte) REQUEST.addToVersion(ProtocolVersion.V5.asInt()),
-        0x00,                    // flags
-        0x00, 0x01,              // stream ID
-        0x05,                    // opcode = OPTIONS
-        0x00, 0x00, 0x00, 0x78   // body length = 120
-        };
+        // In V5 and later, the size of a message other than STARTUP is limited by native_transport_max_message_size
+        // in CQLMessageHandler, not by the maximum frame size, so a header of any body length is extracted.
+        for (int bodyLength : new int[]{ 120, 1024, 64 * 1024 * 1024 })
+        {
+            ByteBuffer buf = ByteBuffer.allocate(Envelope.Header.LENGTH);
+            buf.put((byte) REQUEST.addToVersion(ProtocolVersion.V5.asInt()));
+            buf.put((byte) 0x00);       // flags
+            buf.putShort((short) 1);    // stream ID
+            buf.put((byte) 0x07);       // opcode = QUERY
+            buf.putInt(bodyLength);
+            buf.flip();
 
-        ByteBuffer buf = ByteBuffer.wrap(header);
+            Envelope.Decoder.HeaderExtractionResult result = dec.extractHeader(buf);
 
-        Envelope.Decoder.HeaderExtractionResult result = dec.extractHeader(buf);
-
-        Assert.assertTrue("OPTIONS should use the general envelope limit",
-                          result.isSuccess());
-        Assert.assertEquals(Message.Type.OPTIONS, result.header().type);
+            Assert.assertTrue("QUERY of body length " + bodyLength + " should not be limited while its header is extracted",
+                              result.isSuccess());
+            Assert.assertEquals(Message.Type.QUERY, result.header().type);
+            Assert.assertEquals(bodyLength, result.header().bodySizeInBytes);
+        }
     }
 
     @Test
