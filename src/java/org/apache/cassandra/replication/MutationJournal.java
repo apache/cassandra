@@ -640,6 +640,9 @@ public class MutationJournal
                 if (newPUCollector != null)
                 {
                     assert !newPUCollector.isEmpty();
+                    // Register the full mutation so unreconciled tracking keeps tables skipped above.
+                    // The startWriting in applyForReplay then finds the existing entry (idempotent).
+                    mts.startWritingForReplay(value);
                     keyspace.applyForReplay(newPUCollector.build());
                 }
                 else
