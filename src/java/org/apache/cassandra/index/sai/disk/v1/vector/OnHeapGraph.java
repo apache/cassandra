@@ -60,6 +60,7 @@ import io.github.jbellis.jvector.disk.IndexWriter;
 import io.github.jbellis.jvector.graph.GraphIndexBuilder;
 import io.github.jbellis.jvector.graph.GraphSearcher;
 import io.github.jbellis.jvector.graph.ImmutableGraphIndex;
+import io.github.jbellis.jvector.graph.NodesIterator;
 import io.github.jbellis.jvector.graph.RandomAccessVectorValues;
 import io.github.jbellis.jvector.graph.SearchResult;
 import io.github.jbellis.jvector.graph.disk.OnDiskSequentialGraphIndexWriter;
@@ -395,6 +396,9 @@ public class OnHeapGraph<T>
 
             // complete (internal clean up) and write the graph
             builder.cleanup();
+            int entryNode = approximateMedoid(builder.getGraph(), vectorValues, similarityFunction);
+            if (entryNode >= 0)
+                builder.setEntryPoint(0, entryNode);
             long termsOffset = indexOutput.getFilePointer();
             writeGraph(indexOutput.asSequentialWriter());
             long termsLength = indexOutput.getFilePointer() - termsOffset;
@@ -412,6 +416,64 @@ public class OnHeapGraph<T>
             metadataMap.put(IndexComponent.COMPRESSED_VECTORS, -1, pqOffset, pqLength, vectorConfigs);
             return metadataMap;
         }
+    }
+
+    /**
+     * Finds the node that jvector 1.x made the entry node when completing a graph. Later versions leave the entry node
+     * at the first node inserted, which can be an outlier that every search has to walk away from.
+     * <p>
+     * Starting at the current entry node, this moves to whichever of the node and its neighbors has the lowest total
+     * similarity to its own neighbors, until the current node is the lowest. Ties keep the earlier node, as in 1.x.
+     *
+     * @return the node, or -1 if the graph is empty
+     */
+    @VisibleForTesting
+    static int approximateMedoid(ImmutableGraphIndex graph, RandomAccessVectorValues vectors, VectorSimilarityFunction similarityFunction) throws IOException
+    {
+        try (ImmutableGraphIndex.View view = graph.getView())
+        {
+            ImmutableGraphIndex.NodeAtLevel entry = view.entryNode();
+            if (entry == null)
+                return -1;
+
+            int node = entry.node;
+            while (true)
+            {
+                int best = node;
+                double bestScore = neighborSimilarity(view, vectors, similarityFunction, node);
+                for (int neighbor : neighbors(view, node))
+                {
+                    double score = neighborSimilarity(view, vectors, similarityFunction, neighbor);
+                    if (score < bestScore)
+                    {
+                        best = neighbor;
+                        bestScore = score;
+                    }
+                }
+                if (best == node)
+                    return node;
+                node = best;
+            }
+        }
+    }
+
+    private static double neighborSimilarity(ImmutableGraphIndex.View view, RandomAccessVectorValues vectors, VectorSimilarityFunction similarityFunction, int node)
+    {
+        VectorFloat<?> vector = vectors.getVector(node);
+        double total = 0;
+        for (int neighbor : neighbors(view, node))
+            total += similarityFunction.compare(vector, vectors.getVector(neighbor));
+        return total;
+    }
+
+    private static int[] neighbors(ImmutableGraphIndex.View view, int node)
+    {
+        // copied, because a view may reuse the iterator's storage for the next call
+        NodesIterator it = view.getNeighborsIterator(0, node);
+        int[] neighbors = new int[it.size()];
+        for (int i = 0; i < neighbors.length; i++)
+            neighbors[i] = it.nextInt();
+        return neighbors;
     }
 
     private void writeGraph(SequentialWriter writer) throws IOException
