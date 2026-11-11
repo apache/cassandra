@@ -42,7 +42,7 @@ public class StartupMessageTest extends EncodeAndDecodeTestBase<StartupMessage>
     public static void setUp()
     {
         DatabaseDescriptor.daemonInitialization();
-        // Limits default to -1 (unlimited); set them to the values these tests expect.
+        // Pin the limits to their current defaults so that the boundary tests below stay valid if the defaults change.
         properties = new WithProperties().set(CassandraRelevantProperties.STARTUP_CLIENT_OPTION_MAX_COUNT, 64)
                                          .set(CassandraRelevantProperties.STARTUP_CLIENT_OPTION_KEY_MAX_LENGTH, 256)
                                          .set(CassandraRelevantProperties.STARTUP_CLIENT_OPTION_VALUE_MAX_LENGTH, 1024);
