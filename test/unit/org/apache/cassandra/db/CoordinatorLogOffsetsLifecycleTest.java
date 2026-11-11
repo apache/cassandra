@@ -304,8 +304,8 @@ public class CoordinatorLogOffsetsLifecycleTest
             assertNumSSTables(cfs.getTracker().getView(), 0);
 
             // 4. Verify that insertId and deleteId are recorded as flushed and durable
-            Assertions.assertThat(MutationTrackingService.instance().isFlushed(insertId)).isTrue();
-            Assertions.assertThat(MutationTrackingService.instance().isFlushed(deleteId)).isTrue();
+            Assertions.assertThat(MutationTrackingService.instance().isFlushed(cfs.metadata().id, insertId)).isTrue();
+            Assertions.assertThat(MutationTrackingService.instance().isFlushed(cfs.metadata().id, deleteId)).isTrue();
         }
         finally
         {

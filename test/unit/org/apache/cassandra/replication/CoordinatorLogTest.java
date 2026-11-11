@@ -215,11 +215,14 @@ public class CoordinatorLogTest
         MutationJournal.instance().write(mutation1.id(), mutation1);
         MutationJournal.instance().write(mutation2.id(), mutation2);
 
-        Offsets.Mutable flushed = new Offsets.Mutable(logId);
-        flushed.add(1, 2);
+        TableId tableId = Schema.instance.getTableMetadata(KEYSPACE, TABLE).id;
+        Table2OffsetsMap flushed = new Table2OffsetsMap();
+        Offsets.Mutable flushedOffsets = new Offsets.Mutable(logId);
+        flushedOffsets.add(1, 2);
+        flushed.add(tableId, flushedOffsets);
 
         CoordinatorLog log =
-            CoordinatorLog.recreate(KEYSPACE, range, LOCAL_HOST_ID, logId, PARTICIPANTS, witnessed, witnessed, flushed, Offsets.Immutable.copy(flushed), unreconciled);
+            CoordinatorLog.recreate(KEYSPACE, range, LOCAL_HOST_ID, logId, PARTICIPANTS, witnessed, witnessed, flushed, flushed.copyImmutable(), unreconciled);
 
         Offsets.Mutable reconciled = new Offsets.Mutable(logId);
         reconciled.add(3, 4);
@@ -358,6 +361,7 @@ public class CoordinatorLogTest
         CountDownLatch startLatch = new CountDownLatch(1);
         List<Future<?>> futures = new ArrayList<>();
 
+        TableId tableId = Schema.instance.getTableMetadata(KEYSPACE, TABLE).id;
         for (int t = 0; t < numThreads; t++)
         {
             final int threadIdx = t;
@@ -371,7 +375,7 @@ public class CoordinatorLogTest
                         int offset = threadIdx * iterationsPerThread + i + 1;
                         Offsets.Mutable toAdd = new Offsets.Mutable(LOCAL_LOG_ID);
                         toAdd.add(offset);
-                        log.recordFlushedOffsets(toAdd);
+                        log.recordFlushedOffsets(tableId, toAdd);
                         log.updateLogsInSystemTable();
                     }
                 }

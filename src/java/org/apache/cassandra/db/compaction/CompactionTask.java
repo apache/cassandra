@@ -464,7 +464,7 @@ public class CompactionTask extends AbstractCompactionTask
         return builder.build();
     }
 
-    private static void ensureCoordinatorLogOffsetsDurable(Set<SSTableReader> sstables)
+    private void ensureCoordinatorLogOffsetsDurable(Set<SSTableReader> sstables)
     {
         if (sstables == null || sstables.isEmpty())
             return;
@@ -473,7 +473,7 @@ public class CompactionTask extends AbstractCompactionTask
 
         ImmutableCoordinatorLogOffsets offsets = getCoordinatorLogOffsets(sstables);
         if (!offsets.isEmpty())
-            MutationTrackingService.instance().ensureFlushedOffsetsDurable(offsets);
+            MutationTrackingService.instance().ensureFlushedOffsetsDurable(cfs.metadata().id, offsets);
     }
 
     /*

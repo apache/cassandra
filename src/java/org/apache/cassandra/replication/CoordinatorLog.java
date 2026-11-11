@@ -24,6 +24,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
+import java.util.UUID;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.locks.ReadWriteLock;
 import java.util.concurrent.locks.ReentrantLock;
@@ -45,6 +46,7 @@ import org.apache.cassandra.db.PartitionPosition;
 import org.apache.cassandra.db.SystemKeyspace;
 import org.apache.cassandra.db.marshal.Int32Type;
 import org.apache.cassandra.db.marshal.ListType;
+import org.apache.cassandra.db.marshal.UUIDType;
 import org.apache.cassandra.dht.AbstractBounds;
 import org.apache.cassandra.dht.Bounds;
 import org.apache.cassandra.dht.Range;
@@ -72,8 +74,8 @@ public abstract class CoordinatorLog
 
     protected final Node2OffsetsMap witnessedOffsets;
     protected final Node2OffsetsMap persistedOffsets;
-    protected final Offsets.Mutable flushedOffsets;
-    protected volatile Offsets.Immutable durablyFlushedOffsets;
+    protected final Table2OffsetsMap flushedOffsets;
+    protected volatile Table2OffsetsMap.Immutable durablyFlushedOffsets;
 
     protected final UnreconciledMutations unreconciledMutations;
     protected final Offsets.Mutable reconciledOffsets;
@@ -91,8 +93,8 @@ public abstract class CoordinatorLog
                    Participants participants,
                    Node2OffsetsMap witnessedOffsets,
                    Node2OffsetsMap persistedOffsets,
-                   Offsets.Mutable flushedOffsets,
-                   Offsets.Immutable durablyFlushedOffsets,
+                   Table2OffsetsMap flushedOffsets,
+                   Table2OffsetsMap.Immutable durablyFlushedOffsets,
                    UnreconciledMutations unreconciledMutations)
     {
         this.localNodeId = localNodeId;
@@ -118,7 +120,7 @@ public abstract class CoordinatorLog
                    Node2OffsetsMap persistedOffsets,
                    UnreconciledMutations unreconciledMutations)
     {
-        this(keyspace, range, localNodeId, logId, participants, witnessedOffsets, persistedOffsets, new Offsets.Mutable(logId), new Offsets.Immutable(logId), unreconciledMutations);
+        this(keyspace, range, localNodeId, logId, participants, witnessedOffsets, persistedOffsets, new Table2OffsetsMap(), Table2OffsetsMap.Immutable.EMPTY, unreconciledMutations);
     }
 
     CoordinatorLog(String keyspace, Range<Token> range, int localNodeId, CoordinatorLogId logId, Participants participants)
@@ -135,7 +137,7 @@ public abstract class CoordinatorLog
     static CoordinatorLog recreate(
         String keyspace, Range<Token> range, int localNodeId, CoordinatorLogId id, Participants participants,
         Node2OffsetsMap witnessedOffsets, Node2OffsetsMap persistedOffsets,
-        Offsets.Mutable flushedOffsets, Offsets.Immutable durablyFlushedOffsets, UnreconciledMutations unreconciledMutations)
+        Table2OffsetsMap flushedOffsets, Table2OffsetsMap.Immutable durablyFlushedOffsets, UnreconciledMutations unreconciledMutations)
     {
         return id.hostId == localNodeId ? new CoordinatorLogPrimary(keyspace, range, localNodeId, id, participants, witnessedOffsets, persistedOffsets, flushedOffsets, durablyFlushedOffsets, unreconciledMutations)
                                         : new CoordinatorLogReplica(keyspace, range, localNodeId, id, participants, witnessedOffsets, persistedOffsets, flushedOffsets, durablyFlushedOffsets, unreconciledMutations);
@@ -145,10 +147,10 @@ public abstract class CoordinatorLog
         String keyspace, Range<Token> range, int localNodeId, CoordinatorLogId id, Participants participants,
         Node2OffsetsMap witnessedOffsets, Node2OffsetsMap persistedOffsets, UnreconciledMutations unreconciledMutations)
     {
-        return recreate(keyspace, range, localNodeId, id, participants, witnessedOffsets, persistedOffsets, new Offsets.Mutable(id), new Offsets.Immutable(id), unreconciledMutations);
+        return recreate(keyspace, range, localNodeId, id, participants, witnessedOffsets, persistedOffsets, new Table2OffsetsMap(), Table2OffsetsMap.Immutable.EMPTY, unreconciledMutations);
     }
 
-    abstract CoordinatorLog withUpdatedParticipants(Participants newParticipants, Node2OffsetsMap witnessedOffsets, Node2OffsetsMap persistedOffsets, Offsets.Mutable flushedOffsets, Offsets.Immutable durablyFlushedOffsets, UnreconciledMutations unreconciledMutations);
+    abstract CoordinatorLog withUpdatedParticipants(Participants newParticipants, Node2OffsetsMap witnessedOffsets, Node2OffsetsMap persistedOffsets, Table2OffsetsMap flushedOffsets, Table2OffsetsMap.Immutable durablyFlushedOffsets, UnreconciledMutations unreconciledMutations);
 
     CoordinatorLog withParticipants(Participants newParticipants)
     {
@@ -207,8 +209,8 @@ public abstract class CoordinatorLog
                 logger.trace("Updating coordinator log {} participants: {} -> {}. Passively reconciled: {}",
                              logId, participants, newParticipants, passivelyReconciled);
 
-            Offsets.Mutable newFlushedOffsets = Offsets.Mutable.copy(flushedOffsets);
-            Offsets.Immutable newDurablyFlushedOffsets = durablyFlushedOffsets;
+            Table2OffsetsMap newFlushedOffsets = Table2OffsetsMap.copy(flushedOffsets);
+            Table2OffsetsMap.Immutable newDurablyFlushedOffsets = durablyFlushedOffsets;
             return withUpdatedParticipants(newParticipants, newWitnessedOffsets, newPersistedOffsets, newFlushedOffsets, newDurablyFlushedOffsets, newUnreconciledMutations);
         }
         finally
@@ -749,7 +751,7 @@ public abstract class CoordinatorLog
         CoordinatorLogPrimary(
             String keyspace, Range<Token> range, int localNodeId, CoordinatorLogId logId, Participants participants,
             Node2OffsetsMap witnessedOffsets, Node2OffsetsMap persistedOffsets,
-            Offsets.Mutable flushedOffsets, Offsets.Immutable durablyFlushedOffsets, UnreconciledMutations unreconciledMutations)
+            Table2OffsetsMap flushedOffsets, Table2OffsetsMap.Immutable durablyFlushedOffsets, UnreconciledMutations unreconciledMutations)
         {
             super(keyspace, range, localNodeId, logId, participants, witnessedOffsets, persistedOffsets, flushedOffsets, durablyFlushedOffsets, unreconciledMutations);
         }
@@ -767,7 +769,7 @@ public abstract class CoordinatorLog
         }
 
         @Override
-        CoordinatorLog withUpdatedParticipants(Participants newParticipants, Node2OffsetsMap witnessedOffsets, Node2OffsetsMap persistedOffsets, Offsets.Mutable flushedOffsets, Offsets.Immutable durablyFlushedOffsets, UnreconciledMutations unreconciledMutations)
+        CoordinatorLog withUpdatedParticipants(Participants newParticipants, Node2OffsetsMap witnessedOffsets, Node2OffsetsMap persistedOffsets, Table2OffsetsMap flushedOffsets, Table2OffsetsMap.Immutable durablyFlushedOffsets, UnreconciledMutations unreconciledMutations)
         {
             CoordinatorLogPrimary next = new CoordinatorLogPrimary(keyspace, range, localNodeId, logId, newParticipants, witnessedOffsets, persistedOffsets, flushedOffsets, durablyFlushedOffsets, unreconciledMutations);
             next.sequenceId.set(sequenceId.get());
@@ -839,7 +841,7 @@ public abstract class CoordinatorLog
         CoordinatorLogReplica(
             String keyspace, Range<Token> range, int localNodeId, CoordinatorLogId logId, Participants participants,
             Node2OffsetsMap witnessedOffsets, Node2OffsetsMap persistedOffsets,
-            Offsets.Mutable flushedOffsets, Offsets.Immutable durablyFlushedOffsets, UnreconciledMutations unreconciledMutations)
+            Table2OffsetsMap flushedOffsets, Table2OffsetsMap.Immutable durablyFlushedOffsets, UnreconciledMutations unreconciledMutations)
         {
             super(keyspace, range, localNodeId, logId, participants, witnessedOffsets, persistedOffsets, flushedOffsets, durablyFlushedOffsets, unreconciledMutations);
         }
@@ -857,7 +859,7 @@ public abstract class CoordinatorLog
         }
 
         @Override
-        CoordinatorLog withUpdatedParticipants(Participants newParticipants, Node2OffsetsMap witnessedOffsets, Node2OffsetsMap persistedOffsets, Offsets.Mutable flushedOffsets, Offsets.Immutable durablyFlushedOffsets, UnreconciledMutations unreconciledMutations)
+        CoordinatorLog withUpdatedParticipants(Participants newParticipants, Node2OffsetsMap witnessedOffsets, Node2OffsetsMap persistedOffsets, Table2OffsetsMap flushedOffsets, Table2OffsetsMap.Immutable durablyFlushedOffsets, UnreconciledMutations unreconciledMutations)
         {
             return new CoordinatorLogReplica(keyspace, range, localNodeId, logId, newParticipants, witnessedOffsets, persistedOffsets, flushedOffsets, durablyFlushedOffsets, unreconciledMutations);
         }
@@ -885,16 +887,16 @@ public abstract class CoordinatorLog
         {
             Map<Integer, List<Integer>> witnessed = new Int2ObjectHashMap<>();
             Map<Integer, List<Integer>> persisted = new Int2ObjectHashMap<>();
-            Offsets.Immutable localFlushed;
-            List<Integer> flushed;
+            Table2OffsetsMap.Immutable localFlushed;
+            Map<UUID, List<Integer>> flushed;
 
             lock.readLock().lock();
             try
             {
-                localFlushed = Offsets.Immutable.copy(flushedOffsets);
+                localFlushed = flushedOffsets.copyImmutable();
                 witnessedOffsets.convertToPrimitiveMap(witnessed);
                 persistedOffsets.convertToPrimitiveMap(persisted);
-                flushed = localFlushed.asList();
+                flushed = flushedOffsets.toPrimitiveMap();
             }
             finally
             {
@@ -916,22 +918,22 @@ public abstract class CoordinatorLog
         try
         {
             Offsets.Mutable localWitnessed;
-            Offsets.Immutable localFlushed;
+            Table2OffsetsMap.Immutable localFlushed;
             Map<Integer, List<Integer>> witnessed = new Int2ObjectHashMap<>();
             Map<Integer, List<Integer>> persisted = new Int2ObjectHashMap<>();
-            List<Integer> flushed;
+            Map<UUID, List<Integer>> flushed;
 
             lock.readLock().lock();
             try
             {
                 localWitnessed = Offsets.Mutable.copy(witnessedOffsets.get(localNodeId));
-                localFlushed = Offsets.Immutable.copy(flushedOffsets);
+                localFlushed = flushedOffsets.copyImmutable();
 
                 witnessedOffsets.convertToPrimitiveMap(witnessed);
                 persistedOffsets.convertToPrimitiveMap(persisted);
 
                 persisted.put(localNodeId, witnessed.get(localNodeId));
-                flushed = localFlushed.asList();
+                flushed = flushedOffsets.toPrimitiveMap();
             }
             finally
             {
@@ -959,14 +961,14 @@ public abstract class CoordinatorLog
         }
     }
 
-    void recordFlushedOffsets(Offsets offsets)
+    void recordFlushedOffsets(TableId tableId, Offsets offsets)
     {
         if (offsets == null || offsets.isEmpty())
             return;
         lock.writeLock().lock();
         try
         {
-            flushedOffsets.addAll(offsets);
+            flushedOffsets.add(tableId, offsets);
         }
         finally
         {
@@ -974,20 +976,28 @@ public abstract class CoordinatorLog
         }
     }
 
+    boolean isDurablyFlushed(TableId tableId, Offsets offsets)
+    {
+        if (offsets == null || offsets.isEmpty())
+            return true;
+        Table2OffsetsMap.Immutable durable = durablyFlushedOffsets;
+        return durable.isDurablyFlushed(tableId, offsets);
+    }
+
     boolean isDurablyFlushed(Offsets offsets)
     {
         if (offsets == null || offsets.isEmpty())
             return true;
-        Offsets.Immutable durable = durablyFlushedOffsets;
-        return Offsets.Immutable.difference(offsets, durable).isEmpty();
+        Table2OffsetsMap.Immutable durable = durablyFlushedOffsets;
+        return durable.isDurablyFlushed(offsets);
     }
 
-    boolean isFlushed(int offset)
+    boolean isFlushed(TableId tableId, int offset)
     {
         lock.readLock().lock();
         try
         {
-            return flushedOffsets.contains(offset);
+            return flushedOffsets.contains(tableId, offset);
         }
         finally
         {
@@ -995,12 +1005,12 @@ public abstract class CoordinatorLog
         }
     }
 
-    Offsets.Immutable flushedOffsets()
+    Table2OffsetsMap.Immutable flushedOffsets()
     {
         lock.readLock().lock();
         try
         {
-            return Offsets.Immutable.copy(flushedOffsets);
+            return flushedOffsets.copyImmutable();
         }
         finally
         {
@@ -1008,7 +1018,7 @@ public abstract class CoordinatorLog
         }
     }
 
-    Offsets.Immutable durablyFlushedOffsets()
+    Table2OffsetsMap.Immutable durablyFlushedOffsets()
     {
         return durablyFlushedOffsets;
     }
@@ -1030,13 +1040,13 @@ public abstract class CoordinatorLog
                 row.getMap("witnessed_offsets", Int32Type.instance, ListType.getInstance(Int32Type.instance, false));
             Map<Integer, List<Integer>> persistedOffsets =
                 row.getMap("persisted_offsets", Int32Type.instance, ListType.getInstance(Int32Type.instance, false));
-            List<Integer> flushedOffsetsList = row.has("flushed_offsets")
-                ? row.getFrozenList("flushed_offsets", Int32Type.instance)
-                : Collections.emptyList();
+            Map<UUID, List<Integer>> flushedOffsetsMap = row.has("flushed_offsets")
+                ? row.getMap("flushed_offsets", UUIDType.instance, ListType.getInstance(Int32Type.instance, false))
+                : Collections.emptyMap();
             Node2OffsetsMap witnessed = fromPrimitiveMap(logId, witnessedOffsets);
             Node2OffsetsMap persisted = fromPrimitiveMap(logId, persistedOffsets);
-            Offsets.Mutable flushed = Offsets.fromList(logId, flushedOffsetsList);
-            Offsets.Immutable durablyFlushed = Offsets.Immutable.copy(flushed);
+            Table2OffsetsMap flushed = Table2OffsetsMap.fromPrimitiveMap(logId, flushedOffsetsMap);
+            Table2OffsetsMap.Immutable durablyFlushed = flushed.copyImmutable();
             UnreconciledMutations unreconciled = UnreconciledMutations.loadFromJournal(witnessed, localNodeId);
             CoordinatorLog log = CoordinatorLog.recreate(keyspace, range, localNodeId, logId,
                                                          new Participants(participants), witnessed,

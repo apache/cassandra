@@ -621,7 +621,7 @@ public class MutationJournal
                         return builder.build();
                     });
 
-                    boolean alreadyFlushed = tableOffsets.contains(value.id()) || mts.isFlushed(value.id());
+                    boolean alreadyFlushed = tableOffsets.contains(value.id()) || mts.isFlushed(tableId, value.id());
 
                     if (alreadyFlushed)
                     {

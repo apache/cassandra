@@ -51,6 +51,7 @@ import org.apache.cassandra.dht.Token;
 import org.apache.cassandra.locator.InetAddressAndPort;
 import org.apache.cassandra.replication.CoordinatorLog.CoordinatorLogPrimary;
 import org.apache.cassandra.schema.SchemaConstants;
+import org.apache.cassandra.schema.TableId;
 import org.apache.cassandra.tcm.ClusterMetadata;
 import org.apache.cassandra.tcm.membership.NodeId;
 
@@ -294,11 +295,17 @@ public class Shard
         return logs.get(logId).isDurablyReconciled(logOffsets);
     }
 
-    void recordFlushedOffsets(CoordinatorLogId logId, Offsets offsets)
+    void recordFlushedOffsets(TableId tableId, CoordinatorLogId logId, Offsets offsets)
     {
         CoordinatorLog log = logs.get(logId.asLong());
         if (log != null)
-            log.recordFlushedOffsets(offsets);
+            log.recordFlushedOffsets(tableId, offsets);
+    }
+
+    boolean isDurablyFlushed(TableId tableId, CoordinatorLogId logId, Offsets offsets)
+    {
+        CoordinatorLog log = logs.get(logId.asLong());
+        return log == null || log.isDurablyFlushed(tableId, offsets);
     }
 
     boolean isDurablyFlushed(CoordinatorLogId logId, Offsets offsets)
@@ -307,10 +314,10 @@ public class Shard
         return log == null || log.isDurablyFlushed(offsets);
     }
 
-    boolean isFlushed(CoordinatorLogId logId, int offset)
+    boolean isFlushed(TableId tableId, CoordinatorLogId logId, int offset)
     {
         CoordinatorLog log = logs.get(logId.asLong());
-        return log != null && log.isFlushed(offset);
+        return log != null && log.isFlushed(tableId, offset);
     }
 
     void syncFlushedOffsetsBlocking(CoordinatorLogId logId)

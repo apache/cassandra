@@ -57,6 +57,7 @@ import org.apache.cassandra.net.MessagingService;
 import org.apache.cassandra.schema.KeyspaceParams;
 import org.apache.cassandra.schema.ReplicationType;
 import org.apache.cassandra.schema.Schema;
+import org.apache.cassandra.schema.TableId;
 import org.apache.cassandra.schema.TableMetadata;
 import org.apache.cassandra.tools.FieldUtil;
 
@@ -921,8 +922,8 @@ public class MutationJournalReplayTest
         ImmutableCoordinatorLogOffsets offsets = new ImmutableCoordinatorLogOffsets.Builder()
                                                  .add(mutationId)
                                                  .build();
-        MutationTrackingService.instance().ensureFlushedOffsetsDurable(offsets);
-        Assert.assertTrue(MutationTrackingService.instance().isFlushed(mutationId));
+        MutationTrackingService.instance().ensureFlushedOffsetsDurable(table.id, offsets);
+        Assert.assertTrue(MutationTrackingService.instance().isFlushed(table.id, mutationId));
 
         MutationJournal startupJournal = new MutationJournal(directory, TestParams.MUTATION_JOURNAL);
         startupJournal.startInternal();
@@ -1028,12 +1029,16 @@ public class MutationJournalReplayTest
         }
     }
 
-    private void clearInFlightMtsFlushedOffset(MutationId mutationId)
+    private void clearInFlightMtsFlushedOffset(TableId tableId, MutationId mutationId)
     {
         MutationTrackingService.KeyspaceShards shards =
             MutationTrackingService.TestAccess.getKeyspaceShards(MutationTrackingService.instance(), KEYSPACE);
         if (shards != null)
-            shards.forEachShard(shard -> shard.forEachLog(log -> log.flushedOffsets.remove(mutationId.offset())));
+            shards.forEachShard(shard -> shard.forEachLog(log -> {
+                Offsets.Mutable offsets = log.flushedOffsets.getNullable(tableId);
+                if (offsets != null)
+                    offsets.remove(mutationId.offset());
+            }));
     }
 
     private static DecoratedKey key(TableMetadata table, String key)
@@ -1096,8 +1101,8 @@ public class MutationJournalReplayTest
                           SSTableReader sstable = cfs.getLiveSSTables().iterator().next();
                           Assert.assertTrue(sstable.getCoordinatorLogOffsets().contains(mutationId));
 
-                          clearInFlightMtsFlushedOffset(mutationId);
-                          Assert.assertFalse(MutationTrackingService.instance().isFlushed(mutationId));
+                          clearInFlightMtsFlushedOffset(table.id, mutationId);
+                          Assert.assertFalse(MutationTrackingService.instance().isFlushed(table.id, mutationId));
                       },
                       () -> Assert.assertEquals(0, cfs.getTracker().getView().getCurrentMemtable().operationCount()));
     }
@@ -1152,14 +1157,14 @@ public class MutationJournalReplayTest
                       testJournal -> {
                           Keyspace.open(KEYSPACE).apply(multiMutation, false);
                           cfs0.forceBlockingFlush(ColumnFamilyStore.FlushReason.USER_FORCED);
-                          cfs1.truncateBlocking();
+                          cfs1.clearUnsafe();
 
                           Assert.assertFalse(cfs0.getLiveSSTables().isEmpty());
                           Assert.assertTrue(cfs0.getLiveSSTables().iterator().next().getCoordinatorLogOffsets().contains(mutationId));
                           Assert.assertTrue(cfs1.getLiveSSTables().isEmpty());
 
-                          clearInFlightMtsFlushedOffset(mutationId);
-                          Assert.assertFalse(MutationTrackingService.instance().isFlushed(mutationId));
+                          Assert.assertTrue(MutationTrackingService.instance().isFlushed(table0.id, mutationId));
+                          Assert.assertFalse(MutationTrackingService.instance().isFlushed(table1.id, mutationId));
                       },
                       () -> {
                           Assert.assertEquals(0, cfs0.getTracker().getView().getCurrentMemtable().operationCount());

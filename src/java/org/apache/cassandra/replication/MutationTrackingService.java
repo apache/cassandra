@@ -1059,9 +1059,10 @@ public class MutationTrackingService implements MutationTrackingServiceMBean
      * SSTables need to track the offsets the contain for log segment dropping, however sstables can be dropped by
      * compaction (intentionally or incidentally) so we also keep them on the log metadata and block on it's flushing
      * to disk before dropping sstables. We then consult both sources on startup to prevent replaying shadowed writes.
+     * @param tableId
      * @param logOffsets
      */
-    public void recordFlushedOffsets(ImmutableCoordinatorLogOffsets logOffsets)
+    public void recordFlushedOffsets(TableId tableId, ImmutableCoordinatorLogOffsets logOffsets)
     {
         if (logOffsets == null || logOffsets.isEmpty() || !isEnabled())
             return;
@@ -1077,8 +1078,35 @@ public class MutationTrackingService implements MutationTrackingServiceMBean
                 if (shard != null)
                 {
                     if (offsets != null && !offsets.isEmpty())
-                        shard.recordFlushedOffsets(logId, offsets);
+                        shard.recordFlushedOffsets(tableId, logId, offsets);
                 }
+            });
+        }
+        finally
+        {
+            shardLock.readLock().unlock();
+        }
+    }
+
+    public boolean isDurablyFlushed(TableId tableId, ImmutableCoordinatorLogOffsets logOffsets)
+    {
+        if (logOffsets == null || logOffsets.isEmpty())
+            return true;
+        if (!isEnabled())
+            return true;
+
+        awaitStarted();
+
+        shardLock.readLock().lock();
+        try
+        {
+            return logOffsets.mutations().all((rawLogId, offsets) -> {
+                CoordinatorLogId logId = CoordinatorLogId.fromLong(rawLogId);
+                Shard shard = getShardNullable(logId);
+                if (shard == null)
+                    return true;
+
+                return offsets == null || offsets.isEmpty() || shard.isDurablyFlushed(tableId, logId, offsets);
             });
         }
         finally
@@ -1114,7 +1142,7 @@ public class MutationTrackingService implements MutationTrackingServiceMBean
         }
     }
 
-    public boolean isFlushed(ShortMutationId mutationId)
+    public boolean isFlushed(TableId tableId, ShortMutationId mutationId)
     {
         if (mutationId == null || mutationId.isNone() || !isEnabled())
             return false;
@@ -1128,7 +1156,7 @@ public class MutationTrackingService implements MutationTrackingServiceMBean
             Shard shard = getShardNullable(logId);
             if (shard == null)
                 return false;
-            return shard.isFlushed(logId, mutationId.offset());
+            return shard.isFlushed(tableId, logId, mutationId.offset());
         }
         finally
         {
@@ -1136,7 +1164,7 @@ public class MutationTrackingService implements MutationTrackingServiceMBean
         }
     }
 
-    public void ensureFlushedOffsetsDurable(ImmutableCoordinatorLogOffsets logOffsets)
+    public void ensureFlushedOffsetsDurable(TableId tableId, ImmutableCoordinatorLogOffsets logOffsets)
     {
         if (logOffsets == null || logOffsets.isEmpty())
             return;
@@ -1145,10 +1173,10 @@ public class MutationTrackingService implements MutationTrackingServiceMBean
 
         awaitStarted();
 
-        if (isDurablyFlushed(logOffsets))
+        if (isDurablyFlushed(tableId, logOffsets))
             return;
 
-        recordFlushedOffsets(logOffsets);
+        recordFlushedOffsets(tableId, logOffsets);
 
         shardLock.readLock().lock();
         try
