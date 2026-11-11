@@ -18,13 +18,21 @@
 
 package org.apache.cassandra.transport;
 
+import java.net.InetSocketAddress;
+import java.util.Map;
+import java.util.Optional;
+
 import org.junit.Assert;
 import org.junit.BeforeClass;
 import org.junit.Test;
 
 import org.apache.cassandra.auth.AuthenticatedUser;
+import org.apache.cassandra.auth.IAuthenticator.AuthenticationMode;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.service.ClientState;
+
+import io.netty.channel.Channel;
+import io.netty.channel.ChannelPipeline;
 
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
@@ -48,6 +56,28 @@ public class ConnectedClientTest
         Assert.assertFalse(client.loggedIn());
         when(state.getUser()).thenReturn(new AuthenticatedUser("test"));
         Assert.assertTrue(client.loggedIn());
+    }
+
+    @Test
+    public void asMapEscapesOptionsAndAuthenticationMetadataAlike()
+    {
+        ServerConnection connection = mock(ServerConnection.class);
+        Channel channel = mock(Channel.class);
+        ClientState state = mock(ClientState.class);
+        when(connection.getClientState()).thenReturn(state);
+        when(connection.channel()).thenReturn(channel);
+        when(connection.getVersion()).thenReturn(ProtocolVersion.V5);
+        when(channel.pipeline()).thenReturn(mock(ChannelPipeline.class));
+        when(state.getRemoteAddress()).thenReturn(new InetSocketAddress("127.0.0.1", 9042));
+        when(state.getClientOptions()).thenReturn(Optional.of(Map.of("k,1", "v=1")));
+        when(state.getUser()).thenReturn(new AuthenticatedUser("test",
+                                                               AuthenticationMode.MTLS,
+                                                               Map.<String, Object>of("identity", "spiffe://a,b=c\\d")));
+
+        Map<String, String> map = new ConnectedClient(connection).asMap();
+
+        Assert.assertEquals("k\\,1=v\\=1", map.get(ConnectedClient.CLIENT_OPTIONS));
+        Assert.assertEquals("identity=spiffe://a\\,b\\=c\\\\d", map.get(ConnectedClient.AUTHENTICATION_METADATA));
     }
 
     @Test

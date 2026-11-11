@@ -23,7 +23,6 @@ import java.util.Map;
 import java.util.Optional;
 import java.util.stream.Collectors;
 
-import com.google.common.base.Joiner;
 import com.google.common.collect.ImmutableMap;
 
 import org.apache.commons.lang3.StringUtils;
@@ -186,18 +185,12 @@ public final class ConnectedClient
                                                                    .put(CIPHER, sslCipherSuite().orElse(UNDEFINED))
                                                                    .put(PROTOCOL, sslProtocol().orElse(UNDEFINED))
                                                                    .put(AUTHENTICATION_MODE, authenticationMode().toString())
-                                                                   .put(AUTHENTICATION_METADATA, Joiner.on(", ")
-                                                                                                       .withKeyValueSeparator("=")
-                                                                                                       .join(authenticationMetadata()));
+                                                                   .put(AUTHENTICATION_METADATA, joinEscaped(authenticationMetadata()));
         // Only the STARTUP options and the driver name and version taken from them are supplied by the client before
         // it authenticates; every entry above is derived by the server.
         if (loggedIn())
         {
-            builder.put(CLIENT_OPTIONS, clientOptions().orElse(Collections.emptyMap())
-                                                       .entrySet()
-                                                       .stream()
-                                                       .map(e -> escapeOptionString(e.getKey()) + '=' + escapeOptionString(e.getValue()))
-                                                       .collect(Collectors.joining(", ")))
+            builder.put(CLIENT_OPTIONS, joinEscaped(clientOptions().orElse(Collections.emptyMap())))
                    .put(DRIVER_NAME, driverName().orElse(UNDEFINED))
                    .put(DRIVER_VERSION, driverVersion().orElse(UNDEFINED));
         }
@@ -205,8 +198,23 @@ public final class ConnectedClient
     }
 
     /**
+     * Renders a map as {@code key=value, key=value} with every key and value escaped by
+     * {@link #escapeOptionString(String)}, so that a key or value containing a delimiter cannot forge extra entries
+     * in operator-facing output. Used for the client options and the authentication metadata alike: both reach the
+     * same consumers and neither is under the operator's control, since an authenticator takes the metadata from
+     * what the client presents.
+     */
+    static String joinEscaped(Map<String, ?> map)
+    {
+        return map.entrySet()
+                  .stream()
+                  .map(e -> escapeOptionString(e.getKey()) + '=' + escapeOptionString(String.valueOf(e.getValue())))
+                  .collect(Collectors.joining(", "));
+    }
+
+    /**
      * Escapes backslashes first, then special delimiter characters (commas and equals signs)
-     * in client option keys and values to prevent format injection in operator-facing maps.
+     * in keys and values to prevent format injection in operator-facing maps.
      * <p>
      * Example: {@code foo,bar=baz} becomes {@code foo\\,bar\\=baz}
      *
