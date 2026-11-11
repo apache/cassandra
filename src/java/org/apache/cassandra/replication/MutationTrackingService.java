@@ -1173,27 +1173,32 @@ public class MutationTrackingService implements MutationTrackingServiceMBean
 
         awaitStarted();
 
-        if (isDurablyFlushed(tableId, logOffsets))
-            return;
-
-        recordFlushedOffsets(tableId, logOffsets);
-
-        shardLock.readLock().lock();
         try
         {
-            logOffsets.mutations().forEach((rawLogId, offsets) -> {
-                CoordinatorLogId logId = CoordinatorLogId.fromLong(rawLogId);
-                Shard shard = getShardNullable(logId);
-                if (shard != null)
-                    shard.syncFlushedOffsetsBlocking(logId);
-            });
+            if (isDurablyFlushed(tableId, logOffsets))
+                return;
+
+            recordFlushedOffsets(tableId, logOffsets);
+
+            shardLock.readLock().lock();
+            try
+            {
+                logOffsets.mutations().forEach((rawLogId, offsets) -> {
+                    CoordinatorLogId logId = CoordinatorLogId.fromLong(rawLogId);
+                    Shard shard = getShardNullable(logId);
+                    if (shard != null)
+                        shard.syncFlushedOffsetsBlocking(logId);
+                });
+            }
+            finally
+            {
+                shardLock.readLock().unlock();
+            }
         }
         finally
         {
-            shardLock.readLock().unlock();
+            CommitLog.instance.syncBlocking();
         }
-
-        CommitLog.instance.syncBlocking();
     }
 
     private synchronized void onNewClusterMetadata(@Nullable ClusterMetadata prev, ClusterMetadata next)
