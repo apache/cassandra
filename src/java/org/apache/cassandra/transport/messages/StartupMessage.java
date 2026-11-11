@@ -107,6 +107,11 @@ public class StartupMessage extends Message.Request
     @Override
     protected Message.Response execute(QueryState state, Dispatcher.RequestTime requestTime, boolean traceRequest)
     {
+        // The envelope limit derived by maxEncodedSize() budgets the option map alone. A custom payload precedes the
+        // map in the body and would eat into that budget, and STARTUP has no use for one, so refuse it outright.
+        if (getCustomPayload() != null)
+            throw new ProtocolException("STARTUP message cannot carry a custom payload");
+
         validateOptions(wireOptions);
         String cqlVersion = options.get(CQL_VERSION);
         if (cqlVersion == null)
@@ -298,6 +303,9 @@ public class StartupMessage extends Message.Request
      *
      * <p>The calculated size is capped at the maximum native transport frame size.
      * If any option limit is negative (unlimited), the native transport frame size is returned.
+     *
+     * <p>The CUSTOM_PAYLOAD flag would prepend a {@code [bytes map]} to the body, which this does not budget;
+     * {@link #execute} rejects a STARTUP carrying one, so the limit is exact for every STARTUP the server accepts.
      *
      * @return the maximum encoded STARTUP envelope size in bytes
      */
