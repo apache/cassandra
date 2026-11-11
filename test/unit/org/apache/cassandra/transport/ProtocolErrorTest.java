@@ -26,6 +26,7 @@ import org.junit.BeforeClass;
 import org.junit.Test;
 
 import org.apache.cassandra.config.DatabaseDescriptor;
+import org.apache.cassandra.exceptions.InvalidRequestException;
 import org.apache.cassandra.transport.messages.ErrorMessage;
 
 import io.netty.buffer.ByteBuf;
@@ -332,6 +333,8 @@ public class ProtocolErrorTest {
             Assert.assertTrue(e.getMessage().contains("Request is too big"));
             Assert.assertTrue(e.getMessage().contains("length 13"));
             Assert.assertTrue(e.getMessage().contains("maximum allowed length 12"));
+            Assert.assertTrue("an oversized request other than STARTUP keeps the INVALID code",
+                              e.getCause() instanceof InvalidRequestException);
         }
         finally
         {
@@ -370,6 +373,8 @@ public class ProtocolErrorTest {
             Assert.assertTrue(e.getMessage().contains("Request is too big"));
             Assert.assertTrue(e.getMessage().contains("length 129"));
             Assert.assertTrue(e.getMessage().contains("maximum allowed length 128"));
+            Assert.assertTrue("an oversized STARTUP is a protocol error, as in extractHeader",
+                              e.getCause() instanceof ProtocolException);
         }
         finally
         {

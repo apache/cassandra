@@ -201,6 +201,8 @@ public class StartupMessageValidationTest extends TestBaseImpl
 
                     Assert.assertTrue("Expected envelope size rejection but received: " + error.error,
                                       error.error.getMessage().contains("Request is too big"));
+                    Assert.assertTrue("Expected a protocol error but received: " + error.error,
+                                      error.error instanceof ProtocolException);
                 }
             }
         }

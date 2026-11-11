@@ -217,6 +217,7 @@ public class Envelope
         private boolean discardingTooLongMessage;
         private long tooLongTotalLength;
         private long tooLongMaxLength;
+        private Message.Type tooLongType;
         private long bytesToDiscard;
         private int tooLongStreamId;
 
@@ -477,6 +478,7 @@ public class Envelope
                 tooLongStreamId = streamId;
                 tooLongTotalLength = totalLength;
                 tooLongMaxLength = maxLength;
+                tooLongType = type;
                 bytesToDiscard = discard(buffer, totalLength);
                 if (bytesToDiscard <= 0)
                     fail();
@@ -522,11 +524,16 @@ public class Envelope
             // Reset to the initial state and throw the exception
             long tooLongTotalLength = this.tooLongTotalLength;
             long tooLongMaxLength = this.tooLongMaxLength;
+            boolean tooLongStartup = this.tooLongType == Message.Type.STARTUP;
             this.tooLongTotalLength = 0;
             this.tooLongMaxLength = 0;
+            this.tooLongType = null;
             discardingTooLongMessage = false;
             String msg = String.format("Request is too big: length %d exceeds maximum allowed length %d.", tooLongTotalLength, tooLongMaxLength);
-            throw ErrorMessage.wrap(new InvalidRequestException(msg), tooLongStreamId);
+            // An oversized STARTUP is a protocol error, as every other STARTUP rejection is, including the same check
+            // in extractHeader for V5. Any other oversized request keeps reporting INVALID as it always has.
+            RuntimeException error = tooLongStartup ? new ProtocolException(msg) : new InvalidRequestException(msg);
+            throw ErrorMessage.wrap(error, tooLongStreamId);
         }
     }
 
