@@ -28,8 +28,8 @@ import org.mockito.Mockito;
 
 import org.apache.cassandra.ServerTestUtils;
 import org.apache.cassandra.Util;
-import org.apache.cassandra.cql3.QueryProcessor;
 import org.apache.cassandra.config.CassandraRelevantProperties;
+import org.apache.cassandra.cql3.QueryProcessor;
 import org.apache.cassandra.db.ColumnFamilyStore;
 import org.apache.cassandra.db.Keyspace;
 import org.apache.cassandra.dht.Murmur3Partitioner;

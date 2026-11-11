@@ -26,14 +26,15 @@ import java.util.UUID;
 import java.util.concurrent.Callable;
 import java.util.concurrent.TimeUnit;
 
-import org.junit.Assert;
-import org.junit.Ignore;
-import org.junit.Test;
-
 import net.bytebuddy.ByteBuddy;
 import net.bytebuddy.dynamic.loading.ClassLoadingStrategy;
 import net.bytebuddy.implementation.MethodDelegation;
 import net.bytebuddy.implementation.bind.annotation.SuperCall;
+
+import org.junit.Assert;
+import org.junit.Ignore;
+import org.junit.Test;
+
 import org.apache.cassandra.Util;
 import org.apache.cassandra.config.CassandraRelevantProperties;
 import org.apache.cassandra.cql3.QueryProcessor;
@@ -45,7 +46,6 @@ import org.apache.cassandra.db.marshal.ListType;
 import org.apache.cassandra.db.memtable.Memtable;
 import org.apache.cassandra.dht.Murmur3Partitioner;
 import org.apache.cassandra.distributed.Cluster;
-import org.apache.cassandra.distributed.action.GossipHelper;
 import org.apache.cassandra.distributed.api.ConsistencyLevel;
 import org.apache.cassandra.distributed.api.Feature;
 import org.apache.cassandra.distributed.api.IInvokableInstance;
