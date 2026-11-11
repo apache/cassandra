@@ -64,7 +64,8 @@ public class StartupMessage extends Message.Request
     {
         public StartupMessage decode(ByteBuf body, ProtocolVersion version)
         {
-            return new StartupMessage(upperCaseKeys(CBUtil.readStringMap(body)));
+            Map<String, String> wireOptions = CBUtil.readStringMap(body);
+            return new StartupMessage(upperCaseKeys(wireOptions), wireOptions);
         }
 
         public void encode(StartupMessage msg, ByteBuf dest, ProtocolVersion version)
@@ -80,18 +81,33 @@ public class StartupMessage extends Message.Request
 
     private static final byte[] EMPTY_CLIENT_RESPONSE = new byte[0];
 
+    /** The options with their keys upper-cased, which is how the server looks them up. */
     public final Map<String, String> options;
+
+    /**
+     * The options exactly as the client sent them. Validation runs on these rather than on {@link #options} so that
+     * the limits apply to what was on the wire: upper-casing changes the UTF-8 length of some keys and merges keys
+     * that differ only in case, so a key of exactly the maximum length could be rejected and an extra key could pass.
+     */
+    @VisibleForTesting
+    final Map<String, String> wireOptions;
 
     public StartupMessage(Map<String, String> options)
     {
+        this(options, options);
+    }
+
+    private StartupMessage(Map<String, String> options, Map<String, String> wireOptions)
+    {
         super(Message.Type.STARTUP);
         this.options = options;
+        this.wireOptions = wireOptions;
     }
 
     @Override
     protected Message.Response execute(QueryState state, Dispatcher.RequestTime requestTime, boolean traceRequest)
     {
-        validateOptions(options);
+        validateOptions(wireOptions);
         String cqlVersion = options.get(CQL_VERSION);
         if (cqlVersion == null)
             throw new ProtocolException("Missing value CQL_VERSION in STARTUP message");

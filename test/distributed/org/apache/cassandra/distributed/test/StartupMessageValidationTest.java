@@ -89,6 +89,9 @@ public class StartupMessageValidationTest extends TestBaseImpl
             // Valid Unicode must be accepted.
             Map<String, String> options = startupOptions();
             options.put("custom-λ", "café-雪-🙂");
+            // U+0149 is 2 bytes in UTF-8 but upper-cases to two code points taking 3 bytes, so this key is exactly at
+            // the default limit on the wire and over it once upper-cased. The limit applies to the wire form.
+            options.put("ŉ".repeat(128), "value");
 
             try (SimpleClient client = SimpleClient.builder(host.address, host.port)
                                                    .protocolVersion(ProtocolVersion.V5)
@@ -96,6 +99,15 @@ public class StartupMessageValidationTest extends TestBaseImpl
             {
                 client.connect(options);
             }
+
+            // Keys differing only in case merge when upper-cased; the count limit applies to the wire form, so one
+            // key over the default limit is rejected even though the merged map would fit.
+            Map<String, String> oneTooMany = startupOptions();
+            oneTooMany.put("a", "value");
+            oneTooMany.put("A", "value");
+            for (int i = oneTooMany.size(); i < 65; i++)
+                oneTooMany.put("key" + i, "value");
+            assertRejected(host, oneTooMany);
         }
     }
 
@@ -200,14 +212,17 @@ public class StartupMessageValidationTest extends TestBaseImpl
     {
         Map<String, String> options = startupOptions();
         options.put(key, value);
+        assertRejected(host, options);
+    }
 
+    private static void assertRejected(InetSocketHost host, Map<String, String> options)
+    {
         try (SimpleClient client = SimpleClient.builder(host.address, host.port)
                                                .protocolVersion(ProtocolVersion.V5)
                                                .build())
         {
             client.connect(options);
-            Assert.fail("Expected STARTUP validation to reject key: " + key
-                        + ", value: " + value);
+            Assert.fail("Expected STARTUP validation to reject options: " + options);
         }
         catch (RuntimeException e)
         {
