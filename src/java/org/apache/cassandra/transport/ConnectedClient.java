@@ -166,8 +166,8 @@ public final class ConnectedClient
 
     /**
      * @return true once the client has authenticated (has a user).
-     * Unauthenticated clients may still be visible in operator-facing views,
-     * but client-supplied metadata is withheld until authentication.
+     * Unauthenticated clients are still visible in operator-facing views, but the metadata they supplied in STARTUP
+     * (the options and the driver name and version taken from them) is withheld until authentication.
      */
     public boolean loggedIn()
     {
@@ -178,27 +178,28 @@ public final class ConnectedClient
     {
         ImmutableMap.Builder<String, String> builder = ImmutableMap.<String, String>builder()
                                                                    .put(ADDRESS, remoteAddress().toString())
+                                                                   .put(USER, username().orElse(UNDEFINED))
                                                                    .put(VERSION, String.valueOf(protocolVersion()))
                                                                    .put(REQUESTS, String.valueOf(requestCount()))
+                                                                   .put(KEYSPACE, keyspace().orElse(""))
                                                                    .put(SSL, Boolean.toString(sslEnabled()))
                                                                    .put(CIPHER, sslCipherSuite().orElse(UNDEFINED))
-                                                                   .put(PROTOCOL, sslProtocol().orElse(UNDEFINED));
+                                                                   .put(PROTOCOL, sslProtocol().orElse(UNDEFINED))
+                                                                   .put(AUTHENTICATION_MODE, authenticationMode().toString())
+                                                                   .put(AUTHENTICATION_METADATA, Joiner.on(", ")
+                                                                                                       .withKeyValueSeparator("=")
+                                                                                                       .join(authenticationMetadata()));
+        // Only the STARTUP options and the driver name and version taken from them are supplied by the client before
+        // it authenticates; every entry above is derived by the server.
         if (loggedIn())
         {
-            builder.put(USER, username().orElse(UNDEFINED))
-                           .put(CLIENT_OPTIONS, clientOptions().orElse(Collections.emptyMap())
-                                                               .entrySet()
-                                                               .stream()
-                                                               .map(e -> escapeOptionString(e.getKey()) + '=' + escapeOptionString(e.getValue()))
-                                                               .collect(Collectors.joining(", ")))
-                           .put(DRIVER_NAME, driverName().orElse(UNDEFINED))
-                           .put(DRIVER_VERSION, driverVersion().orElse(UNDEFINED))
-                           .put(KEYSPACE, keyspace().orElse(""))
-                           .put(AUTHENTICATION_MODE, authenticationMode().toString())
-                           .put(AUTHENTICATION_METADATA, Joiner.on(", ")
-                                                               .withKeyValueSeparator("=")
-                                                               .join(authenticationMetadata()))
-                           .build();
+            builder.put(CLIENT_OPTIONS, clientOptions().orElse(Collections.emptyMap())
+                                                       .entrySet()
+                                                       .stream()
+                                                       .map(e -> escapeOptionString(e.getKey()) + '=' + escapeOptionString(e.getValue()))
+                                                       .collect(Collectors.joining(", ")))
+                   .put(DRIVER_NAME, driverName().orElse(UNDEFINED))
+                   .put(DRIVER_VERSION, driverVersion().orElse(UNDEFINED));
         }
         return builder.build();
     }

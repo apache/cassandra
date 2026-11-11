@@ -19,6 +19,9 @@
 package org.apache.cassandra.distributed.test;
 
 import java.io.IOException;
+import java.util.Collections;
+import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.locks.LockSupport;
@@ -55,6 +58,21 @@ public class ConnectedClientVisibilityTest extends TestBaseImpl
     "protocol_version, request_count, ssl_cipher_suite, ssl_enabled, ssl_protocol, username, " +
     "keyspace_name, authentication_mode, authentication_metadata " +
     "FROM system_views.clients";
+
+    private static final List<String> SERVER_DERIVED_FIELDS = List.of(ConnectedClient.ADDRESS,
+                                                                      ConnectedClient.VERSION,
+                                                                      ConnectedClient.REQUESTS,
+                                                                      ConnectedClient.SSL,
+                                                                      ConnectedClient.CIPHER,
+                                                                      ConnectedClient.PROTOCOL,
+                                                                      ConnectedClient.USER,
+                                                                      ConnectedClient.KEYSPACE,
+                                                                      ConnectedClient.AUTHENTICATION_MODE,
+                                                                      ConnectedClient.AUTHENTICATION_METADATA);
+
+    private static final List<String> CLIENT_SUPPLIED_FIELDS = List.of(ConnectedClient.CLIENT_OPTIONS,
+                                                                       ConnectedClient.DRIVER_NAME,
+                                                                       ConnectedClient.DRIVER_VERSION);
 
     @BeforeClass
     public static void setup()
@@ -113,55 +131,27 @@ public class ConnectedClientVisibilityTest extends TestBaseImpl
                 assertNull("SSL cipher should be null without TLS", row[8]);
                 assertNull("SSL protocol should be null without TLS", row[10]);
 
-                // Client-supplied and authentication-dependent metadata is hidden.
+                // Server-derived fields are visible before authentication; some have nothing to show yet.
+                assertNull("no user before authentication", row[11]);
+                assertNull("no keyspace before authentication", row[12]);
+                assertEquals("Unauthenticated", row[13]);
+                assertEquals(Collections.emptyMap(), row[14]);
+
+                // Client-supplied metadata is hidden.
                 assertNull("client options must not be exposed before authentication", row[2]);
                 assertNull("driver name must not be exposed before authentication", row[4]);
                 assertNull("driver version must not be exposed before authentication", row[5]);
-                assertNull("username must not be exposed before authentication", row[11]);
-                assertNull("keyspace must not be exposed before authentication", row[12]);
-                assertNull("authentication mode must not be exposed before authentication", row[13]);
-                assertNull("authentication metadata must not be exposed before authentication", row[14]);
 
-                boolean[] mapFieldsBeforeAuthentication = node.callOnInstance(() -> {
-                    for (ConnectedClient c : ClientMetrics.instance.allConnectedClients())
-                    {
-                        if (!c.loggedIn())
-                        {
-                            Map<String, String> map = c.asMap();
+                Map<String, String> map = connectedClientMap(node, false);
+                assertNotNull("expected to find the unauthenticated client's map", map);
 
-                            return new boolean[]{
-                            map.containsKey(ConnectedClient.ADDRESS),
-                            map.containsKey(ConnectedClient.VERSION),
-                            map.containsKey(ConnectedClient.REQUESTS),
-                            map.containsKey(ConnectedClient.SSL),
-                            map.containsKey(ConnectedClient.CIPHER),
-                            map.containsKey(ConnectedClient.PROTOCOL),
-                            map.containsKey(ConnectedClient.CLIENT_OPTIONS),
-                            map.containsKey(ConnectedClient.USER),
-                            map.containsKey(ConnectedClient.DRIVER_NAME),
-                            map.containsKey(ConnectedClient.DRIVER_VERSION),
-                            map.containsKey(ConnectedClient.KEYSPACE),
-                            map.containsKey(ConnectedClient.AUTHENTICATION_MODE),
-                            map.containsKey(ConnectedClient.AUTHENTICATION_METADATA)
-                            };
-                        }
-                    }
+                for (String field : SERVER_DERIVED_FIELDS)
+                    assertTrue(field + " should be present before authentication", map.containsKey(field));
+                assertEquals("undefined", map.get(ConnectedClient.USER));
+                assertEquals("Unauthenticated", map.get(ConnectedClient.AUTHENTICATION_MODE));
 
-                    return new boolean[0];
-                });
-
-                assertEquals("expected to find the unauthenticated client's map", 13,
-                             mapFieldsBeforeAuthentication.length);
-
-                // Basic connection metadata is present.
-                for (int i = 0; i < 6; i++)
-                    assertTrue("basic connection field at index " + i + " should be present",
-                               mapFieldsBeforeAuthentication[i]);
-
-                // Authenticated metadata is absent.
-                for (int i = 6; i < mapFieldsBeforeAuthentication.length; i++)
-                    assertFalse("authenticated metadata field at index " + i + " must be absent",
-                                mapFieldsBeforeAuthentication[i]);
+                for (String field : CLIENT_SUPPLIED_FIELDS)
+                    assertFalse(field + " must be absent before authentication", map.containsKey(field));
 
                 // Complete authentication on the same connection.
                 waitForExistingRoles(node);
@@ -197,42 +187,40 @@ public class ConnectedClientVisibilityTest extends TestBaseImpl
                 assertTrue("STARTUP CQL_VERSION should be present after authentication",
                            options.containsKey("CQL_VERSION"));
 
-                boolean[] mapFieldsAfterAuthentication = node.callOnInstance(() -> {
-                    for (ConnectedClient c : ClientMetrics.instance.allConnectedClients())
-                    {
-                        if (c.loggedIn())
-                        {
-                            Map<String, String> map = c.asMap();
+                map = connectedClientMap(node, true);
+                assertNotNull("expected to find the authenticated client's map", map);
 
-                            return new boolean[]{
-                            map.containsKey(ConnectedClient.ADDRESS),
-                            map.containsKey(ConnectedClient.VERSION),
-                            map.containsKey(ConnectedClient.REQUESTS),
-                            map.containsKey(ConnectedClient.SSL),
-                            map.containsKey(ConnectedClient.CIPHER),
-                            map.containsKey(ConnectedClient.PROTOCOL),
-                            map.containsKey(ConnectedClient.CLIENT_OPTIONS),
-                            map.containsKey(ConnectedClient.USER),
-                            map.containsKey(ConnectedClient.DRIVER_NAME),
-                            map.containsKey(ConnectedClient.DRIVER_VERSION),
-                            map.containsKey(ConnectedClient.KEYSPACE),
-                            map.containsKey(ConnectedClient.AUTHENTICATION_MODE),
-                            map.containsKey(ConnectedClient.AUTHENTICATION_METADATA)
-                            };
-                        }
-                    }
-
-                    return new boolean[0];
-                });
-
-                assertEquals("expected to find the authenticated client's map", 13,
-                             mapFieldsAfterAuthentication.length);
-
-                for (int i = 0; i < mapFieldsAfterAuthentication.length; i++)
-                    assertTrue("expected field at index " + i + " to be present",
-                               mapFieldsAfterAuthentication[i]);
+                for (String field : SERVER_DERIVED_FIELDS)
+                    assertTrue(field + " should be present after authentication", map.containsKey(field));
+                for (String field : CLIENT_SUPPLIED_FIELDS)
+                    assertTrue(field + " should be present after authentication", map.containsKey(field));
+                assertEquals("cassandra", map.get(ConnectedClient.USER));
+                assertTrue("STARTUP CQL_VERSION should be visible after authentication",
+                           map.get(ConnectedClient.CLIENT_OPTIONS).contains("CQL_VERSION"));
             }
         }
+    }
+
+    /**
+     * @return a copy of {@link ConnectedClient#asMap()} of the first connected client in the given authentication
+     * state, or null if none appears within 30 seconds
+     */
+    private static Map<String, String> connectedClientMap(IInvokableInstance node, boolean loggedIn)
+    {
+        return node.callOnInstance(() -> {
+            long deadline = Clock.Global.nanoTime() + TimeUnit.SECONDS.toNanos(30);
+            do
+            {
+                for (ConnectedClient client : ClientMetrics.instance.allConnectedClients())
+                    if (client.loggedIn() == loggedIn)
+                        return new HashMap<>(client.asMap());
+
+                LockSupport.parkNanos(TimeUnit.MILLISECONDS.toNanos(50));
+            }
+            while (Clock.Global.nanoTime() < deadline);
+
+            return null;
+        });
     }
 
     private static Object[][] waitForClientRows(IInvokableInstance node)
