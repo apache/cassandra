@@ -1076,7 +1076,7 @@ public class MutationTrackingService implements MutationTrackingServiceMBean
                 CoordinatorLogId logId = CoordinatorLogId.fromLong(rawLogId);
                 Shard shard = getShardNullable(logId);
                 if (shard != null && offsets != null && !offsets.isEmpty())
-                    shard.recordFlushedOffsets(tableId, logId, offsets);
+                    shard.attemptRecordFlushedOffsets(tableId, logId, offsets);
             });
         }
         finally

@@ -295,7 +295,7 @@ public class Shard
         return logs.get(logId).isDurablyReconciled(logOffsets);
     }
 
-    void recordFlushedOffsets(TableId tableId, CoordinatorLogId logId, Offsets offsets)
+    void attemptRecordFlushedOffsets(TableId tableId, CoordinatorLogId logId, Offsets offsets)
     {
         CoordinatorLog log = logs.get(logId.asLong());
         if (log != null)
