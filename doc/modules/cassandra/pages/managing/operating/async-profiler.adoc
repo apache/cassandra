@@ -27,7 +27,7 @@ There are these events possible to profile:
 
 There are these output formats possible to specify, via `--format` flag:
 
-'flat', 'traces', 'collapsed', 'flamegraph', 'tree', 'jfr', 'otlp', defaults to 'flamegraph'
+'flat', 'traces', 'collapsed', 'flamegraph', 'tree', 'jfr', defaults to 'flamegraph'
 
 == status
 
