@@ -1504,13 +1504,8 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean, Memtable.Owner
             }
             cfs.replaceFlushed(memtable, sstables);
             if (MutationTrackingService.isEnabled())
-            {
                 for (SSTableReader sstable : sstables)
-                {
-                    if (!sstable.getCoordinatorLogOffsets().isEmpty())
-                        MutationTrackingService.instance().recordFlushedOffsets(cfs.metadata().id, sstable.getCoordinatorLogOffsets());
-                }
-            }
+                    MutationTrackingService.instance().recordFlushedOffsets(cfs.metadata().id, sstable.getCoordinatorLogOffsets());
             memtable.notifyFlushed();
             reclaim(memtable);
             cfs.compactionStrategyManager.compactionLogger.flush(sstables);
