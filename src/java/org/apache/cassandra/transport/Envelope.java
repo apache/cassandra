@@ -217,6 +217,7 @@ public class Envelope
         private boolean discardingTooLongMessage;
         private long tooLongTotalLength;
         private long tooLongMaxLength;
+        private Message.Type tooLongType;
         private long bytesToDiscard;
         private int tooLongStreamId;
 
@@ -283,12 +284,14 @@ public class Envelope
                 version = ProtocolVersion.decode(versionNum, DatabaseDescriptor.getNativeTransportAllowOlderProtocols());
                 validateFlags(version, flags, streamId);
                 type = Message.Type.fromOpcode(opcode, direction);
-                long maxLength = type == Message.Type.STARTUP ? maxStartupTotalLength : maxTotalLength;
-                long totalLength = bodyLength + Header.LENGTH;
-                if (totalLength > maxLength)
+                // Only STARTUP is bounded here. The size of any other message is not limited by the maximum frame size
+                // in V5 and later, it is limited by native_transport_max_message_size, which CQLMessageHandler enforces
+                // without closing the connection.
+                long totalLength = Header.LENGTH + bodyLength;
+                if (type == Message.Type.STARTUP && totalLength > maxStartupTotalLength)
                 {
                     return new HeaderExtractionResult.Error(new ProtocolException(String.format("Request is too big: length %d exceeds maximum allowed length %d.",
-                                                                                                totalLength, maxLength)), streamId, bodyLength);
+                                                                                                totalLength, maxStartupTotalLength)), streamId, bodyLength);
                 }
                 return new HeaderExtractionResult.Success(new Header(version, flags, streamId, type, bodyLength));
             }
@@ -466,7 +469,7 @@ public class Envelope
             long bodyLength = buffer.getUnsignedInt(idx);
             idx += Header.BODY_LENGTH_SIZE;
 
-            long maxLength = type == Message.Type.STARTUP? maxStartupTotalLength : maxTotalLength;
+            long maxLength = type == Message.Type.STARTUP ? maxStartupTotalLength : maxTotalLength;
             long totalLength = bodyLength + Header.LENGTH;
             if (totalLength > maxLength)
             {
@@ -475,6 +478,7 @@ public class Envelope
                 tooLongStreamId = streamId;
                 tooLongTotalLength = totalLength;
                 tooLongMaxLength = maxLength;
+                tooLongType = type;
                 bytesToDiscard = discard(buffer, totalLength);
                 if (bytesToDiscard <= 0)
                     fail();
@@ -520,11 +524,16 @@ public class Envelope
             // Reset to the initial state and throw the exception
             long tooLongTotalLength = this.tooLongTotalLength;
             long tooLongMaxLength = this.tooLongMaxLength;
+            boolean tooLongStartup = this.tooLongType == Message.Type.STARTUP;
             this.tooLongTotalLength = 0;
             this.tooLongMaxLength = 0;
+            this.tooLongType = null;
             discardingTooLongMessage = false;
             String msg = String.format("Request is too big: length %d exceeds maximum allowed length %d.", tooLongTotalLength, tooLongMaxLength);
-            throw ErrorMessage.wrap(new InvalidRequestException(msg), tooLongStreamId);
+            // An oversized STARTUP is a protocol error, as every other STARTUP rejection is, including the same check
+            // in extractHeader for V5. Any other oversized request keeps reporting INVALID as it always has.
+            RuntimeException error = tooLongStartup ? new ProtocolException(msg) : new InvalidRequestException(msg);
+            throw ErrorMessage.wrap(error, tooLongStreamId);
         }
     }
 

@@ -18,12 +18,15 @@
 
 package org.apache.cassandra.transport;
 
+import java.io.DataInputStream;
 import java.io.IOException;
 import java.net.InetAddress;
 import java.net.InetSocketAddress;
 import java.net.ServerSocket;
+import java.net.Socket;
 import java.net.SocketAddress;
 import java.nio.ByteBuffer;
+import java.nio.charset.StandardCharsets;
 import java.security.SecureRandom;
 import java.util.HashMap;
 import java.util.List;
@@ -291,6 +294,56 @@ public class CQLConnectionTest
                 client.stop();
                 server.stop();
             }
+        }
+    }
+
+    @Test
+    public void rejectsOversizedPreStartupMessage() throws Exception
+    {
+        // Before STARTUP the server accepts only OPTIONS, whose body is empty, and STARTUP, so the STARTUP limit bounds
+        // every opcode on the initial pipeline. Claim a body one byte over it under the OPTIONS opcode: the decoder
+        // enters discard mode on the header, drops the body as it arrives instead of buffering it, and answers with an
+        // error once the body has been consumed. Without the bound it would buffer the whole body and answer SUPPORTED,
+        // and an unauthenticated client could pin native_transport_max_frame_size bytes per connection by claiming that
+        // much and never completing the body.
+        Server server = server(ServerConfigurator.builder().build());
+        server.start();
+        try (Socket socket = new Socket(address, port))
+        {
+            socket.setSoTimeout((int) TimeUnit.SECONDS.toMillis(10));
+            long limit = StartupMessage.maxEncodedSize();
+            int bodyLength = (int) (limit - Envelope.Header.LENGTH + 1);
+            ByteBuffer header = ByteBuffer.allocate(Envelope.Header.LENGTH);
+            header.put((byte) Message.Direction.REQUEST.addToVersion(ProtocolVersion.V5.asInt()));
+            header.put((byte) 0);                                       // flags
+            header.putShort((short) 1);                                 // stream id
+            header.put((byte) Message.Type.OPTIONS.opcode);
+            header.putInt(bodyLength);
+            socket.getOutputStream().write(header.array());
+            socket.getOutputStream().write(new byte[bodyLength]);
+            socket.getOutputStream().flush();
+
+            DataInputStream in = new DataInputStream(socket.getInputStream());
+            byte[] responseHeader = new byte[Envelope.Header.LENGTH];
+            in.readFully(responseHeader);
+            ByteBuffer response = ByteBuffer.wrap(responseHeader);
+            response.get();                                             // version
+            response.get();                                             // flags
+            assertEquals(1, response.getShort());
+            assertEquals(Message.Type.ERROR.opcode, response.get());
+            byte[] body = new byte[response.getInt()];
+            in.readFully(body);
+            ByteBuffer error = ByteBuffer.wrap(body);
+            error.getInt();                                             // error code
+            int messageLength = error.getShort();
+            String message = new String(body, error.position(), messageLength, StandardCharsets.UTF_8);
+            assertThat(message).contains("Request is too big")
+                               .contains("length " + (limit + 1))
+                               .contains("maximum allowed length " + limit);
+        }
+        finally
+        {
+            server.stop();
         }
     }
 

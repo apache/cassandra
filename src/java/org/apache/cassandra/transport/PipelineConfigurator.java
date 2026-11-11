@@ -279,7 +279,12 @@ public class PipelineConfigurator
             pipeline.addLast(DEBUG_HANDLER, new LoggingHandler(LogLevel.INFO));
 
         pipeline.addLast(ENVELOPE_ENCODER, Envelope.Encoder.instance);
-        pipeline.addLast(INITIAL_HANDLER, new InitialConnectionHandler(newEnvelopeDecoder(), connectionFactory, this));
+        // Before STARTUP only OPTIONS, whose body is empty, and STARTUP are accepted, so nothing larger than a STARTUP
+        // is ever valid here. Envelope.Decoder buffers the whole body before InitialConnectionHandler sees the message,
+        // so bounding only the STARTUP opcode would let an unauthenticated client pin native_transport_max_frame_size
+        // bytes per connection by claiming that body length under another opcode and never sending the body.
+        Envelope.Decoder initialDecoder = new Envelope.Decoder(StartupMessage.maxEncodedSize());
+        pipeline.addLast(INITIAL_HANDLER, new InitialConnectionHandler(initialDecoder, connectionFactory, this));
         // The exceptionHandler will take care of handling exceptionCaught(...) events while still running
         // on the same EventLoop as all previous added handlers in the pipeline. This is important as the used
         // eventExecutorGroup may not enforce strict ordering for channel events.
