@@ -30,6 +30,7 @@ import org.junit.Test;
 
 import org.apache.cassandra.config.CassandraRelevantProperties;
 import org.apache.cassandra.config.DatabaseDescriptor;
+import org.apache.cassandra.cql3.QueryOptions;
 import org.apache.cassandra.distributed.Cluster;
 import org.apache.cassandra.distributed.shared.WithProperties;
 import org.apache.cassandra.transport.Message;
@@ -37,6 +38,9 @@ import org.apache.cassandra.transport.ProtocolException;
 import org.apache.cassandra.transport.ProtocolVersion;
 import org.apache.cassandra.transport.SimpleClient;
 import org.apache.cassandra.transport.messages.ErrorMessage;
+import org.apache.cassandra.transport.messages.QueryMessage;
+import org.apache.cassandra.transport.messages.ReadyMessage;
+import org.apache.cassandra.transport.messages.ResultMessage;
 import org.apache.cassandra.transport.messages.StartupMessage;
 
 import static org.apache.cassandra.config.DatabaseDescriptor.getNativeTransportPort;
@@ -91,6 +95,47 @@ public class StartupMessageValidationTest extends TestBaseImpl
                                                    .build())
             {
                 client.connect(options);
+            }
+        }
+    }
+
+    @Test
+    public void acceptsStartupRetryOnV5AfterRejection() throws Throwable
+    {
+        try (Cluster cluster = init(Cluster.build()
+                                           .withNodes(1)
+                                           .withConfig(config -> config.with(GOSSIP, NETWORK, NATIVE_PROTOCOL))
+                                           .start()))
+        {
+            InetSocketHost host = hostAndPort(cluster);
+
+            try (SimpleClient client = SimpleClient.builder(host.address, host.port)
+                                                   .protocolVersion(ProtocolVersion.V5)
+                                                   .build())
+            {
+                Map<String, String> missingCqlVersion = new HashMap<>();
+                missingCqlVersion.put("FOO", "bar");
+
+                try
+                {
+                    client.connect(missingCqlVersion);
+                    Assert.fail("Expected STARTUP validation failure");
+                }
+                catch (RuntimeException e)
+                {
+                    Assert.assertNotNull(e.getCause());
+                    Assert.assertTrue("Unexpected error: " + e.getCause(),
+                                      e.getCause().getMessage().contains("Missing value CQL_VERSION"));
+                }
+
+                // Both sides are still unframed: the server keeps its initial handler after a rejected STARTUP and
+                // SimpleClient switches to V5 framing only on READY, so a second STARTUP establishes the connection.
+                Message.Response response = client.execute(new StartupMessage(startupOptions()));
+                Assert.assertTrue("Expected READY but received: " + response, response instanceof ReadyMessage);
+
+                // The framed pipeline installed by the retry is usable.
+                response = client.execute(new QueryMessage("SELECT key FROM system.local", QueryOptions.DEFAULT));
+                Assert.assertTrue("Expected rows but received: " + response, response instanceof ResultMessage.Rows);
             }
         }
     }
