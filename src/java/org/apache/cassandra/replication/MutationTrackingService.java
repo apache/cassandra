@@ -1075,11 +1075,8 @@ public class MutationTrackingService implements MutationTrackingServiceMBean
             logOffsets.mutations().forEach((rawLogId, offsets) -> {
                 CoordinatorLogId logId = CoordinatorLogId.fromLong(rawLogId);
                 Shard shard = getShardNullable(logId);
-                if (shard != null)
-                {
-                    if (offsets != null && !offsets.isEmpty())
-                        shard.recordFlushedOffsets(tableId, logId, offsets);
-                }
+                if (shard != null && offsets != null && !offsets.isEmpty())
+                    shard.recordFlushedOffsets(tableId, logId, offsets);
             });
         }
         finally
