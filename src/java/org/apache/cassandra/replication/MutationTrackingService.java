@@ -1137,9 +1137,7 @@ public class MutationTrackingService implements MutationTrackingServiceMBean
 
     public void ensureFlushedOffsetsDurable(TableId tableId, ImmutableCoordinatorLogOffsets logOffsets)
     {
-        if (logOffsets == null || logOffsets.isEmpty())
-            return;
-        if (!isEnabled())
+        if (logOffsets == null || logOffsets.isEmpty() || !isEnabled())
             return;
 
         awaitStarted();
