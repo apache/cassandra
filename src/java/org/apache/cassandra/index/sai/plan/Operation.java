@@ -279,8 +279,15 @@ public class Operation
                 case CONTAINS_KEY:
                     indexTargetType = IndexTarget.Type.KEYS;
                     break;
+                case LT:
+                case LTE:
+                case GT:
+                case GTE:
+                    // Range operators compare the whole collection, so they fall through to the default SIMPLE target.
+                    break;
                 default:
-                    throw new InvalidRequestException("Invalid operator");
+                    throw new InvalidRequestException(String.format("Invalid operator %s for collection column %s",
+                                                                    expression.operator(), expression.column().name));
             }
         }
         return indexTargetType;

@@ -829,7 +829,8 @@ public class IndexTermType
 
     private AbstractType<?> calculateIndexType(AbstractType<?> baseType, EnumSet<Capability> capabilities, IndexTarget.Type indexTargetType)
     {
-        if (IndexTarget.Type.FULL == indexTargetType)
+        // Non-element targets compare the whole collection, so they shouldn't reach collectionCellValueType()
+        if (!indexTargetType.hasElementTarget())
             return baseType;
         return capabilities.contains(Capability.COLLECTION) ? collectionCellValueType(baseType, indexTargetType) : baseType;
     }

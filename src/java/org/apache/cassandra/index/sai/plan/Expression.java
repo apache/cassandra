@@ -291,15 +291,17 @@ public abstract class Expression
                 return validateStringValue(value.raw, lower.value.raw);
             else
             {
+                // IN packs all candidate values into a single list-encoded buffer in lower.value, and
+                // comparePostFilter() does not know how to handle that.
+                if (operator == IndexOperator.IN)
+                    return termMatches(value.raw, lower.value.raw);
+
                 // range or (not-)equals - (mainly) for numeric values
                 int cmp = indexTermType.comparePostFilter(lower.value, value);
 
                 // in case of EQ lower == upper
                 if (operator == IndexOperator.EQ || operator == IndexOperator.CONTAINS_KEY || operator == IndexOperator.CONTAINS_VALUE)
                     return cmp == 0;
-
-                if (operator == IndexOperator.IN)
-                    return termMatches(value.raw, lower.value.raw);
 
                 if (cmp > 0 || (cmp == 0 && !lowerInclusive))
                     return false;
