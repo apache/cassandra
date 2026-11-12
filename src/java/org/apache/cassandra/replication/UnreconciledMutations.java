@@ -133,7 +133,7 @@ public class UnreconciledMutations
         // the entry comparator used by stateSet only compares on token and offset. Without this short
         // circuit, this method is not idempotent and adding a duplicate entry object for this token/offset
         // combo will overwrite the entry in statesMap but not statesSet. Since the entry in statesMap
-        // is the one moved from PENDING top VISIBLE, the entry in statesSet would neve move to VISIBLE.
+        // is the one moved from PENDING top VISIBLE, the entry in statesSet would never move to VISIBLE.
         if (statesMap.containsKey(mutation.id().offset()))
             return;
         Entry entry = Entry.create(mutation);
