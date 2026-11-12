@@ -161,6 +161,12 @@ public abstract class ForwardingSSTableReader extends SSTableReader
     }
 
     @Override
+    public RestorableMeter getIndexLookupMeter()
+    {
+        return delegate.getIndexLookupMeter();
+    }
+
+    @Override
     public void releaseInMemoryComponents()
     {
         delegate.releaseInMemoryComponents();
@@ -610,6 +616,12 @@ public abstract class ForwardingSSTableReader extends SSTableReader
     }
 
     @Override
+    public void incrementIndexLookupCount()
+    {
+        delegate.incrementIndexLookupCount();
+    }
+
+    @Override
     public EncodingStats stats()
     {
         return delegate.stats();
@@ -649,6 +661,12 @@ public abstract class ForwardingSSTableReader extends SSTableReader
     public void overrideReadMeter(RestorableMeter readMeter)
     {
         delegate.overrideReadMeter(readMeter);
+    }
+
+    @Override
+    public void overrideIndexLookupMeter(RestorableMeter indexLookupMeter)
+    {
+        delegate.overrideIndexLookupMeter(indexLookupMeter);
     }
 
     @Override
