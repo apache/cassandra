@@ -82,7 +82,7 @@ public abstract class CoordinatorLog
     protected final Offsets.Mutable reconciledPersistedOffsets;
 
     protected final ReadWriteLock lock = new ReentrantReadWriteLock();
-    private final ReentrantLock persistenceLock = new ReentrantLock();
+    private final ReentrantLock systemTableWriteLock = new ReentrantLock();
 
     abstract void receivedWriteResponse(ShortMutationId mutationId, int fromNodeId);
 
@@ -856,7 +856,7 @@ public abstract class CoordinatorLog
 
     void persistToSystemTable()
     {
-        persistenceLock.lock();
+        systemTableWriteLock.lock();
         try
         {
             Map<Integer, List<Integer>> witnessed = new Int2ObjectHashMap<>();
@@ -882,13 +882,13 @@ public abstract class CoordinatorLog
         }
         finally
         {
-            persistenceLock.unlock();
+            systemTableWriteLock.unlock();
         }
     }
 
     void updateLogsInSystemTable()
     {
-        persistenceLock.lock();
+        systemTableWriteLock.lock();
         try
         {
             Offsets.Mutable localWitnessed;
@@ -931,7 +931,7 @@ public abstract class CoordinatorLog
         }
         finally
         {
-            persistenceLock.unlock();
+            systemTableWriteLock.unlock();
         }
     }
 
@@ -1036,14 +1036,14 @@ public abstract class CoordinatorLog
 
     void deleteFromSystemTable()
     {
-        persistenceLock.lock();
+        systemTableWriteLock.lock();
         try
         {
             executeInternal(DELETE_QUERY, keyspace, range.left.toString(), range.right.toString(), logId.hostId, logId.hostLogId);
         }
         finally
         {
-            persistenceLock.unlock();
+            systemTableWriteLock.unlock();
         }
     }
 
