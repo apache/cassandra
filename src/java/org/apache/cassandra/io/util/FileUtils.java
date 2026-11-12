@@ -43,6 +43,7 @@ import java.text.DecimalFormat;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.EnumSet;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Optional;
 import java.util.Set;
@@ -496,36 +497,81 @@ public final class FileUtils
      */
     public static long folderSize(File folder)
     {
-        if (!folder.exists())
-            return 0;
+        return folderSize(folder, true);
+    }
 
-        final long [] sizeArr = {0L};
-        try
+    /**
+     * Get the size of a directory in bytes.
+     * <p>
+     * A file with more hard links in a directory, e.g. an SSTable which is also in snapshots and in backups,
+     * takes the space on disk once. When hard links are not counted, the size of such file is added once and the result
+     * is the space the content of a directory takes on disk. When they are counted, the size of such file is added
+     * for each of its links, as {@link #folderSize(File)} does.
+     * <p>
+     * Links are recognized by {@link BasicFileAttributes#fileKey()}. A file is always counted when a file system
+     * does not provide it.
+     *
+     * @param folder         The directory for which we need size.
+     * @param countHardLinks whether the size of a file is added for each of its hard links in the directory
+     * @return The size of the directory
+     */
+    public static long folderSize(File folder, boolean countHardLinks)
+    {
+        return new FolderSizeVisitor(countHardLinks).sizeOf(folder);
+    }
+
+    /**
+     * Sums the sizes of all files in a directory. Files removed while visiting are skipped.
+     */
+    private static class FolderSizeVisitor extends SimpleFileVisitor<Path>
+    {
+        // keys of visited files, null when every link of a file is meant to be counted
+        private final Set<Object> fileKeys;
+        private long size;
+
+        /**
+         * @param countHardLinks if true, the size of a file is added for each of its hard links,
+         *                       if false, it is added once, no matter how many hard links to it are visited
+         */
+        private FolderSizeVisitor(boolean countHardLinks)
         {
-            Files.walkFileTree(folder.toPath(), new SimpleFileVisitor<Path>()
+            fileKeys = countHardLinks ? null : new HashSet<>();
+        }
+
+        private long sizeOf(File folder)
+        {
+            if (!folder.exists())
+                return 0;
+
+            try
             {
-                @Override
-                public FileVisitResult visitFile(Path file, BasicFileAttributes attrs)
-                {
-                    sizeArr[0] += attrs.size();
-                    return FileVisitResult.CONTINUE;
-                }
+                Files.walkFileTree(folder.toPath(), this);
+            }
+            catch (IOException e)
+            {
+                logger.error("Error while getting {} folder size. {}", folder, e.getMessage());
+            }
+            return size;
+        }
 
-                @Override
-                public FileVisitResult visitFileFailed(Path path, IOException e) throws IOException
-                {
-                    if (e instanceof NoSuchFileException)
-                        return FileVisitResult.CONTINUE;
-                    else
-                        throw e;
-                }
-            });
-        }
-        catch (IOException e)
+        @Override
+        public FileVisitResult visitFile(Path file, BasicFileAttributes attrs)
         {
-            logger.error("Error while getting {} folder size. {}", folder, e.getMessage());
+            // a file is always counted when a file system does not provide its key
+            Object fileKey = fileKeys == null ? null : attrs.fileKey();
+            if (fileKey == null || fileKeys.add(fileKey))
+                size += attrs.size();
+            return FileVisitResult.CONTINUE;
         }
-        return sizeArr[0];
+
+        @Override
+        public FileVisitResult visitFileFailed(Path path, IOException e) throws IOException
+        {
+            if (e instanceof NoSuchFileException)
+                return FileVisitResult.CONTINUE;
+            else
+                throw e;
+        }
     }
 
     public static void append(File file, String ... lines)
