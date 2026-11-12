@@ -520,7 +520,7 @@ public class OnHeapGraph<T>
             // train PQ and encode
             ProductQuantization pq = ProductQuantization.compute(vectorValues, M, PQ_CLUSTERS, false);
             assert !vectorValues.isValueShared();
-            cv = pq.encodeAll(vectorValues);
+            cv = PQEncoder.encodeAll(pq, vectorValues);
         }
         // save
         cv.write(new SequentialWriterAdapter(writer), JVectorUtils.ON_DISK_FORMAT_VERSION);
