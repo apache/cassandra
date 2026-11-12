@@ -145,8 +145,9 @@ public class DiskUsageMonitor
         {
             usable = usable.add(BigInteger.valueOf(usableSpace(e.getKey())));
 
+            // not the raw size, snapshots and backups are hard links to SSTables, they take no space while these are live
             for (Directories.DataDirectory dir : e.getValue())
-                used = used.add(BigInteger.valueOf(dir.getRawSize()));
+                used = used.add(BigInteger.valueOf(dir.getSizeOnDisk()));
         }
 
         // The total disk size for data directories is the space that is actually used by those directories plus the

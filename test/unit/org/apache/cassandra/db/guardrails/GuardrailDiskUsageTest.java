@@ -320,7 +320,7 @@ public class GuardrailDiskUsageTest extends GuardrailTester
     public void testDiskUsageCalculationWithMaxDiskSize() throws IOException
     {
         Directories.DataDirectory directory = mock(Directories.DataDirectory.class);
-        when(directory.getRawSize()).thenReturn(new DataStorageSpec.LongBytesBound("5GiB").toBytes());
+        when(directory.getSizeOnDisk()).thenReturn(new DataStorageSpec.LongBytesBound("5GiB").toBytes());
 
         FileStore store = mock(FileStore.class);
         when(store.getUsableSpace()).thenReturn(new DataStorageSpec.LongBytesBound("95GiB").toBytes()); // 100GiB disk - 5GiB
@@ -358,7 +358,7 @@ public class GuardrailDiskUsageTest extends GuardrailTester
         when(store.getUsableSpace()).thenReturn(new DataStorageSpec.LongBytesBound(freeDiskSizeInBytes + "B").toBytes()); // 100GiB disk
 
         Directories.DataDirectory directory = mock(Directories.DataDirectory.class);
-        when(directory.getRawSize()).thenReturn(new DataStorageSpec.LongBytesBound("5MiB").toBytes());
+        when(directory.getSizeOnDisk()).thenReturn(new DataStorageSpec.LongBytesBound("5MiB").toBytes());
 
         Multimap<FileStore, Directories.DataDirectory> directories = HashMultimap.create();
         directories.put(store, directory);
@@ -392,19 +392,19 @@ public class GuardrailDiskUsageTest extends GuardrailTester
 
         Directories.DataDirectory directory1 = mock(Directories.DataDirectory.class);
         FileStore store1 = mock(FileStore.class);
-        when(directory1.getRawSize()).thenReturn(new DataStorageSpec.LongBytesBound("5GiB").toBytes());
+        when(directory1.getSizeOnDisk()).thenReturn(new DataStorageSpec.LongBytesBound("5GiB").toBytes());
         when(store1.getUsableSpace()).thenReturn(new DataStorageSpec.LongBytesBound("95GiB").toBytes()); // 100 GiB disk - 5 GiB
         directories.put(store1, directory1);
 
         Directories.DataDirectory directory2 = mock(Directories.DataDirectory.class);
         FileStore store2 = mock(FileStore.class);
-        when(directory2.getRawSize()).thenReturn(new DataStorageSpec.LongBytesBound("25GiB").toBytes());
+        when(directory2.getSizeOnDisk()).thenReturn(new DataStorageSpec.LongBytesBound("25GiB").toBytes());
         when(store2.getUsableSpace()).thenReturn(new DataStorageSpec.LongBytesBound("75GiB").toBytes()); // 100 GiB disk - 25 GiB
         directories.put(store2, directory2);
 
         Directories.DataDirectory directory3 = mock(Directories.DataDirectory.class);
         FileStore store3 = mock(FileStore.class);
-        when(directory3.getRawSize()).thenReturn(new DataStorageSpec.LongBytesBound("20GiB").toBytes());
+        when(directory3.getSizeOnDisk()).thenReturn(new DataStorageSpec.LongBytesBound("20GiB").toBytes());
         when(store3.getUsableSpace()).thenReturn(new DataStorageSpec.LongBytesBound("80GiB").toBytes()); // 100 GiB disk - 20 GiB
         directories.put(store3, directory3);
 
@@ -440,13 +440,13 @@ public class GuardrailDiskUsageTest extends GuardrailTester
         Mockito.reset();
 
         Directories.DataDirectory directory1 = mock(Directories.DataDirectory.class);
-        when(directory1.getRawSize()).thenReturn(new DataStorageSpec.LongBytesBound("5GiB").toBytes());
+        when(directory1.getSizeOnDisk()).thenReturn(new DataStorageSpec.LongBytesBound("5GiB").toBytes());
 
         Directories.DataDirectory directory2 = mock(Directories.DataDirectory.class);
-        when(directory2.getRawSize()).thenReturn(new DataStorageSpec.LongBytesBound("25GiB").toBytes());
+        when(directory2.getSizeOnDisk()).thenReturn(new DataStorageSpec.LongBytesBound("25GiB").toBytes());
 
         Directories.DataDirectory directory3 = mock(Directories.DataDirectory.class);
-        when(directory3.getRawSize()).thenReturn(new DataStorageSpec.LongBytesBound("20GiB").toBytes());
+        when(directory3.getSizeOnDisk()).thenReturn(new DataStorageSpec.LongBytesBound("20GiB").toBytes());
 
         FileStore store = mock(FileStore.class);
         when(store.getUsableSpace()).thenReturn(new DataStorageSpec.LongBytesBound("250GiB").toBytes()); // 100 GiB disk (300 - 5 - 25 - 20)
