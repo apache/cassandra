@@ -20,7 +20,13 @@ package org.apache.cassandra.transport.messages;
 import java.util.HashMap;
 import java.util.Map;
 
+import com.google.common.annotations.VisibleForTesting;
+
+import org.apache.commons.lang3.StringEscapeUtils;
+import org.apache.commons.lang3.StringUtils;
+
 import org.apache.cassandra.auth.IAuthenticator;
+import org.apache.cassandra.config.CassandraRelevantProperties;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.db.guardrails.Guardrails;
 import org.apache.cassandra.service.ClientState;
@@ -28,6 +34,7 @@ import org.apache.cassandra.service.QueryState;
 import org.apache.cassandra.transport.CBUtil;
 import org.apache.cassandra.transport.Compressor;
 import org.apache.cassandra.transport.Dispatcher;
+import org.apache.cassandra.transport.Envelope;
 import org.apache.cassandra.transport.Message;
 import org.apache.cassandra.transport.ProtocolException;
 import org.apache.cassandra.transport.ProtocolVersion;
@@ -57,7 +64,8 @@ public class StartupMessage extends Message.Request
     {
         public StartupMessage decode(ByteBuf body, ProtocolVersion version)
         {
-            return new StartupMessage(upperCaseKeys(CBUtil.readStringMap(body)));
+            Map<String, String> wireOptions = CBUtil.readStringMap(body);
+            return new StartupMessage(upperCaseKeys(wireOptions), wireOptions);
         }
 
         public void encode(StartupMessage msg, ByteBuf dest, ProtocolVersion version)
@@ -73,17 +81,38 @@ public class StartupMessage extends Message.Request
 
     private static final byte[] EMPTY_CLIENT_RESPONSE = new byte[0];
 
+    /** The options with their keys upper-cased, which is how the server looks them up. */
     public final Map<String, String> options;
+
+    /**
+     * The options exactly as the client sent them. Validation runs on these rather than on {@link #options} so that
+     * the limits apply to what was on the wire: upper-casing changes the UTF-8 length of some keys and merges keys
+     * that differ only in case, so a key of exactly the maximum length could be rejected and an extra key could pass.
+     */
+    @VisibleForTesting
+    final Map<String, String> wireOptions;
 
     public StartupMessage(Map<String, String> options)
     {
+        this(options, options);
+    }
+
+    private StartupMessage(Map<String, String> options, Map<String, String> wireOptions)
+    {
         super(Message.Type.STARTUP);
         this.options = options;
+        this.wireOptions = wireOptions;
     }
 
     @Override
     protected Message.Response execute(QueryState state, Dispatcher.RequestTime requestTime, boolean traceRequest)
     {
+        // The envelope limit derived by maxEncodedSize() budgets the option map alone. A custom payload precedes the
+        // map in the body and would eat into that budget, and STARTUP has no use for one, so refuse it outright.
+        if (getCustomPayload() != null)
+            throw new ProtocolException("STARTUP message cannot carry a custom payload");
+
+        validateOptions(wireOptions);
         String cqlVersion = options.get(CQL_VERSION);
         if (cqlVersion == null)
             throw new ProtocolException("Missing value CQL_VERSION in STARTUP message");
@@ -174,6 +203,135 @@ public class StartupMessage extends Message.Request
         for (Map.Entry<String, String> entry : options.entrySet())
             newMap.put(toUpperCaseLocalized(entry.getKey()), entry.getValue());
         return newMap;
+    }
+
+    /**
+     * Validates and sanitizes a startup option key or value string.
+     * Enforces byte-length bounds, blocks ISO control characters, newlines,
+     * and ensures keys are non-null.
+     *
+     * @param str the string to validate
+     * @param isKey true if validating a key, false if validating a value
+     * @throws ProtocolException if the string violates validation constraints
+     */
+    private static void validateString(String str, boolean isKey, int maxLength)
+    {
+        if (str == null)
+        {
+            if (isKey)
+                throw new ProtocolException("Startup option keys cannot be null");
+            return;
+        }
+
+        int utf8Length = 0;
+        for (int i = 0; i < str.length(); )
+        {
+            int cp = str.codePointAt(i);
+
+            if (cp == '\n' || cp == '\r')
+                throw new ProtocolException(String.format("Startup option %s contains a newline character at index %d", isKey ? "key" : "value", i));
+
+            int type = Character.getType(cp);
+            if ((Character.isISOControl(cp) && cp != '\t') ||
+                type == Character.SURROGATE ||
+                type == Character.FORMAT ||
+                type == Character.LINE_SEPARATOR ||
+                type == Character.PARAGRAPH_SEPARATOR)
+            {
+                throw new ProtocolException(String.format("Startup option %s contains a forbidden control or formatting character at index %d", isKey ? "key" : "value", i));
+            }
+
+            // accumulate the UTF-8 byte length here to avoid a second pass and a throwaway byte[] (lone
+            // surrogates are rejected above, so cp is always a valid scalar value by this point)
+            utf8Length += utf8ByteCount(cp);
+            i += Character.charCount(cp);
+        }
+
+        // Byte-length limit is opt-in; a negative limit means unlimited.
+        if (maxLength < 0 || utf8Length <= maxLength)
+            return;
+
+        String target = isKey
+                        ? String.format("key '%s'", StringEscapeUtils.escapeJava(StringUtils.abbreviate(str, 23)))
+                        : "value";
+
+        throw new ProtocolException(String.format("Startup option %s exceeds maximum byte length: %d (maximum allowed is %d)",
+                                                  target, utf8Length, maxLength));
+    }
+
+    private static int utf8ByteCount(int codePoint)
+    {
+        if (codePoint < 0x80)
+            return 1;
+        if (codePoint < 0x800)
+            return 2;
+        if (codePoint < 0x10000)
+            return 3;
+        return 4;
+    }
+
+    @VisibleForTesting
+    static void validateOptions(Map<String, String> options)
+    {
+        if (options == null || options.isEmpty())
+            return;
+
+        int maxCount = CassandraRelevantProperties.STARTUP_CLIENT_OPTION_MAX_COUNT.getInt();
+        int maxKeyLength = CassandraRelevantProperties.STARTUP_CLIENT_OPTION_KEY_MAX_LENGTH.getInt();
+        int maxValueLength = CassandraRelevantProperties.STARTUP_CLIENT_OPTION_VALUE_MAX_LENGTH.getInt();
+
+        if (maxCount >= 0 && options.size() > maxCount)
+            throw new ProtocolException(String.format("Too many startup options provided: %d (maximum allowed is %d)", options.size(), maxCount));
+
+        for (Map.Entry<String, String> entry : options.entrySet())
+        {
+            validateString(entry.getKey(), true, maxKeyLength);
+            validateString(entry.getValue(), false, maxValueLength);
+        }
+    }
+
+    /**
+     * Calculates the maximum encoded size of a STARTUP envelope based on the configured client option limits.
+     *
+     * <p>A STARTUP envelope consists of:
+     * <ul>
+     *     <li>The envelope header</li>
+     *     <li>A 2-byte map entry count</li>
+     *     <li>For each option, a 2-byte key length prefix, the key bytes,
+     *         a 2-byte value length prefix, and the value bytes</li>
+     * </ul>
+     *
+     * <p>The calculated size is capped at the maximum native transport frame size.
+     * If any option limit is negative (unlimited), the native transport frame size is returned.
+     *
+     * <p>The CUSTOM_PAYLOAD flag would prepend a {@code [bytes map]} to the body, which this does not budget;
+     * {@link #execute} rejects a STARTUP carrying one, so the limit is exact for every STARTUP the server accepts.
+     *
+     * @return the maximum encoded STARTUP envelope size in bytes
+     */
+    public static long maxEncodedSize()
+    {
+        int count = CassandraRelevantProperties.STARTUP_CLIENT_OPTION_MAX_COUNT.getInt();
+        int key = CassandraRelevantProperties.STARTUP_CLIENT_OPTION_KEY_MAX_LENGTH.getInt();
+        int value = CassandraRelevantProperties.STARTUP_CLIENT_OPTION_VALUE_MAX_LENGTH.getInt();
+
+        long frameLimit = DatabaseDescriptor.getNativeTransportMaxFrameSize();
+
+        // limit = -1 means check is disabled
+        if (count < 0 || key < 0 || value < 0)
+            return frameLimit;
+
+        // Each option is a [string] key and a [string] value: a 2-byte length prefix plus the UTF-8 bytes for each.
+        // The 2-byte map count is per message, not per option, so it is added once below.
+        long perOption = 2L + key + 2L + value;
+
+        long remaining = frameLimit - Envelope.Header.LENGTH - 2L;
+
+        // Prevent overflow and ensure the calculated limit never exceeds the global limit.
+        if (remaining <= 0 || count > remaining / perOption)
+            return frameLimit;
+
+        return Envelope.Header.LENGTH + 2L + (long) count * perOption;
     }
 
     @Override

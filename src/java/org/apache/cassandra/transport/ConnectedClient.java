@@ -21,9 +21,11 @@ import java.net.InetSocketAddress;
 import java.util.Collections;
 import java.util.Map;
 import java.util.Optional;
+import java.util.stream.Collectors;
 
-import com.google.common.base.Joiner;
 import com.google.common.collect.ImmutableMap;
+
+import org.apache.commons.lang3.StringUtils;
 
 import org.apache.cassandra.auth.AuthenticatedUser;
 import org.apache.cassandra.auth.IAuthenticator;
@@ -48,6 +50,9 @@ public final class ConnectedClient
     public static final String PROTOCOL = "protocol";
     public static final String AUTHENTICATION_MODE = "authenticationMode";
     public static final String AUTHENTICATION_METADATA = "authenticationMetadata";
+
+    private static final String[] SEARCH  = { "\\",   ",",   "="   };
+    private static final String[] REPLACE = { "\\\\", "\\,", "\\=" };
 
     private static final String UNDEFINED = "undefined";
 
@@ -158,26 +163,67 @@ public final class ConnectedClient
         return connection.channel().pipeline().get(SslHandler.class);
     }
 
+    /**
+     * @return true once the client has authenticated (has a user).
+     * Unauthenticated clients are still visible in operator-facing views, but the metadata they supplied in STARTUP
+     * (the options and the driver name and version taken from them) is withheld until authentication.
+     */
+    public boolean loggedIn()
+    {
+        return state() != null && state().getUser() != null;
+    }
+
     public Map<String, String> asMap()
     {
+        // Only the STARTUP options and the driver name and version taken from them are supplied by the client before
+        // it authenticates; every other entry is derived by the server. Until then those three show what a connection
+        // that has not sent STARTUP shows, so that the map always carries the same keys for its JMX consumers.
+        boolean withhold = !loggedIn();
         return ImmutableMap.<String, String>builder()
                            .put(ADDRESS, remoteAddress().toString())
                            .put(USER, username().orElse(UNDEFINED))
                            .put(VERSION, String.valueOf(protocolVersion()))
-                           .put(CLIENT_OPTIONS, Joiner.on(", ")
-                                                      .withKeyValueSeparator("=")
-                                                      .join(clientOptions().orElse(Collections.emptyMap())))
-                           .put(DRIVER_NAME, driverName().orElse(UNDEFINED))
-                           .put(DRIVER_VERSION, driverVersion().orElse(UNDEFINED))
+                           .put(CLIENT_OPTIONS, withhold ? "" : joinEscaped(clientOptions().orElse(Collections.emptyMap())))
+                           .put(DRIVER_NAME, withhold ? UNDEFINED : driverName().orElse(UNDEFINED))
+                           .put(DRIVER_VERSION, withhold ? UNDEFINED : driverVersion().orElse(UNDEFINED))
                            .put(REQUESTS, String.valueOf(requestCount()))
                            .put(KEYSPACE, keyspace().orElse(""))
                            .put(SSL, Boolean.toString(sslEnabled()))
                            .put(CIPHER, sslCipherSuite().orElse(UNDEFINED))
                            .put(PROTOCOL, sslProtocol().orElse(UNDEFINED))
                            .put(AUTHENTICATION_MODE, authenticationMode().toString())
-                           .put(AUTHENTICATION_METADATA, Joiner.on(", ")
-                                                               .withKeyValueSeparator("=")
-                                                               .join(authenticationMetadata()))
+                           .put(AUTHENTICATION_METADATA, joinEscaped(authenticationMetadata()))
                            .build();
+    }
+
+    /**
+     * Renders a map as {@code key=value, key=value} with every key and value escaped by
+     * {@link #escapeOptionString(String)}, so that a key or value containing a delimiter cannot forge extra entries
+     * in operator-facing output. Used for the client options and the authentication metadata alike: both reach the
+     * same consumers and neither is under the operator's control, since an authenticator takes the metadata from
+     * what the client presents.
+     */
+    static String joinEscaped(Map<String, ?> map)
+    {
+        return map.entrySet()
+                  .stream()
+                  .map(e -> escapeOptionString(e.getKey()) + '=' + escapeOptionString(String.valueOf(e.getValue())))
+                  .collect(Collectors.joining(", "));
+    }
+
+    /**
+     * Escapes backslashes first, then special delimiter characters (commas and equals signs)
+     * in keys and values to prevent format injection in operator-facing maps.
+     * <p>
+     * Example: {@code foo,bar=baz} becomes {@code foo\\,bar\\=baz}
+     *
+     * @param str the raw option string
+     * @return the safely escaped string
+     */
+    static String escapeOptionString(String str)
+    {
+        if (str == null)
+            return "";
+        return StringUtils.replaceEach(str, SEARCH, REPLACE);
     }
 }

@@ -35,6 +35,7 @@ import org.apache.cassandra.cql3.QueryProcessor;
 import org.apache.cassandra.exceptions.TransportException;
 import org.apache.cassandra.transport.messages.OptionsMessage;
 import org.apache.cassandra.transport.messages.QueryMessage;
+import org.apache.cassandra.transport.messages.ResultMessage;
 import org.apache.cassandra.transport.messages.StartupMessage;
 
 import static com.datastax.driver.core.ProtocolVersion.NEWEST_BETA;
@@ -45,6 +46,7 @@ import static com.datastax.driver.core.ProtocolVersion.V3;
 import static com.datastax.driver.core.ProtocolVersion.V4;
 import static com.datastax.driver.core.ProtocolVersion.V5;
 import static com.datastax.driver.core.ProtocolVersion.V6;
+import static org.apache.cassandra.transport.messages.StartupMessage.COMPRESSION;
 import static org.apache.cassandra.transport.messages.StartupMessage.CQL_VERSION;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertTrue;
@@ -93,6 +95,28 @@ public class ProtocolNegotiationTest extends CQLTester
     {
         testConnection(V1, V4);
         testConnection(V2, V4);
+    }
+
+    @Test
+    public void connectsWithLowerCaseCompressionOption()
+    {
+        // The server matches COMPRESSION case-insensitively; SimpleClient.connect(Map) has to as well, or the server
+        // compresses while the client has no compressor and nothing after STARTUP can be decoded.
+        for (ProtocolVersion version : new ProtocolVersion[]{ ProtocolVersion.V4, ProtocolVersion.V5 })
+        {
+            try (SimpleClient client = SimpleClient.builder(nativeAddr.getHostAddress(), nativePort)
+                                                   .protocolVersion(version)
+                                                   .build())
+            {
+                client.connect(ImmutableMap.of(CQL_VERSION, QueryProcessor.CQL_VERSION.toString(), COMPRESSION, "lz4"));
+                Message.Response response = client.execute(new QueryMessage("SELECT * FROM system.local", QueryOptions.DEFAULT));
+                assertTrue(version + ": expected rows but received " + response, response instanceof ResultMessage.Rows);
+            }
+            catch (IOException e)
+            {
+                throw new RuntimeException(e);
+            }
+        }
     }
 
     @Test

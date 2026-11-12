@@ -279,7 +279,12 @@ public class PipelineConfigurator
             pipeline.addLast(DEBUG_HANDLER, new LoggingHandler(LogLevel.INFO));
 
         pipeline.addLast(ENVELOPE_ENCODER, Envelope.Encoder.instance);
-        pipeline.addLast(INITIAL_HANDLER, new InitialConnectionHandler(new Envelope.Decoder(), connectionFactory, this));
+        // Before STARTUP only OPTIONS, whose body is empty, and STARTUP are accepted, so nothing larger than a STARTUP
+        // is ever valid here. Envelope.Decoder buffers the whole body before InitialConnectionHandler sees the message,
+        // so bounding only the STARTUP opcode would let an unauthenticated client pin native_transport_max_frame_size
+        // bytes per connection by claiming that body length under another opcode and never sending the body.
+        Envelope.Decoder initialDecoder = new Envelope.Decoder(StartupMessage.maxEncodedSize());
+        pipeline.addLast(INITIAL_HANDLER, new InitialConnectionHandler(initialDecoder, connectionFactory, this));
         // The exceptionHandler will take care of handling exceptionCaught(...) events while still running
         // on the same EventLoop as all previous added handlers in the pipeline. This is important as the used
         // eventExecutorGroup may not enforce strict ordering for channel events.
@@ -308,7 +313,7 @@ public class PipelineConfigurator
 
         // CQL level encoders/decoders
         Message.Decoder<Message.Request> messageDecoder = messageDecoder();
-        Envelope.Decoder envelopeDecoder = new Envelope.Decoder();
+        Envelope.Decoder envelopeDecoder = newEnvelopeDecoder();
 
         // Any non-fatal errors caught in CQLMessageHandler propagate back to the client
         // via the pipeline. Firing the exceptionCaught event on an inbound handler context
@@ -405,7 +410,7 @@ public class PipelineConfigurator
     public void configureLegacyPipeline(ChannelHandlerContext ctx, ClientResourceLimits.Allocator limits)
     {
         ChannelPipeline pipeline = ctx.channel().pipeline();
-        pipeline.addBefore(ENVELOPE_ENCODER, ENVELOPE_DECODER, new Envelope.Decoder());
+        pipeline.addBefore(ENVELOPE_ENCODER, ENVELOPE_DECODER, newEnvelopeDecoder());
         pipeline.addBefore(INITIAL_HANDLER, MESSAGE_DECOMPRESSOR, Envelope.Decompressor.instance);
         pipeline.addBefore(INITIAL_HANDLER, MESSAGE_COMPRESSOR, Envelope.Compressor.instance);
         pipeline.addBefore(INITIAL_HANDLER, MESSAGE_DECODER, PreV5Handlers.ProtocolDecoder.instance);
@@ -413,6 +418,11 @@ public class PipelineConfigurator
         pipeline.addBefore(INITIAL_HANDLER, LEGACY_MESSAGE_PROCESSOR, new PreV5Handlers.LegacyDispatchHandler(dispatcher, queueBackpressure, limits));
         pipeline.remove(INITIAL_HANDLER);
         onNegotiationComplete(pipeline);
+    }
+
+    private Envelope.Decoder newEnvelopeDecoder()
+    {
+        return new Envelope.Decoder(DatabaseDescriptor.getNativeTransportMaxFrameSize(), StartupMessage.maxEncodedSize());
     }
 }
 
