@@ -76,6 +76,12 @@ public class Participants
         return Arrays.equals(this.hosts, that.hosts);
     }
 
+    @Override
+    public int hashCode()
+    {
+        return Arrays.hashCode(hosts);
+    }
+
     Set<Integer> asSet()
     {
         IntHashSet set = new IntHashSet(hosts.length);

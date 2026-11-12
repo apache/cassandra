@@ -287,6 +287,58 @@ public class MutationTrackingServiceTest
         assertEquals(0, MutationTrackingService.TestAccess.countLogsFor(service, dropped));
     }
 
+    @Test
+    public void testUntrackedSchemaChangeDoesNotRequireShardUpdate()
+    {
+        MutationTrackingService service = MutationTrackingService.TestAccess.create();
+        ClusterMetadata before = ClusterMetadata.current();
+        MutationTrackingService.TestAccess.onNewClusterMetadata(service, null, before);
+        assertNotNull(MutationTrackingService.TestAccess.getKeyspaceShards(service, TEST_KEYSPACE));
+
+        String untracked = "untracked_ks";
+        SchemaLoader.createKeyspace(untracked, KeyspaceParams.simple(1), SchemaLoader.standardCFMD(untracked, TEST_TABLE));
+        ClusterMetadata after = ClusterMetadata.current();
+        assertTrue(after.epoch.isAfter(before.epoch));
+
+        Assert.assertFalse("Creating an untracked keyspace must not trigger a mutation tracking shard update",
+                           MutationTrackingService.TestAccess.shardUpdateNeeded(service, before, after));
+    }
+
+    @Test
+    public void testTrackedKeyspaceTriggerShardUpdateOnlyWhenRequired()
+    {
+        MutationTrackingService service = MutationTrackingService.TestAccess.create();
+        ClusterMetadata before = ClusterMetadata.current();
+        MutationTrackingService.TestAccess.onNewClusterMetadata(service, null, before);
+        KeyspaceShards shardsBefore = MutationTrackingService.TestAccess.getKeyspaceShards(service, TEST_KEYSPACE);
+        assertNotNull(shardsBefore);
+
+        Assert.assertFalse("Unchanged cluster metadata must not trigger a mutation tracking shard update",
+                           MutationTrackingService.TestAccess.shardUpdateNeeded(service, before, before));
+
+        // Adding a table to the tracked keyspace does not touch its replication params, the participants for
+        // every range - are unchanged
+        SchemaTestUtil.announceNewTable(SchemaLoader.standardCFMD(TEST_KEYSPACE, TEST_TABLE + "_extra").build());
+        ClusterMetadata afterNewTable = ClusterMetadata.current();
+        assertTrue(afterNewTable.epoch.isAfter(before.epoch));
+
+        Assert.assertFalse("Adding a table to a tracked keyspace must not trigger a mutation tracking shard update",
+                           MutationTrackingService.TestAccess.shardUpdateNeeded(service, before, afterNewTable));
+
+        MutationTrackingService.TestAccess.onNewClusterMetadata(service, before, afterNewTable);
+        Assert.assertSame("Shards must be carried forward when no shard update is needed",
+                          shardsBefore, MutationTrackingService.TestAccess.getKeyspaceShards(service, TEST_KEYSPACE));
+
+        // a change that does affect tracked keyspaces still triggers an update.
+        String added = "newly_tracked_ks";
+        SchemaLoader.createKeyspace(added, KeyspaceParams.simple(1, ReplicationType.tracked), SchemaLoader.standardCFMD(added, TEST_TABLE));
+        ClusterMetadata afterNewTrackedKeyspace = ClusterMetadata.current();
+        assertTrue(afterNewTrackedKeyspace.epoch.isAfter(afterNewTable.epoch));
+
+        assertTrue("Creating a tracked keyspace must trigger a mutation tracking shard update",
+                   MutationTrackingService.TestAccess.shardUpdateNeeded(service, afterNewTable, afterNewTrackedKeyspace));
+    }
+
     /**
      * Replicas treat unknown coordinator logs in received summaries as locally missing.
      */

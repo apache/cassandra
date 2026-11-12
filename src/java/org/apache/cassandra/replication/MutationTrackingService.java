@@ -24,6 +24,7 @@ import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
@@ -1367,6 +1368,23 @@ public class MutationTrackingService implements MutationTrackingServiceMBean
                 this.participants = participants;
                 this.forRange = forRange;
             }
+
+            @Override
+            public boolean equals(Object o)
+            {
+                if (this == o)
+                    return true;
+                if (!(o instanceof ParticipantForRange))
+                    return false;
+                ParticipantForRange that = (ParticipantForRange) o;
+                return participants.equals(that.participants) && forRange.equals(that.forRange);
+            }
+
+            @Override
+            public int hashCode()
+            {
+                return Objects.hash(participants, forRange);
+            }
         }
 
         private static Map<Range<Token>, ParticipantForRange> calculateParticipantsForRange(KeyspaceMetadata keyspace, ClusterMetadata cluster)
@@ -2067,6 +2085,11 @@ public class MutationTrackingService implements MutationTrackingServiceMBean
         public static long countLogsFor(MutationTrackingService service, String keyspace)
         {
             return service.log2ShardMap.values().stream().filter(shard -> shard.keyspace.equals(keyspace)).count();
+        }
+
+        public static boolean shardUpdateNeeded(MutationTrackingService service, @Nullable ClusterMetadata prev, ClusterMetadata next)
+        {
+            return MutationTrackingService.shardUpdateNeeded(service.keyspaceShards, prev, next);
         }
 
         /**
