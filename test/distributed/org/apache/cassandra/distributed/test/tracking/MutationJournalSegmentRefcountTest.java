@@ -196,7 +196,7 @@ public class MutationJournalSegmentRefcountTest extends TestBaseImpl
     /**
      * CASSANDRA-21406 (item 4): under normal operation an unrepaired sstable can hold its journal segments for an
      * unbounded time (compaction, where reconciled sstables are born repaired, may not run for cold tables). When
-     * the journal grows past mutation_tracking.journal_promotion_threshold, already durably-reconciled unrepaired
+     * the journal grows past mutation_tracking.journal_reclaim_threshold, already durably-reconciled unrepaired
      * sstables are promoted to repaired out of band, releasing their segments even without a compaction.
      */
     @Test(timeout = 120_000)
@@ -204,7 +204,7 @@ public class MutationJournalSegmentRefcountTest extends TestBaseImpl
     {
         try (Cluster cluster = Cluster.build(3)
                                       .withConfig(cfg -> cfg.with(Feature.NETWORK).with(Feature.GOSSIP)
-                                                            .set("mutation_tracking.journal_promotion_threshold", "1KiB"))
+                                                            .set("mutation_tracking.journal_reclaim_threshold", "1KiB"))
                                       .start())
         {
             cluster.schemaChange(withKeyspace(CREATE_KEYSPACE));

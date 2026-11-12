@@ -117,7 +117,7 @@ public class TrackedPreviewRepairTest extends TestBaseImpl
                                                                                     // journal size limits causes sstables to be promoted to repaired
                                                                                     // clearing their offsets. Setting a large limit let's
                                                                                     // the tests control this with manual compaction disabling/enabling
-                                                                                    .set("mutation_tracking.journal_promotion_threshold", "1000GiB");
+                                                                                    .set("mutation_tracking.journal_reclaim_threshold", "1000GiB");
 
     private static Cluster CLUSTER;
     private static final AtomicInteger UNIQUE_SUFFIX = new AtomicInteger();
