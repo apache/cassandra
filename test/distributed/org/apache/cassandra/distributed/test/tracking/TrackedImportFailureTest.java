@@ -139,7 +139,7 @@ public class TrackedImportFailureTest extends TrackedTransferTestBase
                 assertRows(rows, row(1, 1));
             });
 
-            assertCompaction(cluster, cluster, TRANSFERS_EXIST, TRANSFERS_EMPTY);
+            assertCompaction(cluster, cluster, TRANSFERS_EXIST, TRANSFERS_PROMOTED);
 
             // Activation completed, files should be removed
             assertPendingDirs(cluster, (File pendingUuidDir) -> {
@@ -250,11 +250,19 @@ public class TrackedImportFailureTest extends TrackedTransferTestBase
                 int repaired = 0;
                 for (SSTableReader sstable : cfs.getLiveSSTables())
                 {
-                    Assertions.assertThat(sstable.getCoordinatorLogOffsets().transfers())
-                              .describedAs("promotion should have cleared the offsets of %s", sstable)
-                              .isEmpty();
                     if (sstable.isRepaired())
+                    {
+                        Assertions.assertThat(sstable.getCoordinatorLogOffsets().transfers())
+                                  .describedAs("promotion should have kept the transfers of %s", sstable)
+                                  .isNotEmpty();
                         repaired++;
+                    }
+                    else
+                    {
+                        Assertions.assertThat(sstable.getCoordinatorLogOffsets().transfers())
+                                  .describedAs("unrepaired %s has no transfer", sstable)
+                                  .isEmpty();
+                    }
                 }
                 Assertions.assertThat(repaired)
                           .describedAs("promotion should have taken the transfer and nothing else")

@@ -94,8 +94,8 @@ public class TrackedImportTransferTest extends TrackedTransferTestBase
             assertThat(pendingUuidDir.listUnchecked(File::isFile)).isEmpty();
         });
 
-        // Verify transfer IDs exist before compaction, then compact, then verify they're removed
-        assertCompaction(cluster, keyspace, cluster, TRANSFERS_EXIST, TRANSFERS_EMPTY);
+        // Verify transfer IDs exist before compaction, then compact, then verify they survive promotion to repaired
+        assertCompaction(cluster, keyspace, cluster, TRANSFERS_EXIST, TRANSFERS_PROMOTED);
 
         // Run after compaction, to enforce offset persistence + broadcast
         assertSummary(cluster, keyspace, summary -> {
