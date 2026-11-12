@@ -282,12 +282,19 @@ public class Operation
                 case CONTAINS_KEY:
                     indexTargetType = IndexTarget.Type.KEYS;
                     break;
+                case LT:
+                case LTE:
+                case GT:
+                case GTE:
+                    // Range operators compare the whole collection, so they fall through to the default SIMPLE target.
+                    break;
                 default:
-                    throw new InvalidRequestException("Invalid operator");
+                    throw new InvalidRequestException(String.format("Invalid operator %s for collection column %s",
+                                                                     expression.operator(), expression.column().name));
             }
 
             // Post-filtering on frozen collection elements isn't supported yet.
-            if (!type.isMultiCell() && indexTargetType != IndexTarget.Type.FULL)
+            if (!type.isMultiCell() && indexTargetType.hasElementTarget())
                 throw new InvalidRequestException(String.format(FROZEN_COLLECTION_ELEMENT_FILTERING_NOT_SUPPORTED, expression.operator(), expression.column().name));
         }
         return indexTargetType;

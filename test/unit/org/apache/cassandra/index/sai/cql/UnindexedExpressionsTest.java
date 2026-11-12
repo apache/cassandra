@@ -29,6 +29,40 @@ import static org.junit.Assert.assertTrue;
 public class UnindexedExpressionsTest extends SAITester
 {
     @Test
+    public void inOnIndexedFixedLengthColumnIsPostFiltered() throws Throwable
+    {
+        createTable("CREATE TABLE %s (k int PRIMARY KEY, v1 uuid, v2 int)");
+        createIndex("CREATE INDEX ON %s(v2) USING 'sai'");
+
+        execute("INSERT INTO %s (k, v1, v2) VALUES (1, 00000000-0000-4000-8000-000000000001, 1)");
+        execute("INSERT INTO %s (k, v1, v2) VALUES (2, 00000000-0000-4000-8000-000000000002, 1)");
+        execute("INSERT INTO %s (k, v1, v2) VALUES (3, 00000000-0000-4000-8000-000000000003, 2)");
+
+        beforeAndAfterFlush(() -> {
+            assertRowsIgnoringOrder(execute("SELECT k FROM %s WHERE v1 IN (00000000-0000-4000-8000-000000000001, 00000000-0000-4000-8000-000000000003) AND v2 = 1 ALLOW FILTERING"), row(1));
+            assertRowsIgnoringOrder(execute("SELECT k FROM %s WHERE v1 IN (00000000-0000-4000-8000-000000000001, 00000000-0000-4000-8000-000000000002) AND v2 = 1 ALLOW FILTERING"), row(1), row(2));
+            assertTrue(execute("SELECT k FROM %s WHERE v1 IN (00000000-0000-4000-8000-000000000003, 00000000-0000-4000-8000-000000000004) AND v2 = 1 ALLOW FILTERING").isEmpty());
+        });
+    }
+
+    @Test
+    public void inOnIndexedInetColumnIsPostFiltered() throws Throwable
+    {
+        createTable("CREATE TABLE %s (k int PRIMARY KEY, v1 inet, v2 int)");
+        createIndex("CREATE INDEX ON %s(v2) USING 'sai'");
+
+        execute("INSERT INTO %s (k, v1, v2) VALUES (1, '127.0.0.1', 1)");
+        execute("INSERT INTO %s (k, v1, v2) VALUES (2, '2001:db8::1', 1)");
+        execute("INSERT INTO %s (k, v1, v2) VALUES (3, '127.0.0.3', 2)");
+
+        beforeAndAfterFlush(() -> {
+            assertRowsIgnoringOrder(execute("SELECT k FROM %s WHERE v1 IN ('127.0.0.1', '127.0.0.3') AND v2 = 1 ALLOW FILTERING"), row(1));
+            assertRowsIgnoringOrder(execute("SELECT k FROM %s WHERE v1 IN ('127.0.0.1', '2001:db8::1') AND v2 = 1 ALLOW FILTERING"), row(1), row(2));
+            assertTrue(execute("SELECT k FROM %s WHERE v1 IN ('127.0.0.3', '2001:db8::2') AND v2 = 1 ALLOW FILTERING").isEmpty());
+        });
+    }
+
+    @Test
     public void inOperatorIsNotHandledByIndexTest() throws Throwable
     {
         createTable("CREATE TABLE %s (k int PRIMARY KEY, v1 int, v2 int)");
@@ -131,6 +165,23 @@ public class UnindexedExpressionsTest extends SAITester
         // CONTAINS against frozen collection elements (mixed with another indexed predicate) isn't supported yet.
         beforeAndAfterFlush(() -> assertInvalidMessage(String.format(Operation.FROZEN_COLLECTION_ELEMENT_FILTERING_NOT_SUPPORTED, "CONTAINS", 's'),
                                                        "SELECT k FROM %s WHERE v = 1 AND s CONTAINS '10.0.0.2' ALLOW FILTERING"));
+    }
+
+    @Test
+    public void unindexedFrozenMapRangeRestriction() throws Throwable
+    {
+        createTable("CREATE TABLE %s (pk int, ck int, m frozen<map<int, text>>, v int, PRIMARY KEY (pk, ck))");
+        createIndex("CREATE INDEX ON %s(v) USING 'sai'");
+
+        execute("INSERT INTO %s (pk, ck, m, v) VALUES (1, 1, {1: 'a'}, 7)");
+        execute("INSERT INTO %s (pk, ck, m, v) VALUES (1, 2, {5: 'm'}, 7)");
+        execute("INSERT INTO %s (pk, ck, m, v) VALUES (1, 3, {9: 'z'}, 7)");
+
+        beforeAndAfterFlush(() -> {
+            assertRows(execute("SELECT ck FROM %s WHERE v = 7 AND m >= {5: 'm'} ALLOW FILTERING"), row(2), row(3));
+            assertRows(execute("SELECT ck FROM %s WHERE v = 7 AND m < {5: 'm'} ALLOW FILTERING"), row(1));
+            assertEmpty(execute("SELECT ck FROM %s WHERE v = 7 AND m > {9: 'z'} ALLOW FILTERING"));
+        });
     }
 
     @Test
