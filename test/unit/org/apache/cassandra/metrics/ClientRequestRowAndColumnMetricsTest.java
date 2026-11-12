@@ -376,7 +376,8 @@ public class ClientRequestRowAndColumnMetricsTest extends CQLTester
             client.connect(false);
 
             String first = String.format("INSERT INTO %s.%s (pk, ck, v1, v2) VALUES (1, 2, 3, 4)", KEYSPACE, currentTable());
-            String second = String.format("DELETE FROM %s.%s WHERE pk = 1 AND ck > 1", KEYSPACE, currentTable());
+            // If deletion affects the insert above, we may get incorrect row/column counts.
+            String second = String.format("DELETE FROM %s.%s WHERE pk = 1 AND ck > 3", KEYSPACE, currentTable());
 
             List<byte[][]> values = ImmutableList.of(ByteArrayUtil.EMPTY_ARRAY_OF_BYTE_ARRAYS, ByteArrayUtil.EMPTY_ARRAY_OF_BYTE_ARRAYS);
             BatchMessage batch = new BatchMessage(BatchStatement.Type.LOGGED, ImmutableList.of(first, second), values, QueryOptions.DEFAULT);

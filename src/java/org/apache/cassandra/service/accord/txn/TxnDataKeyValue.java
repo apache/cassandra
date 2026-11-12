@@ -73,7 +73,7 @@ public class TxnDataKeyValue extends FilteredPartition implements TxnDataValue
         Row staticRow = staticRow();
         if (staticRow != null)
             size += staticRow.unsharedHeapSize();
-        for (Row row : this)
+        for (Row row : rows())
             size += row.unsharedHeapSize();
         // TODO: Include the other parts of FilteredPartition after we rebase to pull in BTreePartitionData?
         return size;

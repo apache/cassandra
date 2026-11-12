@@ -207,6 +207,8 @@ public class SecondaryIndexOnMapEntriesTest extends CQLTester
         Object[] baz = insertIntoSimpleTable("baz", map("common", 31415,
                                                         "target", 8192));
 
+        assertRowsForConditions(entry("common", 31415),
+                                bar, baz, foo);
         assertRowsForConditions(entry("target", 8192),
                                 bar, baz, foo);
         baz = updateMapInSimpleTable(baz, "target", 4096);
@@ -219,6 +221,13 @@ public class SecondaryIndexOnMapEntriesTest extends CQLTester
         assertNoRowsForConditions(entry("target", 8192));
         assertRowsForConditions(entry("common", 31415),
                                 bar, baz);
+        assertRowsForConditions(entry("target", 4096),
+                                baz);
+
+        execute("DELETE v FROM %s WHERE k = 'bar'");
+        assertNoRowsForConditions(entry("target", 8192));
+        assertRowsForConditions(entry("common", 31415),
+                                baz);
         assertRowsForConditions(entry("target", 4096),
                                 baz);
     }

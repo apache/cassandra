@@ -137,7 +137,7 @@ public class RowUpdateBuilder
 
     public static Mutation deleteRowAt(TableMetadata metadata, long timestamp, long localDeletionTime, Object key, Object... clusteringValues)
     {
-        PartitionUpdate.Builder update = new PartitionUpdate.Builder(metadata, makeKey(metadata, key), metadata.regularAndStaticColumns(), 0);
+        PartitionUpdate.Builder update = PartitionUpdate.builder(metadata, makeKey(metadata, key), metadata.regularAndStaticColumns(), 0);
         deleteRow(update, timestamp, localDeletionTime, clusteringValues);
         return new Mutation.PartitionUpdateCollector(update.metadata().keyspace, update.partitionKey()).add(update.build()).build();
     }

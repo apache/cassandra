@@ -30,7 +30,6 @@ import org.apache.cassandra.io.util.DataInputPlus;
 import org.apache.cassandra.io.util.DataOutputPlus;
 import org.apache.cassandra.net.MessagingService;
 import org.apache.cassandra.schema.ColumnMetadata;
-import org.apache.cassandra.utils.CassandraUInt;
 import org.apache.cassandra.utils.memory.ByteBufferCloner;
 import org.apache.cassandra.utils.memory.Cloner;
 
@@ -43,19 +42,8 @@ import org.apache.cassandra.utils.memory.Cloner;
  *   2) expiring cells: on top of regular cells, those have a ttl and a local deletion time (when they are expired).
  *   3) tombstone cells: those won't have value, but they have a local deletion time (when the tombstone was created).
  */
-public abstract class Cell<V> extends ColumnData implements CellLivenessInfo
+public abstract class Cell<V> extends ColumnData implements CellData<V, Cell<?>>
 {
-    public static final int NO_TTL = 0;
-    public static final long NO_DELETION_TIME = Long.MAX_VALUE;
-    public static final int NO_DELETION_TIME_UNSIGNED_INTEGER = CassandraUInt.MAX_VALUE_UINT;
-    public static final long MAX_DELETION_TIME = CassandraUInt.MAX_VALUE_LONG - 2;
-    public static final int MAX_DELETION_TIME_UNSIGNED_INTEGER = CassandraUInt.fromLong(MAX_DELETION_TIME);
-
-    // Since C14227 we only support Uints, negative ldts (corruption, overflow) get converted to this
-    public static final long INVALID_DELETION_TIME = CassandraUInt.MAX_VALUE_LONG - 1;
-    // Do not use. Only for legacy ser/deser pre CASSANDRA-14227 and backwards compatible CAP policies
-    public static final int MAX_DELETION_TIME_2038_LEGACY_CAP = Integer.MAX_VALUE - 1;
-
     public final static Comparator<Cell<?>> comparator = (c1, c2) ->
     {
         int cmp = c1.column().compareTo(c2.column());
@@ -78,106 +66,12 @@ public abstract class Cell<V> extends ColumnData implements CellLivenessInfo
         super(column);
     }
 
-    public static int deletionTimeLongToUnsignedInteger(long deletionTime)
-    {
-        return deletionTime == NO_DELETION_TIME ? NO_DELETION_TIME_UNSIGNED_INTEGER : CassandraUInt.fromLong(deletionTime);
-    }
-
-    public static long deletionTimeUnsignedIntegerToLong(int deletionTimeUnsignedInteger)
-    {
-        return deletionTimeUnsignedInteger == NO_DELETION_TIME_UNSIGNED_INTEGER ? NO_DELETION_TIME : CassandraUInt.toLong(deletionTimeUnsignedInteger);
-    }
-
-    public static long getVersionedMaxDeletiontionTime()
-    {
-        if (DatabaseDescriptor.getStorageCompatibilityMode().disabled())
-            // The whole cluster is 2016, we're out of the 2038/2106 mixed cluster scenario. Shortcut to avoid the 'minClusterVersion' volatile read
-            return Cell.MAX_DELETION_TIME;
-        else
-            return MessagingService.instance().versions.minClusterVersion >= MessagingService.VERSION_50
-                   ? Cell.MAX_DELETION_TIME
-                   : Cell.MAX_DELETION_TIME_2038_LEGACY_CAP;
-    }
-
-    /**
-     * Whether the cell is a counter cell or not.CassandraUInt
-     *
-     * @return whether the cell is a counter cell or not.
-     */
-    public abstract boolean isCounterCell();
-
-    public abstract V value();
-
-    public abstract ValueAccessor<V> accessor();
-
-    public int valueSize()
-    {
-        return accessor().size(value());
-    }
-
-    public ByteBuffer buffer()
-    {
-        return accessor().toBuffer(value());
-    }
-
     public byte[] valueAsArray()
     {
         return accessor().toArray(value());
     }
 
-    /**
-     * The cell timestamp.
-     * <p>
-     * @return the cell timestamp.
-     */
-    public abstract long timestamp();
-
-    /**
-     * The cell ttl.
-     *
-     * @return the cell ttl, or {@code NO_TTL} if the cell isn't an expiring one.
-     */
-    public abstract int ttl();
-
-    /**
-     * The cell local deletion time.
-     *
-     * @return the cell local deletion time, or {@code NO_DELETION_TIME} if the cell is neither
-     * a tombstone nor an expiring one.
-     */
-    public long localDeletionTime()
-    {
-        return deletionTimeUnsignedIntegerToLong(localDeletionTimeAsUnsignedInt());
-    }
-
     public abstract long minDeletionTime();
-
-    /**
-     * Whether the cell is a tombstone or not.
-     *
-     * @return whether the cell is a tombstone or not.
-     */
-    public abstract boolean isTombstone();
-
-    /**
-     * Whether the cell is an expiring one or not.
-     * <p>
-     * Note that this only correspond to whether the cell liveness info
-     * have a TTL or not, but doesn't tells whether the cell is already expired
-     * or not. You should use {@link #isLive} for that latter information.
-     *
-     * @return whether the cell is an expiring one or not.
-     */
-    public abstract boolean isExpiring();
-
-    /**
-     * Whether the cell is live or not given the current time.
-     *
-     * @param nowInSec the current time in seconds. This is used to
-     * decide if an expiring cell is expired or live.
-     * @return whether the cell is live or not at {@code nowInSec}.
-     */
-    public abstract boolean isLive(long nowInSec);
 
     public final boolean isLive(long nowInSec, long localDeletionTime, int ttl)
     {
@@ -200,10 +94,11 @@ public abstract class Cell<V> extends ColumnData implements CellLivenessInfo
 
     public abstract Cell<?> withUpdatedTimestampAndLocalDeletionTime(long newTimestamp, long newLocalDeletionTime);
 
+    @Override
+    public abstract Cell<?> updateAllTimestamp(long newTimestamp);
+
     /**
-     * Used to apply the same optimization as in {@link Cell.Serializer#deserialize} when
-     * the column is not queried but eventhough it's used for digest calculation.
-     * @return a cell with an empty buffer as value
+     * {@inheritDoc} Redeclared here to clarify the return type.
      */
     public abstract Cell<?> withSkippedValue();
 
@@ -229,10 +124,12 @@ public abstract class Cell<V> extends ColumnData implements CellLivenessInfo
     public abstract Cell<?> purge(DeletionPurger purger, long nowInSec);
 
     @Override
-    // Overrides super type to provide a more precise return type.
-    public abstract Cell<?> purgeDataOlderThan(long timestamp);
-    
-    protected abstract int localDeletionTimeAsUnsignedInt();
+    public Cell<?> purgeDataOlderThan(long timestamp)
+    {
+        return timestamp() < timestamp ? null : this;
+    }
+
+    public abstract int localDeletionTimeAsUnsignedInt();
 
     /**
      * Handle unsigned encoding and potentially invalid localDeletionTime.
@@ -247,7 +144,7 @@ public abstract class Cell<V> extends ColumnData implements CellLivenessInfo
             // Overflown signed int, decode to long. The result is guaranteed > ttl (and any signed int)
             return helper.version < MessagingService.VERSION_50
                    ? INVALID_DELETION_TIME
-                   : deletionTimeUnsignedIntegerToLong((int) localDeletionTime);
+                   : CellData.deletionTimeUnsignedIntegerToLong((int) localDeletionTime);
         }
 
         if (ttl == LivenessInfo.EXPIRED_LIVENESS_TTL)
@@ -255,6 +152,19 @@ public abstract class Cell<V> extends ColumnData implements CellLivenessInfo
         else
             return INVALID_DELETION_TIME;  // Invalid as it can't occur without corruption and would cause negative
                                            // timestamp on expiry.
+    }
+
+    @Override
+    public Cell<?> withNewData(long timestamp, long localDeletionTime, int ttl, ByteBuffer value)
+    {
+        return new BufferCell(column(), timestamp, ttl, localDeletionTime, value, path());
+    }
+
+    @Override
+    public Cell<V> toCell(ColumnMetadata column, CellPath cellPath)
+    {
+        assert false : "toCell should not be called when CellData is already a cell.";
+        return this;
     }
 
     /**

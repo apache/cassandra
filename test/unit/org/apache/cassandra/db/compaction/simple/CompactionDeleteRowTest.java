@@ -295,7 +295,7 @@ public class CompactionDeleteRowTest extends SimpleCompactionTest
         assertTrue(row.isRow());
         assertTrue(!((Row)row).deletion().time().isLive());
         assertEquals(3, ((Row)row).deletion().time().markedForDeleteAt());
-        assertTrue(((Row)row).columnData().isEmpty());
+        assertEquals(0, ((Row)row).columnCount());
     }
 
     @Test

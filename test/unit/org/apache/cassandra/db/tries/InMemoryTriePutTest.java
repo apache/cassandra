@@ -25,9 +25,10 @@ import org.junit.Assert;
 import org.junit.Ignore;
 import org.junit.Test;
 
-import org.apache.cassandra.io.compress.BufferType;
+import org.apache.cassandra.config.CassandraRelevantProperties;
 import org.apache.cassandra.utils.bytecomparable.ByteComparable;
 
+import static org.apache.cassandra.db.tries.TrieUtil.VERSION;
 import static org.junit.Assert.fail;
 
 public class InMemoryTriePutTest extends InMemoryTrieTestBase
@@ -39,9 +40,9 @@ public class InMemoryTriePutTest extends InMemoryTrieTestBase
     }
 
     @Test
-    public void testLongKey_StackOverflow() throws InMemoryTrie.SpaceExhaustedException
+    public void testLongKey_StackOverflow() throws TrieSpaceExhaustedException
     {
-        InMemoryTrie<String> trie = new InMemoryTrie<>(BufferType.ON_HEAP);
+        InMemoryTrie<String> trie = strategy.create();
         Random rand = new Random(1);
         byte[] key = new byte[40960];
         rand.nextBytes(key);
@@ -49,7 +50,7 @@ public class InMemoryTriePutTest extends InMemoryTrieTestBase
 
         try
         {
-            trie.putRecursive(ByteComparable.fixedLength(buf), "value", (x, y) -> y);
+            trie.putRecursive(ByteComparable.preencoded(VERSION, buf), "value", (x, y) -> y);
             Assert.fail("StackOverflowError expected with a recursive put for very long keys!");
         }
         catch (StackOverflowError soe)
@@ -57,67 +58,70 @@ public class InMemoryTriePutTest extends InMemoryTrieTestBase
             // Expected.
         }
         // Using non-recursive put should work.
-        putSimpleResolve(trie, ByteComparable.fixedLength(buf), "value", (x, y) -> y, false);
+        putSimpleResolve(trie, ByteComparable.preencoded(VERSION, buf), "value", (x, y) -> y, false);
     }
 
-    // This tests that trie space allocation works correctly close to the 2G limit. It is normally disabled because
-    // the test machines don't provide enough heap memory (test requires ~8G heap to finish). Run it manually when
-    // InMemoryTrie.allocateBlock is modified.
+    /// This tests that trie space allocation works correctly close to the 2G limit. It is normally disabled because
+    /// the test machines don't provide enough heap memory (test requires ~8G heap to finish). Run it manually and
+    /// separately (so that the size limit can be set before the in-memory trie static initialization) when
+    /// [BufferManagerMultibuf#allocateNewCell] is modified.
     @Ignore
     @Test
-    public void testOver1GSize() throws InMemoryTrie.SpaceExhaustedException
+    public void testOver1GSize() throws TrieSpaceExhaustedException
     {
-        InMemoryTrie<String> trie = new InMemoryTrie<>(BufferType.ON_HEAP);
-        trie.advanceAllocatedPos(0x20000000);
+        CassandraRelevantProperties.MEMTABLE_TRIE_SIZE_LIMIT.setInt(1024);
+        InMemoryTrie<String> trie = strategy.create();
+        BufferManagerMultibuf mgr = ((BufferManagerMultibuf) trie.bufferManager);
+        mgr.advanceAllocatedPos(0x20000000);
         String t1 = "test1";
         String t2 = "testing2";
         String t3 = "onemoretest3";
-        trie.putRecursive(ByteComparable.of(t1), t1, (x, y) -> y);
-        Assert.assertEquals(t1, trie.get(ByteComparable.of(t1)));
-        Assert.assertNull(trie.get(ByteComparable.of(t2)));
+        trie.putRecursive(TrieUtil.comparable(t1), t1, (x, y) -> y);
+        Assert.assertEquals(t1, trie.get(TrieUtil.comparable(t1)));
+        Assert.assertNull(trie.get(TrieUtil.comparable(t2)));
         Assert.assertFalse(trie.reachedAllocatedSizeThreshold());
 
-        trie.advanceAllocatedPos(InMemoryTrie.ALLOCATED_SIZE_THRESHOLD + 0x1000);
-        trie.putRecursive(ByteComparable.of(t2), t2, (x, y) -> y);
-        Assert.assertEquals(t1, trie.get(ByteComparable.of(t1)));
-        Assert.assertEquals(t2, trie.get(ByteComparable.of(t2)));
-        Assert.assertNull(trie.get(ByteComparable.of(t3)));
+        mgr.advanceAllocatedPos(BufferManagerMultibuf.ALLOCATED_SIZE_THRESHOLD + 0x1000);
+        trie.putRecursive(TrieUtil.comparable(t2), t2, (x, y) -> y);
+        Assert.assertEquals(t1, trie.get(TrieUtil.comparable(t1)));
+        Assert.assertEquals(t2, trie.get(TrieUtil.comparable(t2)));
+        Assert.assertNull(trie.get(TrieUtil.comparable(t3)));
         Assert.assertTrue(trie.reachedAllocatedSizeThreshold());
 
-        trie.advanceAllocatedPos(0x7FFFFEE0);  // close to 2G
-        Assert.assertEquals(t1, trie.get(ByteComparable.of(t1)));
-        Assert.assertEquals(t2, trie.get(ByteComparable.of(t2)));
-        Assert.assertNull(trie.get(ByteComparable.of(t3)));
-        Assert.assertTrue(trie.reachedAllocatedSizeThreshold());
-
-        try
-        {
-            trie.putRecursive(ByteComparable.of(t3), t3, (x, y) -> y);  // should put it over the edge
-            fail("InMemoryTrie.SpaceExhaustedError was expected");
-        }
-        catch (InMemoryTrie.SpaceExhaustedException e)
-        {
-            // expected
-        }
-
-        Assert.assertEquals(t1, trie.get(ByteComparable.of(t1)));
-        Assert.assertEquals(t2, trie.get(ByteComparable.of(t2)));
-        Assert.assertNull(trie.get(ByteComparable.of(t3)));
+        mgr.advanceAllocatedPos(-1);  // as close to the limit as possible, next allocation should trigger an exception
+        Assert.assertEquals(t1, trie.get(TrieUtil.comparable(t1)));
+        Assert.assertEquals(t2, trie.get(TrieUtil.comparable(t2)));
+        Assert.assertNull(trie.get(TrieUtil.comparable(t3)));
         Assert.assertTrue(trie.reachedAllocatedSizeThreshold());
 
         try
         {
-            trie.advanceAllocatedPos(Integer.MAX_VALUE);
+            trie.putRecursive(TrieUtil.comparable(t3), t3, (x, y) -> y);  // should put it over the edge
             fail("InMemoryTrie.SpaceExhaustedError was expected");
         }
-        catch (InMemoryTrie.SpaceExhaustedException e)
+        catch (TrieSpaceExhaustedException e)
         {
             // expected
         }
 
-        Assert.assertEquals(t1, trie.get(ByteComparable.of(t1)));
-        Assert.assertEquals(t2, trie.get(ByteComparable.of(t2)));
-        Assert.assertNull(trie.get(ByteComparable.of(t3)));
+        Assert.assertEquals(t1, trie.get(TrieUtil.comparable(t1)));
+        Assert.assertEquals(t2, trie.get(TrieUtil.comparable(t2)));
+        Assert.assertNull(trie.get(TrieUtil.comparable(t3)));
+        Assert.assertTrue(trie.reachedAllocatedSizeThreshold());
+
+        try
+        {
+            mgr.advanceAllocatedPos(Integer.MAX_VALUE);
+            fail("InMemoryTrie.SpaceExhaustedError was expected");
+        }
+        catch (TrieSpaceExhaustedException e)
+        {
+            // expected
+        }
+
+        Assert.assertEquals(t1, trie.get(TrieUtil.comparable(t1)));
+        Assert.assertEquals(t2, trie.get(TrieUtil.comparable(t2)));
+        Assert.assertNull(trie.get(TrieUtil.comparable(t3)));
         Assert.assertTrue(trie.reachedAllocatedSizeThreshold());
 
         trie.discardBuffers();

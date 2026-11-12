@@ -40,7 +40,7 @@ import org.apache.cassandra.concurrent.ScheduledExecutors;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.db.DecoratedKey;
 import org.apache.cassandra.db.SystemKeyspace;
-import org.apache.cassandra.db.rows.Cell;
+import org.apache.cassandra.db.rows.CellData;
 import org.apache.cassandra.db.rows.RangeTombstoneMarker;
 import org.apache.cassandra.db.rows.Row;
 import org.apache.cassandra.db.rows.UnfilteredRowIterator;
@@ -367,7 +367,7 @@ public class TopPartitionTracker implements Closeable
                 tombstoneCount++;
             if (row.hasDeletion(nowInSec))
             {
-                for (Cell<?> c : row.cells())
+                for (CellData<?, ?> c : row.cellsData())
                     if (c.isTombstone())
                         tombstoneCount++;
             }

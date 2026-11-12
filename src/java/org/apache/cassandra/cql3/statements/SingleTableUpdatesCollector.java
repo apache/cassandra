@@ -85,7 +85,7 @@ final class SingleTableUpdatesCollector implements UpdatesCollector
         PartitionUpdate.Builder builder = puBuilders.get(dk.getKey());
         if (builder == null)
         {
-            builder = new PartitionUpdate.Builder(metadata, dk, updatedColumns, perPartitionKeyCounts.count(dk.getKey()));
+            builder = PartitionUpdate.builder(metadata, dk, updatedColumns, perPartitionKeyCounts.count(dk.getKey()));
             puBuilders.put(dk.getKey(), builder);
         }
         return builder;

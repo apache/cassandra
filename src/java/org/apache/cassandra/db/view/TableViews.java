@@ -459,7 +459,7 @@ public class TableViews extends AbstractCollection<View>
         NavigableSet<Clustering<?>> names;
         try (BTree.FastBuilder<Clustering<?>> namesBuilder = sliceBuilder == null ? BTree.fastBuilder() : null)
         {
-            for (Row row : updates)
+            for (Row row : updates.rows())
             {
                 // Don't read the existing state if we can prove the update won't affect any views
                 if (!affectsAnyViews(key, row, views))

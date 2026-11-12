@@ -280,8 +280,8 @@ public class IndexTermTypeTest
             assertTrue("#" + i, indexTermType.compare(b0, b1) <= 0);
 
             // simulate: saving into on-disk trie
-            ByteComparable t0 = ByteComparable.fixedLength(b0);
-            ByteComparable t1 = ByteComparable.fixedLength(b1);
+            ByteComparable t0 = ByteComparable.preencoded(ByteComparable.Version.OSS50, b0);
+            ByteComparable t1 = ByteComparable.preencoded(ByteComparable.Version.OSS50, b1);
             assertTrue("#" + i, ByteComparable.compare(t0, t1, ByteComparable.Version.OSS50) <= 0);
         }
     }

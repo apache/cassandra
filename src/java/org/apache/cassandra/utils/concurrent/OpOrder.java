@@ -426,6 +426,17 @@ public class OpOrder
         }
 
         /**
+         * @return true if all operations started prior to barrier.issue() have completed
+         */
+        public boolean allPriorOpsAreFinished()
+        {
+            Group current = orderOnOrBefore;
+            if (current == null)
+                throw new IllegalStateException("This barrier needs to have issue() called on it before prior operations can complete");
+            return current.isFinished();
+        }
+
+        /**
          * returns the Group we are waiting on - any Group with {@code .compareTo(getSyncPoint()) <= 0}
          * must complete before await() returns
          */

@@ -187,13 +187,13 @@ public class RowIteratorMergeListener<E extends Endpoints<E>>
         if (writeBackTo.get(i))
         {
             if (repairs[i] == null)
-                repairs[i] = new PartitionUpdate.Builder(command.metadata(), partitionKey, columns, 1);
+                repairs[i] = PartitionUpdate.builder(command.metadata(), partitionKey, columns, 1);
             f.accept(repairs[i]);
         }
         if (buildFullDiff)
         {
             if (repairs[repairs.length - 1] == null)
-                repairs[repairs.length - 1] = new PartitionUpdate.Builder(command.metadata(), partitionKey, columns, 1);
+                repairs[repairs.length - 1] = PartitionUpdate.builder(command.metadata(), partitionKey, columns, 1);
             f.accept(repairs[repairs.length - 1]);
         }
     }

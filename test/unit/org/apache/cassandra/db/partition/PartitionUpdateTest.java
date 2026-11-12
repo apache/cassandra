@@ -80,7 +80,7 @@ public class PartitionUpdateTest extends CQLTester
         long timestamp = FBUtilities.timestampMicros();
         RowUpdateBuilder rub = new RowUpdateBuilder(cfm, timestamp, "key0").clustering(1).add("a", 1);
         PartitionUpdate pu = rub.buildUpdate();
-        PartitionUpdate pu2 = new PartitionUpdate.Builder(pu, 0).updateAllTimestamp(0).build();
+        PartitionUpdate pu2 = pu.withUpdatedTimestamps(0);
 
         Assert.assertTrue(pu.maxTimestamp() > 0);
         Assert.assertTrue(pu2.maxTimestamp() == 0);

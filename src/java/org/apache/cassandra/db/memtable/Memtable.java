@@ -30,6 +30,7 @@ import org.apache.cassandra.db.PartitionPosition;
 import org.apache.cassandra.db.RegularAndStaticColumns;
 import org.apache.cassandra.db.commitlog.CommitLogPosition;
 import org.apache.cassandra.db.lifecycle.LifecycleTransaction;
+import org.apache.cassandra.db.partitions.BTreePartitionUpdate;
 import org.apache.cassandra.db.partitions.Partition;
 import org.apache.cassandra.db.partitions.PartitionUpdate;
 import org.apache.cassandra.db.rows.EncodingStats;
@@ -150,6 +151,15 @@ public interface Memtable extends Comparable<Memtable>, UnfilteredSource, CellSo
         {
             return false;
         }
+
+        /**
+         * The factory of partition updates for tables using this memtable. Override this method to provide a custom
+         * partition update implementation, e.g. one that can be merged more efficiently into the memtable.
+         */
+        default PartitionUpdate.Factory partitionUpdateFactory()
+        {
+            return BTreePartitionUpdate.FACTORY;
+        }
     }
 
     /**
@@ -179,6 +189,12 @@ public interface Memtable extends Comparable<Memtable>, UnfilteredSource, CellSo
          * {@link #localRangesUpdated()} call.
          */
         ShardBoundaries localRangeSplits(int shardCount);
+
+        /**
+         * Get the op-order primitive that protects data for the duration of reads. Memtables that recycle memory
+         * may only reuse it once all reads started before its release have completed.
+         */
+        OpOrder readOrdering();
     }
 
     // Main write and read operations
@@ -405,6 +421,15 @@ public interface Memtable extends Comparable<Memtable>, UnfilteredSource, CellSo
      *                            call and will match the next memtable's lower commit log bound.
      */
     void switchOut(OpOrder.Barrier writeBarrier, AtomicReference<CommitLogPosition> commitLogUpperBound);
+
+    /**
+     * Called when the write barrier of a flush expires, i.e. when this memtable has been switched out and all writes to
+     * it have completed, before it is flushed. Can be used by the memtable to release internal state supporting writes.
+     */
+    default void writeComplete()
+    {
+        // nothing in base class
+    }
 
     /**
      * This memtable is no longer in use or required for outstanding flushes or operations.

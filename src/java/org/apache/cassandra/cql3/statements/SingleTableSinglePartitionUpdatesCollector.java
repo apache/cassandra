@@ -70,7 +70,7 @@ final class SingleTableSinglePartitionUpdatesCollector implements UpdatesCollect
             counterConsistencyLevel = consistency;
         if (builder == null)
         {
-            builder = new PartitionUpdate.Builder(metadata, dk, updatedColumns, 1);
+            builder = PartitionUpdate.builder(metadata, dk, updatedColumns, 1);
         }
         return builder;
     }

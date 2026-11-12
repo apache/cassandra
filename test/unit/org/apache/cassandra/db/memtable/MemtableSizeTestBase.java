@@ -19,7 +19,9 @@
 package org.apache.cassandra.db.memtable;
 
 import java.lang.reflect.Field;
+import java.nio.ByteBuffer;
 import java.util.List;
+import java.util.Random;
 
 import com.google.common.collect.ImmutableList;
 
@@ -69,12 +71,26 @@ public abstract class MemtableSizeTestBase extends CQLTester
     @Parameterized.Parameter(0)
     public String memtableClass = "skiplist";
 
-    @Parameterized.Parameters(name = "{0}")
-    public static List<Object> parameters()
+    /// Size of the values written. Trie memtables store values of up to 15 bytes in the trie itself, and larger ones
+    /// in separately allocated memory.
+    @Parameterized.Parameter(1)
+    public int valueSize = 8;
+
+    @Parameterized.Parameters(name = "{0} value size {1}")
+    public static List<Object[]> parameters()
     {
-        return ImmutableList.of("skiplist",
-                                "skiplist_sharded",
-                                "trie");
+        return ImmutableList.of(new Object[] {"skiplist", 8},
+                                new Object[] {"skiplist_sharded", 8},
+                                new Object[] {"trie", 8},
+                                new Object[] {"trie", 32});
+    }
+
+    ByteBuffer valueFor(long v)
+    {
+        Random rand = new Random(v);
+        byte[] bytes = new byte[valueSize];
+        rand.nextBytes(bytes);
+        return ByteBuffer.wrap(bytes);
     }
 
     // Must be within 3% of the real usage. We are actually more precise than this, but the threshold is set higher to
@@ -82,6 +98,11 @@ public abstract class MemtableSizeTestBase extends CQLTester
     final int MAX_DIFFERENCE_PERCENT = 3;
     // Slab overhead, added when the memtable uses heap_buffers.
     final int SLAB_OVERHEAD = 1024 * 1024;
+    // Extra leniency for unslabbed buffers. We are not as precise there (e.g. we don't account for the object overhead
+    // of the individually-allocated buffers), and it's not a mode in real use.
+    final int UNSLABBED_EXTRA_PERCENT = 2;
+    // Minimum allowed difference, to avoid failures on small absolute differences when on-heap usage is very low.
+    final int MIN_MAX_DIFFERENCE = 100 * 1024;
 
     public static void setup(Config.MemtableAllocationType allocationType, IPartitioner partitioner)
     {
@@ -120,7 +141,7 @@ public abstract class MemtableSizeTestBase extends CQLTester
         String keyspace = createKeyspace("CREATE KEYSPACE %s with replication = { 'class' : 'SimpleStrategy', 'replication_factor' : 1 } and durable_writes = false");
         try
         {
-            String table = createTable(keyspace, "CREATE TABLE %s ( userid bigint, picid bigint, commentid bigint, PRIMARY KEY(userid, picid))" +
+            String table = createTable(keyspace, "CREATE TABLE %s ( userid bigint, picid bigint, commentid blob, PRIMARY KEY(userid, picid))" +
                                                  " with compression = {'enabled': false}" +
                                                  " and memtable = '" + memtableClass + "'");
             execute("use " + keyspace + ';');
@@ -141,7 +162,7 @@ public abstract class MemtableSizeTestBase extends CQLTester
             for (i = 0; i < limit; ++i)
             {
                 for (long j = 0; j < rowsPerPartition; ++j)
-                    execute(writeStatement, i, j, i + j);
+                    execute(writeStatement, i, j, valueFor(i + j));
             }
 
             logger.info("Deleting {} partitions", deletedPartitions);
@@ -185,9 +206,11 @@ public abstract class MemtableSizeTestBase extends CQLTester
                     actualHeap += trie_overhead;    // adjust trie memory with unused buffer space if on-heap
                     break;
                 case unslabbed_heap_buffers:
+                    max_difference += expectedHeap * UNSLABBED_EXTRA_PERCENT / 100;
                     actualHeap += trie_overhead;    // adjust trie memory with unused buffer space if on-heap
                     break;
             }
+            max_difference = Math.max(max_difference, MIN_MAX_DIFFERENCE);
             double deltaPerPartition = (expectedHeap - actualHeap) / (double) totalPartitions;
             String message = String.format("Expected heap usage close to %s, got %s, %s difference. " +
                                            "Delta per partition: %.2f bytes",

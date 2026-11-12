@@ -122,8 +122,8 @@ public class SegmentMetadata
         this.numRows = input.readLong();
         this.minSSTableRowId = input.readLong();
         this.maxSSTableRowId = input.readLong();
-        this.minKey = primaryKeyFactory.fromComparableBytes(ByteSource.fixedLength(readBytes(input)));
-        this.maxKey = primaryKeyFactory.fromComparableBytes(ByteSource.fixedLength(readBytes(input)));
+        this.minKey = primaryKeyFactory.fromComparableBytes(ByteSource.preencoded(readBytes(input)));
+        this.maxKey = primaryKeyFactory.fromComparableBytes(ByteSource.preencoded(readBytes(input)));
         this.minTerm = readBytes(input);
         this.maxTerm = readBytes(input);
         this.componentMetadatas = new ComponentMetadataMap(input);

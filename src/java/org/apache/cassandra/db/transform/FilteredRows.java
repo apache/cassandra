@@ -55,6 +55,7 @@ public final class FilteredRows extends BaseRows<Row, BaseRowIterator<?>> implem
      */
     public static RowIterator filter(UnfilteredRowIterator iterator, long nowInSecs)
     {
+        iterator.stopIssuingTombstones();
         return new Filter(nowInSecs, iterator.metadata().enforceStrictLiveness()).applyToPartition(iterator);
     }
 }

@@ -85,7 +85,7 @@ import org.apache.cassandra.db.marshal.CompositeType;
 import org.apache.cassandra.db.marshal.CounterColumnType;
 import org.apache.cassandra.db.marshal.EmptyType;
 import org.apache.cassandra.db.marshal.UserType;
-import org.apache.cassandra.db.rows.Cell;
+import org.apache.cassandra.db.rows.CellData;
 import org.apache.cassandra.dht.ByteOrderedPartitioner;
 import org.apache.cassandra.dht.IPartitioner;
 import org.apache.cassandra.dht.LocalPartitioner;
@@ -187,7 +187,7 @@ public final class CassandraGenerators
 
     private static final Gen<SinglePartitionReadCommand> SINGLE_PARTITION_READ_COMMAND_GEN = gen(rnd -> {
         TableMetadata metadata = TABLE_METADATA_GEN.generate(rnd);
-        long nowInSec = rnd.next(Constraint.between(1, Cell.getVersionedMaxDeletiontionTime()));
+        long nowInSec = rnd.next(Constraint.between(1, CellData.getVersionedMaxDeletiontionTime()));
         ByteBuffer key = partitionKeyDataGen(metadata).generate(rnd);
         //TODO support all fields of SinglePartitionReadCommand
         return SinglePartitionReadCommand.create(metadata, nowInSec, key, Slices.ALL);
