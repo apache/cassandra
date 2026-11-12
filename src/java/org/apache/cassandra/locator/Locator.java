@@ -153,7 +153,7 @@ public class Locator
                 // For now, local location is immutable and once registered with cluster metadata, it cannot be
                 // changed. Revisit this if that assumption changes.
                 VersionedLocation location = local;
-                if (location.epoch.isAfter(Epoch.EMPTY))
+                if (location.epoch.isAfter(Epoch.EMPTY) && location.location != Location.UNKNOWN)
                     return location.location;
 
                 local = versionedFromDirectory(localEndpoint);
