@@ -46,6 +46,7 @@ import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertNotEquals;
 import static org.junit.Assert.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyBoolean;
 import static org.mockito.Mockito.mockStatic;
 import static org.mockito.Mockito.times;
 
@@ -250,6 +251,8 @@ public class TableSnapshotTest
         try (MockedStatic<FileUtils> fileUtilsMock = mockStatic(FileUtils.class))
         {
             fileUtilsMock.when(() -> FileUtils.folderSize(any())).thenCallRealMethod();
+            // the method above delegates to this one
+            fileUtilsMock.when(() -> FileUtils.folderSize(any(), anyBoolean())).thenCallRealMethod();
 
             assertThat(tableDetails.computeSizeOnDiskBytes()).isGreaterThan(0L);
             assertThat(tableDetails.computeSizeOnDiskBytes()).isEqualTo(res);
