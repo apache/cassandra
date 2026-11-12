@@ -33,9 +33,11 @@ import org.junit.Test;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.cql3.CQLTester;
 import org.apache.cassandra.db.ColumnFamilyStore;
+import org.apache.cassandra.db.Slice;
 import org.apache.cassandra.db.compaction.CompactionManager;
 import org.apache.cassandra.db.compaction.OperationType;
 import org.apache.cassandra.db.lifecycle.LifecycleTransaction;
+import org.apache.cassandra.db.marshal.Int32Type;
 import org.apache.cassandra.io.sstable.Descriptor;
 import org.apache.cassandra.io.sstable.ISSTableScanner;
 import org.apache.cassandra.io.sstable.SSTableCursorPipeUtil;
@@ -158,6 +160,65 @@ public class SSTableCursorWriterCloseTest extends CQLTester
         }
     }
 
+    /**
+     * The reader skips a row the dropped-column filter leaves empty, so the pipe must not write it,
+     * count it, or use its clustering. Here the first and the last row of each partition hold only
+     * the dropped column, so the covered clustering of the output must be the kept rows only.
+     */
+    @Test
+    public void pipeSkipsARowLeftEmptyByADroppedColumn() throws Throwable
+    {
+        createTable("CREATE TABLE %s (pk int, ck int, v int, d int, PRIMARY KEY (pk, ck)) " +
+                    "WITH compression = {'enabled': 'false'}");
+        ColumnFamilyStore cfs = getCurrentColumnFamilyStore();
+        cfs.disableAutoCompaction();
+        // The timestamp is below the drop time that the ALTER records, so the drop filter covers d.
+        // Even ck (0, 2, 4, 6) hold only d; odd ck (1, 3, 5) also hold v.
+        for (int pk = 0; pk < 10; pk++)
+            for (int ck = 0; ck < 7; ck++)
+                if (ck % 2 == 0)
+                    execute("UPDATE %s USING TIMESTAMP 1000 SET d = 1 WHERE pk = ? AND ck = ?", pk, ck);
+                else
+                    execute("UPDATE %s USING TIMESTAMP 1000 SET d = 1, v = ? WHERE pk = ? AND ck = ?", ck, pk, ck);
+        flush();
+        alterTable("ALTER TABLE %s DROP d");
+
+        SSTableReader inputReader = cfs.getLiveSSTables().iterator().next();
+        String inputDump = dump(inputReader);
+        org.apache.cassandra.io.util.File outDir =
+            new org.apache.cassandra.io.util.File(Files.createTempDirectory("cursor-writer-drop-out").toFile());
+        Descriptor outputDescriptor;
+        // The reader uses the table metadata, so it knows that d is dropped.
+        try (SSTableCursorReader cursorReader = new SSTableCursorReader(inputReader);
+             LifecycleTransaction txn = LifecycleTransaction.offline(OperationType.COMPACTION))
+        {
+            SortedTableWriter<?, ?> ssTableWriter =
+                (SortedTableWriter<?, ?>) CompactionManager.createWriter(cfs, outDir, 0, 0, null, false,
+                                                                         inputReader, txn);
+            outputDescriptor = ssTableWriter.descriptor;
+            SSTableCursorWriter cursorWriter = new SSTableCursorWriter(ssTableWriter);
+            SSTableCursorPipeUtil.copySSTable(cursorReader, cursorWriter);
+            cursorWriter.close();
+            txn.finish();
+        }
+
+        SSTableReader outputReader = SSTableReader.open(cfs, outputDescriptor);
+        try
+        {
+            // The input still holds the skipped rows, so the byte positions differ; leave them out.
+            assertEquals("the output must hold the kept rows only",
+                         withoutPositions(inputDump), withoutPositions(dump(outputReader)));
+            assertEquals("each partition keeps ck 1, 3 and 5", 30, outputReader.getSSTableMetadata().totalRows);
+            Slice covered = outputReader.getSSTableMetadata().coveredClustering;
+            assertEquals("the first kept row is ck 1", 1, (int) Int32Type.instance.compose(covered.start().bufferAt(0)));
+            assertEquals("the last kept row is ck 5", 5, (int) Int32Type.instance.compose(covered.end().bufferAt(0)));
+        }
+        finally
+        {
+            outputReader.selfRef().release();
+        }
+    }
+
     /** Copies the input through the cursor pipe into a new sstable, and commits it. */
     private static Descriptor writeThroughCursorPipe(ColumnFamilyStore cfs, SSTableReader inputReader,
                                                      Descriptor inputDescriptor,
@@ -211,6 +272,11 @@ public class SSTableCursorWriterCloseTest extends CQLTester
         }
         flush();
         return cfs;
+    }
+
+    private static String withoutPositions(String dump)
+    {
+        return dump.replaceAll("\"position\":\\d+,?", "");
     }
 
     /** Canonical logical dump of every partition, with a fixed "now" so it cannot depend on the clock. */

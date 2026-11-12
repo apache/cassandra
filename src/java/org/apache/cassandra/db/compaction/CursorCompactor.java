@@ -2025,8 +2025,12 @@ public class CursorCompactor extends CompactionInfo.Holder
             int readerState = sstableCursor.state();
             if (readerState == ROW_START)
             {
-                totalSourceCQLRows++;
+                // A row the dropped-column filter leaves empty is skipped and not counted. The cursor
+                // can then be at a marker or at the partition end.
                 sstableCursor.readRowHeader();
+                readerState = sstableCursor.state();
+                if (isState(readerState, CELL_HEADER_START | UNFILTERED_END))
+                    totalSourceCQLRows++;
             }
             if (readerState == TOMBSTONE_START)
             {

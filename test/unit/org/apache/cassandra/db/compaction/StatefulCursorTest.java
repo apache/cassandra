@@ -52,6 +52,7 @@ import org.apache.cassandra.schema.ColumnMetadata;
 import static org.apache.cassandra.io.sstable.SSTableCursorReader.State.CELL_HEADER_START;
 import static org.apache.cassandra.io.sstable.SSTableCursorReader.State.CELL_VALUE_START;
 import static org.apache.cassandra.io.sstable.SSTableCursorReader.State.DONE;
+import static org.apache.cassandra.io.sstable.SSTableCursorReader.State.PARTITION_END;
 import static org.apache.cassandra.io.sstable.SSTableCursorReader.State.PARTITION_START;
 import static org.apache.cassandra.io.sstable.SSTableCursorReader.State.ROW_START;
 import static org.apache.cassandra.io.sstable.SSTableCursorReader.State.STATIC_ROW_START;
@@ -226,6 +227,48 @@ public class StatefulCursorTest extends CQLTester
         assertTrue("expected the row whose only cell was drop-filtered to return UNFILTERED_END",
                    seen[0]);
         assertTrue("expected the surviving row's cell to return a cell state, as a control", seen[1]);
+    }
+
+    /**
+     * A row whose only content is a cell of the dropped column and a complex deletion of a column
+     * that is not dropped is not empty after the drop filter, so readRowHeader must not skip it.
+     * The caller here turns off the pause at an empty complex column; the empty check must still
+     * stop at the complex deletion.
+     */
+    @Test
+    public void readRowHeaderKeepsARowWithAComplexDeletionWhenThePauseIsOff() throws Throwable
+    {
+        createTable("CREATE TABLE %s (pk int, ck int, s set<int>, d int, PRIMARY KEY (pk, ck))");
+        ColumnFamilyStore cfs = getCurrentColumnFamilyStore();
+        cfs.disableAutoCompaction();
+
+        // The timestamps are below the drop time that the ALTER records, so the drop filter covers d.
+        // ck 0: a cell of d and a complex deletion of s, so the row is kept
+        execute("UPDATE %s USING TIMESTAMP 1000 SET d = 1, s = {} WHERE pk = 0 AND ck = 0");
+        // ck 1: only a cell of d, so the row is skipped
+        execute("UPDATE %s USING TIMESTAMP 1000 SET d = 1 WHERE pk = 0 AND ck = 1");
+        flush();
+        alterTable("ALTER TABLE %s DROP d");
+
+        SSTableReader sstable = cfs.getLiveSSTables().iterator().next();
+        List<Integer> statesAfterRowHeader = new ArrayList<>();
+        try (StatefulCursor cursor = new StatefulCursor(sstable, DiskAccessMode.standard))
+        {
+            cursor.pauseAtEmptyComplexColumns(false);
+            drive(cursor, new CursorVisitor()
+            {
+                public void onRow(StatefulCursor c)
+                {
+                    statesAfterRowHeader.add(c.state());
+                }
+            });
+        }
+
+        assertEquals("expected one readRowHeader call for each row", 2, statesAfterRowHeader.size());
+        assertTrue("the row with a complex deletion must be kept, with its cells to read",
+                   isState(statesAfterRowHeader.get(0), CELL_HEADER_START));
+        assertTrue("the row with only a dropped cell must be skipped",
+                   isState(statesAfterRowHeader.get(1), PARTITION_END));
     }
 
     /**
