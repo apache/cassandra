@@ -1096,12 +1096,15 @@ public class MutationTrackingService implements MutationTrackingServiceMBean
         try
         {
             return logOffsets.mutations().all((rawLogId, offsets) -> {
+                if (offsets == null || offsets.isEmpty())
+                    return true;
+
                 CoordinatorLogId logId = CoordinatorLogId.fromLong(rawLogId);
                 Shard shard = getShardNullable(logId);
                 if (shard == null)
                     return true;
 
-                return offsets == null || offsets.isEmpty() || shard.isDurablyFlushed(tableId, logId, offsets);
+                return shard.isDurablyFlushed(tableId, logId, offsets);
             });
         }
         finally
