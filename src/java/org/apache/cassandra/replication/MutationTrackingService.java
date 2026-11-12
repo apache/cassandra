@@ -352,7 +352,7 @@ public class MutationTrackingService implements MutationTrackingServiceMBean
         return started;
     }
 
-    public void awaitStarted()
+    private void awaitStarted()
     {
         if (started)
             return;
