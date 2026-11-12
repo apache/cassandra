@@ -1113,33 +1113,6 @@ public class MutationTrackingService implements MutationTrackingServiceMBean
         }
     }
 
-    public boolean isDurablyFlushed(ImmutableCoordinatorLogOffsets logOffsets)
-    {
-        if (logOffsets == null || logOffsets.isEmpty())
-            return true;
-        if (!isEnabled())
-            return true;
-
-        awaitStarted();
-
-        shardLock.readLock().lock();
-        try
-        {
-            return logOffsets.mutations().all((rawLogId, offsets) -> {
-                CoordinatorLogId logId = CoordinatorLogId.fromLong(rawLogId);
-                Shard shard = getShardNullable(logId);
-                if (shard == null)
-                    return true;
-
-                return offsets == null || offsets.isEmpty() || shard.isDurablyFlushed(logId, offsets);
-            });
-        }
-        finally
-        {
-            shardLock.readLock().unlock();
-        }
-    }
-
     public boolean isFlushed(TableId tableId, ShortMutationId mutationId)
     {
         if (mutationId == null || mutationId.isNone() || !isEnabled())
