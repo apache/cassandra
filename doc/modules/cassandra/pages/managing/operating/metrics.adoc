@@ -136,6 +136,10 @@ compactions for this table.
 |LiveSSTableCount |Gauge<Integer> |Number of SSTables on disk for this
 table.
 
+|UCSMaxOverlapL0 |Gauge<Integer> |For tables using
+UnifiedCompactionStrategy, an upper bound of the maximum number of L0 SSTables
+whose key ranges overlap at any one key.
+
 |LiveDiskSpaceUsed |Counter |Disk space used by SSTables belonging to
 this table (in bytes).
 

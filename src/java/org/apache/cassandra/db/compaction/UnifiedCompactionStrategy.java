@@ -24,6 +24,7 @@ import java.util.Collections;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.PriorityQueue;
 import java.util.Set;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
@@ -377,6 +378,31 @@ public class UnifiedCompactionStrategy extends AbstractCompactionStrategy
         }
         else
             return tasks;
+    }
+
+    int getMaxOverlapL0(Collection<SSTableReader> sstables)
+    {
+        ShardManager shardManager = this.shardManager != null ? this.shardManager : getShardManager();
+        double maxL0Density = controller.getMaxLevelDensity(0, controller.getBaseSstableSize(controller.getFanout(0)) / shardManager.localSpaceCoverage());
+        List<SSTableReader> l0 = new ArrayList<>();
+        for (SSTableReader sstable : sstables)
+        {
+            // density is at least the size, since the covered share is at most 1, so larger sstables can't be in L0
+            if (sstable.onDiskLength() < maxL0Density && shardManager.density(sstable) < maxL0Density)
+                l0.add(sstable);
+        }
+
+        l0.sort(SSTableReader.firstKeyComparator);
+        PriorityQueue<SSTableReader> active = new PriorityQueue<>(SSTableReader.lastKeyComparator);
+        int max = 0;
+        for (SSTableReader sstable : l0)
+        {
+            while (!active.isEmpty() && startsAfter(sstable, active.peek()))
+                active.poll();
+            active.add(sstable);
+            max = Math.max(max, active.size());
+        }
+        return max;
     }
 
     private void maybeUpdateShardManager()
