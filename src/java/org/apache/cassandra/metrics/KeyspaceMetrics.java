@@ -128,6 +128,7 @@ public class KeyspaceMetrics
     public final Counter repairsStarted;
     /** Number of completed repairs as coordinator on this keyspace */
     public final Counter repairsCompleted;
+    public final Counter repairFailuresDueToL0SSTableCount;
     /** total time spent as a repair coordinator */
     public final Timer repairTime;
     /** total time spent preparing for repair */
@@ -284,6 +285,9 @@ public class KeyspaceMetrics
         additionalWrites = createKeyspaceCounter("AdditionalWrites", metric -> metric.additionalWrites.getCount());
         repairsStarted = createKeyspaceCounter("RepairJobsStarted", metric -> metric.repairsStarted.getCount());
         repairsCompleted = createKeyspaceCounter("RepairJobsCompleted", metric -> metric.repairsCompleted.getCount());
+        repairFailuresDueToL0SSTableCount = createKeyspaceCounter(
+                "RepairFailuresDueToL0SSTableCount",
+                metric -> metric.repairFailuresDueToL0SSTableCount.getCount());
         repairTime =createKeyspaceTimer("RepairTime");
         repairPrepareTime = createKeyspaceTimer("RepairPrepareTime");
         anticompactionTime = createKeyspaceTimer("AntiCompactionTime");
