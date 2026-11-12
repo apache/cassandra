@@ -38,6 +38,7 @@ import org.junit.Test;
 
 import org.apache.cassandra.Util;
 import org.apache.cassandra.cache.AutoSavingCache;
+import org.apache.cassandra.cache.KeyCacheKey;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.cql3.CQLTester;
 import org.apache.cassandra.db.ColumnFamilyStore;
@@ -48,6 +49,7 @@ import org.apache.cassandra.dht.Range;
 import org.apache.cassandra.dht.Token;
 import org.apache.cassandra.index.Index;
 import org.apache.cassandra.index.SecondaryIndexBuilder;
+import org.apache.cassandra.io.sstable.AbstractRowIndexEntry;
 import org.apache.cassandra.io.sstable.IScrubber;
 import org.apache.cassandra.io.sstable.IVerifier;
 import org.apache.cassandra.io.sstable.format.SSTableReader;
@@ -240,17 +242,37 @@ public class ActiveCompactionsTest extends CQLTester
         AutoSavingCache.Writer writer = CacheService.instance.keyCache.getWriter(100);
         MockActiveCompactions mockActiveCompactions = new MockActiveCompactions();
         CompactionManager.instance.submitCacheWrite(writer, mockActiveCompactions).get();
+        assertTrue(mockActiveCompactions.started);
         assertTrue(mockActiveCompactions.finished);
         assertTrue(mockActiveCompactions.holder.getCompactionInfo().getSSTables().isEmpty());
+    }
+
+    @Test
+    public void testSkippedCacheWriteIsNotTracked() throws Exception
+    {
+        AutoSavingCache<KeyCacheKey, AbstractRowIndexEntry> keyCache = CacheService.instance.keyCache;
+        AutoSavingCache<KeyCacheKey, AbstractRowIndexEntry>.Writer first = keyCache.getWriter(100);
+        AutoSavingCache<KeyCacheKey, AbstractRowIndexEntry>.Writer second = keyCache.getWriter(100);
+        MockActiveCompactions mockActiveCompactions = new MockActiveCompactions();
+
+        try (AutoSavingCache<KeyCacheKey, AbstractRowIndexEntry>.SaveOperation ignored = first.startSaveBlocking())
+        {
+            CompactionManager.instance.submitCacheWrite(second, mockActiveCompactions).get();
+        }
+
+        assertFalse(mockActiveCompactions.started);
+        assertFalse(mockActiveCompactions.finished);
     }
 
     private static class MockActiveCompactions implements ActiveCompactionsTracker
     {
         public CompactionInfo.Holder holder;
+        public boolean started = false;
         public boolean finished = false;
         public void beginCompaction(CompactionInfo.Holder ci)
         {
             holder = ci;
+            started = true;
         }
 
         public void finishCompaction(CompactionInfo.Holder ci)

@@ -580,6 +580,10 @@ key_cache_size: 0MiB
 # This is only relevant to SSTable formats that use key cache, e.g. BIG.
 # key_cache_keys_to_save: 100
 
+# Save the key cache during drain, so that a restart loads it as of shutdown
+# rather than as of the last periodic save.
+# key_cache_save_on_shutdown: false
+
 # Row cache implementation class name. Available implementations:
 #
 # org.apache.cassandra.cache.OHCProvider

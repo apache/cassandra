@@ -4016,6 +4016,11 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
 
             // Interrupt ongoing compactions and shutdown CM to prevent further compactions.
             CompactionManager.instance.forceShutdown();
+
+            // With compactions stopped, no more sstables become obsolete, so every entry saved here refers to an
+            // sstable that will still exist on restart.
+            maybeSaveKeyCacheOnShutdown();
+
             // Flush the system tables after all other tables are flushed, just in case flushing modifies any system state
             // like CASSANDRA-5151. Don't bother with progress tracking since system data is tiny.
             // Flush system tables after stopping compactions since they modify
@@ -4085,6 +4090,25 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
             Throwable postShutdownHookThrowable = Throwables.perform(null, postShutdownHooks.stream().map(h -> h::run));
             if (postShutdownHookThrowable != null)
                 logger.error("Post-shutdown hooks returned exception", postShutdownHookThrowable);
+        }
+    }
+
+    private void maybeSaveKeyCacheOnShutdown()
+    {
+        if (!DatabaseDescriptor.getKeyCacheSaveOnShutdown() || CacheService.instance.keyCache.getCapacity() <= 0)
+        {
+            return;
+        }
+
+        logger.info("Saving key cache before shutdown");
+        try
+        {
+            CacheService.instance.saveKeyCacheBlocking();
+        }
+        catch (Throwable t)
+        {
+            JVMStabilityInspector.inspectThrowable(t);
+            logger.warn("Unable to save key cache during drain; continuing shutdown", t);
         }
     }
 
