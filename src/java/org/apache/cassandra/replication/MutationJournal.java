@@ -603,18 +603,15 @@ public class MutationJournal
                 final boolean isFullReplica = keyspace.isFullReplicaFor(value.key().getToken(), ClusterMetadata.current());
 
                 Mutation.PartitionUpdateCollector newPUCollector = null;
-                for (Map.Entry<TableId, PartitionUpdate> e : value.modifications().entrySet())
+                for (PartitionUpdate update : value.getPartitionUpdates())
                 {
-                    PartitionUpdate update = e.getValue();
                     update.validate();
-                    if (Schema.instance.getTableMetadata(update.metadata().id) == null)
+                    TableId tableId = update.metadata().id;
+                    ColumnFamilyStore cfs = ColumnFamilyStore.getIfExists(tableId);
+                    if (cfs == null)
                         continue; // dropped
-                    TableId tableId = e.getKey();
 
                     ImmutableCoordinatorLogOffsets tableOffsets = liveSSTableOffsets.computeIfAbsent(tableId, id -> {
-                        ColumnFamilyStore cfs = Schema.instance.getColumnFamilyStoreInstance(id);
-                        if (cfs == null)
-                            return ImmutableCoordinatorLogOffsets.NONE;
                         ImmutableCoordinatorLogOffsets.Builder builder = new ImmutableCoordinatorLogOffsets.Builder();
                         for (SSTableReader sstable : cfs.getLiveSSTables())
                             builder.addAll(sstable.getCoordinatorLogOffsets());
