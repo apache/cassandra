@@ -46,6 +46,7 @@ import org.apache.cassandra.schema.TableMetadata;
 import org.apache.cassandra.utils.ByteBufferUtil;
 
 import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertSame;
 import static org.junit.Assert.assertTrue;
 
@@ -161,9 +162,10 @@ public class CoordinatorLogTest
         MutationId id = log.nextId();
         Mutation mutation = createMutation(id);
 
-        log.startWriting(mutation);
-        log.startWriting(mutation);
+        assertTrue(log.startWriting(mutation));
+        assertTrue(log.startWriting(mutation));
         log.finishWriting(mutation);
+        assertFalse("this mutation was already witnessed", log.startWriting(mutation));
 
         Offsets.Mutable reconciled = new Offsets.Mutable(LOCAL_LOG_ID);
         assertUnreconciled(tk, tableId, log, false, reconciled, id);
