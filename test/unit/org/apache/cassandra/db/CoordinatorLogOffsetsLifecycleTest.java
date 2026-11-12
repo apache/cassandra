@@ -279,26 +279,28 @@ public class CoordinatorLogOffsetsLifecycleTest
         ColumnFamilyStore cfs = keyspace.getColumnFamilyStore(tbl);
         cfs.disableAutoCompaction();
 
-        // 1. Insert row k=1, v=1
-        MutationId insertId = applyMutation(cfs.metadata(), 1, 1);
-        cfs.forceBlockingFlush(ColumnFamilyStore.FlushReason.UNIT_TESTS);
-        assertNumSSTables(cfs.getTracker().getView(), 1);
-
-        // 2. Delete partition k=1
-        DecoratedKey key = cfs.metadata().partitioner.decorateKey(ByteBufferUtil.bytes(1));
-        MutationId deleteId = MutationTrackingService.instance().nextMutationId(ks, key.getToken());
-        long nowInSec = FBUtilities.nowInSeconds();
-        long ts = FBUtilities.timestampMicros() + 1000;
-        PartitionUpdate deleteUpdate = PartitionUpdate.fullPartitionDelete(cfs.metadata(), key, ts, nowInSec - 10);
-        new Mutation(deleteUpdate).withMutationId(deleteId).apply();
-
-        cfs.forceBlockingFlush(ColumnFamilyStore.FlushReason.UNIT_TESTS);
-        assertNumSSTables(cfs.getTracker().getView(), 2);
-
-        // Pause periodic persister to prove compaction drop barrier ensures durability directly
+        // Pause the periodic persister before any flush. Flushed sstables are promoted to repaired once their offsets
+        // are durably reconciled, and a repaired sstable is compacted apart from the unrepaired one, so the tombstone
+        // would not be compacted with the data it shadows.
         MutationTrackingService.instance().pauseOffsetsPersisterForTesting();
         try
         {
+            // 1. Insert row k=1, v=1
+            MutationId insertId = applyMutation(cfs.metadata(), 1, 1);
+            cfs.forceBlockingFlush(ColumnFamilyStore.FlushReason.UNIT_TESTS);
+            assertNumSSTables(cfs.getTracker().getView(), 1);
+
+            // 2. Delete partition k=1
+            DecoratedKey key = cfs.metadata().partitioner.decorateKey(ByteBufferUtil.bytes(1));
+            MutationId deleteId = MutationTrackingService.instance().nextMutationId(ks, key.getToken());
+            long nowInSec = FBUtilities.nowInSeconds();
+            long ts = FBUtilities.timestampMicros() + 1000;
+            PartitionUpdate deleteUpdate = PartitionUpdate.fullPartitionDelete(cfs.metadata(), key, ts, nowInSec - 10);
+            new Mutation(deleteUpdate).withMutationId(deleteId).apply();
+
+            cfs.forceBlockingFlush(ColumnFamilyStore.FlushReason.UNIT_TESTS);
+            assertNumSSTables(cfs.getTracker().getView(), 2);
+
             // 3. Compact everything. Tombstone purges row and itself, yielding 0 output SSTables
             cfs.forceMajorCompaction();
             assertNumSSTables(cfs.getTracker().getView(), 0);
