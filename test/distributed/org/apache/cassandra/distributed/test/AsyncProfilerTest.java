@@ -22,7 +22,6 @@ import java.nio.file.StandardOpenOption;
 import java.util.List;
 import java.util.UUID;
 
-import org.junit.Assume;
 import org.junit.Rule;
 import org.junit.Test;
 import org.junit.rules.TemporaryFolder;
@@ -35,7 +34,6 @@ import org.apache.cassandra.distributed.shared.WithProperties;
 import org.apache.cassandra.io.util.File;
 import org.apache.cassandra.io.util.FileUtils;
 import org.apache.cassandra.service.AsyncProfilerService;
-import org.apache.cassandra.service.StartupChecks;
 
 import static java.util.concurrent.TimeUnit.SECONDS;
 import static org.apache.cassandra.config.CassandraRelevantProperties.ASYNC_PROFILER_ENABLED;
@@ -52,8 +50,6 @@ public class AsyncProfilerTest extends TestBaseImpl
     @Test
     public void testNodetoolCommands() throws Throwable
     {
-        Assume.assumeTrue(new StartupChecks.AsyncProfilerKernelParamsCheck().hasCorrectKernelParams());
-
         File newTmpDir = new File(tmpDir.newFolder());
 
         try (WithProperties withProperties = new WithProperties()

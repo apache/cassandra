@@ -28,11 +28,17 @@ import org.junit.Assume;
 import org.junit.Before;
 import org.junit.BeforeClass;
 import org.junit.Test;
+import org.slf4j.LoggerFactory;
 
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.distributed.shared.WithProperties;
 import org.apache.cassandra.io.util.File;
 import org.apache.cassandra.io.util.FileUtils;
+
+import ch.qos.logback.classic.Level;
+import ch.qos.logback.classic.Logger;
+import ch.qos.logback.classic.spi.ILoggingEvent;
+import ch.qos.logback.core.read.ListAppender;
 
 import static java.lang.String.format;
 import static org.apache.cassandra.config.CassandraRelevantProperties.ASYNC_PROFILER_ENABLED;
@@ -271,6 +277,56 @@ public class AsyncProfilerServiceTest
             AsyncProfilerService profiler = getProfiler(true);
             String status = profiler.status();
             assertTrue(status.contains("Async Profiler is not enabled. Enable it by setting " + ASYNC_PROFILER_ENABLED.getKey() + " property to true."));
+        }
+    }
+
+    @Test
+    public void testStartWithRestrictiveKernelParams() throws Throwable
+    {
+        StartupChecks.AsyncProfilerKernelParamsCheck restrictiveCheck = new StartupChecks.AsyncProfilerKernelParamsCheck()
+        {
+            @Override
+            public int readPerfEventParanoid()
+            {
+                return 2;
+            }
+
+            @Override
+            public int readKptrRestrict()
+            {
+                return 1;
+            }
+        };
+
+        Logger startupChecksLogger = (Logger) LoggerFactory.getLogger(StartupChecks.class);
+        ListAppender<ILoggingEvent> appender = new ListAppender<>();
+        appender.start();
+        startupChecksLogger.addAppender(appender);
+
+        try (WithProperties properties = new WithProperties().set(ASYNC_PROFILER_UNSAFE_MODE, false))
+        {
+            Map<String, String> startParameters = Map.of(ASYNC_PROFILER_START_EVENTS_PARAM, cpu.name(),
+                                                         ASYNC_PROFILER_START_OUTPUT_FORMAT_PARAM, flamegraph.name(),
+                                                         ASYNC_PROFILER_START_DURATION_PARAM, "10s",
+                                                         ASYNC_PROFILER_START_OUTPUT_FILE_NAME_PARAM, testOutputFile.name());
+            Map<String, String> stopParameters = Map.of(ASYNC_PROFILER_STOP_OUTPUT_FILE_NAME_PARAM, testOutputFile.name());
+
+            AsyncProfilerService.reset();
+            profiler = AsyncProfilerService.instance(testOutputPath, false, restrictiveCheck);
+            assertFalse(restrictiveCheck.hasCorrectKernelParams());
+            assertTrue(profiler.start(startParameters));
+            assertTrue("Restrictive kernel params should be logged as a warning",
+                       appender.list.stream().anyMatch(e -> e.getLevel() == Level.WARN &&
+                                                            e.getFormattedMessage().equals(StartupChecks.AsyncProfilerKernelParamsCheck.MESSAGE)));
+            Thread.sleep(5000);
+            assertTrue(profiler.stop(stopParameters));
+
+            assertTrue("Output profile file should exist", testOutputFile.exists());
+            assertTrue("Output profile file should not be empty", testOutputFile.length() > 0);
+        }
+        finally
+        {
+            startupChecksLogger.detachAppender(appender);
         }
     }
 
