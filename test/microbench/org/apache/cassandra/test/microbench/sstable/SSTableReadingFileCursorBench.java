@@ -46,6 +46,7 @@ import org.apache.cassandra.io.util.File;
 
 import static org.apache.cassandra.config.CassandraRelevantProperties.TEST_UTIL_ALLOW_TOOL_REINIT_FOR_TEST;
 import static org.apache.cassandra.io.sstable.SSTableCursorReader.State.CELL_END;
+import static org.apache.cassandra.io.sstable.SSTableCursorReader.State.CELL_HEADER_START;
 import static org.apache.cassandra.io.sstable.SSTableCursorReader.State.CELL_VALUE_START;
 import static org.apache.cassandra.io.sstable.SSTableCursorReader.State.DONE;
 import static org.apache.cassandra.io.sstable.SSTableCursorReader.State.PARTITION_END;
@@ -152,6 +153,9 @@ public class SSTableReadingFileCursorBench
     static int readThroughRow(SSTableCursorReader cursor, UnfilteredDescriptor unfilteredDescriptor) throws IOException
     {
         int state = cursor.readRowHeader(unfilteredDescriptor);
+        // the reader skipped a row the dropped-column filter left empty
+        if (state != CELL_HEADER_START && state != UNFILTERED_END)
+            return state;
         while (state != UNFILTERED_END) {
             state = readThroughCell(cursor);
         }

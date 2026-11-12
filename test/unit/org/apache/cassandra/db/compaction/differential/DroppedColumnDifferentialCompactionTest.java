@@ -18,15 +18,45 @@
 
 package org.apache.cassandra.db.compaction.differential;
 
+import java.math.BigDecimal;
+import java.math.BigInteger;
+import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.Collections;
+import java.util.Comparator;
+import java.util.HashSet;
+import java.util.List;
+import java.util.Set;
+
 import org.junit.Ignore;
 import org.junit.Test;
 
+import org.apache.cassandra.config.DatabaseDescriptor;
+import org.apache.cassandra.db.Clustering;
 import org.apache.cassandra.db.ColumnFamilyStore;
+import org.apache.cassandra.db.DeletionTime;
 import org.apache.cassandra.db.LivenessInfo;
 import org.apache.cassandra.db.Mutation;
+import org.apache.cassandra.db.compaction.AbstractCompactionStrategy;
+import org.apache.cassandra.db.compaction.CompactionController;
+import org.apache.cassandra.db.compaction.CompactionIterator;
+import org.apache.cassandra.db.compaction.CursorCompactor;
+import org.apache.cassandra.db.compaction.OperationType;
+import org.apache.cassandra.db.compaction.writers.DefaultCompactionWriter;
+import org.apache.cassandra.db.lifecycle.LifecycleTransaction;
+import org.apache.cassandra.db.marshal.DecimalType;
+import org.apache.cassandra.db.marshal.Int32Type;
 import org.apache.cassandra.db.partitions.PartitionUpdate;
+import org.apache.cassandra.db.rows.BTreeRow;
+import org.apache.cassandra.db.rows.Row;
+import org.apache.cassandra.db.rows.UnfilteredRowIterator;
+import org.apache.cassandra.io.sstable.format.SSTableReader;
+import org.apache.cassandra.utils.FBUtilities;
+import org.apache.cassandra.utils.TimeUUID;
+import org.apache.cassandra.utils.btree.BTree;
 
 import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertNotNull;
 import static org.junit.Assert.assertTrue;
 
 /**
@@ -456,6 +486,491 @@ public class DroppedColumnDifferentialCompactionTest extends DifferentialCompact
         String json = allJson(assertCursorMatchesIterator(cfs));
         assertEquals("elements written after the re-add must survive",
                      10, countOccurrences(json, cellValue("after-readd")));
+    }
+
+    /** The sstable counts for the tests above, whose rows the drop filter leaves empty. */
+    private static final int[] SSTABLE_COUNTS = { 2, 3, 5 };
+
+    /** Before any wall-clock drop time, so the drop filter covers every cell written at it. */
+    private static final long BEFORE_DROP_TS = 1_000_000L;
+
+    /**
+     * In each partition one sstable holds a row with a row marker, and each of the others holds the
+     * same row, with other clustering bytes (decimal 1.0, 1.00, ...), with only a cell of the
+     * column that is dropped later. UnfilteredSerializer.deserialize skips a row that the drop
+     * filter leaves empty (CASSANDRA-13337), so the iterator path writes the clustering of the row
+     * with the marker. The cursor path must skip those rows too, or the row merge order picks the
+     * clustering bytes of a skipped row. The partition chooses which sstable holds the marker, so
+     * that row comes first in some partitions and last in others.
+     */
+    @Test
+    public void rowLeftEmptyByDropDoesNotChooseClusteringBytes() throws Exception
+    {
+        for (int sstableCount : SSTABLE_COUNTS)
+        {
+            createTable("CREATE TABLE %s (pk int, ck decimal, v int, d int, PRIMARY KEY (pk, ck))");
+            ColumnFamilyStore cfs = getCurrentColumnFamilyStore();
+            cfs.disableAutoCompaction();
+            for (int i = 0; i < sstableCount; i++)
+            {
+                for (int pk = 0; pk < sstableCount * 4; pk++)
+                {
+                    if (pk % sstableCount == i)
+                        execute("INSERT INTO %s (pk, ck, v) VALUES (?, ?, ?) USING TIMESTAMP ?", pk, decimal(1, i), 1, BEFORE_DROP_TS);
+                    else
+                        execute("UPDATE %s USING TIMESTAMP ? SET d = ? WHERE pk = ? AND ck = ?", BEFORE_DROP_TS, 1, pk, decimal(1, i));
+                }
+                flush();
+            }
+            alterTable("ALTER TABLE %s DROP d");
+
+            String json = allJson(assertCursorMatchesIterator(cfs));
+            assertEquals("each partition keeps its one row", sstableCount * 4, countOccurrences(json, "\"name\":\"v\""));
+        }
+    }
+
+    /**
+     * As above, for the column merge order. In each row one sstable holds only a cell of the
+     * column that is dropped later, and each of the others holds the same set element with other
+     * bytes. The iterator path gives the skipped row to no merge, so the cursor path must not give
+     * it to the column merge.
+     */
+    @Test
+    public void rowLeftEmptyByDropDoesNotChooseCellPathBytes() throws Exception
+    {
+        for (int sstableCount : SSTABLE_COUNTS)
+        {
+            createTable("CREATE TABLE %s (pk int, ck int, s set<decimal>, d int, PRIMARY KEY (pk, ck))");
+            ColumnFamilyStore cfs = getCurrentColumnFamilyStore();
+            cfs.disableAutoCompaction();
+            for (int i = 0; i < sstableCount; i++)
+            {
+                for (int pk = 0; pk < sstableCount * 4; pk++)
+                {
+                    if (pk % sstableCount == i)
+                        execute("UPDATE %s USING TIMESTAMP ? SET d = ? WHERE pk = ? AND ck = ?", BEFORE_DROP_TS, 1, pk, 0);
+                    else
+                        execute("UPDATE %s USING TIMESTAMP ? SET s = s + ? WHERE pk = ? AND ck = ?",
+                                BEFORE_DROP_TS, Collections.singleton(decimal(1, (i + pk) % 4)), pk, 0);
+                }
+                flush();
+            }
+            alterTable("ALTER TABLE %s DROP d");
+
+            assertCursorMatchesIterator(cfs);
+        }
+    }
+
+    /**
+     * The control for the two tests above: the rows also hold a cell of a column that is not
+     * dropped, so the drop filter leaves them not empty, and both paths merge every row.
+     */
+    @Test
+    public void rowWithLiveCellAfterDropIsKept() throws Exception
+    {
+        for (int sstableCount : SSTABLE_COUNTS)
+        {
+            createTable("CREATE TABLE %s (pk int, ck decimal, v int, w int, d int, PRIMARY KEY (pk, ck))");
+            ColumnFamilyStore cfs = getCurrentColumnFamilyStore();
+            cfs.disableAutoCompaction();
+            for (int i = 0; i < sstableCount; i++)
+            {
+                for (int pk = 0; pk < sstableCount * 4; pk++)
+                {
+                    if (pk % sstableCount == i)
+                        execute("INSERT INTO %s (pk, ck, v) VALUES (?, ?, ?) USING TIMESTAMP ?", pk, decimal(1, i), 1, BEFORE_DROP_TS);
+                    else
+                        execute("UPDATE %s USING TIMESTAMP ? SET d = ?, w = ? WHERE pk = ? AND ck = ?", BEFORE_DROP_TS, 1, i, pk, decimal(1, i));
+                }
+                flush();
+            }
+            alterTable("ALTER TABLE %s DROP d");
+
+            String json = allJson(assertCursorMatchesIterator(cfs));
+            assertEquals("the cells of the column that is not dropped must survive",
+                         sstableCount * 4, countOccurrences(json, "\"name\":\"w\""));
+        }
+    }
+
+    /**
+     * As {@link #rowLeftEmptyByDropDoesNotChooseClusteringBytes}, but the other rows hold only a
+     * deletion of a complex column, written before that column is dropped and added again. The read
+     * drops that deletion, so the row is empty, and the iterator path skips it.
+     */
+    @Test
+    public void rowWithOnlyDroppedComplexDeletionDoesNotChooseClusteringBytes() throws Exception
+    {
+        for (int sstableCount : SSTABLE_COUNTS)
+        {
+            createTable("CREATE TABLE %s (pk int, ck decimal, v int, s set<int>, PRIMARY KEY (pk, ck))");
+            ColumnFamilyStore cfs = getCurrentColumnFamilyStore();
+            cfs.disableAutoCompaction();
+            for (int i = 0; i < sstableCount; i++)
+            {
+                for (int pk = 0; pk < sstableCount * 4; pk++)
+                {
+                    if (pk % sstableCount == i)
+                        execute("INSERT INTO %s (pk, ck, v) VALUES (?, ?, ?) USING TIMESTAMP ?", pk, decimal(1, i), 1, BEFORE_DROP_TS);
+                    else
+                        execute("DELETE s FROM %s USING TIMESTAMP ? WHERE pk = ? AND ck = ?", BEFORE_DROP_TS, pk, decimal(1, i));
+                }
+                flush();
+            }
+            alterTable("ALTER TABLE %s DROP s");
+            alterTable("ALTER TABLE %s ADD s set<int>");
+
+            String json = allJson(assertCursorMatchesIterator(cfs));
+            assertEquals("each partition keeps its one row", sstableCount * 4, countOccurrences(json, "\"name\":\"v\""));
+        }
+    }
+
+    /**
+     * The rows that the drop filter leaves empty sit next to the other unfiltereds of a partition:
+     * two of them in a row, one before a range tombstone, and one as the last row of the
+     * partition. The static row holds only a dropped static cell. Each partition also holds a
+     * dropped cell newer than the drop, which survives, and cells written after the column is
+     * added again, which also survive.
+     */
+    @Test
+    public void rowsLeftEmptyByDropNextToOtherUnfiltereds() throws Exception
+    {
+        createTable("CREATE TABLE %s (pk int, ck int, ds int static, v int, d int, PRIMARY KEY (pk, ck))");
+        ColumnFamilyStore cfs = getCurrentColumnFamilyStore();
+        cfs.disableAutoCompaction();
+        int partitions = 10;
+        for (int pk = 0; pk < partitions; pk++)
+        {
+            execute("UPDATE %s USING TIMESTAMP ? SET ds = ? WHERE pk = ?", BEFORE_DROP_TS, 1, pk);
+            for (int ck = 0; ck < 10; ck++)
+                execute("UPDATE %s USING TIMESTAMP ? SET d = ? WHERE pk = ? AND ck = ?", BEFORE_DROP_TS, 1, pk, ck);
+            execute("DELETE FROM %s USING TIMESTAMP ? WHERE pk = ? AND ck >= 3 AND ck < 5", BEFORE_DROP_TS + 1, pk);
+            execute("UPDATE %s USING TIMESTAMP ? SET d = ? WHERE pk = ? AND ck = ?", FUTURE_TS, 2, pk, 6);
+        }
+        flush();
+        alterTable("ALTER TABLE %s DROP d");
+        alterTable("ALTER TABLE %s DROP ds");
+        alterTable("ALTER TABLE %s ADD d int");
+        for (int pk = 0; pk < partitions; pk++)
+        {
+            execute("INSERT INTO %s (pk, ck, v) VALUES (?, ?, ?)", pk, 2, 1);
+            execute("UPDATE %s SET d = ? WHERE pk = ? AND ck = ?", 3, pk, 8);
+        }
+        flush();
+
+        String json = allJson(assertCursorMatchesIterator(cfs));
+        assertEquals("the dropped cells newer than the drop must survive",
+                     partitions, countOccurrences(json, "\"value\":2"));
+        assertEquals("the cells written after the re-add must survive",
+                     partitions, countOccurrences(json, "\"value\":3"));
+        assertEquals("each range tombstone must survive as two markers",
+                     2 * partitions, countOccurrences(json, "\"type\":\"range_tombstone_bound\""));
+    }
+
+    /**
+     * A row whose only cells are of the dropped column, but which also holds a row deletion, is not
+     * empty after the drop filter: {@link org.apache.cassandra.db.rows.BTreeRow#isEmpty} is false
+     * because the deletion is not live. The iterator path keeps it, so the cursor path must too.
+     * Each of the other sstables holds the same row, with other clustering bytes, in one of three
+     * forms, chosen by the partition:
+     * <ul>
+     *   <li>a regular row deletion and a cell of the dropped column;</li>
+     *   <li>a row marker, a newer row deletion that deletes it, and a cell of the dropped column;</li>
+     *   <li>a shadowable row deletion and a cell of the dropped column.</li>
+     * </ul>
+     * These rows take the early return in the reader, so this test passes with and without the fix.
+     * It pins the rows that the fix must keep.
+     */
+    @Test
+    public void rowWithRowDeletionAndOnlyDroppedCellsIsKept() throws Exception
+    {
+        for (int sstableCount : SSTABLE_COUNTS)
+        {
+            createTable("CREATE TABLE %s (pk int, ck decimal, v int, d int, PRIMARY KEY (pk, ck))");
+            ColumnFamilyStore cfs = getCurrentColumnFamilyStore();
+            cfs.disableAutoCompaction();
+            int partitions = sstableCount * 6;
+            for (int i = 0; i < sstableCount; i++)
+            {
+                for (int pk = 0; pk < partitions; pk++)
+                {
+                    BigDecimal ck = decimal(1, i);
+                    if (pk % sstableCount == i)
+                    {
+                        execute("INSERT INTO %s (pk, ck, v) VALUES (?, ?, ?) USING TIMESTAMP ?", pk, ck, 1, BEFORE_DROP_TS);
+                        continue;
+                    }
+                    switch ((pk / sstableCount) % 3)
+                    {
+                        case 0:
+                            execute("DELETE FROM %s USING TIMESTAMP ? WHERE pk = ? AND ck = ?", BEFORE_DROP_TS - 10, pk, ck);
+                            break;
+                        case 1:
+                            execute("INSERT INTO %s (pk, ck) VALUES (?, ?) USING TIMESTAMP ?", pk, ck, BEFORE_DROP_TS - 20);
+                            execute("DELETE FROM %s USING TIMESTAMP ? WHERE pk = ? AND ck = ?", BEFORE_DROP_TS - 10, pk, ck);
+                            break;
+                        default:
+                            writeShadowableRowDeletion(cfs, pk, ck, BEFORE_DROP_TS - 10);
+                    }
+                    execute("UPDATE %s USING TIMESTAMP ? SET d = ? WHERE pk = ? AND ck = ?", BEFORE_DROP_TS, 1, pk, ck);
+                }
+                flush();
+            }
+            alterTable("ALTER TABLE %s DROP d");
+
+            String json = allJson(assertCursorMatchesIterator(cfs));
+            assertEquals("each partition keeps its one row", partitions, countOccurrences(json, "\"name\":\"v\""));
+            // The merge keeps a regular row deletion, and the newer row marker shadows a shadowable one.
+            assertEquals("each merged row with a regular row deletion keeps it", sstableCount * 4,
+                         countOccurrences(json, "\"deletion_info\""));
+        }
+    }
+
+    private static void writeShadowableRowDeletion(ColumnFamilyStore cfs, int pk, BigDecimal ck, long timestamp)
+    {
+        Clustering<?> clustering = Clustering.make(DecimalType.instance.decompose(ck));
+        Row row = BTreeRow.create(clustering, LivenessInfo.EMPTY,
+                                  Row.Deletion.shadowable(DeletionTime.build(timestamp, FBUtilities.nowInSeconds())), BTree.empty());
+        new Mutation(PartitionUpdate.singleRowUpdate(cfs.metadata(), Int32Type.instance.decompose(pk), row)).apply();
+    }
+
+    /**
+     * A row with no liveness and no row deletion, whose only content is a cell of the dropped
+     * column and a complex deletion of {@code s}, which is not dropped. The deletion survives the
+     * drop filter, so the row is not empty and the iterator path keeps it. If the cursor path
+     * skipped it, the element of {@code s} from the other sstable would come back.
+     */
+    @Test
+    public void rowWithDroppedCellAndComplexDeletionIsKept() throws Exception
+    {
+        for (int sstableCount : SSTABLE_COUNTS)
+        {
+            createTable("CREATE TABLE %s (pk int, ck decimal, s set<int>, d int, PRIMARY KEY (pk, ck))");
+            ColumnFamilyStore cfs = getCurrentColumnFamilyStore();
+            cfs.disableAutoCompaction();
+            int partitions = sstableCount * 4;
+            for (int i = 0; i < sstableCount; i++)
+            {
+                for (int pk = 0; pk < partitions; pk++)
+                {
+                    BigDecimal ck = decimal(1, i);
+                    if (pk % sstableCount == i)
+                        execute("UPDATE %s USING TIMESTAMP ? SET s = s + ? WHERE pk = ? AND ck = ?",
+                                BEFORE_DROP_TS - 100, Collections.singleton(1), pk, ck);
+                    else
+                        execute("UPDATE %s USING TIMESTAMP ? SET d = ?, s = ? WHERE pk = ? AND ck = ?",
+                                BEFORE_DROP_TS, 1, Collections.emptySet(), pk, ck);
+                }
+                flush();
+            }
+            alterTable("ALTER TABLE %s DROP d");
+
+            String json = allJson(assertCursorMatchesIterator(cfs));
+            assertEquals("the complex deletion of s must remove every element of s",
+                         0, countOccurrences(json, "\"name\":\"s\",\"path\""));
+        }
+    }
+
+    /**
+     * Partitions that hold only cells of the dropped column have nothing left after the drop
+     * filter, so the iterator path writes no partition for them. They sit at the lowest token, at
+     * the highest token, and between partitions that are kept. With one sstable, and with several
+     * sstables where each one holds only dropped cells for those keys.
+     */
+    @Test
+    public void partitionsWithOnlyDroppedCellsAreNotWritten() throws Exception
+    {
+        for (int sstableCount : new int[]{ 1, 3 })
+        {
+            createTable("CREATE TABLE %s (pk int, ck int, v int, d int, PRIMARY KEY (pk, ck))");
+            ColumnFamilyStore cfs = getCurrentColumnFamilyStore();
+            cfs.disableAutoCompaction();
+            int partitions = 12;
+            List<Integer> byToken = new ArrayList<>();
+            for (int pk = 0; pk < partitions; pk++)
+                byToken.add(pk);
+            byToken.sort(Comparator.comparing(pk -> cfs.getPartitioner().getToken(Int32Type.instance.decompose(pk))));
+            Set<Integer> onlyDropped = new HashSet<>(Arrays.asList(byToken.get(0), byToken.get(5), byToken.get(6),
+                                                                   byToken.get(partitions - 1)));
+            for (int i = 0; i < sstableCount; i++)
+            {
+                for (int pk = 0; pk < partitions; pk++)
+                {
+                    for (int ck = 0; ck < 3; ck++)
+                    {
+                        if (i == 0 && !onlyDropped.contains(pk))
+                            execute("INSERT INTO %s (pk, ck, v) VALUES (?, ?, ?) USING TIMESTAMP ?", pk, ck, 1, BEFORE_DROP_TS);
+                        else
+                            execute("UPDATE %s USING TIMESTAMP ? SET d = ? WHERE pk = ? AND ck = ?", BEFORE_DROP_TS, 1, pk, ck);
+                    }
+                }
+                flush();
+            }
+            alterTable("ALTER TABLE %s DROP d");
+
+            String json = allJson(assertCursorMatchesIterator(cfs));
+            assertEquals("only the partitions with a kept cell are written",
+                         partitions - onlyDropped.size(), countOccurrences(json, "\"partition\":{\"key\""));
+            for (int pk : onlyDropped)
+                assertEquals("partition " + pk + " holds only dropped cells", 0,
+                             countOccurrences(json, "\"key\":[\"" + pk + "\"]"));
+        }
+    }
+
+    /**
+     * The two paths count source rows in different ways. The iterator path counts each merged row,
+     * plus one static row for each partition, also when the partition has no static row. The cursor
+     * path counts each source row that is not skipped. So the test checks each count against the
+     * number expected for the shape. A row left empty by the drop must not be counted on either path.
+     */
+    @Test
+    public void totalSourceCQLRowsLeavesOutSkippedRows() throws Exception
+    {
+        int partitions = 10;
+        int rows = 6;
+        createTable("CREATE TABLE %s (pk int, ck int, v int, d int, PRIMARY KEY (pk, ck))");
+        ColumnFamilyStore cfs = getCurrentColumnFamilyStore();
+        cfs.disableAutoCompaction();
+        // Even rows hold only the dropped column, so they are skipped; odd rows also hold v.
+        for (int pk = 0; pk < partitions; pk++)
+            for (int ck = 0; ck < rows; ck++)
+                if (ck % 2 == 0)
+                    execute("UPDATE %s USING TIMESTAMP ? SET d = ? WHERE pk = ? AND ck = ?", BEFORE_DROP_TS, 1, pk, ck);
+                else
+                    execute("UPDATE %s USING TIMESTAMP ? SET d = ?, v = ? WHERE pk = ? AND ck = ?", BEFORE_DROP_TS, 1, 1, pk, ck);
+        flush();
+        alterTable("ALTER TABLE %s DROP d");
+
+        long kept = partitions * rows / 2;
+        assertEquals("iterator path, one sstable: kept rows and one static row per partition",
+                     kept + partitions, iteratorTotalSourceCQLRows(cfs));
+        assertEquals("cursor path, one sstable: kept rows", kept, cursorTotalSourceCQLRows(cfs));
+
+        // A second sstable holds every row with a row marker, so the merge has each row once.
+        for (int pk = 0; pk < partitions; pk++)
+            for (int ck = 0; ck < rows; ck++)
+                execute("INSERT INTO %s (pk, ck, v) VALUES (?, ?, ?) USING TIMESTAMP ?", pk, ck, 2, BEFORE_DROP_TS + 1);
+        flush();
+
+        assertEquals("iterator path, two sstables: each merged row and one static row per partition",
+                     (long) partitions * rows + partitions, iteratorTotalSourceCQLRows(cfs));
+        assertEquals("cursor path, two sstables: each source row that is not skipped",
+                     partitions * rows + kept, cursorTotalSourceCQLRows(cfs));
+    }
+
+    private static long iteratorTotalSourceCQLRows(ColumnFamilyStore cfs)
+    {
+        Set<SSTableReader> inputs = cfs.getLiveSSTables();
+        long nowInSec = FBUtilities.nowInSeconds();
+        try (CompactionController controller = new CompactionController(cfs, inputs, cfs.getDefaultGcBefore(nowInSec));
+             AbstractCompactionStrategy.ScannerList scanners = cfs.getCompactionStrategyManager().getScanners(inputs);
+             CompactionIterator iterator = new CompactionIterator(OperationType.COMPACTION, scanners.scanners, controller,
+                                                                  nowInSec, TimeUUID.Generator.nextTimeUUID()))
+        {
+            while (iterator.hasNext())
+            {
+                try (UnfilteredRowIterator partition = iterator.next())
+                {
+                    while (partition.hasNext())
+                        partition.next();
+                }
+            }
+            return iterator.getTotalSourceCQLRows();
+        }
+    }
+
+    /** Runs a cursor compaction to its end, then aborts it, so the input sstables stay live. */
+    private static long cursorTotalSourceCQLRows(ColumnFamilyStore cfs) throws Exception
+    {
+        DatabaseDescriptor.setCursorCompactionEnabled(true);
+        Set<SSTableReader> inputs = cfs.getLiveSSTables();
+        long nowInSec = FBUtilities.nowInSeconds();
+        LifecycleTransaction txn = cfs.getTracker().tryModify(inputs, OperationType.COMPACTION);
+        assertNotNull("unable to mark the inputs compacting", txn);
+        try (CompactionController controller = new CompactionController(cfs, inputs, cfs.getDefaultGcBefore(nowInSec));
+             AbstractCompactionStrategy.ScannerList scanners = cfs.getCompactionStrategyManager().getScanners(inputs);
+             DefaultCompactionWriter writer = new DefaultCompactionWriter(cfs, cfs.getDirectories(), txn, inputs))
+        {
+            assertTrue("the cursor path must run for this table", CursorCompactor.isSupported(scanners, controller));
+            CursorCompactor compactor = new CursorCompactor(OperationType.COMPACTION, scanners.scanners, controller,
+                                                            nowInSec, TimeUUID.Generator.nextTimeUUID());
+            try
+            {
+                while (compactor.writeNextPartition(writer)) { }
+                return compactor.getTotalSourceCQLRows();
+            }
+            finally
+            {
+                compactor.close();
+            }
+        }
+        finally
+        {
+            try
+            {
+                txn.abort();
+            }
+            catch (Throwable ignored)
+            {
+                // the writer's abort may already have aborted the transaction
+            }
+        }
+    }
+
+    /** Enough regular columns that the cell walk uses its present-mask words, which it does from 64 columns. */
+    private static final int WIDE_COLUMNS = 70;
+
+    /**
+     * As {@link #rowLeftEmptyByDropDoesNotChooseClusteringBytes}, on a table of more than 64
+     * columns, with the dropped column last, past index 64. In each partition one sstable holds the
+     * row with a row marker. Each of the others holds the same row, with other clustering bytes,
+     * and with only a cell of the dropped column, or with that cell and a cell of a column that is
+     * kept. The second kind is not empty, so the reader goes back to its first cell.
+     */
+    @Test
+    public void rowLeftEmptyByDropOnWideTable() throws Exception
+    {
+        StringBuilder columns = new StringBuilder();
+        StringBuilder setAll = new StringBuilder();
+        for (int c = 0; c < WIDE_COLUMNS; c++)
+        {
+            columns.append(String.format("c%02d int, ", c));
+            setAll.append(String.format("c%02d = 1, ", c));
+        }
+        for (int sstableCount : SSTABLE_COUNTS)
+        {
+            createTable("CREATE TABLE %s (pk int, ck decimal, " + columns + "zd int, PRIMARY KEY (pk, ck))");
+            ColumnFamilyStore cfs = getCurrentColumnFamilyStore();
+            cfs.disableAutoCompaction();
+            int partitions = sstableCount * 4;
+            for (int i = 0; i < sstableCount; i++)
+            {
+                for (int pk = 0; pk < partitions; pk++)
+                {
+                    if (pk % sstableCount == i)
+                        execute("INSERT INTO %s (pk, ck, c65) VALUES (?, ?, ?) USING TIMESTAMP ?", pk, decimal(1, i), 1, BEFORE_DROP_TS);
+                    else if (pk % 2 == 0)
+                        execute("UPDATE %s USING TIMESTAMP ? SET zd = ? WHERE pk = ? AND ck = ?", BEFORE_DROP_TS, 1, pk, decimal(1, i));
+                    else
+                        execute("UPDATE %s USING TIMESTAMP ? SET c66 = ?, zd = ? WHERE pk = ? AND ck = ?", BEFORE_DROP_TS, i, 1, pk, decimal(1, i));
+                }
+                // A flush writes only the columns that hold data into the header, so one row sets them all.
+                execute("UPDATE %s USING TIMESTAMP ? SET " + setAll + "zd = 1 WHERE pk = ? AND ck = ?", BEFORE_DROP_TS, partitions, decimal(1, i));
+                flush();
+            }
+            for (SSTableReader sstable : cfs.getLiveSSTables())
+                assertTrue("the sstable must have 64 columns or more, or the present-mask words are not used",
+                           sstable.header.columns().regulars.size() >= 64);
+            alterTable("ALTER TABLE %s DROP zd");
+
+            String json = allJson(assertCursorMatchesIterator(cfs));
+            assertEquals("each partition keeps its one row", partitions + 1, countOccurrences(json, "\"name\":\"c65\""));
+        }
+    }
+
+    /** {@code value} with {@code scale} extra zero digits: equal values, other bytes. */
+    private static BigDecimal decimal(int value, int scale)
+    {
+        return new BigDecimal(BigInteger.valueOf(value).multiply(BigInteger.TEN.pow(scale)), scale);
     }
 
     /*

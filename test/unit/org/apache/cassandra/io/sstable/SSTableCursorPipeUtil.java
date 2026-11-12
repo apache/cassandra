@@ -42,6 +42,7 @@ public class SSTableCursorPipeUtil
     {
         PartitionDescriptor pHeader = new PartitionDescriptor(reader.ssTableReader().getPartitioner().createReusableKey(0));
         UnfilteredDescriptor unfilteredDescriptor = new UnfilteredDescriptor(reader.ssTableReader().header.clusteringTypes());
+        ClusteringDescriptor lastWritten = new ClusteringDescriptor(reader.ssTableReader().header.clusteringTypes());
         int readerState = PARTITION_START;
         boolean first = true;
 
@@ -53,11 +54,17 @@ public class SSTableCursorPipeUtil
                 first = false;
                 writer.setFirst(pHeader.keyBuffer());
             }
-            readerState = copyPartition(reader, writer, pHeader, unfilteredDescriptor, readerState);
+            readerState = copyPartition(reader, writer, pHeader, unfilteredDescriptor, lastWritten, readerState);
         }
     }
 
-    public static int copyPartition(SSTableCursorReader reader, SSTableCursorWriter writer, PartitionDescriptor pHeader, UnfilteredDescriptor unfilteredDescriptor, int readerState) throws IOException
+    /**
+     * @param lastWritten holds the clustering of the last row or marker written. The reader can skip a
+     * row the dropped-column filter leaves empty, and the descriptor then still holds the skipped row.
+     * If the filter leaves every row of a partition empty, the partition is still written, with no rows; the
+     * iterator path writes no partition then.
+     */
+    public static int copyPartition(SSTableCursorReader reader, SSTableCursorWriter writer, PartitionDescriptor pHeader, UnfilteredDescriptor unfilteredDescriptor, ClusteringDescriptor lastWritten, int readerState) throws IOException
     {
         if (readerState != STATIC_ROW_START &&
             readerState != ROW_START &&
@@ -80,17 +87,25 @@ public class SSTableCursorPipeUtil
                     headerLength = (int) (writer.getPosition() - writer.getPartitionStart());
                     break;
                 case ROW_START:
-                    readerState = copyRow(reader, writer, unfilteredDescriptor, unfilteredCounter++);
+                    long rowStart = writer.getPosition();
+                    readerState = copyRow(reader, writer, unfilteredDescriptor, unfilteredCounter);
+                    // count the row only if it was written, not if the reader skipped it
+                    if (writer.getPosition() != rowStart)
+                    {
+                        unfilteredCounter++;
+                        lastWritten.copy(unfilteredDescriptor);
+                    }
                     break;
                 case TOMBSTONE_START:
                     readerState = copyRangeTombstone(reader, writer, unfilteredDescriptor, unfilteredCounter++);
+                    lastWritten.copy(unfilteredDescriptor);
             }
         }
         // the last clustering is recorded before the end of partition is written, as the iterator path does
         if (unfilteredCounter > 1)
-            writer.updateClusteringMetadata(unfilteredDescriptor);
+            writer.updateClusteringMetadata(lastWritten);
         writer.writePartitionEnd(pHeader.key(), pDeletionTime, headerLength,
-                                 unfilteredCounter > 0 ? unfilteredDescriptor : null);
+                                 unfilteredCounter > 0 ? lastWritten : null);
         return reader.continueReading();
     }
 
@@ -103,6 +118,9 @@ public class SSTableCursorPipeUtil
     public static int copyRow(SSTableCursorReader reader, SSTableCursorWriter writer, UnfilteredDescriptor unfilteredDescriptor, int unfilteredIndex) throws IOException
     {
         int readerState = reader.readRowHeader(unfilteredDescriptor);
+        // the reader skipped a row the dropped-column filter left empty
+        if (readerState != CELL_HEADER_START && readerState != UNFILTERED_END)
+            return readerState;
         return copyRowAfterDescriptor(reader, writer, unfilteredDescriptor, readerState, false, unfilteredIndex == 0);
     }
 

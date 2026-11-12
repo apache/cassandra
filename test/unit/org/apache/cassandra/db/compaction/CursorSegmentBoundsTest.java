@@ -609,4 +609,79 @@ public class CursorSegmentBoundsTest extends CQLTester
             assertEquals("the stale current partition must be cleared", 0, unbounded.currPartition().keyLength());
         }
     }
+
+    /**
+     * An sstable with a dropped column. Column {@code a} sorts first and is dropped. Some rows
+     * hold only a cell of {@code a}, so the drop filter leaves them empty and the reader skips
+     * them. Other rows hold a cell of {@code a} and a cell of {@code b}: the reader reads past the
+     * cell of {@code a}, finds the cell of {@code b}, and goes back to the first cell. The byte
+     * count must not go backwards, and the snapshot deltas must sum to the segments. The last row
+     * of each partition is skipped, so each segment ends right after a skip to the partition end.
+     */
+    @Test
+    public void theByteCountNeverGoesBackwardsWithADroppedColumn()
+    {
+        createTable("CREATE TABLE %s (pk bigint, ck bigint, a text, b text, PRIMARY KEY (pk, ck))");
+        ColumnFamilyStore cfs = getCurrentColumnFamilyStore();
+        cfs.disableAutoCompaction();
+        for (long pk = 0; pk < 40; pk++)
+        {
+            // ck 6, the last row of each partition, is even, so a skip runs right up to the partition end.
+            for (long ck = 0; ck < 7; ck++)
+            {
+                if (ck % 2 == 0)
+                    execute("UPDATE %s USING TIMESTAMP 1000 SET a = ? WHERE pk = ? AND ck = ?", "dropped-" + pk + '-' + ck, pk, ck);
+                else
+                    execute("UPDATE %s USING TIMESTAMP 1000 SET a = ?, b = ? WHERE pk = ? AND ck = ?", "dropped-" + pk, "kept-" + ck, pk, ck);
+            }
+        }
+        flush();
+        assertEquals("expected exactly one sstable", 1, cfs.getLiveSSTables().size());
+        SSTableReader sstable = cfs.getLiveSSTables().iterator().next();
+        alterTable("ALTER TABLE %s DROP a");
+
+        List<Seen> baseline = wholeFile(sstable);
+        long length = sstable.uncompressedLength();
+        int third = baseline.size() / 3;
+        long a = baseline.get(third).position;
+        long b = baseline.get(2 * third).position;
+        long covered = a + (length - b);
+
+        try (StatefulCursor cursor = new StatefulCursor(sstable,
+                                                        Arrays.asList(new PartitionPositionBounds(0, a),
+                                                                      new PartitionPositionBounds(b, length)),
+                                                        DiskAccessMode.standard))
+        {
+            long previous = 0;
+            long total = 0;
+            int rows = 0;
+            int state = cursor.state();
+            while (!isState(state, DONE))
+            {
+                long now = cursor.bytesRead();
+                assertTrue("the byte count went backwards: " + previous + " then " + now, now >= previous);
+                previous = now;
+                long delta = cursor.bytesReadSinceSnapshot();
+                assertTrue("a snapshot delta must never be negative, was " + delta, delta >= 0);
+                total += delta;
+
+                if (isState(state, PARTITION_START)) state = cursor.readPartitionHeader();
+                else if (isState(state, STATIC_ROW_START)) { cursor.readStaticRowHeader(); state = cursor.state(); }
+                else if (isState(state, ROW_START))
+                {
+                    cursor.readRowHeader();
+                    state = cursor.state();
+                    if (isState(state, CELL_HEADER_START))
+                        rows++;
+                }
+                else if (isState(state, TOMBSTONE_START)) { cursor.readTombstoneMarker(); state = cursor.state(); }
+                else if (isState(state, CELL_HEADER_START)) state = cursor.readCellHeader();
+                else if (isState(state, CELL_VALUE_START)) state = cursor.skipCellValue();
+                else state = cursor.continueReading();
+            }
+            total += cursor.bytesReadSinceSnapshot();
+            assertEquals("the deltas must sum to the bytes the segments cover", covered, total);
+            assertEquals("only the rows with a cell of b are kept", 3 * (third + baseline.size() - 2 * third), rows);
+        }
+    }
 }
