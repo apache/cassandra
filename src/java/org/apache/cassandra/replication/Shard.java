@@ -320,7 +320,7 @@ public class Shard
         return log != null && log.isFlushed(tableId, offset);
     }
 
-    void syncFlushedOffsetsBlocking(CoordinatorLogId logId)
+    void attemptSyncFlushedOffsetsBlocking(CoordinatorLogId logId)
     {
         CoordinatorLog log = logs.get(logId.asLong());
         if (log != null)
