@@ -386,14 +386,10 @@ public class CoordinatorLogOffsetsTest
         Assertions.assertThat(offsets.contains(m1)).isTrue();
         Assertions.assertThat(offsets.contains(m2)).isTrue();
         Assertions.assertThat(offsets.contains(m3)).isTrue();
-        Assertions.assertThat(offsets.contains((ShortMutationId) m1)).isTrue();
-        Assertions.assertThat(offsets.contains((ShortMutationId) m2)).isTrue();
-        Assertions.assertThat(offsets.contains((ShortMutationId) m3)).isTrue();
 
         Assertions.assertThat(offsets.contains(absent)).isFalse();
         Assertions.assertThat(offsets.contains(absentLog)).isFalse();
-        Assertions.assertThat(offsets.contains((MutationId) null)).isFalse();
-        Assertions.assertThat(offsets.contains((ShortMutationId) null)).isFalse();
+        Assertions.assertThat(offsets.contains(null)).isFalse();
         Assertions.assertThat(offsets.contains(MutationId.NONE)).isFalse();
         Assertions.assertThat(offsets.contains(ShortMutationId.NONE)).isFalse();
     }
