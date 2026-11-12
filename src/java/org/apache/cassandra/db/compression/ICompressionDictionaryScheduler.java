@@ -39,6 +39,25 @@ public interface ICompressionDictionaryScheduler extends AutoCloseable
     void scheduleRefreshTask();
 
     /**
+     * Makes the newest dictionary which is either used by all nodes or local to this node the current one,
+     * dictionaries local to other nodes are skipped. It goes back to an older dictionary as well, e.g. when
+     * the current dictionary was discarded, and leaves no current dictionary when there is none.
+     *
+     * @throws IllegalStateException if dictionaries could not be read
+     */
+    void refreshCurrentDictionary();
+
+    /**
+     * Caches a dictionary which was just stored and makes it the current one when it is newer, see
+     * {@link ICompressionDictionaryCache#add(CompressionDictionary)}. It does not run concurrently with
+     * {@link #refreshCurrentDictionary()}, so a refresh which read dictionaries before this one was stored does not
+     * make an older dictionary current afterwards.
+     *
+     * @param dictionary the dictionary which was just stored
+     */
+    void addStoredDictionary(CompressionDictionary dictionary);
+
+    /**
      * Schedules SSTable-based training that samples from existing SSTables.
      *
      * A caller of this method should ensure that SSTables referred in {@code refViewFragment} are closed

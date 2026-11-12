@@ -26,11 +26,14 @@ import org.apache.cassandra.config.DataStorageSpec;
 import org.apache.cassandra.config.DurationSpec;
 import org.apache.cassandra.exceptions.ConfigurationException;
 import org.apache.cassandra.schema.CompressionParams;
+import org.apache.cassandra.utils.LocalizeString;
 
 import static java.lang.String.format;
+import static org.apache.cassandra.io.compress.IDictionaryCompressor.DEFAULT_TRAINING_GLOBAL_SCOPE_PARAMETER_VALUE;
 import static org.apache.cassandra.io.compress.IDictionaryCompressor.DEFAULT_TRAINING_MAX_DICTIONARY_SIZE_PARAMETER_VALUE;
 import static org.apache.cassandra.io.compress.IDictionaryCompressor.DEFAULT_TRAINING_MAX_TOTAL_SAMPLE_SIZE_PARAMETER_VALUE;
 import static org.apache.cassandra.io.compress.IDictionaryCompressor.DEFAULT_TRAINING_MIN_FREQUENCY;
+import static org.apache.cassandra.io.compress.IDictionaryCompressor.TRAINING_GLOBAL_SCOPE_PARAMETER_NAME;
 import static org.apache.cassandra.io.compress.IDictionaryCompressor.TRAINING_MAX_DICTIONARY_SIZE_PARAMETER_NAME;
 import static org.apache.cassandra.io.compress.IDictionaryCompressor.TRAINING_MAX_TOTAL_SAMPLE_SIZE_PARAMETER_NAME;
 import static org.apache.cassandra.io.compress.IDictionaryCompressor.TRAINING_MIN_FREQUENCY_PARAMETER_NAME;
@@ -45,6 +48,7 @@ public class CompressionDictionaryTrainingConfig
     public final int acceptableTotalSampleSize;
     public final int chunkSize;
     public final int minTrainingFrequency;
+    public final boolean global;
 
     private CompressionDictionaryTrainingConfig(Builder builder)
     {
@@ -53,6 +57,7 @@ public class CompressionDictionaryTrainingConfig
         this.acceptableTotalSampleSize = builder.maxTotalSampleSize / 10 * 8;
         this.chunkSize = builder.chunkSize;
         this.minTrainingFrequency = builder.minTrainingFrequency;
+        this.global = builder.global;
     }
 
     public static Builder builder()
@@ -66,6 +71,13 @@ public class CompressionDictionaryTrainingConfig
         private int maxTotalSampleSize = 10 * 1024 * 1024; // 10MB total
         private int chunkSize = 64 * 1024; // 64KB default
         private int minTrainingFrequency = 0; // in minutes
+        private boolean global = true;
+
+        public Builder global(boolean global)
+        {
+            this.global = global;
+            return this;
+        }
 
         public Builder maxDictionarySize(int size)
         {
@@ -136,6 +148,18 @@ public class CompressionDictionaryTrainingConfig
                                                    parameters.get(TRAINING_MAX_TOTAL_SAMPLE_SIZE_PARAMETER_NAME),
                                                    TRAINING_MAX_TOTAL_SAMPLE_SIZE_PARAMETER_NAME,
                                                    DEFAULT_TRAINING_MAX_TOTAL_SAMPLE_SIZE_PARAMETER_VALUE);
+    }
+
+
+    public static boolean getGlobal(Map<String, String> parameters)
+    {
+        String resolvedValue = parameters.getOrDefault(TRAINING_GLOBAL_SCOPE_PARAMETER_NAME,
+                                                       DEFAULT_TRAINING_GLOBAL_SCOPE_PARAMETER_VALUE);
+        // Boolean.parseBoolean would silently take any other value as false, i.e. train a local dictionary
+        String value = LocalizeString.toLowerCaseLocalized(resolvedValue);
+        if (!"true".equals(value) && !"false".equals(value))
+            throw new IllegalArgumentException(String.format("Invalid value for 'global': %s", resolvedValue));
+        return Boolean.parseBoolean(value);
     }
 
     private static int internalTrainingParameterResolution(CompressionParams compressionParams,

@@ -19,15 +19,22 @@
 package org.apache.cassandra.db.compression;
 
 import java.util.List;
+import java.util.stream.Collectors;
 
 import org.junit.Assert;
 import org.junit.BeforeClass;
 import org.junit.Test;
 
 import org.apache.cassandra.cql3.CQLTester;
+import org.apache.cassandra.cql3.QueryProcessor;
 import org.apache.cassandra.db.ColumnFamilyStore;
 import org.apache.cassandra.db.compression.CompressionDictionary.LightweightCompressionDictionary;
+import org.apache.cassandra.distributed.test.log.ClusterMetadataTestHelper;
+import org.apache.cassandra.locator.InetAddressAndPort;
+import org.apache.cassandra.schema.SchemaConstants;
 import org.apache.cassandra.schema.SystemDistributedKeyspace;
+import org.apache.cassandra.tcm.ClusterMetadata;
+import org.apache.cassandra.tcm.membership.NodeId;
 import org.apache.cassandra.tools.ToolRunner.ToolResult;
 
 import static java.lang.String.format;
@@ -82,6 +89,44 @@ public class CompressionDictionaryOrphanedTest extends CQLTester
         assertOrphaned(secondTableId);
         cleanupOrphaned();
         assertNoOrphaned();
+    }
+
+    @Test
+    public void testOrphanedDictionariesOfNodesNotInCluster() throws Throwable
+    {
+        String tableId = createDictTable();
+        NodeId registered = ClusterMetadataTestHelper.register(InetAddressAndPort.getByName("127.0.0.42"));
+
+        insertDictionary(tableId, 1, null);
+        insertDictionary(tableId, 2, ClusterMetadata.current().myNodeId().id());
+        insertDictionary(tableId, 3, registered.id());
+        // never in the cluster
+        insertDictionary(tableId, 4, 4242);
+        assertEquals(List.of(4L), dictIds(SystemDistributedKeyspace.retrieveOrphanedLightweightCompressionDictionaries()));
+
+        ClusterMetadataTestHelper.unregister(registered);
+        assertEquals(List.of(4L, 3L), dictIds(SystemDistributedKeyspace.retrieveOrphanedLightweightCompressionDictionaries()));
+
+        cleanupOrphaned();
+        assertNoOrphaned();
+        assertEquals(List.of(2L, 1L), dictIds(SystemDistributedKeyspace.retrieveLightweightCompressionDictionaries()));
+
+        dropDictTable();
+        cleanupOrphaned();
+        assertTrue(SystemDistributedKeyspace.retrieveLightweightCompressionDictionaries().isEmpty());
+    }
+
+    private void insertDictionary(String tableId, long dictId, Integer nodeId)
+    {
+        QueryProcessor.executeInternal(format("INSERT INTO %s.%s (keyspace_name, table_name, table_id, kind, dict_id, dict_length, dict_checksum, created_at, node_id) " +
+                                              "VALUES ('%s', '%s', '%s', 'ZSTD', %s, 1, 0, toTimestamp(now()), %s)",
+                                              SchemaConstants.DISTRIBUTED_KEYSPACE_NAME, SystemDistributedKeyspace.COMPRESSION_DICTIONARIES,
+                                              keyspace(), tableName, tableId, dictId, nodeId));
+    }
+
+    private static List<Long> dictIds(List<LightweightCompressionDictionary> dicts)
+    {
+        return dicts.stream().map(dict -> dict.dictId.id).collect(Collectors.toList());
     }
 
     private String getTableId()

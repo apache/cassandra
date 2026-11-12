@@ -18,12 +18,28 @@
 
 package org.apache.cassandra.db.compression;
 
+import java.util.Map;
+
 import org.junit.Test;
 
+import static org.apache.cassandra.io.compress.IDictionaryCompressor.TRAINING_GLOBAL_SCOPE_PARAMETER_NAME;
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 public class CompressionDictionaryTrainingConfigTest
 {
+    @Test
+    public void testGlobal()
+    {
+        assertThat(CompressionDictionaryTrainingConfig.getGlobal(Map.of())).isTrue();
+        assertThat(CompressionDictionaryTrainingConfig.getGlobal(Map.of(TRAINING_GLOBAL_SCOPE_PARAMETER_NAME, "TRUE"))).isTrue();
+        assertThat(CompressionDictionaryTrainingConfig.getGlobal(Map.of(TRAINING_GLOBAL_SCOPE_PARAMETER_NAME, "false"))).isFalse();
+        // not silently a local dictionary
+        assertThatThrownBy(() -> CompressionDictionaryTrainingConfig.getGlobal(Map.of(TRAINING_GLOBAL_SCOPE_PARAMETER_NAME, "yes")))
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessageContaining("Invalid value for 'global': yes");
+    }
+
     @Test
     public void testBuilderDefaults()
     {
