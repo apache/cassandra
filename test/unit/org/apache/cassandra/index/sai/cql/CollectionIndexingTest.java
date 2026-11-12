@@ -19,6 +19,10 @@ package org.apache.cassandra.index.sai.cql;
 
 import java.util.Arrays;
 import java.util.HashMap;
+import java.util.List;
+
+import com.google.common.collect.ImmutableSet;
+import com.datastax.driver.core.ResultSet;
 
 import org.junit.Before;
 import org.junit.Test;
@@ -78,7 +82,7 @@ public class CollectionIndexingTest extends SAITester
     }
 
     @Test
-    public void indexFrozenMap() throws Throwable
+    public void indexFrozenMap()
     {
         createPopulatedFrozenMap(createIndexDDL("FULL(value)"));
         assertEquals(1, execute("SELECT * FROM %s WHERE value = ?", new HashMap<Integer, String>() {{
@@ -202,6 +206,44 @@ public class CollectionIndexingTest extends SAITester
         assertRows(execute("SELECT k, v, m FROM %s WHERE v = 1 AND m CONTAINS 3"), row);
         assertRows(execute("SELECT k, v, m FROM %s WHERE v = 1 AND m CONTAINS KEY 2"), row);
         assertRows(execute("SELECT k, v, m FROM %s WHERE v = 1 AND m CONTAINS KEY 2 AND m CONTAINS 3"), row);
+    }
+
+    @Test
+    public void testReversedFrozenCollectionClusteringKeysWithFullIndex() throws Throwable
+    {
+        assertFrozenCollectionClusteringKeysWithFullIndex("ck0 DESC, ck1 DESC");
+    }
+
+    @Test
+    public void testReversedIndexedFrozenCollectionClusteringKeyWithFullIndex() throws Throwable
+    {
+        assertFrozenCollectionClusteringKeysWithFullIndex("ck0 DESC, ck1 ASC");
+    }
+
+    @Test
+    public void testReversedUnindexedFrozenCollectionClusteringKeyWithFullIndex() throws Throwable
+    {
+        assertFrozenCollectionClusteringKeysWithFullIndex("ck0 ASC, ck1 DESC");
+    }
+
+    @Test
+    public void testNonReversedFrozenCollectionClusteringKeysWithFullIndex() throws Throwable
+    {
+        assertFrozenCollectionClusteringKeysWithFullIndex("ck0 ASC, ck1 ASC");
+    }
+
+    private void assertFrozenCollectionClusteringKeysWithFullIndex(String clusteringOrder) throws Throwable
+    {
+        createTable("CREATE TABLE %s (pk int, ck0 frozen<set<float>>, ck1 frozen<list<double>>, v int, PRIMARY KEY (pk, ck0, ck1)) WITH CLUSTERING ORDER BY (" + clusteringOrder + ')');
+        createIndex("CREATE INDEX ON %s(FULL(ck0)) USING 'sai'");
+
+        execute("INSERT INTO %s (pk, ck0, ck1, v) VALUES (1, {1.5}, [2.5], 100)");
+        execute("INSERT INTO %s (pk, ck0, ck1, v) VALUES (2, {1.5}, [2.5], 200)");
+
+        beforeAndAfterFlush(() -> {
+            ResultSet rows = executeNet("SELECT pk FROM %s WHERE ck1 = ? AND ck0 = ? ALLOW FILTERING", List.of(2.5d), ImmutableSet.of(1.5f));
+            assertEquals(2, rows.all().size());
+        });
     }
 
     private void createPopulatedMap(String createIndex)

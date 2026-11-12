@@ -17,8 +17,18 @@
  */
 package org.apache.cassandra.cql3.validation.entities;
 
-import java.util.*;
+import java.math.BigInteger;
+import java.util.Arrays;
+import java.util.Iterator;
+import java.util.List;
+import java.util.Map;
+import java.util.Random;
+import java.util.Set;
+import java.util.UUID;
+import java.util.stream.Collectors;
+import java.util.stream.Stream;
 
+import org.junit.Before;
 import org.junit.Test;
 
 import com.datastax.driver.core.ColumnDefinitions;
@@ -37,6 +47,48 @@ import static org.junit.Assert.assertEquals;
 
 public class CollectionsTest extends CQLTester
 {
+    @Before
+    public void setup()
+    {
+        requireNetwork();
+    }
+
+    @Test
+    public void testStaticMapContainsKeyIgnoresTombstonedKey()
+    {
+        createTable("CREATE TABLE %s (pk int, ck int, m map<text, text> static, PRIMARY KEY (pk, ck))");
+
+        execute("INSERT INTO %s (pk, ck, m) VALUES (1, 1, ?)", map("k1", "v1", "k2", "v2"));
+        execute("UPDATE %s SET m = m - ? WHERE pk = 1", set("k1"));
+
+        assertEquals(0, execute("SELECT pk FROM %s WHERE m CONTAINS KEY 'k1' ALLOW FILTERING").size());
+    }
+
+    @Test
+    public void testPagedStaticCollectionContainsIgnoresTombstonedElements()
+    {
+        createTable("CREATE TABLE %s (pk0 varint, ck0 frozen<map<text, text>>, s1 set<boolean> static, s0 int static, PRIMARY KEY (pk0, ck0))");
+
+        execute("UPDATE %s USING TIMESTAMP 3 SET s1={false} WHERE pk0 = 863717");
+        execute("INSERT INTO %s (pk0, ck0, s1, s0) VALUES (220076868, {'k1': 'v1'}, {false, true}, 1) USING TIMESTAMP 4");
+        execute("INSERT INTO %s (pk0, ck0, s1, s0) VALUES (-15, {'k2': 'v2'}, {false, true}, 2) USING TIMESTAMP 6");
+        execute("INSERT INTO %s (pk0, ck0, s1, s0) VALUES (0, {'k3': 'v3'}, {false, true}, 3) USING TIMESTAMP 7");
+        execute("UPDATE %s USING TIMESTAMP 8 SET s1 -= {false, true} WHERE pk0 = -66043");
+        execute("UPDATE %s USING TIMESTAMP 10 SET s1={false}, s0=4 WHERE pk0 IN (-614862, 63)");
+        execute("UPDATE %s USING TIMESTAMP 12 SET s0=5 WHERE pk0 IN (-2650060)");
+        execute("INSERT INTO %s (pk0, s1, s0) VALUES (-19150880, {true}, 6) USING TIMESTAMP 15");
+        execute("INSERT INTO %s (pk0, ck0, s0) VALUES (60, {'k4': 'v4'}, 7) USING TIMESTAMP 17");
+        execute("INSERT INTO %s (pk0, ck0, s1, s0) VALUES (-638, {'k5': 'v5'}, {false, true}, 8) USING TIMESTAMP 18");
+        execute("UPDATE %s USING TIMESTAMP 22 SET s1={false, true} WHERE pk0 = 65");
+        execute("UPDATE %s USING TIMESTAMP 24 SET s1 += {false}, s0=11 WHERE pk0 IN (99, 1098)");
+        execute("UPDATE %s USING TIMESTAMP 25 SET s1 -= {false, true}, s0=12 WHERE pk0 IN (338448441, 0, -349216288)");
+
+        ResultSet rows = executeNetWithPaging("SELECT * FROM %s WHERE s1 CONTAINS false PER PARTITION LIMIT 20 ALLOW FILTERING", 8);
+        List<BigInteger> actual = rows.all().stream().map(r -> r.getVarint("pk0")).sorted().collect(Collectors.toList());
+        List<BigInteger> expected = Stream.of(863717, 220076868, -15, -614862, 63, -638, 65, 99, 1098).map(BigInteger::valueOf).sorted().collect(Collectors.toList());
+        assertEquals(expected, actual);
+    }
+
     @Test
     public void testMapBulkRemoval() throws Throwable
     {

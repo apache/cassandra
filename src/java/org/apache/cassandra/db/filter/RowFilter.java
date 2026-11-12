@@ -61,6 +61,7 @@ import org.apache.cassandra.db.rows.Cell;
 import org.apache.cassandra.db.rows.CellPath;
 import org.apache.cassandra.db.rows.ComplexColumnData;
 import org.apache.cassandra.db.rows.Row;
+import org.apache.cassandra.db.rows.Rows;
 import org.apache.cassandra.db.rows.RowIterator;
 import org.apache.cassandra.db.rows.UnfilteredRowIterator;
 import org.apache.cassandra.db.transform.Transformation;
@@ -243,12 +244,26 @@ public class RowFilter implements Iterable<RowFilter.Expression>
                 pk = partition.partitionKey();
 
                 // Short-circuit all partitions that won't match based on static and partition keys
-                for (Expression e : partitionLevelExpressions)
-                    if (!e.isSatisfiedBy(metadata, partition.partitionKey(), partition.staticRow(), nowInSec))
+                if (!partitionLevelExpressions.isEmpty())
+                {
+                    // If we purge deletions when reconciliation is required, we hide information replica filtering
+                    // protection would require to filter rows that are no longer matches at the coordinator.
+                    Row staticRow = needsReconciliation() ? partition.staticRow() : partition.staticRow().purge(DeletionPurger.PURGE_ALL, nowInSec, metadata.enforceStrictLiveness());
+
+                    // A null static row here just means the static row itself has nothing live left to offer, but we
+                    // still need to evaluate expressions against partition key columns.
+                    if (staticRow == null)
+                        staticRow = Rows.EMPTY_STATIC_ROW;
+
+                    for (Expression e : partitionLevelExpressions)
                     {
-                        partition.close();
-                        return null;
+                        if (!e.isSatisfiedBy(metadata, partition.partitionKey(), staticRow, nowInSec))
+                        {
+                            partition.close();
+                            return null;
+                        }
                     }
+                }
 
                 BaseRowIterator<?> iterator = partition instanceof UnfilteredRowIterator
                                               ? Transformation.apply((UnfilteredRowIterator) partition, this)
@@ -534,6 +549,11 @@ public class RowFilter implements Iterable<RowFilter.Expression>
         public boolean isContainsKey()
         {
             return Operator.CONTAINS_KEY == operator;
+        }
+
+        public boolean isMapElementExpression()
+        {
+            return kind() == Kind.MAP_EQUALITY;
         }
 
         /**
