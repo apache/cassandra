@@ -513,8 +513,14 @@ public class TxnWrite extends AbstractKeySorted<TxnWrite.Update> implements Writ
 
     /**
      * We need to ensure that when we do a partition level deletion or a range deletion
-     * Accord will preserve the rows written by other statements within a batch
-     * to keep parity with Paxos semantics.
+     * Accord will preserve the rows written by other statements within a batch.
+     * For conditional batches, Paxos builds every statement into a single PartitionUpdate.Builder
+     * (CQL3CasRequest#makeUpdates passes the same builder to each statement's addUpdateForKey), whereas
+     * Accord keeps each statement as a separate TxnWrite.Fragment with its own PartitionUpdate.
+     * This method replays each update into a single builder reproducing the PartitionUpdate
+     * that Paxos would have built.
+     *
+     * See testCASBatchPartitionDeleteKeepsInsertedRows
      */
     private static PartitionUpdate mergePartitions(List<PartitionUpdate> updates)
     {
