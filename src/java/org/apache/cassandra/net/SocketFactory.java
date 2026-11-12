@@ -32,6 +32,7 @@ import javax.net.ssl.SSLEngine;
 import javax.net.ssl.SSLParameters;
 import javax.net.ssl.SSLSession;
 
+import com.google.common.annotations.VisibleForTesting;
 import com.google.common.collect.ImmutableList;
 
 import org.slf4j.Logger;
@@ -39,12 +40,14 @@ import org.slf4j.LoggerFactory;
 
 import org.apache.cassandra.concurrent.ManyToOneConcurrentLinkedQueue;
 import org.apache.cassandra.concurrent.NamedThreadFactory;
+import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.config.EncryptionOptions;
 import org.apache.cassandra.locator.InetAddressAndPort;
 import org.apache.cassandra.security.SSLFactory;
 import org.apache.cassandra.service.NativeTransportService;
 import org.apache.cassandra.utils.ExecutorUtils;
 import org.apache.cassandra.utils.FBUtilities;
+import org.apache.cassandra.utils.concurrent.NonBlockingRateLimiter;
 
 import io.netty.bootstrap.Bootstrap;
 import io.netty.bootstrap.ServerBootstrap;
@@ -182,19 +185,41 @@ public final class SocketFactory
     private final EventLoopGroup defaultGroup;
     // we need a separate EventLoopGroup for outbound streaming because sendFile is blocking
     private final EventLoopGroup outboundStreamingGroup;
+    private volatile NonBlockingRateLimiter outboundConnectionRateLimiter;
     final ExecutorService synchronousWorkExecutor = executorFactory().pooled("Messaging-SynchronousWork", Integer.MAX_VALUE);
 
     SocketFactory()
     {
-        this(Provider.optimalProvider());
+        this(Provider.optimalProvider(), defaultRateLimiter());
     }
 
-    SocketFactory(Provider provider)
+    @VisibleForTesting
+    public SocketFactory(NonBlockingRateLimiter rateLimiter)
+    {
+        this(Provider.optimalProvider(), rateLimiter);
+    }
+
+    public SocketFactory(Provider provider, NonBlockingRateLimiter rateLimiter)
     {
         this.provider = provider;
         this.acceptGroup = provider.makeEventLoopGroup(1, "Messaging-AcceptLoop");
         this.defaultGroup = provider.makeEventLoopGroup(EVENT_THREADS, NamedThreadFactory.globalPrefix() + "Messaging-EventLoop");
         this.outboundStreamingGroup = provider.makeEventLoopGroup(EVENT_THREADS, "Streaming-EventLoop");
+        this.outboundConnectionRateLimiter = rateLimiter;
+    }
+
+    private static NonBlockingRateLimiter defaultRateLimiter()
+    {
+        try
+        {
+            int rate = DatabaseDescriptor.getInternodeMaxOutboundConnectionsPerSecond();
+            return rate <= 0 ? NonBlockingRateLimiter.NO_OP_LIMITER : new NonBlockingRateLimiter(rate);
+        }
+        catch (Throwable t)
+        {
+            logger.warn("Unable to read internode_max_outbound_connections_per_second; running without outbound connection rate limit", t);
+            return NonBlockingRateLimiter.NO_OP_LIMITER;
+        }
     }
 
     Bootstrap newClientBootstrap(EventLoop eventLoop, int tcpUserTimeoutInMS)
@@ -278,6 +303,26 @@ public final class SocketFactory
     public EventLoopGroup outboundStreamingGroup()
     {
         return outboundStreamingGroup;
+    }
+
+    public NonBlockingRateLimiter outboundConnectionRateLimiter()
+    {
+        return outboundConnectionRateLimiter;
+    }
+
+    public synchronized void updateOutboundConnectionRateLimiter(int rate)
+    {
+        if (rate > 0)
+        {
+            if (outboundConnectionRateLimiter == NonBlockingRateLimiter.NO_OP_LIMITER)
+                outboundConnectionRateLimiter = new NonBlockingRateLimiter(rate);
+            else
+                outboundConnectionRateLimiter.setRate(rate);
+        }
+        else
+        {
+            outboundConnectionRateLimiter = NonBlockingRateLimiter.NO_OP_LIMITER;
+        }
     }
 
     public void shutdownNow()

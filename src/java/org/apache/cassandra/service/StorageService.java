@@ -1266,6 +1266,19 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
         return DatabaseDescriptor.getInternodeStreamingTcpUserTimeoutInMS();
     }
 
+    public void setInternodeMaxOutboundConnectionsPerSecond(int value)
+    {
+        int existing = DatabaseDescriptor.getInternodeMaxOutboundConnectionsPerSecond();
+        MessagingService.instance().socketFactory.updateOutboundConnectionRateLimiter(value);
+        DatabaseDescriptor.setInternodeMaxOutboundConnectionsPerSecond(value);
+        logger.info("Set internode max outbound connections per second from {} to {}", existing, value);
+    }
+
+    public int getInternodeMaxOutboundConnectionsPerSecond()
+    {
+        return DatabaseDescriptor.getInternodeMaxOutboundConnectionsPerSecond();
+    }
+
     public void setCounterWriteRpcTimeout(long value)
     {
         DatabaseDescriptor.setCounterWriteRpcTimeout(value);
