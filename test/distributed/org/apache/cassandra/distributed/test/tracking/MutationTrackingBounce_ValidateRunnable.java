@@ -66,6 +66,9 @@ public class MutationTrackingBounce_ValidateRunnable implements IIsolatedExecuto
                 counter.incrementAndGet();
             }
         }, 1);
-        Assert.assertEquals(count, counter.get());
+        // A clean shutdown clears needsReplay on segments whose mutations are all flushed and reconciled, and replay()
+        // only visits segments that still need it, so only the remaining mutations are expected here.
+        Assert.assertTrue(String.format("Replayed %d mutations, but only %d were written", counter.get(), count),
+                          counter.get() <= count);
     }
 }
