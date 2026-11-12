@@ -22,6 +22,7 @@ import java.util.Map;
 import java.util.Set;
 
 import javax.annotation.Nonnull;
+import javax.annotation.Nullable;
 
 import org.apache.cassandra.db.ColumnFamilyStore;
 import org.apache.cassandra.db.DecoratedKey;
@@ -35,6 +36,7 @@ import org.apache.cassandra.io.sstable.MetricsProviders;
 import org.apache.cassandra.io.sstable.SSTable;
 import org.apache.cassandra.io.util.DataInputPlus;
 import org.apache.cassandra.io.util.DataOutputPlus;
+import org.apache.cassandra.schema.TableMetadata;
 import org.apache.cassandra.schema.TableMetadataRef;
 import org.apache.cassandra.utils.OutputHandler;
 import org.apache.cassandra.utils.Pair;
@@ -186,7 +188,7 @@ public interface SSTableFormat<R extends SSTableReader, W extends SSTableWriter>
 
     interface KeyCacheValueSerializer<R extends SSTableReader, T extends AbstractRowIndexEntry>
     {
-        void skip(DataInputPlus input) throws IOException;
+        void skip(DataInputPlus input, Version version, @Nullable TableMetadata metadata) throws IOException;
 
         T deserialize(R reader, DataInputPlus input) throws IOException;
 
