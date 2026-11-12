@@ -1435,7 +1435,7 @@ request_timeout: 10000ms
 # (block_for_peers_timeout_in_secs) is extended automatically to account for the delay.
 # Can be changed at runtime via JMX (StorageService). Set to 0 or less to disable.
 # Default is 0 (disabled).
-# internode_max_outbound_connections_per_second: 0
+internode_max_outbound_connections_per_second: 30
 
 # The amount of time unacknowledged data is allowed on a streaming connection.
 # The default is 5 minutes. Increase it or set it to 0 in order to increase the timeout.

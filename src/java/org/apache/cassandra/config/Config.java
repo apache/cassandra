@@ -816,7 +816,7 @@ public class Config
      * Can be changed at runtime via JMX (StorageService). Set to 0 or less to disable.
      * Default is 0 (disabled).
      */
-    public volatile int internode_max_outbound_connections_per_second = 0;
+    public volatile int internode_max_outbound_connections_per_second = 30;
 
     public volatile boolean automatic_sstable_upgrade = false;
     public volatile int max_concurrent_automatic_sstable_upgrades = 1;
