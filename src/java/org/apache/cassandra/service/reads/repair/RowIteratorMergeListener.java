@@ -80,6 +80,8 @@ public class RowIteratorMergeListener<E extends Endpoints<E>>
     private final DeletionTime[] sourceDeletionTime;
     // For each source, record if there is an open range to send as repair, and from where.
     private final ClusteringBound<?>[] markerToRepair;
+    // The clustering of the last non-static merged row, null if there was none.
+    private Clustering<?> lastClustering;
 
     private final ReadRepair<E, ?> readRepair;
 
@@ -210,6 +212,9 @@ public class RowIteratorMergeListener<E extends Endpoints<E>>
 
     public void onMergedRows(Row merged, Row[] versions)
     {
+        if (!merged.isStatic())
+            lastClustering = merged.clustering();
+
         // If a row was shadowed post merged, it must be by a partition level or range tombstone, and we handle
         // those case directly in their respective methods (in other words, it would be inefficient to send a row
         // deletion as repair when we know we've already send a partition level or range tombstone that covers it).
@@ -358,6 +363,12 @@ public class RowIteratorMergeListener<E extends Endpoints<E>>
             mergedDeletionTime = merged.isOpen(isReversed) ? merged.openDeletionTime(isReversed) : null;
     }
 
+    private boolean isBefore(ClusteringBound<?> open, ClusteringBound<?> close)
+    {
+        int cmp = command.metadata().comparator.compare(open, close);
+        return isReversed ? cmp > 0 : cmp < 0;
+    }
+
     private void closeOpenMarker(int i, ClusteringBound<?> close)
     {
         ClusteringBound<?> open = markerToRepair[i];
@@ -368,6 +379,20 @@ public class RowIteratorMergeListener<E extends Endpoints<E>>
 
     public void close()
     {
+        // The merged iterator may not have been fully consumed (e.g. because the query limit was reached), in which
+        // case a merged deletion can still be open. We know it covers everything up to the last row consumed, so
+        // repair the open ranges up to (and including) that row, like RTBoundCloser does on the replica side.
+        if (mergedDeletionTime != null && lastClustering != null)
+        {
+            ClusteringBound<?> close = isReversed ? ClusteringBound.inclusiveStartOf(lastClustering)
+                                                  : ClusteringBound.inclusiveEndOf(lastClustering);
+            for (int i = 0; i < markerToRepair.length; i++)
+            {
+                if (markerToRepair[i] != null && isBefore(markerToRepair[i], close))
+                    closeOpenMarker(i, close);
+            }
+        }
+
         boolean hasRepairs = false;
         for (int i = 0 ; !hasRepairs && i < repairs.length ; ++i)
             hasRepairs = repairs[i] != null;
