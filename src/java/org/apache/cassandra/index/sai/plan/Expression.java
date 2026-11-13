@@ -246,11 +246,25 @@ public abstract class Expression
                 Value first = new Value(buffers.get(0), indexTermType);
                 Value second = new Value(buffers.get(1), indexTermType);
 
-                // SAI enforces a non-arbitrary ordering between IPv4 and IPv6 addresses, so correction may still be necessary.
+                // First determine whether properly index-encoded bounds are out-of-order:
                 boolean outOfOrder = indexTermType.compare(first.encoded, second.encoded) > 0;
+                
+                // Our bounds are logically empty if either...
+                // a.) we have a reversed type and the bounds are out-of-order according to the unwrapped type
+                // b.) we have a non-reversed type (like inet always is) and the index-encoded bounds are out-of-order
+                boolean empty = indexTermType.isReversed() ? indexTermType.compareUnwrapped(first.raw, second.raw) > 0 : outOfOrder;
+
+                if (empty)
+                {
+                    this.lowerInclusive = false;
+                    this.upperInclusive = false;
+                    lower = upper = new Bound(first, false);
+                    break;
+                }
+
+                // If we are out-of-order when we reach this, we must be dealing with a reversed type:
                 lower = new Bound(outOfOrder ? second : first, true);
                 upper = new Bound(outOfOrder ? first : second, true);
-
                 break;
 
             case ANN:

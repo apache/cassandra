@@ -566,6 +566,14 @@ public class IndexTermType
     }
 
     /**
+     * Compare two terms by the column's natural (non-reversed) CQL order
+     */
+    public int compareUnwrapped(ByteBuffer b1, ByteBuffer b2)
+    {
+        return indexType.unwrap().compare(b1, b2);
+    }
+
+    /**
      * Returns the smaller of two {@code ByteBuffer} values, based on the result of {@link
      * #compare(ByteBuffer, ByteBuffer)} comparision.
      */
