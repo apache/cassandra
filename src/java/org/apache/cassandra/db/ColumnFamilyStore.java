@@ -141,6 +141,7 @@ import org.apache.cassandra.schema.ColumnMetadata;
 import org.apache.cassandra.schema.CompactionParams;
 import org.apache.cassandra.schema.CompactionParams.TombstoneOption;
 import org.apache.cassandra.schema.CompressionParams;
+import org.apache.cassandra.schema.FlushCompressionParams;
 import org.apache.cassandra.schema.IndexMetadata;
 import org.apache.cassandra.schema.Schema;
 import org.apache.cassandra.schema.SchemaConstants;
@@ -483,6 +484,26 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean, Memtable.Owner
     public void setCompressionParametersJson(String options)
     {
         setCompressionParameters(JsonUtils.fromJsonMap(options));
+    }
+
+    public String getFlushCompression()
+    {
+        return metadata.getLocal().params.flushCompression.toString();
+    }
+
+    public void setFlushCompression(String flushCompression)
+    {
+        try
+        {
+            FlushCompressionParams params = FlushCompressionParams.fromString(flushCompression);
+
+            TableMetadata orig = metadata();
+            metadata.setLocalOverrides(orig.unbuild().flushCompression(params).epoch(orig.epoch).build());
+        }
+        catch (ConfigurationException e)
+        {
+            throw new IllegalArgumentException(e.getMessage());
+        }
     }
 
     @VisibleForTesting

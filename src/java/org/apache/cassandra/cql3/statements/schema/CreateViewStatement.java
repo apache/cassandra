@@ -58,7 +58,6 @@ import org.apache.cassandra.schema.TableParams;
 import org.apache.cassandra.schema.ViewMetadata;
 import org.apache.cassandra.service.ClientState;
 import org.apache.cassandra.tcm.ClusterMetadata;
-import org.apache.cassandra.tcm.serialization.Version;
 import org.apache.cassandra.transport.Event.SchemaChange;
 import org.apache.cassandra.transport.Event.SchemaChange.Change;
 import org.apache.cassandra.transport.Event.SchemaChange.Target;
@@ -133,7 +132,7 @@ public final class CreateViewStatement extends AlterSchemaStatement
     @Override
     public boolean compatibleWith(ClusterMetadata metadata)
     {
-        return metadata.directory.commonSerializationVersion.isAtLeast(Version.V0);
+        return metadata.directory.commonSerializationVersion.isAtLeast(attrs.minimumSerializationVersion());
     }
 
     @Override

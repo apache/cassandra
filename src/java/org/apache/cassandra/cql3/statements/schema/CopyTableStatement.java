@@ -115,7 +115,8 @@ public final class CopyTableStatement extends AlterSchemaStatement
     @Override
     public boolean compatibleWith(ClusterMetadata metadata)
     {
-        return metadata.directory.commonSerializationVersion.isAtLeast(Version.V5);
+        Version version = metadata.directory.commonSerializationVersion;
+        return version.isAtLeast(Version.V5) && version.isAtLeast(attrs.minimumSerializationVersion());
     }
 
     @Override

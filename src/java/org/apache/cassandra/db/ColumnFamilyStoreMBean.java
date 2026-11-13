@@ -143,6 +143,20 @@ public interface ColumnFamilyStoreMBean
     public void setCompressionParametersJson(String options);
 
     /**
+     * Returns the compression applied to this table's SSTables as they are flushed, one of the names of
+     * {@link org.apache.cassandra.schema.FlushCompressionParams.Option}.
+     */
+    public String getFlushCompression();
+
+    /**
+     * Sets the compression applied to this table's SSTables as they are flushed. Takes effect on the next flush.
+     * The change is a node local override and is discarded by a schema change or a restart.
+     *
+     * @param flushCompression one of the names of {@link org.apache.cassandra.schema.FlushCompressionParams.Option}
+     */
+    public void setFlushCompression(String flushCompression);
+
+    /**
      * Set new crc check chance
      */
     public void setCrcCheckChance(double crcCheckChance);
