@@ -22,6 +22,21 @@ import sys
 from importlib import import_module
 from cqlshlib.util import is_file_secure
 
+SENSITIVE_KEYS = ('password', 'secret', 'basicauth')
+
+
+def _warn_for_insecure_credentials(config_file, provider_settings):
+    """
+    Warn if the settings of a custom auth provider hold credentials
+    and other users can read the cqlshrc file.
+    """
+    if any(sensitive in key for key in provider_settings for sensitive in SENSITIVE_KEYS):
+        if not is_file_secure(config_file):
+            print("\nWarning: Credentials are found in an insecure cqlshrc file. "
+                  "The file is owned or readable by other users on the system."
+                  "\nPlease use a credentials file to specify them.\n",
+                  file=sys.stderr)
+
 
 def _warn_for_plain_text_security(config_file, provider_settings):
     """
@@ -163,6 +178,7 @@ def load_auth_provider(config_file=None, cred_file=None, username=None, password
         if 'username' not in ctor_args:
             return None
     else:
+        _warn_for_insecure_credentials(config_file, provider_settings)
         # merge credential settings as overrides on top of provider settings.
         ctor_args = {**provider_settings,
                      **credential_settings,
