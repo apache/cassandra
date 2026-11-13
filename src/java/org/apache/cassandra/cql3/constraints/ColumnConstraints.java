@@ -70,6 +70,25 @@ public class ColumnConstraints extends ColumnConstraint<ColumnConstraints>
     }
 
     @Override
+    public ColumnConstraints copy()
+    {
+        // nothing mutable to share when there are no constraints, this covers NO_OP as well
+        if (constraints.isEmpty())
+            return this;
+
+        List<ColumnConstraint<?>> copies = new ArrayList<>(constraints.size());
+        for (ColumnConstraint<?> constraint : constraints)
+            copies.add(constraint.copy());
+
+        ColumnConstraints copy = new ColumnConstraints(copies);
+        // Not setColumnName, that would overwrite the names the copied constraints already have. They differ from
+        // the name of this group when it was not set yet, as is the case after deserialization, where a scalar
+        // constraint has a name and this group has none.
+        copy.columnName = columnName;
+        return copy;
+    }
+
+    @Override
     public String name()
     {
         return getConstraintType().name();
@@ -323,5 +342,11 @@ public class ColumnConstraints extends ColumnConstraint<ColumnConstraints>
 
         ColumnConstraints other = (ColumnConstraints) o;
         return Objects.equals(constraints, other.constraints);
+    }
+
+    @Override
+    public int hashCode()
+    {
+        return Objects.hashCode(constraints);
     }
 }

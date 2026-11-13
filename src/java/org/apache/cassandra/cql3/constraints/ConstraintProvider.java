@@ -24,6 +24,10 @@ import java.util.Optional;
 /**
  * Users implementing this interface and integrating it with SPI (putting JAR on a class path and
  * adding it to META-INF/services/ConstraintProvider) will enrich Cassandra with their custom constraints.
+ * <p>
+ * A function returned by a provider has to be fully described by its class, its name and its arguments, as this
+ * is what {@link ConstraintFunction#equals(Object)} compares and what is used to create the function again,
+ * through this provider, when a constraint is deserialized or copied.
  */
 public interface ConstraintProvider
 {

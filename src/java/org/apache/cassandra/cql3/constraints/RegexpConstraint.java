@@ -93,18 +93,4 @@ public class RegexpConstraint extends ConstraintFunction
             throw new InvalidConstraintDefinitionException(format("String '%s' is not a valid regular expression", ParseUtils.unquote(term)));
         }
     }
-
-    @Override
-    public boolean equals(Object o)
-    {
-        if (this == o)
-            return true;
-
-        if (!(o instanceof RegexpConstraint))
-            return false;
-
-        RegexpConstraint other = (RegexpConstraint) o;
-
-        return columnName.equals(other.columnName);
-    }
 }

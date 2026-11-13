@@ -145,7 +145,7 @@ public final class ColumnMetadata extends ColumnSpecification implements Selecta
     private final ColumnMask mask;
 
     @Nonnull
-    private ColumnConstraints columnConstraints;
+    private final ColumnConstraints columnConstraints;
 
     private static long comparisonOrder(Kind kind, boolean isComplex, long position, ColumnIdentifier name)
     {
@@ -360,12 +360,16 @@ public final class ColumnMetadata extends ColumnSpecification implements Selecta
 
     public ColumnMetadata withNewName(ColumnIdentifier newName)
     {
-        return new ColumnMetadata(ksName, cfName, newName, type, uniqueId, position, kind, mask, columnConstraints, comment, securityLabel);
+        // The constructor sets the name on the constraints it is given, so constraints shared with this column would
+        // be renamed in this column as well.
+        return new ColumnMetadata(ksName, cfName, newName, type, uniqueId, position, kind, mask, columnConstraints.copy(), comment, securityLabel);
     }
 
     public ColumnMetadata withNewType(AbstractType<?> newType)
     {
-        return new ColumnMetadata(ksName, cfName, name, newType, uniqueId, position, kind, mask, columnConstraints, comment, securityLabel);
+        // The constructor prepares the constraints it is given for the type, so constraints shared with this column
+        // would be prepared for the new type in this column as well.
+        return new ColumnMetadata(ksName, cfName, name, newType, uniqueId, position, kind, mask, columnConstraints.copy(), comment, securityLabel);
     }
 
     public ColumnMetadata withNewMask(@Nullable ColumnMask newMask)
@@ -452,11 +456,6 @@ public final class ColumnMetadata extends ColumnSpecification implements Selecta
         return columnConstraints;
     }
 
-    public ColumnConstraints setColumnConstraints()
-    {
-        return columnConstraints;
-    }
-
     public ColumnMetadata withNewColumnConstraints(ColumnConstraints constraints)
     {
         constraints.validate(this);
@@ -467,11 +466,6 @@ public final class ColumnMetadata extends ColumnSpecification implements Selecta
     public ColumnMetadata withSecurityLabel(String securityLabel)
     {
         return new ColumnMetadata(ksName, cfName, name, type, uniqueId, position, kind, mask, columnConstraints, comment, securityLabel);
-    }
-
-    public void removeColumnConstraints()
-    {
-        columnConstraints = ColumnConstraints.NO_OP;
     }
 
     @Override
@@ -529,7 +523,7 @@ public final class ColumnMetadata extends ColumnSpecification implements Selecta
             result = 31 * result + (kind == null ? 0 : kind.hashCode());
             result = 31 * result + position;
             result = 31 * result + (mask == null ? 0 : mask.hashCode());
-            result = 31 * result + (columnConstraints == null ? 0 : columnConstraints.hashCode());
+            result = 31 * result + columnConstraints.hashCode();
             result = 31 * result + (comment == null ? 0 : comment.hashCode());
             result = 31 * result + (securityLabel == null ? 0 : securityLabel.hashCode());
             hash = result;
