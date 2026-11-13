@@ -84,4 +84,15 @@ public class NodeToolCommandTest
         Assert.assertEquals(options.get(RepairOption.INCREMENTAL_KEY), Boolean.toString(false));
     }
 
+    @Test
+    public void clearPaxosCommandTest() throws IOException
+    {
+        int result = new NodeTool(repairNodeFactory, output).execute("clearpaxos", "ks", "tbl1", "tbl2");
+        Assert.assertEquals(0, result);
+
+        ArgumentCaptor<String[]> tablesCaptor = ArgumentCaptor.forClass(String[].class);
+        verify(nodeProbe).paxosCleanup(Mockito.eq("ks"), tablesCaptor.capture());
+        Assert.assertArrayEquals(new String[]{ "tbl1", "tbl2" }, tablesCaptor.getValue());
+    }
+
 }
