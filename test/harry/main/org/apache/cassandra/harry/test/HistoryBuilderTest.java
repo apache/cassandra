@@ -25,6 +25,7 @@ import org.junit.Test;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import org.apache.cassandra.TestConfigurations;
 import org.apache.cassandra.cql3.CQLTester;
 import org.apache.cassandra.harry.ColumnSpec;
 import org.apache.cassandra.harry.MagicConstants;
@@ -52,6 +53,7 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertSame;
 
+@TestConfigurations({"default", "bti", "latest"})
 public class HistoryBuilderTest extends CQLTester
 {
     // TODO: go through all basic features of History builder here and test them!!!

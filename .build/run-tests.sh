@@ -29,7 +29,7 @@ set -o pipefail
 [ "x${DIST_DIR}" != "x" ] || DIST_DIR="${CASSANDRA_DIR}/build"
 
 # target types
-TARGET_TYPES="build_dtest_jars stress-test fqltool-test sstableloader-test microbench microbench-test test-burn long-test cqlsh-test simulator-dtest test test-cdc test-compression test-oa test-system-keyspace-directory test-latest jvm-dtest jvm-dtest-upgrade jvm-dtest-novnode jvm-dtest-upgrade-novnode"
+TARGET_TYPES="build_dtest_jars stress-test fqltool-test sstableloader-test microbench microbench-test test-burn long-test harry-test cqlsh-test simulator-dtest test test-cdc test-compression test-oa test-system-keyspace-directory test-latest jvm-dtest jvm-dtest-upgrade jvm-dtest-novnode jvm-dtest-upgrade-novnode"
 
 error() {
   echo >&2 $2;
@@ -292,10 +292,13 @@ _run_testlist() {
       ant_status=$?
       set -o errexit
       if [[ $ant_status -ne 0 ]]; then
+        test_result=1
         echo "failed ${_target_prefix} ${_testlist_target} ${split_chunk} ${_test_name_regexp}"
 
         # Only store logs for failed tests on repeats to save up space
         if [ "${_test_iterations}" -gt 1 ]; then
+          # Ant can fail before creating its report and log directories.
+          mkdir -p "${DIST_DIR}/test/output" "${DIST_DIR}/test/logs"
           # Get this test results and rename file with iteration and 'fail'
           find "${DIST_DIR}"/test/output/ -type f -name "*.xml" -not -name "*fail.xml" -print0 | while read -r -d $'\0' file; do
             mv "${file}" "${file%.xml}-${_results_uuid}-${i}-fail.xml"
@@ -305,7 +308,7 @@ _run_testlist() {
           done
 
           if [ "$(_get_env_var 'REPEATED_TESTS_STOP_ON_FAILURE')" == true ]; then
-            error 0 "fail fast, after ${i} successful runs"
+            error 1 "fail fast: iteration ${i} failed"
           fi
           let failures+=1
         fi
@@ -403,6 +406,7 @@ with open('${jmh_result}','w') as f:
 }
 
 _main() {
+  local test_result=0
   # parameters
   local -r target="${test_target/-repeat/}"
   local -r split_chunk="${chunk:-1/1}" # Chunks formatted as "K/N" for the Kth chunk of N chunks
@@ -421,7 +425,7 @@ _main() {
 
   # "-repeat" is a reserved suffix on target types
   if [[ ${test_target} == *"-repeat" ]] ; then
-    [[ "${split_chunk}" =~ ^[0-9]+/[0-9]+$ ]] && { error 1 "Repeated tests not valid with splits"; }
+    [[ "${chunk:-}" =~ ^[0-9]+/[0-9]+$ ]] && { error 1 "Repeated tests not valid with splits"; }
     if [[ -z "${test_name_regexp}" ]] ; then
       error 1 "Repeated tests requires use of -t option"
     fi
@@ -483,6 +487,9 @@ _main() {
       ;;
     "test")
       _run_testlist "unit" "testclasslist" "${test_name_regexp}" "${split_chunk}" "$(_timeout_for 'test.timeout')" "${repeat_count}"
+      ;;
+    "harry-test")
+      _run_testlist "harry/main" "testclasslist" "${test_name_regexp}" "${split_chunk}" "$(_timeout_for 'test.harry.timeout')" "${repeat_count}"
       ;;
     "test-cdc")
       _run_testlist "unit" "testclasslist-cdc" "${test_name_regexp}" "${split_chunk}" "$(_timeout_for 'test.timeout')" "${repeat_count}"
@@ -559,6 +566,7 @@ _main() {
   esac
 
   popd  >/dev/null
+  return "${test_result}"
 }
 
 if ${summary}; then
