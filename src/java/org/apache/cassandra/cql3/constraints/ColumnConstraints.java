@@ -324,4 +324,10 @@ public class ColumnConstraints extends ColumnConstraint<ColumnConstraints>
         ColumnConstraints other = (ColumnConstraints) o;
         return Objects.equals(constraints, other.constraints);
     }
+
+    @Override
+    public int hashCode()
+    {
+        return Objects.hashCode(constraints);
+    }
 }

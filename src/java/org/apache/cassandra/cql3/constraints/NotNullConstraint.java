@@ -21,6 +21,7 @@ package org.apache.cassandra.cql3.constraints;
 import java.nio.ByteBuffer;
 import java.util.Collections;
 import java.util.List;
+import java.util.Objects;
 
 import org.apache.cassandra.cql3.Operator;
 import org.apache.cassandra.db.marshal.AbstractType;
@@ -86,5 +87,11 @@ public class NotNullConstraint extends UnaryConstraintFunction
         NotNullConstraint other = (NotNullConstraint) o;
 
         return columnName.equals(other.columnName) && name.equals(other.name);
+    }
+
+    @Override
+    public int hashCode()
+    {
+        return Objects.hash(columnName, name);
     }
 }

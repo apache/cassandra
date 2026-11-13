@@ -22,6 +22,7 @@ import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Objects;
 
 import com.google.common.annotations.VisibleForTesting;
 
@@ -219,5 +220,11 @@ public class UnaryFunctionColumnConstraint extends AbstractFunctionConstraint<Un
 
         return function.equals(other.function)
                && columnName.equals(other.columnName);
+    }
+
+    @Override
+    public int hashCode()
+    {
+        return Objects.hash(function, columnName);
     }
 }
