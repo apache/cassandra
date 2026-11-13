@@ -203,6 +203,7 @@ public abstract class AbstractCommitLogService
                 if (markerIntervalNanos <= 0)
                 {
                     haveWork.acquire(1);
+                    haveWork.drain();
                 }
                 else
                 {
@@ -213,6 +214,7 @@ public abstract class AbstractCommitLogService
                     long wakeUpAt = pollStarted + markerIntervalNanos;
                     if (wakeUpAt > now)
                         haveWork.tryAcquireUntil(1, wakeUpAt);
+                        haveWork.drain();
                 }
             }
             catch (Throwable t)
@@ -221,6 +223,7 @@ public abstract class AbstractCommitLogService
                     throw new TerminateException();
                 else // sleep for full poll-interval after an error, so we don't spam the log file
                     haveWork.tryAcquire(1, markerIntervalNanos, NANOSECONDS);
+                    haveWork.drain();
             }
         }
 
