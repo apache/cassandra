@@ -18,8 +18,11 @@
 package org.apache.cassandra.index.sai.disk.v1;
 
 import java.io.IOException;
+import java.util.ArrayList;
 import java.util.Collections;
+import java.util.Comparator;
 import java.util.Iterator;
+import java.util.List;
 import java.util.concurrent.TimeUnit;
 
 import com.carrotsearch.hppc.LongArrayList;
@@ -35,11 +38,14 @@ import org.apache.cassandra.index.sai.disk.format.IndexComponent;
 import org.apache.cassandra.index.sai.disk.format.IndexDescriptor;
 import org.apache.cassandra.index.sai.disk.v1.bbtree.NumericIndexWriter;
 import org.apache.cassandra.index.sai.disk.v1.segment.SegmentMetadata;
+import org.apache.cassandra.index.sai.disk.v1.segment.SegmentTrieBuffer;
 import org.apache.cassandra.index.sai.disk.v1.segment.SegmentWriter;
 import org.apache.cassandra.index.sai.disk.v1.trie.LiteralIndexWriter;
 import org.apache.cassandra.index.sai.memory.MemtableIndex;
 import org.apache.cassandra.index.sai.memory.MemtableTermsIterator;
 import org.apache.cassandra.index.sai.metrics.IndexMetrics;
+import org.apache.cassandra.index.sai.postings.PostingList;
+import org.apache.cassandra.index.sai.utils.IndexEntry;
 import org.apache.cassandra.index.sai.utils.IndexIdentifier;
 import org.apache.cassandra.index.sai.utils.IndexTermType;
 import org.apache.cassandra.index.sai.utils.PrimaryKey;
@@ -176,12 +182,46 @@ public class MemtableIndexWriter implements PerColumnIndexWriter
 
     private long flush(MemtableTermsIterator terms) throws IOException
     {
-        SegmentWriter writer = indexTermType.isLiteral() ? new LiteralIndexWriter(indexDescriptor, indexIdentifier)
-                                                         : new NumericIndexWriter(indexDescriptor,
-                                                                                  indexIdentifier,
-                                                                                  indexTermType.fixedSizeOf());
+        SegmentWriter writer;
+        Iterator<IndexEntry> segmentIterator;
 
-        SegmentMetadata.ComponentMetadataMap indexMetas = writer.writeCompleteSegment(terms);
+        if (indexTermType.isLiteral())
+        {
+            // Re-ingest through SegmentTrieBuffer so posting lists have the
+            // [startIdxExactMatch, startIdxPrefix] header required by writeWithFilterTypes,
+            // and prefix postings are accumulated at intermediate trie nodes.
+            // Entries must be added in ascending row ID order so that prefix postings
+            // at intermediate trie nodes are also sorted.
+            List<Pair<ByteComparable, Integer>> entries = new ArrayList<>();
+            while (terms.hasNext())
+            {
+                IndexEntry entry = terms.next();
+                try (PostingList postings = entry.postingList)
+                {
+                    long rowId;
+                    while ((rowId = postings.nextPosting()) != PostingList.END_OF_STREAM)
+                    {
+                        entries.add(Pair.create(entry.term, (int) rowId));
+                    }
+                }
+            }
+            entries.sort(Comparator.comparingInt(p -> p.right));
+
+            SegmentTrieBuffer buffer = new SegmentTrieBuffer();
+            for (Pair<ByteComparable, Integer> e : entries)
+            {
+                buffer.add(e.left, 0, e.right);
+            }
+            writer = new LiteralIndexWriter(indexDescriptor, indexIdentifier);
+            segmentIterator = buffer.iterator();
+        }
+        else
+        {
+            writer = new NumericIndexWriter(indexDescriptor, indexIdentifier, indexTermType.fixedSizeOf());
+            segmentIterator = terms;
+        }
+
+        SegmentMetadata.ComponentMetadataMap indexMetas = writer.writeCompleteSegment(segmentIterator);
         long numRows = writer.getNumberOfRows();
 
         // If no rows were written we need to delete any created column index components

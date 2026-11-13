@@ -37,8 +37,11 @@ import org.apache.cassandra.index.sai.disk.v1.SAICodecUtils;
 import org.apache.cassandra.index.sai.iterators.KeyRangeIterator;
 import org.apache.cassandra.index.sai.metrics.MulticastQueryEventListeners;
 import org.apache.cassandra.index.sai.metrics.QueryEventListener;
+import java.util.Arrays;
+
 import org.apache.cassandra.index.sai.plan.Expression;
 import org.apache.cassandra.utils.bytecomparable.ByteComparable;
+import org.apache.cassandra.utils.bytecomparable.ByteSourceInverse;
 
 /**
  * Executes {@link Expression}s against the trie-based terms dictionary for an individual index segment.
@@ -85,9 +88,23 @@ public class LiteralIndexSegmentSearcher extends IndexSegmentSearcher
         if (!expression.getIndexOperator().isEquality())
             throw new IllegalArgumentException(index.identifier().logMessage("Unsupported expression: " + expression));
 
-        ByteComparable term = v -> index.termType().asComparableBytes(expression.lower().value.encoded, v);
+        ByteComparable term;
+        if (expression.getIndexOperator() == Expression.IndexOperator.LIKE_PREFIX)
+        {
+            // For prefix queries, strip the trailing separator byte (0x00) from the comparable
+            // encoding so we match the intermediate trie node where prefix postings are stored,
+            // rather than the separator node (which only has the exact term's own prefix posting).
+            byte[] rawBytes = ByteSourceInverse.readBytes(
+                    index.termType().asComparableBytes(expression.lower().value.encoded, ByteComparable.Version.OSS50));
+            rawBytes = Arrays.copyOf(rawBytes, rawBytes.length - 1);
+            term = ByteComparable.fixedLength(rawBytes);
+        }
+        else
+        {
+            term = v -> index.termType().asComparableBytes(expression.lower().value.encoded, v);
+        }
         QueryEventListener.TrieIndexEventListener listener = MulticastQueryEventListeners.of(queryContext, perColumnEventListener);
-        return toPrimaryKeyIterator(reader.exactMatch(term, listener, queryContext), queryContext);
+        return toPrimaryKeyIterator(reader.search(term, expression.getIndexOperator(), listener, queryContext), queryContext);
     }
 
     @Override

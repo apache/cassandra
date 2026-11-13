@@ -69,7 +69,7 @@ public class LiteralIndexWriter implements SegmentWriter
                 IndexEntry indexEntry = iterator.next();
                 try (PostingList postings = indexEntry.postingList)
                 {
-                    long offset = postingsWriter.write(postings);
+                    long offset = postingsWriter.writeWithFilterTypes(postings);
                     termsDictionaryWriter.add(indexEntry.term, offset);
                 }
             }
