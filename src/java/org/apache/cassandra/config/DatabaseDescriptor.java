@@ -398,6 +398,8 @@ public class DatabaseDescriptor
 
         applyCompressorProviders();
 
+        applyEncryptionContext();
+
         applySimpleConfig();
 
         applyPartitioner();
@@ -405,8 +407,6 @@ public class DatabaseDescriptor
         applySnitch();
 
         applyFailureDetector();
-
-        applyEncryptionContext();
     }
 
     /**
@@ -580,6 +580,8 @@ public class DatabaseDescriptor
 
         applyCryptoProvider();
 
+        applyEncryptionContext();
+
         applySimpleConfig();
 
         applyPartitioner();
@@ -593,8 +595,6 @@ public class DatabaseDescriptor
         applyTokensConfig();
 
         applySeedProvider();
-
-        applyEncryptionContext();
 
         applySslContext();
 
