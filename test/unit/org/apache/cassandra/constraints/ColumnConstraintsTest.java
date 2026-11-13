@@ -18,6 +18,7 @@
 
 package org.apache.cassandra.constraints;
 
+import java.io.IOException;
 import java.util.List;
 import java.util.function.Supplier;
 
@@ -32,7 +33,10 @@ import org.apache.cassandra.cql3.constraints.FunctionColumnConstraint;
 import org.apache.cassandra.cql3.constraints.ScalarColumnConstraint;
 import org.apache.cassandra.cql3.constraints.UnaryFunctionColumnConstraint;
 import org.apache.cassandra.db.marshal.UTF8Type;
+import org.apache.cassandra.io.util.DataInputBuffer;
+import org.apache.cassandra.io.util.DataOutputBuffer;
 import org.apache.cassandra.schema.ColumnMetadata;
+import org.apache.cassandra.tcm.serialization.Version;
 
 import static org.apache.cassandra.cql3.constraints.ColumnConstraint.ConstraintType.COMPOSED;
 import static org.apache.cassandra.cql3.constraints.ColumnConstraint.ConstraintType.FUNCTION;
@@ -77,10 +81,29 @@ public class ColumnConstraintsTest
     public void testEqualColumnMetadataWithConstraintsHaveEqualHashCode()
     {
         Supplier<ColumnConstraint<?>> constraint = () -> new FunctionColumnConstraint.Raw(new ColumnIdentifier("length", true), List.of(), Operator.GT, "10").prepare();
-        ColumnMetadata a = new ColumnMetadata("ks", "tb", COLUMN, UTF8Type.instance, 0, ColumnMetadata.NO_POSITION, ColumnMetadata.Kind.REGULAR, null, prepare(constraint.get()));
-        ColumnMetadata b = new ColumnMetadata("ks", "tb", COLUMN, UTF8Type.instance, 0, ColumnMetadata.NO_POSITION, ColumnMetadata.Kind.REGULAR, null, prepare(constraint.get()));
-        assertEquals(a, b);
-        assertEquals(a.hashCode(), b.hashCode());
+        assertEqualColumnMetadata(COLUMN, prepare(constraint.get()), prepare(constraint.get()));
+    }
+
+    @Test
+    public void testSerializationRoundTripKeepsEqualsAndHashCode() throws IOException
+    {
+        for (ColumnIdentifier column : List.of(COLUMN, ColumnIdentifier.getInterned("MyCol", true)))
+        {
+            assertRoundTrip(column, new FunctionColumnConstraint.Raw(new ColumnIdentifier("length", true), List.of(), Operator.GT, "10").prepare());
+            assertRoundTrip(column, new FunctionColumnConstraint.Raw(new ColumnIdentifier("octet_length", true), List.of(), Operator.LT, "100").prepare());
+            assertRoundTrip(column, new FunctionColumnConstraint.Raw(new ColumnIdentifier("regexp", true), List.of(), Operator.EQ, "'a.*'").prepare());
+            assertRoundTrip(column, new ScalarColumnConstraint.Raw(column, Operator.GT, "5").prepare());
+            assertRoundTrip(column, new UnaryFunctionColumnConstraint.Raw(new ColumnIdentifier("json", true)).prepare());
+            assertRoundTrip(column, new UnaryFunctionColumnConstraint.Raw("NOT_NULL").prepare());
+        }
+    }
+
+    @Test
+    public void testScalarConstraintWithDifferentColumnNameHasEqualHashCodeInColumnMetadata()
+    {
+        ColumnConstraints a = new ColumnConstraints(List.of(new ScalarColumnConstraint.Raw(COLUMN, Operator.GT, "5").prepare()));
+        ColumnConstraints b = new ColumnConstraints(List.of(new ScalarColumnConstraint.Raw(ColumnIdentifier.getInterned("other", true), Operator.GT, "5").prepare()));
+        assertEqualColumnMetadata(COLUMN, a, b);
     }
 
     private static void assertEqualHashCode(Supplier<ColumnConstraint<?>> constraint)
@@ -89,6 +112,34 @@ public class ColumnConstraintsTest
         ColumnConstraints b = prepare(constraint.get());
         assertEquals(a, b);
         assertEquals(a.hashCode(), b.hashCode());
+    }
+
+    private static void assertRoundTrip(ColumnIdentifier column, ColumnConstraint<?> constraint) throws IOException
+    {
+        ColumnConstraints original = new ColumnConstraints.Raw(List.of(constraint)).prepare(column);
+        for (Version version : Version.values())
+        {
+            if (version == Version.UNKNOWN || !version.isAtLeast(Version.V6))
+                continue;
+
+            DataOutputBuffer out = new DataOutputBuffer();
+            ColumnConstraints.serializer.serialize(original, out, version);
+            ColumnConstraints read = ColumnConstraints.serializer.deserialize(new DataInputBuffer(out.getData()), version);
+            assertEqualColumnMetadata(column, original, read);
+        }
+    }
+
+    private static void assertEqualColumnMetadata(ColumnIdentifier column, ColumnConstraints a, ColumnConstraints b)
+    {
+        ColumnMetadata first = columnMetadata(column, a);
+        ColumnMetadata second = columnMetadata(column, b);
+        assertEquals(first, second);
+        assertEquals(first.hashCode(), second.hashCode());
+    }
+
+    private static ColumnMetadata columnMetadata(ColumnIdentifier column, ColumnConstraints constraints)
+    {
+        return new ColumnMetadata("ks", "tb", column, UTF8Type.instance, 0, ColumnMetadata.NO_POSITION, ColumnMetadata.Kind.REGULAR, null, constraints);
     }
 
     private static ColumnConstraints prepare(ColumnConstraint<?> constraint)
