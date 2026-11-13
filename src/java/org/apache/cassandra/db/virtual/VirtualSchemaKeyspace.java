@@ -17,11 +17,17 @@
  */
 package org.apache.cassandra.db.virtual;
 
-import com.google.common.collect.ImmutableList;
+import java.util.List;
+import java.util.stream.Collectors;
 
+import org.apache.cassandra.cql3.CQL3Type;
+import org.apache.cassandra.cql3.FieldIdentifier;
+import org.apache.cassandra.db.marshal.AbstractType;
 import org.apache.cassandra.db.marshal.BytesType;
 import org.apache.cassandra.db.marshal.Int32Type;
+import org.apache.cassandra.db.marshal.ListType;
 import org.apache.cassandra.db.marshal.UTF8Type;
+import org.apache.cassandra.db.marshal.UserType;
 import org.apache.cassandra.dht.LocalPartitioner;
 import org.apache.cassandra.schema.ColumnMetadata;
 import org.apache.cassandra.schema.KeyspaceMetadata;
@@ -37,7 +43,10 @@ public final class VirtualSchemaKeyspace extends VirtualKeyspace
 
     private VirtualSchemaKeyspace()
     {
-        super(VIRTUAL_SCHEMA, ImmutableList.of(new VirtualKeyspaces(VIRTUAL_SCHEMA), new VirtualTables(VIRTUAL_SCHEMA), new VirtualColumns(VIRTUAL_SCHEMA)));
+        super(VIRTUAL_SCHEMA, List.of(new VirtualKeyspaces(VIRTUAL_SCHEMA),
+                                      new VirtualTables(VIRTUAL_SCHEMA),
+                                      new VirtualColumns(VIRTUAL_SCHEMA),
+                                      new VirtualTypes(VIRTUAL_SCHEMA)));
     }
 
     private static final class VirtualKeyspaces extends AbstractVirtualTable
@@ -143,6 +152,45 @@ public final class VirtualSchemaKeyspace extends VirtualKeyspace
                               .column(POSITION, column.position())
                               .column(TYPE, column.type.asCQL3Type().toString());
                     }
+                }
+            }
+
+            return result;
+        }
+    }
+
+    private static final class VirtualTypes extends AbstractVirtualTable
+    {
+        private static final String KEYSPACE_NAME = "keyspace_name";
+        private static final String TYPE_NAME = "type_name";
+        private static final String FIELD_NAMES = "field_names";
+        private static final String FIELD_TYPES = "field_types";
+
+        private VirtualTypes(String keyspace)
+        {
+            super(TableMetadata.builder(keyspace, "types")
+                               .comment("virtual types definitions")
+                               .kind(TableMetadata.Kind.VIRTUAL)
+                               .partitioner(new LocalPartitioner(UTF8Type.instance))
+                               .addPartitionKeyColumn(KEYSPACE_NAME, UTF8Type.instance)
+                               .addClusteringColumn(TYPE_NAME, UTF8Type.instance)
+                               .addRegularColumn(FIELD_NAMES, ListType.getInstance(UTF8Type.instance,false).freeze())
+                               .addRegularColumn(FIELD_TYPES, ListType.getInstance(UTF8Type.instance,false).freeze())
+                               .build());
+        }
+
+        @Override
+        public DataSet data()
+        {
+            SimpleDataSet result = new SimpleDataSet(metadata);
+
+            for (KeyspaceMetadata keyspace : VirtualKeyspaceRegistry.instance.virtualKeyspacesMetadata())
+            {
+                for (UserType type : keyspace.types)
+                {
+                    result.row(keyspace.name, type.getNameAsString())
+                          .column(FIELD_NAMES, type.fieldNames().stream().map(FieldIdentifier::toString).collect(Collectors.toList()))
+                          .column(FIELD_TYPES, type.fieldTypes().stream().map(AbstractType::asCQL3Type).map(CQL3Type::toString).collect(Collectors.toList()));
                 }
             }
 

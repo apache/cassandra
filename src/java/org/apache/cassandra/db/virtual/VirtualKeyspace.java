@@ -28,6 +28,7 @@ import com.google.common.collect.Iterables;
 
 import org.apache.cassandra.schema.KeyspaceMetadata;
 import org.apache.cassandra.schema.Tables;
+import org.apache.cassandra.schema.Types;
 
 public class VirtualKeyspace
 {
@@ -37,6 +38,11 @@ public class VirtualKeyspace
     private final ImmutableCollection<VirtualTable> tables;
 
     public VirtualKeyspace(String name, Collection<VirtualTable> tables)
+    {
+        this(name, tables, Types.none());
+    }
+
+    public VirtualKeyspace(String name, Collection<VirtualTable> tables, Types types)
     {
         this.name = name;
         this.tables = ImmutableList.copyOf(tables);
@@ -50,7 +56,7 @@ public class VirtualKeyspace
         if (!duplicates.isEmpty())
             throw new IllegalArgumentException(String.format("Duplicate table names in virtual keyspace %s: %s", name, duplicates));
 
-        this.metadata = KeyspaceMetadata.virtual(name, Tables.of(Iterables.transform(tables, VirtualTable::metadata)));
+        this.metadata = KeyspaceMetadata.virtual(name, Tables.of(Iterables.transform(tables, VirtualTable::metadata)), types);
     }
 
     public String name()
