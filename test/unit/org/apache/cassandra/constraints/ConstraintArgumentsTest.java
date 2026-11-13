@@ -49,6 +49,7 @@ import static java.lang.String.format;
 import static org.apache.cassandra.schema.ColumnMetadata.Kind.REGULAR;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertNotEquals;
 
 public class ConstraintArgumentsTest
 {
@@ -126,6 +127,35 @@ public class ConstraintArgumentsTest
         assertThatThrownBy(() -> constraint.validate(columnMetadata))
         .isInstanceOf(InvalidConstraintDefinitionException.class)
         .hasMessage("Constraint PARAMERTERLESS does not accept any arguments.");
+    }
+
+    @Test
+    public void testConstraintsWithDifferentArgumentsAreNotEqual()
+    {
+        ColumnConstraints abc = enumeration("a", "b", "c");
+
+        assertEquals(abc, enumeration("a", "b", "c"));
+        assertEquals(abc.hashCode(), enumeration("a", "b", "c").hashCode());
+        // arguments which are quoted, as they come from CQL, are the same arguments
+        assertEquals(abc, enumeration("'a'", "'b'", "'c'"));
+        assertEquals(abc.hashCode(), enumeration("'a'", "'b'", "'c'").hashCode());
+
+        assertNotEquals(abc, enumeration("a", "b", "d"));
+        assertNotEquals(abc, enumeration("a", "b"));
+        assertNotEquals(abc, enumeration());
+
+        // a function of a different class and name, with the same arguments
+        ColumnConstraints parameterless = new ColumnConstraints(List.of(new UnaryFunctionColumnConstraint(new ParamerterlessContraint(List.of("a", "b", "c")))));
+        parameterless.setColumnName(columnIdentifier);
+        assertNotEquals(abc, parameterless);
+        assertNotEquals(parameterless, abc);
+    }
+
+    private static ColumnConstraints enumeration(String... arguments)
+    {
+        ColumnConstraints constraints = new ColumnConstraints(List.of(new UnaryFunctionColumnConstraint(new Enumeration(List.of(arguments)))));
+        constraints.setColumnName(columnIdentifier);
+        return constraints;
     }
 
     private static class TestingUnaryFunctionSerializer extends UnaryFunctionColumnConstraint.Serializer
@@ -209,20 +239,6 @@ public class ConstraintArgumentsTest
         public boolean isParameterless()
         {
             return false;
-        }
-
-        @Override
-        public boolean equals(Object o)
-        {
-            if (this == o)
-                return true;
-
-            if (!(o instanceof Enumeration))
-                return false;
-
-            Enumeration other = (Enumeration) o;
-
-            return columnName.equals(other.columnName) && name.equals(other.name);
         }
     }
 }

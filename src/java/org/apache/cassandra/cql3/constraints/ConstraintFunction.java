@@ -21,6 +21,7 @@ package org.apache.cassandra.cql3.constraints;
 import java.nio.ByteBuffer;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Objects;
 
 import org.apache.cassandra.cql3.ColumnIdentifier;
 import org.apache.cassandra.cql3.Operator;
@@ -39,6 +40,11 @@ import static org.apache.cassandra.cql3.Operator.NEQ;
 
 /**
  * Interface to be implemented by functions that are executed as part of CQL constraints.
+ * <p>
+ * A function is identified by its class, its name, its arguments and the column it is attached to, and
+ * {@link #equals(Object)} and {@link #hashCode()} are implemented on these here, for all functions, including
+ * custom ones provided by {@link ConstraintProvider}. An implementation must not keep any other state which would
+ * make two functions of the same class, name and arguments behave differently.
  */
 public abstract class ConstraintFunction
 {
@@ -140,6 +146,34 @@ public abstract class ConstraintFunction
     public String toString()
     {
         return name;
+    }
+
+    /**
+     * Constraints are a part of {@link ColumnMetadata}, which is compared when a schema changes. An implementation
+     * which overrides this method has to override {@link #hashCode()} as well, and it should not compare less than
+     * this method does, otherwise an altered constraint would look the same as the previous one and the alteration
+     * would not be applied.
+     */
+    @Override
+    public boolean equals(Object o)
+    {
+        if (this == o)
+            return true;
+
+        if (o == null || getClass() != o.getClass())
+            return false;
+
+        ConstraintFunction other = (ConstraintFunction) o;
+
+        return Objects.equals(name, other.name)
+               && Objects.equals(columnName, other.columnName)
+               && Objects.equals(args, other.args);
+    }
+
+    @Override
+    public int hashCode()
+    {
+        return Objects.hash(getClass(), name, columnName, args);
     }
 
     protected void maybeThrowOnNonEmptyArguments(String constraintName)
