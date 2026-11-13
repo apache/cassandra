@@ -51,10 +51,4 @@ public class MutationTrackingSpec
         DataStorageSpec.LongBytesBound threshold = journal_reclaim_threshold;
         return threshold == null ? 0 : threshold.toBytes();
     }
-
-    @Deprecated(since = "6.0")
-    public long getJournalPromotionThresholdBytes()
-    {
-        return getJournalReclaimThresholdBytes();
-    }
 }

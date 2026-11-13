@@ -225,7 +225,7 @@ public class MutationJournalSegmentRefcountTest extends TestBaseImpl
 
             // The journal exceeds the tiny threshold and the (unrepaired) flushed sstables are holding segments.
             cluster.forEach(i -> i.runOnInstance(() -> {
-                long threshold = DatabaseDescriptor.getMutationTrackingConfig().getJournalPromotionThresholdBytes();
+                long threshold = DatabaseDescriptor.getMutationTrackingConfig().getJournalReclaimThresholdBytes();
                 assertTrue("promotion threshold must be configured (>0), was " + threshold, threshold > 0);
                 assertTrue("journal size must exceed the threshold",
                            MutationJournal.instance().getDiskSpaceUsed() > threshold);
