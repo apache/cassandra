@@ -26,6 +26,7 @@ import org.junit.Test;
 import org.apache.cassandra.cql3.CQLTester;
 import org.apache.cassandra.db.ColumnFamilyStore;
 import org.apache.cassandra.db.Keyspace;
+import org.apache.cassandra.tools.ToolRunner;
 
 import static org.apache.cassandra.tools.ToolRunner.invokeNodetool;
 
@@ -37,6 +38,8 @@ public class CompactTest extends CQLTester
         requireNetwork();
         startJMXServer();
     }
+
+    // Deprecated compact command tests (backward compatibility)
 
     @Test
     public void keyPresent() throws Throwable
@@ -100,5 +103,108 @@ public class CompactTest extends CQLTester
         .asserts()
         .failure()
         .errorContains(String.format("Unable to parse partition key 'this_will_not_work' for table %s.%s; Unable to make long from 'this_will_not_work'", keyspace(), currentTable()));
+    }
+
+    @Test
+    public void compactCommandIsDeprecated() throws Throwable
+    {
+        createTable("CREATE TABLE %s (id bigint, value text, PRIMARY KEY ((id)))");
+        ToolRunner.ToolResult result = invokeNodetool("compact", keyspace(), currentTable());
+        result.assertOnCleanExit();
+        Assertions.assertThat(result.getStdout()).contains("WARNING: nodetool compact is deprecated");
+    }
+
+    // compact keyspace subcommand tests
+
+    @Test
+    public void keyPresentWithKeyspaceSubcommand() throws Throwable
+    {
+        long key = 42;
+        createTable("CREATE TABLE %s (id bigint, value text, PRIMARY KEY ((id)))");
+        ColumnFamilyStore cfs = Keyspace.open(keyspace()).getColumnFamilyStore(currentTable());
+        cfs.disableAutoCompaction();
+        for (int i = 0; i < 10; i++)
+        {
+            execute("INSERT INTO %s (id, value) VALUES (?, ?)", key, "This is just some text... part " + i);
+            flush(keyspace());
+        }
+        Assertions.assertThat(cfs.getTracker().getView().liveSSTables()).hasSize(10);
+        invokeNodetool("compact", "keyspace", "--partition", Long.toString(key), keyspace(), currentTable()).assertOnCleanExit();
+        Assertions.assertThat(cfs.getTracker().getView().liveSSTables()).hasSize(1);
+    }
+
+    @Test
+    public void keyNotPresentWithKeyspaceSubcommand() throws Throwable
+    {
+        long key = 42;
+        createTable("CREATE TABLE %s (id bigint, value text, PRIMARY KEY ((id)))");
+        ColumnFamilyStore cfs = Keyspace.open(keyspace()).getColumnFamilyStore(currentTable());
+        cfs.disableAutoCompaction();
+        for (int i = 0; i < 10; i++)
+        {
+            execute("INSERT INTO %s (id, value) VALUES (?, ?)", key, "This is just some text... part " + i);
+            flush(keyspace());
+        }
+        Assertions.assertThat(cfs.getTracker().getView().liveSSTables()).hasSize(10);
+        for (long keyNotFound : Arrays.asList(key - 1, key + 1))
+        {
+            invokeNodetool("compact", "keyspace", "--partition", Long.toString(keyNotFound), keyspace(), currentTable()).assertOnCleanExit();
+            Assertions.assertThat(cfs.getTracker().getView().liveSSTables()).hasSize(10);
+        }
+    }
+
+    @Test
+    public void tableNotFoundWithKeyspaceSubcommand()
+    {
+        invokeNodetool("compact", "keyspace", "--partition", Long.toString(42), keyspace(), "doesnotexist")
+        .asserts()
+        .failure()
+        .errorContains(String.format("java.lang.IllegalArgumentException: Unknown keyspace/cf pair (%s.doesnotexist)", keyspace()));
+    }
+
+    @Test
+    public void keyWrongTypeWithKeyspaceSubcommand()
+    {
+        createTable("CREATE TABLE %s (id bigint, value text, PRIMARY KEY ((id)))");
+        invokeNodetool("compact", "keyspace", "--partition", "this_will_not_work", keyspace(), currentTable())
+        .asserts()
+        .failure()
+        .errorContains(String.format("Unable to parse partition key 'this_will_not_work' for table %s.%s; Unable to make long from 'this_will_not_work'", keyspace(), currentTable()));
+    }
+
+    @Test
+    public void regularCompactionWithKeyspaceSubcommand() throws Throwable
+    {
+        long key = 42;
+        createTable("CREATE TABLE %s (id bigint, value text, PRIMARY KEY ((id)))");
+        ColumnFamilyStore cfs = Keyspace.open(keyspace()).getColumnFamilyStore(currentTable());
+        cfs.disableAutoCompaction();
+        for (int i = 0; i < 10; i++)
+        {
+            execute("INSERT INTO %s (id, value) VALUES (?, ?)", key, "This is just some text... part " + i);
+            flush(keyspace());
+        }
+        Assertions.assertThat(cfs.getTracker().getView().liveSSTables()).hasSize(10);
+        invokeNodetool("compact", "keyspace", keyspace(), currentTable()).assertOnCleanExit();
+        Assertions.assertThat(cfs.getTracker().getView().liveSSTables()).hasSize(1);
+    }
+
+    @Test
+    public void splitOutputAndPartitionKeyFailsWithKeyspaceSubcommand()
+    {
+        createTable("CREATE TABLE %s (id bigint, value text, PRIMARY KEY ((id)))");
+        invokeNodetool("compact", "keyspace", "--split-output", "--partition", Long.toString(42), keyspace(), currentTable())
+        .asserts()
+        .failure()
+        .errorContains("Invalid option combination: Can not use split-output with --partition");
+    }
+
+    @Test
+    public void rangeSubcommandRequiresAtLeastOneToken()
+    {
+        createTable("CREATE TABLE %s (id bigint, value text, PRIMARY KEY ((id)))");
+        invokeNodetool("compact", "range", keyspace(), currentTable())
+        .asserts()
+        .failure();
     }
 }
