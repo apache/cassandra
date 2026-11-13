@@ -480,6 +480,17 @@ public abstract class AbstractMessageHandler extends ChannelInboundHandlerAdapte
     }
 
     /**
+     * @return the number of bytes of this connection's own queue budget currently in use. Anything queued beyond
+     * {@link #queueCapacity} is borrowed from the shared endpoint/global reserves (see
+     * {@link #acquireCapacity(Limit, Limit, int)}) and is deliberately not included here. Must be kept consistent
+     * with acquireCapacity/releaseCapacity.
+     */
+    public long localQueueUsage()
+    {
+        return min(queueSize, queueCapacity);
+    }
+
+    /**
      * Invoked to release capacity for a message that has been fully, successfully processed.
      *
      * Normally no different from invoking {@link #releaseCapacity(int)}, but is necessary for the verifier

@@ -109,7 +109,7 @@ public class PipelineConfigurator
     // Names of handlers used in V5 and later pipelines
     private static final String FRAME_DECODER               = "frameDecoder";
     private static final String FRAME_ENCODER               = "frameEncoder";
-    private static final String MESSAGE_PROCESSOR           = "cqlProcessor";
+    static final String MESSAGE_PROCESSOR                   = "cqlProcessor";
 
     private final boolean epoll;
     private final boolean keepAlive;

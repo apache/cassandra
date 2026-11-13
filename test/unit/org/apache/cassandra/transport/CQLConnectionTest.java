@@ -363,6 +363,111 @@ public class CQLConnectionTest
     }
 
     @Test
+    public void testRequestsSizeWithinLocalQueueBudget() throws Throwable
+    {
+        // the whole request fits in the connection's own queue budget, so nothing is borrowed from the reserves
+        checkRequestsSizeInFlight(1024 * 1024);
+    }
+
+    @Test
+    public void testRequestsSizeOverflowingLocalQueueBudget() throws Throwable
+    {
+        // only part of the request fits in the connection's own queue budget, the rest is borrowed from the
+        // reserves. Guards against counting that borrowed part twice.
+        checkRequestsSizeInFlight(1000);
+    }
+
+    private void checkRequestsSizeInFlight(int queueCapacity) throws Throwable
+    {
+        // CASSANDRA-21091: V5+ connections only borrow from the shared reserves once a request doesn't fit in the
+        // connection's own queue budget. setup() sets that budget to 0 for the reserve-focused tests in this class,
+        // so set the one we want before the connection is established.
+        DatabaseDescriptor.setNativeTransportReceiveQueueCapacityInBytes(queueCapacity);
+
+        Condition requestReceived = newOneTimeCondition();
+        Condition releaseRequest = newOneTimeCondition();
+        AllocationObserver observer = new AllocationObserver(false);
+        Codec codec = Codec.crc(alloc);
+
+        // Holds the request in flight (capacity acquired, not yet released) until the test has looked at the metric
+        MessageConsumer<Message.Request> consumer = new MessageConsumer<Message.Request>()
+        {
+            public <P> void dispatch(Channel channel, Message.Request message, Dispatcher.FlushItemConverter<P> toFlushItem, P param, Overload backpressure)
+            {
+                requestReceived.signalAll();
+                releaseRequest.awaitUninterruptibly();
+
+                Message.Response fixedResponse = new ResultMessage.Void();
+                Envelope response = fixedResponse.encode(ProtocolVersion.V5, message.getSource().header.streamId);
+                SimpleClient.SimpleFlusher flusher = new SimpleClient.SimpleFlusher(codec.encoder);
+                flusher.enqueue(response);
+                flusher.schedule(channel.pipeline().lastContext());
+
+                // this simulates the release of the allocated resources that a real flusher would do
+                Flusher.FlushItem.Framed item = (Flusher.FlushItem.Framed) toFlushItem.toFlushItem(param, channel, message, fixedResponse);
+                item.release();
+            }
+
+            public boolean hasQueueCapacity() { return true; }
+        };
+
+        Message.Decoder<Message.Request> decoder = new FixedDecoder();
+        ServerConfigurator configurator = ServerConfigurator.builder()
+                                                            .withConsumer(consumer)
+                                                            .withAllocationObserver(observer)
+                                                            .withDecoder(decoder)
+                                                            .build();
+
+        // Note: use this test's own server rather than ClientMetrics.instance, which is only ever initialised
+        // with the first Server created in the JVM.
+        Server server = server(configurator);
+        Client client = new Client(codec, 1);
+        try
+        {
+            server.start();
+            client.connect(address, port);
+            assertTrue(configurator.waitUntilReady());
+
+            long reserveBefore = ClientResourceLimits.getCurrentGlobalUsage();
+            long totalBefore = server.requestsSizeInFlight();
+
+            Envelope request = randomEnvelope(0, Message.Type.OPTIONS, 4096, 4096);
+            int requestSize = request.body.readableBytes();
+            client.send(request);
+            client.awaitFlushed();
+
+            assertTrue("timed out waiting for the request to be dispatched",
+                       requestReceived.await(10, TimeUnit.SECONDS));
+
+            // Only the part that doesn't fit in the connection's own budget is borrowed from the reserves...
+            long borrowed = Math.max(0, requestSize - queueCapacity);
+            assertThat(ClientResourceLimits.getCurrentGlobalUsage() - reserveBefore).isEqualTo(borrowed);
+            // ...but the metric must account for the whole request, exactly once
+            assertThat(server.requestsSizeInFlight() - totalBefore).isEqualTo(requestSize);
+
+            releaseRequest.signalAll();
+
+            client.awaitResponses();
+            Envelope response = client.pollResponses();
+            assertNotNull(response);
+            assertThat(response.header.type).isEqualTo(Message.Type.RESULT);
+            response.release();
+
+            // Once the request has completed, everything is back to where it was
+            assertThat(ClientResourceLimits.getCurrentGlobalUsage()).isEqualTo(reserveBefore);
+            assertThat(server.requestsSizeInFlight()).isEqualTo(totalBefore);
+        }
+        finally
+        {
+            // the consumer blocks the event loop while waiting on this, so make sure it is always released,
+            // otherwise a failed assertion above would hang server.stop() instead of failing the test
+            releaseRequest.signalAll();
+            client.stop();
+            server.stop();
+        }
+    }
+
+    @Test
     public void testRecoverableEnvelopeDecodingErrors()
     {
         // If an error is encountered while decoding an Envelope header,
