@@ -761,6 +761,23 @@ public class CompactionStrategyManager implements INotificationConsumer
         );
     }
 
+    public int getUCSMaxOverlapL0()
+    {
+        AbstractCompactionStrategy strategy;
+        readLock.lock();
+        try
+        {
+            strategy = repaired.first();
+        }
+        finally
+        {
+            readLock.unlock();
+        }
+        return strategy instanceof UnifiedCompactionStrategy
+               ? ((UnifiedCompactionStrategy) strategy).getMaxOverlapL0(cfs.getTracker().getView().liveSSTables())
+               : 0;
+    }
+
     public boolean isLeveledCompaction()
     {
         readLock.lock();

@@ -273,6 +273,12 @@ public class TableMetrics
     public final Gauge<Integer> unleveledSSTables;
 
     /**
+     * For UCS tables, an upper bound of the maximum number of L0 sstables whose key ranges overlap at any one key;
+     * 0 otherwise
+     */
+    public final Gauge<Integer> ucsMaxOverlapL0;
+
+    /**
      * Metrics for inconsistencies detected between repaired data sets across replicas. These
      * are tracked on the coordinator.
      */
@@ -948,6 +954,16 @@ public class TableMetrics
                 cnt += ((Gauge<? extends Number>) cfGauge).getValue().intValue();
             }
             return cnt;
+        });
+
+        ucsMaxOverlapL0 = createTableGauge("UCSMaxOverlapL0", () -> cfs.getCompactionStrategyManager().getUCSMaxOverlapL0(), () -> {
+            // global gauge: the max of the per-table values
+            int max = 0;
+            for (Metric cfGauge : ALL_TABLE_METRICS.get("UCSMaxOverlapL0"))
+            {
+                max = Math.max(max, ((Gauge<? extends Number>) cfGauge).getValue().intValue());
+            }
+            return max;
         });
 
         clientTombstoneWarnings = createTableMeter("ClientTombstoneWarnings", cfs.keyspace.metric.clientTombstoneWarnings);
