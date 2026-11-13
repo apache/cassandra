@@ -68,8 +68,6 @@
             <library>
                 <CLASSES>
                     <root url="file://$MODULE_DIR$/build/lib/jars" />
-                    <root url="file://$MODULE_DIR$/modules/accord/accord-core/build/dependencies/main/libs" />
-                    <root url="file://$MODULE_DIR$/modules/accord/accord-maelstrom/build/dependencies/main/libs" />
                 </CLASSES>
                 <JAVADOC />
                 <SOURCES>
@@ -77,7 +75,17 @@
                 </SOURCES>
                 <jarDirectory url="file://$MODULE_DIR$/build/lib/jars" recursive="false" />
                 <jarDirectory url="file://$MODULE_DIR$/build/lib/sources" recursive="false" type="SOURCES" />
-
+            </library>
+        </orderEntry>
+        <!-- a library of their own: some of these jars are other versions of jars above, and must not get their sources -->
+        <orderEntry type="module-library">
+            <library>
+                <CLASSES>
+                    <root url="file://$MODULE_DIR$/modules/accord/accord-core/build/dependencies/main/libs" />
+                    <root url="file://$MODULE_DIR$/modules/accord/accord-maelstrom/build/dependencies/main/libs" />
+                </CLASSES>
+                <JAVADOC />
+                <SOURCES />
                 <jarDirectory url="file://$MODULE_DIR$/modules/accord/accord-core/build/dependencies/main/libs" recursive="false" />
                 <jarDirectory url="file://$MODULE_DIR$/modules/accord/accord-maelstrom/build/dependencies/main/libs" recursive="false" />
             </library>
@@ -86,8 +94,6 @@
             <library>
                 <CLASSES>
                     <root url="file://$MODULE_DIR$/build/test/lib/jars" />
-                    <root url="file://$MODULE_DIR$/modules/accord/accord-core/build/dependencies/test/libs" />
-                    <root url="file://$MODULE_DIR$/modules/accord/accord-maelstrom/build/dependencies/test/libs" />
                 </CLASSES>
                 <JAVADOC />
                 <SOURCES>
@@ -95,7 +101,16 @@
                 </SOURCES>
                 <jarDirectory url="file://$MODULE_DIR$/build/test/lib/jars" recursive="false" />
                 <jarDirectory url="file://$MODULE_DIR$/build/test/lib/sources" recursive="false" type="SOURCES" />
-
+            </library>
+        </orderEntry>
+        <orderEntry type="module-library" scope="TEST">
+            <library>
+                <CLASSES>
+                    <root url="file://$MODULE_DIR$/modules/accord/accord-core/build/dependencies/test/libs" />
+                    <root url="file://$MODULE_DIR$/modules/accord/accord-maelstrom/build/dependencies/test/libs" />
+                </CLASSES>
+                <JAVADOC />
+                <SOURCES />
                 <jarDirectory url="file://$MODULE_DIR$/modules/accord/accord-core/build/dependencies/test/libs" recursive="false" />
                 <jarDirectory url="file://$MODULE_DIR$/modules/accord/accord-maelstrom/build/dependencies/test/libs" recursive="false" />
             </library>
