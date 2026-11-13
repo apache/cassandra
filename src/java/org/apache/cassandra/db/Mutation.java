@@ -48,6 +48,7 @@ import org.apache.cassandra.db.rows.DeserializationHelper;
 import org.apache.cassandra.io.IVersionedSerializer;
 import org.apache.cassandra.io.util.DataInputPlus;
 import org.apache.cassandra.io.util.DataOutputBuffer;
+import org.apache.cassandra.io.util.DataOutputBufferFixed;
 import org.apache.cassandra.io.util.DataOutputPlus;
 import org.apache.cassandra.io.util.TeeDataInputPlus;
 import org.apache.cassandra.locator.ReplicaPlan;
@@ -537,10 +538,13 @@ public class Mutation implements IMutation, Supplier<Mutation>
                 // so we only cache serialized mutations when they are below the defined limit.
                 if (serializedSize < CACHEABLE_MUTATION_SIZE_LIMIT)
                 {
-                    try (DataOutputBuffer dob = DataOutputBuffer.scratchBuffer.get())
+                    int serializedSizeAsInt = DataOutputBuffer.checkedArraySizeCast(serializedSize);
+                    try (DataOutputBufferFixed dob = new DataOutputBufferFixed(serializedSizeAsInt))
                     {
                         serializeInternal(PartitionUpdate.serializer, mutation, dob, version);
-                        serialization = new CachedSerialization(dob.unsafeToByteArray());
+                        checkState(dob.getLength() == serializedSizeAsInt,
+                                   "Expected serialized size %s but got %s", serializedSize, dob.getLength());
+                        serialization = new CachedSerialization(dob.getData());
                     }
                     catch (IOException e)
                     {
