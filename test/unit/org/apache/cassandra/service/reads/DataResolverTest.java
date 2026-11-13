@@ -30,6 +30,7 @@ import org.junit.Assert;
 import org.junit.Test;
 
 import org.apache.cassandra.Util;
+import org.apache.cassandra.db.AbstractReadCommandBuilder;
 import org.apache.cassandra.db.Clustering;
 import org.apache.cassandra.db.ClusteringBound;
 import org.apache.cassandra.db.ConsistencyLevel;
@@ -42,8 +43,11 @@ import org.apache.cassandra.db.RangeTombstone;
 import org.apache.cassandra.db.ReadCommand;
 import org.apache.cassandra.db.RowUpdateBuilder;
 import org.apache.cassandra.db.Slice;
+import org.apache.cassandra.db.Slices;
+import org.apache.cassandra.db.filter.ColumnFilter;
 import org.apache.cassandra.db.partitions.PartitionIterator;
 import org.apache.cassandra.db.partitions.PartitionUpdate;
+import org.apache.cassandra.db.partitions.SingletonUnfilteredPartitionIterator;
 import org.apache.cassandra.db.partitions.UnfilteredPartitionIterator;
 import org.apache.cassandra.db.rows.BTreeRow;
 import org.apache.cassandra.db.rows.BufferCell;
@@ -694,6 +698,63 @@ public class DataResolverTest extends AbstractReadResponseTest
         assertRepairContainsDeletions(mutation, DeletionTime.build(10, nowInSec),
                                       tombstone("0", true, "2", false, 11, nowInSec),
                                       tombstone("3", false, "9", true, 11, nowInSec));
+    }
+
+    /**
+     * Tests that a range tombstone missed by a source is repaired up to the last row read when the query limit stops
+     * the read before the end of the tombstone.
+     */
+    @Test
+    public void testRepairRangeTombstoneWithLimit()
+    {
+        EndpointsForRange replicas = makeReplicas(2);
+        testRepairRangeTombstoneWithLimit(replicas, false);
+        testRepairRangeTombstoneWithLimit(replicas, true);
+    }
+
+    private void testRepairRangeTombstoneWithLimit(EndpointsForRange replicas, boolean reversed)
+    {
+        AbstractReadCommandBuilder builder = Util.cmd(cfs, dk).withNowInSeconds(nowInSec).withLimit(1);
+        ReadCommand cmd = (reversed ? builder.reverse() : builder).build();
+        readRepair = new TestableReadRepair(cmd);
+        DataResolver resolver = new DataResolver(cmd, plan(replicas, ALL), readRepair, Dispatcher.RequestTime.forImmediateExecution());
+        InetAddressAndPort peer1 = replicas.get(0).endpoint();
+        InetAddressAndPort peer2 = replicas.get(1).endpoint();
+
+        // 1st "stream": a range tombstone and a newer row in the middle of it
+        PartitionUpdate update1 = new RowUpdateBuilder(cfm, nowInSec, 2L, dk).addRangeTombstone(tombstone("1", "5", 1, nowInSec))
+                                                                             .clustering("3")
+                                                                             .add("c1", "v1")
+                                                                             .buildUpdate();
+        // 2nd "stream": the same row, but not the range tombstone
+        PartitionUpdate update2 = new RowUpdateBuilder(cfm, nowInSec, 2L, dk).clustering("3")
+                                                                             .add("c1", "v1")
+                                                                             .buildUpdate();
+
+        resolver.preprocess(response(cmd, peer1, iter(update1, reversed)));
+        resolver.preprocess(response(cmd, peer2, iter(update2, reversed)));
+
+        try (PartitionIterator data = resolver.resolve())
+        {
+            try (RowIterator rows = data.next())
+            {
+                assertClustering(cfm, rows.next(), "3");
+                assertFalse(rows.hasNext());
+            }
+        }
+
+        // the limit stops the read before the end of the range tombstone, which is repaired up to the row read
+        assertEquals(1, readRepair.sent.size());
+        Mutation mutation = readRepair.getForEndpoint(peer2);
+        assertRepairMetadata(mutation);
+        assertRepairContainsNoColumns(mutation);
+        assertRepairContainsDeletions(mutation, null, reversed ? tombstone("3", "5", 1, nowInSec)
+                                                               : tombstone("1", "3", 1, nowInSec));
+    }
+
+    private static UnfilteredPartitionIterator iter(PartitionUpdate update, boolean reversed)
+    {
+        return new SingletonUnfilteredPartitionIterator(update.unfilteredIterator(ColumnFilter.all(update.metadata()), Slices.ALL, reversed));
     }
 
     // Forces the start to be exclusive if the condition holds

@@ -144,7 +144,7 @@ public class Coordinator implements ICoordinator
 
             ResultMessage.Rows initialRows = selectStatement.execute(queryState, initialOptions, requestTime);
             Iterator<Object[]> iter = new Iterator<Object[]>() {
-                ResultMessage.Rows rows = selectStatement.execute(queryState, initialOptions, requestTime);
+                ResultMessage.Rows rows = initialRows;
                 Iterator<Object[]> iter = RowUtil.toIter(rows);
 
                 public boolean hasNext()

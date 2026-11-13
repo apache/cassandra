@@ -156,8 +156,9 @@ public class ReadRepairEmptyRangeTombstonesTest extends TestBaseImpl
                 .assertRowsDistributed("SELECT * FROM %s WHERE k=0 AND c>=2 AND c<=3",
                                        paging ? 2 : 1,
                                        row(0, 2), row(0, 3))
+                // with reverse paging, the second page also repairs the gap (3, 4) between the tombstones repaired so far
                 .assertRowsDistributed("SELECT * FROM %s WHERE k=0 AND c>=3 AND c<=4",
-                                       1,
+                                       paging && reverse ? 2 : 1,
                                        row(0, 3), row(0, 4))
                 .assertRowsInternal("SELECT * FROM %s", row(0, 2), row(0, 3), row(0, 4))
                 .mutate(2, "DELETE FROM %s WHERE k=0 AND c>=1 AND c<=5")
@@ -182,8 +183,9 @@ public class ReadRepairEmptyRangeTombstonesTest extends TestBaseImpl
                 .assertRowsDistributed("SELECT c FROM %s WHERE k=0 AND c>=1 AND c<=4",
                                        paging ? 4 : 1,
                                        row(1), row(2), row(3), row(4))
+                // with reverse paging, the second page also repairs the gap (4, 5) between the tombstones repaired so far
                 .assertRowsDistributed("SELECT c FROM %s WHERE k=0 AND c>=2 AND c<=5",
-                                       1,
+                                       paging && reverse ? 2 : 1,
                                        row(2), row(3), row(4), row(5))
                 .assertRowsInternal("SELECT c FROM %s", row(1), row(2), row(3), row(4), row(5))
                 .mutate(2, "DELETE FROM %s WHERE k=0 AND c>=1 AND c<=6")
