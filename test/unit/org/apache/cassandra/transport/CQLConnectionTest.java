@@ -52,6 +52,7 @@ import org.apache.cassandra.auth.AllowAllNetworkAuthorizer;
 import org.apache.cassandra.concurrent.NamedThreadFactory;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.cql3.QueryProcessor;
+import org.apache.cassandra.io.compress.BufferType;
 import org.apache.cassandra.metrics.ClientMetrics;
 import org.apache.cassandra.net.*;
 import org.apache.cassandra.net.proxy.InboundProxyHandler;
@@ -62,6 +63,8 @@ import org.apache.cassandra.transport.messages.*;
 import org.apache.cassandra.utils.FBUtilities;
 import org.apache.cassandra.utils.concurrent.Condition;
 import org.apache.cassandra.utils.concurrent.NonBlockingRateLimiter;
+import org.apache.cassandra.utils.memory.BufferPool;
+import org.apache.cassandra.utils.memory.BufferPools;
 import org.awaitility.Awaitility;
 
 import static org.apache.cassandra.config.EncryptionOptions.TlsEncryptionPolicy.UNENCRYPTED;
@@ -328,6 +331,114 @@ public class CQLConnectionTest
                                                             .build();
 
         runTest(configurator, codec, messageCount, (i) -> randomEnvelope(i, Message.Type.OPTIONS), responseMatcher, observer.verifier());
+    }
+
+    @Test
+    public void releaseLargeMessageBuffers()
+    {
+        releaseLargeMessageBuffers(Codec.crc(alloc));
+        releaseLargeMessageBuffers(Codec.lz4(alloc));
+    }
+
+    @Test
+    public void releaseMalformedLargeMessageBuffers()
+    {
+        releaseMalformedLargeMessageBuffers(Codec.crc(alloc));
+        releaseMalformedLargeMessageBuffers(Codec.lz4(alloc));
+    }
+
+    @Test
+    public void releaseOverflowLargeMessageBuffers()
+    {
+        BufferPool bufferPool = BufferPools.forNetworking();
+        long initialUsedSize = bufferPool.usedSizeInBytes();
+        long initialOverflowSize = bufferPool.overflowMemoryInBytes();
+        List<ByteBuffer> pooledBuffers = new ArrayList<>();
+
+        try
+        {
+            ByteBuffer buffer;
+            do
+            {
+                buffer = bufferPool.get(BufferPool.NORMAL_CHUNK_SIZE, BufferType.OFF_HEAP);
+                pooledBuffers.add(buffer);
+            }
+            while (bufferPool.overflowMemoryInBytes() == initialOverflowSize);
+
+            pooledBuffers.remove(pooledBuffers.size() - 1);
+            bufferPool.put(buffer);
+            awaitBufferPoolUsage(bufferPool,
+                                 initialUsedSize + (long) pooledBuffers.size() * BufferPool.NORMAL_CHUNK_SIZE,
+                                 initialOverflowSize);
+
+            releaseLargeMessageBuffers(Codec.crc(alloc));
+        }
+        finally
+        {
+            pooledBuffers.forEach(bufferPool::put);
+            awaitBufferPoolUsage(bufferPool, initialUsedSize, initialOverflowSize);
+        }
+    }
+
+    private void releaseLargeMessageBuffers(Codec codec)
+    {
+        BufferPool bufferPool = BufferPools.forNetworking();
+        long initialUsedSize = bufferPool.usedSizeInBytes();
+        long initialOverflowSize = bufferPool.overflowMemoryInBytes();
+        int messageCount = 8;
+        int messageSize = MAX_FRAMED_PAYLOAD_SIZE * 3 / 2;
+
+        TestConsumer consumer = new TestConsumer(new ResultMessage.Void(), codec.encoder);
+        AllocationObserver observer = new AllocationObserver();
+        Predicate<Envelope.Header> responseMatcher = h -> h.type == Message.Type.RESULT;
+        ServerConfigurator configurator = ServerConfigurator.builder()
+                                                            .withConsumer(consumer)
+                                                            .withAllocationObserver(observer)
+                                                            .withDecoder(new FixedDecoder())
+                                                            .build();
+
+        runTest(configurator,
+                codec,
+                messageCount,
+                i -> randomEnvelope(i, Message.Type.OPTIONS, messageSize, messageSize),
+                responseMatcher,
+                observer.verifier());
+
+        awaitBufferPoolUsage(bufferPool, initialUsedSize, initialOverflowSize);
+    }
+
+    private void releaseMalformedLargeMessageBuffers(Codec codec)
+    {
+        BufferPool bufferPool = BufferPools.forNetworking();
+        long initialUsedSize = bufferPool.usedSizeInBytes();
+        long initialOverflowSize = bufferPool.overflowMemoryInBytes();
+        int messageCount = 8;
+        int messageSize = MAX_FRAMED_PAYLOAD_SIZE * 3 / 2;
+        ProtocolException error = new ProtocolException("Malformed large message");
+
+        AllocationObserver observer = new AllocationObserver();
+        ServerConfigurator configurator = ServerConfigurator.builder()
+                                                            .withAllocationObserver(observer)
+                                                            .withDecoder(new FixedDecoder(ignored -> true, error))
+                                                            .build();
+
+        runTest(configurator,
+                codec,
+                messageCount,
+                i -> randomEnvelope(i, Message.Type.OPTIONS, messageSize, messageSize),
+                header -> header.type == Message.Type.ERROR,
+                observer.verifier());
+
+        awaitBufferPoolUsage(bufferPool, initialUsedSize, initialOverflowSize);
+    }
+
+    private void awaitBufferPoolUsage(BufferPool bufferPool, long usedSize, long overflowSize)
+    {
+        Awaitility.await().atMost(10, TimeUnit.SECONDS).untilAsserted(() ->
+        {
+            assertEquals(usedSize, bufferPool.usedSizeInBytes());
+            assertEquals(overflowSize, bufferPool.overflowMemoryInBytes());
+        });
     }
 
     @Test
