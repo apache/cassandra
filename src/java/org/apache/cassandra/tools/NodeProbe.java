@@ -120,6 +120,7 @@ import org.apache.cassandra.metrics.CIDRAuthorizerMetrics;
 import org.apache.cassandra.metrics.CQLMetrics;
 import org.apache.cassandra.metrics.CassandraMetricsRegistry;
 import org.apache.cassandra.metrics.DefaultNameFactory;
+import org.apache.cassandra.metrics.NettyMemoryMetrics;
 import org.apache.cassandra.metrics.StorageMetrics;
 import org.apache.cassandra.metrics.TableMetrics;
 import org.apache.cassandra.metrics.ThreadPoolMetrics;
@@ -1966,6 +1967,34 @@ public class NodeProbe implements AutoCloseable
         }
         catch (MalformedObjectNameException | InstanceNotFoundException | IntrospectionException |
                ReflectionException | AttributeNotFoundException | MBeanException | IOException e)
+        {
+            throw new RuntimeException(e);
+        }
+    }
+
+    /**
+     * Retrieve Netty's own direct memory accounting, which is tracked separately from {@code java.nio.Bits} and from
+     * Cassandra's buffer pools.
+     *
+     * @param metricName UsedDirectMemory or DirectMemoryLimit
+     * @return the metric value in bytes, or -1 if Netty cannot report it
+     */
+    public Object getNettyMemoryMetric(String metricName)
+    {
+        try
+        {
+            switch (metricName)
+            {
+                case NettyMemoryMetrics.USED_DIRECT_MEMORY:
+                case NettyMemoryMetrics.DIRECT_MEMORY_LIMIT:
+                    return JMX.newMBeanProxy(mbeanServerConn,
+                                             new ObjectName("org.apache.cassandra.metrics:type=" + NettyMemoryMetrics.TYPE_NAME + ",name=" + metricName),
+                                             CassandraMetricsRegistry.JmxGaugeMBean.class).getValue();
+                default:
+                    throw new RuntimeException("Unknown NettyMemory metric name " + metricName);
+            }
+        }
+        catch (MalformedObjectNameException e)
         {
             throw new RuntimeException(e);
         }
