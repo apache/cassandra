@@ -978,7 +978,7 @@ public class MutationJournalReplayTest
         {
             startupJournal.replayStaticSegments();
 
-            MutationSummary summary = MutationTrackingService.instance().createSummaryForKey(key, table.id, false);
+            MutationSummary summary = MutationTrackingService.instance().createSummaryForKey(key, table.id, /* includePending */ false);
             Assert.assertTrue("Replayed mutation should be visible in summary when includePending=false",
                               summary.contains(mutationId));
         }
