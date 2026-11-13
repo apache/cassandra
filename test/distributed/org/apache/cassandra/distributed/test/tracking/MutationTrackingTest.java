@@ -973,7 +973,10 @@ public class MutationTrackingTest extends TestBaseImpl
                         for (List<Integer> list : persisted.values())
                         {
                             if (!list.isEmpty())
+                            {
                                 hasPersistedOffsets = true;
+                                break;
+                            }
                         }
                     }
                 }
@@ -983,7 +986,10 @@ public class MutationTrackingTest extends TestBaseImpl
                 for (Segment<?, ?> segment : MutationJournal.instance().getAllSegmentsForTesting())
                 {
                     if (segment.isStatic() && segment.metadata().needsReplay())
+                    {
                         foundNeedsReplay = true;
+                        break;
+                    }
                 }
                 assertTrue("Static segment must still need replay before restart", foundNeedsReplay);
             });
@@ -1020,7 +1026,10 @@ public class MutationTrackingTest extends TestBaseImpl
                         for (List<Integer> list : persisted.values())
                         {
                             if (!list.isEmpty())
+                            {
                                 hasPersistedOffsets = true;
+                                break;
+                            }
                         }
                     }
                 }
@@ -1062,7 +1071,10 @@ public class MutationTrackingTest extends TestBaseImpl
                 for (Segment<?, ?> segment : MutationJournal.instance().getAllSegmentsForTesting())
                 {
                     if (segment.isStatic() && segment.metadata().needsReplay())
+                    {
                         foundNeedsReplay = true;
+                        break;
+                    }
                 }
                 assertTrue("Static segment should still need replay before persister drain", foundNeedsReplay);
             });
@@ -1081,7 +1093,10 @@ public class MutationTrackingTest extends TestBaseImpl
                         for (List<Integer> list : persisted.values())
                         {
                             if (!list.isEmpty())
+                            {
                                 hasPersistedOffsets = true;
+                                break;
+                            }
                         }
                     }
                 }
