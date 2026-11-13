@@ -22,6 +22,7 @@ import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Objects;
 
 import org.apache.cassandra.cql3.ColumnIdentifier;
 import org.apache.cassandra.cql3.Operator;
@@ -234,5 +235,11 @@ public class FunctionColumnConstraint extends AbstractFunctionConstraint<Functio
                && columnName.equals(other.columnName)
                && relationType == other.relationType
                && term.equals(other.term);
+    }
+
+    @Override
+    public int hashCode()
+    {
+        return Objects.hash(function, columnName, relationType, term);
     }
 }

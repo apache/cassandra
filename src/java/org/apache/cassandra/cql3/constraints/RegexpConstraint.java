@@ -20,6 +20,7 @@ package org.apache.cassandra.cql3.constraints;
 
 import java.nio.ByteBuffer;
 import java.util.List;
+import java.util.Objects;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
@@ -106,5 +107,11 @@ public class RegexpConstraint extends ConstraintFunction
         RegexpConstraint other = (RegexpConstraint) o;
 
         return columnName.equals(other.columnName);
+    }
+
+    @Override
+    public int hashCode()
+    {
+        return Objects.hash(columnName);
     }
 }

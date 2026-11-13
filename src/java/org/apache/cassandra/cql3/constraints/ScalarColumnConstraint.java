@@ -21,6 +21,7 @@ package org.apache.cassandra.cql3.constraints;
 import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.util.List;
+import java.util.Objects;
 
 import com.google.common.annotations.VisibleForTesting;
 
@@ -214,5 +215,11 @@ public class ScalarColumnConstraint extends AbstractFunctionConstraint<ScalarCol
         return columnName.equals(other.columnName)
                && relationType == other.relationType
                && term.equals(other.term);
+    }
+
+    @Override
+    public int hashCode()
+    {
+        return Objects.hash(columnName, relationType, term);
     }
 }
