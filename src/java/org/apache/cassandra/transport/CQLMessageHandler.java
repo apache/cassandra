@@ -20,7 +20,10 @@ package org.apache.cassandra.transport;
 
 import java.io.IOException;
 import java.nio.ByteBuffer;
+import java.util.ArrayList;
+import java.util.List;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicBoolean;
 
 import com.google.common.primitives.Ints;
 import org.slf4j.Logger;
@@ -388,8 +391,7 @@ public class CQLMessageHandler<M extends Message> extends AbstractMessageHandler
         }
         catch (Exception e)
         {
-            if (message != null)
-                request.release();
+            request.release();
 
             boolean continueProcessing = true;
 
@@ -737,6 +739,34 @@ public class CQLMessageHandler<M extends Message> extends AbstractMessageHandler
         return Envelope.Header.LENGTH + Ints.checkedCast(header.bodySizeInBytes);
     }
 
+    private static final class LargeMessageEnvelope extends Envelope
+    {
+        private final List<ShareableBytes> buffers;
+        private final AtomicBoolean buffersReleased = new AtomicBoolean();
+
+        private LargeMessageEnvelope(Header header, ByteBuf body, List<ShareableBytes> buffers)
+        {
+            super(header, body);
+            this.buffers = buffers;
+        }
+
+        @Override
+        public boolean release()
+        {
+            try
+            {
+                return super.release();
+            }
+            finally
+            {
+                if (buffersReleased.compareAndSet(false, true))
+                {
+                    buffers.forEach(ShareableBytes::release);
+                }
+            }
+        }
+    }
+
     private class LargeMessage extends AbstractMessageHandler.LargeMessage<Envelope.Header>
     {
         private static final long EXPIRES_AT = Long.MAX_VALUE;
@@ -758,7 +788,10 @@ public class CQLMessageHandler<M extends Message> extends AbstractMessageHandler
 
             body.readerIndex(Envelope.Header.LENGTH);
             body.retain();
-            return new Envelope(header, body);
+            List<ShareableBytes> ownedBuffers = new ArrayList<>(buffers);
+            Envelope envelope = new LargeMessageEnvelope(header, body, ownedBuffers);
+            buffers.clear();
+            return envelope;
         }
 
         /**
