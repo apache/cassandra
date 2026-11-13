@@ -45,6 +45,7 @@ import org.apache.cassandra.db.marshal.AbstractType;
 import org.apache.cassandra.db.marshal.Int32Type;
 import org.apache.cassandra.db.marshal.ListType;
 import org.apache.cassandra.db.marshal.MultiElementType;
+import org.apache.cassandra.db.marshal.TimeUUIDType;
 import org.apache.cassandra.db.rows.Cell;
 import org.apache.cassandra.db.rows.CellPath;
 import org.apache.cassandra.db.rows.ComplexColumnData;
@@ -52,7 +53,9 @@ import org.apache.cassandra.db.rows.Row;
 import org.apache.cassandra.exceptions.InvalidRequestException;
 import org.apache.cassandra.schema.ColumnMetadata;
 import org.apache.cassandra.utils.ByteBufferUtil;
+import org.apache.cassandra.utils.TimeUUID;
 
+import static java.util.concurrent.TimeUnit.MILLISECONDS;
 import static org.apache.cassandra.cql3.statements.RequestValidations.checkFalse;
 import static org.apache.cassandra.cql3.statements.RequestValidations.invalidRequest;
 import static org.apache.cassandra.cql3.terms.Constants.UNSET_VALUE;
@@ -467,6 +470,27 @@ public abstract class Lists
                 return;
 
             List<ByteBuffer> toAdd = value.getElements();
+            if (builder.requiresDeterministicCellPaths())
+                prependAtTimestamp(toAdd, builder);
+            else
+                prependAtCurrentTime(toAdd, builder);
+        }
+
+        private void prependAtTimestamp(List<ByteBuffer> toAdd, RowUpdateBuilder builder) throws InvalidRequestException
+        {
+            final int totalCount = toAdd.size();
+
+            long referenceMicros = MILLISECONDS.toMicros(PrecisionTime.REFERENCE_TIME);
+            long msb = TimeUUID.unixMicrosToMsb(referenceMicros - (builder.timestamp - referenceMicros));
+            for (int i = totalCount - 1; i >= 0; i--)
+            {
+                ByteBuffer uuid = ByteBuffer.wrap(TimeUUID.toBytes(msb, TimeUUIDType.signedBytesToNativeLong(i)));
+                builder.addCell(column, CellPath.create(uuid), toAdd.get(i));
+            }
+        }
+
+        private void prependAtCurrentTime(List<ByteBuffer> toAdd, RowUpdateBuilder builder) throws InvalidRequestException
+        {
             final int totalCount = toAdd.size();
 
             // we have to obey MAX_NANOS per batch - in the unlikely event a client has decided to prepend a list with
