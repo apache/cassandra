@@ -46,6 +46,7 @@ import java.util.stream.Stream;
 import java.util.stream.StreamSupport;
 
 import com.google.common.annotations.VisibleForTesting;
+import com.google.common.collect.ImmutableList;
 import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.Iterables;
 
@@ -65,6 +66,8 @@ import org.apache.cassandra.io.sstable.Descriptor;
 import org.apache.cassandra.io.sstable.SSTable;
 import org.apache.cassandra.io.sstable.SSTableId;
 import org.apache.cassandra.io.sstable.SSTableIdFactory;
+import org.apache.cassandra.io.sstable.format.SSTableFormat.Components;
+import org.apache.cassandra.io.sstable.format.Version;
 import org.apache.cassandra.io.util.File;
 import org.apache.cassandra.io.util.FileStoreUtils;
 import org.apache.cassandra.io.util.FileUtils;
@@ -1021,6 +1024,7 @@ public class Directories
         private boolean onlyBackups;
         private int nbFiles;
         private final Map<Descriptor, Set<Component>> components = new HashMap<>();
+        private final List<File> rejectedDataFiles = new ArrayList<>();
         private boolean filtered;
         private String snapshotName;
         private final File[] dataPaths;
@@ -1087,6 +1091,21 @@ public class Directories
         }
 
         /**
+         * Data files that look like part of an SSTable but could not be parsed into a descriptor, for example because
+         * their version is newer than this node can read (see {@link Descriptor#fromFileWithComponent(File)}).
+         * These files are not part of the result of {@link #list(boolean)}, so callers that must not ignore them
+         * silently (such as SSTable import) can use this to detect them.
+         * <p>
+         * Only populated once {@link #list(boolean)} (or another listing method) has been called.
+         *
+         * @return the data files that were skipped because they could not be parsed
+         */
+        public List<File> rejectedDataFiles()
+        {
+            return ImmutableList.copyOf(rejectedDataFiles);
+        }
+
+        /**
          * Returns a sorted version of the {@code list} method.
          * Descriptors are sorted by generation.
          * @return a List of descriptors to their components.
@@ -1147,6 +1166,19 @@ public class Directories
             filtered = true;
         }
 
+        /**
+         * Whether a file name has the shape of an SSTable Data file, {@code <version>-<id>-<format>-Data.db}, without
+         * checking that the version, id or format are actually supported. Used to tell an SSTable this node cannot
+         * read apart from an unrelated file that merely ends in {@code -Data.db}.
+         */
+        private static boolean looksLikeSSTableDataFile(String fileName)
+        {
+            String[] parts = fileName.split("-");
+            return parts.length == 4
+                   && Version.validate(parts[0])
+                   && parts[3].equals(Components.DATA.name);
+        }
+
         private BiPredicate<File, FileType> getFilter(boolean includeForeignTables)
         {
             // This function always return false since it adds to the components map
@@ -1163,7 +1195,13 @@ public class Directories
                     case FINAL:
                         Pair<Descriptor, Component> pair = SSTable.tryComponentFromFilename(file);
                         if (pair == null)
+                        {
+                            // Remember Data files that look like an SSTable but could not be parsed (e.g. an
+                            // unreadable version), so that callers can tell this apart from an empty directory.
+                            if (looksLikeSSTableDataFile(file.name()))
+                                rejectedDataFiles.add(file);
                             return false;
+                        }
 
                         Descriptor descriptor = null;
 
