@@ -41,7 +41,6 @@ import java.util.concurrent.locks.ReentrantReadWriteLock;
 import javax.annotation.Nullable;
 
 import com.clearspring.analytics.stream.cardinality.CardinalityMergeException;
-import com.clearspring.analytics.stream.cardinality.ICardinality;
 import com.google.common.annotations.VisibleForTesting;
 import com.google.common.base.Preconditions;
 import com.google.common.collect.Iterables;
@@ -87,6 +86,7 @@ import org.apache.cassandra.io.sstable.SSTableIdentityIterator;
 import org.apache.cassandra.io.sstable.SSTableReadsListener;
 import org.apache.cassandra.io.sstable.format.SSTableFormat.Components;
 import org.apache.cassandra.io.sstable.metadata.CompactionMetadata;
+import org.apache.cassandra.io.sstable.metadata.PartitionKeyUnion;
 import org.apache.cassandra.io.sstable.metadata.StatsMetadata;
 import org.apache.cassandra.io.util.ChannelProxy;
 import org.apache.cassandra.io.util.CheckedFunction;
@@ -313,7 +313,7 @@ public abstract class SSTableReader extends SSTable implements UnfilteredSource,
             return 0;
 
         boolean failed = false;
-        ICardinality cardinality = null;
+        PartitionKeyUnion partitionKeys = new PartitionKeyUnion();
         for (SSTableReader sstable : sstables)
         {
             if (sstable.openReason == OpenReason.EARLY)
@@ -331,10 +331,7 @@ public abstract class SSTableReader extends SSTable implements UnfilteredSource,
                     break;
                 }
 
-                if (cardinality == null)
-                    cardinality = metadata.cardinalityEstimator;
-                else
-                    cardinality = cardinality.merge(metadata.cardinalityEstimator);
+                partitionKeys.add(metadata.cardinalityEstimator);
             }
             catch (IOException e)
             {
@@ -349,8 +346,8 @@ public abstract class SSTableReader extends SSTable implements UnfilteredSource,
                 break;
             }
         }
-        if (cardinality != null && !failed)
-            count = cardinality.cardinality();
+        if (!partitionKeys.isEmpty() && !failed)
+            count = partitionKeys.cardinality();
 
         // if something went wrong above or cardinality is not available, calculate using index summary
         if (count < 0)
