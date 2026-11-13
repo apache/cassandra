@@ -201,8 +201,17 @@ public abstract class ConsensusTableMigration
 
         IPartitioner partitioner = DatabaseDescriptor.getPartitioner();
         Optional<List<Range<Token>>> maybeParsedRanges = maybeRangesStr.map(rangesStr -> ImmutableList.copyOf(RepairOption.parseRanges(rangesStr, partitioner)));
-        Token minToken = partitioner.getMinimumToken();
-        NormalizedRanges<Token> ranges = normalizedRanges(maybeParsedRanges.orElse(ImmutableList.of(new Range(minToken, minToken))));
+
+        NormalizedRanges<Token> ranges;
+        if (maybeParsedRanges.isPresent())
+            ranges = normalizedRanges(maybeParsedRanges.get());
+        else
+        {
+            List<Range<Token>> defaultRanges = new ArrayList<>();
+            for (String keyspaceName : keyspaceNames)
+                defaultRanges.addAll(StorageService.instance.getPrimaryRanges(keyspaceName));
+            ranges = normalizedRanges(defaultRanges);
+        }
 
         ClusterMetadataService.instance().commit(new BeginConsensusMigrationForTableAndRange(ranges, tableIds));
     }
@@ -216,7 +225,7 @@ public abstract class ConsensusTableMigration
         checkNotNull(target);
         ClusterMetadata cm = ClusterMetadata.current();
 
-        Optional<List<Range<Token>>> localKeyspaceRanges = Optional.of(ImmutableList.copyOf(StorageService.instance.getLocalReplicas(keyspace).onlyFull().ranges()));
+        Optional<List<Range<Token>>> localKeyspaceRanges = Optional.of(ImmutableList.copyOf(StorageService.instance.getPrimaryRanges(keyspace)));
         List<Range<Token>> ranges = maybeRangesToRanges(maybeRangesStr, localKeyspaceRanges);
         Map<TableId, TableMigrationState> allTableMigrationStates = ClusterMetadata.current().consensusMigrationState.tableStates;
         List<TableId> tableIds = keyspacesAndTablesToTableIds(cm, ImmutableList.of(keyspace), maybeTables, Optional.of(allTableMigrationStates::containsKey));
