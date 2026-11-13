@@ -198,7 +198,21 @@ public class IntegerInterval
                 rpos = (-1 - rpos) - 1;
             if (rpos == -1)
                 return false;
-            return upper(ranges[rpos]) >= end;
+
+            int covered = upper(ranges[rpos]);
+
+            // We need to walk through the ranges. Take for example, when we have intervals
+            // [0, 1] [2, 3], we cover [0, 3]. However without this loop, we would return false
+            // as we only look at 1 of the intervals.
+            for (int i = rpos + 1; i < ranges.length; i++)
+            {
+                if (covered >= end)
+                    break;
+                if (lower(ranges[i]) == covered + 1)
+                    covered = upper(ranges[i]);
+            }
+
+            return covered >= end;
         }
 
         /**
