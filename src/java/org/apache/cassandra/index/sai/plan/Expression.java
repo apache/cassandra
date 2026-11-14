@@ -246,11 +246,25 @@ public abstract class Expression
                 Value first = new Value(buffers.get(0), indexTermType);
                 Value second = new Value(buffers.get(1), indexTermType);
 
-                // SAI enforces a non-arbitrary ordering between IPv4 and IPv6 addresses, so correction may still be necessary.
+                // First determine whether properly index-encoded bounds are out-of-order:
                 boolean outOfOrder = indexTermType.compare(first.encoded, second.encoded) > 0;
+                
+                // Our bounds are logically empty if either...
+                // a.) we have a reversed type and the bounds are out-of-order according to the unwrapped type
+                // b.) we have a non-reversed type (like inet always is) and the index-encoded bounds are out-of-order
+                boolean empty = indexTermType.isReversed() ? indexTermType.compareUnwrapped(first.raw, second.raw) > 0 : outOfOrder;
+
+                if (empty)
+                {
+                    this.lowerInclusive = false;
+                    this.upperInclusive = false;
+                    lower = upper = new Bound(first, false);
+                    break;
+                }
+
+                // If we are out-of-order when we reach this, we must be dealing with a reversed type:
                 lower = new Bound(outOfOrder ? second : first, true);
                 upper = new Bound(outOfOrder ? first : second, true);
-
                 break;
 
             case ANN:
@@ -273,7 +287,7 @@ public abstract class Expression
     {
         // If the expression represents an ANN ordering then we return true because the actual result
         // is approximate and will rarely / never match the expression value
-        if (indexTermType.isVector())
+        if (indexTermType.isVector() && operator == IndexOperator.ANN)
             return true;
 
         if (!indexTermType.isValid(columnValue))
@@ -291,15 +305,17 @@ public abstract class Expression
                 return validateStringValue(value.raw, lower.value.raw);
             else
             {
+                // IN packs all candidate values into a single list-encoded buffer in lower.value, and
+                // comparePostFilter() does not know how to handle that.
+                if (operator == IndexOperator.IN)
+                    return termMatches(value.raw, lower.value.raw);
+
                 // range or (not-)equals - (mainly) for numeric values
                 int cmp = indexTermType.comparePostFilter(lower.value, value);
 
                 // in case of EQ lower == upper
                 if (operator == IndexOperator.EQ || operator == IndexOperator.CONTAINS_KEY || operator == IndexOperator.CONTAINS_VALUE)
                     return cmp == 0;
-
-                if (operator == IndexOperator.IN)
-                    return termMatches(value.raw, lower.value.raw);
 
                 if (cmp > 0 || (cmp == 0 && !lowerInclusive))
                     return false;
@@ -356,7 +372,7 @@ public abstract class Expression
             case EQ:
             case CONTAINS_KEY:
             case CONTAINS_VALUE:
-                isMatch = indexTermType.compare(term, requestedValue) == 0;
+                isMatch = indexTermType.compare(indexTermType.asIndexBytes(term), indexTermType.asIndexBytes(requestedValue)) == 0;
                 break;
             case RANGE:
                 isMatch = isLowerSatisfiedBy(term) && isUpperSatisfiedBy(term);
@@ -366,7 +382,7 @@ public abstract class Expression
                 List<? extends ByteBuffer> buffers = type.unpack(requestedValue);
                 for (ByteBuffer value : buffers)
                 {
-                    if (indexTermType.compare(term, value) == 0)
+                    if (indexTermType.compare(indexTermType.asIndexBytes(term), indexTermType.asIndexBytes(value)) == 0)
                     {
                         return true;
                     }

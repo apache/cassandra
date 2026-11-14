@@ -479,7 +479,12 @@ public class IndexTermType
         ByteBuffer buffer;
 
         if (columnMetadata.kind == ColumnMetadata.Kind.CLUSTERING)
-             buffer = row.clustering().bufferAt(columnMetadata.position());
+        {
+            if (row.isStatic())
+                return null;
+
+            buffer = row.clustering().bufferAt(columnMetadata.position());
+        }
         else
         {
             Cell<?> cell = row.getCell(columnMetadata);
@@ -558,6 +563,14 @@ public class IndexTermType
             return FastByteOperations.compareUnsigned(b1, b2);
 
         return indexType.compare(b1, b2);
+    }
+
+    /**
+     * Compare two terms by the column's natural (non-reversed) CQL order
+     */
+    public int compareUnwrapped(ByteBuffer b1, ByteBuffer b2)
+    {
+        return indexType.unwrap().compare(b1, b2);
     }
 
     /**
@@ -824,7 +837,8 @@ public class IndexTermType
 
     private AbstractType<?> calculateIndexType(AbstractType<?> baseType, EnumSet<Capability> capabilities, IndexTarget.Type indexTargetType)
     {
-        if (IndexTarget.Type.FULL == indexTargetType)
+        // Non-element targets compare the whole collection, so they shouldn't reach collectionCellValueType()
+        if (!indexTargetType.hasElementTarget())
             return baseType;
         return capabilities.contains(Capability.COLLECTION) ? collectionCellValueType(baseType, indexTargetType) : baseType;
     }
@@ -933,14 +947,18 @@ public class IndexTermType
      */
     private static int compareInet(ByteBuffer b1, ByteBuffer b2)
     {
-        assert isIPv6(b1) && isIPv6(b2);
-
+        assert isEmptyOrIPv6(b1) && isEmptyOrIPv6(b2);
         return FastByteOperations.compareUnsigned(b1, b2);
     }
 
     private static boolean isIPv6(ByteBuffer address)
     {
         return address.remaining() == INET_ADDRESS_SIZE;
+    }
+
+    private static boolean isEmptyOrIPv6(ByteBuffer address)
+    {
+        return address.remaining() == 0 || isIPv6(address);
     }
 
     /**

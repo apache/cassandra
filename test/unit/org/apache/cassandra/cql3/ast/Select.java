@@ -422,6 +422,13 @@ FROM [keyspace_name.] table_name
             return (T) this;
         }
 
+        @Override
+        public T contains(Conditional.Contains.Kind kind, ReferenceExpression ref, Expression element)
+        {
+            where.contains(kind, ref, element);
+            return (T) this;
+        }
+
         public T orderByColumn(String name, AbstractType<?> type, OrderBy.Ordering ordering)
         {
             return orderByColumn(new Symbol(name, type), ordering);

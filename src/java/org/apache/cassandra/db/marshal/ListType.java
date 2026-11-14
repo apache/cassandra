@@ -313,8 +313,8 @@ public class ListType<T> extends CollectionType<List<T>>
         Iterator<Cell<?>> iter = columnData.iterator();
         while(iter.hasNext())
         {
-            ByteBuffer cellValue = iter.next().buffer();
-            if(valueComparator().compare(cellValue, value) == 0)
+            Cell<?> cell = iter.next();
+            if (valueComparator().compare(cell.buffer(), value) == 0)
                 return true;
         }
         return false;
