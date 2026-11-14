@@ -19,23 +19,29 @@
 package org.apache.cassandra.distributed.test.tracking;
 
 import java.io.IOException;
+import java.nio.ByteBuffer;
+import java.nio.file.Files;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Set;
 import java.util.function.Consumer;
 
+import org.assertj.core.api.Assertions;
 import org.junit.Test;
 
 import org.apache.cassandra.db.ColumnFamilyStore;
 import org.apache.cassandra.distributed.Cluster;
 import org.apache.cassandra.distributed.api.IInstanceConfig;
+import org.apache.cassandra.distributed.api.IInstanceInitializer;
 import org.apache.cassandra.distributed.api.IInvokableInstance;
+import org.apache.cassandra.io.sstable.CQLSSTableWriter;
 import org.apache.cassandra.io.util.File;
 import org.apache.cassandra.tcm.ClusterMetadata;
 
 import static org.apache.cassandra.distributed.shared.AssertUtils.assertRows;
 import static org.apache.cassandra.distributed.shared.AssertUtils.row;
 import static org.apache.cassandra.distributed.test.log.ClusterMetadataTestHelper.waitForEpochOf;
+import static org.apache.cassandra.replication.ActivationRequest.Phase.COMMIT;
 import static org.junit.Assert.assertTrue;
 
 public class TrackedTransferBounce2Test extends TrackedTransferTestBase
@@ -179,6 +185,152 @@ public class TrackedTransferBounce2Test extends TrackedTransferTestBase
                            getPendingSSTableDirs(cluster.get(node), KEYSPACE).isEmpty());
             }
         }
+    }
+
+    @Test
+    public void testImportRespectsPendingMigrationRanges() throws IOException
+    {
+        String migrationKeyspace = "migration_import_test";
+        IInstanceInitializer initializer = ByteBuddyInjections.SkipActivation.install(1, 2, 3);
+        try (Cluster cluster = cluster(initializer))
+        {
+            ByteBuddyInjections.SkipActivation.setup(cluster, COMMIT);
+            startMigrationAndMigrateFirstShard(cluster, migrationKeyspace);
+
+            // KEY_100 falls inside the now fully-migrated shard, so the import should take the tracked path
+            Assertions.assertThatThrownBy(() -> importRows(cluster, migrationKeyspace, false, row(KEY_100, 1)))
+                      .hasMessageContaining("Failed adding SSTables")
+                      .cause()
+                      .hasMessageContaining("Tracked transfer failed during COMMIT");
+            assertPendingActivation(cluster, migrationKeyspace);
+            // The tracked transfer was never committed, so the data must not have leaked into the live set
+            assertRows(select(cluster, migrationKeyspace, KEY_100));
+
+            // KEY_201 falls inside a still-pending shard, so the import should take the untracked path
+            List<String> failed = importRows(cluster, migrationKeyspace, false, row(KEY_201, 2));
+            Assertions.assertThat(failed).isEmpty();
+            assertRows(select(cluster, migrationKeyspace, KEY_201), row(KEY_201, 2));
+
+            // Once activation is no longer skipped, the tracked path imports the data
+            ByteBuddyInjections.SkipActivation.setup(cluster, null, false);
+            failed = importRows(cluster, migrationKeyspace, false, row(KEY_100, 3));
+            Assertions.assertThat(failed).isEmpty();
+            assertRows(select(cluster, migrationKeyspace, KEY_100), row(KEY_100, 3));
+        }
+    }
+
+    @Test
+    public void testImportMixedTrackedAndUntrackedDoesNotAddUntrackedOnTrackedFailure() throws IOException
+    {
+        String migrationKeyspace = "migration_import_mixed_test";
+        IInstanceInitializer initializer = ByteBuddyInjections.SkipActivation.install(1, 2, 3);
+        try (Cluster cluster = cluster(initializer))
+        {
+            ByteBuddyInjections.SkipActivation.setup(cluster, COMMIT);
+            startMigrationAndMigrateFirstShard(cluster, migrationKeyspace);
+
+            // One import with an SSTable for the migrated shard (tracked) and one for a pending shard (untracked).
+            // The tracked transfer fails at COMMIT, and the untracked SSTable is not made live.
+            Assertions.assertThatThrownBy(() -> importRows(cluster, migrationKeyspace, true, row(KEY_100, 1), row(KEY_201, 2)))
+                      .hasMessageContaining("Failed adding SSTables")
+                      .cause()
+                      .hasMessageContaining("Tracked transfer failed during COMMIT");
+            assertRows(select(cluster, migrationKeyspace, KEY_100));
+            assertRows(select(cluster, migrationKeyspace, KEY_201));
+        }
+    }
+
+    @Test
+    public void testImportRejectsSSTableSpanningMigratedAndPendingRanges() throws IOException
+    {
+        String migrationKeyspace = "migration_import_mixed_ranges_test";
+        try (Cluster cluster = cluster())
+        {
+            startMigrationAndMigrateFirstShard(cluster, migrationKeyspace);
+
+            // A single SSTable with data in both a migrated and a pending shard can be imported neither way (tracked or untracked)
+            List<String> failed = importRows(cluster, migrationKeyspace, false, row(KEY_100, 1), row(KEY_201, 2));
+            Assertions.assertThat(failed).hasSize(1);
+            assertRows(select(cluster, migrationKeyspace, KEY_100));
+            assertRows(select(cluster, migrationKeyspace, KEY_201));
+        }
+    }
+
+    @Test
+    public void testImportSSTableSpanningShardsWithoutMigration() throws IOException
+    {
+        String trackedKeyspace = "tracked_import_multi_shard_test";
+        try (Cluster cluster = cluster())
+        {
+            cluster.schemaChange("CREATE KEYSPACE " + trackedKeyspace + " WITH replication = " +
+                                 "{'class': 'SimpleStrategy', 'replication_factor': 3} AND replication_type='tracked'");
+            cluster.schemaChange("CREATE TABLE " + tableWithKeyspace(trackedKeyspace) + " (pk BLOB PRIMARY KEY, v INT)");
+            waitForEpochOf(cluster, 1);
+
+            // KEY_100 and KEY_201 are in different shards, the tracked import splits the SSTable per shard
+            List<String> failed = importRows(cluster, trackedKeyspace, false, row(KEY_100, 1), row(KEY_201, 2));
+            Assertions.assertThat(failed).isEmpty();
+            assertRows(select(cluster, trackedKeyspace, KEY_100), row(KEY_100, 1));
+            assertRows(select(cluster, trackedKeyspace, KEY_201), row(KEY_201, 2));
+        }
+    }
+
+    /**
+     * Starts a migration of shard containing KEY_100
+     */
+    private static void startMigrationAndMigrateFirstShard(Cluster cluster, String keyspace)
+    {
+        cluster.schemaChange("CREATE KEYSPACE " + keyspace + " WITH replication = " +
+                             "{'class': 'SimpleStrategy', 'replication_factor': 3} AND replication_type='untracked'");
+        cluster.schemaChange("CREATE TABLE " + tableWithKeyspace(keyspace) + " (pk BLOB PRIMARY KEY, v INT)");
+        waitForEpochOf(cluster, 1);
+
+        cluster.schemaChange("ALTER KEYSPACE " + keyspace + " WITH replication_type='tracked'");
+        waitForEpochOf(cluster, 1);
+
+        boolean migrating = cluster.get(1).callOnInstance(() -> ClusterMetadata.current().mutationTrackingMigrationState.isMigrating(keyspace));
+        assertTrue("Keyspace should be in the middle of migration before repair", migrating);
+
+        cluster.get(1).nodetoolResult("repair", "--start-token", Long.toString(Long.MIN_VALUE),
+                                      "--end-token", "-3074457345618258603", keyspace)
+               .asserts().success();
+    }
+
+    private static Object[][] select(Cluster cluster, String keyspace, ByteBuffer key)
+    {
+        return cluster.get(1).executeInternal("SELECT * FROM " + tableWithKeyspace(keyspace) + " WHERE pk = ?", key);
+    }
+
+    private static List<String> importRows(Cluster cluster, String keyspace, boolean separateSSTables, Object[]... rows) throws IOException
+    {
+        String file = Files.createTempDirectory(TrackedTransferBounce2Test.class.getSimpleName()).toString();
+
+        List<Object[][]> batches = new ArrayList<>();
+        if (separateSSTables)
+            for (Object[] row : rows)
+                batches.add(new Object[][]{ row });
+        else
+            batches.add(rows);
+
+        for (Object[][] batch : batches)
+        {
+            CQLSSTableWriter.Builder builder = CQLSSTableWriter.builder()
+                                                               .forTable("CREATE TABLE " + tableWithKeyspace(keyspace) + " (pk BLOB PRIMARY KEY, v INT)")
+                                                               .inDirectory(file)
+                                                               .using("INSERT INTO " + tableWithKeyspace(keyspace) + " (pk, v) VALUES (?, ?)");
+
+            try (CQLSSTableWriter writer = builder.build())
+            {
+                for (Object[] row : batch)
+                    writer.addRow(row[0], row[1]);
+            }
+        }
+
+        IInvokableInstance target = cluster.get(1);
+        return target.callOnInstance(() -> {
+            ColumnFamilyStore cfs = ColumnFamilyStore.getIfExists(keyspace, TABLE);
+            return cfs.importNewSSTables(Set.of(file), true, true, true, true, true, true, true);
+        });
     }
 
     static List<String> getPendingSSTableDirs(IInvokableInstance instance, String keyspace)
