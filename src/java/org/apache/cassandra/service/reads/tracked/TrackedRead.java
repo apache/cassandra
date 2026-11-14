@@ -19,7 +19,6 @@
 package org.apache.cassandra.service.reads.tracked;
 
 import java.io.IOException;
-import java.util.Collections;
 import java.util.Map;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.TimeUnit;
@@ -179,7 +178,8 @@ public abstract class TrackedRead<E extends Endpoints<E>, P extends ReplicaPlan.
     private final ConsistencyLevel consistencyLevel;
     private final Dispatcher.RequestTime requestTime;
 
-    private static class RequestFailure extends Throwable
+    @VisibleForTesting
+    public static class RequestFailure extends Throwable
     {
         private final InetAddressAndPort from;
         private final RequestFailureReason reason;
@@ -188,6 +188,11 @@ public abstract class TrackedRead<E extends Endpoints<E>, P extends ReplicaPlan.
         {
             this.from = from;
             this.reason = reason;
+        }
+
+        public boolean isCoordinatorBehind()
+        {
+            return reason == RequestFailureReason.COORDINATOR_BEHIND;
         }
 
         public Map<InetAddressAndPort, RequestFailureReason> reasonByEndpoint()
@@ -396,6 +401,11 @@ public abstract class TrackedRead<E extends Endpoints<E>, P extends ReplicaPlan.
     @Override
     public void onFailure(InetAddressAndPort from, org.apache.cassandra.exceptions.RequestFailure failure)
     {
+        if (failure.reason == RequestFailureReason.COORDINATOR_BEHIND)
+        {
+            logger.debug("Replica {} reports COORDINATOR_BEHIND for read {}. Ignoring and waiting for other replicas.", from, readId);
+            return;
+        }
         future.tryFailure(new RequestFailure(from, failure.reason));
     }
 
@@ -423,7 +433,6 @@ public abstract class TrackedRead<E extends Endpoints<E>, P extends ReplicaPlan.
         catch (ExecutionException e)
         {
             Throwable ex = e.getCause();
-            Map<InetAddressAndPort, RequestFailureReason> reasons = Collections.emptyMap();
             if (ex instanceof RequestFailure)
             {
                 RequestFailure failure = (RequestFailure) ex;
@@ -431,15 +440,14 @@ public abstract class TrackedRead<E extends Endpoints<E>, P extends ReplicaPlan.
                 {
                     throw new ReadTimeoutException(replicaPlan.consistencyLevel(), 0, replicaPlan.readQuorum(), false);
                 }
-
-                reasons = failure.reasonByEndpoint();
+                // If we get here, it's a genuine failure that isn't COORDINATOR_BEHIND or TIMEOUT
+                throw new ReadFailureException(replicaPlan.consistencyLevel(), 0, replicaPlan.readQuorum(), false, failure.reasonByEndpoint());
             }
             else if (ex instanceof TimeoutException)
             {
                 throw new ReadTimeoutException(replicaPlan.consistencyLevel(), 0, replicaPlan.readQuorum(), false);
             }
-
-            throw new ReadFailureException(replicaPlan.consistencyLevel(), 0, replicaPlan.readQuorum(), false, reasons);
+            throw new RuntimeException("Unexpected error during tracked read", ex);
         }
         catch (TimeoutException e)
         {
