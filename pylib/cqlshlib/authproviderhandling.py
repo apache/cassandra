@@ -25,12 +25,17 @@ from cqlshlib.util import is_file_secure
 SENSITIVE_KEYS = ('password', 'secret', 'basicauth')
 
 
-def _warn_for_insecure_credentials(config_file, provider_settings):
+def _warn_for_insecure_credentials(config_file, provider_settings, sensitive_settings=()):
     """
     Warn if the settings of a custom auth provider hold credentials
     and other users can read the cqlshrc file.
+
+    sensitive_settings are the names the provider adds to SENSITIVE_KEYS.
     """
-    if any(sensitive in key for key in provider_settings for sensitive in SENSITIVE_KEYS):
+    if isinstance(sensitive_settings, str):
+        sensitive_settings = (sensitive_settings,)
+    sensitive_keys = SENSITIVE_KEYS + tuple(name.lower() for name in sensitive_settings)
+    if any(sensitive in key for key in provider_settings for sensitive in sensitive_keys):
         if not is_file_secure(config_file):
             print("\nWarning: Credentials are found in an insecure cqlshrc file. "
                   "The file is owned or readable by other users on the system."
@@ -78,6 +83,10 @@ def load_auth_provider(config_file=None, cred_file=None, username=None, password
     Additional params passed to the constructor of class should be specified
     in the *auth_provider* section and can be freely named to match
     auth provider's expectation.
+
+    A custom auth provider class can list the names of its settings
+    which hold credentials in a *sensitive_settings* attribute.
+    A warning is printed if they are in a cqlshrc file other users can read.
 
     If passed username and password these will be overridden and passed to auth provider
 
@@ -163,7 +172,8 @@ def load_auth_provider(config_file=None, cred_file=None, username=None, password
 
     credential_settings = get_cred_file_settings(class_name, cred_file)
 
-    if module_name == 'cassandra.auth' and class_name == 'PlainTextAuthProvider':
+    is_plain_text = module_name == 'cassandra.auth' and class_name == 'PlainTextAuthProvider'
+    if is_plain_text:
         # merge credential settings as overrides on top of provider settings.
 
         # we need to ensure that password property gets "set" in all cases.
@@ -178,7 +188,6 @@ def load_auth_provider(config_file=None, cred_file=None, username=None, password
         if 'username' not in ctor_args:
             return None
     else:
-        _warn_for_insecure_credentials(config_file, provider_settings)
         # merge credential settings as overrides on top of provider settings.
         ctor_args = {**provider_settings,
                      **credential_settings,
@@ -187,6 +196,10 @@ def load_auth_provider(config_file=None, cred_file=None, username=None, password
     # Load class definitions
     module = import_module(module_name)
     auth_provider_klass = getattr(module, class_name)
+
+    if not is_plain_text:
+        _warn_for_insecure_credentials(config_file, provider_settings,
+                                       getattr(auth_provider_klass, 'sensitive_settings', ()))
 
     # instantiate the class
     return auth_provider_klass(**ctor_args)
