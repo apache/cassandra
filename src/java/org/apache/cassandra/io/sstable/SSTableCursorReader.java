@@ -347,9 +347,11 @@ public class SSTableCursorReader implements AutoCloseable
                 }
                 readComplexDeletion(currIndex);
                 remainingCellsInColumn = dataReader.readUnsignedVInt32();
-                if (remainingCellsInColumn == 0 && pauseAtEmptyComplexColumns)
+                // A deletion the drop filter cleared leaves nothing: the iterator path gives the
+                // row no such column, so do not surface one.
+                if (remainingCellsInColumn == 0 && pauseAtEmptyComplexColumns && !complexDeletion.isLive())
                     return surfaceDeletionOnlyComplexColumn();
-                // A count of zero and no pause: continue to the next column.
+                // A count of zero and no pause, or no deletion: continue to the next column.
             }
             return COLUMN_RUN_OPEN;
         }
@@ -387,6 +389,14 @@ public class SSTableCursorReader implements AutoCloseable
                 return;
             }
             serializationHeader.readDeletionTime(dataReader, complexDeletion);
+            // A row with any complex deletion writes one for every complex column, and a column
+            // without one gets LIVE.  LIVE's local deletion time does not survive the header's
+            // delta encoding, so treat a deletion with no timestamp as LIVE, as BTreeRow.Builder does.
+            if (complexDeletion.markedForDeleteAt() == Long.MIN_VALUE)
+            {
+                complexDeletion.resetLive();
+                return;
+            }
             // Do what DeserializationHelper.isDroppedComplexDeletion does: drop a complex deletion
             // at or before the drop time of its column.
             if (isDroppedAt(complexDeletion.markedForDeleteAt(), currIndex))
@@ -564,7 +574,8 @@ public class SSTableCursorReader implements AutoCloseable
     {
         TableMetadata metadata = Util.metadataFromSSTable(desc);
         SSTableReader reader = SSTableReader.openNoValidation(null, desc, TableMetadataRef.forOfflineTools(metadata));
-        return new SSTableCursorReader(reader, metadata, reader.ref(), null, null);
+        // The cursor owns this reader, so closing it releases the reader's own reference.
+        return new SSTableCursorReader(reader, metadata, reader.selfRef(), null, null);
     }
 
     public SSTableCursorReader(SSTableReader reader)
@@ -907,34 +918,102 @@ public class SSTableCursorReader implements AutoCloseable
     //    optional<varint[]> missing_columns;
     //    cell[] cells; // potentially only some
     //};
+    //
+    // A row that the dropped-column filter leaves empty is skipped, as UnfilteredSerializer.deserialize
+    // does (CASSANDRA-13337). The reader then reads the next row, so this can return TOMBSTONE_START or
+    // PARTITION_END, with the descriptor still holding the skipped row. So a caller must check the
+    // returned state before it uses the descriptor.
     public int readRowHeader(UnfilteredDescriptor unfilteredDescriptor)
     {
         if (state != State.ROW_START) throw new IllegalStateException();
         if (!UnfilteredSerializer.isRow(basicUnfilteredFlags)) throw new IllegalStateException();
         try
         {
-            unfilteredDescriptor.loadRow(dataReader, serializationHeader, deserializationHelper, basicUnfilteredFlags, extendedFlags);
-            unfilteredEnd = unfilteredDescriptor.dataStart() + unfilteredDescriptor.size();
-            unfilteredCellsStart = dataReader.getPosition();
+            for (;;)
+            {
+                unfilteredDescriptor.loadRow(dataReader, serializationHeader, deserializationHelper, basicUnfilteredFlags, extendedFlags);
+                unfilteredEnd = unfilteredDescriptor.dataStart() + unfilteredDescriptor.size();
+                unfilteredCellsStart = dataReader.getPosition();
 
-            rowCellCursor.init(unfilteredDescriptor.rowColumns(), unfilteredDescriptor.missingColumnsMask(),
-                               unfilteredDescriptor.presentColumnsWords(),
-                               unfilteredDescriptor.hasComplexDeletion(),
-                               unfilteredDescriptor.livenessInfo());
-            cellCursor = rowCellCursor;
-            if (!rowCellCursor.hasNext())
-            {
-                return checkNextFlagsAfterStaticRowOrUnfilteredStart(false);
-            }
-            else
-            {
-                return state = State.CELL_HEADER_START;
+                initRowCellCursor(unfilteredDescriptor);
+                if (sstableHasDroppedColumns && isEmptyAfterDropFilter(unfilteredDescriptor))
+                {
+                    if (skipRowLeftEmptyByDrop() == ROW_START)
+                        continue;
+                    return state;
+                }
+                if (!rowCellCursor.hasNext())
+                {
+                    return checkNextFlagsAfterStaticRowOrUnfilteredStart(false);
+                }
+                else
+                {
+                    return state = State.CELL_HEADER_START;
+                }
             }
         }
         catch (Exception e)
         {
             return corruptSSTable(e);
         }
+    }
+
+    private void initRowCellCursor(UnfilteredDescriptor unfilteredDescriptor)
+    {
+        rowCellCursor.init(unfilteredDescriptor.rowColumns(), unfilteredDescriptor.missingColumnsMask(),
+                           unfilteredDescriptor.presentColumnsWords(),
+                           unfilteredDescriptor.hasComplexDeletion(),
+                           unfilteredDescriptor.livenessInfo());
+        cellCursor = rowCellCursor;
+    }
+
+    /**
+     * True if the row is empty once the dropped-column filter has run, as {@link Row#isEmpty} is
+     * after UnfilteredSerializer.deserializeOne: no liveness, no row deletion, and no cell or
+     * complex deletion left. Reads the cells only when the row has neither of the first two. If a
+     * cell or complex deletion is left, puts the cell walk back at the row's first cell. So in an
+     * sstable with a dropped column, a row with no liveness and no row deletion reads its leading
+     * cells twice.
+     *
+     * Only for a row, not a static row: the iterator path does not skip an empty static row, it
+     * gives every source to the static row merge.
+     */
+    private boolean isEmptyAfterDropFilter(UnfilteredDescriptor unfilteredDescriptor) throws IOException
+    {
+        if (!unfilteredDescriptor.livenessInfo().isEmpty() || !unfilteredDescriptor.deletionTime().isLive())
+            return false;
+        if (!rowCellCursor.hasNext())
+            return true;
+        // A complex deletion with no cell keeps the row, so the walk must stop at one.
+        boolean pause = pauseAtEmptyComplexColumns;
+        pauseAtEmptyComplexColumns = true;
+        int first;
+        try
+        {
+            first = rowCellCursor.readCellHeader();
+        }
+        finally
+        {
+            pauseAtEmptyComplexColumns = pause;
+        }
+        if (first == CELL_NONE_REMAINING)
+            return true;
+        dataReader.seek(unfilteredCellsStart);
+        initRowCellCursor(unfilteredDescriptor);
+        return false;
+    }
+
+    /**
+     * Moves past a row that {@link #isEmptyAfterDropFilter} found empty. That check read all of the
+     * row's cells, so the reader is at the end of the row.
+     *
+     * @return the state at the next unfiltered: ROW_START, TOMBSTONE_START or PARTITION_END
+     */
+    private int skipRowLeftEmptyByDrop() throws IOException
+    {
+        checkNextFlagsAfterCellValuesEnd();
+        state = UNFILTERED_END;
+        return continueReading();
     }
 
     // TODO: introduce cell header class

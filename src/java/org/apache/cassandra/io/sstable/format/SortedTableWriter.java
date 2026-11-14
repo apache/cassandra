@@ -35,6 +35,7 @@ import org.slf4j.LoggerFactory;
 import org.apache.cassandra.db.DecoratedKey;
 import org.apache.cassandra.db.DeletionPurger;
 import org.apache.cassandra.db.DeletionTime;
+import org.apache.cassandra.db.SerializationHeader;
 import org.apache.cassandra.db.guardrails.Guardrails;
 import org.apache.cassandra.db.guardrails.Threshold;
 import org.apache.cassandra.db.lifecycle.ILifecycleTransaction;
@@ -53,6 +54,7 @@ import org.apache.cassandra.io.compress.CompressedSequentialWriter;
 import org.apache.cassandra.io.compress.CompressionMetadata;
 import org.apache.cassandra.io.sstable.AbstractRowIndexEntry;
 import org.apache.cassandra.io.sstable.Component;
+import org.apache.cassandra.io.sstable.CursorIndexWriter;
 import org.apache.cassandra.io.sstable.Descriptor;
 import org.apache.cassandra.io.sstable.SSTable;
 import org.apache.cassandra.io.sstable.SSTableFlushObserver;
@@ -93,6 +95,8 @@ public abstract class SortedTableWriter<P extends SortedTablePartitionWriter, I 
     private final boolean isPartitionSizeGuardEnabled;
     private final boolean isPartitionTombstonesGuardEnabled;
     private final boolean areCollectionGuardsDisabled;
+    // Built only when cursor compaction writes through this writer; closed with the partition writer.
+    private CursorIndexWriter cursorIndexWriter;
 
 
     public SortedTableWriter(Builder<P, I, ?, ?> builder, ILifecycleTransaction txn, SSTable.Owner owner)
@@ -309,6 +313,22 @@ public abstract class SortedTableWriter<P extends SortedTablePartitionWriter, I 
             notifyObservers(o -> o.nextUnfilteredCluster(marker));
     }
 
+    /**
+     * Builds the index writer that cursor compaction uses for this writer. This writer owns it and closes it
+     * in its transaction cleanup, on commit and on abort.
+     *
+     * @param header the header the cursor writer writes with, which need not be this writer's own
+     */
+    public final CursorIndexWriter newCursorIndexWriter(SerializationHeader header)
+    {
+        assert cursorIndexWriter == null : "a table writer has only one cursor index writer";
+        CursorIndexWriter.Factory factory = descriptor.getFormat().cursorIndexWriterFactory();
+        if (factory == null)
+            throw new UnsupportedOperationException("cursor compaction cannot write " + descriptor.getFormat().name());
+        cursorIndexWriter = factory.create(this, header);
+        return cursorIndexWriter;
+    }
+
     protected abstract AbstractRowIndexEntry createRowIndexEntry(DecoratedKey key, DeletionTime partitionLevelDeletion, long finishResult) throws IOException;
 
     protected final void notifyObservers(Consumer<SSTableFlushObserver> action)
@@ -354,6 +374,8 @@ public abstract class SortedTableWriter<P extends SortedTablePartitionWriter, I 
         protected Throwable doPostCleanup(Throwable accumulate)
         {
             accumulate = Throwables.close(accumulate, partitionWriter);
+            if (cursorIndexWriter != null)
+                accumulate = Throwables.perform(accumulate, cursorIndexWriter::close);
             accumulate = super.doPostCleanup(accumulate);
             return accumulate;
         }

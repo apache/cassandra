@@ -19,16 +19,20 @@ package org.apache.cassandra.io.sstable.format.big;
 
 import java.io.IOException;
 import java.nio.ByteBuffer;
+import java.util.ArrayList;
 import java.util.Collection;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 import java.util.function.Consumer;
 
 import com.google.common.collect.ImmutableSet;
 
+import org.agrona.collections.IntArrayList;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import org.apache.cassandra.cache.ReusableKeyCacheKey;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.db.DecoratedKey;
 import org.apache.cassandra.db.DeletionTime;
@@ -36,9 +40,13 @@ import org.apache.cassandra.db.compaction.OperationType;
 import org.apache.cassandra.db.lifecycle.ILifecycleTransaction;
 import org.apache.cassandra.index.Index;
 import org.apache.cassandra.io.FSWriteError;
+import org.apache.cassandra.io.ISerializer;
 import org.apache.cassandra.io.sstable.AbstractRowIndexEntry;
+import org.apache.cassandra.io.sstable.BigCursorIndexWriter;
+import org.apache.cassandra.io.sstable.CursorIndexWriter;
 import org.apache.cassandra.io.sstable.Descriptor;
 import org.apache.cassandra.io.sstable.Downsampling;
+import org.apache.cassandra.io.sstable.IndexInfo;
 import org.apache.cassandra.io.sstable.SSTable;
 import org.apache.cassandra.io.sstable.format.DataComponent;
 import org.apache.cassandra.io.sstable.format.IndexComponent;
@@ -49,6 +57,8 @@ import org.apache.cassandra.io.sstable.indexsummary.IndexSummary;
 import org.apache.cassandra.io.sstable.indexsummary.IndexSummaryBuilder;
 import org.apache.cassandra.io.sstable.keycache.KeyCache;
 import org.apache.cassandra.io.sstable.keycache.KeyCacheSupport;
+import org.apache.cassandra.io.util.DataInputBuffer;
+import org.apache.cassandra.io.util.DataOutputBuffer;
 import org.apache.cassandra.io.util.DataPosition;
 import org.apache.cassandra.io.util.FileHandle;
 import org.apache.cassandra.io.util.FileUtils;
@@ -72,7 +82,10 @@ public class BigTableWriter extends SortedTableWriter<BigFormatPartitionWriter, 
 
     private final RowIndexEntry.IndexSerializer rowIndexEntrySerializer;
     private final Map<DecoratedKey, AbstractRowIndexEntry> cachedKeys = new HashMap<>();
-    private final boolean shouldMigrateKeyCache;
+    private static final SSTableReader[] NO_ORIGINALS = new SSTableReader[0];
+    private final SSTableReader[] originals;
+    /** The key cache keys used to look a partition up in each of {@link #originals}, reused for every partition; built on the first lookup. */
+    private ReusableKeyCacheKey[] lookupKeys;
 
     public BigTableWriter(Builder builder, ILifecycleTransaction txn, SSTable.Owner owner)
     {
@@ -81,8 +94,130 @@ public class BigTableWriter extends SortedTableWriter<BigFormatPartitionWriter, 
         this.rowIndexEntrySerializer = builder.getRowIndexEntrySerializer();
         checkNotNull(this.rowIndexEntrySerializer);
 
-        this.shouldMigrateKeyCache = DatabaseDescriptor.shouldMigrateKeycacheOnCompaction()
-                                     && !txn.isOffline();
+        boolean migrateKeyCache = DatabaseDescriptor.shouldMigrateKeycacheOnCompaction() && !txn.isOffline();
+        // Empty unless the key cache is being migrated, so shouldCacheKey needs no second guard. Holds only the
+        // originals whose key cache is enabled, since a lookup in any other always misses.
+        // LifecycleTransaction.originals() wraps a fresh set on each call, and shouldCacheKey scans
+        // this per partition. Safe to snapshot: the only cancel that drops a compaction's originals
+        // runs in CompactionTask.runMayThrow before this writer.
+        this.originals = migrateKeyCache ? withKeyCache(txn.originals()) : NO_ORIGINALS;
+    }
+
+    /**
+     * The readers that have a key cache. A reader of a table that no longer caches keys keeps the
+     * cache it was opened with, and a schema change does not clear it, so the iterator path can still
+     * find the key there; it is kept for that reason. The other condition of
+     * {@link org.apache.cassandra.db.ColumnFamilyStore#isKeyCacheEnabled()}, a capacity above zero,
+     * can change at runtime, so shouldCacheKey checks it for each partition.
+     */
+    private static SSTableReader[] withKeyCache(Collection<SSTableReader> readers)
+    {
+        List<SSTableReader> cached = new ArrayList<>(readers.size());
+        for (SSTableReader reader : readers)
+            if (reader instanceof KeyCacheSupport<?> && ((KeyCacheSupport<?>) reader).getKeyCache().isEnabled())
+                cached.add(reader);
+        return cached.toArray(NO_ORIGINALS);
+    }
+
+    CursorIndexWriter createCursorIndexWriter()
+    {
+        return new BigCursorIndexWriter(this, indexWriter, DeletionTime.getSerializer(descriptor.version));
+    }
+
+    /**
+     * Caches a row-index entry for this key, but only when the key was already cached for one of the
+     * sstables being compacted. This keeps hot keys in the cache across compaction, the same as
+     * {@link #createRowIndexEntry} does on the iterator path.
+     *
+     * <p>As on the iterator path, the cached entry holds the index blocks when they fit
+     * column_index_cache_size, and is shallow otherwise.
+     *
+     * @param key the partition's key; may be a reusable instance, so the cache keeps a retainable copy
+     * @param partitionLevelDeletion the partition's deletion; may be a reusable instance, so the
+     *        cache keeps an immutable snapshot rather than aliasing it
+     * @param indexInfos the partition's serialized index blocks, from the first byte
+     * @param indexInfoOffsets the offset of each index block in {@code indexInfos}
+     */
+    public void maybeCacheKey(DecoratedKey key, long dataFilePosition, long indexFilePosition,
+                              DeletionTime partitionLevelDeletion, long headerLength,
+                              int columnIndexCount, int indexedPartSize,
+                              DataOutputBuffer indexInfos, IntArrayList indexInfoOffsets) throws IOException
+    {
+        if (!shouldCacheKey(key))
+            return;
+
+        List<IndexInfo> indexSamples = null;
+        int[] offsets = null;
+        if (columnIndexCount > 1 && partitionWriter.indexInfoFitsCache(indexedPartSize))
+        {
+            indexSamples = new ArrayList<>(columnIndexCount);
+            ISerializer<IndexInfo> serializer = rowIndexEntrySerializer.indexInfoSerializer();
+            try (DataInputBuffer in = new DataInputBuffer(indexInfos.getData(), 0, indexInfos.getLength()))
+            {
+                for (int i = 0; i < columnIndexCount; i++)
+                    indexSamples.add(serializer.deserialize(in));
+            }
+            offsets = indexInfoOffsets.toIntArray();
+        }
+
+        cachedKeys.put(key.retainable(), RowIndexEntry.create(dataFilePosition,
+                                                 indexFilePosition,
+                                                 partitionLevelDeletion.retainable(),
+                                                 headerLength,
+                                                 columnIndexCount,
+                                                 indexedPartSize,
+                                                 indexSamples,
+                                                 offsets,
+                                                 rowIndexEntrySerializer.indexInfoSerializer(),
+                                                 descriptor.version));
+    }
+
+    /**
+     * True when one of the transaction's originals has a cached position for this key. The array is
+     * empty unless key cache migration is on, so that setting is already folded in.
+     * <p>
+     * Like the iterator path, this looks the key up in every original, not only in the sstables
+     * that hold the partition: a fully expired sstable is left out of the compaction's input but stays
+     * an original, and its key cache can still hold the key.
+     */
+    private boolean shouldCacheKey(DecoratedKey key)
+    {
+        // A cache of capacity 0 holds nothing, so every lookup would miss. The capacity can change
+        // at runtime (nodetool setcachecapacity), so it is read for each partition, as the iterator
+        // path looks it up for each partition. It is a volatile read.
+        if (originals.length == 0 || CacheService.instance.keyCache.getCapacity() <= 0)
+            return false;
+
+        ByteBuffer keyBuffer = key.getKey();
+        byte[] keyBytes;
+        int keyOffset;
+        if (keyBuffer.hasArray())
+        {
+            keyBytes = keyBuffer.array();
+            keyOffset = keyBuffer.arrayOffset() + keyBuffer.position();
+        }
+        else
+        {
+            keyBytes = ByteBufferUtil.getArray(keyBuffer);
+            keyOffset = 0;
+        }
+        int keyLength = keyBuffer.remaining();
+        // hashed once for all the lookups
+        int keyHash = ReusableKeyCacheKey.hashBytes(keyBytes, keyOffset, keyLength);
+        if (lookupKeys == null)
+        {
+            lookupKeys = new ReusableKeyCacheKey[originals.length];
+            for (int i = 0; i < originals.length; i++)
+                lookupKeys[i] = new ReusableKeyCacheKey(originals[i].metadata(), originals[i].descriptor);
+        }
+        for (int i = 0; i < originals.length; i++)
+        {
+            ReusableKeyCacheKey lookupKey = lookupKeys[i];
+            lookupKey.setKey(keyBytes, keyOffset, keyLength, keyHash);
+            if (((KeyCacheSupport<?>) originals[i]).getCachedPosition(lookupKey, false) != null)
+                return true;
+        }
+        return false;
     }
 
     @Override
@@ -111,17 +246,8 @@ public class BigTableWriter extends SortedTableWriter<BigFormatPartitionWriter, 
 
         indexWriter.append(key, entry, dataWriter.position(), partitionWriter.buffer());
 
-        if (shouldMigrateKeyCache)
-        {
-            for (SSTableReader reader : txn.originals())
-            {
-                if (reader instanceof KeyCacheSupport<?> && ((KeyCacheSupport<?>) reader).getCachedPosition(key, false) != null)
-                {
-                    cachedKeys.put(key, entry);
-                    break;
-                }
-            }
-        }
+        if (shouldCacheKey(key))
+            cachedKeys.put(key, entry);
 
         return entry;
     }

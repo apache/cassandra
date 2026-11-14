@@ -43,9 +43,16 @@ import static org.junit.Assert.assertTrue;
  * transactional_mode = 'test_unsafe' sets accordIsEnabled without routing plain CQL reads and
  * writes through accord. The test starts a real local AccordService, because the gcBefore
  * derivation reads the node's durableBefore and redundantBefore state.
+ *
+ * A non-accord table is the control: it must expire the same cells. A migrating table
+ * (transactional_mode = 'off' with transactional_migration_from = 'full') is not accord-enabled
+ * but must still defer. Only the rewrite of expired TTL cells into tombstones differs between
+ * the cases; plain tombstones purge against gcBefore in all of them.
  */
 public class AccordTableDifferentialCompactionTest extends DifferentialCompactionTester
 {
+    private static final long TTL_SECONDS = 1;
+
     @BeforeClass
     public static void startAccord()
     {
@@ -109,5 +116,104 @@ public class AccordTableDifferentialCompactionTest extends DifferentialCompactio
         // liveness, render it on the cell. Either form satisfies this assertion. The trailing
         // comma keeps it from also matching "ttl":10.
         assertTrue("the retained cells lost their TTL", json.contains("\"ttl\":1,"));
+    }
+
+    /**
+     * Non-accord control. purgeTimestamp returns the wall-clock nowInSec, so cells past their TTL
+     * relative to the fixed nowInSec are expired: their values are dropped and each is rewritten as a
+     * cell tombstone. This is the behaviour the accord and migrating tables must NOT show. The cursor
+     * and iterator paths must agree.
+     */
+    @Test
+    public void nonAccordTableAppliesExpiry() throws Exception
+    {
+        ColumnFamilyStore cfs = createExpiringTable("");
+        long fixedNow = writeExpiringRows(cfs);
+
+        // default gcBefore is ~gc_grace in the past, far below the cells' localExpirationTime
+        // (~now), so the expired cells are converted to tombstones rather than fully purged.
+        CapturedOutput out = assertCursorMatchesIterator(cfs, cfs.getLiveSSTables(),
+                                                         taskWithFixedNow(fixedNow));
+
+        String json = allJson(out);
+        assertTrue("non-accord: expired TTL cells must be converted to cell tombstones (purge uses " +
+                   "wall-clock nowInSec); none were, so the scenario did not exercise expiry",
+                   json.contains(CELL_TOMBSTONE));
+        for (long ck = 0; ck < 10; ck++)
+            assertFalse("non-accord: an expired TTL cell kept its value at ck " + ck +
+                        "; the wall-clock nowInSec should have dropped it", json.contains(cellValue("ttl-" + ck)));
+    }
+
+    /**
+     * Accord-migrating table. transactional_mode is off, so accordIsEnabled() is false and the table
+     * does not enter the accord gcBefore derivation, but migratingFromAccord() is true, so
+     * purgeTimestamp still overrides nowInSec to controller.gcBefore. With a gcBefore in the past
+     * (below the cells' expiration) the expiry is deferred exactly as for the accord table. Cursor
+     * and iterator must agree.
+     */
+    @Test
+    public void migratingFromAccordTableDefersExpiry() throws Exception
+    {
+        // Migration cannot be requested at CREATE ("Cannot set transactional migration on new
+        // tables"). Enabling accord and then turning it off leaves the table migrating from full.
+        ColumnFamilyStore cfs = createExpiringTable("");
+        alterTable("ALTER TABLE %s WITH transactional_mode = 'full'");
+        alterTable("ALTER TABLE %s WITH transactional_mode = 'off'");
+        assertTrue("fixture did not produce a migrating-from-accord table",
+                   cfs.metadata().migratingFromAccord());
+        assertFalse("migrating fixture must not be accord-enabled, or it would take the accord table's " +
+                    "gcBefore derivation path", cfs.metadata().isAccordEnabled());
+        long fixedNow = writeExpiringRows(cfs);
+
+        // gcBefore in the past becomes the override nowInSec; the cells (expiring ~now) are not yet
+        // expired relative to it, so they are deferred. NOT NO_GC: this table skips the accord
+        // derivation and a NO_GC here would leave nowInSec at 0 and defer trivially for both paths.
+        long pastGcBefore = FBUtilities.nowInSeconds() - 3600;
+        CapturedOutput out = assertCursorMatchesIterator(cfs, cfs.getLiveSSTables(),
+                                                         taskWithFixedNow(fixedNow), pastGcBefore);
+
+        assertExpiryDeferred(out);
+    }
+
+    private ColumnFamilyStore createExpiringTable(String extraOptions)
+    {
+        createTable("CREATE TABLE %s (pk bigint, ck bigint, v1 bigint, v2 text, PRIMARY KEY (pk, ck)) " +
+                    "WITH gc_grace_seconds = 864000" + extraOptions);
+        ColumnFamilyStore cfs = getCurrentColumnFamilyStore();
+        cfs.disableAutoCompaction();
+        return cfs;
+    }
+
+    /**
+     * Writes two overlapping sstables of TTL cells, then returns a fixed nowInSec two seconds past
+     * the last write so every TTL cell has lapsed relative to it. Asserts the fixture actually put
+     * an expired cell on disk, so a change that stopped writing TTLs cannot make the tests pass
+     * vacuously.
+     */
+    private long writeExpiringRows(ColumnFamilyStore cfs)
+    {
+        for (long ck = 0; ck < 5; ck++)
+            execute("INSERT INTO %s (pk, ck, v1, v2) VALUES (0, ?, ?, ?) USING TTL " + TTL_SECONDS,
+                    ck, ck, "ttl-" + ck);
+        flush();
+        for (long ck = 5; ck < 10; ck++)
+            execute("INSERT INTO %s (pk, ck, v1, v2) VALUES (0, ?, ?, ?) USING TTL " + TTL_SECONDS,
+                    ck, ck, "ttl-" + ck);
+        flush();
+
+        long fixedNow = FBUtilities.nowInSeconds() + 2;
+        assertSomethingExpiredAt(cfs, fixedNow);
+        return fixedNow;
+    }
+
+    /** The migrating table's expectation: every TTL value survives and nothing became a tombstone. */
+    private void assertExpiryDeferred(CapturedOutput out)
+    {
+        String json = allJson(out);
+        for (long ck = 0; ck < 10; ck++)
+            assertTrue("accord: an expiring cell was converted to a tombstone despite the gcBefore " +
+                       "deferral, at ck " + ck, json.contains(cellValue("ttl-" + ck)));
+        assertFalse("accord: no cell should have been converted to a tombstone under the gcBefore " +
+                    "deferral, which is what the override exists to prevent", json.contains(CELL_TOMBSTONE));
     }
 }

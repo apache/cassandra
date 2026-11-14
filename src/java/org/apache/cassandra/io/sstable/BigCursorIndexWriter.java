@@ -27,13 +27,14 @@ import org.agrona.collections.IntArrayList;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.db.ClusteringPrefix;
 import org.apache.cassandra.db.DeletionTime;
+import org.apache.cassandra.db.TypeSizes;
+import org.apache.cassandra.dht.ReusableDecoratedKey;
 import org.apache.cassandra.io.FSWriteError;
 import org.apache.cassandra.io.sstable.format.big.BigFormatPartitionWriter;
 import org.apache.cassandra.io.sstable.format.big.BigTableWriter;
 import org.apache.cassandra.io.sstable.format.big.RowIndexEntry;
 import org.apache.cassandra.io.util.DataOutputBuffer;
 import org.apache.cassandra.io.util.SequentialWriter;
-import org.apache.cassandra.utils.BloomFilter;
 import org.apache.cassandra.utils.ByteArrayUtil;
 
 /**
@@ -43,14 +44,9 @@ import org.apache.cassandra.utils.ByteArrayUtil;
  */
 public class BigCursorIndexWriter extends CursorIndexWriter
 {
+    private final BigTableWriter writer;
     private final BigTableWriter.IndexWriter indexWriter;
     private final DeletionTime.Serializer deletionTimeSerializer;
-    // The garbage-free add() overload exists only on the concrete BloomFilter. With
-    // bloom_filter_fp_chance = 1.0 FilterFactory hands out the AlwaysPresentFilter instead,
-    // whose add() is a no-op. Null here means "nothing to add to".
-    private final BloomFilter bloomFilter;
-    /** Scratch array for the garbage-free bloom filter add(), sized like {@link BloomFilter#reusableIndexes}. */
-    private final long[] reusableIndexes = new long[21];
 
     private final DataOutputBuffer rowIndexEntries = new DataOutputBuffer();
     private final IntArrayList rowIndexEntriesOffsets = new IntArrayList();
@@ -59,13 +55,14 @@ public class BigCursorIndexWriter extends CursorIndexWriter
     private int rowIndexEntryOffset;
     private final int indexBlockThreshold;
 
-    public BigCursorIndexWriter(BigTableWriter.IndexWriter indexWriter,
+    public BigCursorIndexWriter(BigTableWriter writer,
+                                BigTableWriter.IndexWriter indexWriter,
                                 DeletionTime.Serializer deletionTimeSerializer)
     {
+        this.writer = writer;
         this.indexWriter = indexWriter;
         this.deletionTimeSerializer = deletionTimeSerializer;
         this.indexBlockThreshold = DatabaseDescriptor.getColumnIndexSize(BigFormatPartitionWriter.DEFAULT_GRANULARITY);
-        this.bloomFilter = indexWriter.bf instanceof BloomFilter ? (BloomFilter) indexWriter.bf : null;
     }
 
     @Override
@@ -158,8 +155,8 @@ public class BigCursorIndexWriter extends CursorIndexWriter
     }
 
     @Override
-    public void endPartition(byte[] key, int keyLength, int headerLength,
-                             DeletionTime partitionDeletionTime, long partitionEnd,
+    public void endPartition(ReusableDecoratedKey decoratedKey, byte[] key, int keyLength,
+                             int headerLength, DeletionTime partitionDeletionTime, long partitionEnd,
                              ClusteringDescriptor lastName) throws IOException
     {
         /**
@@ -168,9 +165,11 @@ public class BigCursorIndexWriter extends CursorIndexWriter
          *
          */
         SequentialWriter indexFileWriter = indexWriter.writer;
-        if (bloomFilter != null)
-            bloomFilter.add(key, 0, keyLength, reusableIndexes);
+        // the key carries its hash, so the filter does not hash it again
+        indexWriter.bf.add(decoratedKey);
         long indexStart = indexFileWriter.position();
+        int columnIndexCount = 0;
+        int indexedPartSize = 0;
         try
         {
             ByteArrayUtil.writeWithShortLength(key, 0, keyLength, indexFileWriter);
@@ -212,6 +211,10 @@ public class BigCursorIndexWriter extends CursorIndexWriter
 
                 int entriesAndOffsetsSize = rowIndexEntries.getLength() + rowIndexEntriesOffsets.size() * 4;
                 assert entriesAndOffsetsSize > 0;
+                columnIndexCount = rowIndexEntriesOffsets.size();
+                // What RowIndexEntry calls indexedPartSize: the entries and their offsets, without the
+                // header fields that entriesAndOffsetsSize also counts.
+                indexedPartSize = endOfEntries + rowIndexEntriesOffsets.size() * 4;
                 indexFileWriter.writeUnsignedVInt32(entriesAndOffsetsSize); // size != 0
                 // copy the header elements
                 indexFileWriter.write(rowIndexEntries.getData(), endOfEntries, rowIndexEntries.getLength() - endOfEntries);
@@ -227,6 +230,13 @@ public class BigCursorIndexWriter extends CursorIndexWriter
         {
             throw new FSWriteError(e, indexFileWriter.getPath());
         }
-        indexWriter.summary.maybeAddEntry(key, 0, keyLength, indexStart);
+        // indexEnd and partitionEnd feed the readable boundary that openEarly needs; without them the
+        // preemptive reopen has nothing to open early and never fires.
+        indexWriter.summary.maybeAddEntry(decoratedKey, indexStart, indexFileWriter.position(), partitionEnd);
+
+        // The entry starts after the key, which was written at indexStart with a short length prefix.
+        writer.maybeCacheKey(decoratedKey, partitionStart, indexStart + TypeSizes.SHORT_SIZE + keyLength,
+                             partitionDeletionTime, headerLength, columnIndexCount, indexedPartSize,
+                             rowIndexEntries, rowIndexEntriesOffsets);
     }
 }

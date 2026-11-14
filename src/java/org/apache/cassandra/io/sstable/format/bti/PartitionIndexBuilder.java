@@ -53,11 +53,15 @@ class PartitionIndexBuilder implements AutoCloseable
     private IncrementalTrieWriter.PartialTail partialIndexTail;
     private Consumer<PartitionIndex> partialIndexConsumer;
     private DecoratedKey partialIndexLastKey;
+    private long partialIndexWrittenCount;
 
     private int lastDiffPoint;
     private DecoratedKey firstKey;
     private DecoratedKey lastKey;
     private DecoratedKey lastWrittenKey;
+    // How many keys went to the trie writer. A caller may reuse key objects, so this, not the key, tells
+    // whether the index advanced.
+    private long writtenCount;
     private PartitionIndex.Payload lastPayload;
 
     public PartitionIndexBuilder(SequentialWriter writer, FileHandle.Builder fhBuilder)
@@ -131,7 +135,8 @@ class PartitionIndexBuilder implements AutoCloseable
     {
         if (lastKey == null)
         {
-            firstKey = decoratedKey;
+            // a copy, as the caller may reuse the key object
+            firstKey = decoratedKey.retainable();
             lastDiffPoint = 0;
         }
         else
@@ -140,6 +145,7 @@ class PartitionIndexBuilder implements AutoCloseable
             ByteComparable prevPrefix = ByteComparable.cut(lastKey, Math.max(diffPoint, lastDiffPoint));
             trieWriter.add(prevPrefix, lastPayload);
             lastWrittenKey = lastKey;
+            ++writtenCount;
             lastDiffPoint = diffPoint;
         }
         lastKey = decoratedKey;
@@ -201,7 +207,7 @@ class PartitionIndexBuilder implements AutoCloseable
     public boolean buildPartial(Consumer<PartitionIndex> callWhenReady, long rowIndexEnd, long dataEnd)
     {
         // If we haven't advanced since the last time we prepared, there's nothing to do.
-        if (lastWrittenKey == partialIndexLastKey)
+        if (writtenCount == partialIndexWrittenCount)
             return false;
 
         // Don't waste time if an index was already prepared but hasn't reached usability yet.
@@ -214,7 +220,8 @@ class PartitionIndexBuilder implements AutoCloseable
             partialIndexDataEnd = dataEnd;
             partialIndexRowEnd = rowIndexEnd;
             partialIndexPartitionEnd = writer.position();
-            partialIndexLastKey = lastWrittenKey;
+            partialIndexLastKey = lastWrittenKey.retainable();
+            partialIndexWrittenCount = writtenCount;
             partialIndexConsumer = callWhenReady;
             return true;
         }

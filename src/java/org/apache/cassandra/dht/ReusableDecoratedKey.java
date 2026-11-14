@@ -19,8 +19,10 @@
 package org.apache.cassandra.dht;
 
 import java.nio.ByteBuffer;
+import java.util.Arrays;
 
 import org.apache.cassandra.db.BufferDecoratedKey;
+import org.apache.cassandra.db.DecoratedKey;
 import org.apache.cassandra.utils.ByteBufferUtil;
 
 public abstract class ReusableDecoratedKey extends BufferDecoratedKey
@@ -44,6 +46,37 @@ public abstract class ReusableDecoratedKey extends BufferDecoratedKey
         keyLength = length;
         key.limit(length);
         recalculateToken();
+    }
+
+    /** Copies the source's bytes and its token. A partitioner that can reuse the source's token does not hash the key again. */
+    public void copyKey(ReusableDecoratedKey source)
+    {
+        copyBytes(source.keyBytes, source.keyLength);
+        copyToken(source);
+    }
+
+    /** Sets the token for bytes just copied from {@code source}. */
+    void copyToken(ReusableDecoratedKey source)
+    {
+        recalculateToken();
+    }
+
+    private void copyBytes(byte[] newKey, int length)
+    {
+        maybeResizeKey(length);
+        System.arraycopy(newKey, 0, keyBytes, 0, length);
+        keyLength = length;
+        key.limit(length);
+    }
+
+    /**
+     * Always a copy, token included: the next copyKey overwrites the bytes and moves the token, so
+     * this key is never safe to retain as it is.
+     */
+    @Override
+    public DecoratedKey retainable()
+    {
+        return getToken().getPartitioner().decorateKey(ByteBuffer.wrap(Arrays.copyOf(keyBytes, keyLength)));
     }
 
     /** WARNING: retains ref to external buffer */
