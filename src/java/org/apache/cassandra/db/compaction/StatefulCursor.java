@@ -80,6 +80,9 @@ class StatefulCursor extends SSTableCursorReader
      */
     int mergeRank;
 
+    /** Marks this cursor while {@link CursorMergeOrder} checks a merge group. Set by it only. */
+    long mergeGroupMark;
+
     public StatefulCursor(SSTableReader reader, DiskAccessMode diskAccessMode)
     {
         this(reader, null, diskAccessMode);

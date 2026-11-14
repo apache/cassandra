@@ -18,6 +18,7 @@
 
 package org.apache.cassandra.db.compaction;
 
+import java.util.Arrays;
 import java.util.List;
 
 import org.apache.cassandra.db.marshal.AbstractTimeUUIDType;
@@ -112,6 +113,9 @@ final class CursorMergeOrder
     /** The complex column whose cells {@link #cellOrder} merges, or null if it needs no order. */
     private ColumnMetadata orderedCellColumn;
 
+    /** {@link #checkSameSources} marks cursors with this and the next value; a new cursor has 0. */
+    private long groupMark = 1;
+
     private CursorMergeOrder(List<ISSTableScanner> scanners, StatefulCursor[] cursorsInScannerOrder, boolean orderRows, boolean orderCells)
     {
         this.orderRows = orderRows;
@@ -129,7 +133,8 @@ final class CursorMergeOrder
             scannerSources[i] = new ScannerSource(cursors);
             from += count;
         }
-        assert from == cursorCount : "scanners hold " + from + " sstables, but there are " + cursorCount + " cursors";
+        if (from != cursorCount)
+            throw new IllegalStateException("scanners hold " + from + " sstables, but there are " + cursorCount + " cursors");
 
         partitionOrder = new IteratorMergeOrder<>(scannerSources.length, PARTITION_SOURCES);
         partitionOrder.reset(scannerSources, scannerSources.length);
@@ -209,7 +214,8 @@ final class CursorMergeOrder
     void partitionGroup(int partitionMergeLimit)
     {
         int n = partitionOrder.next(partitionGroupSources);
-        assert n == partitionMergeLimit : "partition merge order found " + n + " sources, the cursor sort " + partitionMergeLimit;
+        if (n != partitionMergeLimit)
+            throw new IllegalStateException("partition merge order found " + n + " sources, the cursor sort " + partitionMergeLimit);
         for (int i = 0; i < n; i++)
         {
             StatefulCursor cursor = partitionGroupSources[i].cursor();
@@ -232,7 +238,10 @@ final class CursorMergeOrder
         // the row sort has ordered every source of the partition
         setMergeRanks(sstableCursors, equalsNext, partitionGroupSize);
         int n = rowOrder.next(rowGroup);
-        assert n == unfilteredMergeLimit : "row merge order found " + n + " sources, the cursor sort " + unfilteredMergeLimit;
+        if (n == 0)
+            throw new IllegalStateException("row merge order found no source");
+        if (n != unfilteredMergeLimit)
+            throw new IllegalStateException("row merge order found " + n + " sources, the cursor sort " + unfilteredMergeLimit);
         // Row.Merger and RangeTombstoneMarker.Merger keep the clustering of the last one added
         moveToFront(sstableCursors, n, rowGroup[n - 1]);
     }
@@ -256,7 +265,15 @@ final class CursorMergeOrder
         for (int i = 0; i < partitionGroupSize; i++)
             columnSources[i] = null;
         for (int i = 0; i < rowMergeLimit; i++)
-            columnSources[sstableCursors[i].partitionMergeIndex] = sstableCursors[i];
+        {
+            StatefulCursor cursor = sstableCursors[i];
+            int index = cursor.partitionMergeIndex;
+            // partitionMergeIndex is set only for the current partition's group
+            if (index < 0 || index >= partitionGroupSize || partitionGroup[index] != cursor)
+                throw new IllegalStateException("source " + cursor + " with partition merge index " + index +
+                                                " is not in the partition merge group of " + partitionGroupSize + " sources");
+            columnSources[index] = cursor;
+        }
         int count = 0;
         for (int i = 0; i < partitionGroupSize; i++)
             if (columnSources[i] != null)
@@ -278,8 +295,8 @@ final class CursorMergeOrder
         {
             currentColumn = lead.cellColumn;
             int n = columnOrder.next(columnGroup);
-            assert n > 0 && ColumnMetadata.sameName(columnGroup[0].cellCursor().cellColumn, currentColumn)
-                 : "column merge order is not at column " + currentColumn;
+            if (n == 0 || !ColumnMetadata.sameName(columnGroup[0].cellCursor().cellColumn, currentColumn))
+                throw new IllegalStateException("column merge order is not at column " + currentColumn);
             orderedCellColumn = pathBytesMayDiffer(currentColumn.type) ? currentColumn : null;
             if (orderedCellColumn != null)
                 cellOrder.reset(columnGroup, n);
@@ -290,7 +307,9 @@ final class CursorMergeOrder
         // the cell sort has ordered every source of the row, by column and then path
         setMergeRanks(sstableCursors, equalsNext, rowGroupSize);
         int n = cellOrder.next(cellGroup);
-        assert n == cellMergeLimit : "cell merge order found " + n + " sources, the cursor sort " + cellMergeLimit;
+        if (n != cellMergeLimit)
+            throw new IllegalStateException("cell merge order found " + n + " sources, the cursor sort " + cellMergeLimit);
+        checkSameSources(sstableCursors, n);
         // Cells.reconcile keeps the first of two cells that tie
         System.arraycopy(cellGroup, 0, sstableCursors, 0, n);
     }
@@ -309,6 +328,30 @@ final class CursorMergeOrder
             if (!equalsNext[i - 1])
                 rank++;
             sstableCursors[i].mergeRank = rank;
+        }
+    }
+
+    /**
+     * Fails unless the first {@code n} of {@code cellGroup} and of {@code sstableCursors} hold the
+     * same cursors.  The caller copies one over the other, so a mismatch would write one source
+     * twice and drop another.
+     */
+    private void checkSameSources(StatefulCursor[] sstableCursors, int n)
+    {
+        long inGroup = groupMark;
+        long seen = inGroup + 1;
+        groupMark += 2;
+        for (int i = 0; i < n; i++)
+            cellGroup[i].mergeGroupMark = inGroup;
+        for (int i = 0; i < n; i++)
+        {
+            StatefulCursor cursor = sstableCursors[i];
+            // a cursor not in the group, or one that appears twice, has another mark
+            if (cursor.mergeGroupMark != inGroup)
+                throw new IllegalStateException("the cell merge order and the cursor sort hold different sources: " +
+                                                Arrays.toString(Arrays.copyOf(cellGroup, n)) + " and " +
+                                                Arrays.toString(Arrays.copyOf(sstableCursors, n)));
+            cursor.mergeGroupMark = seen;
         }
     }
 
