@@ -509,10 +509,13 @@ public class CursorCompactor extends CompactionInfo.Holder
          * {@link CompactionIterator#CompactionIterator(OperationType, List, AbstractCompactionController, long, TimeUUID, ActiveCompactionsTracker)}
          */
 
-        StatefulCursor[] cursors = convertScannersToCursors(scanners, sstables, DatabaseDescriptor.getCompactionReadDiskAccessMode());
-        // close() never runs on a constructor that throws, so a failure below must close the cursors itself
+        // close() never runs on a constructor that throws, so a failure below must close the cursors and
+        // finish the compaction itself. The cursors are opened inside the try so a failure opening them
+        // also finishes the compaction.
+        StatefulCursor[] cursors = null;
         try
         {
+            cursors = convertScannersToCursors(scanners, sstables, DatabaseDescriptor.getCompactionReadDiskAccessMode());
             this.sstableCursors = cursors;
             this.sstableCursorsEqualsNext = new boolean[sstables.size()];
             // the cursors are still in scanner order here; the sorts below reorder them
@@ -534,7 +537,9 @@ public class CursorCompactor extends CompactionInfo.Holder
         }
         catch (RuntimeException | Error e)
         {
-            Throwables.closeNonNullAndAddSuppressed(e, cursors);
+            // null if opening them failed; convertScannersToCursors has then closed the ones it opened
+            if (cursors != null)
+                Throwables.closeNonNullAndAddSuppressed(e, cursors);
             activeCompactions.finishCompaction(this);
             throw e;
         }
