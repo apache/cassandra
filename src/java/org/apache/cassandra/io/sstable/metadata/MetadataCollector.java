@@ -25,6 +25,7 @@ import java.util.UUID;
 
 import com.clearspring.analytics.stream.cardinality.HyperLogLogPlus;
 import com.clearspring.analytics.stream.cardinality.ICardinality;
+import com.google.common.annotations.VisibleForTesting;
 
 import net.nicoulaj.compilecommand.annotations.Inline;
 
@@ -525,8 +526,13 @@ public class MetadataCollector implements PartitionStatisticsCollector
         private final MinMaxLongTracker timestamps = new MinMaxLongTracker();
         private final MinMaxLongTracker localDeletionTimes = new MinMaxLongTracker();
         private final MinMaxIntTracker ttls = new MinMaxIntTracker();
+        @VisibleForTesting
+        static final int INITIAL_HISTOGRAM_POINTS = 16;
+        // a row that grew the buffer past this size gets a new small buffer, so one large row does not hold its memory
+        private static final int MAX_KEPT_HISTOGRAM_POINTS = 4096;
+
         // the deletion times that go to the tombstone histogram, in the order they came
-        private long[] histogramPoints = new long[16];
+        private long[] histogramPoints = new long[INITIAL_HISTOGRAM_POINTS];
         private int histogramPointCount;
         private int tombstones;
         private int cells;
@@ -604,8 +610,16 @@ public class MetadataCollector implements PartitionStatisticsCollector
             ttls.isSet = false;
             localDeletionTimes.isSet = false;
             histogramPointCount = 0;
+            if (histogramPoints.length > MAX_KEPT_HISTOGRAM_POINTS)
+                histogramPoints = new long[INITIAL_HISTOGRAM_POINTS];
             tombstones = 0;
             cells = 0;
+        }
+
+        @VisibleForTesting
+        int histogramPointsCapacity()
+        {
+            return histogramPoints.length;
         }
     }
 
