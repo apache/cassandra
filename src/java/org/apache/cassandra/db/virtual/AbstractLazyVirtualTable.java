@@ -65,6 +65,7 @@ import org.apache.cassandra.db.rows.BufferCell;
 import org.apache.cassandra.db.rows.ColumnData;
 import org.apache.cassandra.db.rows.EncodingStats;
 import org.apache.cassandra.db.rows.Row;
+import org.apache.cassandra.db.rows.Rows;
 import org.apache.cassandra.db.rows.Unfiltered;
 import org.apache.cassandra.db.rows.UnfilteredRowIterator;
 import org.apache.cassandra.dht.AbstractBounds;
@@ -536,7 +537,7 @@ public abstract class AbstractLazyVirtualTable implements VirtualTable
             Row staticRow()
             {
                 if (staticRow == null)
-                    return null;
+                    return Rows.EMPTY_STATIC_ROW;
 
                 return staticRow.materialiseAndFilter();
             }
