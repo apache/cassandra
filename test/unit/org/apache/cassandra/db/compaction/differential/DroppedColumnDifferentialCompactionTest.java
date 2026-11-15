@@ -325,6 +325,174 @@ public class DroppedColumnDifferentialCompactionTest extends DifferentialCompact
                      3, countOccurrences(json, "\"static_block\""));
     }
 
+    /** How a scenario writes a partition deletion next to a static cell. */
+    private enum PartitionDeletion { NONE, OLDER_THAN_STATIC, NEWER_THAN_STATIC }
+
+    /** Writes the partition deletion of {@code pk}, relative to the static cell timestamp. */
+    private void writePartitionDeletion(int pk, long staticTimestamp, PartitionDeletion deletion)
+    {
+        if (deletion == PartitionDeletion.OLDER_THAN_STATIC)
+            execute("DELETE FROM %s USING TIMESTAMP ? WHERE pk = ?", staticTimestamp - 1, pk);
+        else if (deletion == PartitionDeletion.NEWER_THAN_STATIC)
+            execute("DELETE FROM %s USING TIMESTAMP ? WHERE pk = ?", staticTimestamp + 1, pk);
+    }
+
+    /**
+     * Partitions that hold only a static row, and no regular rows. The table's only static column
+     * is then dropped, so the static row is discarded, whatever the cell timestamps are. A
+     * partition with no partition deletion has nothing left and is not written. A partition with
+     * a partition deletion is written with the deletion and no static row.
+     */
+    @Test
+    public void staticOnlyPartitionsWithOnlyStaticColumnDropped() throws Exception
+    {
+        int partitions = 6;
+        for (long staticTimestamp : new long[]{ BEFORE_DROP_TS, FUTURE_TS })
+        {
+            for (PartitionDeletion deletion : PartitionDeletion.values())
+            {
+                createTable("CREATE TABLE %s (pk int, s text static, ck int, v int, PRIMARY KEY (pk, ck))");
+                ColumnFamilyStore cfs = getCurrentColumnFamilyStore();
+                cfs.disableAutoCompaction();
+                for (int pk = 0; pk < partitions; pk++)
+                {
+                    execute("UPDATE %s USING TIMESTAMP ? SET s = ? WHERE pk = ?", staticTimestamp, "s-" + pk, pk);
+                    writePartitionDeletion(pk, staticTimestamp, deletion);
+                }
+                flush();
+                alterTable("ALTER TABLE %s DROP s");
+
+                String json = allJson(assertCursorMatchesIterator(cfs));
+                String shape = "static timestamp " + staticTimestamp + ", " + deletion;
+                assertEquals(shape + ": no static row may be written", 0, countOccurrences(json, "\"static_block\""));
+                assertEquals(shape + ": only partitions with a partition deletion are written",
+                             deletion == PartitionDeletion.NONE ? 0 : partitions,
+                             countOccurrences(json, "\"partition\":{\"key\""));
+            }
+        }
+    }
+
+    /**
+     * Partitions that hold only a static row, in a table with two static columns, of which one is
+     * dropped. Half the partitions hold only a cell of the dropped column, written before the
+     * drop, so their static row is left empty by the drop filter. The other half also hold a
+     * cell of the kept column, so their static row is written, unless a newer partition deletion
+     * shadows it.
+     */
+    @Test
+    public void staticOnlyPartitionsWithOneOfTwoStaticColumnsDropped() throws Exception
+    {
+        int partitions = 8;
+        for (PartitionDeletion deletion : PartitionDeletion.values())
+        {
+            createTable("CREATE TABLE %s (pk int, s text static, s2 text static, ck int, v int, PRIMARY KEY (pk, ck))");
+            ColumnFamilyStore cfs = getCurrentColumnFamilyStore();
+            cfs.disableAutoCompaction();
+            for (int pk = 0; pk < partitions; pk++)
+            {
+                if (pk % 2 == 0)
+                    execute("UPDATE %s USING TIMESTAMP ? SET s = ? WHERE pk = ?", BEFORE_DROP_TS, "s-" + pk, pk);
+                else
+                    execute("UPDATE %s USING TIMESTAMP ? SET s = ?, s2 = ? WHERE pk = ?", BEFORE_DROP_TS, "s-" + pk, "s2-" + pk, pk);
+                writePartitionDeletion(pk, BEFORE_DROP_TS, deletion);
+            }
+            flush();
+            alterTable("ALTER TABLE %s DROP s");
+
+            String json = allJson(assertCursorMatchesIterator(cfs));
+            assertEquals(deletion + ": the kept static cell is written unless a newer partition deletion shadows it",
+                         deletion == PartitionDeletion.NEWER_THAN_STATIC ? 0 : partitions / 2,
+                         countOccurrences(json, "\"static_block\""));
+            assertEquals(deletion + ": a partition is written if it keeps a static cell or a partition deletion",
+                         deletion == PartitionDeletion.NONE ? partitions / 2 : partitions,
+                         countOccurrences(json, "\"partition\":{\"key\""));
+            assertEquals(deletion + ": no cell of the dropped column survives", 0, countOccurrences(json, cellValue("s-0")));
+        }
+    }
+
+    /**
+     * One sstable holds partitions with only a static row next to partitions with a static row
+     * and regular rows. The table's only static column is dropped.
+     */
+    @Test
+    public void staticOnlyPartitionsNextToPartitionsWithRows() throws Exception
+    {
+        int partitions = 12;
+        for (PartitionDeletion deletion : PartitionDeletion.values())
+        {
+            createTable("CREATE TABLE %s (pk int, s text static, ck int, v int, PRIMARY KEY (pk, ck))");
+            ColumnFamilyStore cfs = getCurrentColumnFamilyStore();
+            cfs.disableAutoCompaction();
+            for (int pk = 0; pk < partitions; pk++)
+            {
+                execute("UPDATE %s USING TIMESTAMP ? SET s = ? WHERE pk = ?", FUTURE_TS, "s-" + pk, pk);
+                if (pk % 2 == 1)
+                {
+                    for (int ck = 0; ck < 3; ck++)
+                        execute("INSERT INTO %s (pk, ck, v) VALUES (?, ?, ?) USING TIMESTAMP ?", pk, ck, ck, FUTURE_TS + 2);
+                }
+                else
+                {
+                    writePartitionDeletion(pk, FUTURE_TS, deletion);
+                }
+            }
+            flush();
+            alterTable("ALTER TABLE %s DROP s");
+
+            String json = allJson(assertCursorMatchesIterator(cfs));
+            assertEquals(deletion + ": no static row may be written", 0, countOccurrences(json, "\"static_block\""));
+            assertEquals(deletion + ": the regular rows survive", partitions / 2 * 3, countOccurrences(json, "\"name\":\"v\""));
+            assertEquals(deletion + ": a static-only partition is written only with a partition deletion",
+                         deletion == PartitionDeletion.NONE ? partitions / 2 : partitions,
+                         countOccurrences(json, "\"partition\":{\"key\""));
+        }
+    }
+
+    /**
+     * As above, across two sstables: the first holds only static rows, for every partition, and
+     * the second holds regular rows for half the partitions. Both table shapes: the dropped static
+     * column is the only one, or a second static column is kept.
+     */
+    @Test
+    public void staticOnlyPartitionsAndRowsInSeparateSSTables() throws Exception
+    {
+        int partitions = 12;
+        for (boolean keepSecondStatic : new boolean[]{ false, true })
+        {
+            for (PartitionDeletion deletion : PartitionDeletion.values())
+            {
+                createTable(keepSecondStatic
+                            ? "CREATE TABLE %s (pk int, s text static, s2 text static, ck int, v int, PRIMARY KEY (pk, ck))"
+                            : "CREATE TABLE %s (pk int, s text static, ck int, v int, PRIMARY KEY (pk, ck))");
+                ColumnFamilyStore cfs = getCurrentColumnFamilyStore();
+                cfs.disableAutoCompaction();
+                for (int pk = 0; pk < partitions; pk++)
+                {
+                    if (keepSecondStatic && pk % 3 == 0)
+                        execute("UPDATE %s USING TIMESTAMP ? SET s = ?, s2 = ? WHERE pk = ?", BEFORE_DROP_TS, "s-" + pk, "s2-" + pk, pk);
+                    else
+                        execute("UPDATE %s USING TIMESTAMP ? SET s = ? WHERE pk = ?", BEFORE_DROP_TS, "s-" + pk, pk);
+                    writePartitionDeletion(pk, BEFORE_DROP_TS, deletion);
+                }
+                flush();
+                for (int pk = 1; pk < partitions; pk += 2)
+                    for (int ck = 0; ck < 3; ck++)
+                        execute("INSERT INTO %s (pk, ck, v) VALUES (?, ?, ?) USING TIMESTAMP ?", pk, ck, ck, BEFORE_DROP_TS + 2);
+                flush();
+                alterTable("ALTER TABLE %s DROP s");
+
+                String json = allJson(assertCursorMatchesIterator(cfs));
+                String shape = (keepSecondStatic ? "second static column kept" : "only static column dropped") + ", " + deletion;
+                assertEquals(shape + ": the regular rows survive", partitions / 2 * 3, countOccurrences(json, "\"name\":\"v\""));
+                assertEquals(shape + ": no cell of the dropped column survives", 0, countOccurrences(json, cellValue("s-0")));
+                int keptStatic = keepSecondStatic && deletion != PartitionDeletion.NEWER_THAN_STATIC ? 4 : 0;
+                assertEquals(shape + ": static rows", keptStatic, countOccurrences(json, "\"static_block\""));
+                int expectedPartitions = deletion != PartitionDeletion.NONE ? partitions : (keepSecondStatic ? 8 : 6);
+                assertEquals(shape + ": partitions", expectedPartitions, countOccurrences(json, "\"partition\":{\"key\""));
+            }
+        }
+    }
+
     /**
      * Writes a static value and five rows into each of three partitions. A null timestamp writes
      * at the current time.
