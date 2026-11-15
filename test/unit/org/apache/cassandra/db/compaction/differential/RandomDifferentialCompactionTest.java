@@ -82,9 +82,12 @@ public class RandomDifferentialCompactionTest extends DifferentialCompactionTest
     /** Long enough that expiry can never fall between the two differential runs. */
     private static final int SOAK_TTL_SECONDS = 30 * 24 * 60 * 60;
 
-    /** Base of the small explicit-timestamp pool, kept a year above the wall clock so its ties always win. */
-    private static final long TIE_POOL_BASE =
-        TimeUnit.DAYS.toMicros(TimeUnit.MILLISECONDS.toDays(System.currentTimeMillis()) + 365);
+    /**
+     * Base of the small explicit-timestamp pool: 2100-01-01T00:00:00Z in microseconds. It is fixed, so a
+     * replayed seed writes the same pool timestamps on any day, and it sits above the wall clock so the
+     * pooled writes always beat the server-generated timestamps.
+     */
+    private static final long TIE_POOL_BASE = 4102444800000000L;
 
     /** Width of the pool the random workload draws from; the designated tie sits just above it. */
     private static final int TIE_POOL_WIDTH = 3;
@@ -155,7 +158,7 @@ public class RandomDifferentialCompactionTest extends DifferentialCompactionTest
         maybeCreateUDTs(metadata);
         String createTableCql = metadata.toCqlString(true, false, false)
                                         .replaceAll("org.apache.cassandra.db.marshal.", "");
-        logger.info("randomizedDifferential seed={} schema:\n{}", seed, createTableCql);
+        logger.info("randomizedDifferential seed={} TIE_POOL_BASE={} schema:\n{}", seed, TIE_POOL_BASE, createTableCql);
         createTable(KEYSPACE, createTableCql);
         // the CQL embeds the generator's table name; createTable's returned name is not it
         ColumnFamilyStore cfs = getColumnFamilyStore(KEYSPACE, metadata.name);
@@ -755,8 +758,8 @@ public class RandomDifferentialCompactionTest extends DifferentialCompactionTest
         void run(SeededTest test) throws Throwable
         {
             startSeed = seed;
-            logger.info("randomizedDifferential run seed={}; replay with -D{}={}",
-                        startSeed, CassandraRelevantProperties.TEST_DIFFERENTIAL_SEED.getKey(), startSeed);
+            logger.info("randomizedDifferential run seed={} TIE_POOL_BASE={}; replay with -D{}={}",
+                        startSeed, TIE_POOL_BASE, CassandraRelevantProperties.TEST_DIFFERENTIAL_SEED.getKey(), startSeed);
             for (int i = 0; i < examples; i++)
             {
                 if (i > 0)
