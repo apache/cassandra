@@ -352,7 +352,7 @@ public class CompactionStrategyDifferentialTest extends DifferentialCompactionTe
     {
         UnifiedCompactionStrategy strategy = unifiedStrategy(cfs);
         ShardManager shardManager = new ShardManagerNoDisks(ColumnFamilyStore.fullWeightedRange(RING_VERSION_IRRELEVANT,
-                                                                                               cfs.getPartitioner()));
+                                                                                               cfs.getPartitioner()), 1L << 16);
         return (c, txn, gcBefore) -> new UnifiedCompactionTask(c, strategy, txn, gcBefore, shardManager)
         {
             @Override
@@ -413,7 +413,7 @@ public class CompactionStrategyDifferentialTest extends DifferentialCompactionTe
 
         int numShards = 8;
         ShardManager shardManager = new ShardManagerNoDisks(ColumnFamilyStore.fullWeightedRange(RING_VERSION_IRRELEVANT,
-                                                                                               cfs.getPartitioner()));
+                                                                                               cfs.getPartitioner()), 1L << 16);
         // Commit, so the live set is the sharded output.
         commitThroughFactory(cfs, true, sharded(cfs, numShards, false));
 
