@@ -22,7 +22,6 @@ import java.util.ArrayList;
 import java.util.Set;
 import java.util.concurrent.atomic.AtomicReference;
 
-import org.junit.Assume;
 import org.junit.Test;
 import org.mockito.Mockito;
 
@@ -189,8 +188,6 @@ public class CursorSupportMatrixTest extends CQLTester
     @Test
     public void formatWithoutCursorSupportUnsupported() throws Exception
     {
-        Assume.assumeTrue("requires the BIG sstable format", BigFormat.isSelected());
-
         ColumnFamilyStore cfs =
             twoSSTableTable("CREATE TABLE %s (pk bigint, ck bigint, v text, PRIMARY KEY (pk, ck))",
                             "INSERT INTO %s (pk, ck, v) VALUES (1, 1, 'x')",
@@ -393,9 +390,6 @@ public class CursorSupportMatrixTest extends CQLTester
     @Test
     public void ignoreGcGraceForAnyKeyUnsupported() throws Throwable
     {
-        // BIG required: under another format isSupported is false for every table
-        Assume.assumeTrue("requires the BIG sstable format", BigFormat.isSelected());
-
         createTable("CREATE TABLE %s (pk bigint, ck bigint, v text, PRIMARY KEY (pk, ck))");
         ColumnFamilyStore cfs = getCurrentColumnFamilyStore();
         cfs.disableAutoCompaction();
@@ -492,9 +486,6 @@ public class CursorSupportMatrixTest extends CQLTester
 
     private void assertDroppedCollectionUnsupported(String ddl, String insert, boolean isStatic) throws Exception
     {
-        // BIG required: under another format isSupported is false for every table
-        Assume.assumeTrue("requires the BIG sstable format", BigFormat.isSelected());
-
         createTable(ddl);
         ColumnFamilyStore cfs = getCurrentColumnFamilyStore();
         cfs.disableAutoCompaction();
@@ -540,7 +531,12 @@ public class CursorSupportMatrixTest extends CQLTester
     @Test
     public void droppedCounterUnsupportedFromHeaders() throws Exception
     {
-        Assume.assumeTrue("requires the BIG sstable format", BigFormat.isSelected());
+        // control: an equivalent table with no counter is supported under the selected format
+        ColumnFamilyStore plain =
+            twoSSTableTable("CREATE TABLE %s (pk bigint, ck bigint, v text, PRIMARY KEY (pk, ck))",
+                            "INSERT INTO %s (pk, ck, v) VALUES (1, 1, 'x')",
+                            "INSERT INTO %s (pk, ck, v) VALUES (1, 2, 'y')");
+        assertTrue("expected a plain table with no counter to be cursor-supported", isSupportedNow(plain));
 
         // one counter only, so the drop leaves no counter in the schema for unsupportedSchema to catch
         createTable("CREATE TABLE %s (pk bigint, ck bigint, c counter, PRIMARY KEY (pk, ck))");
