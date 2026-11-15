@@ -231,13 +231,12 @@ public abstract class DifferentialCompactionTester extends DifferentialCorpusDri
     private static final long FIXED_NOW_OFFSET_SECONDS = 3600;
 
     /**
-     * Runs the differential for one corpus shape. Most shapes run once at the default gcBefore. A shape that
-     * {@link DifferentialSchema#expectsPurge() expects purge} runs twice with the SAME fixed nowInSec after gc
-     * grace, varying only gcBefore: the compaction without purging keeps every expired cell and tombstone, the
-     * compaction with purging drops them. Both paths agree in each run, so each run is a valid cursor-vs-iterator
-     * comparison. The purged output must then carry strictly fewer rows than the retained one; the merge dedup is
-     * identical across the two runs, so the row difference isolates purge, and a shape that purges nothing fails
-     * here rather than passing on a trivially equal comparison.
+     * Runs the differential for one corpus shape. Most shapes run once at the default gcBefore.
+     * <p>
+     * A shape that {@link DifferentialSchema#expectsPurge() expects purge} runs twice with the same fixed
+     * nowInSec after gc grace. Only gcBefore changes: the compaction without purging keeps every expired cell
+     * and tombstone, and the compaction with purging drops them. The purged output must hold fewer rows.
+     * Only gcBefore differs between the runs, so a shape that purges nothing fails here.
      */
     protected void assertCursorMatchesIteratorForShape(ColumnFamilyStore cfs, DifferentialSchema schema) throws Exception
     {
@@ -264,8 +263,7 @@ public abstract class DifferentialCompactionTester extends DifferentialCorpusDri
     }
 
     /**
-     * Every corpus shape must leave at least one merged sstable to compare. An equal-but-empty comparison
-     * proves nothing, so this guards the corpus path itself rather than any single test.
+     * Fails unless the corpus shape left at least one merged sstable to compare.
      */
     private static void assertShapeLeftMergedOutput(DifferentialSchema schema, CapturedOutput output)
     {

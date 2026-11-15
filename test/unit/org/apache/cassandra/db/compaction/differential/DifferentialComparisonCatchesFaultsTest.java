@@ -36,15 +36,17 @@ import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertTrue;
 
 /**
- * Checks the differential comparison itself. Every other test in this package asserts the
- * cursor and iterator paths agree. This test asserts the opposite direction: that {@link #assertEquivalentOutputs}
- * actually FAILS when an output is wrong. A comparison that never fails proves nothing, so this test injects a
- * fault into each dimension the comparison guards and confirms each one is caught.
+ * Checks that {@link #assertEquivalentOutputs} fails when one output is wrong.
  *
- * <p>It does not run a compaction. It builds {@link CapturedSSTable} objects directly from the real component
- * files of one flushed BTI sstable, then perturbs a copy: a flipped byte in every component, a dropped row in
- * the logical dump, a changed stat, and a missing component. Each perturbation must raise an {@link AssertionError}.
- * If a perturbation is NOT caught, the comparison has a blind spot, and every green run through it is suspect.
+ * <p>It runs no compaction. It builds {@link CapturedSSTable} objects from the component files of one
+ * flushed BTI sstable, then changes a copy in one of these ways:
+ * <ul>
+ *   <li>a flipped byte in each component;</li>
+ *   <li>a dropped row in the logical dump;</li>
+ *   <li>a changed stat;</li>
+ *   <li>a missing component.</li>
+ * </ul>
+ * Each change must raise an {@link AssertionError}.
  */
 public class DifferentialComparisonCatchesFaultsTest extends DifferentialCompactionTester
 {

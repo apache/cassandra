@@ -41,10 +41,10 @@ import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertTrue;
 
 /**
- * The bytes a compaction reports as scanned, which CompactionTask passes to the compaction rate
- * limiter and which {@code nodetool compactionstats} shows. The cursor path must report the same
- * total as the iterator path, which takes it from the scanners.
- *
+ * The cursor path must report the same bytes scanned as the iterator path, which takes the total
+ * from its scanners. CompactionTask passes this total to the compaction rate limiter, and
+ * {@code nodetool compactionstats} shows it.
+ * <p>
  * Each case writes the same data, with explicit timestamps, into two tables, so their input
  * sstables are byte-identical. It compacts one table on each path and compares the totals.
  */

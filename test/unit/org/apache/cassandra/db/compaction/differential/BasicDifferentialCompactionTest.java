@@ -216,9 +216,9 @@ public class BasicDifferentialCompactionTest extends DifferentialCompactionTeste
     }
 
     /**
-     * The differential harness's slice read-back returns early for a zero-clustering table, because its index
-     * has no seek to route. This test compacts a clustering-free table through the cursor path, then reads every
-     * partition of the merged output back through an absolute point read and asserts each merged value.
+     * The harness's slice read-back skips a table with no clustering columns, because its index has no seek
+     * to route. This test compacts such a table on the cursor path, reads each partition of the output back
+     * with a point read, and checks each merged value.
      */
     @Test
     public void clusteringFreeReadBack() throws Exception

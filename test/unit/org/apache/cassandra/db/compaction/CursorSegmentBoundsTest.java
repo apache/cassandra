@@ -334,9 +334,9 @@ public class CursorSegmentBoundsTest extends CQLTester
     /**
      * The count is bytes COVERED, not the file position.
      * <p>
-     * Every other byte-count case here starts at 0 or is adjacent, so the file pointer happens to
-     * equal the total and {@code bytesRead()} could be {@code dataReader.getFilePointer()} and still
-     * pass. This one starts part way in and leaves a gap, so the two numbers differ.
+     * For segments that start at 0 and leave no gap, the file pointer equals the total, so
+     * {@code bytesRead()} could be {@code dataReader.getFilePointer()} and still pass. This case starts
+     * part way in and leaves a gap, so the two numbers differ.
      */
     @Test
     public void theByteCountIsBytesCoveredNotFilePosition()
@@ -521,7 +521,7 @@ public class CursorSegmentBoundsTest extends CQLTester
         return keys;
     }
 
-    /** Reads to DONE by running out of bounds, short of the end of the file. The segment holds the first two partitions. */
+    /** Returns a cursor over one segment that holds the first two partitions, read to DONE. It stops at the segment's end, before the end of the file. */
     private static StatefulCursor exhaustBounds(SSTableReader sstable, List<Seen> baseline)
     {
         List<PartitionPositionBounds> bounds = Collections.singletonList(new PartitionPositionBounds(0, baseline.get(2).position));
@@ -561,7 +561,6 @@ public class CursorSegmentBoundsTest extends CQLTester
                 }
                 catch (IllegalStateException expected)
                 {
-                    // a rejected call must not have disturbed the cursor's descriptors
                     assertEquals("a rejected re-entry must leave currentKey() untouched",
                                  allKeysInTokenOrder.get(1),
                                  partitioner.decorateKey(ByteBufferUtil.clone(bounded.currentKey().getKey())));
@@ -575,8 +574,8 @@ public class CursorSegmentBoundsTest extends CQLTester
         }
     }
 
-    /** After reaching DONE by either route, {@code resetAfterDone()} leaves {@code prevKey()} on
-     *  the last partition read and clears {@code currPartition}. */
+    /** After the cursor reaches DONE, at the end of its bounds or at the end of the file,
+     *  {@code resetAfterDone()} leaves {@code prevKey()} on the last partition read and clears {@code currPartition}. */
     @Test
     public void resetAfterDonePreservesLastReadKeyOnBothDoneRoutes()
     {
@@ -612,11 +611,12 @@ public class CursorSegmentBoundsTest extends CQLTester
 
     /**
      * An sstable with a dropped column. Column {@code a} sorts first and is dropped. Some rows
-     * hold only a cell of {@code a}, so the drop filter leaves them empty and the reader skips
-     * them. Other rows hold a cell of {@code a} and a cell of {@code b}: the reader reads past the
-     * cell of {@code a}, finds the cell of {@code b}, and goes back to the first cell. The byte
-     * count must not go backwards, and the snapshot deltas must sum to the segments. The last row
-     * of each partition is skipped, so each segment ends right after a skip to the partition end.
+     * hold only a cell of {@code a}, so the dropped-column filter leaves them empty and the reader
+     * skips them. Other rows hold a cell of {@code a} and a cell of {@code b}: the reader reads past
+     * the cell of {@code a}, finds the cell of {@code b}, and goes back to the first cell. The byte
+     * count must not go backwards, and the snapshot deltas must sum to the bytes the segments cover.
+     * The last row of each partition is skipped, so each segment ends right after a skip to the
+     * partition end.
      */
     @Test
     public void theByteCountNeverGoesBackwardsWithADroppedColumn()

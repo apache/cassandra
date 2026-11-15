@@ -100,7 +100,7 @@ public class CursorCompactionGateTest extends CQLTester
                      cursorSupportsSelectedFormat(), isSupportedWith(twoSSTableTable(), TombstoneOption.NONE));
     }
 
-    /** Cursor compaction refuses any non-NONE tombstone_compaction option. */
+    /** Cursor compaction refuses any provide_overlapping_tombstones value other than NONE. */
     @Test
     public void garbageSkippingIsUnsupported() throws Exception
     {

@@ -70,8 +70,8 @@ public abstract class ReusableDecoratedKey extends BufferDecoratedKey
     }
 
     /**
-     * Always a copy, token included: the next copyKey overwrites the bytes and moves the token, so
-     * this key is never safe to retain as it is.
+     * Always returns a copy with its own token. The next copyKey overwrites the bytes and the token
+     * of this key, so this key is never safe to retain.
      */
     @Override
     public DecoratedKey retainable()

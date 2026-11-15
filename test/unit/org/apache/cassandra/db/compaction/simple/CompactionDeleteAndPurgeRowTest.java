@@ -63,7 +63,7 @@ public class CompactionDeleteAndPurgeRowTest extends SimpleCompactionTest
         );
 
         cfs.forceBlockingFlush(ColumnFamilyStore.FlushReason.USER_FORCED);
-        // Deliberately keeps the real forceMajorCompaction path (strategy task, executor, wall clock).
+        // Runs the real forceMajorCompaction path (strategy task, executor, wall clock), so it must wait for the deletion to age past gc_grace_seconds=0.
         Thread.sleep(1000);
         majorCompact(cfs);
         assertTrue(cfs.getLiveSSTables().isEmpty());

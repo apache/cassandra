@@ -145,11 +145,11 @@ public class SSTableCursorWriter implements AutoCloseable
     private ColumnMetadata[] columns; // points to static/regular
     private int columnsWrittenCount = 0;
     private int nextCellIndex = 0;
-    // Format-specific index production. BIG writes promoted blocks, Index.db, a bloom filter and a
-    // summary.
+    // Writes the index files of the sstable format. BIG writes the promoted index, Index.db, a bloom
+    // filter and a summary. BTI writes Rows.db, Partitions.db and a bloom filter.
     private final CursorIndexWriter cursorIndexWriter;
-    // The last key written. Reused across partitions; a caller that keeps it past the next
-    // partition must take retainable().
+    // The last key written. This object is reused for every partition, so a caller that keeps it
+    // past the next partition must take retainable().
     private final ReusableDecoratedKey lastKey;
     // The current unfiltered's stats, added to the collector once its bytes are written, as the iterator path does
     private final MetadataCollector.RowStatsBuffer rowStats;
@@ -226,7 +226,7 @@ public class SSTableCursorWriter implements AutoCloseable
     }
 
     /**
-     * @param sourceKey the partition key, as read; its token and hash are copied, not computed again
+     * @param sourceKey the partition key from the reader; the writer copies its token and hash and does not compute them again
      * @param lastName the clustering of the last non-static unfiltered written to this partition, needed as
      *                 the last name of a trailing index block; null if the partition wrote none.
      */
@@ -242,9 +242,9 @@ public class SSTableCursorWriter implements AutoCloseable
         long partitionSize = partitionEnd - partitionStart;
         addPartitionMetadata(partitionKey, partitionKeyLength, partitionSize, partitionDeletionTime);
 
-        // Per partition, not once at rollover: BigTableWriter.openInternal reads this field, so an sstable
-        // opened early at a writer switch would otherwise carry a stale last. The copy is into the
-        // reusable key, not a new one; the readers of last take retainable() when they keep it.
+        // Set for every partition: BigTableWriter.openInternal reads last, and an sstable opened early
+        // when compaction switches writers must carry the current last key. lastKey is reused, so a
+        // reader of last that keeps it takes retainable().
         lastKey.copyKey(sourceKey);
         ssTableWriter.setLast(lastKey);
 
@@ -522,8 +522,8 @@ public class SSTableCursorWriter implements AutoCloseable
         complexMarkerCount++;
         lastCellColumn = column;
         columnsWrittenCount++;
-        // Counted here, ahead of the column's cells, in the order Rows.collectStats counts it. The row write
-        // must not count it again.
+        // Count the deletion here, before the column's cells, in the order Rows.collectStats counts it.
+        // writeRowCellSection must not count it again.
         rowStats.update(mergedDeletion);
     }
 

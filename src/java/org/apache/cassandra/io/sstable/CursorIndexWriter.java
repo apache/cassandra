@@ -50,8 +50,8 @@ public abstract class CursorIndexWriter
         CursorIndexWriter create(SortedTableWriter<?, ?> writer, SerializationHeader header);
 
         /**
-         * A factory for table writers of class {@code writerClass}. {@link #create} checks the
-         * writer's class with {@link #checkWriterType} before it calls {@code create}.
+         * Returns a factory for table writers of class {@code writerClass}. Its {@link #create}
+         * checks the writer class with {@link #checkWriterType}, then calls the {@code create} function.
          *
          * @param format the name of the format, for the message if the writer has another class
          */
@@ -135,10 +135,10 @@ public abstract class CursorIndexWriter
                                     DeletionTime openMarker) throws IOException;
 
     /**
-     * The partition's data ends at partitionEnd, which is past its end-of-partition marker. Writes what is
-     * left of the partition's row index. The cursor writer calls this before it adds the partition to the
+     * Writes what is left of the partition's row index. The partition's data ends at partitionEnd, past
+     * its end-of-partition marker. The cursor writer calls this before it adds the partition to the
      * metadata, as {@link SortedTableWriter} does, because a BTI early open can run from inside this write.
-     * This does nothing for a format that keeps the row index in memory until {@link #endPartition}.
+     * A format that keeps its row index in memory until {@link #endPartition} does nothing here.
      *
      * @param lastName the clustering of the last non-static unfiltered written to this
      *                 partition, or null if the partition wrote none.

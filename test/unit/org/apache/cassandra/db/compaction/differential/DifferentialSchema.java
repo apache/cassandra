@@ -21,17 +21,15 @@ package org.apache.cassandra.db.compaction.differential;
 /**
  * One named table shape and the write workload that populates it.
  *
- * <p>A schema is path-agnostic: it names a CQL table definition and drives writes through a
- * {@link DifferentialWorkload}, referencing no compaction, flush or read type. The same fixture can thus
- * feed a compaction differential here and, later, read-path and flush-path differential engines on higher
- * branches.
+ * <p>A schema references no compaction, flush or read type. It names a CQL table definition and writes
+ * only through a {@link DifferentialWorkload}, so any differential test can use it.
  *
  * <p>Implementations must produce at least two overlapping flushes in {@link #write}, so any engine built
  * on the fixture has at least two inputs whose partitions merge.
  */
 public interface DifferentialSchema
 {
-    /** Short, kebab-ish name used to label parameterized cases, e.g. {@code "clustering-free"}. */
+    /** A short hyphenated name that labels parameterized cases, e.g. {@code "clustering-free"}. */
     String name();
 
     /** The CQL {@code CREATE TABLE %s (...)} definition, with the {@code %s} placeholder CQLTester expects. */
@@ -56,10 +54,9 @@ public interface DifferentialSchema
     }
 
     /**
-     * Whether the shape intends compaction to purge data: expired (short-TTL) cells and/or tombstones past
-     * {@code gc_grace_seconds}. A driver runs such a shape with a fixed nowInSec after gc grace so the purge
-     * decision is deterministic and identical on both paths, and it guards that the merge actually dropped
-     * rows. Defaults to false. This carries no compaction type; it only declares the shape's intent.
+     * Whether compaction must purge data from this shape: expired short-TTL cells, tombstones past
+     * {@code gc_grace_seconds}, or both. A driver must run such a shape with a fixed nowInSec after gc grace.
+     * Defaults to false.
      */
     default boolean expectsPurge()
     {

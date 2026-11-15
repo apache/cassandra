@@ -845,8 +845,7 @@ public class DroppedColumnDifferentialCompactionTest extends DifferentialCompact
      *   <li>a row marker, a newer row deletion that deletes it, and a cell of the dropped column;</li>
      *   <li>a shadowable row deletion and a cell of the dropped column.</li>
      * </ul>
-     * These rows take the early return in the reader, so this test passes with and without the fix.
-     * It pins the rows that the fix must keep.
+     * The row deletion is not live, so the reader keeps these rows without reading their cells.
      */
     @Test
     public void rowWithRowDeletionAndOnlyDroppedCellsIsKept() throws Exception

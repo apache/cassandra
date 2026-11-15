@@ -31,8 +31,7 @@ import java.util.Set;
 import org.apache.cassandra.db.marshal.DecimalType;
 
 /**
- * A minimal, meaningful corpus of table shapes, path-agnostic so read-path and flush-path differential
- * engines on higher branches can reuse it. Every shape produces two overlapping flushes that merge.
+ * A minimal corpus of table shapes. Every shape produces at least two overlapping flushes that merge.
  *
  * <p>References no compaction, flush or read type; a shape drives writes only through a
  * {@link DifferentialWorkload}. Each shape multiplies its base partition/row counts by a {@code scale}, so
@@ -404,7 +403,7 @@ public final class DifferentialSchemas
         }
     }
 
-    /** Reversed clustering order (DESC), a known BTI cursor risk; the two rounds overlap on shared rows. */
+    /** Reversed clustering order (DESC); the two rounds overlap on shared rows. */
     private static final class ReversedClustering extends BaseSchema
     {
         private static final int BASE_PARTITIONS = 5;
@@ -456,11 +455,10 @@ public final class DifferentialSchemas
     }
 
     /**
-     * A handful of partitions each far larger than a column-index block, so partitions span multiple
-     * blocks and the cursor row index lookup runs. Multi-block-ness comes purely from large padded
-     * values (the corpus must not touch the global column_index_size). The DDL sets the clustering order,
-     * so one instance covers forward order and another covers reversed (DESC), which targets the reverse
-     * block-cursor path. The two rounds overlap on a clustering range inside each wide partition.
+     * A few partitions, each far larger than one index block, so the cursor row index lookup runs.
+     * Large padded values make the partitions span blocks; the corpus must not change the global
+     * column_index_size. The DDL sets the clustering order, so one instance covers ascending order and
+     * another covers DESC. The two rounds overlap on a clustering range inside each wide partition.
      */
     private static final class WideMultiBlock extends BaseSchema
     {
@@ -575,7 +573,7 @@ public final class DifferentialSchemas
         }
     }
 
-    /** A wide-column table (~50 regular columns), a scaled stand-in for the 1000-field production target. */
+    /** A table with 50 regular columns, a smaller stand-in for tables with 1000 columns. */
     private static final class WideColumns extends BaseSchema
     {
         private static final int COLUMN_COUNT = 50;
@@ -742,9 +740,9 @@ public final class DifferentialSchemas
     }
 
     /**
-     * Expiring cells: round-1 cells carry a large TTL so they stay live for the whole run (no clock pinning,
-     * no mid-run expiry). Round 2 overwrites a subset, some cells again with a TTL and some without, so the
-     * merge reconciles expiring against non-expiring liveness for the same cell.
+     * Expiring cells. Round-1 cells carry a large TTL, so they stay live for the whole run with the real
+     * clock. Round 2 overwrites a subset, some cells with a TTL and some without. The merge then reconciles
+     * an expiring cell against a non-expiring cell with the same path.
      */
     private static final class TtlCells extends BaseSchema
     {
@@ -875,12 +873,10 @@ public final class DifferentialSchemas
     }
 
     /**
-     * Cross-sstable range-tombstone reconciliation over a multi-block partition. Sstable A carries a wide
-     * fill plus one range tombstone; sstable B carries a second, partially-overlapping range tombstone at a
-     * newer timestamp, plus a point delete inside the first deleted range and a live newer write. The merge
-     * must reconcile two range tombstones from different sstables: coalesce the overlap, keep the newer one
-     * where it supersedes, and carry every marker across index-block boundaries. This is the marker-boundary
-     * path that historically breaks the cursor (see the reverse block-cursor and NAMES exclusive-bound bugs).
+     * Two range tombstones from different sstables over one multi-block partition. Sstable A holds a wide
+     * fill and one range tombstone. Sstable B holds a newer range tombstone that overlaps A's, a point delete
+     * inside A's deleted range, and a newer live write. The merge must coalesce the overlap, keep the newer
+     * deletion where it supersedes, and carry every range tombstone marker across index block boundaries.
      */
     private static final class CrossSSTableRangeTombstone extends BaseSchema
     {
@@ -1055,10 +1051,9 @@ public final class DifferentialSchemas
     }
 
     /**
-     * A static column on a multi-block partition with a row index. The static row sits at the partition
-     * head, before the row index begins, so its liveness and deletion interplay with block
-     * navigation is a classic cursor divergence point. Every partition is wide enough to span many index
-     * blocks. Round 2 covers three cases across the partitions:
+     * A static column on a multi-block partition with a row index. The static row sits before the first
+     * row index block, so the merge must keep its liveness and deletion apart from the row index lookup.
+     * Every partition spans many index blocks. Round 2 covers three cases across the partitions:
      * <ul>
      *   <li>{@code pk % 3 == 0}: rewrite the static row and an overlapping clustering range, so the static row
      *       changes across rounds while the blocks overlap.</li>
@@ -1138,8 +1133,8 @@ public final class DifferentialSchemas
     private static final String OVERSIZED_PADDING = "x".repeat(5000);
 
     /**
-     * A single row larger than one column-index block. Each row carries an ~5000-byte value, over the 4 KiB
-     * test column_index_size, so one row alone cuts a block and exercises the value-copy-across-chunks path.
+     * A single row larger than one index block. Each row carries a value of about 5000 bytes, over the
+     * 4 KiB test column_index_size, so one row alone ends a block.
      * Round 2 overwrites the lower half so the flushes overlap across blocks, and both rounds write the last
      * row at the SAME timestamp with different oversized values, a cross-sstable tie the merge must break by
      * value comparison, identically on both paths.
@@ -1195,8 +1190,8 @@ public final class DifferentialSchemas
     }
 
     /**
-     * A table with more than 64 regular columns, past the point where the row encoding switches to the
-     * large-superset column-subset representation that the 50-column {@link WideColumns} shape never reaches.
+     * A table with more than 64 regular columns, so rows use the large subset encoding of
+     * {@code Columns.serializeLargeSubset}. The 50-column {@link WideColumns} shape never reaches it.
      * Round 1 sets every column. Round 2 rewrites subsets whose present-column counts straddle the
      * superset/2 subset-encoding boundary (34, 35, 36 of 70), so the merge unions cells under the large
      * encoding while the subset serialization flips between encoding present and absent columns.

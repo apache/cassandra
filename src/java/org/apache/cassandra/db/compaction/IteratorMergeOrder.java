@@ -19,11 +19,10 @@
 package org.apache.cassandra.db.compaction;
 
 /**
- * The order {@link org.apache.cassandra.utils.MergeIterator}'s many-source merge gives equal items
- * in, for sources a cursor merge reads.  The iterator path keeps the clustering of the last row and
- * of the last range tombstone marker it is given, and the first of two cells that tie on
- * everything.  Values can compare equal and still differ in bytes (decimal 1.0 and 1.00), so the
- * order decides which source's bytes the output holds.
+ * Gives equal items in the same order as the many-source merge of
+ * {@link org.apache.cassandra.utils.MergeIterator}, for sources that a cursor merge reads.  When
+ * equal values differ in bytes, this order decides which source's bytes reach the output; see
+ * {@link CursorMergeOrder}.
  *
  * <p>This is {@code MergeIterator.ManyToOne} with each source's current item read through
  * {@link Sources} instead of stored: the same sorted section, binary heap, equal-parent flags and

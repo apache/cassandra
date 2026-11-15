@@ -75,7 +75,7 @@ class StatefulCursor extends SSTableCursorReader
     int partitionMergeIndex;
 
     /**
-     * This cursor's place in the last cursor sort, equal cursors alike. Set by
+     * This cursor's place in the last cursor sort. Equal cursors get the same value. Set by
      * {@link CursorMergeOrder} only.
      */
     int mergeRank;

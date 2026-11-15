@@ -32,7 +32,10 @@ import static org.junit.Assert.assertArrayEquals;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertNotSame;
 
-/** {@code retainable()} returns a key that survives the next {@code copyKey}. */
+/**
+ * {@code retainable()} returns a key that survives the next {@code copyKey}, and {@code copyKey(source)}
+ * gives the same key that {@code decorateKey} gives.
+ */
 public class ReusableDecoratedKeyTest
 {
     @BeforeClass
@@ -85,7 +88,7 @@ public class ReusableDecoratedKeyTest
         ReusableDecoratedKey source = partitioner.createReusableKey(0);
         source.copyKey(ByteBuffer.wrap(bytes));
         ReusableDecoratedKey copy = partitioner.createReusableKey(0);
-        // start from another key, so a token or hash not copied shows
+        // Load a different key first, so the assertions fail if copyKey(source) leaves an old token or hash.
         copy.copyKey(ByteBufferUtil.bytes(7));
         copy.copyKey(source);
         source.copyKey(ByteBufferUtil.bytes(9));
@@ -128,7 +131,7 @@ public class ReusableDecoratedKeyTest
         retained.filterHash(retainedHash);
         assertArrayEquals(expectedHash, retainedHash);
         assertEquals(expectedSecond, reusable);
-        // By order for the same reason as above
+        // Compare by order: the reusable key's token subclass is not equals-comparable.
         assertEquals(0, expectedSecond.getToken().compareTo(reusable.getToken()));
     }
 }

@@ -39,13 +39,13 @@ import static org.junit.Assert.assertNotNull;
 import static org.junit.Assert.assertTrue;
 import static org.junit.Assert.fail;
 
-/** A cell value larger than {@code max_value_size} must be refused by compaction on both paths. */
+/** Compaction must refuse a cell value larger than {@code max_value_size}, on both the cursor path and the iterator path. */
 public class CompactionMaxValueSizeTest extends SimpleCompactionTest
 {
     /** The value size written, larger than the lowered limit and under the default. */
     private static final int VALUE_SIZE = 2 << 20;
 
-    /** The limit lowered to before compacting, below VALUE_SIZE. */
+    /** The max_value_size set before compacting. It must be below VALUE_SIZE and a whole number of mebibytes, because setMaxValueSize truncates to mebibytes. */
     private static final int LOWERED_LIMIT = 1 << 20;
 
     /** The timestamp both halves of the comparison scenario are written at. */
@@ -141,11 +141,9 @@ public class CompactionMaxValueSizeTest extends SimpleCompactionTest
         CorruptSSTableException refusal = findCorruptSSTableException(thrown);
         assertNotNull("compaction must refuse an oversized value with a CorruptSSTableException, " +
                       "but the failure was: " + describe(thrown), refusal);
-        // The refusal must be the max_value_size check, not some other corruption.
         assertTrue("the refusal must be the max_value_size check, but was: " + describe(thrown),
                    describe(thrown).contains("max_value_size"));
 
-        // A refused value must leave no output behind.
         assertEquals("a refused compaction must not commit an output sstable", inputs, descriptors(cfs));
 
         // The inputs must still read at full length once the limit is restored.

@@ -84,7 +84,7 @@ public class BigTableWriter extends SortedTableWriter<BigFormatPartitionWriter, 
     private final Map<DecoratedKey, AbstractRowIndexEntry> cachedKeys = new HashMap<>();
     private static final SSTableReader[] NO_ORIGINALS = new SSTableReader[0];
     private final SSTableReader[] originals;
-    /** The key cache keys used to look a partition up in each of {@link #originals}, reused for every partition; built on the first lookup. */
+    /** One key cache key for each entry of {@link #originals}. shouldCacheKey builds them on its first lookup and reuses them for every partition. */
     private ReusableKeyCacheKey[] lookupKeys;
 
     public BigTableWriter(Builder builder, ILifecycleTransaction txn, SSTable.Owner owner)
@@ -95,11 +95,10 @@ public class BigTableWriter extends SortedTableWriter<BigFormatPartitionWriter, 
         checkNotNull(this.rowIndexEntrySerializer);
 
         boolean migrateKeyCache = DatabaseDescriptor.shouldMigrateKeycacheOnCompaction() && !txn.isOffline();
-        // Empty unless the key cache is being migrated, so shouldCacheKey needs no second guard. Holds only the
-        // originals whose key cache is enabled, since a lookup in any other always misses.
-        // LifecycleTransaction.originals() wraps a fresh set on each call, and shouldCacheKey scans
-        // this per partition. Safe to snapshot: the only cancel that drops a compaction's originals
-        // runs in CompactionTask.runMayThrow before this writer.
+        // Empty unless key cache migration is on, so shouldCacheKey needs no second check. This is a
+        // snapshot, because LifecycleTransaction.originals() wraps a new set on each call and
+        // shouldCacheKey scans it for each partition. The snapshot is safe: the only cancel that drops
+        // a compaction's originals runs in CompactionTask.runMayThrow, before this writer exists.
         this.originals = migrateKeyCache ? withKeyCache(txn.originals()) : NO_ORIGINALS;
     }
 
@@ -173,8 +172,8 @@ public class BigTableWriter extends SortedTableWriter<BigFormatPartitionWriter, 
     }
 
     /**
-     * True when one of the transaction's originals has a cached position for this key. The array is
-     * empty unless key cache migration is on, so that setting is already folded in.
+     * True when one of the transaction's originals has a cached position for this key. Always false
+     * when key cache migration is off, because {@link #originals} is then empty.
      * <p>
      * Like the iterator path, this looks the key up in every original, not only in the sstables
      * that hold the partition: a fully expired sstable is left out of the compaction's input but stays
@@ -182,9 +181,8 @@ public class BigTableWriter extends SortedTableWriter<BigFormatPartitionWriter, 
      */
     private boolean shouldCacheKey(DecoratedKey key)
     {
-        // A cache of capacity 0 holds nothing, so every lookup would miss. The capacity can change
-        // at runtime (nodetool setcachecapacity), so it is read for each partition, as the iterator
-        // path looks it up for each partition. It is a volatile read.
+        // Read the capacity for each partition, as the iterator path does, because nodetool
+        // setcachecapacity can change it at runtime. It is a volatile read.
         if (originals.length == 0 || CacheService.instance.keyCache.getCapacity() <= 0)
             return false;
 

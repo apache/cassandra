@@ -669,10 +669,10 @@ public abstract class FuzzTestBase extends CQLTester.InMemory
             Stage.MISC.unsafeSetExecutor(orderedExecutor);
             Stage.INTERNAL_RESPONSE.unsafeSetExecutor(unorderedScheduled);
             Mockito.when(failureDetector.isAlive(Mockito.any())).thenReturn(true);
-            // WORKAROUND, remove once the permanent fix for CASSANDRA-21721 lands.  Since CASSANDRA-21721, creating a
-            // NoSpamLogger statement reads NoSpamLogger's clock.  CompactionIterator creates one in a static field, so if
-            // it first loads on a compaction thread after the clock below is installed, its class init throws and every
-            // repair validation fails.  Load it here, before that clock is installed.
+            // Workaround: remove it when the permanent fix for CASSANDRA-21721 (NoSpamLogger statements read the clock) lands.
+            // Since CASSANDRA-21721, creating a NoSpamLogger statement reads NoSpamLogger's clock.  CompactionIterator
+            // creates one in a static field.  If that class first loads on a compaction thread after the clock below is
+            // installed, its class init throws, and every repair validation fails.  So load it here, before the clock.
             try
             {
                 Class.forName(CompactionIterator.class.getName());

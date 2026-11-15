@@ -119,10 +119,10 @@ public class AccordTableDifferentialCompactionTest extends DifferentialCompactio
     }
 
     /**
-     * Non-accord control. purgeTimestamp returns the wall-clock nowInSec, so cells past their TTL
-     * relative to the fixed nowInSec are expired: their values are dropped and each is rewritten as a
-     * cell tombstone. This is the behaviour the accord and migrating tables must NOT show. The cursor
-     * and iterator paths must agree.
+     * Non-accord control. purgeTimestamp returns the task's nowInSec unchanged, so cells whose TTL has
+     * lapsed relative to the fixed nowInSec expire: each value is dropped and the cell is rewritten as a
+     * cell tombstone. The accord and migrating tables must not do this. The cursor and iterator paths
+     * must agree.
      */
     @Test
     public void nonAccordTableAppliesExpiry() throws Exception
@@ -145,11 +145,11 @@ public class AccordTableDifferentialCompactionTest extends DifferentialCompactio
     }
 
     /**
-     * Accord-migrating table. transactional_mode is off, so accordIsEnabled() is false and the table
-     * does not enter the accord gcBefore derivation, but migratingFromAccord() is true, so
-     * purgeTimestamp still overrides nowInSec to controller.gcBefore. With a gcBefore in the past
-     * (below the cells' expiration) the expiry is deferred exactly as for the accord table. Cursor
-     * and iterator must agree.
+     * A table migrating from accord. transactional_mode is off, so isAccordEnabled() is false and
+     * CompactionTask does not derive gcBefore from accord's durability bounds. migratingFromAccord()
+     * is true, so purgeTimestamp still replaces nowInSec with controller.gcBefore. With gcBefore below
+     * the cells' expiration time, expiry is deferred as on the accord table. The cursor and iterator
+     * paths must agree.
      */
     @Test
     public void migratingFromAccordTableDefersExpiry() throws Exception
@@ -165,9 +165,9 @@ public class AccordTableDifferentialCompactionTest extends DifferentialCompactio
                     "gcBefore derivation path", cfs.metadata().isAccordEnabled());
         long fixedNow = writeExpiringRows(cfs);
 
-        // gcBefore in the past becomes the override nowInSec; the cells (expiring ~now) are not yet
-        // expired relative to it, so they are deferred. NOT NO_GC: this table skips the accord
-        // derivation and a NO_GC here would leave nowInSec at 0 and defer trivially for both paths.
+        // A gcBefore an hour back becomes nowInSec, and the cells are not yet expired relative to it.
+        // Do not pass NO_GC: nowInSec would become Integer.MIN_VALUE, so both paths would defer every
+        // cell and the check would prove nothing.
         long pastGcBefore = FBUtilities.nowInSeconds() - 3600;
         CapturedOutput out = assertCursorMatchesIterator(cfs, cfs.getLiveSSTables(),
                                                          taskWithFixedNow(fixedNow), pastGcBefore);

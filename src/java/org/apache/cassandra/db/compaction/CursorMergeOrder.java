@@ -55,14 +55,19 @@ import static org.apache.cassandra.io.sstable.SSTableCursorReader.State.isState;
  *   <li>a row: the clustering of the last row {@code Row.Merger} is given;</li>
  *   <li>a range tombstone marker: the bound of the last marker {@code RangeTombstoneMarker.Merger}
  *       is given;</li>
- *   <li>a complex cell: the path of the first cell, of the cells that tie on everything, that
+ *   <li>a complex cell: of the cells that tie on everything, the path of the first cell that
  *       {@code Cells.reconcile} is given.</li>
  * </ul>
- * The order comes from four nested {@code MergeIterator}s: partitions over the scanners, rows over
- * the partition's sources in partition merge order, columns over the row's sources in partition
- * merge order, and the cells of a complex column over that column's sources in column merge
- * order.  This class runs one {@link IteratorMergeOrder} for each, beside the cursor sorts, which
- * still decide the groups.
+ * The order comes from four nested {@code MergeIterator}s:
+ * <ul>
+ *   <li>partitions, over the scanners;</li>
+ *   <li>rows, over the sources of the partition, in partition merge order;</li>
+ *   <li>columns, over the sources of the row, in partition merge order;</li>
+ *   <li>the cells of a complex column, over the sources of that column, in column merge order.</li>
+ * </ul>
+ * This class runs one {@link IteratorMergeOrder} for each.  The cursor sorts, the prepareAndSort
+ * methods of {@link CursorCompactor}, decide which cursors are in a merge group.  This class only
+ * orders the cursors inside each group.
  *
  * <p>A table whose clustering types and cell path types all compare equal only for equal bytes
  * gets no instance: every order writes the same bytes there.  See {@link #equalValuesHaveEqualBytes}.
@@ -100,7 +105,7 @@ final class CursorMergeOrder
     private final IteratorMergeOrder<StatefulCursor> rowOrder;
     private final StatefulCursor[] rowGroup;
 
-    /** How many sources the current row has; the cell sorts order the first this many cursors. */
+    /** The number of sources of the current row. The cell sorts order only this many cursors, from the first. */
     private int rowGroupSize;
 
     private final IteratorMergeOrder<StatefulCursor> columnOrder;
@@ -228,8 +233,8 @@ final class CursorMergeOrder
     }
 
     /**
-     * Steps the row merge, and makes the cursor whose clustering the iterator path writes the first
-     * cursor of the merge group.  Call once per row or marker of the partition.
+     * Steps the row merge.  Then moves to the front of the merge group the cursor whose clustering
+     * the iterator path writes.  Call once per row or marker of the partition.
      */
     void orderUnfilteredGroup(StatefulCursor[] sstableCursors, boolean[] equalsNext, int unfilteredMergeLimit)
     {
@@ -422,7 +427,7 @@ final class CursorMergeOrder
 
     private final class CellSources implements IteratorMergeOrder.Sources<StatefulCursor>
     {
-        /** Within one column the cell sort orders by path. */
+        /** Within one column the cell sort orders the cursors by path, so their merge ranks give the path order. */
         public int compare(StatefulCursor a, StatefulCursor b)
         {
             return Integer.compare(a.mergeRank, b.mergeRank);

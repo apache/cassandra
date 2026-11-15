@@ -215,7 +215,7 @@ public class CursorCompactorConstructorFailureTest extends CQLTester
         return cfs;
     }
 
-    /** The constructor that takes a tracker is private; production callers all pass NOOP. */
+    /** Calls the private constructor that takes a tracker, by reflection. The public constructor always passes {@code ActiveCompactionsTracker.NOOP}. */
     private static void newCursorCompactor(List<ISSTableScanner> scanners, CompactionController controller,
                                            ActiveCompactionsTracker tracker) throws Throwable
     {

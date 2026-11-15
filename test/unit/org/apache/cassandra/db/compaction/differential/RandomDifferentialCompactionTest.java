@@ -63,10 +63,10 @@ import static org.junit.Assert.assertTrue;
  * Randomized soak for the cursor-vs-iterator differential harness: random supported schemas and
  * multi-round workloads flushed into overlapping sstables, then byte+logical comparison of both paths.
  *
- * Reproducing a failure: every failure message carries its seed. Rerun with
- * -Dcassandra.test.differential.seed=N (the failing seed becomes example 0), or plug it into
- * {@code withFixedSeed} below. Plain ant does not pass the property to the forked test JVM, so run
- * through test-isolated.sh, or pass it inside -Dtest.jvm.args.
+ * Every failure message carries its seed. To replay a failure, pass
+ * -Dcassandra.test.differential.seed=N inside -Dtest.jvm.args, because plain ant does not pass the
+ * property to the forked test JVM. The failing seed becomes example 0. You can also pass the seed to
+ * {@code withFixedSeed} below.
  */
 public class RandomDifferentialCompactionTest extends DifferentialCompactionTester
 {

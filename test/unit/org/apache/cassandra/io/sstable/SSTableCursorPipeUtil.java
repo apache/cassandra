@@ -59,10 +59,12 @@ public class SSTableCursorPipeUtil
     }
 
     /**
-     * @param lastWritten holds the clustering of the last row or marker written. The reader can skip a
-     * row the dropped-column filter leaves empty, and the descriptor then still holds the skipped row.
-     * If the filter leaves every row of a partition empty, the partition is still written, with no rows; the
-     * iterator path writes no partition then.
+     * Copies one partition. If the dropped-column filter leaves every row empty, this still writes the
+     * partition, with no rows. The iterator path writes no partition in that case.
+     *
+     * @param lastWritten receives the clustering of the last row or marker written. The reader can skip a
+     * row that the dropped-column filter leaves empty, and {@code unfilteredDescriptor} then still holds
+     * the skipped row.
      */
     public static int copyPartition(SSTableCursorReader reader, SSTableCursorWriter writer, PartitionDescriptor pHeader, UnfilteredDescriptor unfilteredDescriptor, ClusteringDescriptor lastWritten, int readerState) throws IOException
     {

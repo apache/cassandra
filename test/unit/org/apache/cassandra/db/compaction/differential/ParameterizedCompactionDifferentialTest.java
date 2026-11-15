@@ -30,14 +30,12 @@ import org.junit.runners.Parameterized;
 import org.apache.cassandra.db.ColumnFamilyStore;
 
 /**
- * Runs the path-agnostic {@link DifferentialSchemas#minimalCorpus() minimal schema corpus} through the
- * cursor-vs-iterator compaction differential across BOTH sstable formats (BIG and BTI). Each
- * (format, shape) cell is a real cursor-vs-iterator comparison: the harness asserts the cursor path
- * actually ran and that the output is in the selected format, then asserts byte + logical equivalence
- * against the iterator path.
+ * Runs the {@link DifferentialSchemas#matrixCorpus() matrix shapes} through the cursor-vs-iterator
+ * compaction differential, on both sstable formats, big and bti. For each format and shape, the harness
+ * asserts that the cursor path ran and wrote the selected format. It then asserts that the output is
+ * byte-identical and logically identical to the iterator output.
  *
- * <p>Runs only the {@link DifferentialSchemas#matrixCorpus() matrix shapes}; the rest are covered by
- * Basic and EdgeCase differential tests.
+ * <p>The matrix leaves out the shapes that the Basic and EdgeCase differential tests already cover.
  *
  * <p>The burn counterpart is {@link BurnCompactionDifferentialTest}.
  */

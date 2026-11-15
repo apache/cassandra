@@ -230,10 +230,10 @@ public class StatefulCursorTest extends CQLTester
     }
 
     /**
-     * A row whose only content is a cell of the dropped column and a complex deletion of a column
-     * that is not dropped is not empty after the drop filter, so readRowHeader must not skip it.
-     * The caller here turns off the pause at an empty complex column; the empty check must still
-     * stop at the complex deletion.
+     * readRowHeader must keep a row that holds only a cell of a dropped column and a complex deletion
+     * of a column that is not dropped. The dropped-column filter keeps the complex deletion, so the row
+     * is not empty. This test turns off pauseAtEmptyComplexColumns, and the empty check must still stop
+     * at the complex deletion. A row that holds only the dropped cell is skipped.
      */
     @Test
     public void readRowHeaderKeepsARowWithAComplexDeletionWhenThePauseIsOff() throws Throwable

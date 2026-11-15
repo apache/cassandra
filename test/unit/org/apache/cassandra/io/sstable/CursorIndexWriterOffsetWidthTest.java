@@ -58,7 +58,7 @@ public class CursorIndexWriterOffsetWidthTest
                      PAST_INT_MAX, writer.indexBlockStartOffset());
     }
 
-    /** Block size stays small when measured past Integer.MAX_VALUE. */
+    /** A block size measured past Integer.MAX_VALUE must equal the bytes written. A 32-bit offset would wrap and give a size larger than the partition. */
     @Test
     public void blockSizeMeasuredPastIntMaxStaysSmall()
     {

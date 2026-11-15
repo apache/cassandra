@@ -95,7 +95,7 @@ public abstract class SortedTableWriter<P extends SortedTablePartitionWriter, I 
     private final boolean isPartitionSizeGuardEnabled;
     private final boolean isPartitionTombstonesGuardEnabled;
     private final boolean areCollectionGuardsDisabled;
-    // Built only when cursor compaction writes through this writer; closed with the partition writer.
+    // Null unless cursor compaction writes through this writer. doPostCleanup closes it with the partition writer.
     private CursorIndexWriter cursorIndexWriter;
 
 
@@ -314,10 +314,11 @@ public abstract class SortedTableWriter<P extends SortedTablePartitionWriter, I 
     }
 
     /**
-     * Builds the index writer that cursor compaction uses for this writer. This writer owns it and closes it
-     * in its transaction cleanup, on commit and on abort.
+     * Builds the index writer that cursor compaction uses for this writer. Call it at most once per writer.
+     * This writer owns the result and closes it in its transaction cleanup, on commit and on abort.
      *
      * @param header the header the cursor writer writes with, which need not be this writer's own
+     * @throws UnsupportedOperationException if cursor compaction cannot write this sstable format
      */
     public final CursorIndexWriter newCursorIndexWriter(SerializationHeader header)
     {

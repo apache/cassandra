@@ -277,7 +277,7 @@ public class CursorCompactorCloseTest extends CQLTester
         }
         catch (CompactionInterruptedException expected)
         {
-            // CompactionTask's try-with-resources now calls close()
+            // in production CompactionTask's try-with-resources calls close() next; here compactAndClose does
         }
     }
 

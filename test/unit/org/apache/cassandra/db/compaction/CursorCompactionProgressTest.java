@@ -50,7 +50,7 @@ public class CursorCompactionProgressTest extends DifferentialCompactionTester
 {
     private static final long WIDE_PK = 1000;
     private static final int WIDE_ROWS = 1000;
-    /** CursorCompactor.UNFILTERED_TO_UPDATE_PROGRESS */
+    /** Must equal CursorCompactor.UNFILTERED_TO_UPDATE_PROGRESS. */
     private static final int UNFILTERED_PER_REFRESH = 128;
 
     /** The bytes scanned at each refresh made while the wide partition was merged. */
@@ -108,7 +108,7 @@ public class CursorCompactionProgressTest extends DifferentialCompactionTester
         commitThroughFactory(cfs, true, (c, txn, gcBefore) -> new CompactionTask(c, txn, gcBefore, false));
         recordingThread = null;
 
-        // The refresh counter runs across partitions, so the wide partition holds at least this many multiples of 128.
+        // The refresh counter does not reset per partition, so the wide partition's WIDE_ROWS unfiltereds cross at least this many multiples of 128.
         int expected = WIDE_ROWS / UNFILTERED_PER_REFRESH;
         List<Long> refreshes = wideRefreshes;
         assertTrue(format + ": expected at least " + expected + " progress refreshes inside the wide partition, got " + refreshes.size(),

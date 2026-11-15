@@ -54,16 +54,13 @@ import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertTrue;
 
 /**
- * Correctness gate for {@link SSTableCursorWriter#close()} under the BTI format.
+ * Checks {@link SSTableCursorWriter#close()} on the BTI format. {@code close()} finishes the writer,
+ * closes the cursor index writer, and releases the reader that the finish returns.
  *
- * <p>{@code close()} is the standalone finish path: it calls {@code SSTableWriter.finish(false)}, which
- * also closes the cursor index writer, releases the returned reader's Ref, and closes the writer. The test
- * then commits the transaction and checks that nothing leaked.
- * Production compaction finalizes through {@code CompactionAwareWriter} and never calls it; only the
- * JMH microbench {@code SSTablePipeCursorBench} drives it today. This test runs the same read/copy/close
- * pipe the microbench uses, minus JMH, then reads every row of the finished output back and asserts it
- * is logically identical to the input. If {@code close()}/{@code finish()} left the sstable incomplete
- * or unreadable, the read-back fails.
+ * <p>Compaction never calls {@code close()}; it finishes through {@code CompactionAwareWriter}. Only the
+ * microbench {@code SSTablePipeCursorBench} calls it. This test copies an sstable through the same cursor
+ * pipe, closes the writer and commits the transaction. It then asserts that nothing leaked, and that every
+ * row of the output reads back logically identical to the input.
  */
 public class SSTableCursorWriterCloseTest extends CQLTester
 {
@@ -155,7 +152,7 @@ public class SSTableCursorWriterCloseTest extends CQLTester
             }
             catch (IOException ignored)
             {
-                // scratch dir under build/tmp; harmless if it lingers
+                // The scratch directory is under build/tmp, so a leftover copy does no harm.
             }
         }
     }
@@ -238,7 +235,7 @@ public class SSTableCursorWriterCloseTest extends CQLTester
             // Copy the whole sstable through the cursor pipe (static rows, rows, range tombstones).
             SSTableCursorPipeUtil.copySSTable(cursorReader, cursorWriter);
 
-            // THE GATE: the standalone finish path this test exists to cover.
+            // The call under test.
             cursorWriter.close();
             txn.finish();
             return outputDescriptor;

@@ -50,7 +50,7 @@ public class CompactionDeleteAndPurgePKTest extends SimpleCompactionTest
         );
 
         cfs.forceBlockingFlush(ColumnFamilyStore.FlushReason.USER_FORCED);
-        // even with GC period 0, needs some time
+        // With gc_grace_seconds=0, a tombstone is purged only once the compaction time is past its deletion time.
         majorCompactAt(cfs, anHourFromNow());
 
         assertTrue(cfs.getLiveSSTables().isEmpty());

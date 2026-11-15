@@ -44,7 +44,7 @@ public class RowStatsBufferTest
         ReusableCellLivenessInfo cell = new ReusableCellLivenessInfo();
         long now = FBUtilities.nowInSeconds();
 
-        // one row with a large TTL'd collection
+        // one row with 100,000 TTL'd cells
         for (int i = 0; i < 100_000; i++)
         {
             cell.reset(1000 + i, 3600, now + 3600 + i);

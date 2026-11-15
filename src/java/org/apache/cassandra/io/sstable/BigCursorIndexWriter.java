@@ -165,7 +165,7 @@ public class BigCursorIndexWriter extends CursorIndexWriter
          *
          */
         SequentialWriter indexFileWriter = indexWriter.writer;
-        // the key carries its hash, so the filter does not hash it again
+        // a Murmur3 reusable key carries its hash, so the filter does not hash it again
         indexWriter.bf.add(decoratedKey);
         long indexStart = indexFileWriter.position();
         int columnIndexCount = 0;

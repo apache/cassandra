@@ -517,9 +517,10 @@ public class MetadataCollector implements PartitionStatisticsCollector
     }
 
     /**
-     * Holds one unfiltered's stats until its bytes are written, then adds them to this collector in the order
-     * they came. The iterator path collects an unfiltered's stats after it writes it, so an early open in the
-     * middle of a row reads the same stats on both paths. Reused for every unfiltered.
+     * Holds the stats of one unfiltered until the writer has written its bytes, then adds them to this
+     * collector in the order they came. The iterator path collects the stats of an unfiltered after it writes
+     * it, so an early open in the middle of a row reads the same stats on both paths. The writer reuses one
+     * buffer for every unfiltered.
      */
     public final class RowStatsBuffer
     {
@@ -585,7 +586,7 @@ public class MetadataCollector implements PartitionStatisticsCollector
         /** Adds the held stats to the collector and clears them. */
         public void addToCollector()
         {
-            // The trackers keep only a min and a max, so adding those two gives the same result as each value.
+            // The trackers keep only a min and a max, so adding those two gives the same result as adding each value.
             if (timestamps.isSet)
             {
                 timestampTracker.update(timestamps.min);

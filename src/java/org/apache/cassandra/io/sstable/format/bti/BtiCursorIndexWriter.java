@@ -31,12 +31,12 @@ import org.apache.cassandra.io.sstable.UnfilteredDescriptor;
 import org.apache.cassandra.io.sstable.format.bti.RowIndexReader.IndexInfo;
 
 /**
- * BTI index production for the cursor writer: a row-index trie per partition
- * ({@link RowIndexWriter}) and a partition index entry ({@link TrieIndexEntry}) appended
- * through {@link BtiTableWriter.IndexWriter}.
+ * Writes the BTI index for the cursor writer: a row index trie for each partition
+ * ({@link RowIndexWriter}), and a partition index entry ({@link TrieIndexEntry}) through
+ * {@link BtiTableWriter.IndexWriter}.
  *
- * It cuts blocks exactly as {@link BtiFormatPartitionWriter} does. A partition with one block
- * writes no row trie and takes a trie root of -1.
+ * It cuts row index blocks exactly as {@link BtiFormatPartitionWriter} does. A partition with
+ * fewer than two blocks writes no row index trie, and its entry takes a trie root of -1.
  */
 public class BtiCursorIndexWriter extends CursorIndexWriter
 {
@@ -49,10 +49,10 @@ public class BtiCursorIndexWriter extends CursorIndexWriter
     private boolean blockOpen; // a first clustering has been captured for the current block
     private int rowIndexBlockCount;
     private DeletionTime blockStartOpenMarker = DeletionTime.LIVE;
-    // the current partition's row trie root, set by finishRowIndex; -1 if the partition has no row trie
+    // the root of the current partition's row index trie, set by finishRowIndex; -1 if the partition has none
     private long trieRoot;
-    // PartitionIndexBuilder still reads the previous two keys while it adds the next one, so three keys are
-    // reused in turn. It copies the keys it keeps for longer.
+    // PartitionIndexBuilder still reads the two previous keys when it adds a key, so this writer cycles
+    // through three reusable keys. PartitionIndexBuilder copies any key it keeps longer than that.
     private final ReusableDecoratedKey[] keySlots = new ReusableDecoratedKey[3];
     private int nextKeySlot;
 

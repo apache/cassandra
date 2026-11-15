@@ -170,7 +170,7 @@ public abstract class SSTableWriter extends SSTable implements Transactional
         return first;
     }
 
-    /** A copy when the writer reuses one key for every partition, so the result does not change with the next one. */
+    /** Returns a copy when the writer reuses one key object for every partition, so a later partition does not change the result. */
     @Override
     public DecoratedKey getLast()
     {

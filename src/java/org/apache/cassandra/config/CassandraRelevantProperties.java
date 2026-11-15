@@ -674,9 +674,9 @@ public enum CassandraRelevantProperties
     TEST_DIFFERENTIAL_BIGVOLUME_ROWS_PER_ROUND("cassandra.test.differential.bigvolume.rows_per_round", "100"),
     TEST_DIFFERENTIAL_BIGVOLUME_VALUE_PADDING("cassandra.test.differential.bigvolume.value_padding", "200"),
     /**
-     * Padding-byte width of the block-boundary sweeps in EdgeCaseDifferentialCompactionTest. It must
-     * exceed the per-row serialization overhead, plus one range tombstone marker for the marker sweep.
-     * Both sweeps fail naming this property if it stops being wide enough to bracket the cut.
+     * How many one-byte padding steps each block-boundary sweep in EdgeCaseDifferentialCompactionTest
+     * walks. It must exceed the serialization overhead of a row, plus one range tombstone marker for the
+     * marker sweep. If the steps do not cross the index block boundary, both sweeps fail and name this property.
      */
     TEST_DIFFERENTIAL_BLOCK_BOUNDARY_SWEEP("cassandra.test.differential.block_boundary.sweep", "160"),
     /** Number of generated examples the randomized differential soak runs; must be > 0. */
@@ -693,15 +693,19 @@ public enum CassandraRelevantProperties
     /** Seed for the randomized differential soak; defaults to the wall clock, logged per example. */
     TEST_DIFFERENTIAL_SEED("cassandra.test.differential.seed"),
     /**
-     * Reads every row of a captured output back through a routed slice, so the BTI row trie is
-     * exercised as an index rather than only compared as bytes. On by default; skipped in scale mode.
+     * Reads the rows of each captured output back through single-row slices, so the test uses the row
+     * index for lookups and does not only compare bytes. On by default. Scale mode skips it.
      */
     TEST_DIFFERENTIAL_SLICE_READBACK("cassandra.test.differential.slice_readback", "true"),
-    /** Per-partition slice cap for the read-back; the default clears the widest current scenario. */
+    /**
+     * The maximum number of rows of one partition that the slice read-back reads, split between the first
+     * and the last rows. The default is above the row count of the widest scenario.
+     */
     TEST_DIFFERENTIAL_SLICE_READBACK_MAX_ROWS("cassandra.test.differential.slice_readback.max_rows", "5000"),
     /**
-     * Upper bound of the randomized soak's per-example row count for its wide partitions; the floor is
-     * a quarter of it. Zero disables the wide partitions, which then fails the soak's row index assertion.
+     * Upper bound of the rows that the randomized soak writes into each wide partition per round. Each
+     * example draws a value between a quarter of this bound (at least 2) and the bound. Zero writes no
+     * wide partition rows, and the soak then fails its row index assertion.
      */
     TEST_DIFFERENTIAL_WIDE_PARTITION_ROWS_PER_ROUND("cassandra.test.differential.wide_partition_rows_per_round", "120"),
     /** Column counts for the pathological wide-table differential test. */

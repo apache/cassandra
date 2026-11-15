@@ -24,10 +24,9 @@ import org.apache.cassandra.db.ColumnFamilyStore;
 import org.apache.cassandra.io.sstable.format.SSTableFormat;
 
 /**
- * Path-agnostic driver scaffolding shared by every differential engine that consumes the
- * {@link DifferentialSchemas#minimalCorpus() minimal schema corpus}. It carries no compaction, flush, or
- * read dependency, so the compaction tester and any future read-path (CASSANDRA-20428) or flush-path
- * (CASSANDRA-21554) tester can extend it directly instead of extending the compaction engine.
+ * Shared setup for differential tests that run the {@link DifferentialSchemas#minimalCorpus() minimal
+ * schema corpus}. It depends on no compaction, flush or read type. A read-path (CASSANDRA-20428) or
+ * flush-path (CASSANDRA-21554) tester can extend it without extending the compaction tester.
  */
 public abstract class DifferentialCorpusDriver extends CQLTester
 {

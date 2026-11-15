@@ -55,7 +55,7 @@ public class HarryDifferentialCompactionTest extends DifferentialCompactionTeste
         // Check format support before entering withRandom, which would turn a skip into a failure.
         assumeCursorSupportedFormatSelected();
 
-        // replay with -Dcassandra.test.differential.seed=N, through test-isolated.sh or -Dtest.jvm.args
+        // To replay, pass -Dcassandra.test.differential.seed=N inside -Dtest.jvm.args.
         String seedProperty = CassandraRelevantProperties.TEST_DIFFERENTIAL_SEED.getKey();
         boolean seedFromProperty = CassandraRelevantProperties.TEST_DIFFERENTIAL_SEED.isPresent();
         long seed = CassandraRelevantProperties.TEST_DIFFERENTIAL_SEED.getLong(System.currentTimeMillis());

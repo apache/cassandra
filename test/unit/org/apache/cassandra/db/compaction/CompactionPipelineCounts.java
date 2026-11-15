@@ -57,7 +57,11 @@ public final class CompactionPipelineCounts
         return AbstractCompactionPipeline.iteratorPipelinesCreated();
     }
 
-    /** Asserts a compaction selecting the expected pipeline ran since {@code before}, and that no cursor pipeline was created while cursor compaction was off. */
+    /**
+     * Asserts that at least one compaction selected the expected pipeline since {@code before}. This is a lower
+     * bound, because other tables' compactions move the same static counters. If cursor compaction was off at
+     * {@code before} and is still off, also asserts that no cursor pipeline was created.
+     */
     public static void assertPipelineRan(boolean expectCursor, CompactionPipelineCounts before)
     {
         CompactionPipelineCounts after = mark();

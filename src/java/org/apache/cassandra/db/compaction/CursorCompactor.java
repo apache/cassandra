@@ -114,10 +114,10 @@ import static org.apache.cassandra.io.sstable.SSTableCursorReader.State.isState;
  *   <li>Keeps track of the compaction progress.</li>
  * </ul>
  * This compaction implementation writes the BIG and BTI output formats and supports complex
- * (collection and UDT) columns. It does not support 2ndary indexes, counter columns, or a
- * multi-cell column that the schema has dropped. It also stands aside for a compaction that
- * ignores gc grace for a key. See {@link #isSupported} and {@link #unsupportedMetadata} for
- * the full list of checks.
+ * (collection and UDT) columns. It does not support secondary indexes, counter columns, or a
+ * multi-cell column that the schema has dropped. A compaction that ignores gc grace for a key
+ * uses the iterator path. See {@link #isSupported} and {@link #unsupportedMetadata} for the
+ * full list of checks.
  * <p>
  * To avoid creating garbage for each partition, row, and cell, this compactor reuses reader and
  * writer objects that copy sstable components in place. That reuse is why some code here is
@@ -363,7 +363,7 @@ public class CursorCompactor extends CompactionInfo.Holder
 
     private static final Logger LOGGER = LoggerFactory.getLogger(CursorCompactor.class.getName());
 
-    /** Merged unfiltereds between progress refreshes, as {@link CompactionIterator} uses. */
+    /** Merged unfiltereds between progress refreshes. {@link CompactionIterator} uses the same value. */
     private static final long UNFILTERED_TO_UPDATE_PROGRESS = 128;
 
     private final OperationType type;
@@ -546,10 +546,10 @@ public class CursorCompactor extends CompactionInfo.Holder
     }
 
     /**
-     * Mirrors {@link CompactionIterator}'s purger: accord-enabled (and accord-migrating) tables
-     * purge and expire relative to gcBefore — derived from accord's durability bounds by
-     * CompactionTask.getCompactionController — retaining data accord may still read at earlier
-     * timestamps. Every nowInSec use in this class is a purge/expiry decision.
+     * Returns the time that purge and expiry decisions use. Every nowInSec use in this class is one.
+     * Like the purger of {@link CompactionIterator}, an accord-enabled or accord-migrating table uses
+     * gcBefore. CompactionTask.getCompactionController derives gcBefore from the Accord durability
+     * bounds, so the output keeps data that Accord can still read at earlier timestamps.
      */
     private static long purgeTimestamp(AbstractCompactionController controller, long nowInSec)
     {
@@ -2358,9 +2358,8 @@ public class CursorCompactor extends CompactionInfo.Holder
     }
 
     /**
-     * Refreshes progress from every cursor, so that a large partition moves
-     * {@code nodetool compactionstats} while it is being merged. Matches
-     * {@link CompactionIterator}, which refreshes on the same cadence.
+     * Refreshes progress from every cursor, so that {@code nodetool compactionstats} moves while a
+     * large partition is merged.
      */
     private void updateTotalBytesRead()
     {

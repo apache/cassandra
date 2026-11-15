@@ -605,7 +605,7 @@ public class EdgeCaseDifferentialCompactionTest extends DifferentialCompactionTe
                      blockCount(output, 2L));
     }
 
-    /** Promoted index block count for {@code pk} in {@code sstable}; 0 when the partition is not indexed. */
+    /** Row index block count for {@code pk} in {@code sstable}; 0 when the partition has no row index. */
     private static int blockCount(SSTableReader sstable, long pk)
     {
         AbstractRowIndexEntry entry = sstable.getRowIndexEntry(sstable.decorateKey(ByteBufferUtil.bytes(pk)),

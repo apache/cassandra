@@ -58,7 +58,7 @@ import static org.junit.Assert.assertTrue;
 @RunWith(Parameterized.class)
 public abstract class SimpleCompactionTest extends CQLTester
 {
-    /** One run of every scenario: how compaction reads, which path it takes, and the output format. */
+    /** The settings for one run of a scenario: the compaction read mode, the compaction path, and the output format. */
     public static final class Params
     {
         public final DiskAccessMode diskAccessMode;
@@ -123,7 +123,10 @@ public abstract class SimpleCompactionTest extends CQLTester
         TestHelper.teardown();
     }
 
-    /** Fails before compacting if cursor compaction is unsupported for this table. */
+    /**
+     * Fails if this run asks for the cursor path and the selected format supports it, but these sstables cannot use it.
+     * Call this on the input sstables before compacting.
+     */
     protected void assertCursorPathWillRun(ColumnFamilyStore cfs)
     {
         if (!params.cursorCompaction)

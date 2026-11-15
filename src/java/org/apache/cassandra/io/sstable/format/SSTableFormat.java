@@ -56,8 +56,9 @@ public interface SSTableFormat<R extends SSTableReader, W extends SSTableWriter>
     SSTableReaderFactory<R, ?> getReaderFactory();
 
     /**
-     * Builds the index writers that cursor compaction uses for this format, or null when cursor compaction
-     * cannot write this format. A format that returns one writes with {@link SortedTableWriter}s.
+     * Returns the factory for the index writers that cursor compaction uses with this format, or null if
+     * cursor compaction cannot write this format. A format that returns a factory writes with a
+     * {@link SortedTableWriter}.
      */
     default @Nullable CursorIndexWriter.Factory cursorIndexWriterFactory()
     {

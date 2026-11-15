@@ -39,43 +39,37 @@ import static org.junit.Assert.assertTrue;
 
 /**
  * Burn counterpart to {@link ParameterizedCompactionDifferentialTest}. It runs the same
- * {@link DifferentialSchemas#minimalCorpus() corpus} at a large scale, under BTI only, so at least
- * {@link #MIN_TOTAL_ROWS} rows flow through the cursor-vs-iterator differential.
+ * {@link DifferentialSchemas#minimalCorpus() corpus} under BTI at a large scale. It fails unless at least
+ * {@link #MIN_TOTAL_ROWS} rows go through the cursor-vs-iterator differential. It is a separate class so the
+ * matrix stays fast.
  *
- * <p>It is a separate class from the matrix so the matrix stays fast. Three system properties drive it:
+ * <p>These system properties drive it:
  * <ul>
  *   <li>{@link CassandraRelevantProperties#TEST_COMPACTION_BURN_SCALE} sizes each shape (default
  *       {@link #DEFAULT_SCALE}).</li>
- *   <li>{@link CassandraRelevantProperties#TEST_COMPACTION_BURN_MINUTES} is a wall-clock budget. Above zero,
- *       the corpus repeats in rounds until the budget elapses, so the burn can soak for hours. Zero (the
- *       default) runs one round and keeps {@code ant test} fast.</li>
+ *   <li>{@link CassandraRelevantProperties#TEST_COMPACTION_BURN_MINUTES} is a wall-clock budget in minutes
+ *       (default 0).</li>
+ *   <li>{@link CassandraRelevantProperties#TEST_COMPACTION_BURN_TARGET_ROWS} is a row target (default 0).</li>
  *   <li>{@link CassandraRelevantProperties#TEST_COMPACTION_BURN_CHECKPOINT} is the path of the progress file
  *       (default {@code build/test/logs/burn-checkpoint.tsv}).</li>
  * </ul>
+ * The corpus repeats in rounds until the time budget elapses and the row target is reached. With both at 0,
+ * the corpus runs once.
  *
- * <p>Two design choices let the burn soak for a long time and lose no validated work if it fails:
- * <ul>
- *   <li><b>Flat memory.</b> The run drops each shape's table once its check passes, so the heap holds only
- *       one shape at a time. Scale and duration are then free knobs, not a march toward an out-of-memory
- *       error.</li>
- *   <li><b>Durable checkpoint.</b> The run appends one fsync'd line per shape. If the JVM dies, that file
- *       records which shapes passed and how much data was validated.</li>
- * </ul>
+ * <p>Each shape's table is dropped once its check passes, so the heap holds one shape at a time. Each passed
+ * shape appends one fsync'd line to the progress file, so the file survives a JVM crash.
  *
- * <p>To raise scale or duration, run through {@code test-isolated.sh}. It forwards every {@code -Dcassandra.*}
- * argument into the forked test JVM, so {@code -Dcassandra.test.compaction_burn_scale=N} and
- * {@code -Dcassandra.test.compaction_burn_minutes=M} reach the test. On a raw ant line a bare {@code -D} does
- * not reach the fork; pass it inside {@code -Dtest.jvm.args="..."} instead.
+ * <p>On an ant line, pass these properties inside {@code -Dtest.jvm.args="..."}. A bare {@code -D} does not
+ * reach the forked test JVM.
  */
 public class BurnCompactionDifferentialTest extends DifferentialCompactionTester
 {
     /** Default scale, chosen so the corpus yields at least {@link #MIN_TOTAL_ROWS} rows. */
     static final int DEFAULT_SCALE = 80;
 
-    /** The floor the run must clear, proving it is a real burn and not a shrunken matrix. */
+    /** The fewest rows a run may compact and still pass. */
     static final long MIN_TOTAL_ROWS = 100_000;
 
-    /** Digest-mode capture: the logical dump is streamed into a SHA-256, so capture memory stays flat. */
     @Override
     protected boolean scaleCapture()
     {
@@ -134,8 +128,7 @@ public class BurnCompactionDifferentialTest extends DifferentialCompactionTester
                     totalUncompressed += shape.uncompressedBytes;
                     long elapsedSec = (System.nanoTime() - startNanos) / 1_000_000_000L;
 
-                    // Durable, flushed record BEFORE the next shape starts: a crash after this line still
-                    // leaves proof that this shape passed and how much data has been validated.
+                    // record the pass before the next shape starts, so a crash keeps it
                     checkpoint.record(String.format("round=%d\tshape=%d/%d\t%s\trows=%d\tbytes=%d\tuncompressed=%d\t" +
                                                     "cumulative_rows=%d\tcumulative_bytes=%d\tcumulative_uncompressed=%d\telapsed_s=%d\tPASS",
                                                     round, shapeNum, corpus.size(), schema.name(),
@@ -147,8 +140,7 @@ public class BurnCompactionDifferentialTest extends DifferentialCompactionTester
                                 shape.rows, shape.bytes, shape.uncompressedBytes,
                                 totalRows, totalBytes, totalUncompressed, elapsedSec);
                 }
-                // Keep going while either budget still wants more rounds: the time budget has not elapsed, or
-                // the row target has not been reached. With neither property set, the corpus runs exactly once.
+                // run another round while the time budget has not elapsed or the row target has not been reached
                 boolean underTimeBudget = deadlineNanos != 0 && System.nanoTime() < deadlineNanos;
                 boolean underRowTarget = targetRows > 0 && totalRows < targetRows;
                 if (!underTimeBudget && !underRowTarget)
@@ -177,9 +169,7 @@ public class BurnCompactionDifferentialTest extends DifferentialCompactionTester
         ColumnFamilyStore cfs = writeAndGuardShape(schema, scale, round == 1);
         ShapeStats stats = ShapeStats.measure(cfs);
         assertCursorMatchesIteratorForShape(cfs, schema);
-        // Flat memory: release this shape's sstables and memtable before the next shape allocates. The drop
-        // must run while currentTable() is still this shape; writeAndGuardShape left it there and the
-        // assertion above operates on the passed cfs without creating a new table.
+        // "DROP TABLE %s" targets currentTable(), which is still this shape: neither call above creates a table.
         dropTable("DROP TABLE %s");
         return stats;
     }
@@ -215,8 +205,9 @@ public class BurnCompactionDifferentialTest extends DifferentialCompactionTester
     }
 
     /**
-     * A tiny append-only progress log that flushes and fsyncs every line, so a JVM crash or kill loses no
-     * record of the work already validated. Each line is one shape's PASS plus the running row total.
+     * An append-only progress file. It flushes and fsyncs each line, so a JVM crash or kill keeps every line
+     * already written. A line that starts with {@code #} marks the start or end of a run. Each other line
+     * records one passed shape and the running totals.
      */
     private static final class BurnCheckpoint implements AutoCloseable
     {
@@ -232,7 +223,7 @@ public class BurnCompactionDifferentialTest extends DifferentialCompactionTester
             Path parent = path.toAbsolutePath().getParent();
             if (parent != null)
                 Files.createDirectories(parent);
-            // APPEND so an earlier round's record is never truncated away by a restart.
+            // append, so a restart keeps the lines of earlier runs
             return new BurnCheckpoint(new FileOutputStream(path.toFile(), true));
         }
 

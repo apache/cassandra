@@ -50,9 +50,10 @@ import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertTrue;
 
 /**
- * Each guardrail that compaction checks fires the same way on the cursor compaction path as on the
- * iterator path. A FAIL on a background compaction does not throw (it has no client state); it emits
- * a {@code FAILED} diagnostic event, which is what these tests compare.
+ * Each guardrail that compaction checks must fire the same way on the cursor path as on the iterator
+ * path. These tests compare the {@code WARNED} and {@code FAILED} diagnostic events of the two paths.
+ * A failure on a background compaction has no client state, so it emits a {@code FAILED} event and
+ * does not throw.
  */
 public class GuardrailCompactionTest extends DifferentialCompactionTester
 {
@@ -63,9 +64,9 @@ public class GuardrailCompactionTest extends DifferentialCompactionTester
     public final GuardrailSettings guardrails = new GuardrailSettings();
 
     /**
-     * items_per_collection, both thresholds in one compaction: k=1 crosses only warn, k=2 crosses
-     * fail, and k=3 stays under both. Each list's two halves stay under the thresholds alone, so the
-     * merge is what trips the guardrail.
+     * Checks both items_per_collection thresholds in one compaction. k=1 crosses only the warn threshold,
+     * k=2 crosses the fail threshold, and k=3 stays under both. Each half stays under the threshold that
+     * its merged list crosses, so the merge is what trips the guardrail.
      */
     @Test
     public void itemsPerCollectionWarnsAndFailsOnCursorPathLikeIterator() throws Exception
@@ -103,7 +104,7 @@ public class GuardrailCompactionTest extends DifferentialCompactionTester
     {
         assumeCursorSupportedFormatSelected();
 
-        // warn at 2048B, fail at 4096B: the merged map crosses fail.
+        // warn above 2048B, fail above 4096B: the merged map crosses the fail threshold.
         Guardrails.instance.setCollectionSizeThreshold("2048B", "4096B");
         EventCollector events = guardrails.collect(true, Guardrails.collectionSize.name, Guardrails.itemsPerCollection.name);
 
@@ -121,7 +122,7 @@ public class GuardrailCompactionTest extends DifferentialCompactionTester
     {
         assumeCursorSupportedFormatSelected();
 
-        // Small enough that the two halves of one set cross it only once merged.
+        // The 1024B warn threshold is small enough that only the merged set crosses it.
         Guardrails.instance.setCollectionSizeThreshold("1024B", "4096B");
         EventCollector events = guardrails.collect(false, Guardrails.collectionSize.name);
 
@@ -140,7 +141,7 @@ public class GuardrailCompactionTest extends DifferentialCompactionTester
     {
         assumeCursorSupportedFormatSelected();
 
-        // Small enough that the two halves of one static set cross it only once merged.
+        // The 1024B warn threshold is small enough that only the merged static set crosses it.
         Guardrails.instance.setCollectionSizeThreshold("1024B", "4096B");
         EventCollector events = guardrails.collect(false, Guardrails.collectionSize.name);
 
@@ -159,7 +160,7 @@ public class GuardrailCompactionTest extends DifferentialCompactionTester
     {
         assumeCursorSupportedFormatSelected();
 
-        // Small enough that one partition's two halves cross it only once merged; the other stays under.
+        // The 4096B warn threshold is small enough that only the merged k=1 partition crosses it; k=2 stays under.
         Guardrails.instance.setPartitionSizeThreshold("4096B", "1048576B");
         EventCollector events = guardrails.collect(false, Guardrails.partitionSize.name);
 
@@ -284,10 +285,9 @@ public class GuardrailCompactionTest extends DifferentialCompactionTester
         ColumnFamilyStore cfs = getCurrentColumnFamilyStore();
         cfs.disableAutoCompaction();
 
-        // Fixed timestamps keep both fixtures byte-identical: a wall-clock write timestamp is
-        // vint-encoded in the data file, so it would otherwise nudge the partition size a byte or
-        // two between the iterator-path build and the cursor-path build, and the reported sizes
-        // would not compare equal.
+        // Fixed timestamps keep the two fixtures the same size. A wall-clock timestamp is vint-encoded,
+        // so its size can differ between the iterator-path fixture and the cursor-path fixture, and the
+        // reported partition sizes would not match.
         for (int c = 0; c < 3; c++)
             execute("INSERT INTO %s (k, c, v) VALUES (1, ?, ?) USING TIMESTAMP ?", c, allocate(1024), 100L + c);
         execute("INSERT INTO %s (k, c, v) VALUES (2, 0, ?) USING TIMESTAMP 200", allocate(64));
@@ -341,10 +341,9 @@ public class GuardrailCompactionTest extends DifferentialCompactionTester
     }
 
     /**
-     * Asserts the compaction emitted exactly one event of the given type and guardrail. The diagnostic
-     * message is redacted (it carries user data), so the offending partition key is not in it; the count
-     * of exactly one is what proves only the offending collection tripped and the within-threshold one in
-     * the same fixture stayed silent.
+     * Asserts the compaction emitted exactly one event, of the given type and guardrail. The message is
+     * redacted, so it does not name the partition key. The count of one shows that the within-threshold
+     * collection in the same fixture stayed silent.
      */
     private static void assertContainsExactlyOneEvent(List<String> events, GuardrailEventType type, String guardrail)
     {

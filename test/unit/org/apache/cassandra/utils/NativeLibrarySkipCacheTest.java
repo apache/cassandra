@@ -29,7 +29,7 @@ import org.junit.runner.RunWith;
 import static org.junit.Assert.assertEquals;
 
 /**
- * A skip-cache request longer than one fadvise call can take is split into ranges that follow each other.
+ * trySkipCache splits a request longer than Integer.MAX_VALUE bytes into ranges that follow each other, one fadvise call per range.
  */
 @RunWith(BMUnitRunner.class)
 @BMRule(name = "record each fadvise range",
