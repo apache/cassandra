@@ -370,7 +370,7 @@ public class AutoRepairUtilsTest extends CQLTester
         SchemaConstants.DISTRIBUTED_KEYSPACE_NAME, SystemDistributedKeyspace.AUTO_REPAIR_HISTORY,
         repairType.toString(), hostId));
 
-        AutoRepairUtils.updateFinishAutoRepairHistory(repairType, hostId, 123);
+        AutoRepairUtils.updateFinishAutoRepairHistory(repairType, hostId, 123, false);
 
         UntypedResultSet result = QueryProcessor.executeInternal(String.format(
         "SELECT repair_finish_ts FROM %s.%s WHERE repair_type = '%s' AND host_id = %s",
@@ -379,6 +379,108 @@ public class AutoRepairUtilsTest extends CQLTester
         assertNotNull(result);
         assertEquals(1, result.size());
         assertEquals(123, result.one().getLong(COL_REPAIR_FINISH_TS, 0));
+    }
+
+    @Test
+    public void testUpdateFinishAutoRepairHistoryPreservesForceRepair()
+    {
+        QueryProcessor.executeInternal(String.format(
+        "INSERT INTO %s.%s (repair_type, host_id, force_repair) VALUES ('%s', %s, true)",
+        SchemaConstants.DISTRIBUTED_KEYSPACE_NAME, SystemDistributedKeyspace.AUTO_REPAIR_HISTORY,
+        repairType.toString(), hostId));
+
+        assertTrue(AutoRepairUtils.isForceRepairSetForNode(repairType, hostId));
+
+        AutoRepairUtils.updateFinishAutoRepairHistory(repairType, hostId, 123, false);
+
+        // repair_finish_ts advanced ...
+        UntypedResultSet result = QueryProcessor.executeInternal(String.format(
+        "SELECT repair_finish_ts FROM %s.%s WHERE repair_type = '%s' AND host_id = %s",
+        SchemaConstants.DISTRIBUTED_KEYSPACE_NAME, SystemDistributedKeyspace.AUTO_REPAIR_HISTORY,
+        repairType.toString(), hostId));
+        assertNotNull(result);
+        assertEquals(123, result.one().getLong(COL_REPAIR_FINISH_TS, 0));
+
+        // ... but the pending force_repair flag is left untouched.
+        assertTrue("normal repair finish must not clear a pending force_repair flag",
+                   AutoRepairUtils.isForceRepairSetForNode(repairType, hostId));
+    }
+
+    @Test
+    public void testUpdateFinishForceAdvancesFinishAndClearsFlag()
+    {
+        QueryProcessor.executeInternal(String.format(
+        "INSERT INTO %s.%s (repair_type, host_id, repair_start_ts, repair_finish_ts, force_repair) VALUES ('%s', %s, 1000, 2000, true)",
+        SchemaConstants.DISTRIBUTED_KEYSPACE_NAME, SystemDistributedKeyspace.AUTO_REPAIR_HISTORY,
+        repairType.toString(), hostId));
+
+        assertTrue(AutoRepairUtils.isForceRepairSetForNode(repairType, hostId));
+
+        AutoRepairUtils.updateFinishAutoRepairHistory(repairType, hostId, 5000, true);
+
+        // force_repair cleared ...
+        assertFalse(AutoRepairUtils.isForceRepairSetForNode(repairType, hostId));
+        // ... and repair_finish_ts advanced in the same write.
+        UntypedResultSet result = QueryProcessor.executeInternal(String.format(
+        "SELECT repair_finish_ts FROM %s.%s WHERE repair_type = '%s' AND host_id = %s",
+        SchemaConstants.DISTRIBUTED_KEYSPACE_NAME, SystemDistributedKeyspace.AUTO_REPAIR_HISTORY,
+        repairType.toString(), hostId));
+        assertNotNull(result);
+        assertEquals(5000, result.one().getLong(COL_REPAIR_FINISH_TS, 0));
+    }
+
+    @Test
+    public void testResetForcedRepairEndsOngoingWithoutRecordingSuccess()
+    {
+        // Ongoing (start 5000 > finish 2000) force repair.
+        QueryProcessor.executeInternal(String.format(
+        "INSERT INTO %s.%s (repair_type, host_id, repair_start_ts, repair_finish_ts, force_repair, repair_turn) VALUES ('%s', %s, 5000, 2000, true, '%s')",
+        SchemaConstants.DISTRIBUTED_KEYSPACE_NAME, SystemDistributedKeyspace.AUTO_REPAIR_HISTORY,
+        repairType.toString(), hostId, AutoRepairUtils.RepairTurn.MY_TURN_FORCE_REPAIR.name()));
+
+        assertTrue(AutoRepairUtils.isForceRepairSetForNode(repairType, hostId));
+
+        AutoRepairUtils.resetForcedRepair(repairType, hostId);
+
+        // Flag cleared ...
+        assertFalse(AutoRepairUtils.isForceRepairSetForNode(repairType, hostId));
+
+        UntypedResultSet result = QueryProcessor.executeInternal(String.format(
+        "SELECT repair_start_ts, repair_finish_ts FROM %s.%s WHERE repair_type = '%s' AND host_id = %s",
+        SchemaConstants.DISTRIBUTED_KEYSPACE_NAME, SystemDistributedKeyspace.AUTO_REPAIR_HISTORY,
+        repairType.toString(), hostId));
+        assertNotNull(result);
+        UntypedResultSet.Row row = result.one();
+        // repair_finish_ts untouched ...
+        assertEquals(2000, row.getLong(COL_REPAIR_FINISH_TS, 0));
+        // ... repair_start_ts rewound to repair_finish_ts, so record is no longer ongoing (start <= finish).
+        assertEquals(2000, row.getLong(COL_REPAIR_START_TS, 0));
+    }
+
+    @Test
+    public void testResetForcedRepairWhenFinishTsUnset()
+    {
+        // force repair in progress (ongoing) but repair_finish_ts never set.
+        QueryProcessor.executeInternal(String.format(
+        "INSERT INTO %s.%s (repair_type, host_id, repair_start_ts, force_repair, repair_turn) VALUES ('%s', %s, 5000, true, '%s')",
+        SchemaConstants.DISTRIBUTED_KEYSPACE_NAME, SystemDistributedKeyspace.AUTO_REPAIR_HISTORY,
+        repairType.toString(), hostId, AutoRepairUtils.RepairTurn.MY_TURN_FORCE_REPAIR.name()));
+
+        assertTrue(AutoRepairUtils.isForceRepairSetForNode(repairType, hostId));
+
+        AutoRepairUtils.resetForcedRepair(repairType, hostId);
+
+        assertFalse(AutoRepairUtils.isForceRepairSetForNode(repairType, hostId));
+
+        UntypedResultSet result = QueryProcessor.executeInternal(String.format(
+        "SELECT repair_start_ts, repair_finish_ts FROM %s.%s WHERE repair_type = '%s' AND host_id = %s",
+        SchemaConstants.DISTRIBUTED_KEYSPACE_NAME, SystemDistributedKeyspace.AUTO_REPAIR_HISTORY,
+        repairType.toString(), hostId));
+        assertNotNull(result);
+        UntypedResultSet.Row row = result.one();
+        // repair_start_ts rewound to 0 (finish was unset) -> not ongoing; finish still unset (0).
+        assertEquals(0, row.getLong(COL_REPAIR_START_TS, 0));
+        assertEquals(0, row.getLong(COL_REPAIR_FINISH_TS, 0));
     }
 
     @Test
@@ -552,6 +654,19 @@ public class AutoRepairUtilsTest extends CQLTester
         UUID myID = UUID.randomUUID();
 
         assertEquals(0, AutoRepairUtils.getLastRepairStartTimeForNode(repairType, myID));
+    }
+
+    @Test
+    public void testGetLastRepairFinishTimeForNodeWhenFinishTsUnset()
+    {
+        UUID myID = UUID.randomUUID();
+
+        QueryProcessor.executeInternal(String.format(
+        "INSERT INTO %s.%s (repair_type, host_id, repair_start_ts, force_repair) VALUES ('%s', %s, 1000, true)",
+        SchemaConstants.DISTRIBUTED_KEYSPACE_NAME, SystemDistributedKeyspace.AUTO_REPAIR_HISTORY,
+        repairType.toString(), myID));
+
+        assertEquals(0, AutoRepairUtils.getLastRepairFinishTimeForNode(repairType, myID));
     }
 
     @Test
