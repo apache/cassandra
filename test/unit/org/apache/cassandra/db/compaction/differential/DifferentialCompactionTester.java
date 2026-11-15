@@ -521,6 +521,16 @@ public abstract class DifferentialCompactionTester extends DifferentialCorpusDri
         return outputs;
     }
 
+    /** The readers an offline transaction holds for its outputs: everything it shows that is not an input. */
+    protected static List<SSTableReader> offlineOutputs(LifecycleTransaction offline, Set<SSTableReader> inputs)
+    {
+        List<SSTableReader> outputs = new ArrayList<>();
+        for (SSTableReader reader : offline.current())
+            if (!inputs.contains(reader))
+                outputs.add(reader);
+        return outputs;
+    }
+
     /** Asserts the cursor path would actually run for this scenario, so it cannot compare iterator vs iterator. */
     protected void assertCursorPathWillRun(ColumnFamilyStore cfs, Set<SSTableReader> inputs, long gcBefore) throws Exception
     {

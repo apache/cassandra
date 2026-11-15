@@ -19,7 +19,9 @@
 package org.apache.cassandra.db.compaction.differential;
 
 import java.lang.reflect.Field;
+import java.util.ArrayList;
 import java.util.HashSet;
+import java.util.List;
 import java.util.Set;
 import java.util.concurrent.atomic.AtomicLong;
 
@@ -286,25 +288,35 @@ public class CompactionPerPartitionWorkTest extends DifferentialCompactionTester
             Set<SSTableReader> fresh = new HashSet<>();
             for (Descriptor d : inputDescs)
                 fresh.add(SSTableReader.open(cfs, d));
-            if (cursor)
-                assertCursorPathWillRun(cfs, fresh, gcBefore);
-
-            try (LifecycleTransaction offline = LifecycleTransaction.offline(OperationType.COMPACTION, fresh))
+            List<SSTableReader> outputs = new ArrayList<>();
+            try
             {
-                CompactionPipelineCounts before = CompactionPipelineCounts.mark();
-                startCounting();
-                new CompactionTask(cfs, offline, gcBefore, true).execute(ActiveCompactionsTracker.NOOP);
-                countingThread = null;
-                CompactionPipelineCounts.assertPipelineRan(cursor, before);
+                if (cursor)
+                    assertCursorPathWillRun(cfs, fresh, gcBefore);
+
+                try (LifecycleTransaction offline = LifecycleTransaction.offline(OperationType.COMPACTION, fresh))
+                {
+                    CompactionPipelineCounts before = CompactionPipelineCounts.mark();
+                    startCounting();
+                    new CompactionTask(cfs, offline, gcBefore, true).execute(ActiveCompactionsTracker.NOOP);
+                    countingThread = null;
+                    CompactionPipelineCounts.assertPipelineRan(cursor, before);
+                    // an offline task returns without releasing its output readers; take them so they can be released
+                    outputs.addAll(offlineOutputs(offline, fresh));
+                }
+
+                long intervals = inputBytes / (OPEN_INTERVAL_MIB << 20) + 1;
+                assertTrue("the compaction never crossed the open interval, so this proves nothing", cacheSkips.get() > 0);
+                assertTrue(String.format("cursor=%s: %d file cache skips for %d originals over at most %d intervals",
+                                         cursor, cacheSkips.get(), inputDescs.size(), intervals),
+                           cacheSkips.get() <= inputDescs.size() * intervals);
             }
-
-            long intervals = inputBytes / (OPEN_INTERVAL_MIB << 20) + 1;
-            assertTrue("the compaction never crossed the open interval, so this proves nothing", cacheSkips.get() > 0);
-            assertTrue(String.format("cursor=%s: %d file cache skips for %d originals over at most %d intervals",
-                                     cursor, cacheSkips.get(), inputDescs.size(), intervals),
-                       cacheSkips.get() <= inputDescs.size() * intervals);
-
-            deleteOutputs(dataDir, inputDescs);
+            finally
+            {
+                fresh.forEach(r -> r.selfRef().release());
+                outputs.forEach(r -> r.selfRef().release());
+                deleteOutputs(dataDir, inputDescs);
+            }
         }
         finally
         {
