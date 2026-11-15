@@ -19,11 +19,16 @@
 package org.apache.cassandra.db.compaction.differential;
 
 import java.util.ArrayList;
+import java.util.Collection;
 import java.util.Comparator;
 import java.util.List;
 import java.util.Set;
 
+import org.junit.After;
+import org.junit.Before;
 import org.junit.Test;
+import org.junit.runner.RunWith;
+import org.junit.runners.Parameterized;
 
 import org.apache.cassandra.Util;
 import org.apache.cassandra.config.DatabaseDescriptor;
@@ -48,8 +53,30 @@ import static org.junit.Assert.assertTrue;
  * The cursor path splits compaction output across data directories at the same partitions as the
  * iterator path, and every output holds only keys belonging to its directory.
  */
+@RunWith(Parameterized.class)
 public class CursorDiskBoundaryDifferentialTest extends DifferentialCompactionTester
 {
+    @Parameterized.Parameter
+    public String format;
+
+    @Parameterized.Parameters(name = "format={0}")
+    public static Collection<Object[]> formats()
+    {
+        return List.of(new Object[]{ "big" }, new Object[]{ "bti" });
+    }
+
+    @Before
+    public void selectFormat()
+    {
+        selectSSTableFormat(format);
+    }
+
+    @After
+    public void restoreFormat()
+    {
+        restoreSelectedFormat();
+    }
+
     private static final int DIRECTORIES = 3;
     private static final int PARTITIONS = 600;
 

@@ -20,6 +20,7 @@ package org.apache.cassandra.db.guardrails;
 
 import java.io.Serializable;
 import java.util.ArrayList;
+import java.util.Collection;
 import java.util.Comparator;
 import java.util.List;
 import java.util.Map;
@@ -31,9 +32,13 @@ import java.util.function.ToLongFunction;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
+import org.junit.After;
+import org.junit.Before;
 import org.junit.Rule;
 import org.junit.Test;
 import org.junit.rules.ExternalResource;
+import org.junit.runner.RunWith;
+import org.junit.runners.Parameterized;
 
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.db.ColumnFamilyStore;
@@ -55,8 +60,30 @@ import static org.junit.Assert.assertTrue;
  * A failure on a background compaction has no client state, so it emits a {@code FAILED} event and
  * does not throw.
  */
+@RunWith(Parameterized.class)
 public class GuardrailCompactionTest extends DifferentialCompactionTester
 {
+    @Parameterized.Parameter
+    public String format;
+
+    @Parameterized.Parameters(name = "format={0}")
+    public static Collection<Object[]> formats()
+    {
+        return List.of(new Object[]{ "big" }, new Object[]{ "bti" });
+    }
+
+    @Before
+    public void selectFormat()
+    {
+        selectSSTableFormat(format);
+    }
+
+    @After
+    public void restoreFormat()
+    {
+        restoreSelectedFormat();
+    }
+
     /** Row tombstones in the tombstone fixture. */
     private static final int ROW_TOMBSTONES = 5;
 
@@ -71,8 +98,6 @@ public class GuardrailCompactionTest extends DifferentialCompactionTester
     @Test
     public void itemsPerCollectionWarnsAndFailsOnCursorPathLikeIterator() throws Exception
     {
-        assumeCursorSupportedFormatSelected();
-
         // warn above 2 items, fail above 4.
         Guardrails.instance.setItemsPerCollectionThreshold(2, 4);
         EventCollector events = guardrails.collect(true, Guardrails.itemsPerCollection.name);
@@ -102,8 +127,6 @@ public class GuardrailCompactionTest extends DifferentialCompactionTester
     @Test
     public void collectionSizeFailsOnCursorPathLikeIterator() throws Exception
     {
-        assumeCursorSupportedFormatSelected();
-
         // warn above 2048B, fail above 4096B: the merged map crosses the fail threshold.
         Guardrails.instance.setCollectionSizeThreshold("2048B", "4096B");
         EventCollector events = guardrails.collect(true, Guardrails.collectionSize.name, Guardrails.itemsPerCollection.name);
@@ -120,8 +143,6 @@ public class GuardrailCompactionTest extends DifferentialCompactionTester
     @Test
     public void bothPipelinesReportTheSameOversizedCollection() throws Exception
     {
-        assumeCursorSupportedFormatSelected();
-
         // The 1024B warn threshold is small enough that only the merged set crosses it.
         Guardrails.instance.setCollectionSizeThreshold("1024B", "4096B");
         EventCollector events = guardrails.collect(false, Guardrails.collectionSize.name);
@@ -139,8 +160,6 @@ public class GuardrailCompactionTest extends DifferentialCompactionTester
     @Test
     public void bothPipelinesReportTheSameOversizedStaticCollection() throws Exception
     {
-        assumeCursorSupportedFormatSelected();
-
         // The 1024B warn threshold is small enough that only the merged static set crosses it.
         Guardrails.instance.setCollectionSizeThreshold("1024B", "4096B");
         EventCollector events = guardrails.collect(false, Guardrails.collectionSize.name);
@@ -158,8 +177,6 @@ public class GuardrailCompactionTest extends DifferentialCompactionTester
     @Test
     public void bothPipelinesReportTheSameOversizedPartition() throws Exception
     {
-        assumeCursorSupportedFormatSelected();
-
         // The 4096B warn threshold is small enough that only the merged k=1 partition crosses it; k=2 stays under.
         Guardrails.instance.setPartitionSizeThreshold("4096B", "1048576B");
         EventCollector events = guardrails.collect(false, Guardrails.partitionSize.name);
@@ -179,8 +196,6 @@ public class GuardrailCompactionTest extends DifferentialCompactionTester
     @Test
     public void bothPipelinesWarnAtTheSameTombstoneCount() throws Exception
     {
-        assumeCursorSupportedFormatSelected();
-
         // The fixture's tombstone total sits just above the warn threshold.
         Guardrails.instance.setPartitionTombstonesThreshold(ROW_TOMBSTONES, 1000);
         EventCollector events = guardrails.collect(false, Guardrails.partitionTombstones.name);

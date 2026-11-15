@@ -19,10 +19,16 @@
 package org.apache.cassandra.db.compaction.differential;
 
 import java.util.ArrayList;
+import java.util.Collection;
+import java.util.List;
 import java.util.Set;
 import java.util.concurrent.atomic.AtomicReference;
 
+import org.junit.After;
+import org.junit.Before;
 import org.junit.Test;
+import org.junit.runner.RunWith;
+import org.junit.runners.Parameterized;
 import org.mockito.Mockito;
 
 import org.apache.cassandra.config.DatabaseDescriptor;
@@ -58,8 +64,33 @@ import static org.junit.Assert.fail;
 
 /** Pins the cursor compaction support matrix: which schemas, headers and compactions the gate
  *  accepts or refuses. */
+@RunWith(Parameterized.class)
 public class CursorSupportMatrixTest extends CQLTester
 {
+    @Parameterized.Parameter
+    public String format;
+
+    @Parameterized.Parameters(name = "format={0}")
+    public static Collection<Object[]> formats()
+    {
+        return List.of(new Object[]{ "big" }, new Object[]{ "bti" });
+    }
+
+    private SSTableFormat<?, ?> originalFormat;
+
+    @Before
+    public void selectFormat()
+    {
+        originalFormat = DatabaseDescriptor.getSelectedSSTableFormat();
+        DatabaseDescriptor.setSelectedSSTableFormat(format);
+    }
+
+    @After
+    public void restoreFormat()
+    {
+        DatabaseDescriptor.setSelectedSSTableFormat(originalFormat);
+    }
+
     private TableMetadata metadataFor(String createTable)
     {
         createTable(createTable);
@@ -154,34 +185,24 @@ public class CursorSupportMatrixTest extends CQLTester
                         "PRIMARY KEY (pk, ck))");
     }
 
-    /** BTI output is inside the supported surface, asserted through the gate's production calls. */
+    /** Output in the selected format is inside the supported surface, asserted through the gate's production calls. */
     @Test
-    public void btiFormatSupported() throws Exception
+    public void selectedFormatSupported() throws Exception
     {
-        SSTableFormat<?, ?> original = DatabaseDescriptor.getSelectedSSTableFormat();
-        DatabaseDescriptor.setSelectedSSTableFormat(BtiFormat.NAME);
-        try
-        {
-            assertTrue("the BTI format must report cursor compaction support",
-                       DatabaseDescriptor.getSelectedSSTableFormat().cursorIndexWriterFactory() != null);
+        assertTrue("the " + format + " format must report cursor compaction support",
+                   DatabaseDescriptor.getSelectedSSTableFormat().cursorIndexWriterFactory() != null);
 
-            ColumnFamilyStore cfs =
-                twoSSTableTable("CREATE TABLE %s (pk bigint, ck bigint, m map<text, bigint>, v text, " +
-                                "PRIMARY KEY (pk, ck))",
-                                "INSERT INTO %s (pk, ck, m, v) VALUES (1, 1, {'a': 1}, 'x')",
-                                "INSERT INTO %s (pk, ck, m, v) VALUES (1, 2, {'b': 2}, 'y')");
+        ColumnFamilyStore cfs =
+            twoSSTableTable("CREATE TABLE %s (pk bigint, ck bigint, m map<text, bigint>, v text, " +
+                            "PRIMARY KEY (pk, ck))",
+                            "INSERT INTO %s (pk, ck, m, v) VALUES (1, 1, {'a': 1}, 'x')",
+                            "INSERT INTO %s (pk, ck, m, v) VALUES (1, 2, {'b': 2}, 'y')");
 
-            // the inputs must be in the format under test
-            for (SSTableReader reader : cfs.getLiveSSTables())
-                assertTrue("expected BTI input sstables, got " + reader.descriptor.version.format.name(),
-                           BtiFormat.is(reader.descriptor.version.format));
+        // the inputs must be in the format under test
+        for (SSTableReader reader : cfs.getLiveSSTables())
+            assertEquals("input sstable is in the wrong format", format, reader.descriptor.version.format.name());
 
-            assertTrue("cursor compaction must accept a BTI table", isSupportedNow(cfs));
-        }
-        finally
-        {
-            DatabaseDescriptor.setSelectedSSTableFormat(original);
-        }
+        assertTrue("cursor compaction must accept a " + format + " table", isSupportedNow(cfs));
     }
 
     /** A selected format that does not support cursor compaction is refused. */

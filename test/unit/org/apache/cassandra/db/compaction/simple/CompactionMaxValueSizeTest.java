@@ -129,9 +129,7 @@ public class CompactionMaxValueSizeTest extends SimpleCompactionTest
                        effectiveLimit > 0 && effectiveLimit < VALUE_SIZE);
             CompactionPipelineCounts pipelines = CompactionPipelineCounts.mark();
             thrown = compactExpectingRefusal(cfs);
-            CompactionPipelineCounts.assertPipelineRan(params.cursorCompaction &&
-                                                       DatabaseDescriptor.getSelectedSSTableFormat().cursorIndexWriterFactory() != null,
-                                                       pipelines);
+            CompactionPipelineCounts.assertPipelineRan(params.cursorCompaction, pipelines);
         }
         finally
         {

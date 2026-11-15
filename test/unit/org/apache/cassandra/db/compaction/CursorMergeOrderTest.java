@@ -21,12 +21,16 @@ package org.apache.cassandra.db.compaction;
 import java.math.BigDecimal;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
 import java.util.Set;
 
 import org.junit.After;
+import org.junit.Before;
 import org.junit.Test;
+import org.junit.runner.RunWith;
+import org.junit.runners.Parameterized;
 
 import org.apache.cassandra.config.Config.DiskAccessMode;
 import org.apache.cassandra.config.DatabaseDescriptor;
@@ -49,8 +53,18 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
  * exception when they do not hold, also with assertions off, as in production.  A mismatch the
  * checks miss lets the cursor path write wrong data.
  */
+@RunWith(Parameterized.class)
 public class CursorMergeOrderTest extends CQLTester
 {
+    @Parameterized.Parameter
+    public String format;
+
+    @Parameterized.Parameters(name = "format={0}")
+    public static Collection<Object[]> formats()
+    {
+        return List.of(new Object[]{ "big" }, new Object[]{ "bti" });
+    }
+
     static
     {
         // Production runs without -ea, so the checks must not depend on assertions.
@@ -70,7 +84,8 @@ public class CursorMergeOrderTest extends CQLTester
         }
     }
 
-    private void selectFormat(String format)
+    @Before
+    public void selectFormat()
     {
         originalFormat = DatabaseDescriptor.getSelectedSSTableFormat();
         originalCursorCompactionEnabled = DatabaseDescriptor.cursorCompactionEnabled();
@@ -87,28 +102,16 @@ public class CursorMergeOrderTest extends CQLTester
     // END TO END: overlapping sstables inside one LeveledScanner, as a damaged manifest gives
 
     @Test
-    public void overlappingSSTablesInOneLeveledScannerFailBig() throws Throwable
+    public void overlappingSSTablesInOneLeveledScannerFail() throws Throwable
     {
-        assertOverlappingSSTablesInOneLeveledScannerFail("big", false);
-    }
-
-    @Test
-    public void overlappingSSTablesInOneLeveledScannerFailBti() throws Throwable
-    {
-        assertOverlappingSSTablesInOneLeveledScannerFail("bti", false);
+        assertOverlappingSSTablesInOneLeveledScannerFail(false);
     }
 
     /** The other scanner holds other partitions, so each merge group is no larger than the scanner count. */
     @Test
-    public void overlappingSSTablesInOneLeveledScannerBesideOtherPartitionsFailBig() throws Throwable
+    public void overlappingSSTablesInOneLeveledScannerBesideOtherPartitionsFail() throws Throwable
     {
-        assertOverlappingSSTablesInOneLeveledScannerFail("big", true);
-    }
-
-    @Test
-    public void overlappingSSTablesInOneLeveledScannerBesideOtherPartitionsFailBti() throws Throwable
-    {
-        assertOverlappingSSTablesInOneLeveledScannerFail("bti", true);
+        assertOverlappingSSTablesInOneLeveledScannerFail(true);
     }
 
     /**
@@ -117,9 +120,8 @@ public class CursorMergeOrderTest extends CQLTester
      * and fails on the keys out of order.  The cursor sort groups both cursors, but the partition
      * merge order counts the scanner once, so the cursor path must fail too.
      */
-    private void assertOverlappingSSTablesInOneLeveledScannerFail(String format, boolean otherPartitions) throws Throwable
+    private void assertOverlappingSSTablesInOneLeveledScannerFail(boolean otherPartitions) throws Throwable
     {
-        selectFormat(format);
         // decimal clustering values that compare equal can differ in bytes, so the table gets a CursorMergeOrder
         createTable("CREATE TABLE %s (pk int, ck decimal, v int, PRIMARY KEY (pk, ck))");
         ColumnFamilyStore cfs = getCurrentColumnFamilyStore();

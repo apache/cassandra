@@ -21,11 +21,16 @@ package org.apache.cassandra.db.compaction.differential;
 
 import java.nio.ByteBuffer;
 import java.util.ArrayList;
+import java.util.Collection;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
 
+import org.junit.After;
+import org.junit.Before;
 import org.junit.Test;
+import org.junit.runner.RunWith;
+import org.junit.runners.Parameterized;
 
 import org.apache.cassandra.config.CassandraRelevantProperties;
 import org.apache.cassandra.config.DatabaseDescriptor;
@@ -54,8 +59,30 @@ import static org.junit.Assert.assertTrue;
 import static org.junit.Assert.fail;
 
 /** Edge-case scenarios comparing cursor compaction against iterator compaction. */
+@RunWith(Parameterized.class)
 public class EdgeCaseDifferentialCompactionTest extends DifferentialCompactionTester
 {
+    @Parameterized.Parameter
+    public String format;
+
+    @Parameterized.Parameters(name = "format={0}")
+    public static Collection<Object[]> formats()
+    {
+        return List.of(new Object[]{ "big" }, new Object[]{ "bti" });
+    }
+
+    @Before
+    public void selectFormat()
+    {
+        selectSSTableFormat(format);
+    }
+
+    @After
+    public void restoreFormat()
+    {
+        restoreSelectedFormat();
+    }
+
 
     /**
      * Static-column table where some partitions have no static values: an empty static row must

@@ -22,8 +22,10 @@ import java.nio.ByteBuffer;
 import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 
 import org.junit.After;
 import org.junit.Before;
@@ -40,6 +42,7 @@ import org.apache.cassandra.db.rows.Cell;
 import org.apache.cassandra.db.rows.Row;
 import org.apache.cassandra.db.rows.Unfiltered;
 import org.apache.cassandra.db.rows.UnfilteredRowIterator;
+import org.apache.cassandra.io.sstable.AbstractRowIndexEntry;
 import org.apache.cassandra.io.sstable.SSTableReadsListener;
 import org.apache.cassandra.io.sstable.format.SSTableFormat;
 import org.apache.cassandra.io.sstable.format.SSTableReader;
@@ -300,6 +303,204 @@ public class CrossFormatCursorCompactionTest extends DifferentialCompactionTeste
             CacheService.instance.keyCache.setCapacity(originalKeyCacheCapacity);
             CacheService.instance.invalidateKeyCache();
         }
+    }
+
+    /** Pads each wide-partition value so one partition spans several row index blocks. */
+    private static final String PAD = "p".repeat(200);
+    private static final int WIDE_ROWS = 200;
+
+    /**
+     * BIG older input, BTI newer input, BIG output. The two inputs differ in format, so the merge reads both
+     * formats' indexes in one compaction.
+     */
+    @Test
+    public void mixedBigOlderBtiNewerBigOutput() throws Throwable
+    {
+        mixedInputsDifferential("big", "bti", "big");
+    }
+
+    /** BIG older input, BTI newer input, BTI output. */
+    @Test
+    public void mixedBigOlderBtiNewerBtiOutput() throws Throwable
+    {
+        mixedInputsDifferential("big", "bti", "bti");
+    }
+
+    /** BTI older input, BIG newer input, BIG output. */
+    @Test
+    public void mixedBtiOlderBigNewerBigOutput() throws Throwable
+    {
+        mixedInputsDifferential("bti", "big", "big");
+    }
+
+    /** BTI older input, BIG newer input, BTI output. */
+    @Test
+    public void mixedBtiOlderBigNewerBtiOutput() throws Throwable
+    {
+        mixedInputsDifferential("bti", "big", "bti");
+    }
+
+    /**
+     * Flushes an older input in {@code olderFormat} and a newer one in {@code newerFormat}, then compacts both
+     * into {@code outputFormat}. Asserts byte parity of the two paths, then commits the cursor compaction and
+     * reads every merged partition back against values derived from the writes below.
+     */
+    private void mixedInputsDifferential(String olderFormat, String newerFormat, String outputFormat) throws Throwable
+    {
+        createTable("CREATE TABLE %s (pk bigint, ck bigint, v text, t text, tags set<text>, s text static, " +
+                    "PRIMARY KEY (pk, ck))");
+        ColumnFamilyStore cfs = getCurrentColumnFamilyStore();
+        cfs.disableAutoCompaction();
+
+        DatabaseDescriptor.setSelectedSSTableFormat(olderFormat);
+        writeOlderInput();
+        flush();
+        DatabaseDescriptor.setSelectedSSTableFormat(newerFormat);
+        writeNewerInput();
+        flush();
+
+        assertEquals("scenario needs two sstables to merge", 2, cfs.getLiveSSTables().size());
+        List<SSTableReader> inputs = new ArrayList<>(cfs.getLiveSSTables());
+        inputs.sort((a, b) -> Long.compare(a.getMaxTimestamp(), b.getMaxTimestamp()));
+        assertEquals("older input is in the wrong format " + inputs.get(0).descriptor,
+                     olderFormat, inputs.get(0).descriptor.getFormat().name());
+        assertEquals("newer input is in the wrong format " + inputs.get(1).descriptor,
+                     newerFormat, inputs.get(1).descriptor.getFormat().name());
+        DecoratedKey wideKey = cfs.decorateKey(LongType.instance.decompose(0L));
+        for (SSTableReader in : inputs)
+            assertWidePartitionHasSeveralBlocks(in, wideKey);
+
+        DatabaseDescriptor.setSelectedSSTableFormat(outputFormat);
+        CapturedOutput out = assertCursorMatchesIterator(cfs);
+        assertEquals("expected a single merged output", 1, out.sstables.size());
+
+        long gcBefore = cfs.getDefaultGcBefore(FBUtilities.nowInSeconds());
+        commitCompaction(cfs, cfs.getLiveSSTables(), true, gcBefore);
+        assertEquals("cursor compaction should have produced a single merged output",
+                     1, cfs.getLiveSSTables().size());
+        SSTableReader output = cfs.getLiveSSTables().iterator().next();
+        assertEquals("cursor output was written in the wrong format", outputFormat, output.descriptor.getFormat().name());
+        assertOutputFormatIsSelected(output);
+        assertWidePartitionHasSeveralBlocks(output, wideKey);
+
+        assertMixedMergeReadsBack();
+    }
+
+    private static void assertWidePartitionHasSeveralBlocks(SSTableReader sstable, DecoratedKey key)
+    {
+        AbstractRowIndexEntry entry = sstable.getRowIndexEntry(key, SSTableReader.Operator.EQ);
+        assertNotNull("wide partition missing from " + sstable.descriptor, entry);
+        assertTrue("wide partition must span several row index blocks in " + sstable.descriptor +
+                   " but has " + entry.blockCount(), entry.blockCount() > 1);
+    }
+
+    /** A tie at timestamp 1500 resolves to the larger value; the older input wins it on even ck. */
+    private static String olderTieValue(long ck)
+    {
+        return (ck % 2 == 0 ? "y" : "x") + ck;
+    }
+
+    private static String newerTieValue(long ck)
+    {
+        return (ck % 2 == 0 ? "x" : "y") + ck;
+    }
+
+    private void writeOlderInput()
+    {
+        for (long ck = 0; ck < WIDE_ROWS; ck++)
+        {
+            execute("INSERT INTO %s (pk, ck, v) VALUES (0, ?, ?) USING TIMESTAMP 1000", ck, "a" + ck + PAD);
+            execute("UPDATE %s USING TIMESTAMP 1000 SET tags = tags + ? WHERE pk = 0 AND ck = ?", Set.of("a" + ck), ck);
+            if (ck < 40)
+                execute("UPDATE %s USING TIMESTAMP 1500 SET t = ? WHERE pk = 0 AND ck = ?", olderTieValue(ck), ck);
+        }
+        execute("UPDATE %s USING TIMESTAMP 1000 SET s = 'sa' WHERE pk = 0");
+        execute("DELETE FROM %s USING TIMESTAMP 1100 WHERE pk = 0 AND ck >= 150 AND ck < 160");
+
+        execute("INSERT INTO %s (pk, ck, v) VALUES (1, 0, 'a') USING TIMESTAMP 1000");
+        execute("UPDATE %s USING TIMESTAMP 1500 SET s = 's-y' WHERE pk = 1");
+        execute("INSERT INTO %s (pk, ck, v) VALUES (2, 0, 'a') USING TIMESTAMP 1000");
+        execute("UPDATE %s USING TIMESTAMP 1500 SET s = 's-x' WHERE pk = 2");
+        for (long ck = 0; ck < 10; ck++)
+            execute("INSERT INTO %s (pk, ck, v) VALUES (3, ?, 'a') USING TIMESTAMP 1000", ck);
+        execute("INSERT INTO %s (pk, ck, v) VALUES (4, 0, 'late') USING TIMESTAMP 1300");
+        for (long ck = 1; ck < 10; ck++)
+            execute("INSERT INTO %s (pk, ck, v) VALUES (4, ?, 'a') USING TIMESTAMP 1000", ck);
+    }
+
+    private static boolean deletedByNewer(long ck)
+    {
+        return ck == 50 || (ck >= 100 && ck < 120);
+    }
+
+    private void writeNewerInput()
+    {
+        for (long ck = 0; ck < WIDE_ROWS; ck++)
+        {
+            if (deletedByNewer(ck))
+                continue;
+            if (ck % 2 == 0)
+                execute("UPDATE %s USING TIMESTAMP 2000 SET v = ? WHERE pk = 0 AND ck = ?", "b" + ck + PAD, ck);
+            if (ck % 5 == 0)
+                execute("UPDATE %s USING TIMESTAMP 2000 SET tags = ? WHERE pk = 0 AND ck = ?", Set.of("c" + ck), ck);
+            else
+                execute("UPDATE %s USING TIMESTAMP 2000 SET tags = tags + ? WHERE pk = 0 AND ck = ?", Set.of("b" + ck), ck);
+            if (ck < 40)
+                execute("UPDATE %s USING TIMESTAMP 1500 SET t = ? WHERE pk = 0 AND ck = ?", newerTieValue(ck), ck);
+        }
+        execute("UPDATE %s USING TIMESTAMP 2000 SET s = 'sb' WHERE pk = 0");
+        execute("DELETE FROM %s USING TIMESTAMP 2000 WHERE pk = 0 AND ck = 50");
+        execute("DELETE FROM %s USING TIMESTAMP 2000 WHERE pk = 0 AND ck >= 100 AND ck < 120");
+
+        execute("INSERT INTO %s (pk, ck, v) VALUES (1, 1, 'b') USING TIMESTAMP 2000");
+        execute("UPDATE %s USING TIMESTAMP 1500 SET s = 's-x' WHERE pk = 1");
+        execute("UPDATE %s USING TIMESTAMP 1500 SET s = 's-y' WHERE pk = 2");
+        execute("DELETE FROM %s USING TIMESTAMP 2000 WHERE pk = 3");
+        execute("DELETE FROM %s USING TIMESTAMP 1200 WHERE pk = 4");
+        execute("INSERT INTO %s (pk, ck, v) VALUES (5, 0, 'b') USING TIMESTAMP 2000");
+    }
+
+    /** Reads the merged table, whose only live sstable is the cursor output, and checks every value. */
+    private void assertMixedMergeReadsBack() throws Throwable
+    {
+        List<Object[]> wide = new ArrayList<>();
+        for (long ck = 0; ck < WIDE_ROWS; ck++)
+        {
+            if (deletedByNewer(ck))
+                continue;
+            boolean underOlderRangeTombstone = ck >= 150 && ck < 160;
+            String v;
+            if (ck % 2 == 0)
+                v = "b" + ck + PAD;
+            else
+                v = underOlderRangeTombstone ? null : "a" + ck + PAD;
+            Set<String> tags = new HashSet<>();
+            if (ck % 5 == 0)
+            {
+                tags.add("c" + ck);
+            }
+            else
+            {
+                if (!underOlderRangeTombstone)
+                    tags.add("a" + ck);
+                tags.add("b" + ck);
+            }
+            String t = ck < 40 ? "y" + ck : null;
+            wide.add(row(0L, ck, "sb", v, t, tags));
+        }
+        assertRows(execute("SELECT pk, ck, s, v, t, tags FROM %s WHERE pk = 0"), wide.toArray(new Object[0][]));
+
+        assertRows(execute("SELECT pk, ck, s, v FROM %s WHERE pk = 1"),
+                   row(1L, 0L, "s-y", "a"),
+                   row(1L, 1L, "s-y", "b"));
+        assertRows(execute("SELECT pk, ck, s, v FROM %s WHERE pk = 2"),
+                   row(2L, 0L, "s-y", "a"));
+        assertEmpty(execute("SELECT * FROM %s WHERE pk = 3"));
+        assertRows(execute("SELECT pk, ck, v FROM %s WHERE pk = 4"),
+                   row(4L, 0L, "late"));
+        assertRows(execute("SELECT pk, ck, v FROM %s WHERE pk = 5"),
+                   row(5L, 0L, "b"));
+        assertRowCount(execute("SELECT DISTINCT pk FROM %s"), 5);
     }
 
     /** Reads one partition of {@code sstable} through a full-partition point read; returns its rows in order. */

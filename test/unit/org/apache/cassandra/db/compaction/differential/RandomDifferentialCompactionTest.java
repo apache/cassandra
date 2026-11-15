@@ -21,6 +21,7 @@ package org.apache.cassandra.db.compaction.differential;
 import java.nio.ByteBuffer;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Collection;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Iterator;
@@ -32,8 +33,12 @@ import java.util.concurrent.TimeUnit;
 
 import com.google.common.collect.ImmutableList;
 
+import org.junit.After;
 import org.junit.AssumptionViolatedException;
+import org.junit.Before;
 import org.junit.Test;
+import org.junit.runner.RunWith;
+import org.junit.runners.Parameterized;
 import org.quicktheories.core.Gen;
 import org.quicktheories.generators.SourceDSL;
 import org.quicktheories.impl.JavaRandom;
@@ -68,8 +73,30 @@ import static org.junit.Assert.assertTrue;
  * property to the forked test JVM. The failing seed becomes example 0. You can also pass the seed to
  * {@code withFixedSeed} below.
  */
+@RunWith(Parameterized.class)
 public class RandomDifferentialCompactionTest extends DifferentialCompactionTester
 {
+    @Parameterized.Parameter
+    public String format;
+
+    @Parameterized.Parameters(name = "format={0}")
+    public static Collection<Object[]> formats()
+    {
+        return List.of(new Object[]{ "big" }, new Object[]{ "bti" });
+    }
+
+    @Before
+    public void selectFormat()
+    {
+        selectSSTableFormat(format);
+    }
+
+    @After
+    public void restoreFormat()
+    {
+        restoreSelectedFormat();
+    }
+
     static
     {
         // make generated blobs deterministic per seed

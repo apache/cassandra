@@ -18,8 +18,15 @@
 
 package org.apache.cassandra.db.compaction.differential;
 
+import java.util.Collection;
+import java.util.List;
+
+import org.junit.After;
+import org.junit.Before;
 import org.junit.BeforeClass;
 import org.junit.Test;
+import org.junit.runner.RunWith;
+import org.junit.runners.Parameterized;
 
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.db.ColumnFamilyStore;
@@ -49,8 +56,30 @@ import static org.junit.Assert.assertTrue;
  * but must still defer. Only the rewrite of expired TTL cells into tombstones differs between
  * the cases; plain tombstones purge against gcBefore in all of them.
  */
+@RunWith(Parameterized.class)
 public class AccordTableDifferentialCompactionTest extends DifferentialCompactionTester
 {
+    @Parameterized.Parameter
+    public String format;
+
+    @Parameterized.Parameters(name = "format={0}")
+    public static Collection<Object[]> formats()
+    {
+        return List.of(new Object[]{ "big" }, new Object[]{ "bti" });
+    }
+
+    @Before
+    public void selectFormat()
+    {
+        selectSSTableFormat(format);
+    }
+
+    @After
+    public void restoreFormat()
+    {
+        restoreSelectedFormat();
+    }
+
     private static final long TTL_SECONDS = 1;
 
     @BeforeClass

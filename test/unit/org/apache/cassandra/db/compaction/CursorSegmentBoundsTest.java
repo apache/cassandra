@@ -20,12 +20,18 @@ package org.apache.cassandra.db.compaction;
 
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
 
+import org.junit.After;
+import org.junit.Before;
 import org.junit.Test;
+import org.junit.runner.RunWith;
+import org.junit.runners.Parameterized;
 
 import org.apache.cassandra.config.Config.DiskAccessMode;
+import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.cql3.CQLTester;
 import org.apache.cassandra.db.ColumnFamilyStore;
 import org.apache.cassandra.db.DecoratedKey;
@@ -34,6 +40,7 @@ import org.apache.cassandra.dht.IPartitioner;
 import org.apache.cassandra.dht.Range;
 import org.apache.cassandra.dht.Token;
 import org.apache.cassandra.io.sstable.ISSTableScanner;
+import org.apache.cassandra.io.sstable.format.SSTableFormat;
 import org.apache.cassandra.io.sstable.format.SSTableReader;
 import org.apache.cassandra.io.sstable.format.SSTableReader.PartitionPositionBounds;
 import org.apache.cassandra.utils.ByteBufferUtil;
@@ -59,8 +66,33 @@ import static org.junit.Assert.fail;
  * {@code SSTableSimpleScanner.positionBounds()}, whose contract is that each starts and ends on a
  * partition boundary, and that they are ascending and non-overlapping.
  */
+@RunWith(Parameterized.class)
 public class CursorSegmentBoundsTest extends CQLTester
 {
+    @Parameterized.Parameter
+    public String format;
+
+    @Parameterized.Parameters(name = "format={0}")
+    public static Collection<Object[]> formats()
+    {
+        return List.of(new Object[]{ "big" }, new Object[]{ "bti" });
+    }
+
+    private SSTableFormat<?, ?> originalFormat;
+
+    @Before
+    public void selectFormat()
+    {
+        originalFormat = DatabaseDescriptor.getSelectedSSTableFormat();
+        DatabaseDescriptor.setSelectedSSTableFormat(format);
+    }
+
+    @After
+    public void restoreFormat()
+    {
+        DatabaseDescriptor.setSelectedSSTableFormat(originalFormat);
+    }
+
     /** One partition of the sstable: the key the cursor surfaced, and where it started. */
     private static final class Seen
     {

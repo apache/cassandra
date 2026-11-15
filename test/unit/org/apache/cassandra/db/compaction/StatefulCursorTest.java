@@ -25,9 +25,14 @@ import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
 
+import org.junit.After;
+import org.junit.Before;
 import org.junit.Test;
+import org.junit.runner.RunWith;
+import org.junit.runners.Parameterized;
 
 import org.apache.cassandra.config.Config.DiskAccessMode;
+import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.cql3.CQLTester;
 import org.apache.cassandra.db.ColumnFamilyStore;
 import org.apache.cassandra.db.DecoratedKey;
@@ -45,6 +50,7 @@ import org.apache.cassandra.io.sstable.ISSTableScanner;
 import org.apache.cassandra.io.sstable.PartitionDescriptor;
 import org.apache.cassandra.io.sstable.SSTableCursorReader;
 import org.apache.cassandra.io.sstable.UnfilteredDescriptor;
+import org.apache.cassandra.io.sstable.format.SSTableFormat;
 import org.apache.cassandra.io.sstable.format.SSTableReader;
 import org.apache.cassandra.io.sstable.format.SSTableReader.PartitionPositionBounds;
 import org.apache.cassandra.schema.ColumnMetadata;
@@ -67,8 +73,33 @@ import static org.junit.Assert.assertTrue;
 import static org.junit.Assert.fail;
 
 /** Unit tests for cursor-read defects that the differential harness cannot isolate. */
+@RunWith(Parameterized.class)
 public class StatefulCursorTest extends CQLTester
 {
+    @Parameterized.Parameter
+    public String format;
+
+    @Parameterized.Parameters(name = "format={0}")
+    public static Collection<Object[]> formats()
+    {
+        return List.of(new Object[]{ "big" }, new Object[]{ "bti" });
+    }
+
+    private SSTableFormat<?, ?> originalFormat;
+
+    @Before
+    public void selectFormat()
+    {
+        originalFormat = DatabaseDescriptor.getSelectedSSTableFormat();
+        DatabaseDescriptor.setSelectedSSTableFormat(format);
+    }
+
+    @After
+    public void restoreFormat()
+    {
+        DatabaseDescriptor.setSelectedSSTableFormat(originalFormat);
+    }
+
     /** Hooks for {@link #drive}, so the cursor-driving tests share one state machine. */
     private interface CursorVisitor
     {

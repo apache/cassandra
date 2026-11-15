@@ -21,6 +21,7 @@ package org.apache.cassandra.db.compaction.differential;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.ArrayList;
+import java.util.Collection;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
@@ -28,7 +29,11 @@ import java.util.Map;
 import java.util.Set;
 
 import org.apache.commons.io.FileUtils;
+import org.junit.After;
+import org.junit.Before;
 import org.junit.Test;
+import org.junit.runner.RunWith;
+import org.junit.runners.Parameterized;
 
 import org.apache.cassandra.db.ColumnFamilyStore;
 import org.apache.cassandra.db.DecoratedKey;
@@ -64,8 +69,30 @@ import static org.junit.Assert.assertTrue;
  * LCS, TWCS and UCS on the cursor path, through the real strategy tasks and their writers,
  * match the iterator path.
  */
+@RunWith(Parameterized.class)
 public class CompactionStrategyDifferentialTest extends DifferentialCompactionTester
 {
+    @Parameterized.Parameter
+    public String format;
+
+    @Parameterized.Parameters(name = "format={0}")
+    public static Collection<Object[]> formats()
+    {
+        return List.of(new Object[]{ "big" }, new Object[]{ "bti" });
+    }
+
+    @Before
+    public void selectFormat()
+    {
+        selectSSTableFormat(format);
+    }
+
+    @After
+    public void restoreFormat()
+    {
+        restoreSelectedFormat();
+    }
+
     private static final String TWCS = " AND compaction = {'class': 'TimeWindowCompactionStrategy', " +
                                        "'compaction_window_unit': 'MINUTES', 'compaction_window_size': '1'}";
 

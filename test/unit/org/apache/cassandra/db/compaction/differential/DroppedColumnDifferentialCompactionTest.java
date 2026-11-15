@@ -22,14 +22,19 @@ import java.math.BigDecimal;
 import java.math.BigInteger;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Collection;
 import java.util.Collections;
 import java.util.Comparator;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
 
+import org.junit.After;
+import org.junit.Before;
 import org.junit.Ignore;
 import org.junit.Test;
+import org.junit.runner.RunWith;
+import org.junit.runners.Parameterized;
 
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.db.Clustering;
@@ -74,8 +79,30 @@ import static org.junit.Assert.assertTrue;
  * droppedComplexColumnSurvivingCells is @Ignore'd on CASSANDRA-21607: the iterator path throws for
  * that shape, so the harness cannot produce a reference run.
  */
+@RunWith(Parameterized.class)
 public class DroppedColumnDifferentialCompactionTest extends DifferentialCompactionTester
 {
+    @Parameterized.Parameter
+    public String format;
+
+    @Parameterized.Parameters(name = "format={0}")
+    public static Collection<Object[]> formats()
+    {
+        return List.of(new Object[]{ "big" }, new Object[]{ "bti" });
+    }
+
+    @Before
+    public void selectFormat()
+    {
+        selectSSTableFormat(format);
+    }
+
+    @After
+    public void restoreFormat()
+    {
+        restoreSelectedFormat();
+    }
+
     /** Far in the future relative to any wall-clock droppedTime (year ~2100, microseconds). */
     private static final long FUTURE_TS = 4102444800_000000L;
 

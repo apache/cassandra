@@ -19,12 +19,16 @@
 package org.apache.cassandra.db.compaction.differential;
 
 import java.util.ArrayList;
+import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
 import java.util.Set;
 
 import org.junit.After;
+import org.junit.Before;
 import org.junit.Test;
+import org.junit.runner.RunWith;
+import org.junit.runners.Parameterized;
 
 import org.apache.cassandra.config.Config.PaxosStatePurging;
 import org.apache.cassandra.config.DatabaseDescriptor;
@@ -38,17 +42,43 @@ import org.apache.cassandra.db.rows.UnfilteredRowIterator;
 import org.apache.cassandra.dht.Range;
 import org.apache.cassandra.dht.Token;
 import org.apache.cassandra.io.sstable.ISSTableScanner;
+import org.apache.cassandra.io.sstable.format.SSTableFormat;
 import org.apache.cassandra.io.sstable.format.SSTableReader;
 import org.apache.cassandra.schema.CompactionParams.TombstoneOption;
 import org.apache.cassandra.schema.TableMetadata;
 import org.apache.cassandra.utils.FBUtilities;
 
-import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
+import static org.junit.Assert.assertTrue;
 
 /** Checks the conditions in {@code CursorCompactor.isSupported} that decide on the compaction, not the schema. */
+@RunWith(Parameterized.class)
 public class CursorCompactionGateTest extends CQLTester
 {
+    @Parameterized.Parameter
+    public String format;
+
+    @Parameterized.Parameters(name = "format={0}")
+    public static Collection<Object[]> formats()
+    {
+        return List.of(new Object[]{ "big" }, new Object[]{ "bti" });
+    }
+
+    private SSTableFormat<?, ?> originalFormat;
+
+    @Before
+    public void selectFormat()
+    {
+        originalFormat = DatabaseDescriptor.getSelectedSSTableFormat();
+        DatabaseDescriptor.setSelectedSSTableFormat(format);
+    }
+
+    @After
+    public void restoreFormat()
+    {
+        DatabaseDescriptor.setSelectedSSTableFormat(originalFormat);
+    }
+
     private PaxosStatePurging originalPurging;
 
     @After
@@ -74,12 +104,6 @@ public class CursorCompactionGateTest extends CQLTester
         return cfs;
     }
 
-    /** Whether the selected format supports cursor compaction at all. */
-    private static boolean cursorSupportsSelectedFormat()
-    {
-        return DatabaseDescriptor.getSelectedSSTableFormat().cursorIndexWriterFactory() != null;
-    }
-
     private boolean isSupportedWith(ColumnFamilyStore cfs, TombstoneOption tombstoneOption) throws Exception
     {
         Set<SSTableReader> inputs = cfs.getLiveSSTables();
@@ -96,8 +120,8 @@ public class CursorCompactionGateTest extends CQLTester
     @Test
     public void aPlainTwoSSTableCompactionIsSupported() throws Exception
     {
-        assertEquals("a plain two-sstable compaction is cursor-supported whenever the selected format is",
-                     cursorSupportsSelectedFormat(), isSupportedWith(twoSSTableTable(), TombstoneOption.NONE));
+        assertTrue("a plain two-sstable compaction must be cursor-supported",
+                   isSupportedWith(twoSSTableTable(), TombstoneOption.NONE));
     }
 
     /** Cursor compaction refuses any provide_overlapping_tombstones value other than NONE. */
@@ -118,19 +142,17 @@ public class CursorCompactionGateTest extends CQLTester
         originalPurging = DatabaseDescriptor.paxosStatePurging();
         ColumnFamilyStore cfs = twoSSTableTable();
 
-        boolean expected = cursorSupportsSelectedFormat();
-
         DatabaseDescriptor.setPaxosStatePurging(PaxosStatePurging.legacy);
-        assertEquals("an ordinary table is unaffected by legacy paxos purging",
-                     expected, isSupportedWith(cfs, TombstoneOption.NONE));
+        assertTrue("an ordinary table is unaffected by legacy paxos purging",
+                   isSupportedWith(cfs, TombstoneOption.NONE));
 
         DatabaseDescriptor.setPaxosStatePurging(PaxosStatePurging.gc_grace);
-        assertEquals("an ordinary table is not system.paxos, so the paxos gate must not close on it",
-                     expected, isSupportedWith(cfs, TombstoneOption.NONE));
+        assertTrue("an ordinary table is not system.paxos, so the paxos gate must not close on it",
+                   isSupportedWith(cfs, TombstoneOption.NONE));
 
         DatabaseDescriptor.setPaxosStatePurging(PaxosStatePurging.repaired);
-        assertEquals("an ordinary table is not system.paxos, so the paxos gate must not close on it",
-                     expected, isSupportedWith(cfs, TombstoneOption.NONE));
+        assertTrue("an ordinary table is not system.paxos, so the paxos gate must not close on it",
+                   isSupportedWith(cfs, TombstoneOption.NONE));
     }
 
     /** One sstable of twenty partitions, so a token range can select an interior run of them. */
@@ -176,8 +198,8 @@ public class CursorCompactionGateTest extends CQLTester
         {
             for (ISSTableScanner scanner : scanners.scanners)
                 assertFalse("the range must give a partial scanner, or this test proves nothing", scanner.isFullRange());
-            assertEquals("a partial SSTableSimpleScanner is cursor-supported whenever the selected format is",
-                         cursorSupportsSelectedFormat(), CursorCompactor.isSupported(scanners, controller));
+            assertTrue("a partial SSTableSimpleScanner must be cursor-supported",
+                       CursorCompactor.isSupported(scanners, controller));
         }
     }
 

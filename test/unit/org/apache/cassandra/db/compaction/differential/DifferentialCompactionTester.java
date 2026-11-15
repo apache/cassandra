@@ -40,7 +40,6 @@ import java.util.regex.Pattern;
 import com.google.common.io.ByteStreams;
 
 import org.apache.commons.io.FileUtils;
-import org.junit.Assume;
 
 import org.apache.cassandra.config.CassandraRelevantProperties;
 import org.apache.cassandra.config.DatabaseDescriptor;
@@ -532,10 +531,9 @@ public abstract class DifferentialCompactionTester extends DifferentialCorpusDri
     /** Asserts the cursor path would actually run for this scenario, so it cannot compare iterator vs iterator. */
     protected void assertCursorPathWillRun(ColumnFamilyStore cfs, Set<SSTableReader> inputs, long gcBefore) throws Exception
     {
-        // skip an unsupported format rather than fail the assertion below
-        Assume.assumeTrue("cursor compaction cannot write the selected sstable format; selected=" +
-                          DatabaseDescriptor.getSelectedSSTableFormat().name(),
-                          DatabaseDescriptor.getSelectedSSTableFormat().cursorIndexWriterFactory() != null);
+        assertNotNull("cursor compaction cannot write the selected sstable format; selected=" +
+                      DatabaseDescriptor.getSelectedSSTableFormat().name(),
+                      DatabaseDescriptor.getSelectedSSTableFormat().cursorIndexWriterFactory());
         try (CompactionController controller = new CompactionController(cfs, inputs, gcBefore);
              AbstractCompactionStrategy.ScannerList scanners =
                  cfs.getCompactionStrategyManager().getScanners(new ArrayList<>(inputs), null))
@@ -545,14 +543,6 @@ public abstract class DifferentialCompactionTester extends DifferentialCorpusDri
                        "assert it explicitly instead.",
                        CursorCompactor.isSupported(scanners, controller));
         }
-    }
-
-    /** Skips a scenario unless the selected sstable format supports cursor compaction. */
-    protected static void assumeCursorSupportedFormatSelected()
-    {
-        Assume.assumeTrue("cursor compaction does not support the selected sstable format; selected=" +
-                          DatabaseDescriptor.getSelectedSSTableFormat().name(),
-                          DatabaseDescriptor.getSelectedSSTableFormat().cursorIndexWriterFactory() != null);
     }
 
     private static String listDataDir(Descriptor desc)

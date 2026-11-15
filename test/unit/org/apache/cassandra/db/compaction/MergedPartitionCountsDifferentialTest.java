@@ -20,10 +20,15 @@ package org.apache.cassandra.db.compaction;
 
 import java.util.Arrays;
 import java.util.Collection;
+import java.util.List;
 import java.util.Set;
 import java.util.concurrent.atomic.AtomicReference;
 
+import org.junit.After;
+import org.junit.Before;
 import org.junit.Test;
+import org.junit.runner.RunWith;
+import org.junit.runners.Parameterized;
 
 import org.apache.cassandra.db.ColumnFamilyStore;
 import org.apache.cassandra.db.compaction.differential.DifferentialCompactionTester;
@@ -34,8 +39,30 @@ import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertNotNull;
 
 /** Both pipelines report merged partition counts, not row counts. */
+@RunWith(Parameterized.class)
 public class MergedPartitionCountsDifferentialTest extends DifferentialCompactionTester
 {
+    @Parameterized.Parameter
+    public String format;
+
+    @Parameterized.Parameters(name = "format={0}")
+    public static Collection<Object[]> formats()
+    {
+        return List.of(new Object[]{ "big" }, new Object[]{ "bti" });
+    }
+
+    @Before
+    public void selectFormat()
+    {
+        selectSSTableFormat(format);
+    }
+
+    @After
+    public void restoreFormat()
+    {
+        restoreSelectedFormat();
+    }
+
     private static final int PARTITIONS = 8;
     private static final int ROWS_PER_PARTITION = 50;
 
@@ -83,8 +110,6 @@ public class MergedPartitionCountsDifferentialTest extends DifferentialCompactio
     @Test
     public void bothPipelinesCountPartitionsNotRows() throws Exception
     {
-        assumeCursorSupportedFormatSelected();
-
         long[] iterator = mergedCountsFromOneCompaction(false);
         long[] cursor = mergedCountsFromOneCompaction(true);
 

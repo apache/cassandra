@@ -125,8 +125,20 @@ public class CompactionPerPartitionWorkTest extends DifferentialCompactionTester
     }
 
     @Test
-    public void bothPathsPrepareEachPartitionOnce() throws Throwable
+    public void bothPathsPrepareEachPartitionOnceBig() throws Throwable
     {
+        assertBothPathsPrepareEachPartitionOnce("big");
+    }
+
+    @Test
+    public void bothPathsPrepareEachPartitionOnceBti() throws Throwable
+    {
+        assertBothPathsPrepareEachPartitionOnce("bti");
+    }
+
+    private void assertBothPathsPrepareEachPartitionOnce(String format) throws Throwable
+    {
+        DatabaseDescriptor.setSelectedSSTableFormat(format);
         for (boolean cursor : new boolean[]{ false, true })
         {
             ColumnFamilyStore cfs = twoSSTables(100);
@@ -179,23 +191,34 @@ public class CompactionPerPartitionWorkTest extends DifferentialCompactionTester
     }
 
     /**
-     * On BTI the cursor path reuses three keys for the partition index and copies only the keys the index
-     * keeps, so the count of key copies does not grow with the partition count. A copy of each partition's
-     * key ({@code key.retainable()}) would add one per partition.
+     * The cursor path reuses its keys and copies only the keys the index keeps (the BTI partition index, the
+     * BIG index summary), so the count of key copies does not grow with the partition count. A copy of each
+     * partition's key ({@code key.retainable()}) would add one per partition.
      */
     @Test
-    public void btiCursorPathCopiesNoKeyPerPartition() throws Throwable
+    public void cursorPathCopiesNoKeyPerPartitionBig() throws Throwable
     {
-        DatabaseDescriptor.setSelectedSSTableFormat("bti");
+        assertCursorPathCopiesNoKeyPerPartition("big");
+    }
+
+    @Test
+    public void cursorPathCopiesNoKeyPerPartitionBti() throws Throwable
+    {
+        assertCursorPathCopiesNoKeyPerPartition("bti");
+    }
+
+    private void assertCursorPathCopiesNoKeyPerPartition(String format) throws Throwable
+    {
+        DatabaseDescriptor.setSelectedSSTableFormat(format);
         int small = 1000;
         int large = 10 * small;
         long smallCopies = keyCopiesDuringCursorCompaction(small);
         long largeCopies = keyCopiesDuringCursorCompaction(large);
-        logger.info("BTI cursor compaction key copies: {} for {} partitions, {} for {} partitions",
-                    smallCopies, small, largeCopies, large);
-        assertTrue(String.format("the BTI cursor path copied %d keys for %d partitions and %d for %d partitions; " +
+        logger.info("{} cursor compaction key copies: {} for {} partitions, {} for {} partitions",
+                    format, smallCopies, small, largeCopies, large);
+        assertTrue(String.format("the %s cursor path copied %d keys for %d partitions and %d for %d partitions; " +
                                  "the count grows with the partitions, so a key is copied per partition",
-                                 smallCopies, small, largeCopies, large),
+                                 format, smallCopies, small, largeCopies, large),
                    largeCopies - smallCopies < (large - small) / 100);
     }
 
@@ -214,8 +237,20 @@ public class CompactionPerPartitionWorkTest extends DifferentialCompactionTester
      * during that write would otherwise carry a max clustering below the partition's last row.
      */
     @Test
-    public void lastClusteringIsInMaxClusteringBeforePartitionEnd() throws Throwable
+    public void lastClusteringIsInMaxClusteringBeforePartitionEndBig() throws Throwable
     {
+        assertLastClusteringIsInMaxClusteringBeforePartitionEnd("big");
+    }
+
+    @Test
+    public void lastClusteringIsInMaxClusteringBeforePartitionEndBti() throws Throwable
+    {
+        assertLastClusteringIsInMaxClusteringBeforePartitionEnd("bti");
+    }
+
+    private void assertLastClusteringIsInMaxClusteringBeforePartitionEnd(String format) throws Throwable
+    {
+        DatabaseDescriptor.setSelectedSSTableFormat(format);
         createTable("CREATE TABLE %s (pk bigint, ck bigint, v text, PRIMARY KEY (pk, ck)) " +
                     "WITH compression = {'enabled': 'false'}");
         ColumnFamilyStore cfs = getCurrentColumnFamilyStore();
@@ -254,19 +289,32 @@ public class CompactionPerPartitionWorkTest extends DifferentialCompactionTester
 
     /** Offline, the originals' file cache is skipped once per open interval, not on every partition after it. */
     @Test
-    public void offlineSkipsFileCacheOncePerIntervalCursor() throws Throwable
+    public void offlineSkipsFileCacheOncePerIntervalCursorBig() throws Throwable
     {
-        assertOfflineSkipsOncePerInterval(true);
+        assertOfflineSkipsOncePerInterval("big", true);
     }
 
     @Test
-    public void offlineSkipsFileCacheOncePerIntervalIterator() throws Throwable
+    public void offlineSkipsFileCacheOncePerIntervalCursorBti() throws Throwable
     {
-        assertOfflineSkipsOncePerInterval(false);
+        assertOfflineSkipsOncePerInterval("bti", true);
     }
 
-    private void assertOfflineSkipsOncePerInterval(boolean cursor) throws Throwable
+    @Test
+    public void offlineSkipsFileCacheOncePerIntervalIteratorBig() throws Throwable
     {
+        assertOfflineSkipsOncePerInterval("big", false);
+    }
+
+    @Test
+    public void offlineSkipsFileCacheOncePerIntervalIteratorBti() throws Throwable
+    {
+        assertOfflineSkipsOncePerInterval("bti", false);
+    }
+
+    private void assertOfflineSkipsOncePerInterval(String format, boolean cursor) throws Throwable
+    {
+        DatabaseDescriptor.setSelectedSSTableFormat(format);
         int originalInterval = DatabaseDescriptor.getSSTablePreemptiveOpenIntervalInMiB();
         DatabaseDescriptor.setSSTablePreemptiveOpenIntervalInMiB(OPEN_INTERVAL_MIB);
         try

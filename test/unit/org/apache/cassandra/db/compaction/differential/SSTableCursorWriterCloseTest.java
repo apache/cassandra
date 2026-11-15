@@ -22,6 +22,7 @@ import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
+import java.util.Collection;
 import java.util.List;
 import java.util.Set;
 import java.util.concurrent.CopyOnWriteArrayList;
@@ -29,6 +30,8 @@ import java.util.concurrent.CopyOnWriteArrayList;
 import org.junit.After;
 import org.junit.Before;
 import org.junit.Test;
+import org.junit.runner.RunWith;
+import org.junit.runners.Parameterized;
 
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.cql3.CQLTester;
@@ -54,7 +57,7 @@ import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertTrue;
 
 /**
- * Checks {@link SSTableCursorWriter#close()} on the BTI format. {@code close()} finishes the writer,
+ * Checks {@link SSTableCursorWriter#close()} on both sstable formats. {@code close()} finishes the writer,
  * closes the cursor index writer, and releases the reader that the finish returns.
  *
  * <p>Compaction never calls {@code close()}; it finishes through {@code CompactionAwareWriter}. Only the
@@ -62,8 +65,18 @@ import static org.junit.Assert.assertTrue;
  * pipe, closes the writer and commits the transaction. It then asserts that nothing leaked, and that every
  * row of the output reads back logically identical to the input.
  */
+@RunWith(Parameterized.class)
 public class SSTableCursorWriterCloseTest extends CQLTester
 {
+    @Parameterized.Parameter
+    public String format;
+
+    @Parameterized.Parameters(name = "format={0}")
+    public static Collection<Object[]> formats()
+    {
+        return List.of(new Object[]{ "big" }, new Object[]{ "bti" });
+    }
+
     /** A few hundred partitions, so the copy pipe runs a realistic partition stream. */
     private static final int PARTITIONS = 300;
 
@@ -85,10 +98,10 @@ public class SSTableCursorWriterCloseTest extends CQLTester
     private SSTableFormat<?, ?> originalFormat;
 
     @Before
-    public void selectBti()
+    public void selectFormat()
     {
         originalFormat = DatabaseDescriptor.getSelectedSSTableFormat();
-        DatabaseDescriptor.setSelectedSSTableFormat("bti");
+        DatabaseDescriptor.setSelectedSSTableFormat(format);
     }
 
     @After
@@ -106,7 +119,7 @@ public class SSTableCursorWriterCloseTest extends CQLTester
         assertEquals("fixture must flush to exactly one sstable", 1, live.size());
         SSTableReader inputReader = live.iterator().next();
         Descriptor inputDescriptor = inputReader.descriptor;
-        assertEquals("fixture input must be BTI", "bti", inputDescriptor.getFormat().name());
+        assertEquals("fixture input is in the wrong format", format, inputDescriptor.getFormat().name());
 
         String inputDump = dump(inputReader);
 
@@ -217,7 +230,7 @@ public class SSTableCursorWriterCloseTest extends CQLTester
     }
 
     /** Copies the input through the cursor pipe into a new sstable, and commits it. */
-    private static Descriptor writeThroughCursorPipe(ColumnFamilyStore cfs, SSTableReader inputReader,
+    private Descriptor writeThroughCursorPipe(ColumnFamilyStore cfs, SSTableReader inputReader,
                                                      Descriptor inputDescriptor,
                                                      org.apache.cassandra.io.util.File outDir) throws Throwable
     {
@@ -228,8 +241,8 @@ public class SSTableCursorWriterCloseTest extends CQLTester
                 (SortedTableWriter<?, ?>) CompactionManager.createWriter(cfs, outDir, 0, 0, null, false,
                                                                          inputReader, txn);
             Descriptor outputDescriptor = ssTableWriter.descriptor;
-            assertEquals("output writer must be BTI so BtiCursorIndexWriter.close() runs",
-                         "bti", outputDescriptor.getFormat().name());
+            assertEquals("output writer is in the wrong format, so the wrong cursor index writer closes",
+                         format, outputDescriptor.getFormat().name());
 
             SSTableCursorWriter cursorWriter = new SSTableCursorWriter(ssTableWriter);
             // Copy the whole sstable through the cursor pipe (static rows, rows, range tombstones).
@@ -243,7 +256,7 @@ public class SSTableCursorWriterCloseTest extends CQLTester
     }
 
     /**
-     * Builds a single flushed BTI sstable holding a deterministic mix of partitions with static
+     * Builds a single flushed sstable holding a deterministic mix of partitions with static
      * values, multiple clustering rows, range tombstones and partition-level deletions.
      */
     private ColumnFamilyStore buildOneInputSSTable() throws Throwable

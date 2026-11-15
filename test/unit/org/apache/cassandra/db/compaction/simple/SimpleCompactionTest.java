@@ -132,10 +132,6 @@ public abstract class SimpleCompactionTest extends CQLTester
         if (!params.cursorCompaction)
             return;
 
-        // A format without cursor-compaction support correctly runs the iterator path, so skip.
-        if (DatabaseDescriptor.getSelectedSSTableFormat().cursorIndexWriterFactory() == null)
-            return;
-
         Set<SSTableReader> inputs = new HashSet<>(cfs.getLiveSSTables());
         try (CompactionController controller = new CompactionController(cfs, inputs, cfs.gcBefore(FBUtilities.nowInSeconds()));
              AbstractCompactionStrategy.ScannerList scanners =
@@ -180,8 +176,6 @@ public abstract class SimpleCompactionTest extends CQLTester
 
     private void assertExpectedPipelineRan(CompactionPipelineCounts before)
     {
-        CompactionPipelineCounts.assertPipelineRan(params.cursorCompaction &&
-                                                   DatabaseDescriptor.getSelectedSSTableFormat().cursorIndexWriterFactory() != null,
-                                                   before);
+        CompactionPipelineCounts.assertPipelineRan(params.cursorCompaction, before);
     }
 }

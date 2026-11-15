@@ -19,10 +19,15 @@
 package org.apache.cassandra.db.compaction.differential;
 
 import java.util.ArrayList;
+import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
 
+import org.junit.After;
+import org.junit.Before;
 import org.junit.Test;
+import org.junit.runner.RunWith;
+import org.junit.runners.Parameterized;
 
 import org.apache.cassandra.db.ColumnFamilyStore;
 import org.apache.cassandra.db.DecoratedKey;
@@ -41,8 +46,30 @@ import static org.junit.Assert.assertTrue;
  * A compaction over a token subrange, the shape of one UCS shard task. Every input straddles the
  * range, so every scanner is partial and the cursor reads a bounded segment of each sstable.
  */
+@RunWith(Parameterized.class)
 public class PartialRangeDifferentialCompactionTest extends DifferentialCompactionTester
 {
+    @Parameterized.Parameter
+    public String format;
+
+    @Parameterized.Parameters(name = "format={0}")
+    public static Collection<Object[]> formats()
+    {
+        return List.of(new Object[]{ "big" }, new Object[]{ "bti" });
+    }
+
+    @Before
+    public void selectFormat()
+    {
+        selectSSTableFormat(format);
+    }
+
+    @After
+    public void restoreFormat()
+    {
+        restoreSelectedFormat();
+    }
+
     private static final int PARTITIONS = 20;
     private static final int ROWS_PER_PARTITION = 10;
 

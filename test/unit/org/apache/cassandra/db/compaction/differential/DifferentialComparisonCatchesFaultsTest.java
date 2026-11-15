@@ -22,11 +22,14 @@ import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.ArrayList;
+import java.util.Collection;
 import java.util.List;
 
 import org.junit.After;
 import org.junit.Before;
 import org.junit.Test;
+import org.junit.runner.RunWith;
+import org.junit.runners.Parameterized;
 
 import org.apache.cassandra.db.ColumnFamilyStore;
 import org.apache.cassandra.io.sstable.Component;
@@ -39,7 +42,7 @@ import static org.junit.Assert.assertTrue;
  * Checks that {@link #assertEquivalentOutputs} fails when one output is wrong.
  *
  * <p>It runs no compaction. It builds {@link CapturedSSTable} objects from the component files of one
- * flushed BTI sstable, then changes a copy in one of these ways:
+ * flushed sstable, then changes a copy in one of these ways:
  * <ul>
  *   <li>a flipped byte in each component;</li>
  *   <li>a dropped row in the logical dump;</li>
@@ -48,8 +51,18 @@ import static org.junit.Assert.assertTrue;
  * </ul>
  * Each change must raise an {@link AssertionError}.
  */
+@RunWith(Parameterized.class)
 public class DifferentialComparisonCatchesFaultsTest extends DifferentialCompactionTester
 {
+    @Parameterized.Parameter
+    public String format;
+
+    @Parameterized.Parameters(name = "format={0}")
+    public static Collection<Object[]> formats()
+    {
+        return List.of(new Object[]{ "big" }, new Object[]{ "bti" });
+    }
+
     // A small, non-digest logical dump. Non-digest so assertEquivalentSSTable compares it line by line.
     private static final String CANON_JSON = "[\n  {\"partition\":{\"key\":[\"0\"]}},\n" +
                                              "  {\"rows\":[{\"clustering\":[\"0\"],\"value\":\"a\"}]},\n" +
@@ -63,7 +76,7 @@ public class DifferentialComparisonCatchesFaultsTest extends DifferentialCompact
     @Before
     public void setUp() throws IOException
     {
-        selectSSTableFormat("bti");
+        selectSSTableFormat(format);
         scratch = Files.createTempDirectory("differential-negative-control");
 
         createTable("CREATE TABLE %s (pk bigint, ck bigint, v text, PRIMARY KEY (pk, ck))");
