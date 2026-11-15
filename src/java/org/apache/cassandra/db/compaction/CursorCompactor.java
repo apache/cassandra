@@ -704,8 +704,8 @@ public class CursorCompactor extends CompactionInfo.Holder
             }
             // Required. A cursor left at UNFILTERED_END still holds the static descriptor, and
             // STATIC_CLUSTERING sorts ahead of every row, so the unfiltered loop re-merges the
-            // consumed position as a phantom row. The output is unaffected; rowMergeCounters is
-            // not, and it feeds system.compaction_history.rows_merged.
+            // consumed position as a phantom row. The output is unaffected, but the phantom row is
+            // counted in rowMergeCounters, which the "Compaction ended" log reports.
             continueReadingAfterMerge(staticRowMergeLimit, UNFILTERED_END);
         }
         if (isPartitionStarted())
