@@ -434,6 +434,12 @@ public abstract class CommitLogSegment
 
     abstract void write(int lastSyncedOffset, int nextMarker);
 
+    /**
+     * Make buffered segment changes durable on disk.
+     *
+     * @param startMarker start offset of the segment range that must be made durable
+     * @param nextMarker exclusive end offset of the segment range that must be made durable
+     */
     abstract void flush(int startMarker, int nextMarker);
 
     public boolean isStillAllocating()
