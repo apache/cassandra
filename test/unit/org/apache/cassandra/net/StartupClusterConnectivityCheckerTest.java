@@ -196,29 +196,12 @@ public class StartupClusterConnectivityCheckerTest
         int peers = 100;
         int rate = 50;
         long baseTimeoutNanos = TimeUnit.SECONDS.toNanos(60);
-
-        long totalConnections = (long) peers * ConnectionType.MESSAGING_TYPES.size();
-        long queueDelayNanos = (totalConnections * TimeUnit.SECONDS.toNanos(1)) / rate;
-        long totalTimeoutNanos = baseTimeoutNanos + queueDelayNanos;
+        long totalTimeoutNanos = StartupClusterConnectivityChecker.calculateTotalTimeoutNanos(baseTimeoutNanos, peers, rate);
 
         Assert.assertEquals(TimeUnit.SECONDS.toNanos(66), totalTimeoutNanos);
         Assert.assertEquals(66, TimeUnit.NANOSECONDS.toSeconds(totalTimeoutNanos));
-
-        int disabledRate = 0;
-        long timeoutWithDisabledRate = baseTimeoutNanos;
-        if (baseTimeoutNanos > 0 && disabledRate > 0)
-        {
-            timeoutWithDisabledRate += (totalConnections * TimeUnit.SECONDS.toNanos(1)) / disabledRate;
-        }
-        Assert.assertEquals(baseTimeoutNanos, timeoutWithDisabledRate);
-
-        long noWaitNanos = 0;
-        long effectiveNoWait = noWaitNanos;
-        if (noWaitNanos > 0 && rate > 0)
-        {
-            effectiveNoWait += (totalConnections * TimeUnit.SECONDS.toNanos(1)) / rate;
-        }
-        Assert.assertEquals(0, effectiveNoWait);
+        Assert.assertEquals(baseTimeoutNanos, StartupClusterConnectivityChecker.calculateTotalTimeoutNanos(baseTimeoutNanos, peers, 0));
+        Assert.assertEquals(0, StartupClusterConnectivityChecker.calculateTotalTimeoutNanos(0, peers, rate));
     }
 
     private void checkAvailable(StartupClusterConnectivityChecker checker, Set<InetAddressAndPort> available,
