@@ -75,6 +75,7 @@ public class PartitionKeyUnionTest
                 exactDistinctKeys.addAll(sstable);
             }
 
+            // We compare the cardinality reported by PartitionKeyUnion with the actual number of distinct keys in the SSTable
             assertEquals(exactDistinctKeys.size(), union.cardinality(), Math.max(10, MAX_RELATIVE_ERROR * exactDistinctKeys.size()));
         });
     }

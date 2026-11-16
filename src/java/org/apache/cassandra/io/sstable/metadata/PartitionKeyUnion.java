@@ -40,6 +40,9 @@ public final class PartitionKeyUnion
 
         if (union == null)
         {
+            // We create a dense format HyperLogLogPlus and perform all merges using
+            // addAll. This means that one of the HyperLogLogPlus will always be in the dense format
+            // allowing us to avoid the logic that hits into the bug when we merge two sparse sketches.
             union = new HyperLogLogPlus(MetadataCollector.CARDINALITY_PRECISION);
             union.addAll((HyperLogLogPlus) first);
         }

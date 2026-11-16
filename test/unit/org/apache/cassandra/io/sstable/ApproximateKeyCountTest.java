@@ -31,14 +31,16 @@ import static org.junit.Assert.assertEquals;
 
 public class ApproximateKeyCountTest extends CQLTester
 {
-    // Regression test for CASSANDRA-21841, previously using the default merge for
-    // sparse format HLL returned 140 distinct keys
+    // Regression test for CASSANDRA-21841
     @Test
     public void testSSTablesSharingPartitions()
     {
         createTable("CREATE TABLE %s (pk bigint PRIMARY KEY, v int)");
         disableCompaction();
 
+        // We fix random on a deterministic seed
+        // Previously using the default merge for sparse format HLL
+        // returned 140 distinct keys on this seed
         Random random = new Random(1);
         List<Long> keys = new ArrayList<>();
         for (int i = 0; i < 100; i++)
@@ -48,7 +50,7 @@ public class ApproximateKeyCountTest extends CQLTester
         insertAndFlush(keys.subList(0, 50));
 
         long estimate = SSTableReader.getApproximateKeyCount(getCurrentColumnFamilyStore().getLiveSSTables());
-        assertEquals(100, estimate, 2);
+        assertEquals(101, estimate);
     }
 
     private void insertAndFlush(List<Long> keys)
