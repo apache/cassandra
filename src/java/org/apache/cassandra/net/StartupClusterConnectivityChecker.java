@@ -108,14 +108,9 @@ public class StartupClusterConnectivityChecker
             datacenterToPeers.put(datacenter, peer);
         }
 
-        long totalTimeoutNanos = this.timeoutNanos;
-        int rate = DatabaseDescriptor.getInternodeMaxOutboundConnectionsPerSecond();
-        if (totalTimeoutNanos > 0 && rate > 0)
-        {
-            long totalConnections = (long) peers.size() * ConnectionType.MESSAGING_TYPES.size();
-            long queueDelayNanos = (totalConnections * TimeUnit.SECONDS.toNanos(1)) / rate;
-            totalTimeoutNanos += queueDelayNanos;
-        }
+        long totalTimeoutNanos = calculateTotalTimeoutNanos(this.timeoutNanos,
+                                                            peers.size(),
+                                                            DatabaseDescriptor.getInternodeMaxOutboundConnectionsPerSecond());
 
         // In the case where we do not want to block startup on remote datacenters (e.g. because clients only use
         // LOCAL_X consistency levels), we remove all other datacenter hosts from the mapping and we only wait
@@ -197,6 +192,17 @@ public class StartupClusterConnectivityChecker
         }
 
         return succeeded;
+    }
+
+    @VisibleForTesting
+    static long calculateTotalTimeoutNanos(long baseTimeoutNanos, int peerCount, int ratePerSecond)
+    {
+        if (baseTimeoutNanos <= 0 || ratePerSecond <= 0)
+            return baseTimeoutNanos;
+
+        long totalConnections = (long) peerCount * ConnectionType.MESSAGING_TYPES.size();
+        long queueDelayNanos = (totalConnections * TimeUnit.SECONDS.toNanos(1)) / ratePerSecond;
+        return baseTimeoutNanos + queueDelayNanos;
     }
 
     /**

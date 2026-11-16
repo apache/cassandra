@@ -103,7 +103,8 @@ public class OutboundConnectionInitiatorTest
     @Test
     public void testRateLimiterDisabledFastPath() throws Exception
     {
-        DatabaseDescriptor.setInternodeMaxOutboundConnectionsPerSecond(0);
+        factory.updateOutboundConnectionRateLimiter(250);
+        factory.updateOutboundConnectionRateLimiter(0);
         try
         {
             EventLoop loop = factory.defaultGroup().next();
@@ -122,7 +123,7 @@ public class OutboundConnectionInitiatorTest
         }
         finally
         {
-            DatabaseDescriptor.setInternodeMaxOutboundConnectionsPerSecond(250);
+            factory.updateOutboundConnectionRateLimiter(250);
         }
     }
 
@@ -269,9 +270,9 @@ public class OutboundConnectionInitiatorTest
                                                                         createSettings(testFactory), promise);
             Assert.assertFalse("Connection must be waiting in the delay queue", future.isDone());
 
-            loop.shutdownGracefully();
+            loop.shutdownGracefully(0, 1, TimeUnit.SECONDS);
+            future.await(5, TimeUnit.SECONDS);
 
-            future.await(3, TimeUnit.SECONDS);
             Assert.assertTrue("Connection must terminate promptly on loop shutdown", future.isDone());
             Assert.assertFalse("Connection must not succeed", future.isSuccess());
             Assert.assertTrue("Must fail with ClosedChannelException", future.cause() instanceof ClosedChannelException);
