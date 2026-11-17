@@ -419,7 +419,7 @@ public final class TableParams
                                                    false)
                .newLine();
 
-        if (version.isAtLeast(Version.V11))
+        if (version.isAtLeast(Version.TRUNK))
             builder.append("AND flush_compression = ").appendWithSingleQuotes(flushCompression.toString()).newLine();
 
         builder.append("AND gc_grace_seconds = ").append(gcGraceSeconds)
@@ -683,7 +683,7 @@ public final class TableParams
             }
             if (version.isAtLeast(Version.V8))
                 out.writeUTF(t.securityLabel);
-            if (version.isAtLeast(Version.V11))
+            if (version.isAtLeast(Version.TRUNK))
                 out.writeUTF(t.flushCompression.toString());
         }
 
@@ -718,7 +718,7 @@ public final class TableParams
             }
             if (version.isAtLeast(Version.V8))
                 builder.securityLabel(in.readUTF());
-            if (version.isAtLeast(Version.V11))
+            if (version.isAtLeast(Version.TRUNK))
                 builder.flushCompression(FlushCompressionParams.fromString(in.readUTF()));
 
             return builder.build();
@@ -754,7 +754,7 @@ public final class TableParams
             }
             if (version.isAtLeast(Version.V8))
                 size += sizeof(t.securityLabel);
-            if (version.isAtLeast(Version.V11))
+            if (version.isAtLeast(Version.TRUNK))
                 size += sizeof(t.flushCompression.toString());
             return size;
         }

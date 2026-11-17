@@ -43,7 +43,8 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 /**
- * DDL carrying {@code flush_compression} is rejected while the cluster common serialization version is below V11.
+ * DDL carrying {@code flush_compression} is rejected while the cluster common serialization version
+ * is below version supporting new cql schema flag.
  */
 public class FlushCompressionVersionCompatibilityTest
 {
@@ -70,7 +71,7 @@ public class FlushCompressionVersionCompatibilityTest
         for (int i = 1; i <= 4; i++)
         {
             NodeId nodeId = ClusterMetadataTestHelper.register(addr(i), "dc0", "rack0",
-                                                               new NodeVersion(CassandraVersion.CASSANDRA_5_1, i == 1 ? Version.V10 : Version.V11));
+                                                               new NodeVersion(CassandraVersion.CASSANDRA_5_1, i == 1 ? Version.V10 : Version.TRUNK));
             if (i == 1)
             {
                 oldNode = nodeId;
@@ -93,7 +94,7 @@ public class FlushCompressionVersionCompatibilityTest
 
         TableAttributes with = new TableAttributes();
         with.addProperty("flush_compression", "none");
-        assertThat(with.minimumSerializationVersion()).isEqualTo(Version.V11);
+        assertThat(with.minimumSerializationVersion()).isEqualTo(Version.TRUNK);
     }
 
     @Test
@@ -149,7 +150,7 @@ public class FlushCompressionVersionCompatibilityTest
 
     private void upgradeOldNode()
     {
-        ClusterMetadataService.instance().commit(new Startup(oldNode, oldNodeAddresses, new NodeVersion(CassandraVersion.CASSANDRA_5_1, Version.V11)));
+        ClusterMetadataService.instance().commit(new Startup(oldNode, oldNodeAddresses, new NodeVersion(CassandraVersion.CASSANDRA_5_1, Version.TRUNK)));
     }
 
     private static void commit(String cql)

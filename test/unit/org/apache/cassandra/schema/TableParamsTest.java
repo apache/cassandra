@@ -54,7 +54,7 @@ public class TableParamsTest
     {
         for (Version version : Version.values())
         {
-            if (version == Version.UNKNOWN || !version.isAtLeast(Version.V11))
+            if (version == Version.UNKNOWN || !version.isAtLeast(Version.TRUNK))
                 continue;
 
             for (FlushCompression option : FlushCompression.values())
@@ -74,7 +74,7 @@ public class TableParamsTest
         TableParams expected = params.unbuild().flushCompression(FlushCompressionParams.DEFAULT).build();
         for (Version version : Version.values())
         {
-            if (version == Version.UNKNOWN || version.isAtLeast(Version.V11))
+            if (version == Version.UNKNOWN || version.isAtLeast(Version.TRUNK))
                 continue;
 
             TableParams deserialized = serde(params, version);
@@ -121,7 +121,7 @@ public class TableParamsTest
         assertThat(params.toString()).contains("flush_compression=fast");
 
         CqlBuilder builder = new CqlBuilder();
-        params.appendCqlTo(builder, false, Version.V11);
+        params.appendCqlTo(builder, false, Version.TRUNK);
         assertThat(builder.toString()).contains("AND flush_compression = 'fast'");
 
         builder = new CqlBuilder();

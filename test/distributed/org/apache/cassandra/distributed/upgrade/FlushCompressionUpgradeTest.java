@@ -34,8 +34,8 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.awaitility.Awaitility.await;
 
 /**
- * ALTER TABLE ... WITH flush_compression is rejected until every node supports metadata version V11,
- * other ALTER TABLE statements are accepted in mixed mode.
+ * ALTER TABLE ... WITH flush_compression is rejected until every node supports metadata version supporting new
+ * cql schema flag, other ALTER TABLE statements are accepted in mixed mode.
  */
 public class FlushCompressionUpgradeTest extends UpgradeTestBase
 {

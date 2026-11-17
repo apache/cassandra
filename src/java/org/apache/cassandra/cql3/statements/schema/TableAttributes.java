@@ -220,7 +220,7 @@ public final class TableAttributes extends PropertyDefinitions
      */
     public Version minimumSerializationVersion()
     {
-        return hasOption(FLUSH_COMPRESSION) ? Version.V11 : Version.V0;
+        return hasOption(FLUSH_COMPRESSION) ? Version.TRUNK : Version.V0;
     }
 
     private String getString(Option option)
