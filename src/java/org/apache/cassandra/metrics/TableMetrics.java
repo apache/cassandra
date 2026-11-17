@@ -432,6 +432,9 @@ public class TableMetrics
      * */
     public final MetricsAggregation metricsAggregation;
 
+    // Time spent building SSTableIntervalTree when constructing a new View under the Tracker lock
+    public final TableLatencyMetrics viewSSTableIntervalTree;
+
     private static Pair<Long, Long> totalNonSystemTablesSize(Predicate<SSTableReader> predicate)
     {
         long total = 0;
@@ -1151,6 +1154,8 @@ public class TableMetrics
         tooManySSTableIndexesReadAborts = createTableMeter("TooManySSTableIndexesReadAborts", cfs.getKeyspaceMetrics().tooManySSTableIndexesReadAborts);
 
         formatSpecificGauges = createFormatSpecificGauges(cfs);
+
+        viewSSTableIntervalTree = createLatencyMetrics("ViewSSTableIntervalTree", cfs.getKeyspaceMetrics().viewSSTableIntervalTree, Optional.empty());
     }
 
     public MovingAverage flushSizeOnDisk()

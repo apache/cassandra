@@ -220,6 +220,8 @@ public class KeyspaceMetrics
 
     public final ImmutableMap<SSTableFormat<?, ?>, ImmutableMap<String, Gauge<? extends Number>>> formatSpecificGauges;
 
+    public final LatencyMetrics viewSSTableIntervalTree;
+
     public final MetricNameFactory factory;
     private final Keyspace keyspace;
 
@@ -352,6 +354,8 @@ public class KeyspaceMetrics
         outOfRangeTokenReads = createKeyspaceCounter("ReadOutOfRangeToken");
         outOfRangeTokenWrites = createKeyspaceCounter("WriteOutOfRangeToken");
         outOfRangeTokenPaxosRequests = createKeyspaceCounter("PaxosOutOfRangeToken");
+
+        viewSSTableIntervalTree = createLatencyMetrics("ViewSSTableIntervalTree");
     }
 
     /**

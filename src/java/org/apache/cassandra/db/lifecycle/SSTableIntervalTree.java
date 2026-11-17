@@ -1,5 +1,4 @@
 /*
- *
  * Licensed to the Apache Software Foundation (ASF) under one
  * or more contributor license agreements.  See the NOTICE file
  * distributed with this work for additional information
@@ -20,10 +19,12 @@
  */
 package org.apache.cassandra.db.lifecycle;
 
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
+import java.util.Map;
 
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.db.PartitionPosition;
@@ -31,6 +32,9 @@ import org.apache.cassandra.db.compaction.CompactionSSTable;
 import org.apache.cassandra.io.sstable.format.SSTableReader;
 import org.apache.cassandra.utils.Interval;
 import org.apache.cassandra.utils.IntervalTree;
+import org.apache.cassandra.utils.Pair;
+
+import static com.google.common.base.Preconditions.checkArgument;
 
 import static com.google.common.base.Preconditions.checkState;
 
@@ -43,6 +47,11 @@ public class SSTableIntervalTree extends IntervalTree<PartitionPosition, SSTable
         super(intervals);
     }
 
+    SSTableIntervalTree(IntervalNode head, int modCount, Interval<PartitionPosition, SSTableReader>[] minOrder, Interval<PartitionPosition, SSTableReader>[] maxOrder)
+    {
+        super(head, modCount, minOrder, maxOrder);
+    }
+
     private SSTableIntervalTree(Interval<PartitionPosition, SSTableReader>[] minOrder, Interval<PartitionPosition, SSTableReader>[] maxOrder)
     {
         super(minOrder, maxOrder);
@@ -52,6 +61,25 @@ public class SSTableIntervalTree extends IntervalTree<PartitionPosition, SSTable
     protected SSTableIntervalTree create(Interval<PartitionPosition, SSTableReader>[] minOrder, Interval<PartitionPosition, SSTableReader>[] maxOrder)
     {
         return new SSTableIntervalTree(minOrder, maxOrder);
+    }
+
+    @Override
+    protected SSTableIntervalTree create(IntervalNode head, int modCount, Interval<PartitionPosition, SSTableReader>[] minOrder, Interval<PartitionPosition, SSTableReader>[] maxOrder)
+    {
+        return new SSTableIntervalTree(head, modCount, minOrder, maxOrder);
+    }
+
+    @Override
+    protected SSTableIntervalTree create(Collection<Interval<PartitionPosition, SSTableReader>> intervals)
+    {
+        return new SSTableIntervalTree(intervals);
+    }
+
+    @Override
+    public SSTableIntervalTree replace(List<Pair<Interval<PartitionPosition, SSTableReader>, Interval<PartitionPosition, SSTableReader>>> replacements)
+    {
+        checkArgument(!replacements.isEmpty(), "Shouldn't call replace with no replacements");
+        return (SSTableIntervalTree) super.replace(replacements);
     }
 
     public static SSTableIntervalTree empty()
@@ -107,5 +135,37 @@ public class SSTableIntervalTree extends IntervalTree<PartitionPosition, SSTable
     public static SSTableIntervalTree update(SSTableIntervalTree tree, Collection<SSTableReader> removals, Collection<SSTableReader> additions)
     {
         return (SSTableIntervalTree) tree.update(buildIntervalsArray(removals), buildIntervalsArray(additions));
+    }
+
+    /**
+     * Creates a new SSTableIntervalTree where SSTableReaders within the replacementMap are updated from the map's
+     * key to its value. The new SSTableIntervalTree shares some {@code IntervalNode} instances with
+     * the original tree. Only the nodes along the paths to the replaced SSTableReaders are recreated, minimizing
+     * the extent of changes to the tree structure.
+     *
+     * Assumption: all SSTableReader keys of replacementMap are present within the current SSTableIntervalTree.
+     *
+     * @param replacementMap Map of SSTableReader(s) (toRemove, toAdd) that need to be replaced within the tree
+     * @return A new SSTableIntervalTree, partially sharing structure with the original tree, but with the specified
+     *         SSTableReaders replaced.
+     */
+    public static SSTableIntervalTree replace(SSTableIntervalTree tree, Map<SSTableReader, SSTableReader> replacementMap)
+    {
+        checkArgument(!replacementMap.isEmpty(), "Replacement map shouldn't be empty for SSTableIntervalTree.replace");
+        List<Pair<Interval<PartitionPosition, SSTableReader>, Interval<PartitionPosition, SSTableReader>>> replacementIntervalsMap = new ArrayList<>();
+        for (Map.Entry<SSTableReader, SSTableReader> entry : replacementMap.entrySet())
+        {
+            SSTableReader originalSSTable = entry.getKey();
+            SSTableReader replacementSSTable = entry.getValue();
+            Interval<PartitionPosition, SSTableReader> originalInterval = originalSSTable.getInterval();
+            Interval<PartitionPosition, SSTableReader> replacementInterval = replacementSSTable.getInterval();
+            replacementIntervalsMap.add(Pair.create(originalInterval, replacementInterval));
+        }
+        return tree.replace(replacementIntervalsMap);
+    }
+
+    public static SSTableIntervalTree addSSTables(SSTableIntervalTree tree, Collection<SSTableReader> additions)
+    {
+        return (SSTableIntervalTree) tree.add(buildIntervalsArray(additions));
     }
 }

@@ -1,4 +1,6 @@
 5.0.9
+ * Support for add and replace in IntervalTree (CASSANDRA-20513)
+ * Add SSTableIntervalTree latency metric (CASSANDRA-20502)
  * Fix bloom filter metrics counting the shared per-table BloomFilterTracker once per sstable and ignoring in-flight bloom filter memory of tables without live sstables (CNDB-9370)
  * Add support for JDK 21 as a non-default JDK: build, startup scripts, ASM 9.7.1, CI and packaging (HCD-645)
  * Bump netty-tcnative-boringssl-static to 2.0.84.Final (CVE-2026-116539) and netty to 4.1.139.Final (CNDB-19960)
