@@ -38,17 +38,24 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.Future;
 import java.util.concurrent.ScheduledFuture;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.concurrent.atomic.AtomicReference;
 
+import javax.net.ssl.SSLEngine;
 import javax.net.ssl.SSLException;
+import javax.net.ssl.SSLSessionContext;
 import javax.net.ssl.X509KeyManager;
 
 import org.apache.commons.io.FileUtils;
+import org.junit.After;
 import org.junit.Assert;
 import org.junit.Before;
 import org.junit.Test;
@@ -59,15 +66,25 @@ import org.apache.cassandra.config.EncryptionOptions.ServerEncryptionOptions;
 import org.apache.cassandra.config.EncryptionOptions.ServerEncryptionOptions.Builder;
 import org.apache.cassandra.config.ParameterizedClass;
 import org.apache.cassandra.io.util.File;
+import org.apache.cassandra.net.SocketFactory;
 import org.apache.cassandra.transport.TlsTestUtils;
 import org.apache.cassandra.utils.Clock;
 
+import io.netty.buffer.ByteBufAllocator;
+import io.netty.channel.embedded.EmbeddedChannel;
+import io.netty.handler.ssl.ApplicationProtocolNegotiator;
 import io.netty.handler.ssl.CipherSuiteFilter;
+import io.netty.handler.ssl.OpenSsl;
 import io.netty.handler.ssl.OpenSslClientContext;
 import io.netty.handler.ssl.OpenSslServerContext;
 import io.netty.handler.ssl.OpenSslSessionContext;
 import io.netty.handler.ssl.SslContext;
+import io.netty.handler.ssl.SslHandler;
 import io.netty.handler.ssl.util.SelfSignedCertificate;
+import io.netty.util.AbstractReferenceCounted;
+import io.netty.util.IllegalReferenceCountException;
+import io.netty.util.ReferenceCountUtil;
+import io.netty.util.ReferenceCounted;
 
 import static org.apache.cassandra.config.EncryptionOptions.ClientEncryptionOptions.ClientAuth.NOT_REQUIRED;
 import static org.apache.cassandra.config.EncryptionOptions.ClientEncryptionOptions.ClientAuth.REQUIRED;
@@ -76,6 +93,7 @@ import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertNotNull;
 import static org.junit.Assume.assumeFalse;
 import static org.junit.Assume.assumeNoException;
+import static org.junit.Assume.assumeTrue;
 
 public class SSLFactoryTest
 {
@@ -95,6 +113,7 @@ public class SSLFactoryTest
     }
 
     private ServerEncryptionOptions encryptionOptions;
+    private final List<SslContext> lookedUp = Collections.synchronizedList(new ArrayList<>());
 
     @Before
     public void setup()
@@ -107,6 +126,24 @@ public class SSLFactoryTest
                                          .withSslContextFactory(new ParameterizedClass(TestFileBasedSSLContextFactory.class.getName(),
                                                                                        new HashMap<>()))
                                          .build();
+    }
+
+    @After
+    public void releaseLookups()
+    {
+        lookedUp.forEach(ReferenceCountUtil::release);
+        lookedUp.clear();
+    }
+
+    /**
+     * Looks up a cached context and releases the lookup reference when the test ends.
+     */
+    private SslContext lookup(EncryptionOptions options, EncryptionOptions.ClientEncryptionOptions.ClientAuth clientAuth,
+                              ISslContextFactory.SocketType socketType, String contextDescription) throws IOException
+    {
+        SslContext context = SSLFactory.getOrCreateSslContext(options, clientAuth, socketType, contextDescription);
+        lookedUp.add(context);
+        return context;
     }
 
     private Builder addKeystoreOptions(ServerEncryptionOptions options)
@@ -152,8 +189,8 @@ public class SSLFactoryTest
             options.sslContextFactoryInstance.initHotReloading();
             legacyOptions.sslContextFactoryInstance.initHotReloading();
 
-            SslContext oldCtx = SSLFactory.getOrCreateSslContext(options, REQUIRED, ISslContextFactory.SocketType.CLIENT, "test");
-            SslContext oldLegacyCtx = SSLFactory.getOrCreateSslContext(legacyOptions, REQUIRED, ISslContextFactory.SocketType.CLIENT, "test legacy");
+            SslContext oldCtx = lookup(options, REQUIRED, ISslContextFactory.SocketType.CLIENT, "test");
+            SslContext oldLegacyCtx = lookup(legacyOptions, REQUIRED, ISslContextFactory.SocketType.CLIENT, "test legacy");
             File keystoreFile = new File(options.keystore);
 
             SSLFactory.checkCertFilesForHotReloading();
@@ -161,8 +198,8 @@ public class SSLFactoryTest
             keystoreFile.trySetLastModified(System.currentTimeMillis() + 15000);
 
             SSLFactory.checkCertFilesForHotReloading();
-            SslContext newCtx = SSLFactory.getOrCreateSslContext(options, REQUIRED, ISslContextFactory.SocketType.CLIENT, "test");
-            SslContext newLegacyCtx = SSLFactory.getOrCreateSslContext(legacyOptions, REQUIRED, ISslContextFactory.SocketType.CLIENT, "test legacy");
+            SslContext newCtx = lookup(options, REQUIRED, ISslContextFactory.SocketType.CLIENT, "test");
+            SslContext newLegacyCtx = lookup(legacyOptions, REQUIRED, ISslContextFactory.SocketType.CLIENT, "test legacy");
 
             Assert.assertNotSame(oldCtx, newCtx);
             Assert.assertNotSame(oldLegacyCtx, newLegacyCtx);
@@ -225,8 +262,8 @@ public class SSLFactoryTest
             options.sslContextFactoryInstance.initHotReloading();
             legacyOptions.sslContextFactoryInstance.initHotReloading();
 
-            SslContext oldCtx = SSLFactory.getOrCreateSslContext(options, REQUIRED, ISslContextFactory.SocketType.CLIENT, "test");
-            SslContext oldLegacyCtx = SSLFactory.getOrCreateSslContext(legacyOptions, REQUIRED, ISslContextFactory.SocketType.CLIENT, "test legacy");
+            SslContext oldCtx = lookup(options, REQUIRED, ISslContextFactory.SocketType.CLIENT, "test");
+            SslContext oldLegacyCtx = lookup(legacyOptions, REQUIRED, ISslContextFactory.SocketType.CLIENT, "test legacy");
             File keystoreFile = new File(options.keystore);
 
             SSLFactory.checkCertFilesForHotReloading();
@@ -234,8 +271,8 @@ public class SSLFactoryTest
             keystoreFile.trySetLastModified(System.currentTimeMillis() + 15000);
 
             SSLFactory.checkCertFilesForHotReloading();
-            SslContext newCtx = SSLFactory.getOrCreateSslContext(options, REQUIRED, ISslContextFactory.SocketType.CLIENT, "test");
-            SslContext newLegacyCtx = SSLFactory.getOrCreateSslContext(legacyOptions, REQUIRED, ISslContextFactory.SocketType.CLIENT, "test legacy");
+            SslContext newCtx = lookup(options, REQUIRED, ISslContextFactory.SocketType.CLIENT, "test");
+            SslContext newLegacyCtx = lookup(legacyOptions, REQUIRED, ISslContextFactory.SocketType.CLIENT, "test legacy");
 
             Assert.assertNotSame(oldCtx, newCtx);
             Assert.assertNotSame(oldLegacyCtx, newLegacyCtx);
@@ -274,14 +311,14 @@ public class SSLFactoryTest
 
         SSLFactory.initHotReloading(options, options, true);  // deliberately not initializing with legacyOptions to match InboundSockets.addBindings
 
-        SslContext oldCtx = SSLFactory.getOrCreateSslContext(options, REQUIRED, ISslContextFactory.SocketType.CLIENT, "test");
-        SslContext oldLegacyCtx = SSLFactory.getOrCreateSslContext(legacyOptions, REQUIRED, ISslContextFactory.SocketType.CLIENT, "test legacy");
+        SslContext oldCtx = lookup(options, REQUIRED, ISslContextFactory.SocketType.CLIENT, "test");
+        SslContext oldLegacyCtx = lookup(legacyOptions, REQUIRED, ISslContextFactory.SocketType.CLIENT, "test legacy");
 
         changeKeystorePassword(options.keystore, options.keystore_password, "bad password");
 
         SSLFactory.checkCertFilesForHotReloading();
-        SslContext newCtx = SSLFactory.getOrCreateSslContext(options, REQUIRED, ISslContextFactory.SocketType.CLIENT, "test");
-        SslContext newLegacyCtx = SSLFactory.getOrCreateSslContext(legacyOptions, REQUIRED, ISslContextFactory.SocketType.CLIENT, "test legacy");
+        SslContext newCtx = lookup(options, REQUIRED, ISslContextFactory.SocketType.CLIENT, "test");
+        SslContext newLegacyCtx = lookup(legacyOptions, REQUIRED, ISslContextFactory.SocketType.CLIENT, "test legacy");
 
         Assert.assertSame(oldCtx, newCtx);
         Assert.assertSame(oldLegacyCtx, newLegacyCtx);
@@ -301,14 +338,14 @@ public class SSLFactoryTest
 
 
             SSLFactory.initHotReloading(options, options, true);
-            SslContext oldCtx = SSLFactory.getOrCreateSslContext(options, REQUIRED, ISslContextFactory.SocketType.CLIENT, "test");
+            SslContext oldCtx = lookup(options, REQUIRED, ISslContextFactory.SocketType.CLIENT, "test");
             SSLFactory.checkCertFilesForHotReloading();
 
             testKeystoreFile.trySetLastModified(System.currentTimeMillis() + 15000);
             FileUtils.forceDelete(testKeystoreFile.toJavaIOFile());
 
             SSLFactory.checkCertFilesForHotReloading();
-            SslContext newCtx = SSLFactory.getOrCreateSslContext(options, REQUIRED, ISslContextFactory.SocketType.CLIENT, "test");
+            SslContext newCtx = lookup(options, REQUIRED, ISslContextFactory.SocketType.CLIENT, "test");
 
             Assert.assertSame(oldCtx, newCtx);
         }
@@ -350,7 +387,7 @@ public class SSLFactoryTest
         try
         {
             SSLFactory.initHotReloading(options, options, true);
-            SslContext oldCtx = SSLFactory.getOrCreateSslContext(options, REQUIRED, ISslContextFactory.SocketType.CLIENT, "test");
+            SslContext oldCtx = lookup(options, REQUIRED, ISslContextFactory.SocketType.CLIENT, "test");
             SSLFactory.checkCertFilesForHotReloading();
 
             // New keystore written (fresh mtime) but unreadable by the process.
@@ -358,7 +395,7 @@ public class SSLFactoryTest
             java.nio.file.Files.setPosixFilePermissions(jio.toPath(), Collections.emptySet());
 
             SSLFactory.checkCertFilesForHotReloading(); // AccessDeniedException -> logged, context retained
-            SslContext afterFailCtx = SSLFactory.getOrCreateSslContext(options, REQUIRED, ISslContextFactory.SocketType.CLIENT, "test");
+            SslContext afterFailCtx = lookup(options, REQUIRED, ISslContextFactory.SocketType.CLIENT, "test");
             Assert.assertSame("failed reload must not replace the live context", oldCtx, afterFailCtx);
 
             // Fix permissions WITHOUT touching mtime (chmod changes ctime only).
@@ -366,7 +403,7 @@ public class SSLFactoryTest
 
             // Periodic check must retry even though mtime is unchanged since the failed attempt.
             SSLFactory.checkCertFilesForHotReloading();
-            SslContext recoveredCtx = SSLFactory.getOrCreateSslContext(options, REQUIRED, ISslContextFactory.SocketType.CLIENT, "test");
+            SslContext recoveredCtx = lookup(options, REQUIRED, ISslContextFactory.SocketType.CLIENT, "test");
             Assert.assertNotSame("reload must retry and recover once the file is readable", oldCtx, recoveredCtx);
         }
         finally
@@ -427,7 +464,7 @@ public class SSLFactoryTest
                                           .withCipherSuites("TLS_ECDHE_ECDSA_WITH_AES_128_GCM_SHA256")
                                           .build();
 
-        SslContext ctx1 = SSLFactory.getOrCreateSslContext(options, REQUIRED,
+        SslContext ctx1 = lookup(options, REQUIRED,
                                                            ISslContextFactory.SocketType.SERVER, "test");
 
         Assert.assertTrue(ctx1.isServer());
@@ -435,7 +472,7 @@ public class SSLFactoryTest
 
         options = optionsBuilder.withCipherSuites("TLS_ECDHE_RSA_WITH_AES_128_GCM_SHA256").build();
 
-        SslContext ctx2 = SSLFactory.getOrCreateSslContext(options, REQUIRED,
+        SslContext ctx2 = lookup(options, REQUIRED,
                                                            ISslContextFactory.SocketType.CLIENT, "test");
 
         Assert.assertTrue(ctx2.isClient());
@@ -524,8 +561,8 @@ public class SSLFactoryTest
             // so that both keystoreContext.checkedExpiry and outboundKeystoreContext.checkedExpiry
             // are latched to true before any reload.
             SSLFactory.initHotReloading(options, options, true);
-            SSLFactory.getOrCreateSslContext(options, REQUIRED, ISslContextFactory.SocketType.CLIENT, "test");
-            SSLFactory.getOrCreateSslContext(options, REQUIRED, ISslContextFactory.SocketType.SERVER, "test");
+            lookup(options, REQUIRED, ISslContextFactory.SocketType.CLIENT, "test");
+            lookup(options, REQUIRED, ISslContextFactory.SocketType.SERVER, "test");
             int afterInitialLoad = TestFileBasedSSLContextFactory.expiryCheckCount;
 
             // First reload — both contexts were already loaded above so checkedExpiry is
@@ -534,8 +571,8 @@ public class SSLFactoryTest
             testKeystoreFile.trySetLastModified(System.currentTimeMillis() + 15000);
             SSLFactory.checkCertFilesForHotReloading();
             // Re-populate the cache so the second reload has something to process.
-            SSLFactory.getOrCreateSslContext(options, REQUIRED, ISslContextFactory.SocketType.CLIENT, "test");
-            SSLFactory.getOrCreateSslContext(options, REQUIRED, ISslContextFactory.SocketType.SERVER, "test");
+            lookup(options, REQUIRED, ISslContextFactory.SocketType.CLIENT, "test");
+            lookup(options, REQUIRED, ISslContextFactory.SocketType.SERVER, "test");
             int afterFirstReload = TestFileBasedSSLContextFactory.expiryCheckCount;
             Assert.assertTrue("expiry scanned at least once across init + first reload", afterFirstReload >= 1);
 
@@ -676,7 +713,7 @@ public class SSLFactoryTest
         {
             List<Future<SslContext>> results = new ArrayList<>();
             for (int i = 0; i < callers; i++)
-                results.add(executor.submit(() -> SSLFactory.getOrCreateSslContext(options, REQUIRED, ISslContextFactory.SocketType.CLIENT, "shared")));
+                results.add(executor.submit(() -> lookup(options, REQUIRED, ISslContextFactory.SocketType.CLIENT, "shared")));
 
             SslContext first = results.get(0).get(30, TimeUnit.SECONDS);
             for (Future<SslContext> result : results)
@@ -697,11 +734,11 @@ public class SSLFactoryTest
         try
         {
             EncryptionOptions options = slowFactoryOptions();
-            SslContext built = SSLFactory.getOrCreateSslContext(options, REQUIRED, ISslContextFactory.SocketType.CLIENT, "clearing");
+            SslContext built = lookup(options, REQUIRED, ISslContextFactory.SocketType.CLIENT, "clearing");
             assertNotNull(built);
 
             // The clear happened during the build, so the finished context must not be left in the cache.
-            SslContext next = SSLFactory.getOrCreateSslContext(options, REQUIRED, ISslContextFactory.SocketType.CLIENT, "clearing");
+            SslContext next = lookup(options, REQUIRED, ISslContextFactory.SocketType.CLIENT, "clearing");
             Assert.assertNotSame("a context built across a cache clear is not cached", built, next);
             assertEquals(2, SlowCountingSslContextFactory.builds.get());
         }
@@ -722,7 +759,7 @@ public class SSLFactoryTest
             EncryptionOptions options = slowFactoryOptions();
             try
             {
-                SSLFactory.getOrCreateSslContext(options, REQUIRED, ISslContextFactory.SocketType.CLIENT, "failing");
+                lookup(options, REQUIRED, ISslContextFactory.SocketType.CLIENT, "failing");
                 Assert.fail("the build should have failed");
             }
             catch (SSLException expected)
@@ -732,13 +769,368 @@ public class SSLFactoryTest
 
             SlowCountingSslContextFactory.failBuilds = false;
             assertNotNull("a failed build must not be cached",
-                          SSLFactory.getOrCreateSslContext(options, REQUIRED, ISslContextFactory.SocketType.CLIENT, "failing"));
+                          lookup(options, REQUIRED, ISslContextFactory.SocketType.CLIENT, "failing"));
             assertEquals(2, SlowCountingSslContextFactory.builds.get());
         }
         finally
         {
             SlowCountingSslContextFactory.failBuilds = false;
         }
+    }
+
+    @Test
+    public void testLookupAndCacheHoldSeparateReferences() throws Exception
+    {
+        assumeReferenceCountedContexts();
+        EncryptionOptions options = addKeystoreOptions(encryptionOptions).build();
+        SslContext context = SSLFactory.getOrCreateSslContext(options, REQUIRED, ISslContextFactory.SocketType.CLIENT, "lookup");
+        SslContext second = SSLFactory.getOrCreateSslContext(options, REQUIRED, ISslContextFactory.SocketType.CLIENT, "lookup");
+        Assert.assertSame(context, second);
+        assertEquals("the cache and each lookup hold a reference", 3, ReferenceCountUtil.refCnt(context));
+
+        ReferenceCountUtil.release(second);
+        ReferenceCountUtil.release(context);
+        assertEquals("only the cache holds the context", 1, ReferenceCountUtil.refCnt(context));
+    }
+
+    @Test
+    public void testEvictionReleasesTheCacheReferenceAtOnce() throws Exception
+    {
+        assumeReferenceCountedContexts();
+        SslContext context = SSLFactory.getOrCreateSslContext(addKeystoreOptions(encryptionOptions).build(), REQUIRED,
+                                                              ISslContextFactory.SocketType.CLIENT, "evicted");
+        ReferenceCountUtil.release(context);
+        assertEquals(1, ReferenceCountUtil.refCnt(context));
+
+        SSLFactory.clearSslContextCache();
+        assertEquals("nothing else holds the evicted context", 0, ReferenceCountUtil.refCnt(context));
+    }
+
+    @Test
+    public void testLookupAndEngineKeepAnEvictedContextAlive() throws Exception
+    {
+        assumeReferenceCountedContexts();
+        SslContext context = SSLFactory.getOrCreateSslContext(addKeystoreOptions(encryptionOptions).build(), REQUIRED,
+                                                              ISslContextFactory.SocketType.CLIENT, "evicted");
+        SSLEngine engine = context.newEngine(ByteBufAllocator.DEFAULT);
+        assertEquals("the cache, the lookup and the engine each hold a reference", 3, ReferenceCountUtil.refCnt(context));
+
+        SSLFactory.clearSslContextCache();
+        assertEquals("the lookup and the engine keep the evicted context alive", 2, ReferenceCountUtil.refCnt(context));
+
+        ReferenceCountUtil.release(context);
+        assertEquals("the engine keeps the evicted context alive", 1, ReferenceCountUtil.refCnt(context));
+
+        engine.closeInbound();
+        engine.closeOutbound();
+        ReferenceCountUtil.release(engine);
+        awaitRefCount(context, 0);
+    }
+
+    @Test
+    public void testHotReloadReleasesTheReplacedContext() throws Exception
+    {
+        assumeReferenceCountedContexts();
+        ServerEncryptionOptions options = addKeystoreOptions(encryptionOptions).build();
+        File testKeystoreFile = new File(options.keystore + ".release.test");
+        FileUtils.copyFile(new File(options.keystore).toJavaIOFile(), testKeystoreFile.toJavaIOFile());
+        options = new Builder(options).withKeyStore(testKeystoreFile.path()).build();
+        try
+        {
+            SSLFactory.initHotReloading(options, options, true);
+            SslContext oldCtx = SSLFactory.getOrCreateSslContext(options, REQUIRED, ISslContextFactory.SocketType.CLIENT, "test");
+            SSLFactory.checkCertFilesForHotReloading();
+
+            testKeystoreFile.trySetLastModified(System.currentTimeMillis() + 15000);
+            SSLFactory.checkCertFilesForHotReloading();
+            SslContext newCtx = SSLFactory.getOrCreateSslContext(options, REQUIRED, ISslContextFactory.SocketType.CLIENT, "test");
+
+            Assert.assertNotSame(oldCtx, newCtx);
+            assertEquals("only the lookup holds the replaced context", 1, ReferenceCountUtil.refCnt(oldCtx));
+            assertEquals("the cache and the lookup hold the new context", 2, ReferenceCountUtil.refCnt(newCtx));
+
+            ReferenceCountUtil.release(oldCtx);
+            assertEquals(0, ReferenceCountUtil.refCnt(oldCtx));
+            ReferenceCountUtil.release(newCtx);
+        }
+        finally
+        {
+            FileUtils.deleteQuietly(testKeystoreFile.toJavaIOFile());
+        }
+    }
+
+    @Test(timeout = 60_000)
+    public void testContextEvictedWhileBuildingIsReleasedAfterTheBuild() throws Exception
+    {
+        assumeReferenceCountedContexts();
+        SlowCountingSslContextFactory.clearCacheWhileBuilding = true; // evicts this build's own in-flight entry
+        try
+        {
+            SslContext built = SSLFactory.getOrCreateSslContext(slowFactoryOptions(), REQUIRED,
+                                                                ISslContextFactory.SocketType.CLIENT, "inflight");
+            assertEquals("the eviction released the cache's reference, so only the caller holds the context",
+                         1, ReferenceCountUtil.refCnt(built));
+            ReferenceCountUtil.release(built);
+            assertEquals(0, ReferenceCountUtil.refCnt(built));
+        }
+        finally
+        {
+            SlowCountingSslContextFactory.clearCacheWhileBuilding = false;
+        }
+    }
+
+    @Test(timeout = 60_000)
+    public void testCallerWaitingOnAnEvictedBuildGetsALiveContext() throws Exception
+    {
+        assumeReferenceCountedContexts();
+        EncryptionOptions options = slowFactoryOptions();
+        SlowCountingSslContextFactory.buildEntered = new CountDownLatch(1);
+        SlowCountingSslContextFactory.buildMayFinish = new CountDownLatch(1);
+        ExecutorService executor = Executors.newFixedThreadPool(2);
+        try
+        {
+            Future<SslContext> builder = executor.submit(() -> SSLFactory.getOrCreateSslContext(options, REQUIRED, ISslContextFactory.SocketType.CLIENT, "gated"));
+            Assert.assertTrue(SlowCountingSslContextFactory.buildEntered.await(30, TimeUnit.SECONDS));
+
+            AtomicReference<Thread> joinerThread = new AtomicReference<>();
+            Future<SslContext> joiner = executor.submit(() -> {
+                joinerThread.set(Thread.currentThread());
+                return SSLFactory.getOrCreateSslContext(options, REQUIRED, ISslContextFactory.SocketType.CLIENT, "gated");
+            });
+            long deadline = System.nanoTime() + TimeUnit.SECONDS.toNanos(30);
+            while ((joinerThread.get() == null || joinerThread.get().getState() != Thread.State.WAITING) && System.nanoTime() < deadline)
+                Thread.sleep(5);
+            assertEquals("the second caller waits for the build", Thread.State.WAITING, joinerThread.get().getState());
+
+            SSLFactory.clearSslContextCache(); // evicts the entry while its build is running and a caller waits on it
+            SlowCountingSslContextFactory.buildMayFinish.countDown();
+
+            SslContext fromBuilder = builder.get(30, TimeUnit.SECONDS);
+            SslContext fromJoiner = joiner.get(30, TimeUnit.SECONDS);
+            Assert.assertSame(fromBuilder, fromJoiner);
+            assertEquals("each caller holds a reference and the eviction released the cache's", 2, ReferenceCountUtil.refCnt(fromBuilder));
+
+            ReferenceCountUtil.release(fromBuilder);
+            ReferenceCountUtil.release(fromJoiner);
+            assertEquals(0, ReferenceCountUtil.refCnt(fromBuilder));
+        }
+        finally
+        {
+            SlowCountingSslContextFactory.buildEntered = null;
+            SlowCountingSslContextFactory.buildMayFinish = null;
+            executor.shutdownNow();
+        }
+    }
+
+    @Test
+    public void testLookupDropsACachedContextThatWasReleasedTooOften() throws Exception
+    {
+        assumeReferenceCountedContexts();
+        EncryptionOptions options = addKeystoreOptions(encryptionOptions).build();
+        SslContext context = SSLFactory.getOrCreateSslContext(options, REQUIRED, ISslContextFactory.SocketType.CLIENT, "released");
+        ReferenceCountUtil.release(context, 2); // drops the cache's reference as well as the lookup's
+        assertEquals(0, ReferenceCountUtil.refCnt(context));
+
+        try
+        {
+            SSLFactory.getOrCreateSslContext(options, REQUIRED, ISslContextFactory.SocketType.CLIENT, "released");
+            Assert.fail("a released context cannot be retained");
+        }
+        catch (IllegalReferenceCountException expected)
+        {
+            // the lookup reports the problem and drops the entry
+        }
+
+        SslContext replacement = SSLFactory.getOrCreateSslContext(options, REQUIRED, ISslContextFactory.SocketType.CLIENT, "released");
+        Assert.assertNotSame(context, replacement);
+        assertEquals("the cache and the lookup hold the replacement", 2, ReferenceCountUtil.refCnt(replacement));
+        ReferenceCountUtil.release(replacement);
+    }
+
+    @Test
+    public void testLookupsRacingEvictionsNeverRetainAReleasedContext() throws Exception
+    {
+        // A context that is free to build lets the evictions come thousands of times a second, so they land
+        // inside the lookup window.
+        CheapContext.built.set(0);
+        CheapContext.live.set(0);
+        EncryptionOptions options = cheapContextOptions();
+        AtomicBoolean stop = new AtomicBoolean();
+        ExecutorService executor = Executors.newFixedThreadPool(3);
+        List<Future<?>> tasks = new ArrayList<>();
+        try
+        {
+            for (int i = 0; i < 2; i++)
+            {
+                tasks.add(executor.submit(() -> {
+                    while (!stop.get())
+                        ReferenceCountUtil.release(SSLFactory.getOrCreateSslContext(options, REQUIRED, ISslContextFactory.SocketType.CLIENT, "cheap"));
+                    return null;
+                }));
+            }
+            tasks.add(executor.submit(() -> {
+                while (!stop.get())
+                {
+                    SSLFactory.clearSslContextCache();
+                    Thread.yield();
+                }
+                return null;
+            }));
+
+            Thread.sleep(2000);
+            stop.set(true);
+            for (Future<?> task : tasks)
+                task.get(30, TimeUnit.SECONDS); // rethrows the first failure in a worker
+        }
+        finally
+        {
+            stop.set(true);
+            executor.shutdownNow();
+        }
+
+        SSLFactory.clearSslContextCache();
+        Assert.assertTrue("the evictions rebuilt the context many times, built " + CheapContext.built.get(), CheapContext.built.get() > 100);
+        assertEquals("every context ended up released", 0, CheapContext.live.get());
+    }
+
+    @Test
+    public void testConcurrentLookupsAndEvictionsNeverUseAReleasedContext() throws Exception
+    {
+        stressLookupsAgainstEvictions(4, 2);
+    }
+
+    /**
+     * Looks up the context in a tight loop from several workers while another thread evicts it, and checks that
+     * no lookup fails and that every context ends up released. A lookup-only worker stays inside the lookup
+     * window most of the time. An engine worker also creates an engine from the context.
+     */
+    private void stressLookupsAgainstEvictions(int lookupOnlyWorkers, int engineWorkers) throws Exception
+    {
+        assumeReferenceCountedContexts();
+        EncryptionOptions options = addKeystoreOptions(encryptionOptions).build();
+        Set<SslContext> seen = ConcurrentHashMap.newKeySet();
+        AtomicBoolean stop = new AtomicBoolean();
+        ExecutorService executor = Executors.newFixedThreadPool(lookupOnlyWorkers + engineWorkers + 1);
+        List<Future<?>> tasks = new ArrayList<>();
+        try
+        {
+            for (int i = 0; i < lookupOnlyWorkers + engineWorkers; i++)
+            {
+                boolean createEngine = i >= lookupOnlyWorkers;
+                tasks.add(executor.submit(() -> {
+                    while (!stop.get())
+                    {
+                        SslContext context = SSLFactory.getOrCreateSslContext(options, REQUIRED, ISslContextFactory.SocketType.CLIENT, "race");
+                        try
+                        {
+                            seen.add(context);
+                            if (createEngine)
+                            {
+                                SSLEngine engine = context.newEngine(ByteBufAllocator.DEFAULT);
+                                engine.closeInbound();
+                                engine.closeOutbound();
+                                ReferenceCountUtil.release(engine);
+                            }
+                        }
+                        finally
+                        {
+                            ReferenceCountUtil.release(context);
+                        }
+                    }
+                    return null;
+                }));
+            }
+            tasks.add(executor.submit(() -> {
+                while (!stop.get())
+                {
+                    SSLFactory.clearSslContextCache();
+                    // A build takes a few milliseconds. Evicting less often lets lookups hit a finished entry.
+                    Thread.sleep(25);
+                }
+                return null;
+            }));
+
+            Thread.sleep(3000);
+            stop.set(true);
+            for (Future<?> task : tasks)
+                task.get(30, TimeUnit.SECONDS); // rethrows the first failure in a worker
+        }
+        finally
+        {
+            stop.set(true);
+            executor.shutdownNow();
+        }
+
+        SSLFactory.clearSslContextCache();
+        Assert.assertTrue("the evictions replaced the context at least once, saw " + seen.size(), seen.size() > 1);
+        for (SslContext context : seen)
+            awaitRefCount(context, 0);
+    }
+
+    @Test
+    public void testNewSslHandlerHoldsNoLookupReference() throws Exception
+    {
+        assumeReferenceCountedContexts();
+        EncryptionOptions options = addKeystoreOptions(encryptionOptions).build();
+        EmbeddedChannel channel = new EmbeddedChannel();
+        SslHandler handler = SocketFactory.newSslHandler(channel, options, REQUIRED, ISslContextFactory.SocketType.CLIENT, "handler", null);
+        channel.pipeline().addFirst(handler);
+
+        SslContext context = SSLFactory.getOrCreateSslContext(options, REQUIRED, ISslContextFactory.SocketType.CLIENT, "handler");
+        assertEquals("the cache, the engine and this lookup hold the context", 3, ReferenceCountUtil.refCnt(context));
+        ReferenceCountUtil.release(context);
+
+        channel.finishAndReleaseAll();
+        awaitRefCount(context, 1); // the handler released its engine, so only the cache remains
+    }
+
+    @Test
+    public void testNewSslHandlerReleasesTheLookupReferenceWhenItFails() throws Exception
+    {
+        assumeReferenceCountedContexts();
+        EncryptionOptions options = addKeystoreOptions(encryptionOptions).build();
+        EmbeddedChannel failingChannel = new EmbeddedChannel()
+        {
+            @Override
+            public ByteBufAllocator alloc()
+            {
+                throw new IllegalStateException("no allocator");
+            }
+        };
+
+        try
+        {
+            SocketFactory.newSslHandler(failingChannel, options, REQUIRED, ISslContextFactory.SocketType.CLIENT, "failing", null);
+            Assert.fail("expected the handler creation to fail");
+        }
+        catch (IllegalStateException expected)
+        {
+            // the lookup reference must still be released
+        }
+
+        SslContext context = SSLFactory.getOrCreateSslContext(options, REQUIRED, ISslContextFactory.SocketType.CLIENT, "failing");
+        assertEquals("the cache and this lookup hold the context", 2, ReferenceCountUtil.refCnt(context));
+        ReferenceCountUtil.release(context);
+    }
+
+    private static void assumeReferenceCountedContexts()
+    {
+        assumeTrue("needs the OpenSSL provider, whose contexts are reference counted", OpenSsl.isAvailable());
+    }
+
+    private static void awaitRefCount(SslContext context, int expected) throws InterruptedException
+    {
+        long deadline = System.nanoTime() + TimeUnit.SECONDS.toNanos(10);
+        while (ReferenceCountUtil.refCnt(context) != expected && System.nanoTime() < deadline)
+            Thread.sleep(20);
+        assertEquals(expected, ReferenceCountUtil.refCnt(context));
+    }
+
+    private EncryptionOptions cheapContextOptions()
+    {
+        Builder builder = addKeystoreOptions(encryptionOptions);
+        builder.withSslContextFactory(new ParameterizedClass(CheapContextSslContextFactory.class.getName(), new HashMap<>()));
+        return builder.build();
     }
 
     private EncryptionOptions slowFactoryOptions()
@@ -748,12 +1140,141 @@ public class SSLFactoryTest
         return builder.build();
     }
 
-    /** Counts builds, takes 200ms per build, and can clear the context cache from inside a build. */
+    /** Builds a {@link CheapContext}, which costs nothing to create. */
+    public static class CheapContextSslContextFactory extends FileBasedSslContextFactory
+    {
+        public CheapContextSslContextFactory(Map<String, Object> parameters)
+        {
+            super(parameters);
+        }
+
+        @Override
+        public SslContext createNettySslContext(EncryptionOptions.ClientEncryptionOptions.ClientAuth clientAuth,
+                                                SocketType socketType, CipherSuiteFilter cipherFilter)
+        {
+            return new CheapContext();
+        }
+    }
+
+    /** A reference-counted context that cannot make engines. It counts how many were built and are still live. */
+    private static final class CheapContext extends SslContext implements ReferenceCounted
+    {
+        static final AtomicInteger built = new AtomicInteger();
+        static final AtomicInteger live = new AtomicInteger();
+
+        private final AbstractReferenceCounted references = new AbstractReferenceCounted()
+        {
+            @Override
+            protected void deallocate()
+            {
+                live.decrementAndGet();
+            }
+
+            @Override
+            public ReferenceCounted touch(Object hint)
+            {
+                return this;
+            }
+        };
+
+        CheapContext()
+        {
+            built.incrementAndGet();
+            live.incrementAndGet();
+        }
+
+        @Override
+        public int refCnt()
+        {
+            return references.refCnt();
+        }
+
+        @Override
+        public ReferenceCounted retain()
+        {
+            references.retain();
+            return this;
+        }
+
+        @Override
+        public ReferenceCounted retain(int increment)
+        {
+            references.retain(increment);
+            return this;
+        }
+
+        @Override
+        public ReferenceCounted touch()
+        {
+            return this;
+        }
+
+        @Override
+        public ReferenceCounted touch(Object hint)
+        {
+            return this;
+        }
+
+        @Override
+        public boolean release()
+        {
+            return references.release();
+        }
+
+        @Override
+        public boolean release(int decrement)
+        {
+            return references.release(decrement);
+        }
+
+        @Override
+        public boolean isClient()
+        {
+            return true;
+        }
+
+        @Override
+        public List<String> cipherSuites()
+        {
+            return Collections.emptyList();
+        }
+
+        @Override
+        public ApplicationProtocolNegotiator applicationProtocolNegotiator()
+        {
+            throw new UnsupportedOperationException();
+        }
+
+        @Override
+        public SSLEngine newEngine(ByteBufAllocator alloc)
+        {
+            throw new UnsupportedOperationException();
+        }
+
+        @Override
+        public SSLEngine newEngine(ByteBufAllocator alloc, String peerHost, int peerPort)
+        {
+            throw new UnsupportedOperationException();
+        }
+
+        @Override
+        public SSLSessionContext sessionContext()
+        {
+            throw new UnsupportedOperationException();
+        }
+    }
+
+    /**
+     * Counts builds, takes 200ms per build, can clear the context cache from inside a build, and can hold a build
+     * until a test lets it finish.
+     */
     public static class SlowCountingSslContextFactory extends FileBasedSslContextFactory
     {
         static final AtomicInteger builds = new AtomicInteger();
         static volatile boolean clearCacheWhileBuilding = false;
         static volatile boolean failBuilds = false;
+        static volatile CountDownLatch buildEntered = null;
+        static volatile CountDownLatch buildMayFinish = null;
 
         public SlowCountingSslContextFactory(Map<String, Object> parameters)
         {
@@ -769,8 +1290,14 @@ public class SSLFactoryTest
                 throw new SSLException("simulated build failure");
             if (clearCacheWhileBuilding)
                 SSLFactory.clearSslContextCache();
+            CountDownLatch entered = buildEntered;
+            if (entered != null)
+                entered.countDown();
             try
             {
+                CountDownLatch mayFinish = buildMayFinish;
+                if (mayFinish != null && !mayFinish.await(30, TimeUnit.SECONDS))
+                    throw new SSLException("the test did not release the build");
                 TimeUnit.MILLISECONDS.sleep(200);
             }
             catch (InterruptedException e)

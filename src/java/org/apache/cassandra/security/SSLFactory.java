@@ -47,6 +47,7 @@ import io.netty.buffer.ByteBufAllocator;
 import io.netty.handler.ssl.CipherSuiteFilter;
 import io.netty.handler.ssl.OpenSsl;
 import io.netty.handler.ssl.SslContext;
+import io.netty.util.IllegalReferenceCountException;
 import io.netty.util.ReferenceCountUtil;
 
 import static org.apache.cassandra.config.CassandraRelevantProperties.DISABLE_TCACTIVE_OPENSSL;
@@ -134,19 +135,28 @@ public final class SSLFactory
     }
 
     /**
-     * get a netty {@link SslContext} instance
+     * Get a netty {@link SslContext} instance from the cache, creating it if needed.
+     * <p>
+     * The caller owns one reference to the returned context and must release it with
+     * {@link ReferenceCountUtil#release(Object)} once it has created an engine from the context. A hot reload
+     * releases the cache's own reference to the evicted context at once. The caller's reference keeps the
+     * context valid until it releases, and every engine holds a reference of its own.
      */
     public static SslContext getOrCreateSslContext(EncryptionOptions options, EncryptionOptions.ClientEncryptionOptions.ClientAuth clientAuth,
                                                    SocketType socketType,
                                                    String contextDescription) throws IOException
     {
         CacheKey key = new CacheKey(options, socketType, contextDescription);
+        Promise<SslContext> retained = new AsyncPromise<>();
 
-        Promise<SslContext> entry = cachedSslContexts.get(key);
+        // The callback is registered under the map's lock for this key. An eviction registers its release after it
+        // removes the entry, and callbacks run in registration order, so a lookup that found the entry retains the
+        // context before the cache's reference is released.
+        Promise<SslContext> entry = cachedSslContexts.computeIfPresent(key, (k, existing) -> retainWhenDone(existing, retained));
         if (entry == null)
         {
             Promise<SslContext> mine = new AsyncPromise<>();
-            entry = cachedSslContexts.compute(key, (k, existing) -> existing != null ? existing : mine);
+            entry = cachedSslContexts.compute(key, (k, existing) -> retainWhenDone(existing != null ? existing : mine, retained));
 
             // The entry is published before the build so that concurrent callers wait for this build, and so that a
             // reload can evict the entry while the build is still running. The build holds no map lock.
@@ -154,8 +164,35 @@ public final class SSLFactory
                 build(key, mine, options, clientAuth, socketType);
         }
 
-        // Rethrows the build's original exception, so an IOException reaches the caller unwrapped.
-        return entry.syncUninterruptibly().getNow();
+        try
+        {
+            // Rethrows the build's original exception, so an IOException reaches the caller unwrapped.
+            return retained.syncUninterruptibly().getNow();
+        }
+        catch (IllegalReferenceCountException e)
+        {
+            logger.warn("The cached SslContext for {} was released while it was still cached. Dropping it.", contextDescription);
+            cachedSslContexts.remove(key, entry);
+            throw e;
+        }
+    }
+
+    private static Promise<SslContext> retainWhenDone(Promise<SslContext> entry, Promise<SslContext> retained)
+    {
+        entry.addCallback(context -> retainFor(retained, context), retained::tryFailure);
+        return entry;
+    }
+
+    private static void retainFor(Promise<SslContext> retained, SslContext context)
+    {
+        try
+        {
+            retained.trySuccess(ReferenceCountUtil.retain(context));
+        }
+        catch (Throwable t)
+        {
+            retained.tryFailure(t);
+        }
     }
 
     private static void build(CacheKey key, Promise<SslContext> entry,
@@ -175,6 +212,7 @@ public final class SSLFactory
             entry.setFailure(t);
             return;
         }
+        // The cache keeps the creation reference. Each lookup retains a reference of its own from a callback.
         entry.setSuccess(sslContext);
     }
 
@@ -258,7 +296,8 @@ public final class SSLFactory
      */
     public static void clearSslContextCache()
     {
-        cachedSslContexts.clear();
+        for (CacheKey key : Collections.list(cachedSslContexts.keys()))
+            evict(key);
     }
 
     /**
@@ -269,10 +308,22 @@ public final class SSLFactory
         cachedSslContexts.forEachKey(1, cacheKey -> {
             if (Objects.equals(options, cacheKey.encryptionOptions))
             {
-                cachedSslContexts.remove(cacheKey);
+                evict(cacheKey);
                 keysToCheck.remove(cacheKey);
             }
         });
+    }
+
+    /**
+     * Removes the entry and drops the cache's reference to its context. Lookups and engines hold their own
+     * references, so the context frees when the last of them releases.
+     */
+    private static void evict(CacheKey key)
+    {
+        Promise<SslContext> evicted = cachedSslContexts.remove(key);
+        // The build may still be running, so the release waits for it to finish. A failed build has nothing to release.
+        if (evicted != null)
+            evicted.addCallback(context -> ReferenceCountUtil.release(context), failure -> {});
     }
 
     /**

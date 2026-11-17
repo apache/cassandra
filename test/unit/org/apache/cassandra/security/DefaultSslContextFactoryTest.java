@@ -38,6 +38,7 @@ import io.netty.handler.ssl.OpenSsl;
 import io.netty.handler.ssl.OpenSslContext;
 import io.netty.handler.ssl.SslContext;
 import io.netty.handler.ssl.SslProvider;
+import io.netty.util.ReferenceCountUtil;
 
 import static org.apache.cassandra.config.CassandraRelevantProperties.DISABLE_TCACTIVE_OPENSSL;
 import static org.apache.cassandra.config.EncryptionOptions.ClientEncryptionOptions.ClientAuth.NOT_REQUIRED;
@@ -84,11 +85,18 @@ public class DefaultSslContextFactoryTest
                                                             .build();
 
         SslContext sslContext = SSLFactory.getOrCreateSslContext(options, REQUIRED, ISslContextFactory.SocketType.CLIENT, "test");
-        Assert.assertNotNull(sslContext);
-        if (OpenSsl.isAvailable())
-            Assert.assertTrue(sslContext instanceof OpenSslContext);
-        else
-            Assert.assertTrue(sslContext instanceof SslContext);
+        try
+        {
+            Assert.assertNotNull(sslContext);
+            if (OpenSsl.isAvailable())
+                Assert.assertTrue(sslContext instanceof OpenSslContext);
+            else
+                Assert.assertTrue(sslContext instanceof SslContext);
+        }
+        finally
+        {
+            ReferenceCountUtil.release(sslContext);
+        }
     }
 
     @Test(expected = IOException.class)
