@@ -25,6 +25,7 @@ import java.security.KeyStore;
 import java.security.PrivateKey;
 import java.security.cert.Certificate;
 import java.util.ArrayList;
+import java.util.Date;
 import java.util.List;
 import java.util.Map;
 import javax.net.ssl.KeyManagerFactory;
@@ -36,6 +37,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import org.apache.cassandra.io.util.File;
+import org.apache.cassandra.utils.Clock;
 
 
 /**
@@ -231,6 +233,7 @@ public final class PEMBasedSslContextFactory extends FileBasedSslContextFactory
 
     private KeyManagerFactory buildKeyManagerFactory(PEMBasedKeyStoreContext pemBasedKeyStoreContext, FileBasedStoreContext keyStoreContext) throws SSLException
     {
+        long nowInMillis = Clock.Global.currentTimeMillis();
         try
         {
             if (pemBasedKeyStoreContext.hasKey())
@@ -243,12 +246,16 @@ public final class PEMBasedSslContextFactory extends FileBasedSslContextFactory
                 KeyManagerFactory kmf = KeyManagerFactory.getInstance(
                 algorithm == null ? KeyManagerFactory.getDefaultAlgorithm() : algorithm);
                 KeyStore ks = buildKeyStore(pemBasedKeyStoreContext.key, pemBasedKeyStoreContext.password);
+                // This class is final and does not override checkExpiredCerts(KeyStore), so feed the already-scanned
+                // expiry map straight to checkExpiredCerts(Map) rather than re-scanning via the KeyStore overload.
+                Map<String, Date> expiries = certificateExpiries(ks);
                 if (!keyStoreContext.checkedExpiry)
                 {
-                    checkExpiredCerts(ks);
+                    checkExpiredCerts(expiries, nowInMillis);
                     keyStoreContext.checkedExpiry = true;
                 }
                 kmf.init(ks, pemBasedKeyStoreContext.password != null ? pemBasedKeyStoreContext.password.toCharArray() : null);
+                scheduleExpiryWarning(keyStoreContext, expiries, nowInMillis);
                 return kmf;
             }
             else

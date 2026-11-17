@@ -97,7 +97,7 @@ public final class SSLFactory
     /**
      * State variable to maintain initialization invariant
      */
-    private static boolean isHotReloadingInitialized = false;
+    private static volatile boolean isHotReloadingInitialized = false;
 
     /** Provides the list of protocols that would have been supported if "TLS" was selected as the
      * protocol before the change for CASSANDRA-13325 that expects explicit protocol versions.
@@ -192,7 +192,7 @@ public final class SSLFactory
         checkCachedContextsForReload(true);
     }
 
-    private static void checkCachedContextsForReload(boolean forceReload)
+    private static synchronized void checkCachedContextsForReload(boolean forceReload)
     {
         List<CacheKey> keysToCheck = new ArrayList<>(Collections.list(cachedSslContexts.keys()));
         while (!keysToCheck.isEmpty())
@@ -205,11 +205,13 @@ public final class SSLFactory
             {
                 try
                 {
+                    opts.sslContextFactoryInstance.onReloadRequired();
                     validateSslContext(key.contextDescription, opts,
                             opts instanceof EncryptionOptions.ServerEncryptionOptions || opts.require_client_auth, false);
                     logger.info("SSL certificates have been updated for {}. Resetting the ssl contexts for new " +
                                 "connections.", key.contextDescription);
                     clearSslContextCache(key.encryptionOptions, keysToCheck);
+                    opts.sslContextFactoryInstance.onReloadSuccess();
                 }
                 catch (Throwable tr)
                 {
