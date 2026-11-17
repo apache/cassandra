@@ -122,7 +122,8 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
                                                                                                  DatabaseDescriptor.getNonLocalSystemKeyspacesDataFileLocations(),
                                                                                                  DatabaseDescriptor.useSpecificLocationForLocalSystemData());
 
-    // post-flush executor is single threaded to provide guarantee that any flush Future on a CF will never return until prior flushes have completed
+    // post-flush executor is single threaded so post-flush work never runs concurrently; ordering of a table's post-flush
+    // tasks comes from schedulePostFlush, which only hands a task over once it can run without waiting
     private static final ThreadPoolExecutor postFlushExecutor = new JMXEnabledThreadPoolExecutor(1,
                                                                                                  Stage.KEEP_ALIVE_SECONDS,
                                                                                                  TimeUnit.SECONDS,
@@ -215,6 +216,9 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
     final DiskBoundaryManager diskBoundaryManager = new DiskBoundaryManager();
 
     private volatile boolean neverPurgeTombstones = false;
+
+    // the most recently scheduled post-flush task of this table; guarded by data
+    private ListenableFuture<?> lastPostFlush = Futures.immediateFuture(null);
 
     public static void shutdownPostFlushExecutor() throws InterruptedException
     {
@@ -855,7 +859,7 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
             logFlush();
             Flush flush = new Flush(false);
             flushExecutor.execute(flush);
-            postFlushExecutor.execute(flush.postFlushTask);
+            schedulePostFlush(flush.postFlushTask, flush.postFlush.flushed);
             return flush.postFlushTask;
         }
     }
@@ -939,8 +943,39 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
             logger.debug("forceFlush requested but everything is clean in {}", name);
             return current.getCommitLogLowerBound();
         });
-        postFlushExecutor.execute(task);
+        schedulePostFlush(task, Futures.immediateFuture(null));
         return task;
+    }
+
+    /**
+     * Hands {@code task} to the post-flush executor once {@code flushed} is done and this table's previous post-flush
+     * task has run. A table's post-flush tasks thus still run in order, which is what lets a flush future promise that
+     * all prior flushes of the table are complete, but the post-flush thread never waits on a flush in progress, so a
+     * slow flush of one table cannot hold up the flush futures of another (CASSANDRA-19597).
+     */
+    private void schedulePostFlush(ListenableFutureTask<?> task, ListenableFuture<?> flushed)
+    {
+        ListenableFuture<?> previous;
+        synchronized (data)
+        {
+            previous = lastPostFlush;
+            lastPostFlush = task;
+        }
+        Futures.whenAllComplete(previous, flushed).run(() -> {
+            try
+            {
+                postFlushExecutor.execute(task);
+            }
+            catch (RejectedExecutionException e)
+            {
+                // the executor has been shut down: run anyway rather than leave waiters on the task hanging, but not on a
+                // thread holding the tracker lock, which post-flush work otherwise never runs under
+                if (Thread.holdsLock(data))
+                    NamedThreadFactory.createThread(task, "MemtablePostFlush-shutdown", true).start();
+                else
+                    task.run();
+            }
+        }, MoreExecutors.directExecutor());
     }
 
     public CommitLogPosition forceBlockingFlush()
@@ -954,7 +989,8 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
      */
     private final class PostFlush implements Callable<CommitLogPosition>
     {
-        final CountDownLatch latch = new CountDownLatch(1);
+        // completed by the flush; schedulePostFlush only runs this task once it is
+        final SettableFuture<Void> flushed = SettableFuture.create();
         final List<Memtable> memtables;
         volatile Throwable flushFailure = null;
 
@@ -965,16 +1001,7 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
 
         public CommitLogPosition call()
         {
-            try
-            {
-                // we wait on the latch for the commitLogUpperBound to be set, and so that waiters
-                // on this task can rely on all prior flushes being complete
-                latch.await();
-            }
-            catch (InterruptedException e)
-            {
-                throw new IllegalStateException();
-            }
+            assert flushed.isDone();
 
             CommitLogPosition commitLogUpperBound = CommitLogPosition.NONE;
             // If a flush errored out but the error was ignored, make sure we don't discard the commit log.
@@ -1092,7 +1119,7 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
                 logger.trace("Flush task {}@{} signaling post flush task", hashCode(), name);
 
             // signal the post-flush we've done our work
-            postFlush.latch.countDown();
+            postFlush.flushed.set(null);
 
             if (logger.isTraceEnabled())
                 logger.trace("Flush task task {}@{} finished", hashCode(), name);
@@ -2432,7 +2459,7 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
         {
             final Flush flush = new Flush(true);
             flushExecutor.execute(flush);
-            postFlushExecutor.execute(flush.postFlushTask);
+            schedulePostFlush(flush.postFlushTask, flush.postFlush.flushed);
             return flush.postFlushTask;
         }
     }
