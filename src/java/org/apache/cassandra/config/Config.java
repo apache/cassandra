@@ -1367,13 +1367,6 @@ public class Config
         local_deterministic
     }
 
-    public enum FlushCompression
-    {
-        none,
-        fast,
-        table
-    }
-
     public enum InternodeCompression
     {
         all, none, dc

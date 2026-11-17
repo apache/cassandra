@@ -20,12 +20,12 @@ package org.apache.cassandra.db;
 
 import org.junit.Test;
 
+import org.apache.cassandra.config.FlushCompression;
 import org.apache.cassandra.cql3.CQLTester;
 import org.apache.cassandra.io.compress.LZ4Compressor;
 import org.apache.cassandra.io.compress.NoopCompressor;
 import org.apache.cassandra.io.compress.ZstdCompressor;
 import org.apache.cassandra.io.sstable.format.SSTableReader;
-import org.apache.cassandra.schema.FlushCompressionParams;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
@@ -43,7 +43,7 @@ public class ColumnFamilyStoreFlushCompressionTest extends CQLTester
         ColumnFamilyStore cfs = getCurrentColumnFamilyStore();
         assertThat(cfs.getFlushCompression()).isEqualTo("auto");
 
-        for (FlushCompressionParams.Option option : FlushCompressionParams.Option.values())
+        for (FlushCompression option : FlushCompression.values())
         {
             cfs.setFlushCompression(option.name());
             assertThat(cfs.getFlushCompression()).isEqualTo(option.name());
@@ -52,7 +52,7 @@ public class ColumnFamilyStoreFlushCompressionTest extends CQLTester
             assertThat(cfs.metadata.getLocal().params.flushCompression.configurationKey).isEqualTo(option);
             assertThat(cfs.metadata().params.flushCompression.configurationKey)
             .describedAs("schema view is untouched by a local override")
-            .isEqualTo(FlushCompressionParams.Option.auto);
+            .isEqualTo(FlushCompression.auto);
         }
     }
 

@@ -23,8 +23,8 @@ import java.util.EnumMap;
 import com.google.common.annotations.VisibleForTesting;
 
 import org.apache.cassandra.config.Config.DiskAccessMode;
-import org.apache.cassandra.config.Config.FlushCompression;
 import org.apache.cassandra.config.DatabaseDescriptor;
+import org.apache.cassandra.config.FlushCompression;
 import org.apache.cassandra.db.compaction.OperationType;
 import org.apache.cassandra.db.compression.CompressionDictionaryManager;
 import org.apache.cassandra.io.DirectIoSupport;

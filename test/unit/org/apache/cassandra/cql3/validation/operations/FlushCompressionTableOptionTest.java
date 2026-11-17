@@ -20,6 +20,7 @@ package org.apache.cassandra.cql3.validation.operations;
 
 import org.junit.Test;
 
+import org.apache.cassandra.config.FlushCompression;
 import org.apache.cassandra.cql3.CQLTester;
 import org.apache.cassandra.cql3.statements.schema.TableAttributes;
 import org.apache.cassandra.exceptions.ConfigurationException;
@@ -46,14 +47,14 @@ public class FlushCompressionTableOptionTest extends CQLTester
     public void defaultIsAuto()
     {
         createTable("CREATE TABLE %s (k int PRIMARY KEY, v text)");
-        assertFlushCompression(FlushCompressionParams.Option.auto);
+        assertFlushCompression(FlushCompression.auto);
         assertThat(currentParams().flushCompression).isEqualTo(FlushCompressionParams.DEFAULT);
     }
 
     @Test
     public void createTableWithEveryOption()
     {
-        for (FlushCompressionParams.Option option : FlushCompressionParams.Option.values())
+        for (FlushCompression option : FlushCompression.values())
         {
             createTable("CREATE TABLE %s (k int PRIMARY KEY, v text) WITH flush_compression = '" + option + '\'');
             assertFlushCompression(option);
@@ -68,7 +69,7 @@ public class FlushCompressionTableOptionTest extends CQLTester
                     "AND flush_compression = 'table' " +
                     "AND comment = 'flush compression test' " +
                     "AND gc_grace_seconds = 100");
-        assertFlushCompression(FlushCompressionParams.Option.table);
+        assertFlushCompression(FlushCompression.table);
         assertThat(currentParams().comment).isEqualTo("flush compression test");
         assertThat(currentParams().gcGraceSeconds).isEqualTo(100);
         assertThat(currentParams().compression.getSstableCompressor().getClass().getSimpleName()).isEqualTo("ZstdCompressor");
@@ -78,36 +79,36 @@ public class FlushCompressionTableOptionTest extends CQLTester
     public void alterChangesOption()
     {
         createTable("CREATE TABLE %s (k int PRIMARY KEY, v text)");
-        assertFlushCompression(FlushCompressionParams.Option.auto);
+        assertFlushCompression(FlushCompression.auto);
 
         alterTable("ALTER TABLE %s WITH flush_compression = 'none'");
-        assertFlushCompression(FlushCompressionParams.Option.none);
+        assertFlushCompression(FlushCompression.none);
 
         alterTable("ALTER TABLE %s WITH flush_compression = 'fast'");
-        assertFlushCompression(FlushCompressionParams.Option.fast);
+        assertFlushCompression(FlushCompression.fast);
 
         alterTable("ALTER TABLE %s WITH flush_compression = 'table'");
-        assertFlushCompression(FlushCompressionParams.Option.table);
+        assertFlushCompression(FlushCompression.table);
 
         alterTable("ALTER TABLE %s WITH flush_compression = 'auto'");
-        assertFlushCompression(FlushCompressionParams.Option.auto);
+        assertFlushCompression(FlushCompression.auto);
     }
 
     @Test
     public void alterOtherOptionPreservesFlushCompression()
     {
         createTable("CREATE TABLE %s (k int PRIMARY KEY, v text) WITH flush_compression = 'none'");
-        assertFlushCompression(FlushCompressionParams.Option.none);
+        assertFlushCompression(FlushCompression.none);
 
         alterTable("ALTER TABLE %s WITH comment = 'unrelated change'");
-        assertFlushCompression(FlushCompressionParams.Option.none);
+        assertFlushCompression(FlushCompression.none);
         assertThat(currentParams().comment).isEqualTo("unrelated change");
 
         alterTable("ALTER TABLE %s WITH compression = {'class': 'ZstdCompressor'}");
-        assertFlushCompression(FlushCompressionParams.Option.none);
+        assertFlushCompression(FlushCompression.none);
 
         alterTable("ALTER TABLE %s ADD v2 int");
-        assertFlushCompression(FlushCompressionParams.Option.none);
+        assertFlushCompression(FlushCompression.none);
     }
 
     @Test
@@ -146,13 +147,13 @@ public class FlushCompressionTableOptionTest extends CQLTester
         assertInvalidThrowMessage("Invalid value used for flush compression parameter: bogus",
                                   ConfigurationException.class,
                                   "ALTER TABLE %s WITH flush_compression = 'bogus'");
-        assertFlushCompression(FlushCompressionParams.Option.fast);
+        assertFlushCompression(FlushCompression.fast);
     }
 
     @Test
     public void cqlStringContainsQuotedOption()
     {
-        for (FlushCompressionParams.Option option : FlushCompressionParams.Option.values())
+        for (FlushCompression option : FlushCompression.values())
         {
             createTable("CREATE TABLE %s (k int PRIMARY KEY, v text) WITH flush_compression = '" + option + '\'');
             String cql = currentMetadata().toCqlString(false, false, false);
@@ -164,7 +165,7 @@ public class FlushCompressionTableOptionTest extends CQLTester
     @Test
     public void cqlStringRoundTrip()
     {
-        for (FlushCompressionParams.Option option : FlushCompressionParams.Option.values())
+        for (FlushCompression option : FlushCompression.values())
         {
             String source = createTable("CREATE TABLE %s (k int PRIMARY KEY, v text) WITH flush_compression = '" + option + '\'');
             String cql = currentMetadata().toCqlString(false, false, false);
@@ -187,11 +188,11 @@ public class FlushCompressionTableOptionTest extends CQLTester
     {
         createTable("CREATE TABLE %s (k int PRIMARY KEY, v text) WITH flush_compression = 'table'");
         TableParams rebuilt = currentParams().unbuild().build();
-        assertThat(rebuilt.flushCompression.configurationKey).isEqualTo(FlushCompressionParams.Option.table);
+        assertThat(rebuilt.flushCompression.configurationKey).isEqualTo(FlushCompression.table);
         assertThat(rebuilt).isEqualTo(currentParams());
     }
 
-    private void assertFlushCompression(FlushCompressionParams.Option expected)
+    private void assertFlushCompression(FlushCompression expected)
     {
         assertThat(currentParams().flushCompression.configurationKey).isEqualTo(expected);
     }

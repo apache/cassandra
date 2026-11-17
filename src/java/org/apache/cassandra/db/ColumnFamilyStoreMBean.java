@@ -144,7 +144,7 @@ public interface ColumnFamilyStoreMBean
 
     /**
      * Returns the compression applied to this table's SSTables as they are flushed, one of the names of
-     * {@link org.apache.cassandra.schema.FlushCompressionParams.Option}.
+     * {@link org.apache.cassandra.config.FlushCompression}.
      */
     public String getFlushCompression();
 
@@ -152,7 +152,7 @@ public interface ColumnFamilyStoreMBean
      * Sets the compression applied to this table's SSTables as they are flushed. Takes effect on the next flush.
      * The change is a node local override and is discarded by a schema change or a restart.
      *
-     * @param flushCompression one of the names of {@link org.apache.cassandra.schema.FlushCompressionParams.Option}
+     * @param flushCompression one of the names of {@link org.apache.cassandra.config.FlushCompression}
      */
     public void setFlushCompression(String flushCompression);
 

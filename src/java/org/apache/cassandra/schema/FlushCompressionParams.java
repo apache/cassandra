@@ -18,43 +18,32 @@
 
 package org.apache.cassandra.schema;
 
-import java.util.Arrays;
-
+import org.apache.cassandra.config.FlushCompression;
 import org.apache.cassandra.exceptions.ConfigurationException;
 
 import static java.lang.String.format;
 
 public final class FlushCompressionParams
 {
-    public final Option configurationKey;
+    public final FlushCompression configurationKey;
 
-    public enum Option
-    {
-        auto,
-        none,
-        fast,
-        table;
-
-        private static final String possibleValues = Arrays.toString(Option.values());
-    }
-
-    public static final FlushCompressionParams DEFAULT = new FlushCompressionParams(Option.auto);
+    public static final FlushCompressionParams DEFAULT = new FlushCompressionParams(FlushCompression.auto);
 
     public static FlushCompressionParams fromString(String value)
     {
         try
         {
-            return new FlushCompressionParams(Option.valueOf(value));
+            return new FlushCompressionParams(FlushCompression.valueOf(value));
         }
         catch (Throwable t)
         {
             throw new ConfigurationException(format("Invalid value used for flush compression parameter: %s, possible values: %s",
                                                     value,
-                                                    Option.possibleValues));
+                                                    FlushCompression.possibleValues));
         }
     }
 
-    private FlushCompressionParams(Option configurationKey)
+    private FlushCompressionParams(FlushCompression configurationKey)
     {
         this.configurationKey = configurationKey;
     }

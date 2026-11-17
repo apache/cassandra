@@ -21,8 +21,8 @@ package org.apache.cassandra.io.sstable.format;
 import org.junit.BeforeClass;
 import org.junit.Test;
 
-import org.apache.cassandra.config.Config.FlushCompression;
 import org.apache.cassandra.config.DatabaseDescriptor;
+import org.apache.cassandra.config.FlushCompression;
 import org.apache.cassandra.db.compaction.OperationType;
 import org.apache.cassandra.db.marshal.BytesType;
 import org.apache.cassandra.io.compress.DeflateCompressor;
@@ -82,7 +82,7 @@ public class DataComponentFlushCompressionTest
     @Test
     public void noneOverridesYaml()
     {
-        for (FlushCompression yaml : FlushCompression.values())
+        for (FlushCompression yaml : FlushCompression.possibleValuesInConfig)
             for (CompressionParams table : compressedParams())
                 assertCompressor(NoopCompressor.class, resolve(table, "none", yaml));
     }
@@ -90,7 +90,7 @@ public class DataComponentFlushCompressionTest
     @Test
     public void tableOverridesYaml()
     {
-        for (FlushCompression yaml : FlushCompression.values())
+        for (FlushCompression yaml : FlushCompression.possibleValuesInConfig)
             for (CompressionParams table : compressedParams())
                 assertThat(resolve(table, "table", yaml)).isSameAs(table);
     }
@@ -99,7 +99,7 @@ public class DataComponentFlushCompressionTest
     public void fastOverridesYaml()
     {
         CompressionParams lz4 = CompressionParams.lz4();
-        for (FlushCompression yaml : FlushCompression.values())
+        for (FlushCompression yaml : FlushCompression.possibleValuesInConfig)
         {
             assertThat(resolve(lz4, "fast", yaml)).isSameAs(lz4);
             assertCompressor(LZ4Compressor.class, resolve(lz4, "fast", yaml));
@@ -112,7 +112,7 @@ public class DataComponentFlushCompressionTest
     public void fastKeepsFastTableCompressorInstance()
     {
         CompressionParams lz4WithLargeChunks = CompressionParams.lz4(64 * 1024);
-        for (FlushCompression yaml : FlushCompression.values())
+        for (FlushCompression yaml : FlushCompression.possibleValuesInConfig)
             assertThat(resolve(lz4WithLargeChunks, "fast", yaml)).isSameAs(lz4WithLargeChunks);
     }
 
@@ -126,8 +126,8 @@ public class DataComponentFlushCompressionTest
             if (op == OperationType.FLUSH)
                 continue;
 
-            for (FlushCompressionParams.Option option : FlushCompressionParams.Option.values())
-                for (FlushCompression yaml : FlushCompression.values())
+            for (FlushCompression option : FlushCompression.values())
+                for (FlushCompression yaml : FlushCompression.possibleValuesInConfig)
                     for (CompressionParams table : compressedParams())
                         assertThat(buildCompressionParams(metadata(table, option.name()), op, yaml))
                         .describedAs("%s with table option %s and yaml %s", op, option, yaml)
@@ -139,8 +139,8 @@ public class DataComponentFlushCompressionTest
     public void uncompressedTableUnaffected()
     {
         CompressionParams uncompressed = CompressionParams.noCompression();
-        for (FlushCompressionParams.Option option : FlushCompressionParams.Option.values())
-            for (FlushCompression yaml : FlushCompression.values())
+        for (FlushCompression option : FlushCompression.values())
+            for (FlushCompression yaml : FlushCompression.possibleValuesInConfig)
                 assertThat(resolve(uncompressed, option.name(), yaml)).isSameAs(uncompressed);
     }
 

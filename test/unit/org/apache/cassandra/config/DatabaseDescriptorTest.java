@@ -1307,4 +1307,36 @@ public class DatabaseDescriptorTest
             .isInstanceOf(IllegalArgumentException.class)
             .hasMessageContaining("cms_reconfiguration_wait_timeout must be positive");
     }
+
+    @Test
+    public void testFlushCompressionRejectsAutoAtStartup()
+    {
+        // auto is a table level value only, the node-wide setting is what it resolves to
+        Config config = DatabaseDescriptor.loadConfig();
+        config.flush_compression = FlushCompression.auto;
+        try
+        {
+            assertThatThrownBy(() -> DatabaseDescriptor.unsafeDaemonInitialization(() -> config))
+                .isInstanceOf(ConfigurationException.class)
+                .hasMessageContaining("Invalid flush_compression: auto")
+                .hasMessageContaining("[none, fast, table]");
+        }
+        finally
+        {
+            // restore a valid config for the remaining tests in this class
+            DatabaseDescriptor.unsafeDaemonInitialization(DatabaseDescriptor::loadConfig);
+        }
+    }
+
+    @Test
+    public void testFlushCompressionSetterRejectsAuto()
+    {
+        FlushCompression original = DatabaseDescriptor.getFlushCompression();
+
+        assertThatThrownBy(() -> DatabaseDescriptor.setFlushCompression(FlushCompression.auto))
+            .isInstanceOf(IllegalArgumentException.class)
+            .hasMessageContaining("can be used only on CQL path");
+
+        assertThat(DatabaseDescriptor.getFlushCompression()).isEqualTo(original);
+    }
 }

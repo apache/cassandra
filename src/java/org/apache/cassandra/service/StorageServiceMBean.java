@@ -35,6 +35,7 @@ import javax.management.openmbean.CompositeData;
 import javax.management.openmbean.OpenDataException;
 import javax.management.openmbean.TabularData;
 
+import org.apache.cassandra.config.FlushCompression;
 import org.apache.cassandra.db.ColumnFamilyStoreMBean;
 import org.apache.cassandra.exceptions.ConfigurationException;
 import org.apache.cassandra.utils.BreaksJMX;
@@ -1103,7 +1104,7 @@ public interface StorageServiceMBean extends NotificationEmitter
 
     /**
      * Returns the compression applied to SSTables as they are flushed, one of the names of
-     * {@link org.apache.cassandra.config.Config.FlushCompression}.
+     * {@link FlushCompression}.
      */
     public String getFlushCompression();
 
@@ -1111,7 +1112,7 @@ public interface StorageServiceMBean extends NotificationEmitter
      * Sets the compression applied to SSTables as they are flushed. Takes effect on the next flush.
      * The change is node local and is not persisted to cassandra.yaml.
      *
-     * @param flushCompression one of the names of {@link org.apache.cassandra.config.Config.FlushCompression}
+     * @param flushCompression one of the names of {@link FlushCompression}
      */
     public void setFlushCompression(String flushCompression);
 

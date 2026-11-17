@@ -62,6 +62,7 @@ import accord.utils.RandomSource;
 import org.apache.cassandra.config.Config;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.config.DurationSpec;
+import org.apache.cassandra.config.FlushCompression;
 import org.apache.cassandra.cql3.CQLTester;
 import org.apache.cassandra.cql3.QueryProcessor;
 import org.apache.cassandra.cql3.UntypedResultSet;
@@ -306,7 +307,7 @@ public class CompressionDictionaryFuzzTest extends CQLTester
 
     private static Command<State, Void, ?> changeFlushCompression(RandomSource rs, State state)
     {
-        Config.FlushCompression flushCompression = rs.pick(Config.FlushCompression.values());
+        FlushCompression flushCompression = rs.pick(FlushCompression.possibleValuesInConfig.toArray(new FlushCompression[0]));
         return command("Set flush_compression to " + flushCompression, s -> DatabaseDescriptor.setFlushCompression(flushCompression));
     }
 

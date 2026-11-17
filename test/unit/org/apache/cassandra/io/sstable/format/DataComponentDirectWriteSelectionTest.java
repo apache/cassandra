@@ -26,8 +26,8 @@ import org.junit.BeforeClass;
 import org.junit.Test;
 
 import org.apache.cassandra.config.Config.DiskAccessMode;
-import org.apache.cassandra.config.Config.FlushCompression;
 import org.apache.cassandra.config.DatabaseDescriptor;
+import org.apache.cassandra.config.FlushCompression;
 import org.apache.cassandra.db.ClusteringComparator;
 import org.apache.cassandra.db.compaction.OperationType;
 import org.apache.cassandra.db.marshal.BytesType;

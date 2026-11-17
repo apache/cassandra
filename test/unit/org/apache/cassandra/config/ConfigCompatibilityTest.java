@@ -125,6 +125,11 @@ public class ConfigCompatibilityTest
                                                                    .add("available_processors types do not match; org.apache.cassandra.config.OptionaldPositiveInt != java.lang.Integer")
                                                                    .build();
 
+    // The enum moved from Config.FlushCompression to a top level class, its values in cassandra.yaml are unchanged
+    private static final Set<String> EXPECTED_FOR_70 = ImmutableSet.<String>builder()
+                                                                   .add("flush_compression types do not match; org.apache.cassandra.config.FlushCompression != org.apache.cassandra.config.Config.FlushCompression")
+                                                                   .build();
+
     /**
      * Not all converts make sense as backwards compatible as they use things like String to handle the conversion more
      * generically.
@@ -149,7 +154,7 @@ public class ConfigCompatibilityTest
         diff(TEST_DIR + "/version=4.1-alpha1.yml", ImmutableSet.<String>builder()
                                                                .addAll(WINDOWS)
                                                                .addAll(ALLOW_LIST)
-                                                               .build(), EXPECTED_FOR_50);
+                                                               .build(), Sets.union(EXPECTED_FOR_50, EXPECTED_FOR_70));
     }
 
     @Test
@@ -157,14 +162,14 @@ public class ConfigCompatibilityTest
     {
         diff(TEST_DIR + "/version=5.0-alpha1.yml", ImmutableSet.<String>builder()
                                                                .addAll(REMOVED_IN_51)
-                                                               .build(), EXPECTED_FOR_50);
+                                                               .build(), Sets.union(EXPECTED_FOR_50, EXPECTED_FOR_70));
     }
 
     @Test
     public void diff_6_0() throws IOException
     {
         diff(TEST_DIR + "/version=6.0-alpha1.yml", ImmutableSet.<String>builder()
-                                                               .build(), ImmutableSet.of());
+                                                               .build(), EXPECTED_FOR_70);
     }
 
     @Test

@@ -35,6 +35,7 @@ import org.junit.runner.RunWith;
 import org.apache.cassandra.SchemaLoader;
 import org.apache.cassandra.Util;
 import org.apache.cassandra.config.DatabaseDescriptor;
+import org.apache.cassandra.config.FlushCompression;
 import org.apache.cassandra.cql3.QueryProcessor;
 import org.apache.cassandra.cql3.UntypedResultSet;
 import org.apache.cassandra.cql3.statements.schema.CreateTableStatement;
@@ -83,7 +84,7 @@ public class SchemaKeyspaceTest
                 TableMetadata withCompression = cfs.metadata().unbuild().compression(CompressionParams.snappy(32768)).build();
                 checkInverses(withCompression);
 
-                for (FlushCompressionParams.Option option : FlushCompressionParams.Option.values())
+                for (FlushCompression option : FlushCompression.values())
                     checkInverses(cfs.metadata().unbuild().flushCompression(FlushCompressionParams.fromString(option.name())).build());
             }
         }
@@ -129,7 +130,7 @@ public class SchemaKeyspaceTest
 
         UntypedResultSet.Row explicit = selectTableRow(keyspace, "explicit");
         assertEquals("table", explicit.getString("flush_compression"));
-        assertEquals(FlushCompressionParams.Option.table, SchemaKeyspace.createTableParamsFromRow(explicit).flushCompression.configurationKey);
+        assertEquals(FlushCompression.table, SchemaKeyspace.createTableParamsFromRow(explicit).flushCompression.configurationKey);
 
         UntypedResultSet.Row implicit = selectTableRow(keyspace, "implicit");
         assertFalse(implicit.has("flush_compression"));

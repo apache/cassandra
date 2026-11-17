@@ -20,6 +20,7 @@ package org.apache.cassandra.schema;
 
 import org.junit.Test;
 
+import org.apache.cassandra.config.FlushCompression;
 import org.apache.cassandra.exceptions.ConfigurationException;
 
 import static org.assertj.core.api.Assertions.assertThat;
@@ -30,14 +31,14 @@ public class FlushCompressionParamsTest
     @Test
     public void defaultIsAuto()
     {
-        assertThat(FlushCompressionParams.DEFAULT.configurationKey).isEqualTo(FlushCompressionParams.Option.auto);
+        assertThat(FlushCompressionParams.DEFAULT.configurationKey).isEqualTo(FlushCompression.auto);
         assertThat(FlushCompressionParams.DEFAULT.toString()).isEqualTo("auto");
     }
 
     @Test
     public void fromStringAcceptsEveryOption()
     {
-        for (FlushCompressionParams.Option option : FlushCompressionParams.Option.values())
+        for (FlushCompression option : FlushCompression.values())
         {
             FlushCompressionParams params = FlushCompressionParams.fromString(option.name());
             assertThat(params.configurationKey).isEqualTo(option);
@@ -48,7 +49,7 @@ public class FlushCompressionParamsTest
     @Test
     public void toStringRoundTripsThroughFromString()
     {
-        for (FlushCompressionParams.Option option : FlushCompressionParams.Option.values())
+        for (FlushCompression option : FlushCompression.values())
         {
             FlushCompressionParams params = FlushCompressionParams.fromString(option.name());
             assertThat(FlushCompressionParams.fromString(params.toString())).isEqualTo(params);

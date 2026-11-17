@@ -24,6 +24,7 @@ import org.junit.Test;
 
 import accord.utils.Gen;
 
+import org.apache.cassandra.config.FlushCompression;
 import org.apache.cassandra.cql3.CqlBuilder;
 import org.apache.cassandra.io.util.DataInputBuffer;
 import org.apache.cassandra.io.util.DataOutputBuffer;
@@ -56,7 +57,7 @@ public class TableParamsTest
             if (version == Version.UNKNOWN || !version.isAtLeast(Version.V11))
                 continue;
 
-            for (FlushCompressionParams.Option option : FlushCompressionParams.Option.values())
+            for (FlushCompression option : FlushCompression.values())
             {
                 TableParams params = TableParams.builder().flushCompression(FlushCompressionParams.fromString(option.name())).build();
                 TableParams deserialized = serde(params, version);
@@ -87,7 +88,7 @@ public class TableParamsTest
     {
         TableParams params = TableParams.builder().build();
         assertThat(params.flushCompression).isEqualTo(FlushCompressionParams.DEFAULT);
-        assertThat(params.flushCompression.configurationKey).isEqualTo(FlushCompressionParams.Option.auto);
+        assertThat(params.flushCompression.configurationKey).isEqualTo(FlushCompression.auto);
     }
 
     @Test
@@ -105,7 +106,7 @@ public class TableParamsTest
     @Test
     public void unbuildPreservesFlushCompression()
     {
-        for (FlushCompressionParams.Option option : FlushCompressionParams.Option.values())
+        for (FlushCompression option : FlushCompression.values())
         {
             TableParams params = TableParams.builder().flushCompression(FlushCompressionParams.fromString(option.name())).build();
             assertThat(params.unbuild().build()).isEqualTo(params);

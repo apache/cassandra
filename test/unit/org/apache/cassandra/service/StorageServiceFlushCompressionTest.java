@@ -23,8 +23,8 @@ import org.junit.BeforeClass;
 import org.junit.Test;
 
 import org.apache.cassandra.ServerTestUtils;
-import org.apache.cassandra.config.Config;
 import org.apache.cassandra.config.DatabaseDescriptor;
+import org.apache.cassandra.config.FlushCompression;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
@@ -35,7 +35,7 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
  */
 public class StorageServiceFlushCompressionTest
 {
-    private static Config.FlushCompression defaultFlush;
+    private static FlushCompression defaultFlush;
 
     @BeforeClass
     public static void setup()
@@ -53,7 +53,7 @@ public class StorageServiceFlushCompressionTest
     @Test
     public void everyValueRoundTrips()
     {
-        for (Config.FlushCompression value : Config.FlushCompression.values())
+        for (FlushCompression value : FlushCompression.possibleValuesInConfig)
         {
             StorageService.instance.setFlushCompression(value.toString());
             assertThat(StorageService.instance.getFlushCompression()).isEqualTo(value.toString());
@@ -64,21 +64,34 @@ public class StorageServiceFlushCompressionTest
     @Test
     public void getterReflectsDatabaseDescriptor()
     {
-        DatabaseDescriptor.setFlushCompression(Config.FlushCompression.table);
+        DatabaseDescriptor.setFlushCompression(FlushCompression.table);
         assertThat(StorageService.instance.getFlushCompression()).isEqualTo("table");
     }
 
     @Test
     public void unknownValueIsRejectedAndPreviousIsKept()
     {
-        StorageService.instance.setFlushCompression(Config.FlushCompression.table.toString());
+        StorageService.instance.setFlushCompression(FlushCompression.table.toString());
 
         assertThatThrownBy(() -> StorageService.instance.setFlushCompression("bogus"))
         .isInstanceOf(IllegalArgumentException.class)
         .hasMessageContaining("Invalid flush_compression: bogus")
         .hasMessageContaining("[none, fast, table]");
 
-        assertThat(DatabaseDescriptor.getFlushCompression()).isEqualTo(Config.FlushCompression.table);
+        assertThat(DatabaseDescriptor.getFlushCompression()).isEqualTo(FlushCompression.table);
+    }
+
+    @Test
+    public void autoIsRejectedAndPreviousIsKept()
+    {
+        StorageService.instance.setFlushCompression(FlushCompression.table.toString());
+
+        assertThatThrownBy(() -> StorageService.instance.setFlushCompression(FlushCompression.auto.toString()))
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessageContaining("Invalid flush_compression: auto")
+        .hasMessageContaining("[none, fast, table]");
+
+        assertThat(DatabaseDescriptor.getFlushCompression()).isEqualTo(FlushCompression.table);
     }
 
     @Test

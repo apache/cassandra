@@ -96,6 +96,7 @@ import org.apache.cassandra.config.Config.PaxosStatePurging;
 import org.apache.cassandra.config.Converters;
 import org.apache.cassandra.config.DataStorageSpec;
 import org.apache.cassandra.config.DatabaseDescriptor;
+import org.apache.cassandra.config.FlushCompression;
 import org.apache.cassandra.cql3.QueryHandler;
 import org.apache.cassandra.cql3.QueryProcessor;
 import org.apache.cassandra.db.ColumnFamilyStore;
@@ -4890,20 +4891,20 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
     @Override
     public void setFlushCompression(String flushCompression)
     {
-        Config.FlushCompression newValue;
+        FlushCompression oldValue = DatabaseDescriptor.getFlushCompression();
+        FlushCompression newValue;
         try
         {
-            newValue = Config.FlushCompression.valueOf(flushCompression);
+            newValue = FlushCompression.valueOf(flushCompression);
+            DatabaseDescriptor.setFlushCompression(newValue);
         }
         catch (IllegalArgumentException | NullPointerException e)
         {
             throw new IllegalArgumentException(String.format("Invalid flush_compression: %s, possible values: %s",
                                                              flushCompression,
-                                                             Arrays.toString(Config.FlushCompression.values())));
+                                                             FlushCompression.possibleValuesInConfig));
         }
 
-        Config.FlushCompression oldValue = DatabaseDescriptor.getFlushCompression();
-        DatabaseDescriptor.setFlushCompression(newValue);
         logger.info("Updated flush_compression to {} (was {})", newValue, oldValue);
     }
 

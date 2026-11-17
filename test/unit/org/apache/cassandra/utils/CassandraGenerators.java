@@ -64,6 +64,7 @@ import accord.local.Node;
 
 import org.apache.cassandra.config.DataStorageSpec;
 import org.apache.cassandra.config.DatabaseDescriptor;
+import org.apache.cassandra.config.FlushCompression;
 import org.apache.cassandra.cql3.ColumnIdentifier;
 import org.apache.cassandra.cql3.Duration;
 import org.apache.cassandra.cql3.FieldIdentifier;
@@ -824,7 +825,7 @@ public final class CassandraGenerators
         public TableParamsBuilder withFlushCompression()
         {
             flushCompressionGen = SourceDSL.arbitrary()
-                                           .enumValues(FlushCompressionParams.Option.class)
+                                           .enumValues(FlushCompression.class)
                                            .map(option -> FlushCompressionParams.fromString(option.name()));
             return this;
         }

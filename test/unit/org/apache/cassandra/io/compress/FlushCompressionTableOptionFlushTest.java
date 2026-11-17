@@ -25,8 +25,8 @@ import org.junit.After;
 import org.junit.BeforeClass;
 import org.junit.Test;
 
-import org.apache.cassandra.config.Config;
 import org.apache.cassandra.config.DatabaseDescriptor;
+import org.apache.cassandra.config.FlushCompression;
 import org.apache.cassandra.cql3.CQLTester;
 import org.apache.cassandra.db.ColumnFamilyStore;
 import org.apache.cassandra.io.sstable.format.SSTableReader;
@@ -39,7 +39,7 @@ import static org.assertj.core.api.Assertions.assertThat;
  */
 public class FlushCompressionTableOptionFlushTest extends CQLTester
 {
-    private static Config.FlushCompression defaultFlush;
+    private static FlushCompression defaultFlush;
 
     @BeforeClass
     public static void setUpFlushCompression()
@@ -56,7 +56,7 @@ public class FlushCompressionTableOptionFlushTest extends CQLTester
     @Test
     public void noneOverridesYaml() throws Throwable
     {
-        for (Config.FlushCompression yaml : Config.FlushCompression.values())
+        for (FlushCompression yaml : FlushCompression.possibleValuesInConfig)
         {
             DatabaseDescriptor.setFlushCompression(yaml);
             createTable("CREATE TABLE %s (k text PRIMARY KEY, v text) WITH compression = {'class': 'LZ4Compressor'} AND flush_compression = 'none'");
@@ -69,7 +69,7 @@ public class FlushCompressionTableOptionFlushTest extends CQLTester
     @Test
     public void tableOverridesYaml() throws Throwable
     {
-        for (Config.FlushCompression yaml : Config.FlushCompression.values())
+        for (FlushCompression yaml : FlushCompression.possibleValuesInConfig)
         {
             DatabaseDescriptor.setFlushCompression(yaml);
             createTable("CREATE TABLE %s (k text PRIMARY KEY, v text) WITH compression = {'class': 'ZstdCompressor'} AND flush_compression = 'table'");
@@ -82,7 +82,7 @@ public class FlushCompressionTableOptionFlushTest extends CQLTester
     @Test
     public void fastOverridesYamlForSlowCompressor() throws Throwable
     {
-        for (Config.FlushCompression yaml : Config.FlushCompression.values())
+        for (FlushCompression yaml : FlushCompression.possibleValuesInConfig)
         {
             DatabaseDescriptor.setFlushCompression(yaml);
             createTable("CREATE TABLE %s (k text PRIMARY KEY, v text) WITH compression = {'class': 'ZstdCompressor'} AND flush_compression = 'fast'");
@@ -95,7 +95,7 @@ public class FlushCompressionTableOptionFlushTest extends CQLTester
     @Test
     public void fastReplacesDeflateWithLz4() throws Throwable
     {
-        DatabaseDescriptor.setFlushCompression(Config.FlushCompression.table);
+        DatabaseDescriptor.setFlushCompression(FlushCompression.table);
         createTable("CREATE TABLE %s (k text PRIMARY KEY, v text) WITH compression = {'class': 'DeflateCompressor'} AND flush_compression = 'fast'");
         ColumnFamilyStore cfs = flushTwice();
         assertFlushedWith(cfs, LZ4Compressor.class);
@@ -105,7 +105,7 @@ public class FlushCompressionTableOptionFlushTest extends CQLTester
     @Test
     public void fastKeepsFastTableCompressor() throws Throwable
     {
-        for (Config.FlushCompression yaml : Config.FlushCompression.values())
+        for (FlushCompression yaml : FlushCompression.possibleValuesInConfig)
         {
             DatabaseDescriptor.setFlushCompression(yaml);
             createTable("CREATE TABLE %s (k text PRIMARY KEY, v text) WITH compression = {'class': 'LZ4Compressor', 'chunk_length_in_kb': 64} AND flush_compression = 'fast'");
@@ -119,7 +119,7 @@ public class FlushCompressionTableOptionFlushTest extends CQLTester
     @Test
     public void autoFollowsYamlNone() throws Throwable
     {
-        DatabaseDescriptor.setFlushCompression(Config.FlushCompression.none);
+        DatabaseDescriptor.setFlushCompression(FlushCompression.none);
         createTable("CREATE TABLE %s (k text PRIMARY KEY, v text) WITH compression = {'class': 'LZ4Compressor'} AND flush_compression = 'auto'");
         ColumnFamilyStore cfs = flushTwice();
         assertFlushedWith(cfs, NoopCompressor.class);
@@ -129,7 +129,7 @@ public class FlushCompressionTableOptionFlushTest extends CQLTester
     @Test
     public void autoFollowsYamlFast() throws Throwable
     {
-        DatabaseDescriptor.setFlushCompression(Config.FlushCompression.fast);
+        DatabaseDescriptor.setFlushCompression(FlushCompression.fast);
         createTable("CREATE TABLE %s (k text PRIMARY KEY, v text) WITH compression = {'class': 'ZstdCompressor'} AND flush_compression = 'auto'");
         ColumnFamilyStore cfs = flushTwice();
         assertFlushedWith(cfs, LZ4Compressor.class);
@@ -139,7 +139,7 @@ public class FlushCompressionTableOptionFlushTest extends CQLTester
     @Test
     public void autoFollowsYamlTable() throws Throwable
     {
-        DatabaseDescriptor.setFlushCompression(Config.FlushCompression.table);
+        DatabaseDescriptor.setFlushCompression(FlushCompression.table);
         createTable("CREATE TABLE %s (k text PRIMARY KEY, v text) WITH compression = {'class': 'ZstdCompressor'} AND flush_compression = 'auto'");
         ColumnFamilyStore cfs = flushTwice();
         assertFlushedWith(cfs, ZstdCompressor.class);
@@ -149,7 +149,7 @@ public class FlushCompressionTableOptionFlushTest extends CQLTester
     @Test
     public void omittedOptionIsAuto() throws Throwable
     {
-        DatabaseDescriptor.setFlushCompression(Config.FlushCompression.none);
+        DatabaseDescriptor.setFlushCompression(FlushCompression.none);
         createTable("CREATE TABLE %s (k text PRIMARY KEY, v text) WITH compression = {'class': 'ZstdCompressor'}");
         ColumnFamilyStore cfs = flushTwice();
         assertFlushedWith(cfs, NoopCompressor.class);
@@ -159,7 +159,7 @@ public class FlushCompressionTableOptionFlushTest extends CQLTester
     @Test
     public void alterTakesEffectOnNextFlush() throws Throwable
     {
-        DatabaseDescriptor.setFlushCompression(Config.FlushCompression.fast);
+        DatabaseDescriptor.setFlushCompression(FlushCompression.fast);
         createTable("CREATE TABLE %s (k text PRIMARY KEY, v text) WITH compression = {'class': 'ZstdCompressor'}");
         ColumnFamilyStore cfs = getCurrentColumnFamilyStore();
 
@@ -186,7 +186,7 @@ public class FlushCompressionTableOptionFlushTest extends CQLTester
     @Test
     public void uncompressedTableUnaffected() throws Throwable
     {
-        DatabaseDescriptor.setFlushCompression(Config.FlushCompression.fast);
+        DatabaseDescriptor.setFlushCompression(FlushCompression.fast);
         for (String option : new String[]{ "auto", "none", "fast", "table" })
         {
             createTable("CREATE TABLE %s (k text PRIMARY KEY, v text) WITH compression = {'enabled': false} AND flush_compression = '" + option + '\'');

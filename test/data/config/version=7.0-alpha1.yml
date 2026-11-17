@@ -20,7 +20,7 @@ columns_per_table_warn_threshold: "java.lang.Integer"
 repaired_data_tracking_for_range_reads_enabled: "java.lang.Boolean"
 cdc_block_writes: "java.lang.Boolean"
 block_for_peers_timeout_in_secs: "java.lang.Integer"
-flush_compression: "org.apache.cassandra.config.Config.FlushCompression"
+flush_compression: "org.apache.cassandra.config.FlushCompression"
 commitlog_total_space: "org.apache.cassandra.config.DataStorageSpec.IntMebibytesBound"
 audit_logging_options:
   audit_logs_dir: "java.lang.String"

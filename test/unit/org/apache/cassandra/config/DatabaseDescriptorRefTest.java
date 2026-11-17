@@ -106,7 +106,7 @@ public class DatabaseDescriptorRefTest
     "org.apache.cassandra.config.Config$DiskAccessMode",
     "org.apache.cassandra.config.Config$DiskFailurePolicy",
     "org.apache.cassandra.config.Config$DiskOptimizationStrategy",
-    "org.apache.cassandra.config.Config$FlushCompression",
+    "org.apache.cassandra.config.FlushCompression",
     "org.apache.cassandra.config.Config$InternodeCompression",
     "org.apache.cassandra.config.Config$LWTStrategy",
     "org.apache.cassandra.config.Config$NonSerialWriteStrategy",
