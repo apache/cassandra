@@ -128,15 +128,17 @@ public final class SSLFactory
     /**
      * State variable to maintain initialization invariant
      */
-    private static boolean isHotReloadingInitialized = false;
+    private static volatile boolean isHotReloadingInitialized = false;
 
     /**
      * Helper class for hot reloading SSL Contexts
      */
-    private static class HotReloadableFile
+    @VisibleForTesting
+    static class HotReloadableFile
     {
         private final File file;
         private volatile long lastModTime;
+        private volatile long lastShouldReloadTime;
 
         HotReloadableFile(String path)
         {
@@ -146,10 +148,15 @@ public final class SSLFactory
 
         boolean shouldReload()
         {
-            long curModTime = file.lastModified();
-            boolean result = curModTime != lastModTime;
-            lastModTime = curModTime;
-            return result;
+            lastShouldReloadTime = file.lastModified();
+            return lastShouldReloadTime != lastModTime;
+        }
+
+        void commit()
+        {
+            long last = file.lastModified();
+            if (last == lastShouldReloadTime) // only commit if not updated since the check
+                lastModTime = lastShouldReloadTime;
         }
 
         @Override
@@ -345,21 +352,25 @@ public final class SSLFactory
      * @throws IllegalStateException if {@link #initHotReloading(EncryptionOptions.ServerEncryptionOptions, EncryptionOptions, boolean)}
      *                               is not called first
      */
-    public static void checkCertFilesForHotReloading(EncryptionOptions.ServerEncryptionOptions serverOpts,
-                                                     EncryptionOptions clientOpts)
+    public static synchronized void checkCertFilesForHotReloading(EncryptionOptions.ServerEncryptionOptions serverOpts,
+                                                                  EncryptionOptions clientOpts)
     {
         if (!isHotReloadingInitialized)
             throw new IllegalStateException("Hot reloading functionality has not been initialized.");
 
         logger.debug("Checking whether certificates have been updated {}", hotReloadableFiles);
 
-        if (hotReloadableFiles.stream().anyMatch(HotReloadableFile::shouldReload))
+        List<HotReloadableFile> files = hotReloadableFiles;
+        if (files.stream().anyMatch(HotReloadableFile::shouldReload))
         {
             logger.info("SSL certificates have been updated. Reseting the ssl contexts for new connections.");
             try
             {
+                // Force the next successful load to re-scan certificate expiry for the new keystore contents.
+                checkedExpiry = false;
                 validateSslCerts(serverOpts, clientOpts);
                 cachedSslContexts.clear();
+                files.forEach(HotReloadableFile::commit);
             }
             catch(Exception e)
             {

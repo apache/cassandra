@@ -20,7 +20,12 @@ package org.apache.cassandra.security;
 
 import java.io.File;
 import java.io.IOException;
+import java.nio.file.Files;
+import java.nio.file.attribute.PosixFilePermission;
+import java.nio.file.attribute.PosixFilePermissions;
 import java.security.cert.CertificateException;
+import java.util.Collections;
+import java.util.Set;
 import javax.net.ssl.TrustManagerFactory;
 
 import org.apache.commons.io.FileUtils;
@@ -40,6 +45,8 @@ import org.apache.cassandra.config.EncryptionOptions;
 import org.apache.cassandra.config.EncryptionOptions.ServerEncryptionOptions;
 
 import static org.junit.Assert.assertArrayEquals;
+import static org.junit.Assume.assumeFalse;
+import static org.junit.Assume.assumeNoException;
 
 public class SSLFactoryTest
 {
@@ -256,6 +263,132 @@ public class SSLFactoryTest
         {
             DatabaseDescriptor.loadConfig();
             FileUtils.deleteQuietly(new File(encryptionOptions.keystore + ".test"));
+        }
+    }
+
+    @Test
+    public void testHotReloadRetriesAndRecoversAfterFailedReload() throws IOException
+    {
+        ServerEncryptionOptions options = addKeystoreOptions(encryptionOptions);
+
+        File testKeystoreFile = new File(options.keystore + ".test");
+        FileUtils.copyFile(new File(options.keystore), testKeystoreFile);
+        options = options.withKeyStore(testKeystoreFile.getPath());
+
+        Set<PosixFilePermission> readable = PosixFilePermissions.fromString("rw-------");
+
+        // Skip where POSIX perms are not enforced (non-POSIX FS, or running as root).
+        try
+        {
+            Files.setPosixFilePermissions(testKeystoreFile.toPath(), Collections.emptySet());
+        }
+        catch (UnsupportedOperationException e)
+        {
+            assumeNoException("POSIX permissions unsupported on this filesystem", e);
+        }
+        assumeFalse("running as root; POSIX permissions not enforced", testKeystoreFile.canRead());
+        Files.setPosixFilePermissions(testKeystoreFile.toPath(), readable);
+
+        try
+        {
+            SSLFactory.initHotReloading(options, options, true);
+            SslContext oldCtx = SSLFactory.getOrCreateSslContext(options, true, SSLFactory.SocketType.CLIENT, OpenSsl.isAvailable());
+            SSLFactory.checkCertFilesForHotReloading(options, options);
+
+            // New keystore written (fresh mtime) but unreadable by the process.
+            testKeystoreFile.setLastModified(System.currentTimeMillis() + 15000);
+            Files.setPosixFilePermissions(testKeystoreFile.toPath(), Collections.emptySet());
+
+            SSLFactory.checkCertFilesForHotReloading(options, options); // AccessDeniedException -> logged, context retained
+            SslContext afterFailCtx = SSLFactory.getOrCreateSslContext(options, true, SSLFactory.SocketType.CLIENT, OpenSsl.isAvailable());
+            Assert.assertSame("failed reload must not replace the live context", oldCtx, afterFailCtx);
+
+            // Fix permissions WITHOUT touching mtime (chmod changes ctime only).
+            Files.setPosixFilePermissions(testKeystoreFile.toPath(), readable);
+
+            // Periodic check must retry even though mtime is unchanged since the failed attempt.
+            SSLFactory.checkCertFilesForHotReloading(options, options);
+            SslContext recoveredCtx = SSLFactory.getOrCreateSslContext(options, true, SSLFactory.SocketType.CLIENT, OpenSsl.isAvailable());
+            Assert.assertNotSame("reload must retry and recover once the file is readable", oldCtx, recoveredCtx);
+        }
+        finally
+        {
+            FileUtils.deleteQuietly(new File(encryptionOptions.keystore + ".test"));
+        }
+    }
+
+    @Test
+    public void testHotReloadResetsExpiryCheck() throws IOException
+    {
+        ServerEncryptionOptions options = addKeystoreOptions(encryptionOptions);
+
+        File testKeystoreFile = new File(options.keystore + ".test");
+        FileUtils.copyFile(new File(options.keystore), testKeystoreFile);
+        options = options.withKeyStore(testKeystoreFile.getPath());
+
+        try
+        {
+            SSLFactory.initHotReloading(options, options, true);
+            SSLFactory.buildKeyManagerFactory(options);
+            Assert.assertTrue("the initial load scans certificate expiry", SSLFactory.checkedExpiry);
+
+            // A changed keystore that fails to load clears checkedExpiry, and it stays clear until a load succeeds.
+            testKeystoreFile.setLastModified(System.currentTimeMillis() + 15000);
+            ServerEncryptionOptions badPassword = options.withKeyStorePassword("bad password");
+            SSLFactory.checkCertFilesForHotReloading(badPassword, badPassword);
+            Assert.assertFalse("a reload attempt clears the expiry check flag", SSLFactory.checkedExpiry);
+
+            // The retry loads the keystore and scans expiry again.
+            SSLFactory.checkCertFilesForHotReloading(options, options);
+            Assert.assertTrue("the successful retry scans expiry again", SSLFactory.checkedExpiry);
+        }
+        finally
+        {
+            FileUtils.deleteQuietly(new File(encryptionOptions.keystore + ".test"));
+        }
+    }
+
+    @Test
+    public void testHotReloadableFileCommitsOnlyChangesThatPredateTheCheck()
+    {
+        // commit() advances lastModTime only to the mtime that the most recent shouldReload() observed, and only
+        // if the file has not changed again since. This protects against a new certificate landing while a reload
+        // is in flight. That later write must NOT be masked, so shouldReload() stays true and the change is retried
+        // next period. The comparison is mtime-vs-mtime (no wall clock), so even a future-dated mtime settles after
+        // one successful commit rather than reloading forever.
+        File tmp = org.apache.cassandra.io.util.FileUtils.createTempFile("ssl-hot-reload", ".test");
+        try
+        {
+            SSLFactory.HotReloadableFile file = new SSLFactory.HotReloadableFile(tmp.getPath());
+            Assert.assertFalse("no change since construction", file.shouldReload());
+
+            // A new cert lands and mtime advances, so a reload is due.
+            tmp.setLastModified(tmp.lastModified() + 60_000);
+            long mtime = tmp.lastModified();
+            Assert.assertTrue("mtime change is detected", file.shouldReload());
+
+            // A second write lands after this check observed the file but before commit (reload still in flight).
+            // commit() sees the file changed since shouldReload() observed it, so it must not commit. The reload
+            // stays due so the newer contents are picked up next period.
+            tmp.setLastModified(mtime + 60_000);
+            file.commit();
+            Assert.assertTrue("a change after the check is not committed", file.shouldReload());
+
+            // The shouldReload() above re-observed the now-settled mtime; with no further change, commit() records
+            // it and the reload is no longer due.
+            file.commit();
+            Assert.assertFalse("a settled change is committed", file.shouldReload());
+
+            // A future-dated mtime (clock skew, or an mtime-preserving copy) must also settle after one commit
+            // rather than reloading on every check.
+            tmp.setLastModified(System.currentTimeMillis() + 3_600_000);
+            Assert.assertTrue("future-dated mtime is detected", file.shouldReload());
+            file.commit();
+            Assert.assertFalse("future-dated change settles after one commit", file.shouldReload());
+        }
+        finally
+        {
+            FileUtils.deleteQuietly(tmp);
         }
     }
 
