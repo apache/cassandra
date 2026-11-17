@@ -426,14 +426,14 @@ public class TableMetrics
 
     public final ImmutableMap<SSTableFormat<?, ?>, ImmutableMap<String, Gauge<? extends Number>>> formatSpecificGauges;
 
+    // Time spent building SSTableIntervalTree when constructing a new View under the Tracker lock
+    public final TableLatencyMetrics viewSSTableIntervalTree;
+
     /**
      * This property determines if new metrics dedicated to this table are created, or if keyspace metrics are
      * used instead.
      * */
     public final MetricsAggregation metricsAggregation;
-
-    // Time spent building SSTableIntervalTree when constructing a new View under the Tracker lock
-    public final TableLatencyMetrics viewSSTableIntervalTree;
 
     private static Pair<Long, Long> totalNonSystemTablesSize(Predicate<SSTableReader> predicate)
     {
@@ -1153,9 +1153,9 @@ public class TableMetrics
         tooManySSTableIndexesReadWarnings = createTableMeter("TooManySSTableIndexesReadWarnings", cfs.getKeyspaceMetrics().tooManySSTableIndexesReadWarnings);
         tooManySSTableIndexesReadAborts = createTableMeter("TooManySSTableIndexesReadAborts", cfs.getKeyspaceMetrics().tooManySSTableIndexesReadAborts);
 
-        formatSpecificGauges = createFormatSpecificGauges(cfs);
-
         viewSSTableIntervalTree = createLatencyMetrics("ViewSSTableIntervalTree", cfs.getKeyspaceMetrics().viewSSTableIntervalTree, Optional.empty());
+
+        formatSpecificGauges = createFormatSpecificGauges(cfs);
     }
 
     public MovingAverage flushSizeOnDisk()

@@ -18,6 +18,7 @@
 */
 package org.apache.cassandra.db.lifecycle;
 
+import java.lang.reflect.Field;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.concurrent.TimeUnit;
@@ -38,6 +39,7 @@ import org.apache.cassandra.db.lifecycle.LifecycleTransaction.ReaderState.Action
 import org.apache.cassandra.db.lifecycle.LifecycleTransaction.ReaderState;
 import org.apache.cassandra.io.sstable.format.SSTableReader;
 import org.apache.cassandra.schema.MockSchema;
+import org.apache.cassandra.utils.IntervalTree;
 import org.apache.cassandra.utils.Pair;
 import org.apache.cassandra.utils.concurrent.AbstractTransactionalTest;
 import org.apache.cassandra.utils.concurrent.Transactional.AbstractTransactional.State;
@@ -137,6 +139,76 @@ public class LifecycleTransactionTest extends AbstractTransactionalTest
         txn.checkpoint();
         Assert.assertEquals(1, tracker.getView().sstables.size());
         Assert.assertEquals(4, tracker.getView().compacting.size());
+    }
+
+    @Test
+    public void testSameBoundsReplacementInIntervalTree() throws Exception
+    {
+        ColumnFamilyStore cfs = MockSchema.newCFS();
+        Tracker tracker = cfs.getTracker();
+        SSTableReader[] readers = readersArray(0, 7, cfs);
+        SSTableReader[] readers2 = readersArray(0, 7, cfs);
+        tracker.addInitialSSTables(copyOf(readers));
+        LifecycleTransaction txn = tracker.tryModify(copyOf(readers), OperationType.UNKNOWN);
+        // replacements are only applied to the interval tree in place for online transactions
+        Assert.assertFalse(txn.isOffline());
+
+        // Replace a reader with a new instance that has the same first and last key, as index summary redistribution
+        // does (early open moves the first key, so it takes the update path). IntervalTree.update() rebuilds every
+        // node, while replace() only rebuilds the path to the replaced interval, so the new tree shares a subtree with
+        // the old one only if checkpoint() took the replace path.
+        Object headBefore = intervalTreeHead(tracker.getView());
+        txn.update(readers2[0], true);
+        txn.checkpoint();
+        View afterCheckpoint = tracker.getView();
+        SSTableReader[] expected = readers.clone();
+        expected[0] = readers2[0];
+        assertIntervalTreeHolds(afterCheckpoint, expected);
+        Object headAfterCheckpoint = intervalTreeHead(afterCheckpoint);
+        Assert.assertNotSame(headBefore, headAfterCheckpoint);
+        Assert.assertTrue("checkpoint did not share any IntervalNode: replace path not taken",
+                          sharesChildNode(headBefore, headAfterCheckpoint));
+
+        // abort restores instances of the originals, also through the replace path
+        Assert.assertNull(txn.abort(null));
+        assertIntervalTreeHolds(tracker.getView(), readers);
+        Assert.assertNotSame(readers2[0], tracker.getView().sstablesMap.get(readers[0]));
+        Assert.assertTrue("abort did not share any IntervalNode: replace path not taken",
+                          sharesChildNode(headAfterCheckpoint, intervalTreeHead(tracker.getView())));
+    }
+
+    private static Object intervalTreeHead(View view) throws ReflectiveOperationException
+    {
+        Field head = IntervalTree.class.getDeclaredField("head");
+        head.setAccessible(true);
+        return head.get(view.intervalTree);
+    }
+
+    private static boolean sharesChildNode(Object before, Object after) throws ReflectiveOperationException
+    {
+        for (String side : new String[]{ "left", "right" })
+        {
+            Field child = before.getClass().getDeclaredField(side);
+            child.setAccessible(true);
+            Object b = child.get(before);
+            if (b != null && b == child.get(after))
+                return true;
+        }
+        return false;
+    }
+
+    private static void assertIntervalTreeHolds(View view, SSTableReader... expected)
+    {
+        Assert.assertEquals(expected.length, view.sstables.size());
+        Assert.assertEquals(expected.length, view.intervalTree.intervalCount());
+        for (SSTableReader reader : expected)
+        {
+            SSTableReader live = view.sstablesMap.get(reader);
+            Assert.assertNotNull(live);
+            List<SSTableReader> found = view.intervalTree.search(reader.getFirst());
+            Assert.assertEquals(1, found.size());
+            Assert.assertSame(live, found.get(0));
+        }
     }
 
     @Test

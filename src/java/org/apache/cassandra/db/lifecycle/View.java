@@ -284,7 +284,6 @@ public class View
     // METHODS TO CONSTRUCT FUNCTIONS FOR MODIFYING A VIEW:
 
     // return a function to un/mark the provided readers compacting in a view
-    @VisibleForTesting
     public static Function<View, View> updateCompacting(final Set<? extends SSTableReader> unmark, final Iterable<? extends SSTableReader> mark)
     {
         if (unmark.isEmpty() && Iterables.isEmpty(mark))
@@ -341,7 +340,7 @@ public class View
     }
 
     // construct a function to replace the SSTable that have the same [first,last] intervals
-    static Function<View, View> replaceSSTables(final Set<SSTableReader> remove, final Iterable<SSTableReader> add, final Map<SSTableReader, SSTableReader> replacementMap, TableMetrics.TableLatencyMetrics sstableIntervalTreeLatency)
+    static Function<View, View> replaceSSTables(final Set<SSTableReader> remove, final Iterable<SSTableReader> add, final Map<SSTableReader, SSTableReader> replacementMap, @Nullable TableMetrics.TableLatencyMetrics sstableIntervalTreeLatency)
     {
         return new Function<View, View>()
         {

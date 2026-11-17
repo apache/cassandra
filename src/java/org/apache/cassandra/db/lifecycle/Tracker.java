@@ -162,7 +162,6 @@ public class Tracker
 
     // METHODS FOR ATOMICALLY MODIFYING THE VIEW
 
-    @VisibleForTesting
     public Pair<View, View> apply(Function<View, View> function)
     {
         return apply(Predicates.alwaysTrue(), function);
@@ -362,9 +361,9 @@ public class Tracker
                                                                                                     LifecycleTransaction.newId(),
                                                                                                     metadata))
         {
-            Pair<View, View> result = apply(view -> {
-                Set<SSTableReader> toremove = copyOf(filter(view.sstables, and(remove, notIn(view.compacting))));
-                return updateLiveSet(toremove, emptySet(), maybeGetSSTableIntervalTreeLatencyMetrics()).apply(view);
+            Pair<View, View> result = apply(current -> {
+                Set<SSTableReader> toremove = copyOf(filter(current.sstables, and(remove, notIn(current.compacting))));
+                return updateLiveSet(toremove, emptySet(), maybeGetSSTableIntervalTreeLatencyMetrics()).apply(current);
             });
 
             Set<SSTableReader> removed = Sets.difference(result.left.sstables, result.right.sstables);
@@ -432,9 +431,9 @@ public class Tracker
 
     public Throwable unloadSSTables(@Nullable Throwable accumulate)
     {
-        Pair<View, View> result = apply(view -> {
-            Set<SSTableReader> toUnload = copyOf(filter(view.sstables, notIn(view.compacting)));
-            return updateLiveSet(toUnload, emptySet(), maybeGetSSTableIntervalTreeLatencyMetrics()).apply(view);
+        Pair<View, View> result = apply(current -> {
+            Set<SSTableReader> toUnload = copyOf(filter(current.sstables, notIn(current.compacting)));
+            return updateLiveSet(toUnload, emptySet(), maybeGetSSTableIntervalTreeLatencyMetrics()).apply(current);
         });
 
         // compacting sstables will be cleaned up by their transaction in {@link LifecycleTransaction#unmarkCompacting}
@@ -514,7 +513,6 @@ public class Tracker
         sstables.forEach(SSTableReader::setupOnline);
         // back up before creating a new Snapshot (which makes the new one eligible for compaction)
         maybeIncrementallyBackup(sstables);
-
 
         Throwable fail;
         fail = notifyAdding(sstables, memtable, null, OperationType.FLUSH, operationId);
@@ -725,7 +723,7 @@ public class Tracker
     @VisibleForTesting
     public void removeUnsafe(Set<SSTableReader> toRemove)
     {
-        Pair<View, View> result = apply(view -> updateLiveSet(toRemove, emptySet(), maybeGetSSTableIntervalTreeLatencyMetrics()).apply(view));
+        apply(current -> updateLiveSet(toRemove, emptySet(), maybeGetSSTableIntervalTreeLatencyMetrics()).apply(current));
     }
 
     @VisibleForTesting

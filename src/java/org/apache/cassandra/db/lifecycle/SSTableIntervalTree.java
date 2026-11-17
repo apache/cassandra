@@ -1,4 +1,5 @@
 /*
+ *
  * Licensed to the Apache Software Foundation (ASF) under one
  * or more contributor license agreements.  See the NOTICE file
  * distributed with this work for additional information
@@ -35,7 +36,6 @@ import org.apache.cassandra.utils.IntervalTree;
 import org.apache.cassandra.utils.Pair;
 
 import static com.google.common.base.Preconditions.checkArgument;
-
 import static com.google.common.base.Preconditions.checkState;
 
 public class SSTableIntervalTree extends IntervalTree<PartitionPosition, SSTableReader, Interval<PartitionPosition, SSTableReader>>

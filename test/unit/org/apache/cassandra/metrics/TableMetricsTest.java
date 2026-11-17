@@ -19,10 +19,14 @@
 package org.apache.cassandra.metrics;
 
 import java.io.IOException;
+import java.lang.management.ManagementFactory;
 import java.util.concurrent.TimeUnit;
 import java.util.function.Supplier;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
+
+import javax.management.MBeanServer;
+import javax.management.ObjectName;
 
 import com.google.common.util.concurrent.Uninterruptibles;
 import org.junit.AfterClass;
@@ -196,6 +200,29 @@ public class TableMetricsTest
         StorageService.instance.forceKeyspaceFlush(KEYSPACE);
 
         assertGreaterThan(cfs.metric.maxSSTableSize.getValue().doubleValue(), 0);
+    }
+
+    @Test
+    public void testViewSSTableIntervalTreeLatency() throws Exception
+    {
+        ColumnFamilyStore cfs = recreateTable();
+        MBeanServer mbeanServer = ManagementFactory.getPlatformMBeanServer();
+        // CNDB/HCD dashboards use these names, keep them as in DataStax main-4.0
+        assertTrue(mbeanServer.isRegistered(new ObjectName("org.apache.cassandra.metrics:type=Table,keyspace=" + KEYSPACE +
+                                                           ",scope=" + TABLE + ",name=ViewSSTableIntervalTreeLatency")));
+        assertTrue(mbeanServer.isRegistered(new ObjectName("org.apache.cassandra.metrics:type=Keyspace,keyspace=" + KEYSPACE +
+                                                           ",name=ViewSSTableIntervalTreeLatency")));
+
+        long tableCount = cfs.metric.viewSSTableIntervalTree.tableOrKeyspaceMetric().latency.getCount();
+        long keyspaceCount = cfs.keyspace.metric.viewSSTableIntervalTree.latency.getCount();
+
+        session.execute(String.format("INSERT INTO %s.%s (id, val1, val2) VALUES (1, 'val1', 'val1')", KEYSPACE, TABLE));
+        StorageService.instance.forceKeyspaceFlush(KEYSPACE, TABLE);
+
+        // flushing adds the new sstable to the View's interval tree
+        assertEquals(1, cfs.getLiveSSTables().size());
+        assertGreaterThan(cfs.metric.viewSSTableIntervalTree.tableOrKeyspaceMetric().latency.getCount(), tableCount);
+        assertGreaterThan(cfs.keyspace.metric.viewSSTableIntervalTree.latency.getCount(), keyspaceCount);
     }
 
     @Test

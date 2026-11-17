@@ -45,6 +45,7 @@ import org.slf4j.LoggerFactory;
 import org.apache.cassandra.concurrent.ScheduledExecutors;
 import org.apache.cassandra.db.ColumnFamilyStore;
 import org.apache.cassandra.db.Directories;
+import org.apache.cassandra.db.compaction.CompactionSSTable;
 import org.apache.cassandra.db.compaction.OperationType;
 import org.apache.cassandra.io.sstable.SSTable;
 import org.apache.cassandra.io.sstable.format.SSTableReader;
@@ -458,9 +459,9 @@ public class LifecycleTransaction extends Transactional.AbstractTransactional im
         List<SSTableReader> toAdds = new ArrayList<>(add);
         List<SSTableReader> toRemoves = new ArrayList<>(remove);
         // sort the SSTableReader list by (first, last, descriptor.id). The view is per cfs so id will be unique
-        Comparator<SSTableReader> comp = Comparator.comparing((SSTableReader s) -> s.getFirst())
-                                                   .thenComparing(s -> s.getLast())
-                                                   .thenComparing(SSTableReader.idComparator);
+        Comparator<SSTableReader> comp = Comparator.comparing(SSTableReader::getFirst)
+                                                   .thenComparing(SSTableReader::getLast)
+                                                   .thenComparing(CompactionSSTable.idComparator);
         toRemoves.sort(comp);
         toAdds.sort(comp);
 

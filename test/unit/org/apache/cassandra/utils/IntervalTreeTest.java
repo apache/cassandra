@@ -568,6 +568,41 @@ public class IntervalTreeTest implements WithQuickTheories
     }
 
     @Test
+    @SuppressWarnings("unchecked")
+    public void testUpdateWithMissingRemovalFails()
+    {
+        List<Interval<Integer, Integer>> intervals = new ArrayList<>();
+        intervals.add(Interval.create(1, 2));
+        intervals.add(Interval.create(3, 4));
+        IntervalTree<Integer, Integer, Interval<Integer, Integer>> it = IntervalTree.build(intervals);
+
+        // missing removal sorting after every existing interval, with and without additions
+        for (Interval<Integer, Integer>[] additions : new Interval[][]{ new Interval[0], new Interval[]{ Interval.create(10, 11) } })
+        {
+            try
+            {
+                it.update(new Interval[]{ Interval.create(7, 8) }, additions);
+                fail("Expected IllegalStateException");
+            }
+            catch (IllegalStateException e)
+            {
+                assertTrue(e.getMessage(), e.getMessage().contains("Removal interval not found"));
+            }
+        }
+
+        // more removals than existing intervals
+        try
+        {
+            it.update(new Interval[]{ Interval.create(1, 2), Interval.create(3, 4), Interval.create(5, 6) }, new Interval[0]);
+            fail("Expected IllegalStateException");
+        }
+        catch (IllegalStateException e)
+        {
+            assertTrue(e.getMessage(), e.getMessage().contains("Removal interval not found"));
+        }
+    }
+
+    @Test
     public void qtAddTest()
     {
         qt().withExamples(-1).withTestingTime(TESTING_SECONDS, SECONDS)

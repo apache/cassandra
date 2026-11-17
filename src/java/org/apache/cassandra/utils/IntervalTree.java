@@ -22,6 +22,7 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
+import java.util.Comparator;
 import java.util.Iterator;
 import java.util.List;
 import java.util.function.BiPredicate;
@@ -45,6 +46,7 @@ public class IntervalTree<C extends Comparable<? super C>, D extends Comparable<
 {
     public static final boolean EXPENSIVE_CHECKS = TEST_INTERVAL_TREE_EXPENSIVE_CHECKS.getBoolean();
     private static final int REBUILD_AT_MOD_COUNT = 20;
+    private static final String OUT_OF_ORDER_MESSAGE = "%s and %s out of order";
 
     private static final Logger logger = LoggerFactory.getLogger(IntervalTree.class);
 
@@ -94,14 +96,7 @@ public class IntervalTree<C extends Comparable<? super C>, D extends Comparable<
             this.head = new IntervalNode(Arrays.asList(intervalsByMinOrder), Arrays.asList(intervalsByMaxOrder));
         }
         if (EXPENSIVE_CHECKS)
-        {
-            if (intervalsByMinOrder.length > 1)
-                for (int i = 1; i < intervalsByMinOrder.length; i++)
-                    checkState(Interval.<C, D>minOrdering().compare(intervalsByMinOrder[i - 1], intervalsByMinOrder[i]) <= 0, "%s and %s out of order", intervalsByMinOrder[i-1], intervalsByMinOrder[i]);
-            if (intervalsByMaxOrder.length > 1)
-                for (int i = 1; i < intervalsByMaxOrder.length; i++)
-                    checkState(Interval.<C, D>maxOrdering().compare(intervalsByMaxOrder[i - 1], intervalsByMaxOrder[i]) <= 0, "%s and %s out of order", intervalsByMaxOrder[i-1], intervalsByMaxOrder[i]);
-        }
+            checkSortedArrays(false);
     }
 
     /**
@@ -131,14 +126,13 @@ public class IntervalTree<C extends Comparable<? super C>, D extends Comparable<
         }
 
         if (EXPENSIVE_CHECKS)
-        {
-            if (intervalsByMinOrder.length > 1)
-                for (int i = 1; i < intervalsByMinOrder.length; i++)
-                    checkState(Interval.<C, D>minOrdering().compare(intervalsByMinOrder[i - 1], intervalsByMinOrder[i]) < 0, "%s and %s out of order", intervalsByMinOrder[i-1], intervalsByMinOrder[i]);
-            if (intervalsByMaxOrder.length > 1)
-                for (int i = 1; i < intervalsByMaxOrder.length; i++)
-                    checkState(Interval.<C, D>maxOrdering().compare(intervalsByMaxOrder[i - 1], intervalsByMaxOrder[i]) < 0, "%s and %s out of order", intervalsByMaxOrder[i-1], intervalsByMaxOrder[i]);
-        }
+            checkSortedArrays(true);
+    }
+
+    private void checkSortedArrays(boolean strict)
+    {
+        checkOrdered(intervalsByMinOrder, Interval.<C, D>minOrdering(), strict);
+        checkOrdered(intervalsByMaxOrder, Interval.<C, D>maxOrdering(), strict);
     }
 
     protected IntervalTree(IntervalNode head, int modCount, I[] minSortedIntervals, I[] maxSortedIntervals)
@@ -150,14 +144,7 @@ public class IntervalTree<C extends Comparable<? super C>, D extends Comparable<
         this.intervalsByMinOrder = minSortedIntervals;
         this.intervalsByMaxOrder = maxSortedIntervals;
         if (EXPENSIVE_CHECKS)
-        {
-            if (intervalsByMinOrder.length > 1)
-                for (int i = 1; i < intervalsByMinOrder.length; i++)
-                    checkState(Interval.<C, D>minOrdering().compare(intervalsByMinOrder[i - 1], intervalsByMinOrder[i]) < 0, "%s and %s out of order", intervalsByMinOrder[i-1], intervalsByMinOrder[i]);
-            if (intervalsByMaxOrder.length > 1)
-                for (int i = 1; i < intervalsByMaxOrder.length; i++)
-                    checkState(Interval.<C, D>maxOrdering().compare(intervalsByMaxOrder[i - 1], intervalsByMaxOrder[i]) < 0, "%s and %s out of order", intervalsByMaxOrder[i-1], intervalsByMaxOrder[i]);
-        }
+            checkSortedArrays(true);
     }
 
     protected IntervalTree<C, D, I> create(IntervalNode head, int modCount, @Nullable I[] minSortedIntervals, @Nullable I[] maxSortedIntervals)
@@ -237,76 +224,82 @@ public class IntervalTree<C extends Comparable<? super C>, D extends Comparable<
                                            AsymmetricOrdering<Interval<C, D>, C> cmp)
     {
         if (EXPENSIVE_CHECKS)
+            checkOrdered(existingSorted, cmp, true);
+
+        I[] result = mergeSorted(removeSorted(existingSorted, removalsSorted, cmp), additionsSorted, cmp);
+
+        if (EXPENSIVE_CHECKS)
+            checkOrdered(result, cmp, true);
+
+        return result;
+    }
+
+    @SuppressWarnings("unchecked")
+    private I[] removeSorted(I[] existingSorted, I[] removalsSorted, AsymmetricOrdering<Interval<C, D>, C> cmp)
+    {
+        if (removalsSorted.length == 0)
+            return existingSorted;
+
+        if (removalsSorted.length > existingSorted.length)
+            throw new IllegalStateException("Removal interval not found in the existing tree: " + removalsSorted[existingSorted.length]);
+        I[] result = (I[]) new Interval[existingSorted.length - removalsSorted.length];
+        int removalsIndex = 0;
+        int resultIndex = 0;
+        for (I existing : existingSorted)
         {
-            if (existingSorted.length > 1)
-                for (int i = 1; i < existingSorted.length; i++)
-                    checkState(cmp.compare(existingSorted[i - 1], existingSorted[i]) < 0, "%s and %s out of order", existingSorted[i-1], existingSorted[i]);
-        }
-
-        int finalSize = existingSorted.length + additionsSorted.length - removalsSorted.length;
-        I[] result = (I[]) new Interval[finalSize];
-
-        int existingIndex = 0;
-        int removalsIndex  = 0;
-        int additionsIndex = 0;
-        int resultIndex    = 0;
-
-        while (existingIndex < existingSorted.length)
-        {
-            I currentExisting = existingSorted[existingIndex];
-
-            int c;
-            while (removalsIndex < removalsSorted.length
-                   && (c = cmp.compare(removalsSorted[removalsIndex], currentExisting)) <= 0)
+            if (removalsIndex < removalsSorted.length)
             {
+                int c = cmp.compare(removalsSorted[removalsIndex], existing);
                 if (c < 0)
-                {
                     throw new IllegalStateException("Removal interval not found in the existing tree: " + removalsSorted[removalsIndex]);
-                }
-                else
+                if (c == 0)
                 {
-                    checkState(removalsSorted[removalsIndex].data == currentExisting.data, "Comparator does not implement identity");
-                    existingIndex++;
+                    checkState(removalsSorted[removalsIndex].data == existing.data, "Comparator does not implement identity");
                     removalsIndex++;
-
-                    if (existingIndex >= existingSorted.length)
-                        break;
-                    currentExisting = existingSorted[existingIndex];
+                    continue;
                 }
             }
-
-            if (existingIndex >= existingSorted.length)
-                break;
-
-            while (additionsIndex < additionsSorted.length)
-            {
-                int additionCmp = cmp.compare(additionsSorted[additionsIndex], currentExisting);
-                if (additionCmp == 0)
-                    throw new IllegalStateException("Attempting to add duplicate interval: " + additionsSorted[additionsIndex]);
-                else if (additionCmp < 0)
-                    result[resultIndex++] = additionsSorted[additionsIndex++];
-                else
-                    break;
-            }
-
-            result[resultIndex++] = currentExisting;
-            existingIndex++;
+            if (resultIndex == result.length)
+                throw new IllegalStateException("Removal interval not found in the existing tree: " + removalsSorted[removalsIndex]);
+            result[resultIndex++] = existing;
         }
 
         if (removalsIndex < removalsSorted.length)
             throw new IllegalStateException("Removal interval not found in the existing tree: " + removalsSorted[removalsIndex]);
 
-        while (additionsIndex < additionsSorted.length)
-            result[resultIndex++] = additionsSorted[additionsIndex++];
+        return result;
+    }
 
-        if (EXPENSIVE_CHECKS)
+    @SuppressWarnings("unchecked")
+    private I[] mergeSorted(I[] existingSorted, I[] additionsSorted, AsymmetricOrdering<Interval<C, D>, C> cmp)
+    {
+        if (additionsSorted.length == 0)
+            return existingSorted;
+
+        I[] result = (I[]) new Interval[existingSorted.length + additionsSorted.length];
+        int existingIndex = 0;
+        int additionsIndex = 0;
+        int resultIndex = 0;
+        while (existingIndex < existingSorted.length && additionsIndex < additionsSorted.length)
         {
-            if (result.length > 1)
-                for (int i = 1; i < result.length; i++)
-                    checkState(cmp.compare(result[i - 1], result[i]) < 0, "%s and %s out of order", result[i-1], result[i]);
+            int c = cmp.compare(additionsSorted[additionsIndex], existingSorted[existingIndex]);
+            if (c == 0)
+                throw new IllegalStateException("Attempting to add duplicate interval: " + additionsSorted[additionsIndex]);
+            result[resultIndex++] = c < 0 ? additionsSorted[additionsIndex++] : existingSorted[existingIndex++];
         }
 
+        System.arraycopy(existingSorted, existingIndex, result, resultIndex, existingSorted.length - existingIndex);
+        System.arraycopy(additionsSorted, additionsIndex, result, resultIndex + existingSorted.length - existingIndex, additionsSorted.length - additionsIndex);
         return result;
+    }
+
+    private static <T> void checkOrdered(T[] intervals, Comparator<? super T> ordering, boolean strict)
+    {
+        for (int i = 1; i < intervals.length; i++)
+        {
+            int c = ordering.compare(intervals[i - 1], intervals[i]);
+            checkState(strict ? c < 0 : c <= 0, OUT_OF_ORDER_MESSAGE, intervals[i - 1], intervals[i]);
+        }
     }
 
     /**
@@ -509,11 +502,7 @@ public class IntervalTree<C extends Comparable<? super C>, D extends Comparable<
         }
 
         if (EXPENSIVE_CHECKS)
-        {
-            if (replacementArray.length > 1)
-                for (int i = 1; i < replacementArray.length; i++)
-                    checkState(cmp.compare(replacementArray[i - 1], replacementArray[i]) < 0, "%s and %s out of order", replacementArray[i-1], replacementArray[i]);
-        }
+            checkOrdered(replacementArray, cmp, true);
 
         return replacementArray;
     }
@@ -542,43 +531,129 @@ public class IntervalTree<C extends Comparable<? super C>, D extends Comparable<
 
         checkState(newIntervalsByMinOrder.length == newIntervalsByMaxOrder.length);
         if (EXPENSIVE_CHECKS)
-        {
-            boolean[] foundMinOrderReplacement = new boolean[replacements.size()];
-            boolean[] foundMaxOrderReplacement = new boolean[replacements.size()];
-            for (int i = 0; i < newIntervalsByMinOrder.length; i++)
-            {
-                for (int j = 0; j < replacements.size(); j++)
-                {
-                    Pair<I, I> replacement = replacements.get(j);
-                    if (newIntervalsByMinOrder[i].min.equals(replacement.left.min) && newIntervalsByMinOrder[i].max.equals(replacement.right.max))
-                    {
-                        checkState(newIntervalsByMinOrder[i].data != replacement.left.data);
-                        if (newIntervalsByMinOrder[i].data == replacement.right.data)
-                        {
-                            checkState(!foundMinOrderReplacement[j], "Replacement value appears more than once");
-                            foundMinOrderReplacement[j] = true;
-                        }
-                    }
-
-                    if (newIntervalsByMaxOrder[i].min.equals(replacement.left.min) && newIntervalsByMaxOrder[i].max.equals(replacement.right.max))
-                    {
-                        checkState(newIntervalsByMaxOrder[i].data != replacement.left.data);
-                        if (newIntervalsByMaxOrder[i].data == replacement.right.data)
-                        {
-                            checkState(!foundMaxOrderReplacement[j], "Replacement value appears more than once");
-                            foundMaxOrderReplacement[j] = true;
-                        }
-                    }
-                }
-            }
-            for (int i = 0; i < foundMaxOrderReplacement.length; i++)
-                checkState(foundMinOrderReplacement[i] && foundMaxOrderReplacement[i], "Didn't find replacement value that should be present");
-        }
+            checkReplacementsApplied(newIntervalsByMinOrder, newIntervalsByMaxOrder, replacements);
 
         return create(head.replace(head, replacements),
                       modCount,
                       newIntervalsByMinOrder,
                       newIntervalsByMaxOrder);
+    }
+
+    private void checkReplacementsApplied(I[] newIntervalsByMinOrder, I[] newIntervalsByMaxOrder, List<Pair<I, I>> replacements)
+    {
+        boolean[] foundMinOrderReplacement = new boolean[replacements.size()];
+        boolean[] foundMaxOrderReplacement = new boolean[replacements.size()];
+        for (int i = 0; i < newIntervalsByMinOrder.length; i++)
+        {
+            markReplacementsFound(newIntervalsByMinOrder[i], replacements, foundMinOrderReplacement);
+            markReplacementsFound(newIntervalsByMaxOrder[i], replacements, foundMaxOrderReplacement);
+        }
+        for (int i = 0; i < foundMaxOrderReplacement.length; i++)
+            checkState(foundMinOrderReplacement[i] && foundMaxOrderReplacement[i], "Didn't find replacement value that should be present");
+    }
+
+    private void markReplacementsFound(I interval, List<Pair<I, I>> replacements, boolean[] found)
+    {
+        for (int j = 0; j < replacements.size(); j++)
+        {
+            Pair<I, I> replacement = replacements.get(j);
+            if (interval.min.equals(replacement.left.min) && interval.max.equals(replacement.right.max))
+            {
+                checkState(interval.data != replacement.left.data);
+                if (interval.data == replacement.right.data)
+                {
+                    checkState(!found[j], "Replacement value appears more than once");
+                    found[j] = true;
+                }
+            }
+        }
+    }
+
+    private static <C extends Comparable<? super C>, D extends Comparable<? super D>, I extends Interval<C, D>> boolean replaceInSorted(List<I> original,
+                                                                                                                                        List<I> updated,
+                                                                                                                                        AsymmetricOrdering<Interval<C, D>, C> ordering,
+                                                                                                                                        C key,
+                                                                                                                                        I toRemove,
+                                                                                                                                        I toAdd)
+    {
+        for (int i = ordering.binarySearchAsymmetric(original, key, Op.CEIL); i < original.size(); i++)
+        {
+            if (original.get(i).equals(toRemove))
+            {
+                updated.set(i, toAdd);
+                return true;
+            }
+        }
+        return false;
+    }
+
+    private static <C extends Comparable<? super C>, D extends Comparable<? super D>, I extends Interval<C, D>> void insertSorted(List<I> sorted,
+                                                                                                                                  I interval,
+                                                                                                                                  AsymmetricOrdering<Interval<C, D>, C> ordering)
+    {
+        int idx = Collections.binarySearch(sorted, interval, ordering);
+        checkState(idx < 0, "Should not add the same interval twice");
+        sorted.add(-1 - idx, interval);
+    }
+
+    /**
+     * Walks the min-ordered and max-ordered intervals as if merging all the endpoints, stopping after as many steps
+     * as there are intervals. Returns the number of min endpoints and max endpoints consumed, which identify the median
+     * endpoint used as the node center.
+     */
+    private static <C extends Comparable<? super C>, D extends Comparable<? super D>, I extends Interval<C, D>> int[] findMedianPosition(List<I> minOrder, List<I> maxOrder)
+    {
+        int i = 0;
+        int j = 0;
+        for (int count = 0; count < minOrder.size(); count++)
+        {
+            if (i < minOrder.size() && (j >= maxOrder.size() || minOrder.get(i).min.compareTo(maxOrder.get(j).max) <= 0))
+                i++;
+            else
+                j++;
+        }
+        return new int[] { i, j };
+    }
+
+    private static <C extends Comparable<? super C>, D extends Comparable<? super D>, I extends Interval<C, D>> void checkCenter(List<I> intervals, C center)
+    {
+        List<C> allEndpoints = new ArrayList<>(intervals.size() * 2);
+        for (I interval : intervals)
+        {
+            allEndpoints.add(interval.min);
+            allEndpoints.add(interval.max);
+        }
+
+        Collections.sort(allEndpoints);
+        C expectedCenter = allEndpoints.get(intervals.size());
+        checkState(expectedCenter.equals(center));
+    }
+
+    private static <C extends Comparable<? super C>, D extends Comparable<? super D>, I extends Interval<C, D>> void partitionAroundCenter(List<I> intervals,
+                                                                                                                                           C center,
+                                                                                                                                           List<I> leftOfCenter,
+                                                                                                                                           List<I> rightOfCenter,
+                                                                                                                                           List<I> intersectingCenter)
+    {
+        for (I candidate : intervals)
+        {
+            if (candidate.max.compareTo(center) < 0)
+                leftOfCenter.add(candidate);
+            else if (candidate.min.compareTo(center) > 0)
+                rightOfCenter.add(candidate);
+            else
+                intersectingCenter.add(candidate);
+        }
+    }
+
+    private static <T extends Comparable<? super T>> T lesser(T a, T b)
+    {
+        return a.compareTo(b) < 0 ? a : b;
+    }
+
+    private static <T extends Comparable<? super T>> T greater(T a, T b)
+    {
+        return a.compareTo(b) > 0 ? a : b;
     }
 
     protected class IntervalNode
@@ -631,15 +706,9 @@ public class IntervalTree<C extends Comparable<? super C>, D extends Comparable<
             low = minOrder.get(0).min;
             high = maxOrder.get(maxOrder.size() - 1).max;
 
-            int i = 0, j = 0, count = 0;
-            while (count < minOrder.size())
-            {
-                if (i < minOrder.size() && (j >= maxOrder.size() || minOrder.get(i).min.compareTo(maxOrder.get(j).max) <= 0))
-                    i++;
-                else
-                    j++;
-                count++;
-            }
+            int[] medianPosition = findMedianPosition(minOrder, maxOrder);
+            int i = medianPosition[0];
+            int j = medianPosition[1];
 
             if (i < minOrder.size() && (j >= maxOrder.size() || minOrder.get(i).min.compareTo(maxOrder.get(j).max) < 0))
                 center = minOrder.get(i).min;
@@ -647,18 +716,7 @@ public class IntervalTree<C extends Comparable<? super C>, D extends Comparable<
                 center = maxOrder.get(j).max;
 
             if (EXPENSIVE_CHECKS)
-            {
-                List<C> allEndpoints = new ArrayList<>(minOrder.size() * 2);
-                for (I interval : minOrder)
-                {
-                    allEndpoints.add(interval.min);
-                    allEndpoints.add(interval.max);
-                }
-
-                Collections.sort(allEndpoints);
-                C expectedCenter = allEndpoints.get(minOrder.size());
-                checkState(expectedCenter.equals(center));
-            }
+                checkCenter(minOrder, center);
 
             // Separate interval in intersecting center, left of center and right of center
             int initialIntersectionSize = i - j + 1;
@@ -670,35 +728,18 @@ public class IntervalTree<C extends Comparable<? super C>, D extends Comparable<
             List<I> rightSegmentMinOrder = new ArrayList<>(initialChildSize);
             List<I> rightSegmentMaxOrder = new ArrayList<>(initialChildSize);
 
-            for (I candidate : minOrder)
-            {
-                if (candidate.max.compareTo(center) < 0)
-                    leftSegmentMinOrder.add(candidate);
-                else if (candidate.min.compareTo(center) > 0)
-                    rightSegmentMinOrder.add(candidate);
-                else
-                    intersectsLeft.add(candidate);
-            }
-
-            for (I candidate : maxOrder)
-            {
-                if (candidate.max.compareTo(center) < 0)
-                    leftSegmentMaxOrder.add(candidate);
-                else if (candidate.min.compareTo(center) > 0)
-                    rightSegmentMaxOrder.add(candidate);
-                else
-                    intersectsRight.add(candidate);
-            }
+            partitionAroundCenter(minOrder, center, leftSegmentMinOrder, rightSegmentMinOrder, intersectsLeft);
+            partitionAroundCenter(maxOrder, center, leftSegmentMaxOrder, rightSegmentMaxOrder, intersectsRight);
 
             left = leftSegmentMinOrder.isEmpty() ? null : new IntervalNode(leftSegmentMinOrder, leftSegmentMaxOrder);
             right = rightSegmentMinOrder.isEmpty() ? null : new IntervalNode(rightSegmentMinOrder, rightSegmentMaxOrder);
 
             assert (intersectsLeft.size() == intersectsRight.size());
-            assert (intersectsLeft.size() + leftSegmentMinOrder.size() + rightSegmentMinOrder.size()) == minOrder.size() :
-            "intersects (" + intersectsLeft.size() +
-            ") + leftSegment (" + leftSegmentMinOrder.size() +
-            ") + rightSegment (" + rightSegmentMinOrder.size() +
-            ") != toBisect (" + minOrder.size() + ')';
+            if ((intersectsLeft.size() + leftSegmentMinOrder.size() + rightSegmentMinOrder.size()) != minOrder.size())
+                throw new IllegalStateException("intersects (" + intersectsLeft.size() +
+                                                ") + leftSegment (" + leftSegmentMinOrder.size() +
+                                                ") + rightSegment (" + rightSegmentMinOrder.size() +
+                                                ") != toBisect (" + minOrder.size() + ')');
         }
 
         public IntervalNode(C center, C low, C high, List<I> intersectsLeft, List<I> intersectsRight, IntervalNode left, IntervalNode right)
@@ -784,32 +825,8 @@ public class IntervalTree<C extends Comparable<? super C>, D extends Comparable<
                         newIntersectsLeft = new ArrayList<>(node.intersectsLeft);
                         newIntersectsRight = new ArrayList<>(node.intersectsRight);
                     }
-                    boolean leftUpdated = false;
-                    boolean rightUpdated = false;
-
-                    int i = Interval.<C, D>minOrdering().binarySearchAsymmetric(node.intersectsLeft, intervalToRemove.min, Op.CEIL);
-                    while (i < node.intersectsLeft.size())
-                    {
-                        if (node.intersectsLeft.get(i).equals(intervalToRemove))
-                        {
-                            newIntersectsLeft.set(i, intervalToAdd);
-                            leftUpdated = true;
-                            break;
-                        }
-                        i++;
-                    }
-
-                    int j = Interval.<C, D>maxOrdering().binarySearchAsymmetric(node.intersectsRight, intervalToRemove.max, Op.CEIL);
-                    while (j < node.intersectsRight.size())
-                    {
-                        if (node.intersectsRight.get(j).equals(intervalToRemove))
-                        {
-                            newIntersectsRight.set(j, intervalToAdd);
-                            rightUpdated = true;
-                            break;
-                        }
-                        j++;
-                    }
+                    boolean leftUpdated = replaceInSorted(node.intersectsLeft, newIntersectsLeft, Interval.minOrdering(), intervalToRemove.min, intervalToRemove, intervalToAdd);
+                    boolean rightUpdated = replaceInSorted(node.intersectsRight, newIntersectsRight, Interval.maxOrdering(), intervalToRemove.max, intervalToRemove, intervalToAdd);
                     assert leftUpdated && rightUpdated : "leftupdated = " + leftUpdated + ", rightupdated = " + rightUpdated;
                     updated++;
                 }
@@ -854,8 +871,8 @@ public class IntervalTree<C extends Comparable<? super C>, D extends Comparable<
             List<I> newIntersectsRight = null;
             for (I i : intervals)
             {
-                newLow = newLow.compareTo(i.min) < 0 ? newLow : i.min;
-                newHigh = newHigh.compareTo(i.max) > 0 ? newHigh : i.max;
+                newLow = lesser(newLow, i.min);
+                newHigh = greater(newHigh, i.max);
                 if (i.max.compareTo(root.center) < 0)
                 {
                     leftSegment.add(i);
@@ -871,15 +888,8 @@ public class IntervalTree<C extends Comparable<? super C>, D extends Comparable<
                         newIntersectsLeft = new ArrayList<>(root.intersectsLeft);
                         newIntersectsRight = new ArrayList<>(root.intersectsRight);
                     }
-                    int leftIdx = Collections.binarySearch(newIntersectsLeft, i, Interval.minOrdering());
-                    checkState(leftIdx < 0, "Should not add the same interval twice");
-                    leftIdx = -1 - leftIdx;
-                    newIntersectsLeft.add(leftIdx, i);
-
-                    int rightIdx = Collections.binarySearch(newIntersectsRight, i, Interval.maxOrdering());
-                    checkState(rightIdx < 0, "Should not add the same interval twice");
-                    rightIdx = -1 - rightIdx;
-                    newIntersectsRight.add(rightIdx, i);
+                    insertSorted(newIntersectsLeft, i, Interval.minOrdering());
+                    insertSorted(newIntersectsRight, i, Interval.maxOrdering());
                 }
             }
 

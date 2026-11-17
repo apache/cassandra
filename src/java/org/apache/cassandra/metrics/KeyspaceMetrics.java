@@ -218,9 +218,9 @@ public class KeyspaceMetrics
     public final Meter tooManySSTableIndexesReadWarnings;
     public final Meter tooManySSTableIndexesReadAborts;
 
-    public final ImmutableMap<SSTableFormat<?, ?>, ImmutableMap<String, Gauge<? extends Number>>> formatSpecificGauges;
-
     public final LatencyMetrics viewSSTableIntervalTree;
+
+    public final ImmutableMap<SSTableFormat<?, ?>, ImmutableMap<String, Gauge<? extends Number>>> formatSpecificGauges;
 
     public final MetricNameFactory factory;
     private final Keyspace keyspace;

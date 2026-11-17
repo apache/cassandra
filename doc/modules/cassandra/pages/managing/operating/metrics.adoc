@@ -199,6 +199,10 @@ materialized view updates on this table.
 |ViewReadTime |Timer |Time taken during the local read of a materialized
 view update.
 
+|ViewSSTableIntervalTreeLatency |Latency |Time taken to update the
+`SSTableIntervalTree` of the table's view on each change of its live
+sstable set.
+
 |TrueSnapshotsSize |Gauge<Long> |Disk space used by snapshots of this
 table including all SSTable components.
 

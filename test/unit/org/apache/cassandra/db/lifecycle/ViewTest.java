@@ -26,6 +26,7 @@ import java.util.Set;
 import com.google.common.base.Function;
 import com.google.common.base.Predicates;
 import com.google.common.collect.ImmutableList;
+import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.ImmutableSet;
 import com.google.common.collect.Iterables;
 import org.junit.Assert;
@@ -210,6 +211,35 @@ public class ViewTest
         Assert.assertEquals(memtable3, cur.getCurrentMemtable());
         Assert.assertEquals(1, cur.sstables.size());
         Assert.assertEquals(sstable, cur.sstablesMap.get(sstable));
+    }
+
+    @Test
+    public void testReplaceSSTables()
+    {
+        ColumnFamilyStore cfs = MockSchema.newCFS();
+        View cur = fakeView(0, 5, cfs);
+        // new instances of two of the readers, with the same bounds
+        SSTableReader r1 = MockSchema.sstable(1, cfs), r3 = MockSchema.sstable(3, cfs);
+        SSTableReader old1 = cur.sstablesMap.get(r1), old3 = cur.sstablesMap.get(r3);
+        Assert.assertNotSame(r1, old1);
+        Assert.assertNotSame(r3, old3);
+
+        long treeUpdates = cfs.metric.viewSSTableIntervalTree.tableOrKeyspaceMetric().latency.getCount();
+        cur = View.replaceSSTables(of(old1, old3), of(r1, r3), ImmutableMap.of(old1, r1, old3, r3),
+                                   cfs.metric.viewSSTableIntervalTree).apply(cur);
+        Assert.assertEquals(treeUpdates + 1, cfs.metric.viewSSTableIntervalTree.tableOrKeyspaceMetric().latency.getCount());
+
+        Assert.assertEquals(5, cur.sstables.size());
+        Assert.assertSame(r1, cur.sstablesMap.get(r1));
+        Assert.assertSame(r3, cur.sstablesMap.get(r3));
+        // the interval tree holds exactly the live instances
+        Assert.assertEquals(5, cur.intervalTree.intervalCount());
+        for (int i = 0 ; i < 5 ; i++)
+        {
+            List<SSTableReader> found = cur.intervalTree.search(MockSchema.readerBounds(i));
+            Assert.assertEquals(1, found.size());
+            Assert.assertSame(cur.sstablesMap.get(found.get(0)), found.get(0));
+        }
     }
 
     static View fakeView(int memtableCount, int sstableCount, ColumnFamilyStore cfs)
