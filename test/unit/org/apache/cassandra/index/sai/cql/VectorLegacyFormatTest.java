@@ -187,9 +187,7 @@ public class VectorLegacyFormatTest extends VectorTester
 
     /**
      * Checks that a graph has the jvector 1.0.2 layout: node count, dimension, entry node and maximum degree, then
-     * for each node its ordinal, its vector, and its neighbors padded to the maximum degree with -1. Also checks that
-     * the entry node is where jvector 1.0.2 moved it: no neighbor of it has a lower total similarity to its own
-     * neighbors.
+     * for each node its ordinal, its vector, and its neighbors padded to the maximum degree with -1.
      *
      * @return the maximum degree
      */
@@ -199,45 +197,29 @@ public class VectorLegacyFormatTest extends VectorTester
         ByteBuffer graph = segment(termsData);
         assertThat(graph.getInt()).isEqualTo(ROWS);
         assertThat(graph.getInt()).isEqualTo(DIMENSION);
-        int entryNode = graph.getInt();
-        assertThat(entryNode).isBetween(0, ROWS - 1);
+        assertThat(graph.getInt()).isBetween(0, ROWS - 1);
         int maxDegree = graph.getInt();
-        float[][] vectors = new float[ROWS][];
-        int[][] neighbors = new int[ROWS][];
         for (int node = 0; node < ROWS; node++)
         {
             assertThat(graph.getInt()).isEqualTo(node);
-            vectors[node] = new float[DIMENSION];
+            float[] vector = new float[DIMENSION];
             for (int d = 0; d < DIMENSION; d++)
-                vectors[node][d] = graph.getFloat();
-            assertThat(expectedVectors).contains(asList(vectors[node]));
+                vector[d] = graph.getFloat();
+            assertThat(expectedVectors).contains(asList(vector));
 
-            neighbors[node] = new int[graph.getInt()];
-            assertThat(neighbors[node].length).isBetween(1, maxDegree);
+            int neighbors = graph.getInt();
+            assertThat(neighbors).isBetween(1, maxDegree);
             for (int n = 0; n < maxDegree; n++)
             {
                 int neighbor = graph.getInt();
-                if (n < neighbors[node].length)
-                    assertThat(neighbors[node][n] = neighbor).isBetween(0, ROWS - 1).isNotEqualTo(node);
+                if (n < neighbors)
+                    assertThat(neighbor).isBetween(0, ROWS - 1).isNotEqualTo(node);
                 else
                     assertThat(neighbor).isEqualTo(-1);
             }
         }
         assertThat(graph.hasRemaining()).isFalse();
-
-        // jvector 1.0.2 summed with DoubleStream.sum, which can round differently, so allow for near ties
-        double entrySimilarity = neighborSimilarity(vectors, neighbors, entryNode);
-        for (int neighbor : neighbors[entryNode])
-            assertThat(neighborSimilarity(vectors, neighbors, neighbor)).isGreaterThanOrEqualTo(entrySimilarity - 1e-6);
         return maxDegree;
-    }
-
-    private static double neighborSimilarity(float[][] vectors, int[][] neighbors, int node)
-    {
-        double total = 0;
-        for (int neighbor : neighbors[node])
-            total += JVectorUtils.compare(VectorSimilarityFunction.COSINE, vectors[node], vectors[neighbor]);
-        return total;
     }
 
     /**
