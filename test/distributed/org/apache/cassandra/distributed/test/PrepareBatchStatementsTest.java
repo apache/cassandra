@@ -18,9 +18,6 @@
 
 package org.apache.cassandra.distributed.test;
 
-import java.util.List;
-import java.util.stream.Collectors;
-
 import org.junit.Test;
 
 import com.datastax.driver.core.PreparedStatement;
@@ -28,13 +25,12 @@ import com.datastax.driver.core.Session;
 import org.apache.cassandra.cql3.QueryProcessor;
 import org.apache.cassandra.distributed.api.ICluster;
 import org.apache.cassandra.distributed.api.IInvokableInstance;
-import org.apache.cassandra.service.StorageService;
-import org.assertj.core.util.Lists;
 
 import static org.apache.cassandra.distributed.api.Feature.GOSSIP;
 import static org.apache.cassandra.distributed.api.Feature.NATIVE_PROTOCOL;
 import static org.apache.cassandra.distributed.api.Feature.NETWORK;
 import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertNotNull;
 
 public class PrepareBatchStatementsTest extends TestBaseImpl
 {
@@ -72,8 +68,8 @@ public class PrepareBatchStatementsTest extends TestBaseImpl
                 s.execute(prepared.bind(1, 1, 1, 1, 1, 1));
                 c.get(1).runOnInstance(() -> {
                     // no USE here, only a fully qualified batch - should get stored ONCE
-                    List<String> stmts = StorageService.instance.getPreparedStatements().stream().map(p -> p.right).collect(Collectors.toList());
-                    assertEquals(Lists.newArrayList(batch1), stmts);
+                    assertEquals(1, QueryProcessor.preparedStatementsCount());
+                    assertNotNull(QueryProcessor.getStoredPreparedStatement(batch1, null));
                     QueryProcessor.clearPreparedStatements(false);
                 });
 
@@ -82,8 +78,9 @@ public class PrepareBatchStatementsTest extends TestBaseImpl
                 s.execute(prepared.bind(1, 1, 1, 1, 1, 1));
                 c.get(1).runOnInstance(() -> {
                     // after USE, fully qualified - should get stored twice! Once with null keyspace (new behaviour) once with ks2 keyspace (old behaviour)
-                    List<String> stmts = StorageService.instance.getPreparedStatements().stream().map(p -> p.right).collect(Collectors.toList());
-                    assertEquals(Lists.newArrayList(batch1, batch1), stmts);
+                    assertEquals(2, QueryProcessor.preparedStatementsCount());
+                    assertNotNull(QueryProcessor.getStoredPreparedStatement(batch1, null));
+                    assertNotNull(QueryProcessor.getStoredPreparedStatement(batch1, "ks2"));
                     QueryProcessor.clearPreparedStatements(false);
                 });
 
@@ -91,8 +88,9 @@ public class PrepareBatchStatementsTest extends TestBaseImpl
                 s.execute(prepared.bind(1, 1, 1, 1, 1, 1));
                 c.get(1).runOnInstance(() -> {
                     // after USE, should get stored twice, once with keyspace, once without
-                    List<String> stmts = StorageService.instance.getPreparedStatements().stream().map(p -> p.right).collect(Collectors.toList());
-                    assertEquals(Lists.newArrayList(batch2, batch2), stmts);
+                    assertEquals(2, QueryProcessor.preparedStatementsCount());
+                    assertNotNull(QueryProcessor.getStoredPreparedStatement(batch2, null));
+                    assertNotNull(QueryProcessor.getStoredPreparedStatement(batch2, "ks2"));
                     QueryProcessor.clearPreparedStatements(false);
                 });
             }

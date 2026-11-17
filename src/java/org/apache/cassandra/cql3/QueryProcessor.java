@@ -221,11 +221,6 @@ public class QueryProcessor implements QueryHandler
         SystemKeyspace.removePreparedStatement(id);
     }
 
-    public HashMap<MD5Digest, Prepared> getPreparedStatements()
-    {
-        return new HashMap<>(preparedStatements.asMap());
-    }
-
     public Prepared getPrepared(MD5Digest id)
     {
         return preparedStatements.getIfPresent(id);
