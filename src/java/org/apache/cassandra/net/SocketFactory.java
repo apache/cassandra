@@ -66,6 +66,7 @@ import io.netty.channel.unix.Errors;
 import io.netty.handler.ssl.SslClosedEngineException;
 import io.netty.handler.ssl.SslContext;
 import io.netty.handler.ssl.SslHandler;
+import io.netty.util.ReferenceCountUtil;
 import io.netty.util.concurrent.DefaultEventExecutorChooserFactory;
 import io.netty.util.concurrent.DefaultThreadFactory;
 import io.netty.util.concurrent.RejectedExecutionHandlers;
@@ -236,6 +237,10 @@ public final class SocketFactory
 
     /**
      * Creates a new {@link SslHandler} from the cached SslContext for the given options.
+     * <p>
+     * The lookup reference keeps the cached context valid while the engine is created, and the release in the
+     * {@code finally} block drops it again. The engine holds a reference of its own, so the handler stays valid
+     * if a hot reload evicts the context afterwards.
      *
      * @param peer enables endpoint verification for remote address when not null
      */
@@ -247,7 +252,14 @@ public final class SocketFactory
                                            @Nullable InetSocketAddress peer) throws IOException
     {
         SslContext sslContext = SSLFactory.getOrCreateSslContext(options, clientAuth, socketType, contextDescription);
-        return newSslHandler(channel, sslContext, peer);
+        try
+        {
+            return newSslHandler(channel, sslContext, peer);
+        }
+        finally
+        {
+            ReferenceCountUtil.release(sslContext);
+        }
     }
 
     /**
