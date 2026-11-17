@@ -19,6 +19,7 @@ package org.apache.cassandra.db;
 
 import java.nio.ByteBuffer;
 import java.util.ArrayList;
+import java.util.Collection;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.Iterator;
@@ -32,9 +33,12 @@ import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.AtomicReference;
+import java.util.function.BiConsumer;
+import java.util.function.Supplier;
 
 import com.google.common.annotations.VisibleForTesting;
 import com.google.common.base.Throwables;
+import com.google.common.collect.ImmutableMap;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -154,6 +158,14 @@ public class Memtable implements Comparable<Memtable>
     public final ColumnFamilyStore cfs;
     private final long creationNano = System.nanoTime();
 
+    private static final AtomicLong nextId = new AtomicLong();
+
+    // strictly increasing in creation order, so that a table's memtables, and with them its flushes, can be ordered
+    private final long id = nextId.accumulateAndGet(System.nanoTime(), (a, b) -> a >= b ? a + 1 : b);
+
+    // run once this memtable's flush has finished; null once it has
+    private volatile Map<Object, BiConsumer<Long, TableMetadata>> onFlush = ImmutableMap.of();
+
     // The smallest timestamp for all partitions stored in this memtable
     private long minTimestamp = Long.MAX_VALUE;
 
@@ -174,6 +186,7 @@ public class Memtable implements Comparable<Memtable>
         this.initialComparator = cfs.metadata().comparator;
         this.cfs.scheduleFlush();
         this.columnsCollector = new ColumnsCollector(cfs.metadata().regularAndStaticColumns());
+        cfs.trackUnflushed(this);
     }
 
     // ONLY to be used for testing, to create a mock Memtable
@@ -204,6 +217,53 @@ public class Memtable implements Comparable<Memtable>
     public long getLiveDataSize()
     {
         return liveDataSize.get();
+    }
+
+    public long getMemtableId()
+    {
+        return id;
+    }
+
+    /**
+     * @return the listener registered under {@code key}, created by {@code factory} if there was none, or null if this
+     * memtable's flush has already finished
+     */
+    @SuppressWarnings("unchecked")
+    public synchronized <T extends BiConsumer<Long, TableMetadata>> T ensureFlushListener(Object key, Supplier<T> factory)
+    {
+        if (onFlush == null)
+            return null;
+
+        T listener = (T) onFlush.get(key);
+        if (null == listener)
+        {
+            listener = factory.get();
+            onFlush = ImmutableMap.<Object, BiConsumer<Long, TableMetadata>>builder()
+                                  .putAll(onFlush)
+                                  .put(key, listener)
+                                  .build();
+        }
+        return listener;
+    }
+
+    public boolean hasFlushListener()
+    {
+        Map<?, ?> listeners = onFlush;
+        return listeners != null && !listeners.isEmpty();
+    }
+
+    /**
+     * Marks this memtable's flush finished, including its post-flush, and runs the listeners registered on it.
+     */
+    public void notifyFlushed()
+    {
+        Collection<BiConsumer<Long, TableMetadata>> run;
+        synchronized (this)
+        {
+            run = onFlush.values();
+            onFlush = null;
+        }
+        run.forEach(c -> c.accept(id, cfs.metadata()));
     }
 
     public long getOperations()
