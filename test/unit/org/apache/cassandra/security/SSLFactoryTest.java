@@ -22,10 +22,17 @@ import org.apache.cassandra.io.util.File;
 import java.io.FileInputStream;
 import java.io.FileOutputStream;
 import java.io.IOException;
+import java.nio.file.attribute.PosixFilePermission;
+import java.nio.file.attribute.PosixFilePermissions;
 import java.security.KeyStore;
+import java.security.KeyStoreException;
 import java.security.cert.CertificateException;
+import java.util.Collections;
+import java.util.Date;
 import java.util.HashMap;
 import java.util.Map;
+import java.util.Set;
+import java.util.concurrent.ScheduledFuture;
 
 import org.apache.commons.io.FileUtils;
 import org.junit.Assert;
@@ -40,6 +47,12 @@ import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.config.EncryptionOptions;
 import org.apache.cassandra.config.EncryptionOptions.ServerEncryptionOptions;
 import org.apache.cassandra.config.ParameterizedClass;
+import org.apache.cassandra.utils.Clock;
+
+import static org.apache.cassandra.io.util.FileUtils.createDeletableTempFile;
+import static org.junit.Assert.assertEquals;
+import static org.junit.Assume.assumeFalse;
+import static org.junit.Assume.assumeNoException;
 
 public class SSLFactoryTest
 {
@@ -118,10 +131,6 @@ public class SSLFactoryTest
         {
             throw e;
         }
-        finally
-        {
-            DatabaseDescriptor.loadConfig();
-        }
     }
 
     @Test
@@ -155,10 +164,6 @@ public class SSLFactoryTest
         {
             throw e;
         }
-        finally
-        {
-            DatabaseDescriptor.loadConfig();
-        }
     }
 
     @Test(expected = IOException.class)
@@ -174,34 +179,27 @@ public class SSLFactoryTest
     @Test
     public void testSslFactoryHotReload_BadPassword_DoesNotClearExistingSslContext() throws IOException
     {
-        try
-        {
-            ServerEncryptionOptions options = addKeystoreOptions(encryptionOptions);
-            // emulate InboundSockets and share the cert but with different options, no extra hot reloading init
-            ServerEncryptionOptions legacyOptions = options.withOptional(false).withInternodeEncryption(ServerEncryptionOptions.InternodeEncryption.all);
+        ServerEncryptionOptions options = addKeystoreOptions(encryptionOptions);
+        // emulate InboundSockets and share the cert but with different options, no extra hot reloading init
+        ServerEncryptionOptions legacyOptions = options.withOptional(false).withInternodeEncryption(ServerEncryptionOptions.InternodeEncryption.all);
 
-            File testKeystoreFile = new File(options.keystore + ".test");
-            FileUtils.copyFile(new File(options.keystore).toJavaIOFile(), testKeystoreFile.toJavaIOFile());
-            options = options.withKeyStore(testKeystoreFile.path());
+        File testKeystoreFile = new File(options.keystore + ".test");
+        FileUtils.copyFile(new File(options.keystore).toJavaIOFile(), testKeystoreFile.toJavaIOFile());
+        options = options.withKeyStore(testKeystoreFile.path());
 
-            SSLFactory.initHotReloading(options, options, true);  // deliberately not initializing with legacyOptions to match InboundSockets.addBindings
+        SSLFactory.initHotReloading(options, options, true);  // deliberately not initializing with legacyOptions to match InboundSockets.addBindings
 
-            SslContext oldCtx = SSLFactory.getOrCreateSslContext(options, true, ISslContextFactory.SocketType.CLIENT, "test");
-            SslContext oldLegacyCtx = SSLFactory.getOrCreateSslContext(options, true, ISslContextFactory.SocketType.CLIENT, "test legacy");
+        SslContext oldCtx = SSLFactory.getOrCreateSslContext(options, true, ISslContextFactory.SocketType.CLIENT, "test");
+        SslContext oldLegacyCtx = SSLFactory.getOrCreateSslContext(options, true, ISslContextFactory.SocketType.CLIENT, "test legacy");
 
-            changeKeystorePassword(options.keystore, options.keystore_password, "bad password");
+        changeKeystorePassword(options.keystore, options.keystore_password, "bad password");
 
-            SSLFactory.checkCertFilesForHotReloading();
-            SslContext newCtx = SSLFactory.getOrCreateSslContext(options, true, ISslContextFactory.SocketType.CLIENT, "test");
-            SslContext newLegacyCtx = SSLFactory.getOrCreateSslContext(options, true, ISslContextFactory.SocketType.CLIENT, "test legacy");
+        SSLFactory.checkCertFilesForHotReloading();
+        SslContext newCtx = SSLFactory.getOrCreateSslContext(options, true, ISslContextFactory.SocketType.CLIENT, "test");
+        SslContext newLegacyCtx = SSLFactory.getOrCreateSslContext(options, true, ISslContextFactory.SocketType.CLIENT, "test legacy");
 
-            Assert.assertSame(oldCtx, newCtx);
-            Assert.assertSame(oldLegacyCtx, newLegacyCtx);
-        }
-        finally
-        {
-            DatabaseDescriptor.loadConfig();
-        }
+        Assert.assertSame(oldCtx, newCtx);
+        Assert.assertSame(oldLegacyCtx, newLegacyCtx);
     }
 
     @Test
@@ -234,8 +232,104 @@ public class SSLFactoryTest
         }
         finally
         {
-            DatabaseDescriptor.loadConfig();
             FileUtils.deleteQuietly(new File(encryptionOptions.keystore + ".test").toJavaIOFile());
+        }
+    }
+
+    @Test
+    public void testHotReloadRetriesAndRecoversAfterFailedReload() throws IOException
+    {
+        ServerEncryptionOptions options = addKeystoreOptions(encryptionOptions);
+
+        File testKeystoreFile = new File(options.keystore + ".test");
+        FileUtils.copyFile(new File(options.keystore).toJavaIOFile(), testKeystoreFile.toJavaIOFile());
+        options = options.withKeyStore(testKeystoreFile.path());
+
+        java.io.File jio = testKeystoreFile.toJavaIOFile();
+        Set<PosixFilePermission> readable =
+            PosixFilePermissions.fromString("rw-------");
+
+        // Skip where POSIX perms are not enforced (non-POSIX FS, or running as root).
+        try
+        {
+            java.nio.file.Files.setPosixFilePermissions(jio.toPath(), Collections.emptySet());
+        }
+        catch (UnsupportedOperationException e)
+        {
+            assumeNoException("POSIX permissions unsupported on this filesystem", e);
+        }
+        assumeFalse("running as root; POSIX permissions not enforced", jio.canRead());
+        java.nio.file.Files.setPosixFilePermissions(jio.toPath(), readable);
+
+        try
+        {
+            SSLFactory.initHotReloading(options, options, true);
+            SslContext oldCtx = SSLFactory.getOrCreateSslContext(options, true, ISslContextFactory.SocketType.CLIENT, "test");
+            SSLFactory.checkCertFilesForHotReloading();
+
+            // New keystore written (fresh mtime) but unreadable by the process.
+            testKeystoreFile.trySetLastModified(System.currentTimeMillis() + 15000);
+            java.nio.file.Files.setPosixFilePermissions(jio.toPath(), Collections.emptySet());
+
+            SSLFactory.checkCertFilesForHotReloading(); // AccessDeniedException -> logged, context retained
+            SslContext afterFailCtx = SSLFactory.getOrCreateSslContext(options, true, ISslContextFactory.SocketType.CLIENT, "test");
+            Assert.assertSame("failed reload must not replace the live context", oldCtx, afterFailCtx);
+
+            // Fix permissions WITHOUT touching mtime (chmod changes ctime only).
+            java.nio.file.Files.setPosixFilePermissions(jio.toPath(), readable);
+
+            // Periodic check must retry even though mtime is unchanged since the failed attempt.
+            SSLFactory.checkCertFilesForHotReloading();
+            SslContext recoveredCtx = SSLFactory.getOrCreateSslContext(options, true, ISslContextFactory.SocketType.CLIENT, "test");
+            Assert.assertNotSame("reload must retry and recover once the file is readable", oldCtx, recoveredCtx);
+        }
+        finally
+        {
+            FileUtils.deleteQuietly(new File(encryptionOptions.keystore + ".test").toJavaIOFile());
+        }
+    }
+
+    @Test
+    public void testHotReloadableFileCommitsOnlyChangesThatPredateTheCheck()
+    {
+        // commit() advances lastModTime only to the mtime that the most recent shouldReload() observed, and only
+        // if the file has not changed again since. This protects against a new certificate landing while a reload
+        // is in flight. That later write must NOT be masked, so shouldReload() stays true and the change is retried
+        // next period. The comparison is mtime-vs-mtime (no wall clock), so even a future-dated mtime settles after
+        // one successful commit rather than reloading forever.
+        File tmp = createDeletableTempFile("ssl-hot-reload", ".test");
+        try
+        {
+            FileBasedSslContextFactory.HotReloadableFile file = new FileBasedSslContextFactory.HotReloadableFile(tmp.path());
+            Assert.assertFalse("no change since construction", file.shouldReload());
+
+            // A new cert lands and mtime advances, so a reload is due.
+            tmp.trySetLastModified(tmp.lastModified() + 60_000);
+            long mtime = tmp.lastModified();
+            Assert.assertTrue("mtime change is detected", file.shouldReload());
+
+            // A second write lands after this check observed the file but before commit (reload still in flight).
+            // commit() sees the file changed since shouldReload() observed it, so it must not commit. The reload
+            // stays due so the newer contents are picked up next period.
+            tmp.trySetLastModified(mtime + 60_000);
+            file.commit();
+            Assert.assertTrue("a change after the check is not committed", file.shouldReload());
+
+            // The shouldReload() above re-observed the now-settled mtime; with no further change, commit() records
+            // it and the reload is no longer due.
+            file.commit();
+            Assert.assertFalse("a settled change is committed", file.shouldReload());
+
+            // A future-dated mtime (clock skew, or an mtime-preserving copy) must also settle after one commit
+            // rather than reloading on every check.
+            tmp.trySetLastModified(System.currentTimeMillis() + 3_600_000);
+            Assert.assertTrue("future-dated mtime is detected", file.shouldReload());
+            file.commit();
+            Assert.assertFalse("future-dated change settles after one commit", file.shouldReload());
+        }
+        finally
+        {
+            FileUtils.deleteQuietly(tmp.toJavaIOFile());
         }
     }
 
@@ -319,6 +413,180 @@ public class SSLFactoryTest
         );
 
         Assert.assertNotEquals(cacheKey1, cacheKey2);
+    }
+
+    @Test
+    public void testHotReloadChecksExpiryOnEachReload() throws IOException
+    {
+        ServerEncryptionOptions options = addKeystoreOptions(encryptionOptions)
+                                          .withSslContextFactory(new ParameterizedClass(TestFileBasedSSLContextFactory.class.getName(),
+                                                                                        new HashMap<>()));
+        File testKeystoreFile = new File(options.keystore + ".test");
+        FileUtils.copyFile(new File(options.keystore).toJavaIOFile(), testKeystoreFile.toJavaIOFile());
+        options = options.withKeyStore(testKeystoreFile.path());
+
+        try
+        {
+            TestFileBasedSSLContextFactory.expiryCheckCount = 0;
+
+            // Init hot reloading and load BOTH inbound (SERVER) and outbound (CLIENT) contexts
+            // so that checkedExpiry is latched to true before any reload.
+            SSLFactory.initHotReloading(options, options, true);
+            SSLFactory.getOrCreateSslContext(options, true, ISslContextFactory.SocketType.CLIENT, "test");
+            SSLFactory.getOrCreateSslContext(options, true, ISslContextFactory.SocketType.SERVER, "test");
+            int afterInitialLoad = TestFileBasedSSLContextFactory.expiryCheckCount;
+
+            // First reload. After this reload the cache is cleared; re-populate it so
+            // the second reload also has entries to process.
+            testKeystoreFile.trySetLastModified(System.currentTimeMillis() + 15000);
+            SSLFactory.checkCertFilesForHotReloading();
+            // Re-populate the cache so the second reload has something to process.
+            SSLFactory.getOrCreateSslContext(options, true, ISslContextFactory.SocketType.CLIENT, "test");
+            SSLFactory.getOrCreateSslContext(options, true, ISslContextFactory.SocketType.SERVER, "test");
+            int afterFirstReload = TestFileBasedSSLContextFactory.expiryCheckCount;
+            Assert.assertTrue("expiry scanned at least once across init + first reload", afterFirstReload >= 1);
+
+            // Second reload. The context is already loaded and checkedExpiry is latched true.
+            // onReloadRequired() resets the flag so expiry IS re-scanned and expiryCheckCount increases.
+            testKeystoreFile.trySetLastModified(System.currentTimeMillis() + 30000);
+            SSLFactory.checkCertFilesForHotReloading();
+            int afterSecondReload = TestFileBasedSSLContextFactory.expiryCheckCount;
+            Assert.assertTrue("expiry re-scanned after second reload (checkedExpiry already latched); afterInitialLoad=" + afterInitialLoad + " afterFirstReload=" + afterFirstReload + " afterSecondReload=" + afterSecondReload,
+                               afterSecondReload > afterFirstReload);
+
+            // no file change - no additional scan.
+            SSLFactory.checkCertFilesForHotReloading();
+            Assert.assertEquals("no re-scan when the file is unchanged", afterSecondReload,
+                                 TestFileBasedSSLContextFactory.expiryCheckCount);
+        }
+        finally
+        {
+            FileUtils.deleteQuietly(new File(encryptionOptions.keystore + ".test").toJavaIOFile());
+        }
+    }
+
+    @Test
+    public void testExpiryWarningScheduledOnLoadAndRescheduledOnReload() throws Exception
+    {
+        Map<String, Object> params = new HashMap<>();
+        params.put("keystore", "test/conf/cassandra_ssl_test.keystore");
+        params.put("keystore_password", "cassandra");
+        TestFileBasedSSLContextFactory factory = new TestFileBasedSSLContextFactory(params);
+
+        // Build a keystore holding a future-dated cert (ssc validity is ~1 year).
+        KeyStore ks = KeyStore.getInstance("PKCS12");
+        ks.load(null, null);
+        ks.setCertificateEntry("test", ssc.cert());
+        Map<String, Date> expiries = factory.certificateExpiries(ks);
+
+        factory.scheduleExpiryWarning(expiries, Clock.Global.currentTimeMillis());
+        ScheduledFuture<?> first = factory.expiryWarningFuture;
+        Assert.assertNotNull("a future-dated cert schedules an expiry warning", first);
+        Assert.assertFalse(first.isCancelled());
+
+        // A reload reschedules: the prior future is cancelled and replaced.
+        factory.scheduleExpiryWarning(expiries, Clock.Global.currentTimeMillis());
+        ScheduledFuture<?> second = factory.expiryWarningFuture;
+        Assert.assertTrue("previous warning cancelled on reschedule", first.isCancelled());
+        Assert.assertNotSame(first, second);
+
+        // Clean up scheduled tasks.
+        factory.expiryWarningFuture.cancel(false);
+    }
+
+    @Test
+    public void testCertificateExpiriesCollectsNotAfterPerAlias() throws Exception
+    {
+        Map<String, Object> params = new HashMap<>();
+        params.put("keystore", "test/conf/cassandra_ssl_test.keystore");
+        params.put("keystore_password", "cassandra");
+        TestFileBasedSSLContextFactory factory = new TestFileBasedSSLContextFactory(params);
+
+        Date now = new Date();
+        SelfSignedCertificate soon = new SelfSignedCertificate(new Date(now.getTime() - 1000),
+                                                               new Date(now.getTime() + 60_000));
+        SelfSignedCertificate later = new SelfSignedCertificate(new Date(now.getTime() - 1000),
+                                                                new Date(now.getTime() + 3_600_000));
+
+        KeyStore ks = KeyStore.getInstance("PKCS12");
+        ks.load(null, null);
+        ks.setCertificateEntry("soon", soon.cert());
+        ks.setCertificateEntry("later", later.cert());
+
+        Map<String, Date> expiries = factory.certificateExpiries(ks);
+        assertEquals("every X.509 alias is collected", 2, expiries.size());
+        assertEquals(soon.cert().getNotAfter(), expiries.get("soon"));
+        assertEquals(later.cert().getNotAfter(), expiries.get("later"));
+
+        // checkExpiredCerts and earliestExpiry share this scan, so they agree on the entries seen.
+        assertEquals("earliestExpiry returns the minimum notAfter",
+                     soon.cert().getNotAfter(), factory.earliestExpiry(expiries));
+    }
+
+    @Test
+    public void testEarliestExpirySkewedByExtraEarlierCertificate() throws Exception
+    {
+        // Documents the known limitation noted on certificateExpiries: the scan is store-wide, so an unnecessary
+        // extra entry that expires earlier than the certificate actually in use pulls earliestExpiry earlier. This
+        // asserts current behavior (warning may be misattributed); it is not a handshake correctness issue.
+        Map<String, Object> params = new HashMap<>();
+        params.put("keystore", "test/conf/cassandra_ssl_test.keystore");
+        params.put("keystore_password", "cassandra");
+        TestFileBasedSSLContextFactory factory = new TestFileBasedSSLContextFactory(params);
+
+        Date now = new Date();
+        SelfSignedCertificate required = new SelfSignedCertificate(new Date(now.getTime() - 1000),
+                                                                   new Date(now.getTime() + 3_600_000));
+        SelfSignedCertificate straggler = new SelfSignedCertificate(new Date(now.getTime() - 1000),
+                                                                    new Date(now.getTime() + 60_000));
+
+        KeyStore ks = KeyStore.getInstance("PKCS12");
+        ks.load(null, null);
+        ks.setCertificateEntry("required", required.cert());
+        ks.setCertificateEntry("straggler", straggler.cert());
+
+        assertEquals("earliestExpiry is skewed to the earlier, unrelated certificate",
+                     straggler.cert().getNotAfter(),
+                     factory.earliestExpiry(factory.certificateExpiries(ks)));
+    }
+
+    @Test
+    public void testCheckExpiredCertsOverrideIsDetected()
+    {
+        Map<String, Object> params = new HashMap<>();
+        params.put("keystore", "test/conf/cassandra_ssl_test.keystore");
+        params.put("keystore_password", "cassandra");
+
+        // A subclass overriding checkExpiredCerts(KeyStore) is detected, so its override is honored on reload.
+        Assert.assertTrue("overriding subclass is detected", new TestFileBasedSSLContextFactory(params).checkExpiredCertsOverridden);
+        // A subclass that does not override it takes the fast map-based path (no redundant keystore scan).
+        Assert.assertFalse("non-overriding subclass takes the map path", new PlainFileBasedSSLContextFactory(params).checkExpiredCertsOverridden);
+    }
+
+    public static class TestFileBasedSSLContextFactory extends FileBasedSslContextFactory
+    {
+        static volatile int expiryCheckCount = 0;
+
+        public TestFileBasedSSLContextFactory(Map<String, Object> parameters)
+        {
+            super(parameters);
+        }
+
+        @Override
+        protected boolean checkExpiredCerts(KeyStore ks) throws KeyStoreException
+        {
+            expiryCheckCount++;
+            return super.checkExpiredCerts(ks);
+        }
+    }
+
+    /** Does not override checkExpiredCerts(KeyStore); used to assert the override-detection returns false. */
+    public static class PlainFileBasedSSLContextFactory extends FileBasedSslContextFactory
+    {
+        public PlainFileBasedSSLContextFactory(Map<String, Object> parameters)
+        {
+            super(parameters);
+        }
     }
 
     void changeKeystorePassword(String filename, String currentPassword, String newPassword)

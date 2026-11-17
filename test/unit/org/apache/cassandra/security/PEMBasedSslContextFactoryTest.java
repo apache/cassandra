@@ -19,9 +19,12 @@
 package org.apache.cassandra.security;
 
 import java.io.IOException;
+import java.nio.charset.StandardCharsets;
+import java.nio.file.Files;
 import java.util.Arrays;
 import java.util.HashMap;
 import java.util.Map;
+import java.util.concurrent.ScheduledFuture;
 import javax.net.ssl.TrustManagerFactory;
 
 import org.apache.commons.lang3.StringUtils;
@@ -33,6 +36,7 @@ import io.netty.handler.ssl.OpenSsl;
 import io.netty.handler.ssl.OpenSslContext;
 import io.netty.handler.ssl.SslContext;
 import io.netty.handler.ssl.SslProvider;
+import io.netty.handler.ssl.util.SelfSignedCertificate;
 import org.apache.cassandra.config.EncryptionOptions;
 import org.apache.cassandra.config.ParameterizedClass;
 
@@ -445,5 +449,27 @@ public class PEMBasedSslContextFactoryTest
         // Check with an invalid file path for the truststore
         config.put("truststore", "/path/to/nowhere");
         new PEMBasedSslContextFactory(config);
+    }
+
+    @Test
+    public void buildKeyManagerFactorySchedulesExpiryWarningForPEMKeystore() throws Exception
+    {
+        // Generate a fresh, future-dated self-signed cert so a successful load must ARM the timer.
+        SelfSignedCertificate ssc = new SelfSignedCertificate();
+        String encodedKey = new String(Files.readAllBytes(ssc.privateKey().toPath()), StandardCharsets.UTF_8)
+                            + new String(Files.readAllBytes(ssc.certificate().toPath()), StandardCharsets.UTF_8);
+        Map<String, Object> config = new HashMap<>(commonConfig);
+        // Unencrypted PKCS#8 key + its cert; no KEY_PASSWORD.
+        config.put(ENCODED_KEY.getKeyName(), encodedKey);
+
+        PEMBasedSslContextFactory factory = new PEMBasedSslContextFactory(config);
+        factory.buildKeyManagerFactory();
+
+        // PEM overrides buildKeyManagerFactory with its own implementation, so it must replicate the
+        // expiry-warning wiring. A future-dated cert must leave an armed (non-null, live) timer.
+        ScheduledFuture<?> future = factory.expiryWarningFuture;
+        Assert.assertNotNull("PEM keystore load should schedule an expiry warning", future);
+        Assert.assertFalse(future.isCancelled());
+        future.cancel(false);
     }
 }
