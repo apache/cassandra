@@ -36,10 +36,40 @@ public class UCSOverlapMetricsTest extends CQLTester
 
         writeOverlappingFlushes(3);
 
-        // small flushes all land in L0
-        assertEquals(3, cfs.getCompactionStrategyManager().getUCSMaxOverlapL0());
-        assertEquals(3, (int) cfs.metric.ucsMaxOverlapL0.getValue());
-        assertEquals(3, cfs.getUCSMaxOverlapL0());
+        assertEquals(3, cfs.getUCSMaxOverlap());
+        assertEquals(3, (int) cfs.metric.ucsMaxOverlap.getValue());
+    }
+
+    @Test
+    public void testHigherLevelsCount()
+    {
+        createTable("CREATE TABLE %s (pk int PRIMARY KEY, v int) WITH compaction = {'class': 'UnifiedCompactionStrategy', 'scaling_parameters': 'L10'}");
+        disableCompaction();
+        ColumnFamilyStore cfs = getCurrentColumnFamilyStore();
+
+        writeOverlappingFlushes(3);
+        cfs.forceMajorCompaction();
+        assertEquals(1, cfs.getUCSMaxOverlap());
+
+        // a read checks the compacted sstables as well as the new flushes
+        writeOverlappingFlushes(2);
+        assertEquals(3, cfs.getUCSMaxOverlap());
+    }
+
+    @Test
+    public void testSameKeyOverlaps()
+    {
+        createTable("CREATE TABLE %s (pk int PRIMARY KEY, v int) WITH compaction = {'class': 'UnifiedCompactionStrategy', 'scaling_parameters': 'L10'}");
+        disableCompaction();
+        ColumnFamilyStore cfs = getCurrentColumnFamilyStore();
+
+        for (int flush = 0; flush < 2; flush++)
+        {
+            execute("INSERT INTO %s (pk, v) VALUES (0, ?)", flush);
+            flush();
+        }
+
+        assertEquals(2, cfs.getUCSMaxOverlap());
     }
 
     @Test
@@ -57,7 +87,7 @@ public class UCSOverlapMetricsTest extends CQLTester
         }
 
         assertEquals(3, cfs.getLiveSSTables().size());
-        assertEquals(1, cfs.getUCSMaxOverlapL0());
+        assertEquals(1, cfs.getUCSMaxOverlap());
     }
 
     @Test
@@ -66,7 +96,7 @@ public class UCSOverlapMetricsTest extends CQLTester
         createTable("CREATE TABLE %s (pk int PRIMARY KEY, v int) WITH compaction = {'class': 'UnifiedCompactionStrategy'}");
         ColumnFamilyStore cfs = getCurrentColumnFamilyStore();
 
-        assertEquals(0, (int) cfs.metric.ucsMaxOverlapL0.getValue());
+        assertEquals(0, (int) cfs.metric.ucsMaxOverlap.getValue());
     }
 
     @Test
@@ -77,7 +107,7 @@ public class UCSOverlapMetricsTest extends CQLTester
         flush();
         ColumnFamilyStore cfs = getCurrentColumnFamilyStore();
 
-        assertEquals(0, (int) cfs.metric.ucsMaxOverlapL0.getValue());
+        assertEquals(0, (int) cfs.metric.ucsMaxOverlap.getValue());
     }
 
     // each flush covers the same 100 keys, so every sstable overlaps every other

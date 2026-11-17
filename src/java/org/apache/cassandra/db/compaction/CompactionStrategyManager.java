@@ -83,6 +83,7 @@ import org.apache.cassandra.notifications.SSTableRepairStatusChanged;
 import org.apache.cassandra.repair.consistent.admin.CleanupSummary;
 import org.apache.cassandra.schema.CompactionParams;
 import org.apache.cassandra.service.ActiveRepairService;
+import org.apache.cassandra.utils.Overlaps;
 import org.apache.cassandra.utils.TimeUUID;
 
 import static org.apache.cassandra.db.compaction.AbstractStrategyHolder.GroupedSSTableContainer;
@@ -761,7 +762,7 @@ public class CompactionStrategyManager implements INotificationConsumer
         );
     }
 
-    public int getUCSMaxOverlapL0()
+    public int getUCSMaxOverlap()
     {
         AbstractCompactionStrategy strategy;
         readLock.lock();
@@ -773,9 +774,13 @@ public class CompactionStrategyManager implements INotificationConsumer
         {
             readLock.unlock();
         }
-        return strategy instanceof UnifiedCompactionStrategy
-               ? ((UnifiedCompactionStrategy) strategy).getMaxOverlapL0(cfs.getTracker().getView().liveSSTables())
-               : 0;
+        if (!(strategy instanceof UnifiedCompactionStrategy))
+            return 0;
+
+        return Overlaps.maxOverlap(new ArrayList<>(cfs.getTracker().getView().liveSSTables()),
+                                   (a, b) -> a.getFirst().compareTo(b.getLast()) > 0,
+                                   SSTableReader.firstKeyComparator,
+                                   SSTableReader.lastKeyComparator);
     }
 
     public boolean isLeveledCompaction()
