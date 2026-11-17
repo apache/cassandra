@@ -21,6 +21,7 @@ package org.apache.cassandra.index.sai.disk.v1.vector;
 import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.HashSet;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Random;
 import java.util.Set;
@@ -103,13 +104,18 @@ public class CachingGraphIndexTest
     @Test
     public void testCachesNodesNearEntryNode() throws Exception
     {
-        Set<Integer> expected = new HashSet<>();
+        // jvector 1.x filled the cache depth first, skipping neighbors already cached, so it holds fewer nodes than
+        // everything within CACHE_DISTANCE hops. Cache the same ones, so that heap use per segment stays as it was.
+        Set<Integer> expected = new LinkedHashSet<>();
+        Set<Integer> withinDistance = new HashSet<>();
         try (OnDiskGraphIndex.View view = onDiskGraph.getView())
         {
+            cacheDepthFirst(view, view.entryNode().node, CachingGraphIndex.CACHE_DISTANCE, expected);
+
             Set<Integer> frontier = Set.of(view.entryNode().node);
             for (int distance = 0; distance <= CachingGraphIndex.CACHE_DISTANCE; distance++)
             {
-                expected.addAll(frontier);
+                withinDistance.addAll(frontier);
                 Set<Integer> next = new HashSet<>();
                 for (int node : frontier)
                 {
@@ -117,14 +123,31 @@ public class CachingGraphIndexTest
                     while (it.hasNext())
                         next.add(it.nextInt());
                 }
-                next.removeAll(expected);
+                next.removeAll(withinDistance);
                 frontier = next;
             }
         }
 
         assertThat(cachingGraph.cachedNodeCount()).isEqualTo(expected.size());
+        assertThat(withinDistance).containsAll(expected);
         assertThat(cachingGraph.cachedNodeCount()).isGreaterThan(onDiskGraph.maxDegree()).isLessThan(SIZE);
         assertThat(cachingGraph.ramBytesUsed()).isGreaterThan(onDiskGraph.ramBytesUsed() + (long) expected.size() * DIMENSION * Float.BYTES);
+    }
+
+    private static void cacheDepthFirst(OnDiskGraphIndex.View view, int node, int distance, Set<Integer> cached)
+    {
+        cached.add(node);
+        if (distance == 0)
+            return;
+        NodesIterator it = view.getNeighborsIterator(0, node);
+        int[] neighbors = new int[it.size()];
+        for (int i = 0; i < neighbors.length; i++)
+            neighbors[i] = it.nextInt();
+        for (int neighbor : neighbors)
+        {
+            if (!cached.contains(neighbor))
+                cacheDepthFirst(view, neighbor, distance - 1, cached);
+        }
     }
 
     @Test

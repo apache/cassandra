@@ -20,7 +20,6 @@ package org.apache.cassandra.index.sai.disk.v1.vector;
 
 import java.io.IOException;
 import java.io.UncheckedIOException;
-import java.util.ArrayDeque;
 import java.util.List;
 
 import com.google.common.annotations.VisibleForTesting;
@@ -44,7 +43,7 @@ import io.github.jbellis.jvector.vector.types.VectorFloat;
  */
 public class CachingGraphIndex implements ImmutableGraphIndex
 {
-    /** Nodes within this many hops of the entry node are cached. */
+    /** Nodes are cached down to this many hops from the entry node, following the neighbors not yet cached. */
     @VisibleForTesting
     static final int CACHE_DISTANCE = 3;
 
@@ -61,45 +60,39 @@ public class CachingGraphIndex implements ImmutableGraphIndex
 
     private long loadCache()
     {
-        long bytesUsed = 0;
         try (OnDiskGraphIndex.View view = graph.getView())
         {
             NodeAtLevel entry = view.entryNode();
-            if (entry == null)
-                return 0;
-
-            // breadth-first, so every node within CACHE_DISTANCE hops is reached by its shortest path
-            ArrayDeque<int[]> queue = new ArrayDeque<>();
-            queue.add(new int[]{ entry.node, 0 });
-            while (!queue.isEmpty())
-            {
-                int[] next = queue.poll();
-                int node = next[0];
-                int distance = next[1];
-                if (cache.containsKey(node))
-                    continue;
-
-                NodesIterator it = view.getNeighborsIterator(0, node);
-                int[] neighbors = new int[it.size()];
-                for (int i = 0; i < neighbors.length; i++)
-                    neighbors[i] = it.nextInt();
-                CachedNode cached = new CachedNode(view.getVector(node), neighbors);
-                cache.put(node, cached);
-                bytesUsed += RamUsageEstimator.HASHTABLE_RAM_BYTES_PER_ENTRY + cached.vector.ramBytesUsed() + RamUsageEstimator.sizeOf(neighbors);
-
-                if (distance < CACHE_DISTANCE)
-                {
-                    for (int neighbor : neighbors)
-                    {
-                        if (!cache.containsKey(neighbor))
-                            queue.add(new int[]{ neighbor, distance + 1 });
-                    }
-                }
-            }
+            return entry == null ? 0 : cacheNeighborhood(view, entry.node, CACHE_DISTANCE);
         }
         catch (IOException e)
         {
             throw new UncheckedIOException(e);
+        }
+    }
+
+    /**
+     * Caches {@code node}, then recurses depth first into each of its neighbors not yet cached. This is the order in
+     * which jvector 1.x filled its cache. A node first reached by a long path is cached with little distance left, so
+     * its neighbors stay uncached even if a shorter path to them exists. Visiting breadth first would instead cache
+     * every node within {@code distance} hops, which is far more nodes, and their vectors cost heap in every segment.
+     *
+     * @return the heap bytes used by the nodes cached
+     */
+    private long cacheNeighborhood(OnDiskGraphIndex.View view, int node, int distance)
+    {
+        int[] neighbors = JVectorUtils.toArray(view.getNeighborsIterator(0, node));
+        CachedNode cached = new CachedNode(view.getVector(node), neighbors);
+        cache.put(node, cached);
+        long bytesUsed = RamUsageEstimator.HASHTABLE_RAM_BYTES_PER_ENTRY + cached.vector.ramBytesUsed() + RamUsageEstimator.sizeOf(neighbors);
+
+        if (distance > 0)
+        {
+            for (int neighbor : neighbors)
+            {
+                if (!cache.containsKey(neighbor))
+                    bytesUsed += cacheNeighborhood(view, neighbor, distance - 1);
+            }
         }
         return bytesUsed;
     }
@@ -232,6 +225,10 @@ public class CachingGraphIndex implements ImmutableGraphIndex
                 return;
             }
 
+            // OnDiskGraphIndex.View loads a node's edges differently when the score function supports similarity to
+            // neighbors, which needs fused PQ. Graphs in ON_DISK_FORMAT_VERSION 2 never have it, so cached nodes can
+            // score each neighbor directly. A newer format must handle that case here before it is written.
+            assert !scoreFunction.supportsSimilarityToNeighbors() : "fused PQ is not part of format version " + JVectorUtils.ON_DISK_FORMAT_VERSION;
             for (int neighbor : cached.neighbors)
             {
                 if (visited.mark(neighbor))

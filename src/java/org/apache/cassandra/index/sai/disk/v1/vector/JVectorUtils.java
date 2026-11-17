@@ -18,6 +18,7 @@
 
 package org.apache.cassandra.index.sai.disk.v1.vector;
 
+import io.github.jbellis.jvector.graph.NodesIterator;
 import io.github.jbellis.jvector.vector.VectorSimilarityFunction;
 import io.github.jbellis.jvector.vector.VectorizationProvider;
 import io.github.jbellis.jvector.vector.types.VectorFloat;
@@ -49,5 +50,16 @@ public final class JVectorUtils
     public static float compare(VectorSimilarityFunction function, float[] v1, float[] v2)
     {
         return function.compare(toVectorFloat(v1), toVectorFloat(v2));
+    }
+
+    /**
+     * Copies the remaining nodes of {@code iterator}, because a view may reuse the iterator's storage for its next call.
+     */
+    public static int[] toArray(NodesIterator iterator)
+    {
+        int[] nodes = new int[iterator.size()];
+        for (int i = 0; i < nodes.length; i++)
+            nodes[i] = iterator.nextInt();
+        return nodes;
     }
 }
