@@ -51,6 +51,7 @@ import static org.junit.Assert.assertNull;
 import static org.junit.Assert.assertTrue;
 
 public class ConnectedClientVisibilityTest extends TestBaseImpl
+
 {
     private static final String CLIENTS_QUERY =
     "SELECT address, hostname, client_options, connection_stage, driver_name, driver_version, " +
