@@ -103,6 +103,7 @@ Merged from 5.0:
  * Fix ThreadLocalReadAheadBuffer#fill() to throw a CorruptBlockException if chunk metadata and file size are out of sync (CASSANDRA-21519)
  * Fix memtable on-heap accounting drift in BTree.update and BTreeRow.merge (CASSANDRA-21472)
 Merged from 4.1:
+ * Do not count hard links in disk usage guardrail (CASSANDRA-21883)
  * Fix races deleting CDC files and commit log segments (CASSANDRA-19039)
  * PreV5Handlers.toFlushItem may leak memory on disconnected channel (CASSANDRA-21766)
 Merged from 4.0:
