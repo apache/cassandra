@@ -149,6 +149,45 @@ public class FileUtilsTest
     }
 
     @Test
+    public void testFolderSizeWithoutHardLinks() throws Exception
+    {
+        File folder = createFolder(Paths.get(DatabaseDescriptor.getAllDataFileLocations()[0], "testFolderSizeWithoutHardLinks"));
+        folder.deleteOnExit();
+
+        File childFolder = createFolder(Paths.get(folder.path(), "child"));
+
+        File linked = createFile(new File(folder, "001"), 10000);
+        File notLinked = createFile(new File(folder, "002"), 1000);
+        // a file of the same name and size as a linked one, but it is a different file
+        File copy = createFile(new File(childFolder, "001"), 10000);
+
+        assertEquals(0, FileUtils.folderSize(new File(folder, "i_dont_exist"), false));
+        assertEquals(linked.length(), FileUtils.folderSize(linked, false));
+        assertEquals(21000, FileUtils.folderSize(folder, false));
+        assertEquals(21000, FileUtils.folderSize(folder));
+
+        File firstLink = new File(folder, "001-link");
+        File secondLink = new File(childFolder, "001-link");
+        firstLink.deleteOnExit();
+        secondLink.deleteOnExit();
+        FileUtils.createHardLink(linked, firstLink);
+        FileUtils.createHardLink(linked, secondLink);
+
+        // links of a file are counted as if they were files on their own, but they take no space
+        assertEquals(41000, FileUtils.folderSize(folder));
+        assertEquals(21000, FileUtils.folderSize(folder, false));
+
+        // content of a file is on disk until its last link is removed
+        linked.delete();
+        firstLink.delete();
+        assertEquals(21000, FileUtils.folderSize(folder, false));
+        assertEquals(10000, FileUtils.folderSize(childFolder, false) - copy.length());
+
+        secondLink.delete();
+        assertEquals(notLinked.length() + copy.length(), FileUtils.folderSize(folder, false));
+    }
+
+    @Test
     public void testIsContained()
     {
         assertTrue(FileUtils.isContained(new File("/testroot/abc"), new File("/testroot/abc")));
