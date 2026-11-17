@@ -40,6 +40,8 @@ import org.slf4j.LoggerFactory;
 import org.apache.cassandra.concurrent.ScheduledExecutors;
 import org.apache.cassandra.config.EncryptionOptions;
 import org.apache.cassandra.security.ISslContextFactory.SocketType;
+import org.apache.cassandra.utils.concurrent.AsyncPromise;
+import org.apache.cassandra.utils.concurrent.Promise;
 
 import io.netty.buffer.ByteBufAllocator;
 import io.netty.handler.ssl.CipherSuiteFilter;
@@ -86,7 +88,7 @@ public final class SSLFactory
     /**
      * Cached references of SSL Contexts
      */
-    private static final ConcurrentHashMap<CacheKey, SslContext> cachedSslContexts = new ConcurrentHashMap<>();
+    private static final ConcurrentHashMap<CacheKey, Promise<SslContext>> cachedSslContexts = new ConcurrentHashMap<>();
 
     /**
      * Default initial delay for hot reloading
@@ -101,7 +103,7 @@ public final class SSLFactory
     /**
      * State variable to maintain initialization invariant
      */
-    private static boolean isHotReloadingInitialized = false;
+    private static volatile boolean isHotReloadingInitialized = false;
 
     /** Provides the list of protocols that would have been supported if "TLS" was selected as the
      * protocol before the change for CASSANDRA-13325 that expects explicit protocol versions.
@@ -139,20 +141,39 @@ public final class SSLFactory
                                                    String contextDescription) throws IOException
     {
         CacheKey key = new CacheKey(options, socketType, contextDescription);
-        SslContext sslContext;
 
-        sslContext = cachedSslContexts.get(key);
-        if (sslContext != null)
+        Promise<SslContext> pending = cachedSslContexts.get(key);
+        if (pending == null)
+        {
+            // Publish the entry before building so that concurrent callers wait for this build, and so that a
+            // reload can evict the entry while the build is still running. The build holds no map lock.
+            Promise<SslContext> mine = new AsyncPromise<>();
+            pending = cachedSslContexts.putIfAbsent(key, mine);
+            if (pending == null)
+                return buildAndComplete(key, mine, options, clientAuth, socketType);
+        }
+        // Rethrows the build's original exception, so an IOException reaches the caller unwrapped.
+        return pending.syncUninterruptibly().getNow();
+    }
+
+    private static SslContext buildAndComplete(CacheKey key, Promise<SslContext> mine,
+                                               EncryptionOptions options,
+                                               EncryptionOptions.ClientEncryptionOptions.ClientAuth clientAuth,
+                                               SocketType socketType) throws IOException
+    {
+        try
+        {
+            SslContext sslContext = createNettySslContext(options, clientAuth, socketType);
+            mine.setSuccess(sslContext);
             return sslContext;
-
-        sslContext = createNettySslContext(options, clientAuth, socketType);
-
-        SslContext previous = cachedSslContexts.putIfAbsent(key, sslContext);
-        if (previous == null)
-            return sslContext;
-
-        ReferenceCountUtil.release(sslContext);
-        return previous;
+        }
+        catch (Throwable t)
+        {
+            // A failed build is not cached. Callers that joined this build see the same failure.
+            cachedSslContexts.remove(key, mine);
+            mine.setFailure(t);
+            throw t;
+        }
     }
 
     /**
@@ -196,7 +217,7 @@ public final class SSLFactory
         checkCachedContextsForReload(true);
     }
 
-    private static void checkCachedContextsForReload(boolean forceReload)
+    private static synchronized void checkCachedContextsForReload(boolean forceReload)
     {
         List<CacheKey> keysToCheck = new ArrayList<>(Collections.list(cachedSslContexts.keys()));
         while (!keysToCheck.isEmpty())
@@ -209,11 +230,13 @@ public final class SSLFactory
             {
                 try
                 {
+                    opts.sslContextFactoryInstance.onReloadRequired();
                     validateSslContext(key.contextDescription, opts,
                             opts instanceof EncryptionOptions.ServerEncryptionOptions? REQUIRED : opts.getClientAuth(), false);
                     logger.info("SSL certificates have been updated for {}. Resetting the ssl contexts for new " +
                                 "connections.", key.contextDescription);
                     clearSslContextCache(key.encryptionOptions, keysToCheck);
+                    opts.sslContextFactoryInstance.onReloadSuccess();
                 }
                 catch (Throwable tr)
                 {
