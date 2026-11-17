@@ -106,6 +106,7 @@ Merged from 4.1:
  * Fix races deleting CDC files and commit log segments (CASSANDRA-19039)
  * PreV5Handlers.toFlushItem may leak memory on disconnected channel (CASSANDRA-21766)
 Merged from 4.0:
+ * Do not reset load time for hot reloaded certificates until they have been successfully loaded (CASSANDRA-21490)
  * Prepared statement metadata no longer reports slice bind markers on a partition key as partition key bind indexes (CASSANDRA-21740)
  * Delete SSTable files in order of last-updated timestamp (CASSANDRA-21649)
  * Prevent negative BufferPool overflow memory accounting (CASSANDRA-21815)

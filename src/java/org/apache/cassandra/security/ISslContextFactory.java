@@ -145,6 +145,20 @@ public interface ISslContextFactory
     boolean shouldReload();
 
     /**
+     * Invoked after a hot reload of this factory's certificates has succeeded, so the factory can commit any
+     * state (e.g. last-modified timestamps) that must only advance on success. Default is a no-op.
+     * The check time is local, beware of clock drift if the cert last modified times are remote time sources.
+     */
+    default void onReloadSuccess() {}
+
+    /**
+     * Invoked when a certificate change has been detected and a reload is about to be attempted, before validation.
+     * Lets a factory reset per-load state such as the one-time expiry-warning scan so a freshly loaded certificate
+     * is re-examined. Default is a no-op.
+     */
+    default void onReloadRequired() {}
+
+    /**
      * Returns if this factory uses private keystore.
      *
      * @return {@code true} by default unless the implementation overrides this
