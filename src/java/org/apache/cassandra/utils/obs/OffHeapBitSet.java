@@ -23,6 +23,7 @@ import java.io.IOException;
 import com.google.common.annotations.VisibleForTesting;
 
 import org.apache.cassandra.db.TypeSizes;
+import org.apache.cassandra.exceptions.BloomFilterTooLargeException;
 import org.apache.cassandra.io.util.DataOutputPlus;
 import org.apache.cassandra.io.util.Memory;
 import org.apache.cassandra.io.util.MemoryOutputStream;
@@ -49,7 +50,7 @@ public class OffHeapBitSet implements IBitSet
         // returns the number of 64 bit words it would take to hold numBits
         long wordCount = (((numBits - 1) >>> 6) + 1);
         if (wordCount > Integer.MAX_VALUE)
-            throw new UnsupportedOperationException("Bloom filter size is > 16GB, reduce the bloom_filter_fp_chance");
+            throw new BloomFilterTooLargeException(wordCount * 8L);
 
         long byteCount = wordCount * 8L;
         bytes = allocate(byteCount, memoryLimiter, failOnExceedingLimit); // Can possibly throw OOM, but we handle it in the caller

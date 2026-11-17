@@ -31,12 +31,17 @@ import java.util.function.BiConsumer;
 import java.util.function.Consumer;
 import java.util.function.Supplier;
 
+import ch.qos.logback.classic.Level;
+import ch.qos.logback.classic.Logger;
+import ch.qos.logback.classic.spi.ILoggingEvent;
+import ch.qos.logback.core.read.ListAppender;
 import com.google.common.collect.ImmutableList;
 import com.google.common.collect.ImmutableSet;
 
 import org.apache.cassandra.concurrent.ScheduledExecutorPlus;
 import org.apache.cassandra.concurrent.WrappedExecutorPlus;
 import org.apache.cassandra.config.Config;
+import org.apache.cassandra.exceptions.BloomFilterTooLargeException;
 import org.apache.cassandra.io.FSDiskFullWriteError;
 import org.apache.cassandra.io.FSNoDiskAvailableForWriteError;
 import org.apache.cassandra.io.FSWriteError;
@@ -68,6 +73,7 @@ import org.mockito.ArgumentCaptor;
 import org.mockito.ArgumentMatchers;
 import org.mockito.Mockito;
 import org.openjdk.jmh.util.FileUtils;
+import org.slf4j.LoggerFactory;
 
 import static org.assertj.core.api.Assertions.*;
 import static org.mockito.ArgumentMatchers.anyInt;
@@ -724,6 +730,248 @@ public class BackgroundCompactionRunnerTest
             JVMStabilityInspector.replaceKiller(originalKiller);
             JVMStabilityInspector.setGlobalErrorHandler(originalGlobalErrorHandler);
         }
+    }
+
+    @Test
+    public void handleBloomFilterTooLargeException()
+    {
+        Logger runnerLogger = (Logger) LoggerFactory.getLogger(BackgroundCompactionRunner.class);
+        ListAppender<ILoggingEvent> appender = new ListAppender<>();
+        appender.start();
+        runnerLogger.addAppender(appender);
+        try
+        {
+            // the WARN is rate limited per table, and the other tests in this class log it for the same mocked table
+            when(cfs.getKeyspaceName()).thenReturn("ks");
+            when(cfs.getTableName()).thenReturn("table_" + System.nanoTime());
+            long before = CompactionManager.instance.getMetrics().totalCompactionsFailed.getCount();
+
+            // wrapped, as it arrives from the CompletableFuture
+            BackgroundCompactionRunner.handleCompactionError(new CompletionException(new BloomFilterTooLargeException(20L << 30)), cfs);
+
+            assertThat(CompactionManager.instance.getMetrics().totalCompactionsFailed.getCount()).isEqualTo(before + 1);
+            // a WARN without a stack trace, not the generic ERROR
+            assertThat(appender.list).extracting(ILoggingEvent::getLevel, ILoggingEvent::getThrowableProxy)
+                                     .containsExactly(tuple(Level.WARN, null));
+        }
+        finally
+        {
+            runnerLogger.detachAppender(appender);
+        }
+    }
+
+    // A task that fails with BloomFilterTooLargeException must not be retried through an already-pending request.
+    // run() re-requests the CFS after submitting the task. The next check finds the pool full and leaves that request
+    // pending, so it must be consumed without retrying the CFS after the task fails.
+    @Test
+    public void noRetryAfterBloomFilterTooLargeWhenPoolIsSaturated() throws Exception
+    {
+        // a long-running task takes the first of the 2 slots
+        markCFSAndRunCheck();
+        verifyTaskScheduled(compactionExecutor);
+        verifyCFSWasMarkedForCompaction();
+        verifyState(1, 0);
+
+        // the doomed task takes the last slot
+        AbstractCompactionTask doomedTask = bloomFilterTooLargeTask();
+        capturedCheckRunnables.getValue().run();
+        verifyTaskScheduled(compactionExecutor);
+        verifyCFSWasMarkedForCompaction();
+        // 2 of 2 slots in use: the pool is full
+        verifyState(2, 0);
+
+        // the pool is full, so this check returns without consuming the request
+        clearInvocations(compactionStrategy);
+        capturedCheckRunnables.getValue().run();
+        verify(compactionStrategy, never()).getNextBackgroundTasks(anyLong());
+        assertThat(runner.getMarkedCFSs()).contains(cfs);
+
+        // the doomed task fails and releases its sstables, which would let the strategy select it again
+        clearInvocations(checkExecutor);
+        capturedCompactionRunnables.getAllValues().get(1).run();
+
+        // the runnable at index 1 is the doomed task; index 0 is the long-running one
+        verify(doomedTask).execute(activeOperations);
+        verifyState(1, 0);
+
+        // a thread has freed up, so a check is requested; it will find the request left over from the check that
+        // started the doomed task
+        verifyTaskScheduled(checkExecutor);
+
+        clearInvocations(compactionStrategy, compactionExecutor);
+        capturedCheckRunnables.getValue().run();
+        verify(compactionStrategy, never()).getNextBackgroundTasks(anyLong());
+        verify(compactionExecutor, never()).execute(notNull());
+        assertThat(runner.getMarkedCFSs()).isEmpty();
+    }
+
+    // Only an external request, such as a flush, retries a CFS whose task failed with BloomFilterTooLargeException.
+    // Once that attempt succeeds, the CFS is checked as usual.
+    @Test
+    public void externalRequestRetriesAfterBloomFilterTooLarge() throws Exception
+    {
+        // phase 1: a BloomFilterTooLargeException suppresses the leftover request
+        AbstractCompactionTask doomedTask = bloomFilterTooLargeTask();
+        runner.markForCompactionCheck(cfs);
+        verifyCFSWasMarkedForCompaction();
+        capturedCheckRunnables.getValue().run();
+        verifyTaskScheduled(compactionExecutor);
+        verifyCFSWasMarkedForCompaction();
+        verifyState(1, 0);
+
+        capturedCompactionRunnables.getValue().run();
+        verify(doomedTask).execute(activeOperations);
+        verifyState(0, 0);
+        // a thread has freed up, so a check is requested
+        verifyTaskScheduled(checkExecutor);
+
+        // the flagged table is skipped and its request consumed
+        clearInvocations(compactionStrategy);
+        capturedCheckRunnables.getValue().run();
+        verify(compactionStrategy, never()).getNextBackgroundTasks(anyLong());
+        assertThat(runner.getMarkedCFSs()).isEmpty();
+
+        // phase 2: an external request clears the failure flag and permits a successful retry
+        AbstractCompactionTask retriedTask = mock(AbstractCompactionTask.class);
+        compactionTasks.clear();
+        compactionTasks.add(retriedTask);
+        clearInvocations(compactionStrategy);
+        runner.markForCompactionCheck(cfs);
+        verifyCFSWasMarkedForCompaction();
+        capturedCheckRunnables.getValue().run();
+        // exactly once: the invocations were cleared right before the external request
+        verify(compactionStrategy).getNextBackgroundTasks(anyLong());
+        verifyTaskScheduled(compactionExecutor);
+        verifyCFSWasMarkedForCompaction();
+        verifyState(1, 0);
+
+        // getValue() is the latest captured runnable, i.e. the task started by this attempt
+        capturedCompactionRunnables.getValue().run();
+        verify(retriedTask).execute(activeOperations);
+        verifyState(0, 0);
+        // the completion of the task requests a check
+        verifyCFSWasMarkedForCompaction();
+
+        // successful completion allows normal background checking to continue
+        clearInvocations(compactionStrategy);
+        capturedCheckRunnables.getValue().run();
+        verify(compactionStrategy).getNextBackgroundTasks(anyLong());
+    }
+
+    // An external request made while the failing task runs coalesces with the early re-request.
+    // Its promise must complete rather than remain pending.
+    @Test
+    public void requestMadeWhileBloomFilterTooLargeTaskRunsIsCompleted() throws Exception
+    {
+        bloomFilterTooLargeTask();
+        runner.markForCompactionCheck(cfs);
+        verifyCFSWasMarkedForCompaction();
+        capturedCheckRunnables.getValue().run();
+        verifyTaskScheduled(compactionExecutor);
+        verifyCFSWasMarkedForCompaction();
+
+        // The request joins the pending check and must wait for it to complete.
+        Promise<RequestResult> duringTask = runner.markForCompactionCheck(cfs);
+        verifyTaskScheduled(checkExecutor);
+        assertThat(duringTask).isNotDone();
+
+        capturedCompactionRunnables.getValue().run();
+        verifyState(0, 0);
+
+        // The failed CFS is skipped, but the coalesced request must still be completed.
+        clearInvocations(compactionStrategy);
+        capturedCheckRunnables.getValue().run();
+        assertThat(duringTask).isDone();
+        assertThat(duringTask.get()).isEqualTo(RequestResult.NOT_NEEDED);
+        verify(compactionStrategy, never()).getNextBackgroundTasks(anyLong());
+        assertThat(runner.getMarkedCFSs()).isEmpty();
+    }
+
+    // The failure flag is per CFS. Another task of the same CFS that completes successfully clears it, so that the
+    // follow-up compactions of the CFS do not wait for an external request.
+    @Test
+    public void successfulTaskOfSameCFSClearsBloomFilterTooLargeFlag() throws Exception
+    {
+        // a healthy task takes the first of the 2 slots
+        markCFSAndRunCheck();
+        verifyTaskScheduled(compactionExecutor);
+        verifyCFSWasMarkedForCompaction();
+        verifyState(1, 0);
+
+        // the doomed task takes the last slot
+        bloomFilterTooLargeTask();
+        capturedCheckRunnables.getValue().run();
+        verifyTaskScheduled(compactionExecutor);
+        verifyCFSWasMarkedForCompaction();
+        verifyState(2, 0);
+
+        // the doomed task fails: the CFS is flagged, and the check it requests skips the CFS
+        capturedCompactionRunnables.getAllValues().get(1).run();
+        verifyState(1, 0);
+        verifyTaskScheduled(checkExecutor);
+        clearInvocations(compactionStrategy);
+        capturedCheckRunnables.getValue().run();
+        verify(compactionStrategy, never()).getNextBackgroundTasks(anyLong());
+        assertThat(runner.getMarkedCFSs()).isEmpty();
+
+        // the healthy task completes: it re-requests the CFS and clears the flag
+        capturedCompactionRunnables.getAllValues().get(0).run();
+        verifyState(0, 0);
+        verifyCFSWasMarkedForCompaction();
+
+        // so this check is not skipped
+        capturedCheckRunnables.getValue().run();
+        verify(compactionStrategy).getNextBackgroundTasks(anyLong());
+    }
+
+    // A task that fails in another way does not clear the flag set by a BloomFilterTooLargeException.
+    @Test
+    public void failedTaskOfSameCFSKeepsBloomFilterTooLargeFlag() throws Exception
+    {
+        // a task that fails with an unrelated error takes the first of the 2 slots
+        AbstractCompactionTask failingTask = mock(AbstractCompactionTask.class);
+        doThrow(new RuntimeException("unrelated failure")).when(failingTask).execute(activeOperations);
+        compactionTasks.clear();
+        compactionTasks.add(failingTask);
+        runner.markForCompactionCheck(cfs);
+        verifyCFSWasMarkedForCompaction();
+        capturedCheckRunnables.getValue().run();
+        verifyTaskScheduled(compactionExecutor);
+        verifyCFSWasMarkedForCompaction();
+        verifyState(1, 0);
+
+        // the doomed task takes the last slot
+        bloomFilterTooLargeTask();
+        capturedCheckRunnables.getValue().run();
+        verifyTaskScheduled(compactionExecutor);
+        verifyCFSWasMarkedForCompaction();
+        verifyState(2, 0);
+
+        // the doomed task fails and flags the CFS
+        capturedCompactionRunnables.getAllValues().get(1).run();
+        verifyState(1, 0);
+        verifyTaskScheduled(checkExecutor);
+
+        // the other task fails too: it re-requests the CFS, but the flag stays
+        capturedCompactionRunnables.getAllValues().get(0).run();
+        verify(failingTask).execute(activeOperations);
+        verifyState(0, 0);
+        assertThat(runner.getMarkedCFSs()).contains(cfs);
+
+        clearInvocations(compactionStrategy);
+        capturedCheckRunnables.getValue().run();
+        verify(compactionStrategy, never()).getNextBackgroundTasks(anyLong());
+        assertThat(runner.getMarkedCFSs()).isEmpty();
+    }
+
+    /** Makes the strategy return a task that fails with {@link BloomFilterTooLargeException}. */
+    private AbstractCompactionTask bloomFilterTooLargeTask()
+    {
+        AbstractCompactionTask task = mock(AbstractCompactionTask.class);
+        doThrow(new BloomFilterTooLargeException(20L << 30)).when(task).execute(activeOperations);
+        compactionTasks.clear();
+        compactionTasks.add(task);
+        return task;
     }
 
     private void verifyTaskScheduled(Executor executor)

@@ -33,6 +33,7 @@ import java.util.concurrent.ConcurrentMap;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.Executor;
 import java.util.concurrent.RejectedExecutionException;
+import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.stream.Collectors;
 
@@ -47,6 +48,7 @@ import org.slf4j.LoggerFactory;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.db.ColumnFamilyStore;
 import org.apache.cassandra.db.lifecycle.LifecycleTransaction;
+import org.apache.cassandra.exceptions.BloomFilterTooLargeException;
 import org.apache.cassandra.io.FSDiskFullWriteError;
 import org.apache.cassandra.io.FSError;
 import org.apache.cassandra.io.FSWriteError;
@@ -56,6 +58,7 @@ import org.apache.cassandra.io.sstable.format.SSTableReader;
 import org.apache.cassandra.io.util.CorruptFileException;
 import org.apache.cassandra.utils.FBUtilities;
 import org.apache.cassandra.utils.JVMStabilityInspector;
+import org.apache.cassandra.utils.NoSpamLogger;
 import org.apache.cassandra.utils.Throwables;
 
 import static org.apache.cassandra.concurrent.ExecutorFactory.Global.executorFactory;
@@ -90,6 +93,16 @@ public class BackgroundCompactionRunner implements Runnable
      * CFSs for which a compaction was requested mapped to the promise returned to the requesting code
      */
     private final ConcurrentMap<ColumnFamilyStore, FutureRequestResult> compactionRequests = new ConcurrentHashMap<>();
+
+    /**
+     * CFSs whose last background compaction failed in a way that is certain to repeat (see
+     * {@link #isDeterministicFailure}). {@link #run()} skips them until the flag is cleared, either by a request from
+     * outside the runner or by another task of the same CFS that completes successfully. The runner's own requests
+     * do not clear it, see {@link #markForCompactionCheckInternal}.
+     * <p>
+     * The flag is per CFS, not per task, so while it is set the runner starts no compaction at all for the CFS.
+     */
+    private final Set<ColumnFamilyStore> deterministicFailures = ConcurrentHashMap.newKeySet();
 
     private final AtomicInteger ongoingUpgrades = new AtomicInteger(0);
 
@@ -159,6 +172,7 @@ public class BackgroundCompactionRunner implements Runnable
      */
     void markForCompactionCheck(Set<ColumnFamilyStore> cfss)
     {
+        deterministicFailures.removeAll(cfss);
         List<FutureRequestResult> results = cfss.stream()
                                                 .map(this::requestCompactionInternal)
                                                 .filter(Objects::nonNull)
@@ -174,11 +188,22 @@ public class BackgroundCompactionRunner implements Runnable
     /**
      * Marks a CFS for compaction. Since marked, it will become a possible candidate for compaction. The mark will be
      * cleared when we actually run the compaction for CFS.
+     * <p>
+     * This is for requests from outside the runner.
      *
      * @return a promise which will be completed when the mark is cleared. The returned future should not be cancelled or
      * completed by the caller.
      */
     Promise<RequestResult> markForCompactionCheck(ColumnFamilyStore cfs)
+    {
+        deterministicFailures.remove(cfs);
+        return markForCompactionCheckInternal(cfs);
+    }
+
+    /** Like {@link #markForCompactionCheck(ColumnFamilyStore)}, but for the runner's own requests: it does not clear
+     * {@link #deterministicFailures}. Such a request must not make the CFS eligible again after a deterministic failure.
+     */
+    Promise<RequestResult> markForCompactionCheckInternal(ColumnFamilyStore cfs)
     {
         FutureRequestResult p = requestCompactionInternal(cfs);
         if (p == null)
@@ -239,6 +264,9 @@ public class BackgroundCompactionRunner implements Runnable
     {
         logger.trace("Running background compactions check");
 
+        // drop flags of invalid CFSs; with no pending request, the invalid-CFS check below never clears them
+        deterministicFailures.removeIf(cfs -> !cfs.isValid());
+
         // When the executor is fully occupied, we delay acting on this request until a thread is available. This
         // helps make a better decision what exactly to compact (e.g. if we issue the request now we may select n
         // sstables, while by the time this request actually has a thread to execute on more may have accumulated,
@@ -290,7 +318,15 @@ public class BackgroundCompactionRunner implements Runnable
             if (!cfs.isValid())
             {
                 logger.trace("Aborting compaction for dropped CF {}", cfs);
+                deterministicFailures.remove(cfs);
                 promise.completeInternal(RequestResult.ABORTED);
+                continue;
+            }
+
+            if (deterministicFailures.contains(cfs))
+            {
+                logger.trace("Skipping {}: its last background compaction failed in a way that is certain to repeat", cfs);
+                promise.completeInternal(RequestResult.NOT_NEEDED);
                 continue;
             }
 
@@ -319,8 +355,9 @@ public class BackgroundCompactionRunner implements Runnable
                 // The compaction strategy may return more subsequent tasks if we ask for them. Therefore, we request
                 // the compaction again on that CFS early (without waiting for the currently scheduled/started
                 // compaction tasks to finish). We can start them in the next check round if we have free slots
-                // in the compaction executor.
-                markForCompactionCheck(cfs);
+                // in the compaction executor. Must not clear deterministicFailures, if this task fails deterministically,
+                // the request is still pending, and the check that finds it skips the CFS.
+                markForCompactionCheckInternal(cfs);
             }
             else
             {
@@ -410,18 +447,48 @@ public class BackgroundCompactionRunner implements Runnable
             Executor executor = task.getCustomExecutor() == null ? compactionExecutor : task.getCustomExecutor();
             return CompletableFuture.runAsync(
             () -> {
+                boolean deterministicFailure = false;
+                boolean succeeded = false;
                 try
                 {
                     task.execute(activeOperations);
+                    succeeded = true;
+                }
+                catch (Throwable t)
+                {
+                    deterministicFailure = isDeterministicFailure(t);
+                    // the flag must be set before the finally block schedules the next check
+                    if (deterministicFailure)
+                        deterministicFailures.add(cfs);
+                    throw t;
                 }
                 finally
                 {
                     ongoingCompactions.decrementAndGet();
 
-                    // Request a new round of checking for compactions. We do this for two reasons:
-                    //  - a task has completed and there may now be new compaction possibilities in this CFS,
-                    //  - a thread has freed up, and a new compaction task (from any CFS) can be scheduled on it
-                    markForCompactionCheck(cfs);
+                    if (deterministicFailure)
+                    {
+                        // The failed task has released its sstables, so the next check would select the same
+                        // task and fail in the same way, in a loop. Retries are left to the external triggers
+                        // (flush, the periodic check, changes of the compaction thresholds, etc.). A thread has
+                        // still freed up, so request a check without re-requesting this CFS.
+                        maybeScheduleNextCheck();
+                    }
+                    else
+                    {
+                        // Request a new round of checking for compactions. We do this for two reasons:
+                        //  - a task has completed and there may now be new compaction possibilities in this CFS,
+                        //  - a thread has freed up, and a new compaction task (from any CFS) can be scheduled on it
+                        //
+                        // A task that succeeded has changed the sstables of the CFS, so an earlier deterministic
+                        // failure of another task of this CFS is no longer certain to repeat, and the other
+                        // compactions of the CFS must not wait for an external trigger. If the failing task is
+                        // selected again it fails once more and sets the flag again. This cannot loop: each such
+                        // retry needs another task of the CFS to complete successfully.
+                        if (succeeded)
+                            deterministicFailures.remove(cfs);
+                        markForCompactionCheckInternal(cfs);
+                    }
                 }
             }, executor);
         }
@@ -431,6 +498,15 @@ public class BackgroundCompactionRunner implements Runnable
             logger.debug("Background compaction task for {} was rejected", cfs);
             return CompletableFuture.completedFuture(null);
         }
+    }
+
+    /**
+     * Whether a failure of a background compaction task is certain to repeat when the task is retried on the same
+     * sstables. To treat another failure like this, add it here.
+     */
+    private static boolean isDeterministicFailure(Throwable t)
+    {
+        return Throwables.anyCauseMatches(t, err -> err instanceof BloomFilterTooLargeException);
     }
 
     private CompletableFuture<Void> startUpgradeTasks(ColumnFamilyStore cfs)
@@ -536,6 +612,18 @@ public class BackgroundCompactionRunner implements Runnable
         {
             logger.warn(String.format("Aborting background compaction of %s due to interruption", cfs), Throwables.unwrapped(t));
             CompactionManager.instance.incrementAborted();
+        }
+        else if (Throwables.isCausedBy(t, BloomFilterTooLargeException.class))
+        {
+            // Deterministic, and attempted again by every external trigger, so don't log it as an ERROR with a
+            // stack trace each time.
+            NoSpamLogger.log(logger, NoSpamLogger.Level.WARN, cfs.getKeyspaceName() + '.' + cfs.getTableName(),
+                             1, TimeUnit.MINUTES,
+                             "Background compaction of table {} failed: {}. It will be attempted again on the next " +
+                             "flush, sstable addition, change of compaction thresholds or periodic background check, " +
+                             "and will keep failing until bloom_filter_fp_chance is increased.",
+                             cfs, Throwables.getCauseOfType(t, BloomFilterTooLargeException.class).get().getMessage());
+            CompactionManager.instance.incrementFailed();
         }
         else
         {

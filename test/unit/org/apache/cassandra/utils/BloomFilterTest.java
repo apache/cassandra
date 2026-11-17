@@ -43,6 +43,7 @@ import io.micrometer.core.instrument.simple.SimpleMeterRegistry;
 import org.apache.cassandra.db.compaction.OperationType;
 import org.apache.cassandra.dht.IPartitioner;
 import org.apache.cassandra.dht.Murmur3Partitioner;
+import org.apache.cassandra.exceptions.BloomFilterTooLargeException;
 import org.apache.cassandra.io.util.DataOutputBuffer;
 import org.apache.cassandra.io.util.File;
 import org.apache.cassandra.io.util.FileInputStreamPlus;
@@ -197,7 +198,7 @@ public class BloomFilterTest
         assertTrue("collisions=" + collisions, collisions <= 100);
     }
 
-    @Test(expected = UnsupportedOperationException.class)
+    @Test(expected = BloomFilterTooLargeException.class)
     public void testOffHeapException()
     {
         long numKeys = ((long) Integer.MAX_VALUE) * 64L + 1L; // approx 128 Billion
