@@ -3096,9 +3096,9 @@ public <T> T withAllSSTables(final OperationType operationType, Function<Lifecyc
     }
 
     @Override
-    public int getUCSMaxOverlap()
+    public int getMaxOverlappingSSTables()
     {
-        return compactionStrategyManager.getUCSMaxOverlap();
+        return compactionStrategyManager.getMaxOverlappingSSTables();
     }
 
     @Override

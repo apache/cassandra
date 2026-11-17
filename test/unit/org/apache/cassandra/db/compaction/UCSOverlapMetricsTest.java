@@ -36,8 +36,8 @@ public class UCSOverlapMetricsTest extends CQLTester
 
         writeOverlappingFlushes(3);
 
-        assertEquals(3, cfs.getUCSMaxOverlap());
-        assertEquals(3, (int) cfs.metric.ucsMaxOverlap.getValue());
+        assertEquals(3, cfs.getMaxOverlappingSSTables());
+        assertEquals(3, (int) cfs.metric.maxOverlappingSSTables.getValue());
     }
 
     @Test
@@ -49,11 +49,11 @@ public class UCSOverlapMetricsTest extends CQLTester
 
         writeOverlappingFlushes(3);
         cfs.forceMajorCompaction();
-        assertEquals(1, cfs.getUCSMaxOverlap());
+        assertEquals(1, cfs.getMaxOverlappingSSTables());
 
         // a read checks the compacted sstables as well as the new flushes
         writeOverlappingFlushes(2);
-        assertEquals(3, cfs.getUCSMaxOverlap());
+        assertEquals(3, cfs.getMaxOverlappingSSTables());
     }
 
     @Test
@@ -69,7 +69,7 @@ public class UCSOverlapMetricsTest extends CQLTester
             flush();
         }
 
-        assertEquals(2, cfs.getUCSMaxOverlap());
+        assertEquals(2, cfs.getMaxOverlappingSSTables());
     }
 
     @Test
@@ -87,7 +87,7 @@ public class UCSOverlapMetricsTest extends CQLTester
         }
 
         assertEquals(3, cfs.getLiveSSTables().size());
-        assertEquals(1, cfs.getUCSMaxOverlap());
+        assertEquals(1, cfs.getMaxOverlappingSSTables());
     }
 
     @Test
@@ -96,18 +96,20 @@ public class UCSOverlapMetricsTest extends CQLTester
         createTable("CREATE TABLE %s (pk int PRIMARY KEY, v int) WITH compaction = {'class': 'UnifiedCompactionStrategy'}");
         ColumnFamilyStore cfs = getCurrentColumnFamilyStore();
 
-        assertEquals(0, (int) cfs.metric.ucsMaxOverlap.getValue());
+        assertEquals(0, (int) cfs.metric.maxOverlappingSSTables.getValue());
     }
 
     @Test
-    public void testNonUCSTable()
+    public void testLeveledTable()
     {
         createTable("CREATE TABLE %s (pk int PRIMARY KEY, v int) WITH compaction = {'class': 'LeveledCompactionStrategy'}");
-        execute("INSERT INTO %s (pk, v) VALUES (0, 0)");
-        flush();
+        disableCompaction();
         ColumnFamilyStore cfs = getCurrentColumnFamilyStore();
 
-        assertEquals(0, (int) cfs.metric.ucsMaxOverlap.getValue());
+        writeOverlappingFlushes(3);
+
+        assertEquals(3, cfs.getMaxOverlappingSSTables());
+        assertEquals(3, (int) cfs.metric.maxOverlappingSSTables.getValue());
     }
 
     // each flush covers the same 100 keys, so every sstable overlaps every other

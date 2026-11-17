@@ -272,8 +272,8 @@ public class TableMetrics
 
     public final Gauge<Integer> unleveledSSTables;
 
-    // For UCS tables, the maximum number of sstables whose key ranges overlap at any one key; 0 otherwise
-    public final Gauge<Integer> ucsMaxOverlap;
+    // The maximum number of sstables whose key ranges overlap at any one key
+    public final Gauge<Integer> maxOverlappingSSTables;
 
     /**
      * Metrics for inconsistencies detected between repaired data sets across replicas. These
@@ -953,10 +953,10 @@ public class TableMetrics
             return cnt;
         });
 
-        ucsMaxOverlap = createTableGauge("UCSMaxOverlap", cfs::getUCSMaxOverlap, () -> {
+        maxOverlappingSSTables = createTableGauge("MaxOverlappingSSTables", cfs::getMaxOverlappingSSTables, () -> {
             // global gauge: the max of the per-table values
             int max = 0;
-            for (Metric cfGauge : ALL_TABLE_METRICS.get("UCSMaxOverlap"))
+            for (Metric cfGauge : ALL_TABLE_METRICS.get("MaxOverlappingSSTables"))
             {
                 max = Math.max(max, ((Gauge<? extends Number>) cfGauge).getValue().intValue());
             }

@@ -762,21 +762,8 @@ public class CompactionStrategyManager implements INotificationConsumer
         );
     }
 
-    public int getUCSMaxOverlap()
+    public int getMaxOverlappingSSTables()
     {
-        AbstractCompactionStrategy strategy;
-        readLock.lock();
-        try
-        {
-            strategy = repaired.first();
-        }
-        finally
-        {
-            readLock.unlock();
-        }
-        if (!(strategy instanceof UnifiedCompactionStrategy))
-            return 0;
-
         return Overlaps.maxOverlap(new ArrayList<>(cfs.getTracker().getView().liveSSTables()),
                                    (a, b) -> a.getFirst().compareTo(b.getLast()) > 0,
                                    SSTableReader.firstKeyComparator,

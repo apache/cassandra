@@ -267,9 +267,8 @@ public interface ColumnFamilyStoreMBean
 
     /**
      * @return the maximum number of sstables whose key ranges overlap at any one key.
-     *         Returns 0 if Unified compaction is not used.
      */
-    public int getUCSMaxOverlap();
+    public int getMaxOverlappingSSTables();
 
     /**
      * @return sstable count for each level. null unless leveled compaction is used.
