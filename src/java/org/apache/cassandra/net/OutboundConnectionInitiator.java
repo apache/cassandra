@@ -35,7 +35,6 @@ import org.apache.cassandra.locator.InetAddressAndPort;
 import org.apache.cassandra.net.OutboundConnectionInitiator.Result.MessagingSuccess;
 import org.apache.cassandra.net.OutboundConnectionInitiator.Result.StreamingSuccess;
 import org.apache.cassandra.security.ISslContextFactory;
-import org.apache.cassandra.security.SSLFactory;
 import org.apache.cassandra.utils.JVMStabilityInspector;
 import org.apache.cassandra.utils.concurrent.AsyncPromise;
 import org.apache.cassandra.utils.concurrent.ImmediateFuture;
@@ -56,7 +55,6 @@ import io.netty.handler.codec.ByteToMessageDecoder;
 import io.netty.handler.logging.LogLevel;
 import io.netty.handler.logging.LoggingHandler;
 import io.netty.handler.ssl.SslClosedEngineException;
-import io.netty.handler.ssl.SslContext;
 import io.netty.handler.ssl.SslHandler;
 import io.netty.util.concurrent.Future; // checkstyle: permit this import
 import io.netty.util.concurrent.Promise; // checkstyle: permit this import
@@ -229,13 +227,15 @@ public class OutboundConnectionInitiator<SuccessType extends OutboundConnectionI
             if ((sslConnectionType == SslFallbackConnectionType.SERVER_CONFIG && settings.withEncryption())
                 || sslConnectionType == SslFallbackConnectionType.SSL || sslConnectionType == SslFallbackConnectionType.MTLS)
             {
-                SslContext sslContext = getSslContext(sslConnectionType);
+                EncryptionOptions.ClientEncryptionOptions.ClientAuth requireClientAuth = requireClientAuth(sslConnectionType);
                 // for some reason channel.remoteAddress() will return null
                 InetAddressAndPort address = settings.to;
                 InetSocketAddress peer = settings.encryption.require_endpoint_verification ? new InetSocketAddress(address.getAddress(), address.getPort()) : null;
-                SslHandler sslHandler = newSslHandler(channel, sslContext, peer);
+                SslHandler sslHandler = newSslHandler(channel, settings.encryption, requireClientAuth,
+                                                      ISslContextFactory.SocketType.CLIENT,
+                                                      SSL_FACTORY_CONTEXT_DESCRIPTION, peer);
                 if (logger.isTraceEnabled())
-                    logger.trace("creating outbound netty SslContext: context={}, engine={}", sslContext.getClass().getName(), sslHandler.engine().getClass().getName());
+                    logger.trace("creating outbound netty SslEngine: engine={}", sslHandler.engine().getClass().getName());
                 pipeline.addFirst(SSL_HANDLER_NAME, sslHandler);
             }
             pipeline.addLast("server-authentication", new ServerAuthenticationHandler(settings));
@@ -246,7 +246,7 @@ public class OutboundConnectionInitiator<SuccessType extends OutboundConnectionI
             pipeline.addLast("handshake", new Handler());
         }
 
-        private SslContext getSslContext(SslFallbackConnectionType connectionType) throws IOException
+        private EncryptionOptions.ClientEncryptionOptions.ClientAuth requireClientAuth(SslFallbackConnectionType connectionType)
         {
             EncryptionOptions.ClientEncryptionOptions.ClientAuth requireClientAuth = NOT_REQUIRED;
             if (connectionType == SslFallbackConnectionType.MTLS )
@@ -261,7 +261,7 @@ public class OutboundConnectionInitiator<SuccessType extends OutboundConnectionI
             {
                 requireClientAuth = settings.withEncryption() ? REQUIRED: NOT_REQUIRED;
             }
-            return SSLFactory.getOrCreateSslContext(settings.encryption, requireClientAuth, ISslContextFactory.SocketType.CLIENT, SSL_FACTORY_CONTEXT_DESCRIPTION);
+            return requireClientAuth;
         }
 
     }

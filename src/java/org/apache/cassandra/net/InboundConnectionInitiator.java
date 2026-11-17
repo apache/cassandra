@@ -40,7 +40,6 @@ import org.apache.cassandra.exceptions.ConfigurationException;
 import org.apache.cassandra.locator.InetAddressAndPort;
 import org.apache.cassandra.net.OutboundConnectionSettings.Framing;
 import org.apache.cassandra.security.ISslContextFactory;
-import org.apache.cassandra.security.SSLFactory;
 import org.apache.cassandra.streaming.StreamDeserializingTask;
 import org.apache.cassandra.streaming.StreamingChannel;
 import org.apache.cassandra.streaming.async.NettyStreamingChannel;
@@ -62,7 +61,6 @@ import io.netty.channel.socket.SocketChannel;
 import io.netty.handler.codec.ByteToMessageDecoder;
 import io.netty.handler.logging.LogLevel;
 import io.netty.handler.logging.LoggingHandler;
-import io.netty.handler.ssl.SslContext;
 import io.netty.handler.ssl.SslHandler;
 
 import static java.lang.Math.max;
@@ -536,12 +534,11 @@ public class InboundConnectionInitiator
     private static SslHandler getSslHandler(String description, Channel channel, EncryptionOptions.ServerEncryptionOptions encryptionOptions) throws IOException
     {
         final EncryptionOptions.ClientEncryptionOptions.ClientAuth verifyPeerCertificate = REQUIRED;
-        SslContext sslContext = SSLFactory.getOrCreateSslContext(encryptionOptions, verifyPeerCertificate,
-                                                                 ISslContextFactory.SocketType.SERVER,
-                                                                 SSL_FACTORY_CONTEXT_DESCRIPTION);
         InetSocketAddress peer = encryptionOptions.require_endpoint_verification ? (InetSocketAddress) channel.remoteAddress() : null;
-        SslHandler sslHandler = newSslHandler(channel, sslContext, peer);
-        logger.trace("{} inbound netty SslContext: context={}, engine={}", description, sslContext.getClass().getName(), sslHandler.engine().getClass().getName());
+        SslHandler sslHandler = newSslHandler(channel, encryptionOptions, verifyPeerCertificate,
+                                              ISslContextFactory.SocketType.SERVER,
+                                              SSL_FACTORY_CONTEXT_DESCRIPTION, peer);
+        logger.trace("{} inbound netty SslEngine: engine={}", description, sslHandler.engine().getClass().getName());
         return sslHandler;
     }
 

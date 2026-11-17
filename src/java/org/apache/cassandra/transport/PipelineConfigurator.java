@@ -237,12 +237,11 @@ public class PipelineConfigurator
             case ENCRYPTED:
                 logger.debug("Enabling encrypted CQL connections between client and server");
                 return channel -> {
-                    SslContext sslContext = SSLFactory.getOrCreateSslContext(encryptionOptions,
-                                                                             encryptionOptions.getClientAuth(),
-                                                                             ISslContextFactory.SocketType.SERVER,
-                                                                             SSL_FACTORY_CONTEXT_DESCRIPTION);
                     InetSocketAddress peer = encryptionOptions.require_endpoint_verification ? (InetSocketAddress) channel.remoteAddress() : null;
-                    channel.pipeline().addFirst(SSL_HANDLER, newSslHandler(channel, sslContext, peer));
+                    channel.pipeline().addFirst(SSL_HANDLER, newSslHandler(channel, encryptionOptions,
+                                                                           encryptionOptions.getClientAuth(),
+                                                                           ISslContextFactory.SocketType.SERVER,
+                                                                           SSL_FACTORY_CONTEXT_DESCRIPTION, peer));
                 };
             default:
                 throw new IllegalStateException("Unrecognized TLS encryption policy: " + this.tlsEncryptionPolicy);
