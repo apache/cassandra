@@ -16,6 +16,7 @@
 
 import csv
 import json
+import sys
 from collections import defaultdict
 
 RED = '\033[0;1;31m'
@@ -207,6 +208,14 @@ class JsonTablePrinter(TablePrinter):
             self._opened = True
 
     def print_header(self, formatted_names):
+        # RFC 8259 says object names SHOULD be unique, and rows here are built from a
+        # dict, so repeated column names collapse to the last value (e.g. SELECT id, id
+        # FROM t). Warn rather than fail.
+        colnames = [n.strval for n in formatted_names]
+        if len(set(colnames)) != len(colnames):
+            self._shell.writeresult("Warning: duplicate column names in json output; only the last value "
+                                    "for each repeated name is kept. Use AS aliases to make names unique.",
+                                    out=sys.stderr)
         self._open()
 
     def print_rows(self, formatted_names, formatted_values):
@@ -215,9 +224,6 @@ class JsonTablePrinter(TablePrinter):
         self._open()
         colnames = [n.strval for n in formatted_names]
         for row in formatted_values:
-            # Note: Duplicate column names will silently collapse to the last value
-            # in the dict comprehension. This is a known limitation when SELECT
-            # returns multiple columns with the same name (e.g., SELECT id, id FROM t).
             row_dict = {colnames[i]: val for i, val in enumerate(row)}
             serialized = json.dumps(row_dict, ensure_ascii=False)
             if self._first_row:

@@ -1323,29 +1323,41 @@ class TestCqlshOutput(BaseTestCase):
                            tty=False, input=cleanup + '\n')
 
     def test_json_float_precision(self):
-        """JSON output should preserve full float precision, not truncate to display precision."""
+        """JSON floats use the same float_precision/double_precision rounding as tabular and csv."""
         ks = get_keyspace()
-        # Insert a double with high precision
-        setup = "INSERT INTO %s.has_all_types (num, doublecol) VALUES (9992, 3.141592653589793);" % ks
-        cqlsh_testcall(args=('--mode', 'json'), prompt=None, env=self.default_env,
-                       tty=False, input=setup + '\n')
+        setup = ("INSERT INTO %s.has_all_types (num, floatcol, doublecol) VALUES (9992, 3.14, 3.141592653589793);"
+                 "INSERT INTO %s.has_all_types (num, doublecol) VALUES (9993, 1.7976931348623157e308);" % (ks, ks))
+        cqlsh_testcall(prompt=None, env=self.default_env, tty=False, input=setup + '\n')
+        with tempfile.NamedTemporaryFile(mode='w', suffix='.cqlshrc', delete=False) as f:
+            f.write('[ui]\nfloat_precision = 3\ndouble_precision = 12\n')
+            cqlshrc = f.name
         try:
-            query = "SELECT num, doublecol FROM %s.has_all_types WHERE num = 9992;" % ks
+            query = "SELECT num, floatcol, doublecol FROM %s.has_all_types WHERE num = 9992;\n" % ks
             output, result = cqlsh_testcall(args=('--mode', 'json'), prompt=None,
-                                            env=self.default_env, tty=False, input=query + '\n')
+                                            env=self.default_env, tty=False, input=query)
             self.assertEqual(0, result)
-            rows = json.loads(output.strip())
-            self.assertEqual(len(rows), 1)
-            double_val = rows[0]['doublecol']
-            # Should preserve more than 5 digits (default display precision)
-            self.assertIsInstance(double_val, float)
-            # Check that we have more precision than 5 significant figures
-            self.assertAlmostEqual(double_val, 3.141592653589793, places=10,
-                                   msg='JSON should preserve full float precision')
+            self.assertEqual([{'num': 9992, 'floatcol': 3.14, 'doublecol': 3.14159}], json.loads(output))
+            output, result = cqlsh_testcall(args=('--mode', 'csv'), prompt=None,
+                                            env=self.default_env, tty=False, input=query)
+            self.assertEqual(0, result)
+            self.assertEqual(['9992', '3.14', '3.14159'], list(csv.reader(io.StringIO(output)))[1])
+
+            output, result = cqlsh_testcall(args=('--mode', 'json', '--cqlshrc', cqlshrc), prompt=None,
+                                            env=self.default_env, tty=False, input=query)
+            self.assertEqual(0, result)
+            self.assertEqual([{'num': 9992, 'floatcol': 3.14, 'doublecol': 3.14159265359}], json.loads(output))
+
+            # rounding the largest double must not turn it into Infinity, which is not valid JSON
+            query = "SELECT num, doublecol FROM %s.has_all_types WHERE num = 9993;\n" % ks
+            output, result = cqlsh_testcall(args=('--mode', 'json'), prompt=None,
+                                            env=self.default_env, tty=False, input=query)
+            self.assertEqual(0, result)
+            self.assertEqual([{'num': 9993, 'doublecol': 1.7976931348623157e308}],
+                             json.loads(output, parse_constant=self.fail))
         finally:
-            cleanup = "DELETE FROM %s.has_all_types WHERE num = 9992;" % ks
-            cqlsh_testcall(args=('--mode', 'json'), prompt=None, env=self.default_env,
-                           tty=False, input=cleanup + '\n')
+            os.unlink(cqlshrc)
+            cleanup = "DELETE FROM %s.has_all_types WHERE num IN (9992, 9993);" % ks
+            cqlsh_testcall(prompt=None, env=self.default_env, tty=False, input=cleanup + '\n')
 
     def test_json_duplicate_columns(self):
         """JSON output with duplicate column names silently keeps only the last value."""
@@ -1492,3 +1504,35 @@ class TestCqlshOutput(BaseTestCase):
         finally:
             cqlsh_testcall(prompt=None, env=self.default_env, tty=False,
                            input="DROP TABLE %s.json_tuples;\n" % ks)
+
+    def test_machine_mode_format_error(self):
+        """A value cqlsh can't format is reported, and the rest of the row is still written."""
+        if not hasattr(sys, 'get_int_max_str_digits'):
+            self.skipTest('needs a Python with an int to str digit limit')
+        ks = get_keyspace()
+        # a varint longer than the int to str digit limit (4300 by default)
+        setup = "INSERT INTO %s.has_all_types (num, varintcol) VALUES (9995, %s);" % (ks, '9' * 5000)
+        cqlsh_testcall(prompt=None, env=self.default_env, tty=False, input=setup + '\n')
+        try:
+            query = "SELECT num, varintcol FROM %s.has_all_types WHERE num = 9995;\n" % ks
+
+            # control: tabular mode reports the failure, proving the trigger works
+            output, result = cqlsh_testcall(prompt=None, env=self.default_env, tty=False, input=query)
+            self.assertEqual(0, result)
+            self.assertIn('Failed to format value', output)
+
+            # json: the cell is null and the rest of the row is intact
+            output, result = cqlsh_testcall(args=('--mode', 'json'), prompt=None,
+                                            env=self.default_env, tty=False, input=query)
+            self.assertEqual(0, result)
+            self.assertEqual([{'num': 9995, 'varintcol': None}], json.loads(output))
+
+            # csv: the cell is empty
+            output, result = cqlsh_testcall(args=('--mode', 'csv'), prompt=None,
+                                            env=self.default_env, tty=False, input=query)
+            self.assertEqual(0, result)
+            self.assertEqual([['num', 'varintcol'], ['9995', '']],
+                             list(csv.reader(io.StringIO(output))))
+        finally:
+            cleanup = "DELETE FROM %s.has_all_types WHERE num = 9995;" % ks
+            cqlsh_testcall(prompt=None, env=self.default_env, tty=False, input=cleanup + '\n')

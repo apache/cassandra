@@ -189,10 +189,18 @@ class DecodeError(Exception):
     def __str__(self):
         return str(self.thebytes)
 
+    def value_repr(self):
+        try:
+            return repr(self.thebytes)
+        except ValueError:
+            # e.g. an int too long for str() (sys.get_int_max_str_digits)
+            return '<%s>' % type(self.thebytes).__name__
+
     def message(self):
-        what = 'value %r' % (self.thebytes,)
+        value = self.value_repr()
+        what = 'value %s' % value
         if self.colname is not None:
-            what = 'value %r (for column %r)' % (self.thebytes, self.colname)
+            what = 'value %s (for column %r)' % (value, self.colname)
         return 'Failed to %s %s : %s' \
                % (self.verb, what, self.err)
 
@@ -235,9 +243,9 @@ def format_value(val, cqltype, encoding, addcolor=False, date_time_format=None,
                  float_precision=None, colormap=None, nullval=None):
     if isinstance(val, DecodeError):
         if addcolor:
-            return colorme(repr(val.thebytes), colormap, 'error')
+            return colorme(val.value_repr(), colormap, 'error')
         else:
-            return FormattedValue(repr(val.thebytes))
+            return FormattedValue(val.value_repr())
     return format_by_type(val, cqltype=cqltype, encoding=encoding, colormap=colormap,
                           addcolor=addcolor, nullval=nullval, date_time_format=date_time_format,
                           float_precision=float_precision)
@@ -1043,11 +1051,12 @@ class Shell(cmd.Cmd):
             self.writeresult("(%d rows)" % num_rows)
 
         if self.decoding_errors:
+            out = sys.stderr if self.mode.is_machine_readable else None
             for err in self.decoding_errors[:2]:
-                self.writeresult(err.message(), color=RED)
+                self.writeresult(err.message(), color=RED, out=out)
             if len(self.decoding_errors) > 2:
                 self.writeresult('%d more decoding errors suppressed.'
-                                 % (len(self.decoding_errors) - 2), color=RED)
+                                 % (len(self.decoding_errors) - 2), color=RED, out=out)
 
     def print_static_result(self, result, table_meta, with_header, tty, printer):
         if not result.column_names and not table_meta:
@@ -1078,25 +1087,25 @@ class Shell(cmd.Cmd):
                 for i, c in enumerate(column_names):
                     cqltype = cql_types[i] if i < len(cql_types) else None
                     val = row[c]
-                    if isinstance(printer, JsonTablePrinter):
-                        # JSON output uses full precision for machine readability;
-                        # display precision settings are intentionally ignored.
-                        formatted = format_json_value(val, cqltype=cqltype,
-                                                      encoding=self.output_codec.name,
-                                                      date_time_format=dtformats,
-                                                      float_precision=None)
-                    else:  # CsvTablePrinter
-                        # For CSV, use empty string for nulls (matching COPY TO default behavior)
-                        if val is None:
+                    precision = self.display_double_precision if cqltype and cqltype.type_name == 'double' \
+                        else self.display_float_precision
+                    try:
+                        if isinstance(printer, JsonTablePrinter):
+                            formatted = format_json_value(val, cqltype=cqltype,
+                                                          encoding=self.output_codec.name,
+                                                          date_time_format=dtformats,
+                                                          float_precision=precision)
+                        elif val is None:
+                            # For CSV, use empty string for nulls (matching COPY TO default behavior)
                             formatted = ''
                         else:
-                            # Format the value without color, preserving display precision for CSV
-                            precision = self.display_double_precision if cqltype and cqltype.type_name == 'double' \
-                                else self.display_float_precision
                             formatted_val = format_value(val, cqltype=cqltype, encoding=self.output_codec.name,
                                                          addcolor=False, date_time_format=dtformats,
                                                          float_precision=precision)
                             formatted = get_str(formatted_val)
+                    except Exception as e:
+                        self.decoding_errors.append(FormatError(val, e, colname=c))
+                        formatted = None if isinstance(printer, JsonTablePrinter) else ''
                     raw_row.append(formatted)
                 raw_rows.append(raw_row)
             if with_header:

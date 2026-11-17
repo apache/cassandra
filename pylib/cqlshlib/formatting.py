@@ -675,7 +675,11 @@ def _json_fallback(val, cqltype, encoding, date_time_format=None, float_precisio
 
 # Integer types → native int
 def _json_format_integer(val, **_):
-    return int(val)
+    val = int(val)
+    # json.dumps fails on ints longer than sys.get_int_max_str_digits();
+    # fail here instead so the caller can report the cell
+    str(val)
+    return val
 
 
 json_formatter_for('int')(_json_format_integer)
@@ -689,12 +693,16 @@ json_formatter_for('counter')(_json_format_integer)
 
 # Float/double → native float; NaN and Infinity are not valid JSON values,
 # so they fall back to their display string representation.
-def _json_format_float(val, **_):
+def _json_format_float(val, float_precision=None, **_):
     if math.isnan(val):
         return 'NaN'
     if math.isinf(val):
         return 'Infinity' if val > 0 else '-Infinity'
-    return float(val)
+    if float_precision is None:
+        return float(val)
+    rounded = float(format_floating_point_type(val, NO_COLOR_MAP, float_precision))
+    # rounding the largest doubles can step past the max; keep the exact value then
+    return float(val) if math.isinf(rounded) else rounded
 
 
 json_formatter_for('float')(_json_format_float)

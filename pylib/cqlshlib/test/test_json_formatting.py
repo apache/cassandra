@@ -20,8 +20,10 @@ import datetime
 import io
 import json
 import math
+import sys
 import unittest
 from collections import namedtuple
+from contextlib import redirect_stderr
 from decimal import Decimal
 from uuid import UUID
 
@@ -104,6 +106,22 @@ class TestFormatJsonValue(unittest.TestCase):
     def test_double_is_float(self):
         result = self._fmt(1.0, 'double')
         self.assertIsInstance(result, float)
+
+    def test_float_uses_display_precision(self):
+        self.assertEqual(3.142, self._fmt(3.141592653589793, 'double'))
+        self.assertEqual(3.14, self._fmt(3.140000104904175, 'float'))
+        self.assertEqual(123000.0, self._fmt(123456.789, 'double'))
+
+    def test_rounding_past_max_double_keeps_value(self):
+        self.assertEqual(1.7976931348623157e308, self._fmt(1.7976931348623157e308, 'double'))
+
+    def test_int_too_long_for_str_raises(self):
+        if not hasattr(sys, 'get_int_max_str_digits'):
+            self.skipTest('needs a Python with an int to str digit limit')
+        with self.assertRaises(ValueError):
+            self._fmt(10 ** 5000, 'varint')
+        with self.assertRaises(ValueError):
+            self._fmt([10 ** 5000], 'list<varint>')
 
     def test_nan_becomes_string(self):
         self.assertEqual(self._fmt(float('nan'), 'float'), 'NaN')
@@ -294,8 +312,8 @@ class FakeShell:
     def __init__(self):
         self.query_out = io.StringIO()
 
-    def writeresult(self, text, newline=True):
-        self.query_out.write(text + ('\n' if newline else ''))
+    def writeresult(self, text, newline=True, out=None):
+        (out or self.query_out).write(text + ('\n' if newline else ''))
 
 
 class TestMachineReadablePrinters(unittest.TestCase):
@@ -326,6 +344,27 @@ class TestMachineReadablePrinters(unittest.TestCase):
         printer.print_rows(self.names, [[2, None]])
         printer.finish()
         self.assertEqual('[\n  {"a": 1, "b": "x"},\n  {"a": 2, "b": null}\n]\n', shell.query_out.getvalue())
+
+    def test_json_duplicate_names_warn_on_stderr(self):
+        shell = FakeShell()
+        printer = JsonTablePrinter(shell)
+        names = [FormattedValue('id'), FormattedValue('id')]
+        err = io.StringIO()
+        with redirect_stderr(err):
+            printer.print_header(names)
+            printer.print_rows(names, [[1, 1]])
+            printer.finish()
+        self.assertIn('Warning: duplicate column names in json output', err.getvalue())
+        self.assertEqual([{'id': 1}], json.loads(shell.query_out.getvalue()))
+
+    def test_json_unique_names_do_not_warn(self):
+        shell = FakeShell()
+        printer = JsonTablePrinter(shell)
+        err = io.StringIO()
+        with redirect_stderr(err):
+            printer.print_header(self.names)
+            printer.finish()
+        self.assertEqual('', err.getvalue())
 
     def test_csv_empty_result_prints_header(self):
         shell = FakeShell()
