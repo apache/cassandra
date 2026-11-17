@@ -18,6 +18,7 @@
 
 package org.apache.cassandra.db.rows;
 
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
 
@@ -525,6 +526,45 @@ public class TrieTombstoneMarkerTest
                 assertEquals("Merge should be commutative", 
                            merged1, merged2);
             });
+    }
+
+    @Test
+    public void testMergeWithEqualDeletionTimesIsCommutativeIncludingKind()
+    {
+        DeletionTime tied = DeletionTime.build(6, 100);
+        DeletionTime newer = DeletionTime.build(10, 100);
+        List<TrieTombstoneMarker> markers = new ArrayList<>();
+        for (TrieTombstoneMarker.Kind kind : TrieTombstoneMarker.Kind.values())
+        {
+            TrieTombstoneMarker.Covering c = TrieTombstoneMarker.covering(tied, kind);
+            TrieTombstoneMarker.Covering n = TrieTombstoneMarker.covering(newer, kind);
+            markers.add(c);
+            markers.add(TrieTombstoneMarker.make(null, c, null));
+            markers.add(TrieTombstoneMarker.make(c, null, null));
+            markers.add(TrieTombstoneMarker.make(n, c, null));
+            markers.add(TrieTombstoneMarker.make(c, n, null));
+            markers.add(new TrieTombstoneMarker.Point(TrieTombstoneMarker.covering(newer, TrieTombstoneMarker.Kind.ROW), c));
+            markers.add(new TrieTombstoneMarker.Point(TrieTombstoneMarker.covering(tied, TrieTombstoneMarker.Kind.ROW), c, null));
+        }
+
+        for (TrieTombstoneMarker a : markers)
+        {
+            for (TrieTombstoneMarker b : markers)
+            {
+                TrieTombstoneMarker ab = a.mergeWith(b);
+                TrieTombstoneMarker ba = b.mergeWith(a);
+                // toString includes the kind of each side, equals does not
+                assertEquals(a + " merged with " + b, String.valueOf(ab), String.valueOf(ba));
+            }
+        }
+
+        // The broader deletion wins the tie
+        TrieTombstoneMarker.Covering partition = TrieTombstoneMarker.covering(tied, TrieTombstoneMarker.Kind.PARTITION);
+        TrieTombstoneMarker.Covering range = TrieTombstoneMarker.covering(tied, TrieTombstoneMarker.Kind.RANGE);
+        assertSame(partition, TrieTombstoneMarker.combine(partition, range));
+        assertSame(partition, TrieTombstoneMarker.combine(range, partition));
+        assertSame(partition, range.mergeWith(partition));
+        assertSame(partition, partition.mergeWith(range));
     }
 
     @Test

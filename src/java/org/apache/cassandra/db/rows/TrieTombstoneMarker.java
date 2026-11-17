@@ -59,6 +59,7 @@ import org.apache.cassandra.utils.bytecomparable.ByteComparable;
 public interface TrieTombstoneMarker extends RangeState<TrieTombstoneMarker>, IMeasurableMemory
 {
     /// The kind of covering deletion specifies the origin of the range that is in effect with a given deletion time.
+    /// Listed from the broadest to the narrowest; [#combine] relies on this order.
     enum Kind
     {
         PARTITION,
@@ -183,17 +184,25 @@ public interface TrieTombstoneMarker extends RangeState<TrieTombstoneMarker>, IM
         return new Point(covering(deletedAt, localDeletionTime, kind), null);
     }
 
-    /// Returns `right` if `left` does not supersede it, `left` otherwise.
+    /// Returns whichever of `left` and `right` supersedes the other, or the one with the broader kind if their deletion
+    /// times are equal. The result must not depend on argument order: some `mergeWith` implementations swap their
+    /// receiver, and a kind that changes inside a range produces [RangeTombstoneMarker]s that do not pair up.
     static Covering combine(Covering left, Covering right)
     {
         if (left == null)
             return right;
         if (right == null)
             return left;
-        if (left.supersedes(right))
-            return left;
-        else
-            return right;
+        int cmp = Long.compare(left.markedForDeleteAt(), right.markedForDeleteAt());
+        if (cmp == 0)
+        {
+            cmp = Long.compare(left.localDeletionTime(), right.localDeletionTime());
+            // Tie-break on kind so that a lower-scale covering state is never picked over a broader one, which
+            // could make some boundaries (or level markers) use the wrong covering kind.
+            if (cmp == 0)
+                cmp = right.deletionKind.compareTo(left.deletionKind); // smaller ordinal is the broader kind
+        }
+        return cmp < 0 ? right : left;
     }
 
     /// Returns `value` if it survives (i.e. supersedes) `deletion`.
