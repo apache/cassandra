@@ -1,4 +1,5 @@
 4.1.13
+ * Release networking buffers for protocol-v5 multi-frame CQL requests (CASSANDRA-21884)
  * Fix races deleting CDC files and commit log segments (CASSANDRA-19039)
  * PreV5Handlers.toFlushItem may leak memory on disconnected channel (CASSANDRA-21766)
 Merged from 4.0:
