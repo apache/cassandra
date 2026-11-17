@@ -41,6 +41,7 @@ import org.apache.cassandra.concurrent.ManyToOneConcurrentLinkedQueue;
 import org.apache.cassandra.concurrent.NamedThreadFactory;
 import org.apache.cassandra.config.EncryptionOptions;
 import org.apache.cassandra.locator.InetAddressAndPort;
+import org.apache.cassandra.security.ISslContextFactory;
 import org.apache.cassandra.security.SSLFactory;
 import org.apache.cassandra.service.NativeTransportService;
 import org.apache.cassandra.utils.ExecutorUtils;
@@ -231,6 +232,22 @@ public final class SocketFactory
         sslParameters.setEndpointIdentificationAlgorithm("HTTPS");
         engine.setSSLParameters(sslParameters);
         return sslHandler;
+    }
+
+    /**
+     * Creates a new {@link SslHandler} from the cached SslContext for the given options.
+     *
+     * @param peer enables endpoint verification for remote address when not null
+     */
+    public static SslHandler newSslHandler(Channel channel,
+                                           EncryptionOptions options,
+                                           EncryptionOptions.ClientEncryptionOptions.ClientAuth clientAuth,
+                                           ISslContextFactory.SocketType socketType,
+                                           String contextDescription,
+                                           @Nullable InetSocketAddress peer) throws IOException
+    {
+        SslContext sslContext = SSLFactory.getOrCreateSslContext(options, clientAuth, socketType, contextDescription);
+        return newSslHandler(channel, sslContext, peer);
     }
 
     /**
