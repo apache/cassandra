@@ -142,38 +142,40 @@ public final class SSLFactory
     {
         CacheKey key = new CacheKey(options, socketType, contextDescription);
 
-        Promise<SslContext> pending = cachedSslContexts.get(key);
-        if (pending == null)
+        Promise<SslContext> entry = cachedSslContexts.get(key);
+        if (entry == null)
         {
-            // Publish the entry before building so that concurrent callers wait for this build, and so that a
-            // reload can evict the entry while the build is still running. The build holds no map lock.
             Promise<SslContext> mine = new AsyncPromise<>();
-            pending = cachedSslContexts.putIfAbsent(key, mine);
-            if (pending == null)
-                return buildAndComplete(key, mine, options, clientAuth, socketType);
+            entry = cachedSslContexts.compute(key, (k, existing) -> existing != null ? existing : mine);
+
+            // The entry is published before the build so that concurrent callers wait for this build, and so that a
+            // reload can evict the entry while the build is still running. The build holds no map lock.
+            if (entry == mine)
+                build(key, mine, options, clientAuth, socketType);
         }
+
         // Rethrows the build's original exception, so an IOException reaches the caller unwrapped.
-        return pending.syncUninterruptibly().getNow();
+        return entry.syncUninterruptibly().getNow();
     }
 
-    private static SslContext buildAndComplete(CacheKey key, Promise<SslContext> mine,
-                                               EncryptionOptions options,
-                                               EncryptionOptions.ClientEncryptionOptions.ClientAuth clientAuth,
-                                               SocketType socketType) throws IOException
+    private static void build(CacheKey key, Promise<SslContext> entry,
+                              EncryptionOptions options,
+                              EncryptionOptions.ClientEncryptionOptions.ClientAuth clientAuth,
+                              SocketType socketType)
     {
+        SslContext sslContext;
         try
         {
-            SslContext sslContext = createNettySslContext(options, clientAuth, socketType);
-            mine.setSuccess(sslContext);
-            return sslContext;
+            sslContext = createNettySslContext(options, clientAuth, socketType);
         }
         catch (Throwable t)
         {
             // A failed build is not cached. Callers that joined this build see the same failure.
-            cachedSslContexts.remove(key, mine);
-            mine.setFailure(t);
-            throw t;
+            cachedSslContexts.remove(key, entry);
+            entry.setFailure(t);
+            return;
         }
+        entry.setSuccess(sslContext);
     }
 
     /**
