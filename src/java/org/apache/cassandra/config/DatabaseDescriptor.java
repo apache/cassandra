@@ -1031,8 +1031,8 @@ public class DatabaseDescriptor
         {
             // if accordCacheSizeInMiB option was set to "auto" then size of the cache should be "max(10% of Heap (in MB), 1MB)
             accordCacheSizeInMiB = (conf.accord.cache_size == null)
-                                   ? Math.max(1, (int) ((Runtime.getRuntime().totalMemory() * 0.10) / 1024 / 1024))
-                                   : conf.accord.cache_size.toMebibytes();
+                                  ? Math.max(1, (int) ((Runtime.getRuntime().totalMemory() * 0.10) / 1024 / 1024))
+                                  : conf.accord.cache_size.toMebibytes();
 
             if (accordCacheSizeInMiB < 0)
                 throw new NumberFormatException(); // to escape duplicating error message
@@ -1048,8 +1048,8 @@ public class DatabaseDescriptor
             // if accordWorkingSetSizeInMiB option was set to "auto" then size of the working set should be "max(5% of Heap (in MB), 1MB)
             // if negative, there is no limit
             accordWorkingSetSizeInMiB = (conf.accord.working_set_size == null)
-                                        ? Math.max(1, (int) ((Runtime.getRuntime().totalMemory() * 0.05) / 1024 / 1024))
-                                        : conf.accord.working_set_size.toMebibytes();
+                                  ? Math.max(1, (int) ((Runtime.getRuntime().totalMemory() * 0.05) / 1024 / 1024))
+                                  : conf.accord.working_set_size.toMebibytes();
         }
         catch (NumberFormatException e)
         {
@@ -1140,10 +1140,10 @@ public class DatabaseDescriptor
         }
         else if (JMXServerOptions.isEnabledBySystemProperties())
         {
-            throw new ConfigurationException("Configure either jmx_server_options in cassandra.yaml and comment out " +
-                                             "configure_jmx function call in cassandra-env.sh or keep cassandra-env.sh " +
-                                             "to call configure_jmx function but you have to keep jmx_server_options " +
-                                             "in cassandra.yaml commented out.");
+                throw new ConfigurationException("Configure either jmx_server_options in cassandra.yaml and comment out " +
+                                                 "configure_jmx function call in cassandra-env.sh or keep cassandra-env.sh " +
+                                                 "to call configure_jmx function but you have to keep jmx_server_options " +
+                                                 "in cassandra.yaml commented out.");
         }
 
         conf.jmx_server_options.jmx_encryption_options.applyConfig();
@@ -1285,6 +1285,29 @@ public class DatabaseDescriptor
         setAggregationSubPageSize(getAggregationSubPageSize());
     }
 
+    /**
+     * The limits on STARTUP options are system properties that StartupMessage parses on every new connection and on
+     * every STARTUP. Parse them here as well, so that a malformed value fails startup instead of failing every client
+     * connection once the node has reported itself as up.
+     */
+    @VisibleForTesting
+    static void validateStartupClientOptionLimits()
+    {
+        for (CassandraRelevantProperties limit : Arrays.asList(STARTUP_CLIENT_OPTION_MAX_COUNT,
+                                                               STARTUP_CLIENT_OPTION_KEY_MAX_LENGTH,
+                                                               STARTUP_CLIENT_OPTION_VALUE_MAX_LENGTH))
+        {
+            try
+            {
+                limit.getInt();
+            }
+            catch (ConfigurationException e)
+            {
+                throw new ConfigurationException(limit.getKey() + ": " + e.getMessage(), false);
+            }
+        }
+    }
+
     @VisibleForTesting
     static void validateUpperBoundStreamingConfig() throws ConfigurationException
     {
@@ -1335,7 +1358,7 @@ public class DatabaseDescriptor
         {
             // offheap_buffers and offheap_objects with a limit of 0 would leave that usage unbounded
             if (conf.memtable_allocation_type == Config.MemtableAllocationType.offheap_buffers
-                || conf.memtable_allocation_type == Config.MemtableAllocationType.offheap_objects)
+                    || conf.memtable_allocation_type == Config.MemtableAllocationType.offheap_objects)
                 throw new ConfigurationException("memtable_offheap_space must be positive when memtable_allocation_type is "
                                                  + conf.memtable_allocation_type
                                                  + ", otherwise off-heap memtable memory is not limited", false);
@@ -1686,7 +1709,7 @@ public class DatabaseDescriptor
         try
         {
             Class<? extends SeedProvider> seedProviderClass =
-            FBUtilities.classForNameWithoutInitialization(conf.seed_provider.class_name, "seed provider", SeedProvider.class);
+                FBUtilities.classForNameWithoutInitialization(conf.seed_provider.class_name, "seed provider", SeedProvider.class);
             seedProvider = (SeedProvider) seedProviderClass.getConstructor(Map.class).newInstance(conf.seed_provider.parameters);
         }
         // there are about 5 checked exceptions that could be thrown here.
@@ -2632,29 +2655,6 @@ public class DatabaseDescriptor
     public static int getNumTokens()
     {
         return conf.num_tokens;
-    }
-
-    /**
-     * The limits on STARTUP options are system properties that StartupMessage parses on every new connection and on
-     * every STARTUP. Parse them here as well, so that a malformed value fails startup instead of failing every client
-     * connection once the node has reported itself as up.
-     */
-    @VisibleForTesting
-    static void validateStartupClientOptionLimits()
-    {
-        for (CassandraRelevantProperties limit : Arrays.asList(STARTUP_CLIENT_OPTION_MAX_COUNT,
-                                                               STARTUP_CLIENT_OPTION_KEY_MAX_LENGTH,
-                                                               STARTUP_CLIENT_OPTION_VALUE_MAX_LENGTH))
-        {
-            try
-            {
-                limit.getInt();
-            }
-            catch (ConfigurationException e)
-            {
-                throw new ConfigurationException(limit.getKey() + ": " + e.getMessage(), false);
-            }
-        }
     }
 
     public static InetAddressAndPort getReplaceAddress()
@@ -3901,10 +3901,10 @@ public class DatabaseDescriptor
     private static long calculateDefaultNativeTransportMaxMessageSizeInBytes()
     {
         return Math.min(conf.max_mutation_size.toBytes(),
-                        Math.min(
-                        conf.native_transport_max_request_data_in_flight.toBytes(),
-                        conf.native_transport_max_request_data_in_flight_per_ip.toBytes()
-                        )
+                   Math.min(
+                   conf.native_transport_max_request_data_in_flight.toBytes(),
+                   conf.native_transport_max_request_data_in_flight_per_ip.toBytes()
+                   )
         );
     }
 
@@ -5059,7 +5059,7 @@ public class DatabaseDescriptor
 
         if (warnThreshold != 0 && logThreshold > warnThreshold)
             throw new IllegalArgumentException("Threshold value for gc_log*_threshold (" + logThreshold + ") must be less than gc_warn*_threshold which is currently "
-                                               + warnThreshold);
+                    + warnThreshold);
     }
 
     public static EncryptionContext getEncryptionContext()
