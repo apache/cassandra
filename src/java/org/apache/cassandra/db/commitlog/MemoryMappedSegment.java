@@ -90,7 +90,6 @@ public class MemoryMappedSegment extends CommitLogSegment
         {
             throw new FSWriteError(e, getPath());
         }
-        NativeLibrary.trySkipCache(fd, startMarker, nextMarker, logFile.absolutePath());
     }
 
     @Override
@@ -103,6 +102,7 @@ public class MemoryMappedSegment extends CommitLogSegment
     protected void internalClose()
     {
         FileUtils.clean(buffer);
+        NativeLibrary.trySkipCache(fd, 0, 0, logFile.absolutePath());
         super.internalClose();
     }
 }
