@@ -320,15 +320,16 @@ public interface CompressionChunkOffsets extends AutoCloseable
                 int blockStartIndex = blockIndex * offsetsPerBlock;
                 int remaining = remainingChunkCount - blockStartIndex;
                 if (remaining <= 0)
-                    return new CompressionChunkOffsetCache.OffsetsBlock(ByteBuffer.allocate(0));
+                    return CompressionChunkOffsetCache.OffsetsBlock.allocate(0);
 
                 int count = Math.min(offsetsPerBlock, remaining);
                 int bytesToRead = count * Long.BYTES;
                 long position = offsetsStart + ((long) blockStartIndex * Long.BYTES);
-                ByteBuffer buffer = ByteBuffer.allocateDirect(bytesToRead);
+                CompressionChunkOffsetCache.OffsetsBlock block = CompressionChunkOffsetCache.OffsetsBlock.allocate(bytesToRead);
                 boolean success = false;
                 try
                 {
+                    ByteBuffer buffer = block.buffer();
                     int read = 0;
                     while (read < bytesToRead)
                     {
@@ -339,14 +340,13 @@ public interface CompressionChunkOffsets extends AutoCloseable
                             continue;
                         read += n;
                     }
-                    buffer.flip();
                     success = true;
-                    return new CompressionChunkOffsetCache.OffsetsBlock(buffer);
+                    return block;
                 }
                 finally
                 {
                     if (!success)
-                        FileUtils.clean(buffer);
+                        block.release();
                 }
             }
             catch (EOFException e)

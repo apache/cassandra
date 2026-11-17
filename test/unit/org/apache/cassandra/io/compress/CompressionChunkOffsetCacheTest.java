@@ -30,8 +30,10 @@ import org.junit.Test;
 
 import org.awaitility.Awaitility;
 
+import org.apache.cassandra.io.util.FileUtils;
 import org.apache.cassandra.metrics.MicrometerCompressionChunkOffsetCacheMetrics;
 import org.apache.cassandra.utils.concurrent.Ref;
+import sun.nio.ch.DirectBuffer;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
@@ -40,8 +42,7 @@ public class CompressionChunkOffsetCacheTest
     @Test
     public void offsetsBlockRefCounting()
     {
-        ByteBuffer buffer = ByteBuffer.allocateDirect(16);
-        CompressionChunkOffsetCache.OffsetsBlock block = new CompressionChunkOffsetCache.OffsetsBlock(buffer);
+        CompressionChunkOffsetCache.OffsetsBlock block = CompressionChunkOffsetCache.OffsetsBlock.allocate(16);
 
         assertThat(block.references).isEqualTo(1);
         assertThat(block.ref()).isTrue();
@@ -53,6 +54,58 @@ public class CompressionChunkOffsetCacheTest
         block.release();
         assertThat(block.references).isEqualTo(0);
         assertThat(block.ref()).isFalse();
+    }
+
+    @Test
+    public void testEmptyOffsetsBlock()
+    {
+        long before = CompressionMetadata.nativeMemoryAllocated();
+        CompressionChunkOffsetCache.OffsetsBlock block = CompressionChunkOffsetCache.OffsetsBlock.allocate(0);
+        assertThat(block.count()).isZero();
+        assertThat(block.capacity()).isZero();
+        block.release();
+        assertThat(CompressionMetadata.nativeMemoryAllocated()).isEqualTo(before);
+    }
+
+    @Test
+    public void testInvalidOffsetsBlockCapacity()
+    {
+        assertThatThrownBy(() -> CompressionChunkOffsetCache.OffsetsBlock.allocate(-8)).isInstanceOf(IllegalArgumentException.class);
+        assertThatThrownBy(() -> CompressionChunkOffsetCache.OffsetsBlock.allocate(12)).isInstanceOf(IllegalArgumentException.class);
+    }
+
+    @Test
+    public void testOffsetsBlockNotAllocatedInDirectMemory()
+    {
+        // Buffers allocated via ByteBuffer.allocateDirect are reserved against -XX:MaxDirectMemorySize and always own
+        // a Cleaner. Check the root buffer of the block's view rather than global direct memory usage
+        ByteBuffer direct = ByteBuffer.allocateDirect(Long.BYTES);
+        try
+        {
+            assertThat(rootBuffer(direct.duplicate()).cleaner()).isNotNull();
+        }
+        finally
+        {
+            FileUtils.clean(direct);
+        }
+
+        CompressionChunkOffsetCache.OffsetsBlock block = CompressionChunkOffsetCache.OffsetsBlock.allocate(Long.BYTES);
+        try
+        {
+            ByteBuffer buffer = block.buffer();
+            assertThat(buffer.isDirect()).isTrue();
+            assertThat(rootBuffer(buffer).cleaner()).isNull();
+        }
+        finally
+        {
+            block.release();
+        }
+    }
+
+    private static DirectBuffer rootBuffer(ByteBuffer view)
+    {
+        Object attachment = ((DirectBuffer) view).attachment();
+        return attachment instanceof DirectBuffer ? (DirectBuffer) attachment : (DirectBuffer) view;
     }
 
     @Test
@@ -102,7 +155,7 @@ public class CompressionChunkOffsetCacheTest
         long fileId = 1;
 
         CompressionChunkOffsetCache.OffsetsBlock block =
-        cache.getBlock(fileId, 0, key -> new CompressionChunkOffsetCache.OffsetsBlock(ByteBuffer.allocateDirect(1024)));
+        cache.getBlock(fileId, 0, key -> CompressionChunkOffsetCache.OffsetsBlock.allocate(1024));
 
         Awaitility.await("metrics update")
                   .atMost(10, TimeUnit.SECONDS)
@@ -135,7 +188,7 @@ public class CompressionChunkOffsetCacheTest
         long fileId = 1;
 
         // 1st miss
-        cache.getBlock(fileId, 0, key -> new CompressionChunkOffsetCache.OffsetsBlock(ByteBuffer.allocateDirect(1024)));
+        cache.getBlock(fileId, 0, key -> CompressionChunkOffsetCache.OffsetsBlock.allocate(1024));
         Awaitility.await("metrics update")
                   .atMost(10, TimeUnit.SECONDS)
                   .untilAsserted(() -> {
@@ -149,7 +202,7 @@ public class CompressionChunkOffsetCacheTest
                   });
 
         // 1st hit
-        cache.getBlock(fileId, 0, key -> new CompressionChunkOffsetCache.OffsetsBlock(ByteBuffer.allocateDirect(1024)));
+        cache.getBlock(fileId, 0, key -> CompressionChunkOffsetCache.OffsetsBlock.allocate(1024));
         Awaitility.await("metrics update")
                   .atMost(10, TimeUnit.SECONDS)
                   .untilAsserted(() -> {
@@ -163,7 +216,7 @@ public class CompressionChunkOffsetCacheTest
                   });
 
         // load another block to evict previous block
-        cache.getBlock(fileId, 1, key -> new CompressionChunkOffsetCache.OffsetsBlock(ByteBuffer.allocateDirect(1024)));
+        cache.getBlock(fileId, 1, key -> CompressionChunkOffsetCache.OffsetsBlock.allocate(1024));
         Awaitility.await("metrics update")
                   .atMost(10, TimeUnit.SECONDS)
                   .untilAsserted(() -> {

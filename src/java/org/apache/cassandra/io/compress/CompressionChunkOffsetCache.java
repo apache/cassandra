@@ -19,6 +19,7 @@
 package org.apache.cassandra.io.compress;
 
 import java.nio.ByteBuffer;
+import java.nio.ByteOrder;
 import java.util.concurrent.atomic.AtomicIntegerFieldUpdater;
 import java.util.function.Function;
 
@@ -33,20 +34,21 @@ import com.google.common.base.Preconditions;
 import io.netty.util.internal.PlatformDependent;
 import org.apache.cassandra.cache.CacheSize;
 import org.apache.cassandra.config.CassandraRelevantProperties;
-import org.apache.cassandra.io.util.FileUtils;
 import org.apache.cassandra.metrics.MicrometerCompressionChunkOffsetCacheMetrics;
 import org.apache.cassandra.utils.FBUtilities;
+import org.apache.cassandra.utils.memory.MemoryUtil;
 
 import static org.apache.cassandra.io.compress.CompressionMetadata.NATIVE_MEMORY_USAGE;
 
 /**
  * Block cache for compression chunk offsets stored in the compression info file.
  * <p>
- * The cache stores blocks of offsets in direct {@link ByteBuffer} instances. Each block is
- * reference-counted and cleaned on eviction. This cache is intended for use by
+ * The cache stores blocks of offsets in native memory allocated via {@link MemoryUtil#allocate(long)}, same as
+ * {@link CompressionChunkOffsets.InMemory}, so it doesn't count towards {@code -XX:MaxDirectMemorySize} to avoid impact
+ * production server config. Each block is reference-counted and freed on eviction. This cache is intended for use by
  * {@link org.apache.cassandra.io.compress.CompressionChunkOffsets.BlockCache}.
  * <p>
- * Note that Blocks are weighted by direct buffer capacity; key overhead is not included.
+ * Note that Blocks are weighted by native memory capacity; key overhead is not included.
  */
 public class CompressionChunkOffsetCache implements CacheSize
 {
@@ -56,7 +58,7 @@ public class CompressionChunkOffsetCache implements CacheSize
     {
         // do not initialize the cache if cache size is non-positive
         long cacheSizeInBytes = getCacheSizeInBytes(PlatformDependent.maxDirectMemory());
-        Preconditions.checkArgument(cacheSizeInBytes > 0, "CompressionChunkOffsetCache size must be postive, but got " + cacheSizeInBytes);
+        Preconditions.checkArgument(cacheSizeInBytes > 0, "CompressionChunkOffsetCache size must be positive, but got " + cacheSizeInBytes);
 
         if (INSTANCE == null)
         {
@@ -212,25 +214,53 @@ public class CompressionChunkOffsetCache implements CacheSize
     }
 
     /**
-     * A cached block of chunk offsets. It owns off-heap buffer and is reference-counted to ensure the memory
+     * A cached block of chunk offsets. It owns native memory and is reference-counted to ensure the memory
      * is released only after eviction and last user release.
      */
     public static class OffsetsBlock
     {
         private static final AtomicIntegerFieldUpdater<OffsetsBlock> referencesUpdater = AtomicIntegerFieldUpdater.newUpdater(OffsetsBlock.class, "references");
+        private static final ByteBuffer EMPTY_BUFFER = ByteBuffer.allocate(0);
+
+        // 0 if capacity is 0
+        private final long address;
+        // big-endian view over the native memory, compression info file stores offsets in big-endian
         private final ByteBuffer offsetsBuffer;
         private final int capacity;
-        private final int length;
 
         volatile int references;
 
-        public OffsetsBlock(ByteBuffer offsetsBuffer)
+        private OffsetsBlock(long address, int capacity)
         {
-            this.offsetsBuffer = offsetsBuffer;
-            this.length = offsetsBuffer.remaining();
-            this.capacity = offsetsBuffer.capacity();
+            this.address = address;
+            this.capacity = capacity;
+            this.offsetsBuffer = capacity == 0 ? EMPTY_BUFFER : MemoryUtil.getByteBuffer(address, capacity, ByteOrder.BIG_ENDIAN);
             this.references = 1;
             NATIVE_MEMORY_USAGE.addAndGet(capacity);
+        }
+
+        /**
+         * Allocate a block with the given capacity in native memory. Caller must fill the block via {@link #buffer()}
+         * before publishing it, and must {@link #release()} it if loading fails.
+         *
+         * @param capacity size of the block in bytes, must be a multiple of {@link Long#BYTES}
+         * @return a block with one reference
+         */
+        public static OffsetsBlock allocate(int capacity)
+        {
+            Preconditions.checkArgument(capacity >= 0 && capacity % Long.BYTES == 0,
+                                        "Offsets block capacity must be a non-negative multiple of %s, but got %s", Long.BYTES, capacity);
+            long address = capacity == 0 ? 0 : MemoryUtil.allocate(capacity);
+            return new OffsetsBlock(address, capacity);
+        }
+
+        /**
+         * @return a new big-endian buffer over the whole block with independent position and limit, used to load
+         *         offsets into the block. It must not be used after the block is released.
+         */
+        ByteBuffer buffer()
+        {
+            return offsetsBuffer.duplicate().order(ByteOrder.BIG_ENDIAN);
         }
 
         /**
@@ -260,7 +290,8 @@ public class CompressionChunkOffsetCache implements CacheSize
         {
             if (referencesUpdater.decrementAndGet(this) == 0)
             {
-                FileUtils.clean(offsetsBuffer);
+                if (address != 0)
+                    MemoryUtil.free(address, capacity);
                 NATIVE_MEMORY_USAGE.addAndGet(-capacity);
             }
         }
@@ -278,7 +309,7 @@ public class CompressionChunkOffsetCache implements CacheSize
          */
         public int count()
         {
-            return length / Long.BYTES;
+            return capacity / Long.BYTES;
         }
 
         /**

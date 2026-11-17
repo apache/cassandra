@@ -240,7 +240,7 @@ public enum CassandraRelevantProperties
 
     /**
      * Cache size for compression chunk offsets if BLOCK_CACHE is configured. By default, it uses 15% of max direct
-     * memory.
+     * memory. Note that the cache is allocated in native memory and doesn't count towards {@code -XX:MaxDirectMemorySize}.
      *
      * Alternatively, an absolute cache size can be configured, e.g. "10GiB".
      */
