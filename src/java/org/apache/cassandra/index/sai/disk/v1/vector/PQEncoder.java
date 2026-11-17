@@ -37,6 +37,10 @@ import io.github.jbellis.jvector.vector.types.VectorTypeSupport;
  * runs through the API's boxing fallback instead, tens of times slower. Whether that happens depends on how the JIT
  * compiles the code, so it differs between JVMs. SAI's subvectors are 2 or 3 floats, too few for SIMD to help, so this
  * computes the distances with plain arithmetic, adding the squared differences in the same order jvector does.
+ * <p>
+ * This is a workaround for <a href="https://github.com/datastax/jvector/issues/801">jvector issue 801</a>. Once a
+ * jvector release encodes short subvectors without the Vector API fallback, {@link OnHeapGraph} can call
+ * {@link ProductQuantization#encodeAll} again and this class can be removed.
  */
 public final class PQEncoder
 {
