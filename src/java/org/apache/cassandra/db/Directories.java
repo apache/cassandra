@@ -784,9 +784,13 @@ public class Directories
             return availableSpace > 0 ? availableSpace : 0;
         }
 
-        public long getRawSize()
+        /**
+         * @return the space this directory takes on disk. A file with more hard links in this directory,
+         * e.g. an SSTable which is also in snapshots or in backups, is counted once.
+         */
+        public long getSizeOnDisk()
         {
-            return FileUtils.folderSize(location);
+            return FileUtils.folderSize(location, false);
         }
 
         @Override
