@@ -421,6 +421,9 @@ public class Config
 
     public DataStorageSpec.IntKibibytesBound compressed_read_ahead_buffer_size = new DataStorageSpec.IntKibibytesBound("256KiB");
 
+    // Size of reads when scanning a whole file: validating a sstable's digest, rebuilding its index summary or replaying the commit log
+    public volatile DataStorageSpec.IntKibibytesBound sequential_read_buffer_size = new DataStorageSpec.IntKibibytesBound("1MiB");
+
     // Direct IO for background SSTable writes (compaction, streaming, cleanup, etc.)
     // When 'direct' is set, background writes bypass the OS page cache using O_DIRECT.
     // Memtable flushes always use buffered I/O regardless of this setting.

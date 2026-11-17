@@ -1178,6 +1178,9 @@ public class DatabaseDescriptor
         if (conf.compressed_read_ahead_buffer_size.toKibibytes() > 0 && conf.compressed_read_ahead_buffer_size.toKibibytes() < 256)
             throw new ConfigurationException("compressed_read_ahead_buffer_size must be at least 256KiB (set to 0 to disable), but was " + conf.compressed_read_ahead_buffer_size, false);
 
+        if (conf.sequential_read_buffer_size.toKibibytes() < 4)
+            throw new ConfigurationException("sequential_read_buffer_size must be at least 4KiB, but was " + conf.sequential_read_buffer_size, false);
+
         if (conf.server_encryption_options != null)
         {
             conf.server_encryption_options.applyConfig();
@@ -3121,6 +3124,24 @@ public class DatabaseDescriptor
     public static int getCompressedReadAheadBufferSize()
     {
         return conf.compressed_read_ahead_buffer_size.toBytes();
+    }
+
+    public static int getSequentialReadBufferSize()
+    {
+        return conf.sequential_read_buffer_size.toBytes();
+    }
+
+    public static int getSequentialReadBufferSizeInKB()
+    {
+        return conf.sequential_read_buffer_size.toKibibytes();
+    }
+
+    public static void setSequentialReadBufferSizeInKB(int sizeInKb)
+    {
+        if (sizeInKb < 4)
+            throw new IllegalArgumentException("sequential_read_buffer_size must be at least 4KiB, but was " + sizeInKb + "KiB");
+
+        conf.sequential_read_buffer_size = createIntKibibyteBoundAndEnsureItIsValidForByteConversion(sizeInKb, "sequential_read_buffer_size");
     }
 
     public static int getCompressedReadAheadBufferSizeInKB()

@@ -1773,11 +1773,11 @@ public abstract class SSTableReader extends SSTable implements UnfilteredSource,
             lookup.remove(desc);
 
             if (obsoletion != null)
+            {
+                for (Component c : desc.discoverComponents())
+                    NativeLibrary.trySkipCache(desc.fileFor(c).absolutePath(), 0, 0);
                 obsoletion.run();
-
-            // don't ideally want to dropPageCache for the file until all instances have been released
-            for (Component c : desc.discoverComponents())
-                NativeLibrary.trySkipCache(desc.fileFor(c).absolutePath(), 0, 0);
+            }
         }
 
         public String name()

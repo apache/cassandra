@@ -127,6 +127,8 @@ this table.
 |BytesFlushed |Counter |Total number of bytes flushed since server
 [re]start.
 
+|ImportedSSTables |Counter |Number of sstables imported
+
 |CompactionBytesWritten |Counter |Total number of bytes written by
 compaction since server [re]start.
 

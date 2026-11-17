@@ -28,6 +28,8 @@ import java.util.Set;
 import java.util.UUID;
 
 import com.google.common.annotations.VisibleForTesting;
+import com.google.common.collect.Iterables;
+import com.google.common.collect.Sets;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -37,6 +39,7 @@ import org.apache.cassandra.index.Index;
 import org.apache.cassandra.index.sai.StorageAttachedIndexGroup;
 import org.apache.cassandra.index.sai.disk.format.IndexDescriptor;
 import org.apache.cassandra.index.sai.utils.IndexIdentifier;
+import org.apache.cassandra.io.FSWriteError;
 import org.apache.cassandra.io.sstable.Component;
 import org.apache.cassandra.io.sstable.Descriptor;
 import org.apache.cassandra.io.sstable.IVerifier;
@@ -49,7 +52,11 @@ import org.apache.cassandra.service.ActiveRepairService;
 import org.apache.cassandra.service.StorageService;
 import org.apache.cassandra.utils.OutputHandler;
 import org.apache.cassandra.utils.Pair;
+import org.apache.cassandra.utils.SyncUtil;
 import org.apache.cassandra.utils.concurrent.Refs;
+
+import static java.util.concurrent.TimeUnit.NANOSECONDS;
+import static org.apache.cassandra.utils.Clock.Global.nanoTime;
 
 public class SSTableImporter
 {
@@ -75,21 +82,21 @@ public class SSTableImporter
      * @return list of failed directories
      */
     @VisibleForTesting
-    synchronized List<String> importNewSSTables(Options options)
+    List<String> importNewSSTables(Options options)
     {
+        long startNanos = nanoTime();
         UUID importID = UUID.randomUUID();
         logger.info("[{}] Loading new SSTables for {}/{}: {}", importID, cfs.getKeyspaceName(), cfs.getTableName(), options);
 
         List<Pair<Directories.SSTableLister, String>> listers = getSSTableListers(options.srcPaths);
 
-        Set<Descriptor> currentDescriptors = new HashSet<>();
-        for (SSTableReader sstable : cfs.getSSTables(SSTableSet.CANONICAL))
-            currentDescriptors.add(sstable.descriptor);
+        Set<Descriptor> currentDescriptors = liveDescriptors();
         List<String> failedDirectories = new ArrayList<>();
 
         // verify first to avoid starting to copy sstables to the data directories and then have to abort.
         if (options.verifySSTables || options.verifyTokens || options.failOnMissingIndex)
         {
+            long verifyStart = nanoTime();
             for (Pair<Directories.SSTableLister, String> listerPair : listers)
             {
                 Directories.SSTableLister lister = listerPair.left;
@@ -153,8 +160,20 @@ public class SSTableImporter
                     }
                 }
             }
+            logger.info("[{}] Verified new SSTables for {}/{} in {} ms", importID, cfs.getKeyspaceName(), cfs.getTableName(), NANOSECONDS.toMillis(nanoTime() - verifyStart));
         }
 
+        syncSSTables(listers, currentDescriptors, failedDirectories);
+
+        synchronized (this)
+        {
+            return moveSSTables(importID, startNanos, listers, failedDirectories, options);
+        }
+    }
+
+    private List<String> moveSSTables(UUID importID, long startNanos, List<Pair<Directories.SSTableLister, String>> listers, List<String> failedDirectories, Options options)
+    {
+        Set<Descriptor> currentDescriptors = liveDescriptors();
         Set<SSTableReader> newSSTables = new HashSet<>();
         for (Pair<Directories.SSTableLister, String> listerPair : listers)
         {
@@ -228,7 +247,10 @@ public class SSTableImporter
             if (!cfs.indexManager.validateSSTableAttachedIndexes(newSSTables, false, options.validateIndexChecksum))
                 cfs.indexManager.buildSSTableAttachedIndexesBlocking(newSSTables);
 
+            // make the moves durable before the sstables go live
+            newSSTables.stream().map(sstable -> sstable.descriptor.directory).distinct().forEach(SyncUtil::trySyncDir);
             cfs.getTracker().addSSTables(newSSTables);
+            cfs.metric.importedSSTables.inc(newSSTables.size());
             for (SSTableReader reader : newSSTables)
             {
                 if (options.invalidateCaches && cfs.isRowCacheEnabled())
@@ -241,8 +263,48 @@ public class SSTableImporter
             throw new RuntimeException("Failed adding SSTables", t);
         }
 
-        logger.info("[{}] Done loading load new SSTables for {}/{}", importID, cfs.getKeyspaceName(), cfs.getTableName());
+        logger.info("[{}] Done loading load new SSTables for {}/{} in {} ms", importID, cfs.getKeyspaceName(), cfs.getTableName(), NANOSECONDS.toMillis(nanoTime() - startNanos));
         return failedDirectories;
+    }
+
+    private Set<Descriptor> liveDescriptors()
+    {
+        Iterable<SSTableReader> sstables = cfs.getSSTables(SSTableSet.CANONICAL);
+        Set<Descriptor> descriptors = Sets.newHashSetWithExpectedSize(Iterables.size(sstables));
+        for (SSTableReader sstable : sstables)
+            descriptors.add(sstable.descriptor);
+        return descriptors;
+    }
+
+    /**
+     * Syncs the sstables to import so that they're durable before they go live, as whatever wrote them may not have synced them
+     */
+    private static void syncSSTables(List<Pair<Directories.SSTableLister, String>> listers, Set<Descriptor> currentDescriptors, List<String> failedDirectories)
+    {
+        for (Pair<Directories.SSTableLister, String> listerPair : listers)
+        {
+            if (failedDirectories.contains(listerPair.right))
+                continue;
+            for (Map.Entry<Descriptor, Set<Component>> entry : listerPair.left.list(true).entrySet())
+            {
+                if (currentDescriptors.contains(entry.getKey()))
+                    continue;
+                for (Component component : entry.getValue())
+                    sync(entry.getKey().fileFor(component));
+            }
+        }
+    }
+
+    private static void sync(File file)
+    {
+        try
+        {
+            SyncUtil.force(file);
+        }
+        catch (IOException e)
+        {
+            throw new FSWriteError(e, file);
+        }
     }
 
     /**

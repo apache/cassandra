@@ -100,6 +100,14 @@ public class SyncUtil
         }
     }
 
+    public static void force(File file) throws IOException
+    {
+        try (FileChannel channel = file.newReadChannel())
+        {
+            force(channel, true);
+        }
+    }
+
     public static void sync(FileOutputStream fos) throws IOException
     {
         Preconditions.checkNotNull(fos);

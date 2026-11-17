@@ -182,7 +182,7 @@ public class CommitLogReader
         // just transform from the file name (no reading of headers) to determine version
         CommitLogDescriptor desc = CommitLogDescriptor.fromFileName(file.name());
 
-        try(RandomAccessReader reader = RandomAccessReader.open(file))
+        try(RandomAccessReader reader = RandomAccessReader.open(file, DatabaseDescriptor.getSequentialReadBufferSize()))
         {
             final long segmentIdFromFilename = desc.id;
             try

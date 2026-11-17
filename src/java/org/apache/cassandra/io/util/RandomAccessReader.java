@@ -381,10 +381,15 @@ public class RandomAccessReader extends RebufferingInputStream implements FileDa
     @SuppressWarnings({ "resource", "RedundantSuppression" }) // reader is closed along with the returned RandomAccessReader instance
     public static RandomAccessReader open(File file)
     {
+        return open(file, DEFAULT_BUFFER_SIZE);
+    }
+
+    public static RandomAccessReader open(File file, int bufferSize)
+    {
         ChannelProxy channel = new ChannelProxy(file);
         try
         {
-            ChunkReader reader = new SimpleChunkReader(channel, -1, BufferType.OFF_HEAP, DEFAULT_BUFFER_SIZE);
+            ChunkReader reader = new SimpleChunkReader(channel, -1, BufferType.OFF_HEAP, bufferSize);
             Rebufferer rebufferer = reader.instantiateRebufferer(false);
             return new RandomAccessReaderWithOwnChannel(rebufferer);
         }

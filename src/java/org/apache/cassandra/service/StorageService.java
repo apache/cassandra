@@ -1486,6 +1486,19 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
         logger.info("set compressed read ahead buffer size to {}KiB", sizeInKb);
     }
 
+    @Override
+    public int getSequentialReadBufferInKB()
+    {
+        return DatabaseDescriptor.getSequentialReadBufferSizeInKB();
+    }
+
+    @Override
+    public void setSequentialReadBufferInKB(int sizeInKb)
+    {
+        DatabaseDescriptor.setSequentialReadBufferSizeInKB(sizeInKb);
+        logger.info("set sequential read buffer size to {}KiB", sizeInKb);
+    }
+
     public int getBatchlogReplayThrottleInKB()
     {
         return DatabaseDescriptor.getBatchlogReplayThrottleInKiB();

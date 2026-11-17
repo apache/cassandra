@@ -144,6 +144,8 @@ public class TableMetrics
     public final Counter pendingFlushes;
     /** Total number of bytes flushed since server [re]start */
     public final Counter bytesFlushed;
+    /** Number of sstables imported */
+    public final Counter importedSSTables;
     /** The average on-disk flushed size for sstables. */
     public final MovingAverage flushSizeOnDisk;
     /** Total number of bytes written by compaction since server [re]start */
@@ -705,6 +707,7 @@ public class TableMetrics
 
         pendingFlushes = createTableCounter("PendingFlushes");
         bytesFlushed = createTableCounter("BytesFlushed");
+        importedSSTables = createTableCounter("ImportedSSTables");
         flushSizeOnDisk = ExpMovingAverage.decayBy1000();
 
         compactionBytesWritten = createTableCounter("CompactionBytesWritten");

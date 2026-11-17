@@ -56,6 +56,7 @@ import org.apache.cassandra.io.sstable.format.big.BigFormat;
 import org.apache.cassandra.io.util.File;
 import org.apache.cassandra.io.util.PathUtils;
 import org.apache.cassandra.locator.InetAddressAndPort;
+import org.apache.cassandra.metrics.TableMetrics;
 import org.apache.cassandra.schema.Schema;
 import org.apache.cassandra.service.CacheService;
 import org.apache.cassandra.tcm.ClusterMetadata;
@@ -111,6 +112,15 @@ public class ImportTest extends CQLTester
         importSSTables(SSTableImporter.Options.options(backupDir.toString()).copyData(true).build(), 10);
         // files are left there as they were just copied
         assertNotEquals(0, countFiles(backupDir));
+    }
+
+    @Test
+    public void importMetricsTest() throws Throwable
+    {
+        File backupDir = prepareBasicImporting();
+        TableMetrics metric = getCurrentColumnFamilyStore().metric;
+        importSSTables(SSTableImporter.Options.options(backupDir.toString()).build(), 10);
+        assertEquals(getCurrentColumnFamilyStore().getLiveSSTables().size(), metric.importedSSTables.getCount());
     }
 
     private File prepareBasicImporting() throws Throwable

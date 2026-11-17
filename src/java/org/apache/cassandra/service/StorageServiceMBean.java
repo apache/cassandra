@@ -897,6 +897,9 @@ public interface StorageServiceMBean extends NotificationEmitter
     public int getCompressedReadAheadBufferInKB();
     public void setCompressedReadAheadBufferInKB(int sizeInKb);
 
+    public int getSequentialReadBufferInKB();
+    public void setSequentialReadBufferInKB(int sizeInKb);
+
     public int getBatchlogReplayThrottleInKB();
     public void setBatchlogReplayThrottleInKB(int value);
 

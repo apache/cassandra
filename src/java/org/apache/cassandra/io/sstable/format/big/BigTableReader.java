@@ -35,6 +35,7 @@ import com.google.common.collect.Lists;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.db.ClusteringBound;
 import org.apache.cassandra.db.ColumnFamilyStore;
 import org.apache.cassandra.db.DataRange;
@@ -667,7 +668,7 @@ public class BigTableReader extends SSTableReaderWithFilter implements IndexSumm
     private IndexSummary buildSummaryAtLevel(int newSamplingLevel) throws IOException
     {
         // we read the positions in a BRAF, so we don't have to worry about an entry spanning a mmap boundary.
-        RandomAccessReader primaryIndex = RandomAccessReader.open(descriptor.fileFor(Components.PRIMARY_INDEX));
+        RandomAccessReader primaryIndex = RandomAccessReader.open(descriptor.fileFor(Components.PRIMARY_INDEX), DatabaseDescriptor.getSequentialReadBufferSize());
         try
         {
             long indexSize = primaryIndex.length();

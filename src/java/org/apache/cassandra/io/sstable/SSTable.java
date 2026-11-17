@@ -17,6 +17,7 @@
  */
 package org.apache.cassandra.io.sstable;
 
+import java.io.IOException;
 import java.lang.ref.WeakReference;
 import java.nio.ByteBuffer;
 import java.util.ArrayList;
@@ -45,6 +46,7 @@ import org.apache.cassandra.db.lifecycle.Tracker;
 import org.apache.cassandra.dht.AbstractBounds;
 import org.apache.cassandra.dht.IPartitioner;
 import org.apache.cassandra.dht.Token;
+import org.apache.cassandra.io.FSWriteError;
 import org.apache.cassandra.io.sstable.format.SSTableFormat;
 import org.apache.cassandra.io.sstable.format.SSTableFormat.Components;
 import org.apache.cassandra.io.sstable.format.TOCComponent;
@@ -54,6 +56,7 @@ import org.apache.cassandra.metrics.TableMetrics;
 import org.apache.cassandra.schema.TableMetadata;
 import org.apache.cassandra.schema.TableMetadataRef;
 import org.apache.cassandra.utils.Pair;
+import org.apache.cassandra.utils.SyncUtil;
 import org.apache.cassandra.utils.TimeUUID;
 import org.apache.cassandra.utils.concurrent.OpOrder;
 import org.apache.cassandra.utils.concurrent.SharedCloseable;
@@ -126,15 +129,28 @@ public abstract class SSTable
         components.stream()
                   .filter(c -> !newdesc.getFormat().generatedOnLoadComponents().contains(c))
                   .filter(c -> !c.equals(Components.DATA))
-                  .forEach(c -> FileUtils.copyWithConfirm(tmpdesc.fileFor(c), newdesc.fileFor(c)));
+                  .forEach(c -> copyAndSync(tmpdesc.fileFor(c), newdesc.fileFor(c)));
 
         // do -Data last because -Data present should mean the sstable was completely copied before crash
-        FileUtils.copyWithConfirm(tmpdesc.fileFor(Components.DATA), newdesc.fileFor(Components.DATA));
+        copyAndSync(tmpdesc.fileFor(Components.DATA), newdesc.fileFor(Components.DATA));
 
         // copy it without confirmation because summary can be available for loadNewSSTables but not for closeAndOpenReader
         components.stream()
                   .filter(c -> newdesc.getFormat().generatedOnLoadComponents().contains(c))
                   .forEach(c -> FileUtils.copyWithOutConfirm(tmpdesc.fileFor(c), newdesc.fileFor(c)));
+    }
+
+    private static void copyAndSync(File from, File to)
+    {
+        FileUtils.copyWithConfirm(from, to);
+        try
+        {
+            SyncUtil.force(to);
+        }
+        catch (IOException e)
+        {
+            throw new FSWriteError(e, to);
+        }
     }
 
     public static void hardlink(Descriptor tmpdesc, Descriptor newdesc, Set<Component> components)

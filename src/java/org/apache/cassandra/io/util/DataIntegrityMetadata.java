@@ -20,9 +20,9 @@ package org.apache.cassandra.io.util;
 import java.io.Closeable;
 import java.io.IOException;
 import java.nio.ByteBuffer;
-import java.util.zip.CheckedInputStream;
 import java.util.zip.Checksum;
 
+import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.utils.ChecksumType;
 
 public class DataIntegrityMetadata
@@ -104,8 +104,7 @@ public class DataIntegrityMetadata
         public void validate() throws IOException
         {
             try (RandomAccessReader digestReader = RandomAccessReader.open(digestFile);
-                 RandomAccessReader dataReader = RandomAccessReader.open(dataFile);
-                 CheckedInputStream checkedInputStream = new CheckedInputStream(dataReader, checksum);)
+                 RandomAccessReader dataReader = RandomAccessReader.open(dataFile, DatabaseDescriptor.getSequentialReadBufferSize());)
             {
                 long storedDigestValue;
                 try
@@ -116,9 +115,16 @@ public class DataIntegrityMetadata
                 {
                     throw new IOException(String.format("Corrupted file: invalid digest value in %s", digestFile), e);
                 }
-                byte[] chunk = new byte[64 * 1024];
-                while (checkedInputStream.read(chunk) > 0) ;
-                long calculatedDigestValue = checkedInputStream.getChecksum().getValue();
+
+                while (true)
+                {
+                    dataReader.reBuffer();
+                    if (!dataReader.buffer.hasRemaining())
+                        break;
+                    checksum.update(dataReader.buffer);
+                }
+
+                long calculatedDigestValue = this.checksum.getValue();
                 if (storedDigestValue != calculatedDigestValue)
                     throw new IOException(String.format("Corrupted file: integrity check (digest) failed for %s: %d != %d", dataFile, storedDigestValue, calculatedDigestValue));
             }
