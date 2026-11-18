@@ -18,6 +18,10 @@
 
 package org.apache.cassandra.locator;
 
+import java.io.IOException;
+import java.net.InetSocketAddress;
+import java.net.Socket;
+import java.net.UnknownHostException;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
@@ -25,7 +29,9 @@ import java.util.HashSet;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 import java.util.Set;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ThreadLocalRandom;
 import java.util.function.Consumer;
 import java.util.function.Function;
@@ -55,7 +61,11 @@ import org.apache.cassandra.db.PartitionPosition;
 import org.apache.cassandra.dht.AbstractBounds;
 import org.apache.cassandra.dht.Token;
 import org.apache.cassandra.exceptions.UnavailableException;
+import org.apache.cassandra.gms.ApplicationState;
+import org.apache.cassandra.gms.EndpointState;
 import org.apache.cassandra.gms.FailureDetector;
+import org.apache.cassandra.gms.Gossiper;
+import org.apache.cassandra.gms.VersionedValue;
 import org.apache.cassandra.schema.SchemaConstants;
 import org.apache.cassandra.service.StorageService;
 import org.apache.cassandra.service.reads.AlwaysSpeculativeRetryPolicy;
@@ -79,6 +89,9 @@ public class ReplicaPlans
 
     private static final int REQUIRED_BATCHLOG_REPLICA_COUNT
             = Math.max(1, Math.min(2, CassandraRelevantProperties.REQUIRED_BATCHLOG_REPLICA_COUNT.getInt()));
+
+    private static final Map<InetAddressAndPort, CacheEntry> reachabilityCache = new ConcurrentHashMap<>();
+    private static final int CACHE_TTL_MS = 30000; // 30 seconds
 
     static
     {
@@ -295,8 +308,27 @@ public class ReplicaPlans
         for (Map.Entry<String, InetAddressAndPort> entry : endpoints.entries())
         {
             InetAddressAndPort addr = entry.getValue();
-            if (!addr.equals(FBUtilities.getBroadcastAddressAndPort()) && isAlive.test(addr))
-                validated.put(entry.getKey(), entry.getValue());
+
+            // Skip local address and nodes marked down by FailureDetector
+            if (addr.equals(FBUtilities.getBroadcastAddressAndPort()))
+                continue;
+
+            if (!isAlive.test(addr))
+                continue;
+
+            // Check for intra dc connectivity on private network. Cache the result for 30 seconds.
+            // Valid for topology where two newtwork interfaces are used.
+            Optional<InetAddressAndPort> maybeInternal = getInternalAddressAndPort(addr);
+            if (maybeInternal.isPresent()) {
+                InetAddressAndPort internal = maybeInternal.get();
+                if (isReachableWithCache(internal, CACHE_TTL_MS)) {
+                    validated.put(entry.getKey(), addr);
+                }
+            } else {
+                // No internal address means either it's a single-interface node or gossip isn't set up;
+                // trust isAlive (failure detector) in this case.
+                validated.put(entry.getKey(), addr);
+            }
         }
 
         // return early if no more than 2 nodes:
@@ -413,12 +445,85 @@ public class ReplicaPlans
                     continue;
                 if (result.contains(endpoint))
                     continue;
-
                 result.add(endpoint);
             }
         }
-
         return result;
+    }
+
+    private static Optional<InetAddressAndPort> getInternalAddressAndPort(InetAddressAndPort endpoint)
+    {
+        EndpointState state = Gossiper.instance.getEndpointStateForEndpoint(endpoint);
+        if (state == null)
+        {
+            logger.debug("No EndpointState found for endpoint: {}", endpoint);
+            return Optional.empty();
+        }
+
+        VersionedValue internal = state.getApplicationState(ApplicationState.INTERNAL_ADDRESS_AND_PORT);
+        if (internal == null || internal.value == null || internal.value.trim().isEmpty())
+        {
+            logger.debug("No INTERNAL_ADDRESS_AND_PORT state for endpoint: {}", endpoint);
+            return Optional.empty();
+        }
+
+        try
+        {
+            InetAddressAndPort internalIp = InetAddressAndPort.getByName(internal.value.trim());
+            return Optional.of(InetAddressAndPort.getByAddressOverrideDefaults(internalIp.getAddress(), internalIp.getPort()));
+        }
+        catch (UnknownHostException e)
+        {
+            logger.warn("Failed to parse INTERNAL_ADDRESS_AND_PORT [{}] for endpoint: {} due to {}", internal.value, endpoint, e.getMessage());
+            return Optional.empty();
+        }
+    }
+
+    @VisibleForTesting
+    public static class CacheEntry
+    {
+        boolean reachable;
+        long timestampMillis;
+
+        public CacheEntry(boolean reachable, long timestampMillis)
+        {
+            this.reachable = reachable;
+            this.timestampMillis = timestampMillis;
+        }
+    }
+
+    // Check reachability with cache
+    private static boolean isReachableWithCache(InetAddressAndPort address, int timeoutMs)
+    {
+        if (address == null)
+        {
+            logger.debug("Null address provided to isReachableWithCache, treating as unreachable.");
+            return false;
+        }
+
+        long now = FBUtilities.now().toEpochMilli();
+        CacheEntry entry = reachabilityCache.get(address);
+
+        if (entry != null && (now - entry.timestampMillis) < CACHE_TTL_MS) {
+            logger.trace("Using cached reachability for {}: {}", address, entry.reachable);
+            return entry.reachable;
+        }
+
+        boolean reachable = isReachableOnce(address, timeoutMs);
+        reachabilityCache.put(address, new CacheEntry(reachable, now));
+        logger.debug("Refreshed reachability for {}: {}", address, reachable);
+        return reachable;
+    }
+
+    private static boolean isReachableOnce(InetAddressAndPort address, int timeoutMs)
+    {
+        try (Socket socket = new Socket()) {
+            socket.connect(new InetSocketAddress(address.getAddress(), address.getPort()), timeoutMs);
+            return true;
+        } catch (IOException e) {
+            logger.trace("Unreachable: {} due to {}", address, e.toString());
+            return false;
+        }
     }
 
     @VisibleForTesting
