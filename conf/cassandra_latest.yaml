@@ -1113,11 +1113,11 @@ native_transport_allow_older_protocols: true
 # The connection is closed without an error being sent to the client, which sees only
 # a closed connection. Closed connections are counted in the AuthTimeout client metric.
 #
-# Authentication timeouts are enabled by default (5000ms). Set to 0ms to disable.
+# Authentication timeouts are enabled by default (15000ms). Set to 0ms to disable.
 # The timeout can be changed at runtime via JMX (StorageServiceMBean), the new value
 # applies to connections established after the change.
 # Min unit: ms
-# native_transport_auth_timeout: 5000ms
+# native_transport_auth_timeout: 15000ms
 
 # When enabled, limits the number of native transport requests dispatched for processing per second.
 # Behavior once the limit has been breached depends on the value of THROW_ON_OVERLOAD specified in
