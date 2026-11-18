@@ -269,13 +269,22 @@ public class SimpleClient implements Closeable
         return this;
     }
 
+    public boolean isOpen()
+    {
+        return channel.isOpen();
+    }
+
     public void setEventHandler(EventHandler eventHandler)
     {
         responseHandler.eventHandler = eventHandler;
     }
 
+    /**
+     * Establishes the TCP/Netty connection to the server, but does not send any messages. This is useful for testing
+     * the server's behavior when a client connects but does not send any messages.
+     */
     @VisibleForTesting
-    void establishConnection() throws IOException
+    public void establishConnection() throws IOException
     {
         // Configure the client.
         bootstrap = new Bootstrap()
