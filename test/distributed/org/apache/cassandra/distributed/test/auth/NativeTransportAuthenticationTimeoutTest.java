@@ -19,9 +19,10 @@
 package org.apache.cassandra.distributed.test.auth;
 
 import java.io.IOException;
+import java.time.Duration;
 import java.util.concurrent.TimeUnit;
 
-import org.assertj.core.api.Assertions;
+import org.awaitility.Awaitility;
 import org.junit.BeforeClass;
 import org.junit.Test;
 
@@ -38,6 +39,8 @@ import org.apache.cassandra.transport.messages.AuthSuccess;
 import static org.apache.cassandra.distributed.api.Feature.GOSSIP;
 import static org.apache.cassandra.distributed.api.Feature.NATIVE_PROTOCOL;
 import static org.apache.cassandra.distributed.api.Feature.NETWORK;
+import static org.apache.cassandra.utils.AssertionUtils.assertThatThrownBy;
+import static org.assertj.core.api.Assertions.assertThat;
 
 public class NativeTransportAuthenticationTimeoutTest extends TestBaseImpl
 {
@@ -61,9 +64,9 @@ public class NativeTransportAuthenticationTimeoutTest extends TestBaseImpl
             try (SimpleClient client = new SimpleClient(host.address, host.port))
             {
                 client.establishConnection();
-                Assertions.assertThat(client.isOpen())
-                          .as("Connection should initially be open")
-                          .isTrue();
+                assertThat(client.isOpen())
+                .as("Connection should initially be open")
+                .isTrue();
 
                 assertConnectionEventuallyCloses(client);
             }
@@ -83,9 +86,9 @@ public class NativeTransportAuthenticationTimeoutTest extends TestBaseImpl
             try (SimpleClient client = new SimpleClient(host.address, host.port))
             {
                 client.connect(false);
-                Assertions.assertThat(client.isOpen())
-                          .as("Connection should initially be open")
-                          .isTrue();
+                assertThat(client.isOpen())
+                .as("Connection should initially be open")
+                .isTrue();
 
                 assertConnectionEventuallyCloses(client);
             }
@@ -105,25 +108,28 @@ public class NativeTransportAuthenticationTimeoutTest extends TestBaseImpl
                 client.connect(false);
                 AuthSuccess response = (AuthSuccess) client.execute(new AuthResponse(
                 AuthTestUtils.getToken("cassandra", "cassandra")));
-                Assertions.assertThat(response)
-                          .as("Expected successful authentication")
-                          .isNotNull();
-                Assertions.assertThat(client.isOpen())
-                          .as("Authenticated connection should remain open")
-                          .isTrue();
+                assertThat(response)
+                .as("Expected successful authentication")
+                .isNotNull();
+                assertThat(client.isOpen())
+                .as("Authenticated connection should remain open")
+                .isTrue();
 
-                TimeUnit.MILLISECONDS.sleep(AUTH_TIMEOUT_MS + 500);
+                Awaitility.await()
+                          .pollInterval(100, TimeUnit.MILLISECONDS)
+                          .during(Duration.ofMillis(AUTH_TIMEOUT_MS + 500))
+                          .until(client::isOpen);
 
-                Assertions.assertThat(client.isOpen())
-                          .as("Authenticated connection must not be closed by authentication timeout")
-                          .isTrue();
+                assertThat(client.isOpen())
+                .as("Authenticated connection must not be closed by authentication timeout")
+                .isTrue();
 
                 client.execute("SELECT * FROM system.local", ConsistencyLevel.ONE);
             }
 
-            Assertions.assertThat(cluster.get(1).logs().grep(TIMEOUT_LOG_MSG).getResult())
-                      .as("Timeout log should not appear for successfully authenticated connections")
-                      .isEmpty();
+            assertThat(cluster.get(1).logs().grep(TIMEOUT_LOG_MSG).getResult())
+                                           .as("Timeout log should not appear for successfully authenticated connections")
+                                           .hasSize(0);
         }
     }
 
@@ -138,9 +144,9 @@ public class NativeTransportAuthenticationTimeoutTest extends TestBaseImpl
             try (SimpleClient client = new SimpleClient(host.address, host.port))
             {
                 client.connect(false);
-                Assertions.assertThatThrownBy(() -> client.execute(new AuthResponse(
-                          AuthTestUtils.getToken("cassandra", "wrong_password"))))
-                          .hasRootCauseInstanceOf(AuthenticationException.class);
+                assertThatThrownBy(() -> client.execute(new AuthResponse(
+                AuthTestUtils.getToken("cassandra", "wrong_password"))))
+                .hasRootCauseInstanceOf(AuthenticationException.class);
                 assertConnectionEventuallyCloses(client);
             }
             cluster.get(1).logs().watchFor(mark, TIMEOUT_LOG_MSG);
@@ -159,13 +165,17 @@ public class NativeTransportAuthenticationTimeoutTest extends TestBaseImpl
             try (SimpleClient client = new SimpleClient(host.address, host.port))
             {
                 client.establishConnection();
-                Assertions.assertThat(client.isOpen()).isTrue();
+                assertThat(client.isOpen()).isTrue();
             } // client closes here via try-with-resources
 
-            TimeUnit.MILLISECONDS.sleep(AUTH_TIMEOUT_MS + 500);
-            Assertions.assertThat(cluster.get(1).logs().grep(mark, TIMEOUT_LOG_MSG).getResult())
-                      .as("Timeout log should not appear if client disconnected voluntarily")
-                      .isEmpty();
+            Awaitility.await()
+                      .pollInterval(100, TimeUnit.MILLISECONDS)
+                      .during(Duration.ofMillis(AUTH_TIMEOUT_MS + 500))
+                      .until(() -> cluster.get(1).logs().grep(mark, TIMEOUT_LOG_MSG).getResult().isEmpty());
+
+            assertThat(cluster.get(1).logs().grep(mark, TIMEOUT_LOG_MSG).getResult())
+            .as("Timeout log should not appear if client disconnected voluntarily")
+            .hasSize(0);
         }
     }
 
@@ -182,18 +192,21 @@ public class NativeTransportAuthenticationTimeoutTest extends TestBaseImpl
             try (SimpleClient client = new SimpleClient(host.address, host.port))
             {
                 client.establishConnection();
-                Assertions.assertThat(client.isOpen()).isTrue();
+                assertThat(client.isOpen()).isTrue();
 
-                TimeUnit.MILLISECONDS.sleep(AUTH_TIMEOUT_MS + 500);
+                Awaitility.await()
+                          .pollInterval(100, TimeUnit.MILLISECONDS)
+                          .during(Duration.ofMillis(AUTH_TIMEOUT_MS + 500))
+                          .until(client::isOpen);
 
-                Assertions.assertThat(client.isOpen())
-                          .as("Connection should remain open when auth timeout is disabled (0ms)")
-                          .isTrue();
+                assertThat(client.isOpen())
+                .as("Connection should remain open when auth timeout is disabled (0ms)")
+                .isTrue();
             }
 
-            Assertions.assertThat(cluster.get(1).logs().grep(TIMEOUT_LOG_MSG).getResult())
-                      .as("Timeout log should not appear when feature is disabled")
-                      .isEmpty();
+            org.assertj.core.api.Assertions.assertThat(cluster.get(1).logs().grep(TIMEOUT_LOG_MSG).getResult())
+                                           .as("Timeout log should not appear when feature is disabled")
+                                           .hasSize(0);
         }
     }
 
@@ -208,16 +221,15 @@ public class NativeTransportAuthenticationTimeoutTest extends TestBaseImpl
     }
 
     private static void assertConnectionEventuallyCloses(SimpleClient client)
-    throws InterruptedException
     {
-        long deadline = System.nanoTime() + TimeUnit.SECONDS.toNanos(10);
+        Awaitility.await()
+                  .atMost(10, TimeUnit.SECONDS)
+                  .pollInterval(25, TimeUnit.MILLISECONDS)
+                  .until(() -> !client.isOpen());
 
-        while (client.isOpen() && System.nanoTime() < deadline)
-            Thread.sleep(25);
-
-        Assertions.assertThat(client.isOpen())
-                  .as("Connection should close when authentication is not completed")
-                  .isFalse();
+        assertThat(client.isOpen())
+        .as("Connection should close when authentication is not completed")
+        .isFalse();
     }
 
     private static InetSocketHost hostAndPort(Cluster cluster)

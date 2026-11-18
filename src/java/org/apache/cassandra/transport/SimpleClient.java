@@ -274,6 +274,11 @@ public class SimpleClient implements Closeable
         return channel.isOpen();
     }
 
+    public ChannelPipeline channelPipeline()
+    {
+        return channel.pipeline();
+    }
+
     public void setEventHandler(EventHandler eventHandler)
     {
         responseHandler.eventHandler = eventHandler;
