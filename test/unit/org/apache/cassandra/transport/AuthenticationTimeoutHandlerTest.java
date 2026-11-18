@@ -38,12 +38,15 @@ import org.apache.cassandra.transport.messages.StartupMessage;
 import org.apache.cassandra.transport.messages.SupportedMessage;
 
 import io.netty.channel.Channel;
+import io.netty.channel.embedded.EmbeddedChannel;
 
 import static org.apache.cassandra.auth.AuthTestUtils.getToken;
 import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertNotNull;
 import static org.junit.Assert.assertNull;
 import static org.junit.Assert.assertTrue;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.when;
 
 public class AuthenticationTimeoutHandlerTest extends CQLTester
 {
@@ -156,6 +159,42 @@ public class AuthenticationTimeoutHandlerTest extends CQLTester
             }
             assertFalse("Unauthenticated activity must not prevent the timeout", client.channel.isOpen());
         }
+    }
+
+    @Test
+    public void testTimeoutClosesConnectionWhichIsNotReady()
+    {
+        EmbeddedChannel channel = new EmbeddedChannel(new AuthenticationTimeoutHandler(AUTH_TIMEOUT_MS));
+        setConnectionInStage(channel, ConnectionStage.AUTHENTICATING);
+
+        channel.advanceTimeBy(AUTH_TIMEOUT_MS + 1, TimeUnit.MILLISECONDS);
+        channel.runScheduledPendingTasks();
+
+        assertFalse("Connection which is still authenticating should be closed by the timeout", channel.isOpen());
+    }
+
+    /**
+     * The stage becomes READY on a request thread and the handler is removed later on the event loop. A timeout
+     * firing in between must not close a connection which has authenticated.
+     */
+    @Test
+    public void testTimeoutKeepsConnectionWhichIsReadyButHandlerIsNotRemovedYet()
+    {
+        EmbeddedChannel channel = new EmbeddedChannel(new AuthenticationTimeoutHandler(AUTH_TIMEOUT_MS));
+        setConnectionInStage(channel, ConnectionStage.READY);
+
+        channel.advanceTimeBy(AUTH_TIMEOUT_MS + 1, TimeUnit.MILLISECONDS);
+        channel.runScheduledPendingTasks();
+
+        assertTrue("Connection which is READY should not be closed by the timeout", channel.isOpen());
+        channel.close();
+    }
+
+    private static void setConnectionInStage(Channel channel, ConnectionStage stage)
+    {
+        ServerConnection connection = mock(ServerConnection.class);
+        when(connection.stage()).thenReturn(stage);
+        channel.attr(Connection.attributeKey).set(connection);
     }
 
     public static void assertAuthenticationTimeoutHandlerRemoved(SimpleClient client)

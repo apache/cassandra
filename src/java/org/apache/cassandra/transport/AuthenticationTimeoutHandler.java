@@ -23,6 +23,7 @@ import java.util.concurrent.TimeUnit;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import io.netty.channel.Channel;
 import io.netty.channel.ChannelHandlerContext;
 import io.netty.channel.ChannelInboundHandlerAdapter;
 
@@ -48,11 +49,22 @@ final class AuthenticationTimeoutHandler extends ChannelInboundHandlerAdapter
     public void channelActive(ChannelHandlerContext ctx) throws Exception
     {
         timeoutFuture = ctx.executor().schedule(() -> {
+            // The stage becomes READY on a request thread, which then asks the event loop to remove this handler.
+            // If this task runs in between, authentication has completed and the connection has to be kept.
+            if (isAuthenticated(ctx.channel()))
+                return;
+
             logger.warn("Closing unauthenticated client connection {} because it did not complete authentication within {}ms (native_transport_auth_timeout)", ctx.channel().remoteAddress(), timeoutMillis);
             ctx.close();
         }, timeoutMillis, TimeUnit.MILLISECONDS);
 
         super.channelActive(ctx);
+    }
+
+    private static boolean isAuthenticated(Channel channel)
+    {
+        Connection connection = channel.attr(Connection.attributeKey).get();
+        return connection instanceof ServerConnection && ((ServerConnection) connection).stage() == ConnectionStage.READY;
     }
 
     void markAuthenticationComplete(ChannelHandlerContext ctx)
