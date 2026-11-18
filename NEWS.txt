@@ -94,6 +94,15 @@ New features
       deployments that authenticate over mutual TLS. PasswordDefaultRoleInitializer
       remains the default and produces the historical behaviour. See CASSANDRA-21546
       for more information.
+    - A native transport connection now has to finish authentication within native_transport_auth_timeout,
+      a new parameter in cassandra.yaml which defaults to 15000ms. The time is counted from the moment the TCP
+      connection is established, it includes the TLS handshake, and activity on the connection does not extend it.
+      A connection which is not ready for requests by then is closed without an error being sent, so the client
+      sees only a closed connection. Closed connections are counted in the AuthTimeout client metric. Clients
+      configured to wait longer than 15 seconds for a connection need this value raised accordingly. Set it to
+      0ms to disable the timeout. It can be changed at runtime with setNativeTransportAuthTimeoutMillis on
+      StorageServiceMBean, the new value applies to connections established after the change.
+      See CASSANDRA-21756 for more information.
 
 Upgrading
 ---------
