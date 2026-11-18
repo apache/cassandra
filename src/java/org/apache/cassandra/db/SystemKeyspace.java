@@ -112,6 +112,7 @@ import org.apache.cassandra.service.paxos.Commit;
 import org.apache.cassandra.service.paxos.Commit.Accepted;
 import org.apache.cassandra.service.paxos.Commit.AcceptedWithTTL;
 import org.apache.cassandra.service.paxos.Commit.Committed;
+import org.apache.cassandra.service.paxos.PaxosPartitionUpdateBlob;
 import org.apache.cassandra.service.paxos.PaxosRepairHistory;
 import org.apache.cassandra.service.paxos.PaxosState;
 import org.apache.cassandra.service.paxos.uncommitted.PaxosRows;
@@ -1475,7 +1476,7 @@ public final class SystemKeyspace
         if (promised.uuidTimestamp() < purgeBefore) promised = Ballot.none();
 
         // either we have both a recently accepted ballot and update or we have neither
-        Accepted accepted = PaxosRows.getAccepted(row, purgeBefore, overrideTtlSeconds);
+        Accepted accepted = PaxosRows.getAccepted(partitionKey, row, purgeBefore, overrideTtlSeconds);
         Committed committed = PaxosRows.getCommitted(metadata, partitionKey, row, purgeBefore, overrideTtlSeconds);
         // fix a race with TTL/deletion resolution, where TTL expires after equal deletion is inserted; TTL wins the resolution, and is read using an old ballot's nowInSec
         if (accepted != null && !accepted.isAfter(committed))
@@ -1536,6 +1537,15 @@ public final class SystemKeyspace
         }
     }
 
+    private static ByteBuffer paxosPartitionUpdate(Commit commit)
+    {
+        return PaxosPartitionUpdateBlob.encode(commit.update,
+                                               MessagingService.current_version,
+                                               commit.update.partitionKey().getKey(),
+                                               commit.update.metadata().id.asUUID(),
+                                               commit.ballot);
+    }
+
     public static void savePaxosProposal(Commit proposal)
     {
         if (proposal instanceof AcceptedWithTTL)
@@ -1549,7 +1559,7 @@ public final class SystemKeyspace
                                         proposal.ballot.unixMicros(),
                                         ttlInSec,
                                         proposal.ballot,
-                                        PartitionUpdate.toBytes(proposal.update, MessagingService.current_version),
+                                        paxosPartitionUpdate(proposal),
                                         MessagingService.current_version,
                                         proposal.update.partitionKey().getKey(),
                                         proposal.update.metadata().id.asUUID());
@@ -1560,7 +1570,7 @@ public final class SystemKeyspace
             executeInternal(cql,
                             proposal.ballot.unixMicros(),
                             proposal.ballot,
-                            PartitionUpdate.toBytes(proposal.update, MessagingService.current_version),
+                            paxosPartitionUpdate(proposal),
                             MessagingService.current_version,
                             proposal.update.partitionKey().getKey(),
                             proposal.update.metadata().id.asUUID());
@@ -1582,7 +1592,7 @@ public final class SystemKeyspace
                             commit.ballot.unixMicros(),
                             ttlInSec,
                             commit.ballot,
-                            PartitionUpdate.toBytes(commit.update, MessagingService.current_version),
+                            paxosPartitionUpdate(commit),
                             MessagingService.current_version,
                             commit.update.partitionKey().getKey(),
                             commit.update.metadata().id.asUUID());
@@ -1593,7 +1603,7 @@ public final class SystemKeyspace
             executeInternal(cql,
                             commit.ballot.unixMicros(),
                             commit.ballot,
-                            PartitionUpdate.toBytes(commit.update, MessagingService.current_version),
+                            paxosPartitionUpdate(commit),
                             MessagingService.current_version,
                             commit.update.partitionKey().getKey(),
                             commit.update.metadata().id.asUUID());

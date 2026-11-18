@@ -24,6 +24,7 @@ import java.util.ArrayList;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
+import java.util.UUID;
 
 import javax.annotation.Nonnull;
 
@@ -83,6 +84,7 @@ import org.apache.cassandra.service.accord.api.PartitionKey;
 import org.apache.cassandra.service.accord.serializers.TableMetadatas;
 import org.apache.cassandra.tcm.ClusterMetadata;
 import org.apache.cassandra.tcm.Epoch;
+import org.apache.cassandra.utils.ByteBufferUtil;
 import org.apache.cassandra.utils.btree.BTree;
 import org.apache.cassandra.utils.btree.UpdateFunction;
 import org.apache.cassandra.utils.vint.VIntCoding;
@@ -857,12 +859,26 @@ public class PartitionUpdate extends AbstractBTreePartition
                                        false);
         }
 
-        public static boolean isEmpty(ByteBuffer in, DeserializationHelper.Flag flag, DecoratedKey key, int version) throws IOException
+        /**
+         * Reads the empty flag from a serialized update without deserializing it.
+         *
+         * The table id and the partition key in the bytes must match {@code cfId} and
+         * {@code rowKey}. A mismatch means the bytes were not written at {@code version}, or belong
+         * to another partition, so the flags byte would be read from the wrong offset.
+         *
+         * @throws IOException if the table id or key does not match, or the buffer is too short
+         */
+        public static boolean isEmpty(ByteBuffer in, ByteBuffer rowKey, UUID cfId, int version) throws IOException
         {
             int position = in.position();
-            position += 16; // CFMetaData.serializer.deserialize(in, version);
-            if (position >= in.limit())
+            if (position + 16 >= in.limit())
                 throw new EOFException();
+
+            long msb = in.getLong(position);
+            long lsb = in.getLong(position + 8);
+            if (msb != cfId.getMostSignificantBits() || lsb != cfId.getLeastSignificantBits())
+                throw new IOException("table id " + new UUID(msb, lsb) + " in the update is not " + cfId);
+            position += 16;
 
             if (version >= MessagingService.VERSION_60)
             {
@@ -870,13 +886,18 @@ public class PartitionUpdate extends AbstractBTreePartition
                 position += VIntCoding.computeUnsignedVIntSize(epoch);
             }
 
-            // DecoratedKey key = metadata.decorateKey(ByteBufferUtil.readWithVIntLength(in));
             int keyLength = VIntCoding.getUnsignedVInt32(in, position);
-            position += keyLength + VIntCoding.computeUnsignedVIntSize(keyLength);
-            if (position >= in.limit())
+            if (keyLength != rowKey.remaining())
+                throw new IOException("partition key length " + keyLength + " in the update is not " + rowKey.remaining());
+
+            int keyStart = position + VIntCoding.computeUnsignedVIntSize(keyLength);
+            int keyEnd = keyStart + keyLength;
+            if (keyEnd >= in.limit())
                 throw new EOFException();
-            int flags = in.get(position) & 0xff;
-            return (flags & IS_EMPTY) != 0;
+            if (ByteBufferUtil.compareSubArrays(in, keyStart, rowKey, rowKey.position(), keyLength) != 0)
+                throw new IOException("partition key in the update is not the expected key");
+
+            return (in.get(keyEnd) & 0xff & IS_EMPTY) != 0;
         }
 
         public long serializedSize(PartitionUpdate update, int version)
@@ -884,7 +905,7 @@ public class PartitionUpdate extends AbstractBTreePartition
             try (UnfilteredRowIterator iter = update.unfilteredIterator())
             {
                 return update.metadata.id.serializedSize()
-                     + (version >= MessagingService.VERSION_60 ? Epoch.serializer.serializedSize(update.metadata.epoch) : 0)
+                     + (version >= MessagingService.VERSION_60 ? Epoch.serializer.serializedSize(update.metadata.epoch != null ? update.metadata.epoch : Epoch.EMPTY) : 0)
                      + UnfilteredRowIteratorSerializer.serializer.serializedSize(iter, null, version, update.rowCount());
             }
         }
