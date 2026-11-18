@@ -32,6 +32,7 @@ import org.apache.cassandra.db.ConsistencyLevel;
 import org.apache.cassandra.distributed.Cluster;
 import org.apache.cassandra.distributed.test.TestBaseImpl;
 import org.apache.cassandra.exceptions.AuthenticationException;
+import org.apache.cassandra.metrics.ClientMetrics;
 import org.apache.cassandra.transport.SimpleClient;
 import org.apache.cassandra.transport.messages.AuthResponse;
 import org.apache.cassandra.transport.messages.AuthSuccess;
@@ -60,6 +61,7 @@ public class NativeTransportAuthenticationTimeoutTest extends TestBaseImpl
         {
             InetSocketHost host = hostAndPort(cluster);
             long mark = cluster.get(1).logs().mark();
+            long timeoutsBefore = getAuthTimeoutCount(cluster);
 
             try (SimpleClient client = new SimpleClient(host.address, host.port))
             {
@@ -69,9 +71,15 @@ public class NativeTransportAuthenticationTimeoutTest extends TestBaseImpl
                 .isTrue();
 
                 assertConnectionEventuallyCloses(client);
+
+                assertThat(getAuthTimeoutCount(cluster))
+                .as("AuthTimeout metric should increment for an unauthenticated connection")
+                .isEqualTo(timeoutsBefore + 1);
             }
 
-            cluster.get(1).logs().watchFor(mark, TIMEOUT_LOG_MSG);
+            assertThat(cluster.get(1).logs().watchFor(mark, TIMEOUT_LOG_MSG).getResult())
+            .as("Server should log the timeout warning exactly once")
+            .hasSize(1);
         }
     }
 
@@ -82,6 +90,7 @@ public class NativeTransportAuthenticationTimeoutTest extends TestBaseImpl
         {
             InetSocketHost host = hostAndPort(cluster);
             long mark = cluster.get(1).logs().mark();
+            long timeoutsBefore = getAuthTimeoutCount(cluster);
 
             try (SimpleClient client = new SimpleClient(host.address, host.port))
             {
@@ -91,9 +100,15 @@ public class NativeTransportAuthenticationTimeoutTest extends TestBaseImpl
                 .isTrue();
 
                 assertConnectionEventuallyCloses(client);
+
+                assertThat(getAuthTimeoutCount(cluster))
+                .as("AuthTimeout metric should increment when authentication is incomplete")
+                .isEqualTo(timeoutsBefore + 1);
             }
 
-            cluster.get(1).logs().watchFor(mark, TIMEOUT_LOG_MSG);
+            assertThat(cluster.get(1).logs().watchFor(mark, TIMEOUT_LOG_MSG).getResult())
+            .as("Server should log the timeout warning exactly once")
+            .hasSize(1);
         }
     }
 
@@ -103,14 +118,18 @@ public class NativeTransportAuthenticationTimeoutTest extends TestBaseImpl
         try (Cluster cluster = startCluster())
         {
             InetSocketHost host = hostAndPort(cluster);
+            long timeoutsBefore = getAuthTimeoutCount(cluster);
+
             try (SimpleClient client = new SimpleClient(host.address, host.port))
             {
                 client.connect(false);
                 AuthSuccess response = (AuthSuccess) client.execute(new AuthResponse(
                 AuthTestUtils.getToken("cassandra", "cassandra")));
+
                 assertThat(response)
                 .as("Expected successful authentication")
                 .isNotNull();
+
                 assertThat(client.isOpen())
                 .as("Authenticated connection should remain open")
                 .isTrue();
@@ -127,9 +146,13 @@ public class NativeTransportAuthenticationTimeoutTest extends TestBaseImpl
                 client.execute("SELECT * FROM system.local", ConsistencyLevel.ONE);
             }
 
+            assertThat(getAuthTimeoutCount(cluster))
+            .as("AuthTimeout metric should not increment for successfully authenticated connections")
+            .isEqualTo(timeoutsBefore);
+
             assertThat(cluster.get(1).logs().grep(TIMEOUT_LOG_MSG).getResult())
-                                           .as("Timeout log should not appear for successfully authenticated connections")
-                                           .hasSize(0);
+            .as("Timeout log should not appear for successfully authenticated connections")
+            .isEmpty();
         }
     }
 
@@ -140,6 +163,7 @@ public class NativeTransportAuthenticationTimeoutTest extends TestBaseImpl
         {
             InetSocketHost host = hostAndPort(cluster);
             long mark = cluster.get(1).logs().mark();
+            long timeoutsBefore = getAuthTimeoutCount(cluster);
 
             try (SimpleClient client = new SimpleClient(host.address, host.port))
             {
@@ -147,9 +171,17 @@ public class NativeTransportAuthenticationTimeoutTest extends TestBaseImpl
                 assertThatThrownBy(() -> client.execute(new AuthResponse(
                 AuthTestUtils.getToken("cassandra", "wrong_password"))))
                 .hasRootCauseInstanceOf(AuthenticationException.class);
+
                 assertConnectionEventuallyCloses(client);
+
+                assertThat(getAuthTimeoutCount(cluster))
+                .as("AuthTimeout metric should increment when authentication does not complete")
+                .isEqualTo(timeoutsBefore + 1);
             }
-            cluster.get(1).logs().watchFor(mark, TIMEOUT_LOG_MSG);
+
+            assertThat(cluster.get(1).logs().watchFor(mark, TIMEOUT_LOG_MSG).getResult())
+            .as("Server should log the timeout warning exactly once")
+            .hasSize(1);
         }
     }
 
@@ -160,6 +192,7 @@ public class NativeTransportAuthenticationTimeoutTest extends TestBaseImpl
         {
             InetSocketHost host = hostAndPort(cluster);
             long mark = cluster.get(1).logs().mark();
+            long timeoutsBefore = getAuthTimeoutCount(cluster);
 
             // Connect and close immediately
             try (SimpleClient client = new SimpleClient(host.address, host.port))
@@ -173,9 +206,13 @@ public class NativeTransportAuthenticationTimeoutTest extends TestBaseImpl
                       .during(Duration.ofMillis(AUTH_TIMEOUT_MS + 500))
                       .until(() -> cluster.get(1).logs().grep(mark, TIMEOUT_LOG_MSG).getResult().isEmpty());
 
+            assertThat(getAuthTimeoutCount(cluster))
+            .as("AuthTimeout metric should not increment when the client disconnects voluntarily")
+            .isEqualTo(timeoutsBefore);
+
             assertThat(cluster.get(1).logs().grep(mark, TIMEOUT_LOG_MSG).getResult())
             .as("Timeout log should not appear if client disconnected voluntarily")
-            .hasSize(0);
+            .isEmpty();
         }
     }
 
@@ -189,6 +226,8 @@ public class NativeTransportAuthenticationTimeoutTest extends TestBaseImpl
                                            .start()))
         {
             InetSocketHost host = hostAndPort(cluster);
+            long timeoutsBefore = getAuthTimeoutCount(cluster);
+
             try (SimpleClient client = new SimpleClient(host.address, host.port))
             {
                 client.establishConnection();
@@ -204,10 +243,19 @@ public class NativeTransportAuthenticationTimeoutTest extends TestBaseImpl
                 .isTrue();
             }
 
-            org.assertj.core.api.Assertions.assertThat(cluster.get(1).logs().grep(TIMEOUT_LOG_MSG).getResult())
-                                           .as("Timeout log should not appear when feature is disabled")
-                                           .hasSize(0);
+            assertThat(getAuthTimeoutCount(cluster))
+            .as("AuthTimeout metric should not increment when the timeout is disabled")
+            .isEqualTo(timeoutsBefore);
+
+            assertThat(cluster.get(1).logs().grep(TIMEOUT_LOG_MSG).getResult())
+            .as("Timeout log should not appear when feature is disabled")
+            .isEmpty();
         }
+    }
+
+    private static long getAuthTimeoutCount(Cluster cluster)
+    {
+        return cluster.get(1).callOnInstance(() -> ClientMetrics.instance.getAuthTimeoutCount());
     }
 
     private static Cluster startCluster() throws IOException
@@ -254,3 +302,4 @@ public class NativeTransportAuthenticationTimeoutTest extends TestBaseImpl
         }
     }
 }
+

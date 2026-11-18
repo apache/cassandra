@@ -28,16 +28,18 @@ import java.util.concurrent.TimeUnit;
 import org.junit.BeforeClass;
 import org.junit.Test;
 
-import io.netty.handler.ssl.SslHandler;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.cql3.QueryProcessor;
 import org.apache.cassandra.db.ConsistencyLevel;
 import org.apache.cassandra.distributed.Cluster;
 import org.apache.cassandra.distributed.test.TestBaseImpl;
+import org.apache.cassandra.metrics.ClientMetrics;
 import org.apache.cassandra.transport.SimpleClient;
 import org.apache.cassandra.transport.TlsTestUtils;
 import org.apache.cassandra.transport.messages.ReadyMessage;
 import org.apache.cassandra.transport.messages.StartupMessage;
+
+import io.netty.handler.ssl.SslHandler;
 
 import static org.apache.cassandra.distributed.api.Feature.GOSSIP;
 import static org.apache.cassandra.distributed.api.Feature.NATIVE_PROTOCOL;
@@ -63,15 +65,22 @@ public class NativeTransportAuthenticationTimeoutTlsTest extends TestBaseImpl
         {
             InetSocketHost host = hostAndPort(cluster);
             long mark = cluster.get(1).logs().mark();
+            long timeoutsBefore = getAuthTimeoutCount(cluster);
+
             try (SimpleClient client = new SimpleClient(host.address, host.port))
             {
                 client.establishConnection();
                 assertThat(client.isOpen())
-                    .as("Connection should initially be open")
-                    .isTrue();
+                .as("Connection should initially be open")
+                .isTrue();
 
                 assertConnectionEventuallyCloses(client);
+
+                assertThat(getAuthTimeoutCount(cluster))
+                .as("AuthTimeout metric should increment when TLS handshake never starts")
+                .isEqualTo(timeoutsBefore + 1);
             }
+
             assertThat(cluster.get(1).logs().watchFor(mark, TIMEOUT_LOG_MSG).getResult())
             .as("Server should log the timeout warning exactly once")
             .hasSize(1);
@@ -85,15 +94,24 @@ public class NativeTransportAuthenticationTimeoutTlsTest extends TestBaseImpl
         {
             InetSocketHost host = hostAndPort(cluster);
             long mark = cluster.get(1).logs().mark();
+            long timeoutsBefore = getAuthTimeoutCount(cluster);
+
             try (SimpleClient client = newTlsClient(host))
             {
                 client.establishConnection();
                 awaitTlsHandshake(client);
+
                 assertThat(client.isOpen())
-                    .as("Connection should remain open after TLS handshake")
-                    .isTrue();
+                .as("Connection should remain open after TLS handshake")
+                .isTrue();
+
                 assertConnectionEventuallyCloses(client);
+
+                assertThat(getAuthTimeoutCount(cluster))
+                .as("AuthTimeout metric should increment when authentication does not complete after TLS handshake")
+                .isEqualTo(timeoutsBefore + 1);
             }
+
             assertThat(cluster.get(1).logs().watchFor(mark, TIMEOUT_LOG_MSG).getResult())
             .as("Server should log the timeout warning exactly once")
             .hasSize(1);
@@ -106,33 +124,50 @@ public class NativeTransportAuthenticationTimeoutTlsTest extends TestBaseImpl
         try (Cluster cluster = startCluster())
         {
             InetSocketHost host = hostAndPort(cluster);
+            long timeoutsBefore = getAuthTimeoutCount(cluster);
+
             try (SimpleClient client = newTlsClient(host))
             {
                 client.establishConnection();
                 awaitTlsHandshake(client);
 
                 StartupMessage startup = new StartupMessage(
-                    Collections.singletonMap(StartupMessage.CQL_VERSION, QueryProcessor.CQL_VERSION.toString()));
+                Collections.singletonMap(StartupMessage.CQL_VERSION, QueryProcessor.CQL_VERSION.toString()));
+
                 assertThat(client.execute(startup))
-                    .as("Expected READY response")
-                    .isInstanceOf(ReadyMessage.class);
+                .as("Expected READY response")
+                .isInstanceOf(ReadyMessage.class);
 
                 assertThat(client.isOpen())
-                    .as("Connection should initially be open")
-                    .isTrue();
+                .as("Connection should initially be open")
+                .isTrue();
+
                 await().pollInterval(100, TimeUnit.MILLISECONDS)
                        .during(Duration.ofMillis(AUTH_TIMEOUT_MS + 500))
                        .until(client::isOpen);
 
                 assertThat(client.isOpen())
-                    .as("Connection should remain open after reaching READY")
-                    .isTrue();
+                .as("Connection should remain open after reaching READY")
+                .isTrue();
+
                 client.execute("SELECT * FROM system.local", ConsistencyLevel.ONE);
             }
+
+            assertThat(getAuthTimeoutCount(cluster))
+            .as("AuthTimeout metric should not increment for successfully authenticated connections")
+            .isEqualTo(timeoutsBefore);
+
             assertThat(cluster.get(1).logs().grep(TIMEOUT_LOG_MSG).getResult())
-                .as("Timeout log should not appear for successful connections")
-                .isEmpty();
+            .as("Timeout log should not appear for successful connections")
+            .isEmpty();
         }
+    }
+
+    private static long getAuthTimeoutCount(Cluster cluster)
+    {
+        // Keep the lambda to avoid capturing ClientMetrics.instance in the serialized callable;
+        // a method reference would capture the non-serializable singleton.
+        return cluster.get(1).callOnInstance(() -> ClientMetrics.instance.getAuthTimeoutCount());
     }
 
     private static SimpleClient newTlsClient(InetSocketHost host)
@@ -145,15 +180,17 @@ public class NativeTransportAuthenticationTimeoutTlsTest extends TestBaseImpl
     private static void awaitTlsHandshake(SimpleClient client)
     {
         SslHandler sslHandler = client.channelPipeline().get(SslHandler.class);
-        assertThat(sslHandler).as("SslHandler should be present in pipeline").isNotNull();
+        assertThat(sslHandler)
+        .as("SslHandler should be present in pipeline")
+        .isNotNull();
 
         await().atMost(10, TimeUnit.SECONDS)
                .pollInterval(25, TimeUnit.MILLISECONDS)
                .until(() -> sslHandler.handshakeFuture().isDone());
 
         assertThat(sslHandler.handshakeFuture().isSuccess())
-            .as("TLS handshake should succeed")
-            .isTrue();
+        .as("TLS handshake should succeed")
+        .isTrue();
     }
 
     private static void assertConnectionEventuallyCloses(SimpleClient client)
@@ -163,8 +200,8 @@ public class NativeTransportAuthenticationTimeoutTlsTest extends TestBaseImpl
                .until(() -> !client.isOpen());
 
         assertThat(client.isOpen())
-            .as("Connection should close when authentication or handshake is not completed")
-            .isFalse();
+        .as("Connection should close when authentication or handshake is not completed")
+        .isFalse();
     }
 
     private static Cluster startCluster() throws IOException

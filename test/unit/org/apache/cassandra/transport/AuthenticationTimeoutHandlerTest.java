@@ -108,10 +108,13 @@ public class AuthenticationTimeoutHandlerTest extends CQLTester
     {
         EmbeddedChannel channel = newChannelWithHandler();
         setConnectionInStage(channel, ConnectionStage.AUTHENTICATING);
+        long timeoutsBefore = ClientMetrics.instance.getAuthTimeoutCount();
 
         advanceTimeBy(channel, AUTH_TIMEOUT_MS);
 
         assertFalse("Connection which is still authenticating should be closed by the timeout", channel.isOpen());
+        assertEquals("AuthTimeout metric should increment for a connection still authenticating",
+                     timeoutsBefore + 1, ClientMetrics.instance.getAuthTimeoutCount());
     }
 
     /**
@@ -136,6 +139,7 @@ public class AuthenticationTimeoutHandlerTest extends CQLTester
     public void testInboundActivityDoesNotResetTimeout()
     {
         EmbeddedChannel channel = newChannelWithHandler();
+        long timeoutsBefore = ClientMetrics.instance.getAuthTimeoutCount();
 
         // activity until right before the deadline
         for (int i = 0; i < 10 && channel.isOpen(); i++)
@@ -147,6 +151,8 @@ public class AuthenticationTimeoutHandlerTest extends CQLTester
 
         advanceTimeBy(channel, AUTH_TIMEOUT_MS);
         assertFalse("Activity of an unauthenticated connection must not prevent the timeout", channel.isOpen());
+        assertEquals("AuthTimeout metric should increment despite inbound activity",
+                     timeoutsBefore + 1, ClientMetrics.instance.getAuthTimeoutCount());
     }
 
     @Test
@@ -154,6 +160,7 @@ public class AuthenticationTimeoutHandlerTest extends CQLTester
     {
         AuthenticationTimeoutHandler handler = new AuthenticationTimeoutHandler(AUTH_TIMEOUT_MS);
         EmbeddedChannel channel = new EmbeddedChannel(handler);
+        long timeoutsBefore = ClientMetrics.instance.getAuthTimeoutCount();
 
         handler.markAuthenticationComplete(channel.pipeline().context(handler));
 
@@ -161,6 +168,8 @@ public class AuthenticationTimeoutHandlerTest extends CQLTester
         channel.advanceTimeBy(AUTH_TIMEOUT_MS, TimeUnit.MILLISECONDS);
         assertEquals("The timeout task should be cancelled", -1, channel.runScheduledPendingTasks());
         assertTrue("Authenticated connection must remain open after the deadline", channel.isOpen());
+        assertEquals("AuthTimeout metric should not increment after authentication completes",
+                     timeoutsBefore, ClientMetrics.instance.getAuthTimeoutCount());
         channel.close();
     }
 
@@ -217,17 +226,22 @@ public class AuthenticationTimeoutHandlerTest extends CQLTester
         DatabaseDescriptor.setNativeTransportAuthTimeout(AUTH_TIMEOUT_MS);
         try (SimpleClient client = new SimpleClient(nativeAddr.getHostAddress(), nativePort))
         {
+            long timeoutsBefore = ClientMetrics.instance.getAuthTimeoutCount();
             client.establishConnection();
             StartupMessage startup = new StartupMessage(Collections.singletonMap(StartupMessage.CQL_VERSION, QueryProcessor.CQL_VERSION.toString()));
             Message.Response response = client.execute(startup);
             assertTrue("Expected AUTHENTICATE response", response instanceof AuthenticateMessage);
             awaitClosed(client, "Connection should close when authentication is not completed");
+            assertEquals("AuthTimeout metric should increment when authentication is not completed",
+                         timeoutsBefore + 1, ClientMetrics.instance.getAuthTimeoutCount());
         }
     }
 
     @Test
     public void testSuccessfulAuthenticationRemovesHandler() throws Exception
     {
+        long timeoutsBefore = ClientMetrics.instance.getAuthTimeoutCount();
+
         try (SimpleClient client = new SimpleClient(nativeAddr.getHostAddress(), nativePort))
         {
             client.establishConnection();
@@ -240,6 +254,9 @@ public class AuthenticationTimeoutHandlerTest extends CQLTester
             awaitAuthenticationTimeoutHandlerRemoved(client);
             client.execute("SELECT * FROM system.local", ConsistencyLevel.ONE);
         }
+
+        assertEquals("AuthTimeout metric should not increment after successful authentication",
+                     timeoutsBefore, ClientMetrics.instance.getAuthTimeoutCount());
     }
 
     @Test
@@ -247,6 +264,8 @@ public class AuthenticationTimeoutHandlerTest extends CQLTester
     {
         StorageService.instance.setNativeTransportAuthTimeoutMillis(0);
         assertEquals(0, StorageService.instance.getNativeTransportAuthTimeoutMillis());
+
+        long timeoutsBefore = ClientMetrics.instance.getAuthTimeoutCount();
 
         try (SimpleClient establishedBefore = new SimpleClient(nativeAddr.getHostAddress(), nativePort);
              SimpleClient establishedAfter = new SimpleClient(nativeAddr.getHostAddress(), nativePort))
@@ -261,6 +280,9 @@ public class AuthenticationTimeoutHandlerTest extends CQLTester
 
             establishedAfter.establishConnection();
             awaitClosed(establishedAfter, "Connection established after the timeout was enabled should be closed");
+
+            assertEquals("AuthTimeout metric should increment for the connection established after enabling the timeout",
+                         timeoutsBefore + 1, ClientMetrics.instance.getAuthTimeoutCount());
             assertTrue("Connection established while the timeout was disabled should remain open", establishedBefore.channel.isOpen());
         }
     }
@@ -313,3 +335,4 @@ public class AuthenticationTimeoutHandlerTest extends CQLTester
                                                pipeline.get(AuthenticationTimeoutHandler.class)));
     }
 }
+

@@ -28,12 +28,14 @@ import org.junit.Test;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.cql3.CQLTester;
 import org.apache.cassandra.cql3.QueryProcessor;
+import org.apache.cassandra.metrics.ClientMetrics;
 import org.apache.cassandra.transport.messages.ReadyMessage;
 import org.apache.cassandra.transport.messages.StartupMessage;
 
 import io.netty.channel.Channel;
 import io.netty.channel.ChannelPipeline;
 
+import static org.apache.cassandra.distributed.shared.AssertUtils.assertEquals;
 import static org.awaitility.Awaitility.await;
 import static org.junit.Assert.assertNotNull;
 import static org.junit.Assert.assertNull;
@@ -68,16 +70,24 @@ public class AuthenticationTimeoutAllowAllTest extends CQLTester
     @Test
     public void testHandlerIsRemovedWhenStartupTransitionsDirectlyToReady() throws Exception
     {
+        long timeoutsBefore = ClientMetrics.instance.getAuthTimeoutCount();
+
         try (SimpleClient client = new SimpleClient(nativeAddr.getHostAddress(), nativePort))
         {
             client.establishConnection();
             StartupMessage startup = new StartupMessage(Collections.singletonMap(StartupMessage.CQL_VERSION, QueryProcessor.CQL_VERSION.toString()));
             Message.Response response = client.execute(startup);
             assertTrue("Expected READY response", response instanceof ReadyMessage);
+
             // without the handler there is no timeout task left which could close the connection
             awaitAuthenticationTimeoutHandlerRemoved(client);
-            assertTrue("Connection should remain open after STARTUP transitions directly to READY", client.channel.isOpen());
+
+            assertTrue("Connection should remain open after STARTUP transitions directly to READY",
+                       client.channel.isOpen());
         }
+
+        assertEquals("AuthTimeout metric should not increment for AllowAllAuthenticator",
+                     timeoutsBefore, ClientMetrics.instance.getAuthTimeoutCount());
     }
 
     /**
