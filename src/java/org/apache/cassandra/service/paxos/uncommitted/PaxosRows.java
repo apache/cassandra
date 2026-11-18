@@ -169,14 +169,12 @@ public class PaxosRows
         return cell.accessor().toBallot(cell.value());
     }
 
-    private static boolean proposalIsEmpty(Row row, DecoratedKey key)
+    private static PaxosPartitionUpdateBlob.Emptiness proposalEmptiness(Row row, DecoratedKey key)
     {
         Cell proposal = row.getCell(PROPOSAL_UPDATE);
-        if (proposal == null)
-            return true;
-
-        return PaxosPartitionUpdateBlob.updateIsEmpty(proposal.buffer(), getInt(row, PROPOSAL_VERSION, PaxosPartitionUpdateBlob.VERSION_ABSENT),
-                                                      key.getKey(), getTableUuid(row));
+        return PaxosPartitionUpdateBlob.emptiness(proposal == null ? null : proposal.buffer(),
+                                                  getInt(row, PROPOSAL_VERSION, PaxosPartitionUpdateBlob.VERSION_ABSENT),
+                                                  key.getKey(), getTableUuid(row));
     }
 
     private static long getTimestamp(Row row, ColumnMetadata cmeta)
@@ -189,9 +187,13 @@ public class PaxosRows
 
     /**
      * Classifies a row as committed or in progress from its ballot columns. It takes the empty
-     * check from the proposal blob and pairs that answer with the {@code proposal_ballot} column.
-     * Two proposals written on one microsecond can leave the column and the blob from different
-     * writes.
+     * check from the proposal blob. A proposal takes its ballot from that blob, so the ballot
+     * always belongs to the update beside it. A blob without the footer carries no ballot, and the
+     * {@code proposal_ballot} column then supplies it. Two proposals written on one microsecond can
+     * leave the column and the blob from different writes. The commit, read and write promise
+     * ballots come from their columns. A promise is a single cell, so it cannot tear. The ballot of
+     * a commit is only compared and recorded, and the repair level matters only for a proposal that
+     * is in progress.
      */
     static PaxosKeyState getCommitState(DecoratedKey key, Row row, TableId targetTableId)
     {
@@ -220,18 +222,22 @@ public class PaxosRows
             // An undecodable proposal keeps the key in progress. Paxos repair retries an in progress
             // key. The failure stays on this key and the scan continues with the others.
             boolean empty;
+            Ballot chosen = proposal;
             try
             {
-                empty = proposalIsEmpty(row, key);
+                PaxosPartitionUpdateBlob.Emptiness emptiness = proposalEmptiness(row, key);
+                empty = emptiness.empty;
+                if (emptiness.ballot != null)
+                    chosen = emptiness.ballot;
             }
             catch (MarshalException e)
             {
                 empty = false;
             }
             if (empty)
-                committed = proposal;
+                committed = chosen;
             else
-                inProgress = proposal;
+                inProgress = chosen;
         }
         else
         {

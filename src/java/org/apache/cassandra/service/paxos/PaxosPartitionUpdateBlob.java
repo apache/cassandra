@@ -139,6 +139,22 @@ public final class PaxosPartitionUpdateBlob
     }
 
     /**
+     * Whether the update in a blob is empty, and the ballot stored beside it. The ballot is null
+     * for an absent blob and for a blob written without the footer.
+     */
+    public static final class Emptiness
+    {
+        public final boolean empty;
+        public final @Nullable Ballot ballot;
+
+        Emptiness(boolean empty, @Nullable Ballot ballot)
+        {
+            this.empty = empty;
+            this.ballot = ballot;
+        }
+    }
+
+    /**
      * Encode a PartitionUpdate with the footer format. An empty update is written without bytes
      * when {@link #permitEmptyEncoding} allows it for the messaging version.
      *
@@ -233,9 +249,27 @@ public final class PaxosPartitionUpdateBlob
      */
     public static boolean updateIsEmpty(@Nullable ByteBuffer blob, int columnVersion, ByteBuffer rowKey, UUID cfId)
     {
+        return emptiness(blob, columnVersion, rowKey, cfId).empty;
+    }
+
+    /**
+     * Same as {@link #updateIsEmpty} and also returns the ballot stored beside the update. The
+     * ballot comes from the same decode, so it costs nothing extra.
+     * @param blob bytes from the proposal or most_recent_commit column, null and zero length are
+     *     empty
+     * @param columnVersion messaging version from the version column, or VERSION_ABSENT if the cell
+     *     is absent; used only as the starting point for a blob written without the footer
+     * @param rowKey raw bytes for the row key
+     * @param cfId UUID for the table id
+     * @return whether the update is empty, and the ballot from the blob, which is null for an
+     *     absent blob and for a blob written without the footer
+     */
+    public static Emptiness emptiness(@Nullable ByteBuffer blob, int columnVersion, ByteBuffer rowKey, UUID cfId)
+    {
         if (blob == null || !blob.hasRemaining())
-            return true;
-        return decodeInternal(blob, columnVersion, rowKey, cfId, PaxosPartitionUpdateBlob::decodeUpdateIsEmpty).left;
+            return new Emptiness(true, null);
+        Pair<Boolean, Ballot> decoded = decodeInternal(blob, columnVersion, rowKey, cfId, PaxosPartitionUpdateBlob::decodeUpdateIsEmpty);
+        return new Emptiness(decoded.left, decoded.right);
     }
 
     /**
