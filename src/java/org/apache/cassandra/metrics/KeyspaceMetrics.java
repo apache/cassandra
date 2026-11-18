@@ -101,6 +101,8 @@ public class KeyspaceMetrics
     public final LatencyMetrics idealCLWriteLatency;
     /** Speculative retries **/
     public final Counter speculativeRetries;
+    /** The subset of speculative retries that a dropped read message triggered **/
+    public final Counter overloadSpeculativeRetries;
     /** Speculative retry occured but still timed out **/
     public final Counter speculativeFailedRetries;
     /** Needed to speculate, but didn't have enough replicas **/
@@ -238,6 +240,7 @@ public class KeyspaceMetrics
         idealCLWriteLatency = createLatencyMetrics("IdealCLWrite");
 
         speculativeRetries = createKeyspaceCounter("SpeculativeRetries", metric -> metric.speculativeRetries.getCount());
+        overloadSpeculativeRetries = createKeyspaceCounter("OverloadSpeculativeRetries", metric -> metric.overloadSpeculativeRetries.getCount());
         speculativeFailedRetries = createKeyspaceCounter("SpeculativeFailedRetries", metric -> metric.speculativeFailedRetries.getCount());
         speculativeInsufficientReplicas = createKeyspaceCounter("SpeculativeInsufficientReplicas", metric -> metric.speculativeInsufficientReplicas.getCount());
         additionalWrites = createKeyspaceCounter("AdditionalWrites", metric -> metric.additionalWrites.getCount());

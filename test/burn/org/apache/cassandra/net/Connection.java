@@ -364,7 +364,7 @@ public class Connection implements InboundMessageCallbacks, OutboundMessageCallb
         verifier.onConnectInbound(messagingVersion, handler);
     }
 
-    public void onOverloaded(Message<?> message, InetAddressAndPort peer)
+    public void onOverloaded(Message<?> message, InetAddressAndPort peer, ResourceLimits.Outcome outcome)
     {
         controller.fail(message.serializedSize(current_version));
         verifier.onOverloaded(message.id());

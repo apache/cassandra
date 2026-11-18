@@ -31,6 +31,7 @@ import org.junit.Test;
 
 import org.apache.cassandra.SchemaLoader;
 import org.apache.cassandra.Util;
+import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.db.ColumnFamilyStore;
 import org.apache.cassandra.db.ConsistencyLevel;
 import org.apache.cassandra.db.Keyspace;
@@ -50,7 +51,10 @@ import static java.util.concurrent.TimeUnit.DAYS;
 import static java.util.concurrent.TimeUnit.MILLISECONDS;
 import static org.apache.cassandra.db.ConsistencyLevel.LOCAL_QUORUM;
 import static org.apache.cassandra.locator.ReplicaUtils.full;
+import static org.apache.cassandra.net.ResourceLimits.Outcome.INSUFFICIENT_ENDPOINT;
+import static org.apache.cassandra.net.ResourceLimits.Outcome.INSUFFICIENT_GLOBAL;
 import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertSame;
 import static org.junit.Assert.assertTrue;
 import static org.junit.Assert.fail;
@@ -83,7 +87,9 @@ public class ReadExecutorTest
     {
         cfs.metric.speculativeInsufficientReplicas.dec(cfs.metric.speculativeInsufficientReplicas.getCount());
         cfs.metric.speculativeRetries.dec(cfs.metric.speculativeRetries.getCount());
+        cfs.metric.overloadSpeculativeRetries.dec(cfs.metric.overloadSpeculativeRetries.getCount());
         cfs.metric.speculativeFailedRetries.dec(cfs.metric.speculativeFailedRetries.getCount());
+        DatabaseDescriptor.setReadFallbackOnOverloadedConnection(false);
     }
 
     /**
@@ -236,6 +242,116 @@ public class ReadExecutorTest
             assertSame(ExceptionUtils.getStackTrace(t), ReadFailureException.class, t.getClass());
             assertTrue(t.getMessage().contains(RequestFailureReason.READ_TOO_MANY_TOMBSTONES.name()));
         }
+    }
+
+    @Test
+    public void testOverloadWhenCandidateAvailableShouldContactItAndNotFailRead()
+    {
+        DatabaseDescriptor.setReadFallbackOnOverloadedConnection(true);
+
+        AbstractReadExecutor executor = speculatingExecutor(targets.subList(0, 1));
+        executor.executeAsync();
+
+        executor.handler.onOverloaded(targets.get(0).endpoint(), INSUFFICIENT_ENDPOINT);
+
+        assertEquals(2, executor.replicaPlan().contacts().size());
+        assertEquals(1, cfs.metric.overloadSpeculativeRetries.getCount());
+        assertEquals(1, ks.metric.overloadSpeculativeRetries.getCount());
+        assertEquals(1, cfs.metric.speculativeRetries.getCount());
+        assertFalse(executor.handler.condition.isSignalled());
+    }
+
+    @Test
+    public void testOverloadOfGlobalReserveShouldFailReadWithoutContactingACandidate()
+    {
+        DatabaseDescriptor.setReadFallbackOnOverloadedConnection(true);
+
+        AbstractReadExecutor executor = speculatingExecutor(targets.subList(0, 1));
+        executor.executeAsync();
+
+        executor.handler.onOverloaded(targets.get(0).endpoint(), INSUFFICIENT_GLOBAL);
+
+        assertEquals(1, executor.replicaPlan().contacts().size());
+        assertEquals(0, cfs.metric.overloadSpeculativeRetries.getCount());
+        assertEquals(0, cfs.metric.speculativeRetries.getCount());
+        assertTrue(executor.handler.condition.isSignalled());
+    }
+
+    @Test
+    public void testOverloadWhenTwoConnectionsDropShouldContactTwoCandidates()
+    {
+        DatabaseDescriptor.setReadFallbackOnOverloadedConnection(true);
+
+        AbstractReadExecutor executor = speculatingExecutor(targets.subList(0, 1));
+        executor.executeAsync();
+
+        executor.handler.onOverloaded(targets.get(0).endpoint(), INSUFFICIENT_ENDPOINT);
+        executor.handler.onOverloaded(targets.get(1).endpoint(), INSUFFICIENT_ENDPOINT);
+
+        assertEquals(3, executor.replicaPlan().contacts().size());
+        assertEquals(2, cfs.metric.overloadSpeculativeRetries.getCount());
+    }
+
+    @Test
+    public void testOverloadWhenFallbackDisabledShouldFailRead()
+    {
+        AbstractReadExecutor executor = speculatingExecutor(targets.subList(0, 1));
+        executor.executeAsync();
+
+        executor.handler.onOverloaded(targets.get(0).endpoint(), INSUFFICIENT_ENDPOINT);
+
+        assertEquals(1, executor.replicaPlan().contacts().size());
+        assertEquals(0, cfs.metric.overloadSpeculativeRetries.getCount());
+        assertEquals(0, cfs.metric.speculativeRetries.getCount());
+        assertTrue(executor.handler.condition.isSignalled());
+    }
+
+    @Test
+    public void testOverloadWhenExecutorNeverSpeculatesShouldNotContactAnotherReplica()
+    {
+        DatabaseDescriptor.setReadFallbackOnOverloadedConnection(true);
+
+        AbstractReadExecutor executor = new AbstractReadExecutor.NeverSpeculatingReadExecutor(cfs, new MockSinglePartitionReadCommand(DAYS.toMillis(365)), plan(ConsistencyLevel.LOCAL_ONE, targets, targets.subList(0, 1)), Dispatcher.RequestTime.forImmediateExecution(), false);
+        executor.executeAsync();
+
+        executor.handler.onOverloaded(targets.get(0).endpoint(), INSUFFICIENT_ENDPOINT);
+
+        assertEquals(1, executor.replicaPlan().contacts().size());
+        assertEquals(0, cfs.metric.overloadSpeculativeRetries.getCount());
+        assertEquals(0, cfs.metric.speculativeRetries.getCount());
+    }
+
+    @Test
+    public void testReadCallbackRunsInlineOnOverloadOnlyWhenFallbackEnabled()
+    {
+        AbstractReadExecutor executor = speculatingExecutor(targets.subList(0, 1));
+
+        assertFalse(executor.handler.invokeOnOverloadedInline());
+
+        DatabaseDescriptor.setReadFallbackOnOverloadedConnection(true);
+
+        assertTrue(executor.handler.invokeOnOverloadedInline());
+    }
+
+    @Test
+    public void testOverloadWhenNoCandidateLeftShouldCountInsufficientReplicas()
+    {
+        DatabaseDescriptor.setReadFallbackOnOverloadedConnection(true);
+
+        AbstractReadExecutor executor = speculatingExecutor(targets);
+
+        assertFalse(executor.maybeTryAdditionalReplicasOnOverload());
+        assertEquals(3, executor.replicaPlan().contacts().size());
+        assertEquals(0, cfs.metric.overloadSpeculativeRetries.getCount());
+        assertEquals(1, cfs.metric.speculativeInsufficientReplicas.getCount());
+    }
+
+    private AbstractReadExecutor speculatingExecutor(EndpointsForToken contacts)
+    {
+        return new AbstractReadExecutor.SpeculatingReadExecutor(cfs,
+                                                                new MockSinglePartitionReadCommand(DAYS.toMillis(365)),
+                                                                plan(ConsistencyLevel.LOCAL_ONE, targets, contacts),
+                                                                Dispatcher.RequestTime.forImmediateExecution());
     }
 
     public static class MockSinglePartitionReadCommand extends SinglePartitionReadCommand
