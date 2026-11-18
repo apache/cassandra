@@ -97,7 +97,7 @@ public class SSTableIndexWriter implements PerColumnIndexWriter
         }
         else if (index.termType().isFrozenCollection() && index.termType().indexTargetType() != IndexTarget.Type.FULL)
         {
-            Iterator<ByteBuffer> valueIterator = index.termType().valuesOfFrozenCollection(row, nowInSec);
+            Iterator<ByteBuffer> valueIterator = index.termType().valuesOfFrozenCollection(key.partitionKey(), row, nowInSec);
             if (valueIterator != null)
             {
                 while (valueIterator.hasNext())
