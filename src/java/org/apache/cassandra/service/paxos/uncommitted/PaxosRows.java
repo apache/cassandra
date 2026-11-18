@@ -18,8 +18,6 @@
 
 package org.apache.cassandra.service.paxos.uncommitted;
 
-import java.io.IOException;
-import java.nio.ByteBuffer;
 import java.util.UUID;
 import java.util.concurrent.TimeUnit;
 
@@ -38,25 +36,24 @@ import org.apache.cassandra.db.marshal.ValueAccessor;
 import org.apache.cassandra.db.partitions.PartitionUpdate;
 import org.apache.cassandra.db.partitions.UnfilteredPartitionIterator;
 import org.apache.cassandra.db.rows.Cell;
-import org.apache.cassandra.db.rows.DeserializationHelper;
 import org.apache.cassandra.db.rows.Row;
 import org.apache.cassandra.db.rows.UnfilteredRowIterator;
-import org.apache.cassandra.net.MessagingService;
 import org.apache.cassandra.schema.ColumnMetadata;
 import org.apache.cassandra.schema.SchemaConstants;
 import org.apache.cassandra.schema.TableId;
 import org.apache.cassandra.schema.TableMetadata;
+import org.apache.cassandra.serializers.MarshalException;
 import org.apache.cassandra.service.paxos.Ballot;
 import org.apache.cassandra.service.paxos.Commit;
 import org.apache.cassandra.service.paxos.Commit.Accepted;
 import org.apache.cassandra.service.paxos.Commit.AcceptedWithTTL;
 import org.apache.cassandra.service.paxos.Commit.Committed;
 import org.apache.cassandra.service.paxos.Commit.CommittedWithTTL;
+import org.apache.cassandra.service.paxos.PaxosPartitionUpdateBlob;
+import org.apache.cassandra.service.paxos.PaxosPartitionUpdateBlob.Decoded;
 import org.apache.cassandra.utils.AbstractIterator;
 import org.apache.cassandra.utils.CloseableIterator;
-import org.apache.cassandra.utils.JVMStabilityInspector;
 
-import static org.apache.cassandra.db.partitions.PartitionUpdate.PartitionUpdateSerializer.isEmpty;
 import static org.apache.cassandra.service.paxos.Commit.isAfter;
 import static org.apache.cassandra.service.paxos.Commit.latest;
 
@@ -89,18 +86,24 @@ public class PaxosRows
         return getBallot(row, WRITE_PROMISE, Ballot.none());
     }
 
-    public static Accepted getAccepted(Row row, long purgeBefore, long overrideTtlSeconds)
+    public static Accepted getAccepted(DecoratedKey partitionKey, Row row, long purgeBefore, long overrideTtlSeconds)
     {
         Cell ballotCell = row.getCell(PROPOSAL);
         if (ballotCell == null)
             return null;
 
-        Ballot ballot = ballotCell.accessor().toBallot(ballotCell.value());
-        if (ballot.uuidTimestamp() < purgeBefore)
+        // The column ballot can belong to a different write than the blob when two writes share a
+        // timestamp. Every cell of a write carries ballot.unixMicros(), so both ballots have the
+        // same microsecond and differ only in the flag digit and the low bits. The purge horizon
+        // is coarser than a microsecond, so the column ballot answers the purge check as the
+        // blob ballot would. The returned ballot comes from the blob when the blob carries one.
+        Ballot columnBallot = ballotCell.accessor().toBallot(ballotCell.value());
+        if (columnBallot.uuidTimestamp() < purgeBefore)
             return null;
 
-        int version = getInt(row, PROPOSAL_VERSION, MessagingService.VERSION_40);
-        PartitionUpdate update = getUpdate(row, PROPOSAL_UPDATE, version);
+        Decoded decoded = getUpdate(partitionKey, row, PROPOSAL_UPDATE, PROPOSAL_VERSION);
+        Ballot ballot = decoded.ballot != null ? decoded.ballot : columnBallot;
+        PartitionUpdate update = decoded.update;
         if (overrideTtlSeconds > 0) return new AcceptedWithTTL(ballot, update, TimeUnit.MICROSECONDS.toSeconds(ballotCell.timestamp()) + overrideTtlSeconds);
         else if (ballotCell.isExpiring()) return new AcceptedWithTTL(ballot, update, ballotCell.localDeletionTime());
         else return new Accepted(ballot, update);
@@ -112,12 +115,14 @@ public class PaxosRows
         if (ballotCell == null)
             return Committed.none(partitionKey, metadata);
 
-        Ballot ballot = ballotCell.accessor().toBallot(ballotCell.value());
-        if (ballot.uuidTimestamp() < purgeBefore)
+        // See getAccepted for constraints on using committed ballot
+        Ballot columnBallot = ballotCell.accessor().toBallot(ballotCell.value());
+        if (columnBallot.uuidTimestamp() < purgeBefore)
             return Committed.none(partitionKey, metadata);
 
-        int version = getInt(row, COMMIT_VERSION, MessagingService.VERSION_40);
-        PartitionUpdate update = getUpdate(row, COMMIT_UPDATE, version);
+        Decoded decoded = getUpdate(partitionKey, row, COMMIT_UPDATE, COMMIT_VERSION);
+        Ballot ballot = decoded.ballot != null ? decoded.ballot : columnBallot;
+        PartitionUpdate update = decoded.update;
         if (overrideTtlSeconds > 0) return new CommittedWithTTL(ballot, update, TimeUnit.MICROSECONDS.toSeconds(ballotCell.timestamp()) + overrideTtlSeconds);
         else if (ballotCell.isExpiring()) return new CommittedWithTTL(ballot, update, ballotCell.localDeletionTime());
         else return new Committed(ballot, update);
@@ -136,18 +141,19 @@ public class PaxosRows
     private static int getInt(Row row, ColumnMetadata cmeta, @SuppressWarnings("SameParameterValue") int ifNull)
     {
         Cell cell = row.getCell(cmeta);
-        if (cell == null)
+        if (cell == null || cell.isTombstone())
             return ifNull;
         return Int32Type.instance.compose(cell.value(), cell.accessor());
     }
 
-    private static PartitionUpdate getUpdate(Row row, ColumnMetadata cmeta, int version)
+    private static Decoded getUpdate(DecoratedKey partitionKey, Row row, ColumnMetadata blobColumn, ColumnMetadata versionColumn)
     {
-        Cell cell = row.getCell(cmeta);
+        Cell cell = row.getCell(blobColumn);
         if (cell == null)
             throw new IllegalStateException();
 
-        return PartitionUpdate.fromBytes(cell.buffer(), version);
+        return PaxosPartitionUpdateBlob.decode(cell.buffer(), getInt(row, versionColumn, PaxosPartitionUpdateBlob.VERSION_ABSENT),
+                                               partitionKey.getKey(), getTableUuid(row));
     }
 
     private static Ballot getBallot(Row row, ColumnMetadata cmeta)
@@ -163,32 +169,12 @@ public class PaxosRows
         return cell.accessor().toBallot(cell.value());
     }
 
-    private static boolean proposalIsEmpty(Row row, DecoratedKey key)
+    private static PaxosPartitionUpdateBlob.Emptiness proposalEmptiness(Row row, DecoratedKey key)
     {
-        try
-        {
-            Cell proposalVersionCell = row.getCell(PROPOSAL_VERSION);
-            if (proposalVersionCell == null)
-                return true;
-            Integer proposalVersion = Int32Type.instance.compose(proposalVersionCell.value(), proposalVersionCell.accessor());
-            if (proposalVersion == null)
-                return true;
-
-            Cell proposal = row.getCell(PROPOSAL_UPDATE);
-            if (proposal == null)
-                return true;
-
-            ByteBuffer proposalValue = proposal.buffer();
-            if (!proposalValue.hasRemaining())
-                return true;
-
-            return isEmpty(proposalValue, DeserializationHelper.Flag.LOCAL, key, proposalVersion);
-        }
-        catch (IOException e)
-        {
-            JVMStabilityInspector.inspectThrowable(e);
-            throw new RuntimeException(e);
-        }
+        Cell proposal = row.getCell(PROPOSAL_UPDATE);
+        return PaxosPartitionUpdateBlob.emptiness(proposal == null ? null : proposal.buffer(),
+                                                  getInt(row, PROPOSAL_VERSION, PaxosPartitionUpdateBlob.VERSION_ABSENT),
+                                                  key.getKey(), getTableUuid(row));
     }
 
     private static long getTimestamp(Row row, ColumnMetadata cmeta)
@@ -199,6 +185,16 @@ public class PaxosRows
         return cell.timestamp();
     }
 
+    /**
+     * Classifies a row as committed or in progress from its ballot columns. It takes the empty
+     * check from the proposal blob. A proposal takes its ballot from that blob, so the ballot
+     * always belongs to the update beside it. A blob without the footer carries no ballot, and the
+     * {@code proposal_ballot} column then supplies it. Two proposals written on one microsecond can
+     * leave the column and the blob from different writes. The commit, read and write promise
+     * ballots come from their columns. A promise is a single cell, so it cannot tear. The ballot of
+     * a commit is only compared and recorded, and the repair level matters only for a proposal that
+     * is in progress.
+     */
     static PaxosKeyState getCommitState(DecoratedKey key, Row row, TableId targetTableId)
     {
         if (row == null)
@@ -223,10 +219,25 @@ public class PaxosRows
         }
         else if (isAfter(proposal, commit))
         {
-            if (proposalIsEmpty(row, key))
-                committed = proposal;
+            // An undecodable proposal keeps the key in progress. Paxos repair retries an in progress
+            // key. The failure stays on this key and the scan continues with the others.
+            boolean empty;
+            Ballot chosen = proposal;
+            try
+            {
+                PaxosPartitionUpdateBlob.Emptiness emptiness = proposalEmptiness(row, key);
+                empty = emptiness.empty;
+                if (emptiness.ballot != null)
+                    chosen = emptiness.ballot;
+            }
+            catch (MarshalException e)
+            {
+                empty = false;
+            }
+            if (empty)
+                committed = chosen;
             else
-                inProgress = proposal;
+                inProgress = chosen;
         }
         else
         {
@@ -308,6 +319,11 @@ public class PaxosRows
         }
     }
 
+    /**
+     * Returns the ballot of the newest ballot column, chosen by cell timestamp. The caller uses
+     * it as a time horizon and never pairs it with an update, so a tie between two ballots on
+     * one microsecond does not affect the result.
+     */
     public static Ballot getHighBallot(Row row, Ballot current)
     {
         long maxUnixMicros = current != null ? current.unixMicros() : Long.MIN_VALUE;
@@ -341,6 +357,11 @@ public class PaxosRows
         return maxCol == null ? current : getBallot(row, maxCol);
     }
 
+    /**
+     * Returns true only if every ballot column is present and holds a ballot at or after
+     * {@code ballot}. A missing ballot column makes the result false. The comparison uses the
+     * ballot timestamp, so two ballots on one microsecond compare equal.
+     */
     public static boolean hasBallotBeforeOrEqualTo(Row row, Ballot ballot)
     {
         return !Commit.isAfter(ballot, getBallot(row, WRITE_PROMISE))
