@@ -19,6 +19,7 @@
 package org.apache.cassandra.distributed.test.sai;
 
 import java.io.IOException;
+import java.util.Set;
 
 import org.junit.AfterClass;
 import org.junit.BeforeClass;
@@ -197,6 +198,174 @@ public class ReplicaFilteringWithStaticsTest extends TestBaseImpl
         // node 2 is not included in the first pass query, it will not be available to shadow the logically deleted rows.
         String select = withKeyspace("SELECT ck0, ck1 FROM %s." + table + " WHERE s1 = 42" + (sai ? "" : " ALLOW FILTERING"));
         assertRows(CLUSTER.coordinator(1).executeWithPaging(select, ALL, 1), row(true, 5.0));
+    }
+
+    @Test
+    public void testRangeTombstoneFromOtherReplica()
+    {
+        String table = "index_query_range_tombstone";
+        CLUSTER.schemaChange(withKeyspace("CREATE TABLE %s." + table + " (pk0 int, pk1 int, ck0 boolean, v1 set<int>, PRIMARY KEY ((pk0, pk1), ck0)) WITH read_repair = 'NONE'"));
+        CLUSTER.schemaChange(withKeyspace("CREATE INDEX ON %s." + table + "(pk1) USING 'sai'"));
+        SAIUtil.waitForIndexQueryable(CLUSTER, KEYSPACE);
+        disableCompaction(CLUSTER, KEYSPACE, table);
+
+        // node 2 has the stale element, node 1 has the range tombstone and the new row
+        CLUSTER.get(2).executeInternal(withKeyspace("INSERT INTO %s." + table + " (pk0, pk1, ck0, v1) VALUES (1, 2, false, {1}) USING TIMESTAMP 1"));
+        CLUSTER.get(1).executeInternal(withKeyspace("DELETE FROM %s." + table + " USING TIMESTAMP 2 WHERE pk0 = 1 AND pk1 = 2 AND ck0 >= false AND ck0 <= false"));
+        CLUSTER.get(1).executeInternal(withKeyspace("UPDATE %s." + table + " USING TIMESTAMP 3 SET v1 = v1 + {2, 3, 4} WHERE pk0 = 1 AND pk1 = 2 AND ck0 = false"));
+
+        CLUSTER.get(1).flush(KEYSPACE);
+        CLUSTER.get(2).flush(KEYSPACE);
+
+        String select = withKeyspace("SELECT ck0, v1 FROM %s." + table + " WHERE pk1 = 2 ALLOW FILTERING");
+        assertRows(CLUSTER.coordinator(1).execute(select, ALL), row(false, Set.of(2, 3, 4)));
+    }
+
+    @Test
+    public void testRangeTombstoneCoveringInsertInSeparateSSTables()
+    {
+        testRangeTombstoneCoveringInsert("index_query_rt_insert_sstables", true);
+    }
+
+    @Test
+    public void testRangeTombstoneCoveringInsertInMemtable()
+    {
+        testRangeTombstoneCoveringInsert("index_query_rt_insert_memtable", false);
+    }
+
+    private void testRangeTombstoneCoveringInsert(String table, boolean flushInsert)
+    {
+        CLUSTER.schemaChange(withKeyspace("CREATE TABLE %s." + table + " (pk0 int, pk1 int, ck0 boolean, v1 set<int>, PRIMARY KEY ((pk0, pk1), ck0)) WITH read_repair = 'NONE'"));
+        CLUSTER.schemaChange(withKeyspace("CREATE INDEX ON %s." + table + "(pk1) USING 'sai'"));
+        SAIUtil.waitForIndexQueryable(CLUSTER, KEYSPACE);
+        disableCompaction(CLUSTER, KEYSPACE, table);
+
+        CLUSTER.get(2).executeInternal(withKeyspace("INSERT INTO %s." + table + " (pk0, pk1, ck0, v1) VALUES (1, 2, false, {1}) USING TIMESTAMP 1"));
+        CLUSTER.get(2).flush(KEYSPACE);
+        CLUSTER.get(1).executeInternal(withKeyspace("DELETE FROM %s." + table + " USING TIMESTAMP 2 WHERE pk0 = 1 AND pk1 = 2 AND ck0 >= false AND ck0 <= false"));
+        CLUSTER.get(1).flush(KEYSPACE);
+        CLUSTER.get(1).executeInternal(withKeyspace("INSERT INTO %s." + table + " (pk0, pk1, ck0, v1) VALUES (1, 2, false, {2, 3, 4}) USING TIMESTAMP 3"));
+        if (flushInsert)
+            CLUSTER.get(1).flush(KEYSPACE);
+
+        String control = withKeyspace("SELECT ck0, v1 FROM %s." + table + " WHERE pk0 = 1 AND pk1 = 2");
+        assertRows(CLUSTER.coordinator(1).execute(control, ALL), row(false, Set.of(2, 3, 4)));
+
+        String select = withKeyspace("SELECT ck0, v1 FROM %s." + table + " WHERE pk1 = 2 ALLOW FILTERING");
+        assertRows(CLUSTER.coordinator(1).execute(select, ALL), row(false, Set.of(2, 3, 4)));
+    }
+
+    @Test
+    public void testRangeTombstoneWithinSinglePartition()
+    {
+        String table = "index_query_single_partition_range_tombstone";
+        CLUSTER.schemaChange(withKeyspace("CREATE TABLE %s." + table + " (pk0 int, pk1 int, ck0 boolean, v1 set<int>, x int, PRIMARY KEY ((pk0, pk1), ck0)) WITH read_repair = 'NONE'"));
+        // x, not pk1, is indexed here, so a fully specified partition key can still use the index for
+        // row filtering within that one partition, without turning the read into a multi-partition scan.
+        CLUSTER.schemaChange(withKeyspace("CREATE INDEX ON %s." + table + "(x) USING 'sai'"));
+        SAIUtil.waitForIndexQueryable(CLUSTER, KEYSPACE);
+        disableCompaction(CLUSTER, KEYSPACE, table);
+
+        // node 2 has the stale element, node 1 has the range tombstone and the new row
+        CLUSTER.get(2).executeInternal(withKeyspace("INSERT INTO %s." + table + " (pk0, pk1, ck0, v1, x) VALUES (1, 2, false, {1}, 5) USING TIMESTAMP 1"));
+        CLUSTER.get(1).executeInternal(withKeyspace("DELETE FROM %s." + table + " USING TIMESTAMP 2 WHERE pk0 = 1 AND pk1 = 2 AND ck0 >= false AND ck0 <= false"));
+        CLUSTER.get(1).executeInternal(withKeyspace("UPDATE %s." + table + " USING TIMESTAMP 3 SET v1 = v1 + {2, 3, 4}, x = 5 WHERE pk0 = 1 AND pk1 = 2 AND ck0 = false"));
+
+        CLUSTER.get(1).flush(KEYSPACE);
+        CLUSTER.get(2).flush(KEYSPACE);
+
+        // Full partition key, explicit LIMIT, no static expression, so RFP's completion fetch is a targeted
+        // re-fetch rather than a partition dump. But RFP only reconciles filtered columns, and v1 is only
+        // selected here, so the ordinary cross-replica cell merge must still see node 1's range tombstone.
+        String select = withKeyspace("SELECT ck0, v1 FROM %s." + table + " WHERE pk0 = 1 AND pk1 = 2 AND x = 5 LIMIT 10");
+        assertRows(CLUSTER.coordinator(1).execute(select, ALL), row(false, Set.of(2, 3, 4)));
+    }
+
+    @Test
+    public void testRangeTombstoneWithClusteringRangeAndNonKeyColumn()
+    {
+        String table = "index_query_clustering_range_non_key";
+        CLUSTER.schemaChange(withKeyspace("CREATE TABLE %s." + table + " (pk0 int, pk1 int, ck0 int, v1 set<int>, x int, PRIMARY KEY ((pk0, pk1), ck0)) WITH read_repair = 'NONE'"));
+        // x, not pk1, is indexed here, so the fully specified partition key plus clustering range can
+        // still use the index for row filtering within that one partition and clustering slice.
+        CLUSTER.schemaChange(withKeyspace("CREATE INDEX ON %s." + table + "(x) USING 'sai'"));
+        SAIUtil.waitForIndexQueryable(CLUSTER, KEYSPACE);
+        disableCompaction(CLUSTER, KEYSPACE, table);
+
+        // node 2 has the stale element, node 1 has the range tombstone and the new row
+        CLUSTER.get(2).executeInternal(withKeyspace("INSERT INTO %s." + table + " (pk0, pk1, ck0, v1, x) VALUES (1, 2, 3, {1}, 5) USING TIMESTAMP 1"));
+        CLUSTER.get(1).executeInternal(withKeyspace("DELETE FROM %s." + table + " USING TIMESTAMP 2 WHERE pk0 = 1 AND pk1 = 2 AND ck0 >= 3 AND ck0 <= 3"));
+        CLUSTER.get(1).executeInternal(withKeyspace("UPDATE %s." + table + " USING TIMESTAMP 3 SET v1 = v1 + {2, 3, 4}, x = 5 WHERE pk0 = 1 AND pk1 = 2 AND ck0 = 3"));
+
+        CLUSTER.get(1).flush(KEYSPACE);
+        CLUSTER.get(2).flush(KEYSPACE);
+
+        // Same as above but with a clustering range instead of a point, plus a non-key column restriction.
+        // Still needs node 1's range tombstone for the ordinary cross-replica cell merge.
+        String select = withKeyspace("SELECT ck0, v1 FROM %s." + table + " WHERE pk0 = 1 AND pk1 = 2 AND ck0 >= 0 AND ck0 <= 10 AND x = 5 LIMIT 10");
+        assertRows(CLUSTER.coordinator(1).execute(select, ALL), row(3, Set.of(2, 3, 4)));
+    }
+
+    @Test
+    public void testAdjoiningRangeTombstonesAcrossABoundary()
+    {
+        String table = "index_query_boundary_markers";
+        CLUSTER.schemaChange(withKeyspace("CREATE TABLE %s." + table + " (pk0 int, pk1 int, ck0 int, v1 set<int>, x int, PRIMARY KEY ((pk0, pk1), ck0)) WITH read_repair = 'NONE'"));
+        CLUSTER.schemaChange(withKeyspace("CREATE INDEX ON %s." + table + "(x) USING 'sai'"));
+        SAIUtil.waitForIndexQueryable(CLUSTER, KEYSPACE);
+        disableCompaction(CLUSTER, KEYSPACE, table);
+
+        // node 2 has a stale element in each of two adjoining ranges deleted on node 1
+        CLUSTER.get(2).executeInternal(withKeyspace("INSERT INTO %s." + table + " (pk0, pk1, ck0, v1, x) VALUES (1, 2, 2, {1}, 5) USING TIMESTAMP 1"));
+        CLUSTER.get(2).executeInternal(withKeyspace("INSERT INTO %s." + table + " (pk0, pk1, ck0, v1, x) VALUES (1, 2, 4, {9}, 5) USING TIMESTAMP 1"));
+
+        // These ranges touch exactly at ck0 = 3, so node 1 merges them into one boundary marker
+        // instead of two independent open/close pairs.
+        CLUSTER.get(1).executeInternal(withKeyspace("DELETE FROM %s." + table + " USING TIMESTAMP 2 WHERE pk0 = 1 AND pk1 = 2 AND ck0 >= 1 AND ck0 < 3"));
+        CLUSTER.get(1).executeInternal(withKeyspace("DELETE FROM %s." + table + " USING TIMESTAMP 3 WHERE pk0 = 1 AND pk1 = 2 AND ck0 >= 3 AND ck0 < 6"));
+
+        CLUSTER.get(1).executeInternal(withKeyspace("UPDATE %s." + table + " USING TIMESTAMP 4 SET v1 = v1 + {2, 3, 4}, x = 5 WHERE pk0 = 1 AND pk1 = 2 AND ck0 = 2"));
+        CLUSTER.get(1).executeInternal(withKeyspace("UPDATE %s." + table + " USING TIMESTAMP 5 SET v1 = v1 + {5, 6, 7}, x = 5 WHERE pk0 = 1 AND pk1 = 2 AND ck0 = 4"));
+
+        CLUSTER.get(1).flush(KEYSPACE);
+        CLUSTER.get(2).flush(KEYSPACE);
+
+        // control: no index involved
+        String control = withKeyspace("SELECT ck0, v1 FROM %s." + table + " WHERE pk0 = 1 AND pk1 = 2");
+        assertRows(CLUSTER.coordinator(1).execute(control, ALL), row(2, Set.of(2, 3, 4)), row(4, Set.of(5, 6, 7)));
+
+        // If the boundary's reopened deletion were dropped, node 2's stale {9} element would survive reconciliation.
+        String select = withKeyspace("SELECT ck0, v1 FROM %s." + table + " WHERE pk0 = 1 AND pk1 = 2 AND x = 5 LIMIT 10");
+        assertRows(CLUSTER.coordinator(1).execute(select, ALL), row(2, Set.of(2, 3, 4)), row(4, Set.of(5, 6, 7)));
+    }
+
+    @Test
+    public void testOverlappingRangeTombstonesAcrossABoundary()
+    {
+        String table = "index_query_overlapping_boundary_markers";
+        CLUSTER.schemaChange(withKeyspace("CREATE TABLE %s." + table + " (pk0 int, pk1 int, ck0 int, v1 set<int>, x int, PRIMARY KEY ((pk0, pk1), ck0)) WITH read_repair = 'NONE'"));
+        CLUSTER.schemaChange(withKeyspace("CREATE INDEX ON %s." + table + "(x) USING 'sai'"));
+        SAIUtil.waitForIndexQueryable(CLUSTER, KEYSPACE);
+        disableCompaction(CLUSTER, KEYSPACE, table);
+
+        // node 2 has a stale element inside the overlap of two ranges deleted on node 1
+        CLUSTER.get(2).executeInternal(withKeyspace("INSERT INTO %s." + table + " (pk0, pk1, ck0, v1, x) VALUES (1, 2, 4, {1}, 5) USING TIMESTAMP 2"));
+
+        // These ranges overlap at ck0 in [3, 5), so node 1 merges them into a boundary where the higher
+        // timestamp wins across the overlap, not just whichever range happens to open first.
+        CLUSTER.get(1).executeInternal(withKeyspace("DELETE FROM %s." + table + " USING TIMESTAMP 1 WHERE pk0 = 1 AND pk1 = 2 AND ck0 >= 1 AND ck0 < 5"));
+        CLUSTER.get(1).executeInternal(withKeyspace("DELETE FROM %s." + table + " USING TIMESTAMP 3 WHERE pk0 = 1 AND pk1 = 2 AND ck0 >= 3 AND ck0 < 8"));
+
+        CLUSTER.get(1).executeInternal(withKeyspace("UPDATE %s." + table + " USING TIMESTAMP 4 SET v1 = v1 + {2, 3, 4}, x = 5 WHERE pk0 = 1 AND pk1 = 2 AND ck0 = 4"));
+
+        CLUSTER.get(1).flush(KEYSPACE);
+        CLUSTER.get(2).flush(KEYSPACE);
+
+        // Node 2's stale element is timestamped 2: older than the overlap's winning deletion (3), but newer
+        // than the first range's own deletion (1). If the overlap incorrectly resolved to timestamp 1, {1}
+        // would survive reconciliation instead of being correctly shadowed by the winning timestamp 3.
+        String select = withKeyspace("SELECT ck0, v1 FROM %s." + table + " WHERE pk0 = 1 AND pk1 = 2 AND x = 5 LIMIT 10");
+        assertRows(CLUSTER.coordinator(1).execute(select, ALL), row(4, Set.of(2, 3, 4)));
     }
 
     @AfterClass

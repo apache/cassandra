@@ -34,6 +34,7 @@ import org.apache.cassandra.db.DeletionTime;
 import org.apache.cassandra.db.LivenessInfo;
 import org.apache.cassandra.db.RegularAndStaticColumns;
 import org.apache.cassandra.db.marshal.Int32Type;
+import org.apache.cassandra.db.marshal.SetType;
 import org.apache.cassandra.db.marshal.UTF8Type;
 import org.apache.cassandra.db.partitions.SingletonUnfilteredPartitionIterator;
 import org.apache.cassandra.db.partitions.UnfilteredPartitionIterator;
@@ -139,11 +140,13 @@ public class RowFilterTest
                                               .addPartitionKeyColumn("pk", Int32Type.instance)
                                               .addRegularColumn("r", Int32Type.instance)
                                               .addRegularColumn("t", UTF8Type.instance)
+                                              .addRegularColumn("s", SetType.getInstance(Int32Type.instance, true))
+                                              .addRegularColumn("fs", SetType.getInstance(Int32Type.instance, false))
                                               .build();
 
         RowFilter filter = RowFilter.none().withNewExpressions(new ArrayList<>());
         assertFalse(filter.isMutableIntersection());
-        
+
         ColumnMetadata r = metadata.getColumn(new ColumnIdentifier("r", true));
         RowFilter.Expression gt = new RowFilter.SimpleExpression(r, Operator.GT, ByteBufferUtil.EMPTY_BYTE_BUFFER);
         filter = filter.withNewExpressions(Collections.singletonList(gt));
@@ -157,5 +160,22 @@ public class RowFilterTest
         RowFilter.Expression eq = new RowFilter.SimpleExpression(t, Operator.EQ, ByteBufferUtil.EMPTY_BYTE_BUFFER);
         filter = filter.withNewExpressions(ImmutableList.of(gt, lt, eq));
         assertTrue(filter.isMutableIntersection());
+
+        ColumnMetadata s = metadata.getColumn(new ColumnIdentifier("s", true));
+        RowFilter.Expression containsOne = new RowFilter.SimpleExpression(s, Operator.CONTAINS, ByteBufferUtil.EMPTY_BYTE_BUFFER);
+        filter = filter.withNewExpressions(Collections.singletonList(containsOne));
+        assertFalse(filter.isMutableIntersection());
+
+        // Two expressions against the same multi-cell collection column target different cells, which can be split 
+        // across replicas just like two different columns, so this is a mutable intersection.
+        RowFilter.Expression containsTwo = new RowFilter.SimpleExpression(s, Operator.CONTAINS, ByteBufferUtil.EMPTY_BYTE_BUFFER);
+        filter = filter.withNewExpressions(ImmutableList.of(containsOne, containsTwo));
+        assertTrue(filter.isMutableIntersection());
+
+        ColumnMetadata fs = metadata.getColumn(new ColumnIdentifier("fs", true));
+        RowFilter.Expression frozenEqOne = new RowFilter.SimpleExpression(fs, Operator.EQ, ByteBufferUtil.EMPTY_BYTE_BUFFER);
+        RowFilter.Expression frozenEqTwo = new RowFilter.SimpleExpression(fs, Operator.EQ, ByteBufferUtil.EMPTY_BYTE_BUFFER);
+        filter = filter.withNewExpressions(ImmutableList.of(frozenEqOne, frozenEqTwo));
+        assertFalse(filter.isMutableIntersection());
     }
 }
