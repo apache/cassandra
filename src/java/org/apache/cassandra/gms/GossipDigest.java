@@ -19,6 +19,8 @@ package org.apache.cassandra.gms;
 
 import java.io.*;
 
+import com.google.common.annotations.VisibleForTesting;
+
 import org.apache.cassandra.db.TypeSizes;
 import org.apache.cassandra.io.IVersionedSerializer;
 import org.apache.cassandra.io.util.DataInputPlus;
@@ -44,6 +46,12 @@ public class GossipDigest implements Comparable<GossipDigest>
         endpoint = ep;
         generation = gen;
         maxVersion = version;
+    }
+
+    @VisibleForTesting
+    public static GossipDigest getUnsafeForTest(InetAddressAndPort ep, int gen, int version)
+    {
+        return new GossipDigest(ep, gen, version);
     }
 
     InetAddressAndPort getEndpoint()

@@ -24,6 +24,7 @@ import java.net.UnknownHostException;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
@@ -225,6 +226,29 @@ public class GossiperTest
         assertTrue(Gossiper.instance.upgradeFromVersionSupplier.get().canMemoize());
         assertFalse(Gossiper.instance.hasMajorVersion3OrUnknownNodes());
         assertFalse(Gossiper.instance.isUpgradingFromVersionLowerThan(CassandraVersion.CASSANDRA_3_4));
+    }
+
+    @Test
+    public void testRealMarkAliveRejectsForeignClusterNode() throws Exception
+    {
+        InetAddressAndPort foreignHost = InetAddressAndPort.getByName("127.0.0.250");
+        EndpointState foreignState = new EndpointState(new HeartBeatState((int) (System.currentTimeMillis() / 1000), 1));
+
+        Map<String, Object> payload = new HashMap<>();
+        payload.put(ApplicationState.JsonPayload.CLUSTER_NAME.name(), "foreign-cluster");
+        payload.put(ApplicationState.JsonPayload.PARTITIONER_NAME.name(), DatabaseDescriptor.getPartitionerName());
+        foreignState.addApplicationState(ApplicationState.JSON_PAYLOAD, ApplicationState.serializeJsonPayload(payload));
+
+        Gossiper.instance.liveEndpoints.remove(foreignHost);
+        try
+        {
+            Gossiper.instance.realMarkAlive(foreignHost, foreignState);
+            assertFalse("Foreign endpoint should not be admitted to live endpoints", Gossiper.instance.liveEndpoints.contains(foreignHost));
+        }
+        finally
+        {
+            Gossiper.instance.liveEndpoints.remove(foreignHost);
+        }
     }
 
     @Test

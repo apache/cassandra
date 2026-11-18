@@ -18,8 +18,10 @@
 
 package org.apache.cassandra.distributed.test.ring;
 
+import org.junit.BeforeClass;
 import org.junit.Test;
 
+import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.distributed.Cluster;
 import org.apache.cassandra.distributed.api.ConsistencyLevel;
 import org.apache.cassandra.distributed.api.IInstanceConfig;
@@ -38,6 +40,12 @@ import static org.apache.cassandra.distributed.api.TokenSupplier.evenlyDistribut
 
 public class CleanupFailureTest extends TestBaseImpl
 {
+    @BeforeClass
+    public static void setup()
+    {
+        DatabaseDescriptor.clientInitialization();
+    }
+
     @Test
     public void cleanupDuringDecommissionTest() throws Throwable
     {
