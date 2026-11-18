@@ -18,6 +18,7 @@
 
 package org.apache.cassandra.service.paxos.uncommitted;
 
+import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -38,6 +39,7 @@ import org.apache.cassandra.cql3.QueryProcessor;
 import org.apache.cassandra.cql3.statements.schema.CreateTableStatement;
 import org.apache.cassandra.db.BufferClustering;
 import org.apache.cassandra.db.Clustering;
+import org.apache.cassandra.db.ConsistencyLevel;
 import org.apache.cassandra.db.DecoratedKey;
 import org.apache.cassandra.db.LivenessInfo;
 import org.apache.cassandra.db.PartitionRangeReadCommand;
@@ -52,6 +54,7 @@ import org.apache.cassandra.db.rows.BufferCell;
 import org.apache.cassandra.db.rows.Cell;
 import org.apache.cassandra.db.rows.Row;
 import org.apache.cassandra.db.rows.UnfilteredRowIterator;
+import org.apache.cassandra.io.util.DataOutputBuffer;
 import org.apache.cassandra.net.MessagingService;
 import org.apache.cassandra.schema.ColumnMetadata;
 import org.apache.cassandra.schema.TableId;
@@ -207,6 +210,68 @@ public class PaxosRowsTest
                                                           key.getKey(), tableId.asUUID(), proposal.ballot);
         QueryProcessor.executeInternal("UPDATE system.paxos USING TIMESTAMP ? SET proposal_ballot = ?, proposal = ? WHERE row_key = ? AND cf_id = ?",
                                        proposal.ballot.unixMicros(), proposal.ballot, blob, key.getKey(), tableId.asUUID());
+    }
+
+    private static Commit commitWithValue(Ballot ballot, DecoratedKey key, int value)
+    {
+        ColumnMetadata valueColumn = metadata.getColumn(new ColumnIdentifier("v", false));
+        PartitionUpdate update = PartitionUpdate.singleRowUpdate(metadata, key, BTreeRow.create(Clustering.EMPTY, LivenessInfo.EMPTY, Row.Deletion.LIVE, BTree.singleton(new BufferCell(valueColumn, ballot.unixMicros(), Cell.NO_TTL, Cell.NO_DELETION_TIME, ByteBufferUtil.bytes(value), null))));
+        return new Commit(ballot, update);
+    }
+
+    @SuppressWarnings({ "unchecked", "rawtypes" })
+    private static Ballot proposalBallotColumn(Row row)
+    {
+        Cell cell = row.getCell(PAXOS_CFM.getColumn(new ColumnIdentifier("proposal_ballot", false)));
+        return cell.accessor().toBallot(cell.value());
+    }
+
+    private static Ballot proposalBallotInBlob(DecoratedKey key, Row row)
+    {
+        Cell<?> cell = row.getCell(PAXOS_CFM.getColumn(new ColumnIdentifier("proposal", false)));
+        return PaxosPartitionUpdateBlob.emptiness(cell.buffer(), MessagingService.current_version, key.getKey(), tableId.asUUID()).ballot;
+    }
+
+    @Test
+    public void aProposalTieOnOneMicrosecondTakesTheBallotFromTheBlob()
+    {
+        DecoratedKey key = dk(3);
+        long micros = FBUtilities.timestampMicros();
+        Ballot global = Ballot.atUnixMicrosWithLsb(micros, 1, Ballot.Flag.GLOBAL);
+        Ballot local = Ballot.atUnixMicrosWithLsb(micros, 2, Ballot.Flag.LOCAL);
+
+        // The two ballots differ in the flag digit and the low bits, so the greater timeuuid bytes
+        // belong to the GLOBAL ballot. The update of the LOCAL commit has the greater value, so the
+        // greater blob bytes belong to the LOCAL commit. Each cell resolves to a different write.
+        SystemKeyspace.savePaxosProposal(commitWithValue(global, key, 1));
+        SystemKeyspace.savePaxosProposal(commitWithValue(local, key, 2));
+
+        Row row = paxosRowFor(key);
+        Assert.assertEquals(global, proposalBallotColumn(row));
+        Assert.assertEquals(local, proposalBallotInBlob(key, row));
+
+        PaxosKeyState state = PaxosRows.getCommitState(key, row, null);
+        Assert.assertEquals(new PaxosKeyState(tableId, key, local, false), state);
+        Assert.assertEquals(ConsistencyLevel.LOCAL_SERIAL, state.getConsistencyLevel());
+    }
+
+    @Test
+    public void aProposalBlobWithoutAFooterKeepsTheColumnBallot() throws IOException
+    {
+        DecoratedKey key = dk(4);
+        Ballot ballot = createBallots(1)[0];
+        Commit proposal = nonEmptyCommitFor(ballot, key);
+        ByteBuffer raw;
+        try (DataOutputBuffer out = new DataOutputBuffer())
+        {
+            PartitionUpdate.serializer.serialize(proposal.update, out, MessagingService.current_version);
+            raw = out.asNewBuffer();
+        }
+        QueryProcessor.executeInternal("UPDATE system.paxos USING TIMESTAMP ? SET proposal_ballot = ?, proposal = ?, proposal_version = ? WHERE row_key = ? AND cf_id = ?",
+                                       ballot.unixMicros(), ballot, raw, MessagingService.current_version, key.getKey(), tableId.asUUID());
+
+        Assert.assertNull(proposalBallotInBlob(key, paxosRowFor(key)));
+        Assert.assertEquals(new PaxosKeyState(tableId, key, ballot, false), PaxosRows.getCommitState(key, paxosRowFor(key), null));
     }
 
     @Test
