@@ -1110,6 +1110,8 @@ native_transport_allow_older_protocols: true
 # The timeout starts when the TCP connection is established, includes TLS negotiation
 # if enabled, and covers protocol startup and authentication. Connections that do not
 # reach READY within this period are closed, regardless of connection activity.
+# The connection is closed without an error being sent to the client, which sees only
+# a closed connection. Closed connections are counted in the AuthTimeout client metric.
 #
 # Authentication timeouts are enabled by default (5000ms). Set to 0ms to disable.
 # The timeout can be changed at runtime via JMX (StorageServiceMBean), the new value
