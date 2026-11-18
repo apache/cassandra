@@ -22,6 +22,7 @@ import java.util.concurrent.TimeUnit;
 
 import org.slf4j.LoggerFactory;
 
+import org.apache.cassandra.metrics.ClientMetrics;
 import org.apache.cassandra.utils.NoSpamLogger;
 
 import io.netty.channel.Channel;
@@ -60,6 +61,7 @@ final class AuthenticationTimeoutHandler extends ChannelInboundHandlerAdapter
             logger.debug("Closing unauthenticated client connection {} because it did not complete " +
                          "authentication within {}ms (native_transport_auth_timeout)",
                          ctx.channel().remoteAddress(), timeoutMillis);
+            ClientMetrics.instance.markAuthTimeout();
             ctx.close();
         }, timeoutMillis, TimeUnit.MILLISECONDS);
 

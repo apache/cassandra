@@ -30,6 +30,7 @@ import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.cql3.CQLTester;
 import org.apache.cassandra.cql3.QueryProcessor;
 import org.apache.cassandra.db.ConsistencyLevel;
+import org.apache.cassandra.metrics.ClientMetrics;
 import org.apache.cassandra.transport.messages.AuthResponse;
 import org.apache.cassandra.transport.messages.AuthSuccess;
 import org.apache.cassandra.transport.messages.AuthenticateMessage;
@@ -41,6 +42,7 @@ import io.netty.channel.Channel;
 import io.netty.channel.embedded.EmbeddedChannel;
 
 import static org.apache.cassandra.auth.AuthTestUtils.getToken;
+import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertNotNull;
 import static org.junit.Assert.assertNull;
@@ -79,6 +81,7 @@ public class AuthenticationTimeoutHandlerTest extends CQLTester
     {
         try (SimpleClient client = new SimpleClient(nativeAddr.getHostAddress(), nativePort))
         {
+            long timeoutsBefore = ClientMetrics.instance.getAuthTimeoutCount();
             client.establishConnection();
             assertTrue(client.channel.isOpen());
             long deadline = System.nanoTime() + TimeUnit.SECONDS.toNanos(10);
@@ -86,6 +89,7 @@ public class AuthenticationTimeoutHandlerTest extends CQLTester
                 Thread.sleep(25);
             assertFalse("Unauthenticated connection should be closed after the timeout",
                         client.channel.isOpen());
+            assertEquals(timeoutsBefore + 1, ClientMetrics.instance.getAuthTimeoutCount());
         }
     }
 
@@ -182,11 +186,13 @@ public class AuthenticationTimeoutHandlerTest extends CQLTester
     {
         EmbeddedChannel channel = new EmbeddedChannel(new AuthenticationTimeoutHandler(AUTH_TIMEOUT_MS));
         setConnectionInStage(channel, ConnectionStage.READY);
+        long timeoutsBefore = ClientMetrics.instance.getAuthTimeoutCount();
 
         channel.advanceTimeBy(AUTH_TIMEOUT_MS + 1, TimeUnit.MILLISECONDS);
         channel.runScheduledPendingTasks();
 
         assertTrue("Connection which is READY should not be closed by the timeout", channel.isOpen());
+        assertEquals(timeoutsBefore, ClientMetrics.instance.getAuthTimeoutCount());
         channel.close();
     }
 
