@@ -19,6 +19,7 @@
 package org.apache.cassandra.transport;
 
 import java.util.Collections;
+import java.util.concurrent.TimeUnit;
 
 import org.junit.AfterClass;
 import org.junit.BeforeClass;
@@ -30,7 +31,12 @@ import org.apache.cassandra.cql3.QueryProcessor;
 import org.apache.cassandra.transport.messages.ReadyMessage;
 import org.apache.cassandra.transport.messages.StartupMessage;
 
-import static org.apache.cassandra.transport.AuthenticationTimeoutHandlerTest.assertAuthenticationTimeoutHandlerRemoved;
+import io.netty.channel.Channel;
+import io.netty.channel.ChannelPipeline;
+
+import static org.awaitility.Awaitility.await;
+import static org.junit.Assert.assertNotNull;
+import static org.junit.Assert.assertNull;
 import static org.junit.Assert.assertTrue;
 
 /**
@@ -40,7 +46,9 @@ import static org.junit.Assert.assertTrue;
  */
 public class AuthenticationTimeoutAllowAllTest extends CQLTester
 {
-    private static final long AUTH_TIMEOUT_MS = 2000L;
+    // generous, the server has to answer STARTUP within this time even on a slow machine
+    private static final long AUTH_TIMEOUT_MS = 30_000L;
+    private static final long AWAIT_SECONDS = 30;
     private static long originalAuthTimeout;
 
     @BeforeClass
@@ -58,7 +66,7 @@ public class AuthenticationTimeoutAllowAllTest extends CQLTester
     }
 
     @Test
-    public void testConnectionIsNotClosedWhenStartupTransitionsDirectlyToReady() throws Exception
+    public void testHandlerIsRemovedWhenStartupTransitionsDirectlyToReady() throws Exception
     {
         try (SimpleClient client = new SimpleClient(nativeAddr.getHostAddress(), nativePort))
         {
@@ -66,9 +74,34 @@ public class AuthenticationTimeoutAllowAllTest extends CQLTester
             StartupMessage startup = new StartupMessage(Collections.singletonMap(StartupMessage.CQL_VERSION, QueryProcessor.CQL_VERSION.toString()));
             Message.Response response = client.execute(startup);
             assertTrue("Expected READY response", response instanceof ReadyMessage);
-            Thread.sleep(AUTH_TIMEOUT_MS + 500);
+            // without the handler there is no timeout task left which could close the connection
+            awaitAuthenticationTimeoutHandlerRemoved(client);
             assertTrue("Connection should remain open after STARTUP transitions directly to READY", client.channel.isOpen());
-            assertAuthenticationTimeoutHandlerRemoved(client);
         }
+    }
+
+    /**
+     * The handler is removed on the event loop of the server after the response which completes authentication was
+     * sent, so the client may see that response before the handler is gone.
+     */
+    private static void awaitAuthenticationTimeoutHandlerRemoved(SimpleClient client)
+    {
+        Channel serverChannel = null;
+        for (Channel channel : allChannels())
+        {
+            Connection connection = channel.attr(Connection.attributeKey).get();
+            if (connection instanceof ServerConnection && client.channel.localAddress().equals(channel.remoteAddress()))
+            {
+                serverChannel = channel;
+                break;
+            }
+        }
+
+        assertNotNull("Could not find the server-side channel for the client", serverChannel);
+
+        ChannelPipeline pipeline = serverChannel.pipeline();
+        await().atMost(AWAIT_SECONDS, TimeUnit.SECONDS)
+               .untilAsserted(() -> assertNull("Authentication timeout handler should be removed after authentication",
+                                               pipeline.get(AuthenticationTimeoutHandler.class)));
     }
 }

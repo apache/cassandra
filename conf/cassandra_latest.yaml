@@ -1112,6 +1112,8 @@ native_transport_allow_older_protocols: true
 # reach READY within this period are closed, regardless of connection activity.
 #
 # Authentication timeouts are enabled by default (5000ms). Set to 0ms to disable.
+# The timeout can be changed at runtime via JMX (StorageServiceMBean), the new value
+# applies to connections established after the change.
 # Min unit: ms
 # native_transport_auth_timeout: 5000ms
 

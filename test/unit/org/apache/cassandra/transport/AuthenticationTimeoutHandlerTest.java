@@ -27,10 +27,12 @@ import org.junit.BeforeClass;
 import org.junit.Test;
 
 import org.apache.cassandra.config.DatabaseDescriptor;
+import org.apache.cassandra.config.EncryptionOptions;
 import org.apache.cassandra.cql3.CQLTester;
 import org.apache.cassandra.cql3.QueryProcessor;
 import org.apache.cassandra.db.ConsistencyLevel;
 import org.apache.cassandra.metrics.ClientMetrics;
+import org.apache.cassandra.service.StorageService;
 import org.apache.cassandra.transport.messages.AuthResponse;
 import org.apache.cassandra.transport.messages.AuthSuccess;
 import org.apache.cassandra.transport.messages.AuthenticateMessage;
@@ -39,9 +41,11 @@ import org.apache.cassandra.transport.messages.StartupMessage;
 import org.apache.cassandra.transport.messages.SupportedMessage;
 
 import io.netty.channel.Channel;
+import io.netty.channel.ChannelPipeline;
 import io.netty.channel.embedded.EmbeddedChannel;
 
 import static org.apache.cassandra.auth.AuthTestUtils.getToken;
+import static org.awaitility.Awaitility.await;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertNotNull;
@@ -50,9 +54,17 @@ import static org.junit.Assert.assertTrue;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
+/**
+ * The behaviour of the handler in time is tested on an {@link EmbeddedChannel}, whose clock is advanced by the test,
+ * so these tests do not sleep and do not depend on how fast the machine is. The tests which connect to a real server
+ * cover only the wiring, they wait for an event to happen and never for a period of time to elapse.
+ */
 public class AuthenticationTimeoutHandlerTest extends CQLTester
 {
     private static final long AUTH_TIMEOUT_MS = 2000L;
+    // generous, the server has to answer STARTUP and authenticate within this time even on a slow machine
+    private static final long SERVER_AUTH_TIMEOUT_MS = TimeUnit.SECONDS.toMillis(30);
+    private static final long AWAIT_SECONDS = 30;
     private static long originalAuthTimeout;
 
     @BeforeClass
@@ -67,7 +79,7 @@ public class AuthenticationTimeoutHandlerTest extends CQLTester
     public void setUp()
     {
         originalAuthTimeout = DatabaseDescriptor.nativeTransportAuthTimeout();
-        DatabaseDescriptor.setNativeTransportAuthTimeout(AUTH_TIMEOUT_MS);
+        DatabaseDescriptor.setNativeTransportAuthTimeout(SERVER_AUTH_TIMEOUT_MS);
     }
 
     @After
@@ -77,102 +89,27 @@ public class AuthenticationTimeoutHandlerTest extends CQLTester
     }
 
     @Test
-    public void testUnauthenticatedConnectionTimesOut() throws Exception
+    public void testConnectionIsClosedAtTheDeadlineAndNotBefore()
     {
-        try (SimpleClient client = new SimpleClient(nativeAddr.getHostAddress(), nativePort))
-        {
-            long timeoutsBefore = ClientMetrics.instance.getAuthTimeoutCount();
-            client.establishConnection();
-            assertTrue(client.channel.isOpen());
-            long deadline = System.nanoTime() + TimeUnit.SECONDS.toNanos(10);
-            while (client.channel.isOpen() && System.nanoTime() < deadline)
-                Thread.sleep(25);
-            assertFalse("Unauthenticated connection should be closed after the timeout",
-                        client.channel.isOpen());
-            assertEquals(timeoutsBefore + 1, ClientMetrics.instance.getAuthTimeoutCount());
-        }
+        EmbeddedChannel channel = newChannelWithHandler();
+        long timeoutsBefore = ClientMetrics.instance.getAuthTimeoutCount();
+
+        advanceTimeBy(channel, AUTH_TIMEOUT_MS - 1);
+        assertTrue("Connection should remain open before the timeout", channel.isOpen());
+        assertEquals(timeoutsBefore, ClientMetrics.instance.getAuthTimeoutCount());
+
+        advanceTimeBy(channel, 1);
+        assertFalse("Unauthenticated connection should be closed after the timeout", channel.isOpen());
+        assertEquals(timeoutsBefore + 1, ClientMetrics.instance.getAuthTimeoutCount());
     }
 
     @Test
-    public void testAuthenticationTimeout() throws Exception
+    public void testConnectionWhichIsStillAuthenticatingIsClosed()
     {
-        try (SimpleClient client = new SimpleClient(nativeAddr.getHostAddress(), nativePort))
-        {
-            client.establishConnection();
-            StartupMessage startup = new StartupMessage(Collections.singletonMap(StartupMessage.CQL_VERSION, QueryProcessor.CQL_VERSION.toString()));
-            Message.Response response = client.execute(startup);
-            assertTrue("Expected AUTHENTICATE response", response instanceof AuthenticateMessage);
-            long deadline = System.nanoTime() + TimeUnit.SECONDS.toNanos(10);
-            while (client.channel.isOpen() && System.nanoTime() < deadline)
-                Thread.sleep(25);
-            assertFalse("Connection should close when authentication is not completed", client.channel.isOpen());
-        }
-    }
-
-    @Test
-    public void testSuccessfulAuthenticationDoesNotTimeout() throws Exception
-    {
-        try (SimpleClient client = new SimpleClient(nativeAddr.getHostAddress(), nativePort))
-        {
-            client.establishConnection();
-            StartupMessage startup = new StartupMessage(Collections.singletonMap(StartupMessage.CQL_VERSION, QueryProcessor.CQL_VERSION.toString()));
-            Message.Response startupResponse = client.execute(startup);
-            assertTrue("Expected AUTHENTICATE response", startupResponse instanceof AuthenticateMessage);
-            Message.Response authResponse = client.execute(new AuthResponse(getToken("cassandra", "cassandra")));
-            assertTrue("Expected AUTH_SUCCESS response", authResponse instanceof AuthSuccess);
-            Thread.sleep(AUTH_TIMEOUT_MS + 500);
-            assertTrue("Authenticated connection must remain open after the deadline", client.channel.isOpen());
-            client.execute("SELECT * FROM system.local", ConsistencyLevel.ONE);
-            assertAuthenticationTimeoutHandlerRemoved(client);
-        }
-    }
-
-
-    @Test
-    public void testAuthenticationTimeoutDisabled() throws Exception
-    {
-        DatabaseDescriptor.setNativeTransportAuthTimeout(0);
-        try (SimpleClient client = new SimpleClient(nativeAddr.getHostAddress(), nativePort))
-        {
-            client.establishConnection();
-            assertTrue("Connection should initially be open", client.channel.isOpen());
-            Thread.sleep(AUTH_TIMEOUT_MS + 500);
-            assertTrue("Connection should remain open when authentication timeout is disabled", client.channel.isOpen());
-        }
-    }
-
-    @Test
-    public void testUnauthenticatedActivityDoesNotResetTimeout() throws Exception
-    {
-        try (SimpleClient client = new SimpleClient(nativeAddr.getHostAddress(), nativePort))
-        {
-            client.establishConnection();
-            long deadline = System.nanoTime() + TimeUnit.SECONDS.toNanos(10);
-            long nextAttempt = System.nanoTime();
-            while (client.channel.isOpen() && System.nanoTime() < deadline)
-            {
-                if (System.nanoTime() >= nextAttempt)
-                {
-                    Message.Response response = client.execute(new OptionsMessage());
-                    assertTrue("Expected SUPPORTED response to OPTIONS", response instanceof SupportedMessage);
-                    assertTrue("Connection should remain open before the timeout", client.channel.isOpen());
-                    nextAttempt = System.nanoTime() + TimeUnit.MILLISECONDS.toNanos(250);
-                }
-                if (client.channel.isOpen())
-                    Thread.sleep(25);
-            }
-            assertFalse("Unauthenticated activity must not prevent the timeout", client.channel.isOpen());
-        }
-    }
-
-    @Test
-    public void testTimeoutClosesConnectionWhichIsNotReady()
-    {
-        EmbeddedChannel channel = new EmbeddedChannel(new AuthenticationTimeoutHandler(AUTH_TIMEOUT_MS));
+        EmbeddedChannel channel = newChannelWithHandler();
         setConnectionInStage(channel, ConnectionStage.AUTHENTICATING);
 
-        channel.advanceTimeBy(AUTH_TIMEOUT_MS + 1, TimeUnit.MILLISECONDS);
-        channel.runScheduledPendingTasks();
+        advanceTimeBy(channel, AUTH_TIMEOUT_MS);
 
         assertFalse("Connection which is still authenticating should be closed by the timeout", channel.isOpen());
     }
@@ -184,16 +121,159 @@ public class AuthenticationTimeoutHandlerTest extends CQLTester
     @Test
     public void testTimeoutKeepsConnectionWhichIsReadyButHandlerIsNotRemovedYet()
     {
-        EmbeddedChannel channel = new EmbeddedChannel(new AuthenticationTimeoutHandler(AUTH_TIMEOUT_MS));
+        EmbeddedChannel channel = newChannelWithHandler();
         setConnectionInStage(channel, ConnectionStage.READY);
         long timeoutsBefore = ClientMetrics.instance.getAuthTimeoutCount();
 
-        channel.advanceTimeBy(AUTH_TIMEOUT_MS + 1, TimeUnit.MILLISECONDS);
-        channel.runScheduledPendingTasks();
+        advanceTimeBy(channel, AUTH_TIMEOUT_MS);
 
         assertTrue("Connection which is READY should not be closed by the timeout", channel.isOpen());
         assertEquals(timeoutsBefore, ClientMetrics.instance.getAuthTimeoutCount());
         channel.close();
+    }
+
+    @Test
+    public void testInboundActivityDoesNotResetTimeout()
+    {
+        EmbeddedChannel channel = newChannelWithHandler();
+
+        // activity until right before the deadline
+        for (int i = 0; i < 10 && channel.isOpen(); i++)
+        {
+            advanceTimeBy(channel, (AUTH_TIMEOUT_MS - 1) / 10);
+            assertTrue("Connection should remain open before the timeout", channel.isOpen());
+            channel.writeInbound("activity");
+        }
+
+        advanceTimeBy(channel, AUTH_TIMEOUT_MS);
+        assertFalse("Activity of an unauthenticated connection must not prevent the timeout", channel.isOpen());
+    }
+
+    @Test
+    public void testCompletedAuthenticationCancelsTimeout()
+    {
+        AuthenticationTimeoutHandler handler = new AuthenticationTimeoutHandler(AUTH_TIMEOUT_MS);
+        EmbeddedChannel channel = new EmbeddedChannel(handler);
+
+        handler.markAuthenticationComplete(channel.pipeline().context(handler));
+
+        assertNull("Handler should be removed after authentication", channel.pipeline().get(AuthenticationTimeoutHandler.class));
+        channel.advanceTimeBy(AUTH_TIMEOUT_MS, TimeUnit.MILLISECONDS);
+        assertEquals("The timeout task should be cancelled", -1, channel.runScheduledPendingTasks());
+        assertTrue("Authenticated connection must remain open after the deadline", channel.isOpen());
+        channel.close();
+    }
+
+    @Test
+    public void testClosedConnectionCancelsTimeout()
+    {
+        EmbeddedChannel channel = newChannelWithHandler();
+        long timeoutsBefore = ClientMetrics.instance.getAuthTimeoutCount();
+
+        channel.close();
+
+        channel.advanceTimeBy(AUTH_TIMEOUT_MS, TimeUnit.MILLISECONDS);
+        assertEquals("The timeout task should be cancelled", -1, channel.runScheduledPendingTasks());
+        assertEquals(timeoutsBefore, ClientMetrics.instance.getAuthTimeoutCount());
+    }
+
+    @Test
+    public void testHandlerIsInstalledOnlyWhenTimeoutIsEnabled()
+    {
+        PipelineConfigurator configurator = new PipelineConfigurator(false, false, false, EncryptionOptions.TlsEncryptionPolicy.UNENCRYPTED);
+        // a connection is created on STARTUP only, which is never sent here
+        Connection.Factory connectionFactory = (channel, version) -> { throw new AssertionError(); };
+
+        DatabaseDescriptor.setNativeTransportAuthTimeout(AUTH_TIMEOUT_MS);
+        EmbeddedChannel enabled = new EmbeddedChannel();
+        configurator.configureInitialPipeline(enabled, connectionFactory);
+        assertNotNull(enabled.pipeline().get(AuthenticationTimeoutHandler.class));
+        enabled.close();
+
+        DatabaseDescriptor.setNativeTransportAuthTimeout(0);
+        EmbeddedChannel disabled = new EmbeddedChannel();
+        configurator.configureInitialPipeline(disabled, connectionFactory);
+        assertNull(disabled.pipeline().get(AuthenticationTimeoutHandler.class));
+        disabled.close();
+    }
+
+    @Test
+    public void testUnauthenticatedConnectionTimesOut() throws Exception
+    {
+        DatabaseDescriptor.setNativeTransportAuthTimeout(100);
+        try (SimpleClient client = new SimpleClient(nativeAddr.getHostAddress(), nativePort))
+        {
+            long timeoutsBefore = ClientMetrics.instance.getAuthTimeoutCount();
+            client.establishConnection();
+            awaitClosed(client, "Unauthenticated connection should be closed after the timeout");
+            assertEquals(timeoutsBefore + 1, ClientMetrics.instance.getAuthTimeoutCount());
+        }
+    }
+
+    @Test
+    public void testAuthenticationTimeout() throws Exception
+    {
+        // long enough for the server to answer STARTUP, the connection is then left in the middle of authentication
+        DatabaseDescriptor.setNativeTransportAuthTimeout(AUTH_TIMEOUT_MS);
+        try (SimpleClient client = new SimpleClient(nativeAddr.getHostAddress(), nativePort))
+        {
+            client.establishConnection();
+            StartupMessage startup = new StartupMessage(Collections.singletonMap(StartupMessage.CQL_VERSION, QueryProcessor.CQL_VERSION.toString()));
+            Message.Response response = client.execute(startup);
+            assertTrue("Expected AUTHENTICATE response", response instanceof AuthenticateMessage);
+            awaitClosed(client, "Connection should close when authentication is not completed");
+        }
+    }
+
+    @Test
+    public void testSuccessfulAuthenticationRemovesHandler() throws Exception
+    {
+        try (SimpleClient client = new SimpleClient(nativeAddr.getHostAddress(), nativePort))
+        {
+            client.establishConnection();
+            StartupMessage startup = new StartupMessage(Collections.singletonMap(StartupMessage.CQL_VERSION, QueryProcessor.CQL_VERSION.toString()));
+            Message.Response startupResponse = client.execute(startup);
+            assertTrue("Expected AUTHENTICATE response", startupResponse instanceof AuthenticateMessage);
+            Message.Response authResponse = client.execute(new AuthResponse(getToken("cassandra", "cassandra")));
+            assertTrue("Expected AUTH_SUCCESS response", authResponse instanceof AuthSuccess);
+            // without the handler there is no timeout task left which could close the connection
+            awaitAuthenticationTimeoutHandlerRemoved(client);
+            client.execute("SELECT * FROM system.local", ConsistencyLevel.ONE);
+        }
+    }
+
+    @Test
+    public void testTimeoutChangedAtRuntimeAppliesToNewConnectionsOnly() throws Exception
+    {
+        StorageService.instance.setNativeTransportAuthTimeoutMillis(0);
+        assertEquals(0, StorageService.instance.getNativeTransportAuthTimeoutMillis());
+
+        try (SimpleClient establishedBefore = new SimpleClient(nativeAddr.getHostAddress(), nativePort);
+             SimpleClient establishedAfter = new SimpleClient(nativeAddr.getHostAddress(), nativePort))
+        {
+            establishedBefore.establishConnection();
+            // The server reads the timeout when it initializes the channel, which may happen after the client sees
+            // the connection as established. A response proves that the channel was initialized.
+            assertTrue(establishedBefore.execute(new OptionsMessage()) instanceof SupportedMessage);
+
+            StorageService.instance.setNativeTransportAuthTimeoutMillis(100);
+            assertEquals(100, StorageService.instance.getNativeTransportAuthTimeoutMillis());
+
+            establishedAfter.establishConnection();
+            awaitClosed(establishedAfter, "Connection established after the timeout was enabled should be closed");
+            assertTrue("Connection established while the timeout was disabled should remain open", establishedBefore.channel.isOpen());
+        }
+    }
+
+    private static EmbeddedChannel newChannelWithHandler()
+    {
+        return new EmbeddedChannel(new AuthenticationTimeoutHandler(AUTH_TIMEOUT_MS));
+    }
+
+    private static void advanceTimeBy(EmbeddedChannel channel, long millis)
+    {
+        channel.advanceTimeBy(millis, TimeUnit.MILLISECONDS);
+        channel.runScheduledPendingTasks();
     }
 
     private static void setConnectionInStage(Channel channel, ConnectionStage stage)
@@ -203,7 +283,16 @@ public class AuthenticationTimeoutHandlerTest extends CQLTester
         channel.attr(Connection.attributeKey).set(connection);
     }
 
-    public static void assertAuthenticationTimeoutHandlerRemoved(SimpleClient client)
+    private static void awaitClosed(SimpleClient client, String message) throws InterruptedException
+    {
+        assertTrue(message, client.channel.closeFuture().await(AWAIT_SECONDS, TimeUnit.SECONDS));
+    }
+
+    /**
+     * The handler is removed on the event loop of the server after the response which completes authentication was
+     * sent, so the client may see that response before the handler is gone.
+     */
+    private static void awaitAuthenticationTimeoutHandlerRemoved(SimpleClient client)
     {
         Channel serverChannel = null;
         for (Channel channel : allChannels())
@@ -217,6 +306,10 @@ public class AuthenticationTimeoutHandlerTest extends CQLTester
         }
 
         assertNotNull("Could not find the server-side channel for the client", serverChannel);
-        assertNull("Authentication timeout handler should be removed after authentication", serverChannel.pipeline().get(AuthenticationTimeoutHandler.class));
+
+        ChannelPipeline pipeline = serverChannel.pipeline();
+        await().atMost(AWAIT_SECONDS, TimeUnit.SECONDS)
+               .untilAsserted(() -> assertNull("Authentication timeout handler should be removed after authentication",
+                                               pipeline.get(AuthenticationTimeoutHandler.class)));
     }
 }
