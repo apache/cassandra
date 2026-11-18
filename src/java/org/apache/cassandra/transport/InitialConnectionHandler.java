@@ -111,8 +111,33 @@ public class InitialConnectionHandler extends ByteToMessageDecoder
                     InetAddress remoteAddress = ((InetSocketAddress) ctx.channel().remoteAddress()).getAddress();
                     final ClientResourceLimits.Allocator allocator = ClientResourceLimits.getAllocatorForEndpoint(remoteAddress);
 
-                    ChannelPromise promise;
-                    if (inbound.header.version.isGreaterOrEqualTo(ProtocolVersion.V5))
+                    boolean modernPipeline = inbound.header.version.isGreaterOrEqualTo(ProtocolVersion.V5);
+                    ChannelPromise promise = null;
+                    if (!modernPipeline)
+                    {
+                        // no need to configure the pipeline asynchronously in this case
+                        // the capacity obtained from allocator for the STARTUP message
+                        // is released when flushed by the legacy dispatcher/flusher so
+                        // there's no need to explicitly release that here either.
+                        configurator.configureLegacyPipeline(ctx, allocator);
+                        promise = new VoidChannelPromise(ctx.channel(), false);
+                    }
+
+                    // Count the STARTUP request. This path processes STARTUP directly rather than
+                    // via Dispatcher#dispatch, so it must increment the counter itself; we are on the
+                    // channel's Netty event loop here.
+                    serverConnection.incrementRequests();
+                    final Message.Response response = Dispatcher.processRequest(ctx.channel(), startup, Overload.NONE, Dispatcher.RequestTime.forImmediateExecution());
+
+                    if (modernPipeline && response instanceof ErrorMessage)
+                    {
+                        // STARTUP was rejected, so the connection is not established and the client may send another
+                        // STARTUP. V5 framing begins only once STARTUP has succeeded, so this handler and its unframed
+                        // decoder stay in place; switching to the framed pipeline now would turn that retry into a
+                        // corrupt frame and close the connection without a readable error.
+                        promise = new VoidChannelPromise(ctx.channel(), false);
+                    }
+                    else if (modernPipeline)
                     {
                         // in this case we need to defer configuring the pipeline until after the response
                         // has been sent, as the frame encoding specified in v5 should not be applied to
@@ -132,29 +157,14 @@ public class InitialConnectionHandler extends ByteToMessageDecoder
                                     cause = new ServerError("Unexpected error establishing connection");
                                 logger.warn("Writing response to STARTUP failed, unable to configure pipeline", cause);
                                 ErrorMessage error = ErrorMessage.fromExceptionNoStreamId(cause);
-                                Envelope response = error.encode(inbound.header.version, inbound.header.streamId);
+                                Envelope errorEnvelope = error.encode(inbound.header.version, inbound.header.streamId);
                                 ChannelPromise closeChannel = AsyncChannelPromise.withListener(ctx, f -> ctx.close());
-                                ctx.writeAndFlush(response, closeChannel);
+                                ctx.writeAndFlush(errorEnvelope, closeChannel);
                                 if (ctx.channel().isOpen())
                                     ctx.channel().close();
                             }
                         });
                     }
-                    else
-                    {
-                        // no need to configure the pipeline asynchronously in this case
-                        // the capacity obtained from allocator for the STARTUP message
-                        // is released when flushed by the legacy dispatcher/flusher so
-                        // there's no need to explicitly release that here either.
-                        configurator.configureLegacyPipeline(ctx, allocator);
-                        promise = new VoidChannelPromise(ctx.channel(), false);
-                    }
-
-                    // Count the STARTUP request. This path processes STARTUP directly rather than
-                    // via Dispatcher#dispatch, so it must increment the counter itself; we are on the
-                    // channel's Netty event loop here.
-                    serverConnection.incrementRequests();
-                    final Message.Response response = Dispatcher.processRequest(ctx.channel(), startup, Overload.NONE, Dispatcher.RequestTime.forImmediateExecution());
 
                     outbound = response.encode(inbound.header.version, inbound.header.streamId);
                     ctx.writeAndFlush(outbound, promise);

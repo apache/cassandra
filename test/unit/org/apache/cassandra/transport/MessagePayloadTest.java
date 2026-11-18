@@ -36,13 +36,16 @@ import org.apache.cassandra.cql3.QueryProcessor;
 import org.apache.cassandra.cql3.statements.BatchStatement;
 import org.apache.cassandra.exceptions.RequestExecutionException;
 import org.apache.cassandra.exceptions.RequestValidationException;
+import org.apache.cassandra.exceptions.TransportException;
 import org.apache.cassandra.service.ClientState;
 import org.apache.cassandra.service.QueryState;
 import org.apache.cassandra.transport.messages.BatchMessage;
+import org.apache.cassandra.transport.messages.ErrorMessage;
 import org.apache.cassandra.transport.messages.ExecuteMessage;
 import org.apache.cassandra.transport.messages.PrepareMessage;
 import org.apache.cassandra.transport.messages.QueryMessage;
 import org.apache.cassandra.transport.messages.ResultMessage;
+import org.apache.cassandra.transport.messages.StartupMessage;
 import org.apache.cassandra.utils.ByteArrayUtil;
 import org.apache.cassandra.utils.MD5Digest;
 
@@ -142,6 +145,29 @@ public class MessagePayloadTest extends CQLTester
         finally
         {
             client.close();
+        }
+    }
+
+    @Test
+    public void startupRejectsCustomPayload() throws Throwable
+    {
+        requireNetwork();
+
+        // A custom payload precedes the option map in the body and is not budgeted by the STARTUP envelope limit, so
+        // STARTUP refuses it rather than let it eat into the option budget.
+        try (SimpleClient client = new SimpleClient(nativeAddr.getHostAddress(), nativePort))
+        {
+            client.establishConnection();
+            StartupMessage startup = new StartupMessage(Collections.singletonMap(StartupMessage.CQL_VERSION,
+                                                                                 QueryProcessor.CQL_VERSION.toString()));
+            startup.setCustomPayload(Collections.singletonMap("foo", bytes(42)));
+
+            Message.Response response = client.execute(startup, false);
+
+            Assert.assertTrue("Expected an error but received: " + response, response instanceof ErrorMessage);
+            TransportException error = ((ErrorMessage) response).error;
+            Assert.assertTrue("Expected a protocol error but received: " + error, error instanceof ProtocolException);
+            Assert.assertTrue(error.getMessage(), error.getMessage().contains("custom payload"));
         }
     }
 

@@ -18,12 +18,15 @@
 
 package org.apache.cassandra.transport;
 
+import java.io.DataInputStream;
 import java.io.IOException;
 import java.net.InetAddress;
 import java.net.InetSocketAddress;
 import java.net.ServerSocket;
+import java.net.Socket;
 import java.net.SocketAddress;
 import java.nio.ByteBuffer;
+import java.nio.charset.StandardCharsets;
 import java.security.SecureRandom;
 import java.util.HashMap;
 import java.util.List;
@@ -53,8 +56,10 @@ import org.apache.cassandra.auth.AllowAllAuthenticator;
 import org.apache.cassandra.auth.AllowAllAuthorizer;
 import org.apache.cassandra.auth.AllowAllNetworkAuthorizer;
 import org.apache.cassandra.concurrent.NamedThreadFactory;
+import org.apache.cassandra.config.CassandraRelevantProperties;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.cql3.QueryProcessor;
+import org.apache.cassandra.distributed.shared.WithProperties;
 import org.apache.cassandra.metrics.ClientMetrics;
 import org.apache.cassandra.net.AbstractMessageHandler;
 import org.apache.cassandra.net.BufferPoolAllocator;
@@ -245,6 +250,101 @@ public class CQLConnectionTest
 
         // we don't do more rounds with higher message count as the connection
         // will be closed when the first corrupt frame is encountered
+    }
+
+    @Test
+    public void rejectsOversizedStartupBeforeDecodingOptions() throws Exception
+    {
+        // The encoded STARTUP envelope limit is:
+        // Header (9) + map count (2) + one option (2 + 4 + 2 + 8) = 27 bytes.
+        //
+        // CQL_VERSION is 11 bytes and its value is 5 bytes, making the
+        // actual envelope size 9 + 2 + 2 + 11 + 2 + 5 = 31 bytes.
+        // This remains well below the global native transport frame limit.
+
+        try (WithProperties ignored = new WithProperties()
+                                      .set(CassandraRelevantProperties.STARTUP_CLIENT_OPTION_MAX_COUNT, 1)
+                                      .set(CassandraRelevantProperties.STARTUP_CLIENT_OPTION_KEY_MAX_LENGTH, 4)
+                                      .set(CassandraRelevantProperties.STARTUP_CLIENT_OPTION_VALUE_MAX_LENGTH, 8))
+        {
+            Codec codec = Codec.crc(alloc);
+            ServerConfigurator configurator = ServerConfigurator.builder().build();
+            Server server = server(configurator);
+            Client client = new Client(codec, 0);
+
+            Map<String, String> options = new HashMap<>();
+            options.put(StartupMessage.CQL_VERSION, QueryProcessor.CQL_VERSION.toString());
+
+            try
+            {
+                server.start();
+                client.connect(address, port, options);
+
+                assertThat(client.getConnectionError()).isNotNull();
+                assertThat(client.getConnectionError().error.getMessage())
+                .contains("Request is too big")
+                .contains("length 31")
+                .contains("maximum allowed length 27");
+
+                assertEquals(0, client.connectionErrorStreamId);
+                assertFalse(client.isConnected());
+            }
+            finally
+            {
+                client.stop();
+                server.stop();
+            }
+        }
+    }
+
+    @Test
+    public void rejectsOversizedPreStartupMessage() throws Exception
+    {
+        // Before STARTUP the server accepts only OPTIONS, whose body is empty, and STARTUP, so the STARTUP limit bounds
+        // every opcode on the initial pipeline. Claim a body one byte over it under the OPTIONS opcode: the decoder
+        // enters discard mode on the header, drops the body as it arrives instead of buffering it, and answers with an
+        // error once the body has been consumed. Without the bound it would buffer the whole body and answer SUPPORTED,
+        // and an unauthenticated client could pin native_transport_max_frame_size bytes per connection by claiming that
+        // much and never completing the body.
+        Server server = server(ServerConfigurator.builder().build());
+        server.start();
+        try (Socket socket = new Socket(address, port))
+        {
+            socket.setSoTimeout((int) TimeUnit.SECONDS.toMillis(10));
+            long limit = StartupMessage.maxEncodedSize();
+            int bodyLength = (int) (limit - Envelope.Header.LENGTH + 1);
+            ByteBuffer header = ByteBuffer.allocate(Envelope.Header.LENGTH);
+            header.put((byte) Message.Direction.REQUEST.addToVersion(ProtocolVersion.V5.asInt()));
+            header.put((byte) 0);                                       // flags
+            header.putShort((short) 1);                                 // stream id
+            header.put((byte) Message.Type.OPTIONS.opcode);
+            header.putInt(bodyLength);
+            socket.getOutputStream().write(header.array());
+            socket.getOutputStream().write(new byte[bodyLength]);
+            socket.getOutputStream().flush();
+
+            DataInputStream in = new DataInputStream(socket.getInputStream());
+            byte[] responseHeader = new byte[Envelope.Header.LENGTH];
+            in.readFully(responseHeader);
+            ByteBuffer response = ByteBuffer.wrap(responseHeader);
+            response.get();                                             // version
+            response.get();                                             // flags
+            assertEquals(1, response.getShort());
+            assertEquals(Message.Type.ERROR.opcode, response.get());
+            byte[] body = new byte[response.getInt()];
+            in.readFully(body);
+            ByteBuffer error = ByteBuffer.wrap(body);
+            error.getInt();                                             // error code
+            int messageLength = error.getShort();
+            String message = new String(body, error.position(), messageLength, StandardCharsets.UTF_8);
+            assertThat(message).contains("Request is too big")
+                               .contains("length " + (limit + 1))
+                               .contains("maximum allowed length " + limit);
+        }
+        finally
+        {
+            server.stop();
+        }
     }
 
     @Test
@@ -1149,6 +1249,7 @@ public class CQLConnectionTest
         long sendSize = 0;
         SimpleClient.SimpleFlusher flusher;
         ErrorMessage connectionError;
+        int connectionErrorStreamId = -1;
         Throwable disconnectionError;
 
         Client(Codec codec, int expectedResponses)
@@ -1161,6 +1262,16 @@ public class CQLConnectionTest
 
         private void connect(InetAddress address, int port) throws IOException, InterruptedException
         {
+            Map<String, String> options = new HashMap<>();
+            options.put(StartupMessage.CQL_VERSION, QueryProcessor.CQL_VERSION.toString());
+
+            if (codec.encoder instanceof FrameEncoderLZ4)
+                options.put(StartupMessage.COMPRESSION, "LZ4");
+
+            connect(address, port, options);
+        }
+
+        private void connect(InetAddress address, int port, Map<String, String> options) throws IOException, InterruptedException        {
             final CountDownLatch ready = new CountDownLatch(1);
             Bootstrap bootstrap = new Bootstrap()
                                     .group(new NioEventLoopGroup(0, new NamedThreadFactory("TEST-CLIENT")))
@@ -1186,6 +1297,7 @@ public class CQLConnectionTest
                             // Handle ERROR responses during initial connection and protocol negotiation
                             if ( msg.header.type == Message.Type.ERROR)
                             {
+                                connectionErrorStreamId = msg.header.streamId;
                                 connectionError = (ErrorMessage)Message.responseDecoder()
                                                                        .decode(ctx.channel(), msg);
 
@@ -1279,10 +1391,6 @@ public class CQLConnectionTest
             }
 
             // Send an initial STARTUP message to kick off the handshake with the server
-            Map<String, String> options = new HashMap<>();
-            options.put(StartupMessage.CQL_VERSION, QueryProcessor.CQL_VERSION.toString());
-            if (codec.encoder instanceof FrameEncoderLZ4)
-                options.put(StartupMessage.COMPRESSION, "LZ4");
             Connection connection = new Connection(channel, ProtocolVersion.V5, new NoOpTracker());
             channel.attr(Connection.attributeKey).set(connection);
             channel.writeAndFlush(new StartupMessage(options)).sync();
