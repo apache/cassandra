@@ -149,7 +149,7 @@ public class IndexTermType
         AbstractType<?> baseType = indexType.unwrap();
 
         // We only need to inspect subtypes when it is possible for them to be queried individually.
-        if (baseType.subTypes().isEmpty() || indexTargetType == IndexTarget.Type.SIMPLE || indexTargetType == IndexTarget.Type.FULL)
+        if (baseType.subTypes().isEmpty() || !indexTargetType.hasElementTarget())
         {
             this.subTypes = Collections.emptyList();
         }
@@ -471,15 +471,24 @@ public class IndexTermType
     }
 
     @Nullable
-    public Iterator<ByteBuffer> valuesOfFrozenCollection(Row row, long nowInSecs)
+    public Iterator<ByteBuffer> valuesOfFrozenCollection(DecoratedKey key, Row row, long nowInSecs)
     {
         if (row == null)
             return null;
 
         ByteBuffer buffer;
 
-        if (columnMetadata.kind == ColumnMetadata.Kind.CLUSTERING)
-             buffer = row.clustering().bufferAt(columnMetadata.position());
+        if (columnMetadata.kind == ColumnMetadata.Kind.PARTITION_KEY)
+        {
+            buffer = isCompositePartition() ? CompositeType.extractComponent(key.getKey(), columnMetadata.position()) : key.getKey();
+        }
+        else if (columnMetadata.kind == ColumnMetadata.Kind.CLUSTERING)
+        {
+            if (row.isStatic())
+                return null;
+
+            buffer = row.clustering().bufferAt(columnMetadata.position());
+        }
         else
         {
             Cell<?> cell = row.getCell(columnMetadata);
@@ -561,6 +570,14 @@ public class IndexTermType
     }
 
     /**
+     * Compare two terms by the column's natural (non-reversed) CQL order
+     */
+    public int compareUnwrapped(ByteBuffer b1, ByteBuffer b2)
+    {
+        return indexType.unwrap().compare(b1, b2);
+    }
+
+    /**
      * Returns the smaller of two {@code ByteBuffer} values, based on the result of {@link
      * #compare(ByteBuffer, ByteBuffer)} comparision.
      */
@@ -589,18 +606,28 @@ public class IndexTermType
     {
         if (isInetAddress())
             return compareInet(requestedValue.encoded, columnValue.encoded);
+        return comparePostFilterRaw(requestedValue.raw, columnValue.raw);
+    }
+
+    /**
+     * Exact comparison of two raw, undecorated term values for post-filtering
+     */
+    public int comparePostFilterRaw(ByteBuffer requestedValue, ByteBuffer columnValue)
+    {
+        if (isInetAddress())
+            return compareInet(asIndexBytes(requestedValue), asIndexBytes(columnValue));
         // bigint, decimal, and varint are not indexed in reversed byte-comparable form or treated as reversed types by
         // Expression, so it is correct to compare with the base/unwrapped type
         else if (isLong() || isBigDecimal() || isBigInteger())
-            return indexType.unwrap().compare(requestedValue.raw, columnValue.raw);
+            return indexType.unwrap().compare(requestedValue, columnValue);
         // Override comparisons for frozen collections and composite types (map entries)
         else if (isComposite() || isFrozen())
-            return FastByteOperations.compareUnsigned(requestedValue.raw, columnValue.raw);
+            return FastByteOperations.compareUnsigned(requestedValue, columnValue);
 
         // Reversed types are treated as such by Expression here, so we cannot blindly compare with the unwrapped type.
         // In the future, we might consider simplifying things to have SAI ignore reversed types altogether, but this
         // will require a change to the on-disk formats.
-        return indexType.compare(requestedValue.raw, columnValue.raw);
+        return indexType.compare(requestedValue, columnValue);
     }
 
     /**
@@ -824,7 +851,8 @@ public class IndexTermType
 
     private AbstractType<?> calculateIndexType(AbstractType<?> baseType, EnumSet<Capability> capabilities, IndexTarget.Type indexTargetType)
     {
-        if (IndexTarget.Type.FULL == indexTargetType)
+        // Non-element targets compare the whole collection, so they shouldn't reach collectionCellValueType()
+        if (!indexTargetType.hasElementTarget())
             return baseType;
         return capabilities.contains(Capability.COLLECTION) ? collectionCellValueType(baseType, indexTargetType) : baseType;
     }
@@ -933,14 +961,18 @@ public class IndexTermType
      */
     private static int compareInet(ByteBuffer b1, ByteBuffer b2)
     {
-        assert isIPv6(b1) && isIPv6(b2);
-
+        assert isEmptyOrIPv6(b1) && isEmptyOrIPv6(b2);
         return FastByteOperations.compareUnsigned(b1, b2);
     }
 
     private static boolean isIPv6(ByteBuffer address)
     {
         return address.remaining() == INET_ADDRESS_SIZE;
+    }
+
+    private static boolean isEmptyOrIPv6(ByteBuffer address)
+    {
+        return address.remaining() == 0 || isIPv6(address);
     }
 
     /**

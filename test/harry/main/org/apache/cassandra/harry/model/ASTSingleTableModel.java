@@ -87,6 +87,7 @@ import org.apache.cassandra.db.marshal.Int32Type;
 import org.apache.cassandra.db.marshal.ListType;
 import org.apache.cassandra.db.marshal.LongType;
 import org.apache.cassandra.db.marshal.MapType;
+import org.apache.cassandra.db.marshal.SetType;
 import org.apache.cassandra.dht.Murmur3Partitioner;
 import org.apache.cassandra.dht.Token;
 import org.apache.cassandra.exceptions.InvalidRequestException;
@@ -2261,6 +2262,7 @@ public class ASTSingleTableModel
         private final Map<ReferenceExpression, List<? extends Expression>> eq = new HashMap<>();
         private final Map<ReferenceExpression, List<ColumnCondition>> ltOrGt = new HashMap<>();
         private final Map<ReferenceExpression, LikeCondition> like = new HashMap<>();
+        private final Map<ReferenceExpression, List<ContainsCondition>> contains = new HashMap<>();
         @Nullable
         private Token token = null;
         @Nullable
@@ -2494,6 +2496,14 @@ public class ASTSingleTableModel
                 else
                     throw new UnsupportedOperationException(likeCondition.ref.getClass().getCanonicalName());
             }
+            else if (conditional instanceof Conditional.Contains)
+            {
+                Conditional.Contains c = (Conditional.Contains) conditional;
+                if (!(c.ref instanceof Symbol))
+                    throw new UnsupportedOperationException(c.ref.getClass().getCanonicalName());
+                Symbol col = (Symbol) c.ref;
+                contains.computeIfAbsent(col, i -> new ArrayList<>()).add(new ContainsCondition(col.type(), c.kind, eval(c.element)));
+            }
             else
             {
                 //TODO (coverage): IS
@@ -2554,6 +2564,17 @@ public class ASTSingleTableModel
                     if (!like.get(col).matches(actual))
                         return false;
                 }
+                if (contains.containsKey(col))
+                {
+                    ByteBuffer actual = accessor.apply(columns.indexOf(col));
+                    if (actual == null)
+                        return false;
+                    for (ContainsCondition c : contains.get(col))
+                    {
+                        if (!c.matches(actual))
+                            return false;
+                    }
+                }
             }
             return true;
         }
@@ -2562,14 +2583,16 @@ public class ASTSingleTableModel
         {
             return factory.clusteringColumns.stream().anyMatch(eq::containsKey)
                    || factory.clusteringColumns.stream().anyMatch(ltOrGt::containsKey)
-                   || factory.clusteringColumns.stream().anyMatch(like::containsKey);
+                   || factory.clusteringColumns.stream().anyMatch(like::containsKey)
+                   || factory.clusteringColumns.stream().anyMatch(contains::containsKey);
         }
 
         private boolean testsRegular()
         {
             return factory.regularColumns.stream().anyMatch(eq::containsKey)
                    || factory.regularColumns.stream().anyMatch(ltOrGt::containsKey)
-                   || factory.regularColumns.stream().anyMatch(like::containsKey);
+                   || factory.regularColumns.stream().anyMatch(like::containsKey)
+                   || factory.regularColumns.stream().anyMatch(contains::containsKey);
         }
 
         private boolean testsRow()
@@ -2641,6 +2664,53 @@ public class ASTSingleTableModel
         {
             String valueStr = type.getString(value);
             return fn.test(valueStr);
+        }
+    }
+
+    private static class ContainsCondition
+    {
+        private final CollectionType<?> type;
+        private final AbstractType<?> elementType;
+        // maps are serialized as key1, value1, key2, value2, ... so only look at every other element
+        private final int offset, step;
+        private final ByteBuffer element;
+
+        private ContainsCondition(AbstractType<?> columnType, Conditional.Contains.Kind kind, ByteBuffer element)
+        {
+            this.type = (CollectionType<?>) columnType.unwrap();
+            this.element = element;
+            switch (type.kind)
+            {
+                case LIST:
+                case SET:
+                    if (kind == Conditional.Contains.Kind.KEY)
+                        throw new IllegalArgumentException("CONTAINS KEY is only supported on maps; given " + columnType.asCQL3Type());
+                    elementType = type.kind == CollectionType.Kind.LIST ? ((ListType<?>) type).getElementsType() : ((SetType<?>) type).getElementsType();
+                    offset = 0;
+                    step = 1;
+                    break;
+                case MAP:
+                    MapType<?, ?> mt = (MapType<?, ?>) type;
+                    boolean keys = kind == Conditional.Contains.Kind.KEY;
+                    elementType = keys ? mt.getKeysType() : mt.getValuesType();
+                    offset = keys ? 0 : 1;
+                    step = 2;
+                    break;
+                default:
+                    throw new UnsupportedOperationException(type.kind.name());
+            }
+        }
+
+        private boolean matches(ByteBuffer value)
+        {
+            if (!value.hasRemaining()) return false;
+            List<ByteBuffer> elements = type.unpack(value);
+            for (int i = offset; i < elements.size(); i += step)
+            {
+                if (elementType.compare(elements.get(i), element) == 0)
+                    return true;
+            }
+            return false;
         }
     }
 

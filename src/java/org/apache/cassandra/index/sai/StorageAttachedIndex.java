@@ -864,7 +864,7 @@ public class StorageAttachedIndex implements Index
         }
         else if (indexTermType.isFrozenCollection() && indexTermType.indexTargetType() != IndexTarget.Type.FULL)
         {
-            Iterator<ByteBuffer> bufferIterator = indexTermType.valuesOfFrozenCollection(row, FBUtilities.nowInSeconds());
+            Iterator<ByteBuffer> bufferIterator = indexTermType.valuesOfFrozenCollection(key, row, FBUtilities.nowInSeconds());
             while (bufferIterator != null && bufferIterator.hasNext())
                 validateTermSizeForCell(analyzer, key, bufferIterator.next(), isClientMutation, state);
         }
