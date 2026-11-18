@@ -44,6 +44,7 @@ import org.apache.cassandra.db.ClusteringComparator;
 import org.apache.cassandra.db.ColumnFamilyStore;
 import org.apache.cassandra.db.DataRange;
 import org.apache.cassandra.db.DecoratedKey;
+import org.apache.cassandra.db.DeletionTime;
 import org.apache.cassandra.db.PartitionPosition;
 import org.apache.cassandra.db.ReadCommand;
 import org.apache.cassandra.db.ReadExecutionController;
@@ -52,10 +53,12 @@ import org.apache.cassandra.db.Slices;
 import org.apache.cassandra.db.filter.ClusteringIndexFilter;
 import org.apache.cassandra.db.filter.ClusteringIndexNamesFilter;
 import org.apache.cassandra.db.filter.ClusteringIndexSliceFilter;
+import org.apache.cassandra.db.filter.ColumnFilter;
 import org.apache.cassandra.db.filter.RowFilter;
 import org.apache.cassandra.db.partitions.PartitionIterator;
 import org.apache.cassandra.db.partitions.UnfilteredPartitionIterator;
 import org.apache.cassandra.db.rows.AbstractUnfilteredRowIterator;
+import org.apache.cassandra.db.rows.RangeTombstoneMarker;
 import org.apache.cassandra.db.rows.Row;
 import org.apache.cassandra.db.rows.RowIterator;
 import org.apache.cassandra.db.rows.Unfiltered;
@@ -530,8 +533,14 @@ public class StorageAttachedIndexSearcher implements Index.Searcher
     {
         Row staticRow = partition.staticRow();
         DecoratedKey partitionKey = partition.partitionKey();
+        TableMetadata metadata = partition.metadata();
         List<Unfiltered> matches = new ArrayList<>();
         boolean hasMatch = false;
+
+        // Track the deletion of any range tombstone we're currently inside, so we can fold it into matched rows. This
+        // provides enough information for RFP to correctly shadow stale rows from other replicas.
+        DeletionTime activeDeletion = DeletionTime.LIVE;
+        ColumnFilter allColumns = matchTombstones ? null : ColumnFilter.all(metadata);
 
         while (partition.hasNext())
         {
@@ -540,17 +549,34 @@ public class StorageAttachedIndexSearcher implements Index.Searcher
             if (unfiltered.isRow())
             {
                 context.rowsFiltered++;
+                Row row = (Row) unfiltered;
 
-                if (tree.isSatisfiedBy(partitionKey, (Row) unfiltered, staticRow))
+                if (tree.isSatisfiedBy(partitionKey, row, staticRow))
                 {
-                    matches.add(unfiltered);
+                    if (!matchTombstones && !activeDeletion.isLive())
+                        row = row.filter(allColumns, activeDeletion, true, metadata);
+
+                    matches.add(row);
                     hasMatch = true;
                 }
             }
-            else if (matchTombstones && unfiltered.isRangeTombstoneMarker())
+            else if (unfiltered.isRangeTombstoneMarker())
             {
-                // Note that range tombstones do not constitute matches, and will be discarded if no actual rows match.
-                matches.add(unfiltered);
+                if (matchTombstones)
+                {
+                    // Note that range tombstones do not constitute matches, and will be discarded if no actual rows match.
+                    matches.add(unfiltered);
+                }
+                else
+                {
+                    RangeTombstoneMarker marker = (RangeTombstoneMarker) unfiltered;
+                    boolean reversed = partition.isReverseOrder();
+
+                    if (marker.isClose(reversed))
+                        activeDeletion = DeletionTime.LIVE;
+                    if (marker.isOpen(reversed))
+                        activeDeletion = marker.openDeletionTime(reversed);
+                }
             }
         }
 

@@ -179,7 +179,8 @@ public class RowFilter implements Iterable<RowFilter.Expression>
     }
 
     /**
-     * @return true if this filter contains an intersection on either any static column or two regular mutable columns
+     * @return true if this filter contains an intersection on either any static column, two regular mutable
+     *         columns, or multiple expressions against the same multi-cell collection column
      */
     public boolean isMutableIntersection()
     {
@@ -194,7 +195,10 @@ public class RowFilter implements Iterable<RowFilter.Expression>
                 if (columns == null)
                     columns = new HashSet<>(expressions.size());
 
-                columns.add(e.column);
+                // A frozen collection is a single cell, so this doesn't apply to it.
+                if (!columns.add(e.column) && e.column.type.isMultiCell())
+                    return true;
+
                 if (columns.size() > 1)
                     return true;
             }

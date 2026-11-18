@@ -109,7 +109,15 @@ public class Operation
 
         boolean hasMultipleUnindexedColumns()
         {
-            return unindexedColumns.size() > 1;
+            if (unindexedColumns.size() > 1)
+                return true;
+
+            // Different cells of a multi-cell collection column can be split across replicas.
+            for (ColumnMetadata column : unindexedColumns)
+                if (column.type.isMultiCell() && expressions.get(column).size() > 1)
+                    return true;
+
+            return false;
         }
     }
 

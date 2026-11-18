@@ -20,6 +20,8 @@ package org.apache.cassandra.distributed.test.sai;
 
 import java.io.IOException;
 import java.util.Iterator;
+import java.util.Map;
+import java.util.Set;
 
 import org.junit.AfterClass;
 import org.junit.BeforeClass;
@@ -313,6 +315,65 @@ public class StrictFilteringTest extends TestBaseImpl
         // resolved via replica filtering protection
         Object[][] initialRows = CLUSTER.coordinator(1).execute(withKeyspace("SELECT * FROM %s.one_column WHERE a = 1"), ConsistencyLevel.ALL);
         assertRows(initialRows);
+    }
+
+    @Test
+    public void shouldMatchCollectionElementsSplitAcrossReplicas()
+    {
+        CLUSTER.schemaChange(withKeyspace("CREATE TABLE %s.split_elements_sai (pk int PRIMARY KEY, m map<int, int>, km map<int, int>, s set<int>) WITH read_repair = 'NONE'"));
+        CLUSTER.schemaChange(withKeyspace("CREATE INDEX ON %s.split_elements_sai(ENTRIES(m)) USING 'sai'"));
+        CLUSTER.schemaChange(withKeyspace("CREATE INDEX ON %s.split_elements_sai(KEYS(km)) USING 'sai'"));
+        CLUSTER.schemaChange(withKeyspace("CREATE INDEX ON %s.split_elements_sai(VALUES(km)) USING 'sai'"));
+        CLUSTER.schemaChange(withKeyspace("CREATE INDEX ON %s.split_elements_sai(s) USING 'sai'"));
+        SAIUtil.waitForIndexQueryable(CLUSTER, KEYSPACE);
+
+        // the elements of a non-frozen collection are separate cells, so each replica only holds part of the collection
+        CLUSTER.get(1).executeInternal(withKeyspace("UPDATE %s.split_elements_sai SET m = m + {1:10}, km = km + {1:10}, s = s + {1} WHERE pk = 0"));
+        CLUSTER.get(2).executeInternal(withKeyspace("UPDATE %s.split_elements_sai SET m = m + {2:20}, km = km + {2:20}, s = s + {2} WHERE pk = 0"));
+
+        // single element restrictions match on one replica and are resolved via replica filtering protection
+        assertRows(CLUSTER.coordinator(1).execute(withKeyspace("SELECT pk FROM %s.split_elements_sai WHERE m[1] = 10"), ConsistencyLevel.ALL), row(0));
+        assertRows(CLUSTER.coordinator(1).execute(withKeyspace("SELECT pk FROM %s.split_elements_sai WHERE s CONTAINS 2"), ConsistencyLevel.ALL), row(0));
+
+        // several element restrictions on one column must be evaluated against the merged collection
+        assertRows(CLUSTER.coordinator(1).execute(withKeyspace("SELECT pk FROM %s.split_elements_sai WHERE m[1] = 10 AND m[2] = 20"), ConsistencyLevel.ALL), row(0));
+        assertRows(CLUSTER.coordinator(1).execute(withKeyspace("SELECT pk FROM %s.split_elements_sai WHERE s CONTAINS 1 AND s CONTAINS 2"), ConsistencyLevel.ALL), row(0));
+        assertRows(CLUSTER.coordinator(1).execute(withKeyspace("SELECT pk FROM %s.split_elements_sai WHERE km CONTAINS KEY 1 AND km CONTAINS 20"), ConsistencyLevel.ALL), row(0));
+    }
+
+    @Test
+    public void testPartialUpdatesOnUnindexedMapEntriesAfterRepair()
+    {
+        CLUSTER.schemaChange(withKeyspace("CREATE TABLE %s.probe_split_map_unindexed (k int PRIMARY KEY, a int, m map<int, int>) WITH read_repair = 'NONE'"));
+        CLUSTER.schemaChange(withKeyspace("CREATE INDEX ON %s.probe_split_map_unindexed(a) USING 'sai'"));
+        SAIUtil.waitForIndexQueryable(CLUSTER, KEYSPACE);
+
+        CLUSTER.coordinator(1).execute(withKeyspace("INSERT INTO %s.probe_split_map_unindexed(k, a) VALUES (0, 1) USING TIMESTAMP 1"), ConsistencyLevel.ALL);
+        CLUSTER.get(1).nodetoolResult("repair", KEYSPACE).asserts().success();
+
+        CLUSTER.get(1).executeInternal(withKeyspace("UPDATE %s.probe_split_map_unindexed USING TIMESTAMP 2 SET m = m + {1:10} WHERE k = 0"));
+        CLUSTER.get(2).executeInternal(withKeyspace("UPDATE %s.probe_split_map_unindexed USING TIMESTAMP 3 SET m = m + {2:20} WHERE k = 0"));
+
+        String select = withKeyspace("SELECT k, a, m FROM %s.probe_split_map_unindexed WHERE a = 1 AND m[1] = 10 AND m[2] = 20 ALLOW FILTERING");
+        assertRows(CLUSTER.coordinator(1).execute(select, ConsistencyLevel.ALL), row(0, 1, Map.of(1, 10, 2, 20)));
+    }
+
+    @Test
+    public void testPartialUpdatesOnUnindexedSetElementsAfterRepair()
+    {
+        CLUSTER.schemaChange(withKeyspace("CREATE TABLE %s.unindexed_set (k int PRIMARY KEY, a int, s set<int>) WITH read_repair = 'NONE'"));
+        CLUSTER.schemaChange(withKeyspace("CREATE INDEX ON %s.unindexed_set(a) USING 'sai'"));
+        SAIUtil.waitForIndexQueryable(CLUSTER, KEYSPACE);
+
+        CLUSTER.coordinator(1).execute(withKeyspace("INSERT INTO %s.unindexed_set(k, a) VALUES (0, 1) USING TIMESTAMP 1"), ConsistencyLevel.ALL);
+        CLUSTER.get(1).nodetoolResult("repair", KEYSPACE).asserts().success();
+
+        CLUSTER.get(1).executeInternal(withKeyspace("UPDATE %s.unindexed_set USING TIMESTAMP 2 SET s = s + {1} WHERE k = 0"));
+        CLUSTER.get(2).executeInternal(withKeyspace("UPDATE %s.unindexed_set USING TIMESTAMP 3 SET s = s + {2} WHERE k = 0"));
+
+        assertRows(CLUSTER.coordinator(1).execute(withKeyspace("SELECT k FROM %s.unindexed_set WHERE k = 0"), ConsistencyLevel.ALL), row(0));
+        String select = withKeyspace("SELECT k, a, s FROM %s.unindexed_set WHERE a = 1 AND s CONTAINS 1 AND s CONTAINS 2 ALLOW FILTERING");
+        assertRows(CLUSTER.coordinator(1).execute(select, ConsistencyLevel.ALL), row(0, 1, Set.of(1, 2)));
     }
 
     @AfterClass
