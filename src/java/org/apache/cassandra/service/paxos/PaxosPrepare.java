@@ -440,7 +440,7 @@ public class PaxosPrepare extends PaxosRequestCallback<PaxosPrepare.Response> im
         if (tracked)
             startTracked(prepare, participants, send, selfHandler);
         else
-            startUntracked(prepare, participants, send, selfHandler);
+            startUntrackedOrWithoutRead(prepare, participants, send, selfHandler);
     }
 
     private static <R extends AbstractRequest<R>> void startTracked(PaxosPrepare prepare, Participants participants, Message<R> send, BiFunction<R, RequestTime, Future<Response>> selfHandler)
@@ -514,7 +514,7 @@ public class PaxosPrepare extends PaxosRequestCallback<PaxosPrepare.Response> im
         return null;
     }
 
-    private static <R extends AbstractRequest<R>> void startUntracked(PaxosPrepare prepare, Participants participants, Message<R> send, BiFunction<R, RequestTime, Future<Response>> selfHandler)
+    private static <R extends AbstractRequest<R>> void startUntrackedOrWithoutRead(PaxosPrepare prepare, Participants participants, Message<R> send, BiFunction<R, RequestTime, Future<Response>> selfHandler)
     {
         prepare.haveTrackedDataResponseIfNeeded = true;
         Message<R> selfMessage = null;
@@ -522,7 +522,7 @@ public class PaxosPrepare extends PaxosRequestCallback<PaxosPrepare.Response> im
         for (int i = 0, size = participants.sizeOfPoll() ; i < size ; ++i)
         {
             Replica replica = participants.voterReplica(i);
-            checkState(!replica.isTransient(), "Transient replication only supported with mutation tracking");
+            checkState(send.payload.read == null || !replica.isTransient(), "Transient replication only supported with mutation tracking");
             InetAddressAndPort destination = replica.endpoint();
             Message<R> toSendThisTime = send;
 

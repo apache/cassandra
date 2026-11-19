@@ -18,6 +18,7 @@
 
 package org.apache.cassandra.distributed.test.tracking;
 
+import org.junit.Assert;
 import org.junit.Test;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -293,4 +294,90 @@ public class MutationTrackingCommitAndPrepareTest extends TestBaseImpl
             logger.info("Final value from QUORUM read: {}", result[0][1]);
         }
     }
+
+    @Test
+    public void testPaxosRepairWithWitnessReplicas() throws Throwable
+    {
+        try (Cluster cluster = Cluster.build(3)
+                                      .withConfig(cfg -> cfg.with(Feature.NETWORK)
+                                                            .with(Feature.GOSSIP)
+                                                            .set("transient_replication_enabled", "true")
+                                                            .set("paxos_variant", "v2_without_linearizable_reads"))
+                                      .start())
+        {
+            String keyspaceName = KEYSPACE;
+
+            cluster.schemaChange(withKeyspace("CREATE KEYSPACE %s WITH replication = " +
+                                              "{'class': 'SimpleStrategy', 'replication_factor': '3/1'} " +
+                                              "AND replication_type='tracked';"));
+
+            cluster.schemaChange(withKeyspace("CREATE TABLE %s.tbl (k int primary key, v int);"));
+
+            cluster.filters().verbs(Verb.PAXOS2_PROPOSE_REQ.id).drop();
+
+            try
+            {
+                cluster.coordinator(1).execute(CONDITIONAL_INSERT_CQL,
+                                               ConsistencyLevel.SERIAL,
+                                               ConsistencyLevel.QUORUM);
+                Assert.fail("Exception expected");
+            }
+            catch (Exception e)
+            {
+                // expected
+            }
+
+            cluster.filters().reset();
+
+            int[] beforeRepairCounts = new int[3];
+            for (int i = 1; i <= 3; i++)
+            {
+                int nodeId = i;
+                beforeRepairCounts[i - 1] = cluster.get(nodeId).callsOnInstance(() -> {
+                    MutationSummary summary = MutationTrackingService.instance().createSummaryForKey(
+                        Util.dk(1),
+                        ColumnFamilyStore.getIfExists(keyspaceName, "tbl").metadata.id,
+                        true);
+                    return summary.reconciledIds() + summary.unreconciledIds();
+                }).call();
+            }
+
+            cluster.get(1).nodetoolResult("repair", "--paxos-only", keyspaceName, "tbl").asserts().success();
+
+            int[] afterRepairCounts = new int[3];
+            for (int i = 1; i <= 3; i++)
+            {
+                int nodeId = i;
+                afterRepairCounts[i - 1] = cluster.get(nodeId).callsOnInstance(() -> {
+                    MutationSummary summary = MutationTrackingService.instance().createSummaryForKey(
+                        Util.dk(1),
+                        ColumnFamilyStore.getIfExists(keyspaceName, "tbl").metadata.id,
+                        true);
+                    return summary.reconciledIds() + summary.unreconciledIds();
+                }).call();
+                assertTrue(afterRepairCounts[nodeId - 1] > beforeRepairCounts[nodeId - 1]);
+            }
+
+            // Update row (which now has v=1 from repair) to verify subsequent tracked CAS writes
+            Object[][] result = cluster.coordinator(1).execute("UPDATE " + keyspaceName + ".tbl SET v = 2 WHERE k = 1 IF v = 1",
+                                                               ConsistencyLevel.SERIAL,
+                                                               ConsistencyLevel.QUORUM);
+            assertEquals(true, result[0][0]);
+
+            // Verify mutation tracking on replicas increased after the subsequent CAS commit
+            for (int i = 1; i <= 3; i++)
+            {
+                int nodeId = i;
+                int finalCount = cluster.get(nodeId).callsOnInstance(() -> {
+                    MutationSummary summary = MutationTrackingService.instance().createSummaryForKey(
+                        Util.dk(1),
+                        ColumnFamilyStore.getIfExists(keyspaceName, "tbl").metadata.id,
+                        true);
+                    return summary.reconciledIds() + summary.unreconciledIds();
+                }).call();
+                assertTrue(finalCount > afterRepairCounts[nodeId - 1]);
+            }
+        }
+    }
 }
+
