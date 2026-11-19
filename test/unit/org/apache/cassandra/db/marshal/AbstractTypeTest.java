@@ -472,7 +472,7 @@ public class AbstractTypeTest
             for (AbstractType<?> e : tt.subTypes())
             {
                 AbstractType<?> unwrap = e.unwrap();
-                if (unwrap instanceof StringType || unwrap instanceof TupleType)
+                if (unwrap instanceof TupleType)
                     return true;
             }
         }
