@@ -148,8 +148,8 @@ public class TrieMemtableMetricsTest extends SchemaLoader
 
     @Test
     @BMRules(rules = { @BMRule(name = "Delay memtable update",
-    targetClass = "InMemoryTrie",
-    targetMethod = "putSingleton",
+    targetClass = "InMemoryBaseTrie.Mutator",
+    targetMethod = "apply",
     action = "java.lang.Thread.sleep(10)")})
     public void testContentionMetrics() throws IOException, ExecutionException, InterruptedException
     {

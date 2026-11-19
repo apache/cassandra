@@ -149,5 +149,8 @@ public class TrieMemtableShardLockDeadlockTest
         public Memtable getCurrentMemtable() { return null; }
         public Iterable<Memtable> getIndexMemtables() { return Collections.emptyList(); }
         public ShardBoundaries localRangeSplits(int shardCount) { return ShardBoundaries.NONE; }
+        public OpOrder readOrdering() { return READ_ORDER; }
     };
+
+    private static final OpOrder READ_ORDER = new OpOrder();
 }

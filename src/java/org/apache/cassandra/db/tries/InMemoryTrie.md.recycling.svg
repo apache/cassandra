@@ -1,0 +1,88 @@
+<?xml version="1.0" encoding="UTF-8" standalone="no"?><!--
+  - Licensed to the Apache Software Foundation (ASF) under one
+  - or more contributor license agreements.  See the NOTICE file
+  - distributed with this work for additional information
+  - regarding copyright ownership.  The ASF licenses this file
+  - to you under the Apache License, Version 2.0 (the
+  - "License"); you may not use this file except in compliance
+  - with the License.  You may obtain a copy of the License at
+  -
+  -     http://www.apache.org/licenses/LICENSE-2.0
+  -
+  - Unless required by applicable law or agreed to in writing, software
+  - distributed under the License is distributed on an "AS IS" BASIS,
+  - WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+  - See the License for the specific language governing permissions and
+  - limitations under the License.
+  -->
+
+<svg xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" contentScriptType="application/ecmascript" contentStyleType="text/css" height="346px" preserveAspectRatio="none" style="width:1155px;height:346px;" version="1.1" viewBox="0 0 1155 346" width="1155px" zoomAndPan="magnify"><defs><filter height="300%" id="finwmyjg3l1x5" width="300%" x="-1" y="-1"><feGaussianBlur result="blurOut" stdDeviation="2.0"/><feColorMatrix in="blurOut" result="blurOut2" type="matrix" values="0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 .4 0"/><feOffset dx="4.0" dy="4.0" in="blurOut2" result="blurOut3"/><feBlend in="SourceGraphic" in2="blurOut3" mode="normal"/></filter></defs><g><rect fill="#FEFECE" filter="url(#finwmyjg3l1x5)" height="49.25" style="stroke: #A80036; stroke-width: 1.5;" width="76" x="250.5" y="180"/><text fill="#000000" font-family="sans-serif" font-size="12" lengthAdjust="spacingAndGlyphs" textLength="41" x="268" y="193.1387">block2</text><line style="stroke: #A80036; stroke-width: 1.5;" x1="251.5" x2="325.5" y1="197.9688" y2="197.9688"/><text fill="#000000" font-family="sans-serif" font-size="10" lengthAdjust="spacingAndGlyphs" textLength="51" x="256.5" y="211.251">ready cells</text><text fill="#000000" font-family="sans-serif" font-size="10" lengthAdjust="spacingAndGlyphs" textLength="64" x="256.5" y="222.8916">partially used</text><rect fill="#FEFECE" filter="url(#finwmyjg3l1x5)" height="49.25" style="stroke: #A80036; stroke-width: 1.5;" width="93" x="491.5" y="180"/><text fill="#000000" font-family="sans-serif" font-size="12" lengthAdjust="spacingAndGlyphs" textLength="41" x="517.5" y="193.1387">block3</text><line style="stroke: #A80036; stroke-width: 1.5;" x1="492.5" x2="583.5" y1="197.9688" y2="197.9688"/><text fill="#000000" font-family="sans-serif" font-size="10" lengthAdjust="spacingAndGlyphs" textLength="51" x="497.5" y="211.251">ready cells</text><text fill="#000000" font-family="sans-serif" font-size="10" lengthAdjust="spacingAndGlyphs" textLength="81" x="497.5" y="222.8916">expired barrier B</text><rect fill="#FEFECE" filter="url(#finwmyjg3l1x5)" height="49.25" style="stroke: #A80036; stroke-width: 1.5;" width="110" x="986" y="180"/><text fill="#000000" font-family="sans-serif" font-size="12" lengthAdjust="spacingAndGlyphs" textLength="41" x="1020.5" y="193.1387">block4</text><line style="stroke: #A80036; stroke-width: 1.5;" x1="987" x2="1095" y1="197.9688" y2="197.9688"/><text fill="#000000" font-family="sans-serif" font-size="10" lengthAdjust="spacingAndGlyphs" textLength="98" x="992" y="211.251">cells awaiting barrier</text><text fill="#000000" font-family="sans-serif" font-size="10" lengthAdjust="spacingAndGlyphs" textLength="75" x="992" y="222.8916">active barrier C</text><rect fill="#FEFECE" filter="url(#finwmyjg3l1x5)" height="49.25" style="stroke: #A80036; stroke-width: 1.5;" width="110" x="730.5" y="180"/><text fill="#000000" font-family="sans-serif" font-size="12" lengthAdjust="spacingAndGlyphs" textLength="41" x="765" y="193.1387">block5</text><line style="stroke: #A80036; stroke-width: 1.5;" x1="731.5" x2="839.5" y1="197.9688" y2="197.9688"/><text fill="#000000" font-family="sans-serif" font-size="10" lengthAdjust="spacingAndGlyphs" textLength="98" x="736.5" y="211.251">cells awaiting barrier</text><text fill="#000000" font-family="sans-serif" font-size="10" lengthAdjust="spacingAndGlyphs" textLength="75" x="736.5" y="222.8916">active barrier C</text><rect fill="#FEFECE" filter="url(#finwmyjg3l1x5)" height="60.8906" style="stroke: #A80036; stroke-width: 1.5;" width="76" x="500" y="84"/><text fill="#000000" font-family="sans-serif" font-size="12" lengthAdjust="spacingAndGlyphs" textLength="41" x="517.5" y="97.1387">block6</text><line style="stroke: #A80036; stroke-width: 1.5;" x1="501" x2="575" y1="101.9688" y2="101.9688"/><text fill="#000000" font-family="sans-serif" font-size="10" lengthAdjust="spacingAndGlyphs" textLength="64" x="506" y="115.251">released cells</text><text fill="#000000" font-family="sans-serif" font-size="10" lengthAdjust="spacingAndGlyphs" textLength="14" x="506" y="126.8916">full</text><text fill="#000000" font-family="sans-serif" font-size="10" lengthAdjust="spacingAndGlyphs" textLength="47" x="506" y="138.5322">no barrier</text><rect fill="#FEFECE" filter="url(#finwmyjg3l1x5)" height="49.25" style="stroke: #A80036; stroke-width: 1.5;" width="76" x="250.5" y="90"/><text fill="#000000" font-family="sans-serif" font-size="12" lengthAdjust="spacingAndGlyphs" textLength="41" x="268" y="103.1387">block7</text><line style="stroke: #A80036; stroke-width: 1.5;" x1="251.5" x2="325.5" y1="107.9688" y2="107.9688"/><text fill="#000000" font-family="sans-serif" font-size="10" lengthAdjust="spacingAndGlyphs" textLength="64" x="256.5" y="121.251">released cells</text><text fill="#000000" font-family="sans-serif" font-size="10" lengthAdjust="spacingAndGlyphs" textLength="63" x="256.5" y="132.8916">partially filled</text><ellipse cx="69.5919" cy="204.5236" fill="#FEFECE" filter="url(#finwmyjg3l1x5)" rx="22.0919" ry="14.5236" style="stroke: #A80036; stroke-width: 1.5;"/><text fill="#000000" font-family="sans-serif" font-size="14" lengthAdjust="spacingAndGlyphs" textLength="27" x="56.0919" y="209.1721">free</text><path d="M206,264.5 L206,304.7656 A0,0 0 0 0 206,304.7656 L371,304.7656 A0,0 0 0 0 371,304.7656 L371,274.5 L361,264.5 L292.5,264.5 L288.5,229.214 L284.5,264.5 L206,264.5 A0,0 0 0 0 206,264.5 " fill="#FBFB77" filter="url(#finwmyjg3l1x5)" style="stroke: #A80036; stroke-width: 1.0;"/><path d="M361,264.5 L361,274.5 L371,274.5 L361,264.5 " fill="#FBFB77" style="stroke: #A80036; stroke-width: 1.0;"/><text fill="#000000" font-family="sans-serif" font-size="13" font-style="italic" lengthAdjust="spacingAndGlyphs" textLength="73" x="212" y="281.5669">allocateCell</text><text fill="#000000" font-family="sans-serif" font-size="13" lengthAdjust="spacingAndGlyphs" textLength="67" x="289" y="281.5669">takes cells</text><text fill="#000000" font-family="sans-serif" font-size="13" lengthAdjust="spacingAndGlyphs" textLength="67" x="212" y="296.6997">from here.</text><path d="M444,264.5 L444,304.7656 A0,0 0 0 0 444,304.7656 L632,304.7656 A0,0 0 0 0 632,304.7656 L632,274.5 L622,264.5 L542,264.5 L538,229.214 L534,264.5 L444,264.5 A0,0 0 0 0 444,264.5 " fill="#FBFB77" filter="url(#finwmyjg3l1x5)" style="stroke: #A80036; stroke-width: 1.0;"/><path d="M622,264.5 L622,274.5 L632,274.5 L622,264.5 " fill="#FBFB77" style="stroke: #A80036; stroke-width: 1.0;"/><text fill="#000000" font-family="sans-serif" font-size="13" font-style="italic" lengthAdjust="spacingAndGlyphs" textLength="25" x="450" y="281.5669">free</text><text fill="#000000" font-family="sans-serif" font-size="13" lengthAdjust="spacingAndGlyphs" textLength="91" x="479" y="281.5669">will move here</text><text fill="#000000" font-family="sans-serif" font-size="13" lengthAdjust="spacingAndGlyphs" textLength="167" x="450" y="296.6997">when block2 is exhausted.</text><path d="M692,264 L692,334.5313 A0,0 0 0 0 692,334.5313 L879,334.5313 A0,0 0 0 0 879,334.5313 L879,274 L869,264 L789.5,264 L785.5,229.085 L781.5,264 L692,264 A0,0 0 0 0 692,264 " fill="#FBFB77" filter="url(#finwmyjg3l1x5)" style="stroke: #A80036; stroke-width: 1.0;"/><path d="M869,264 L869,274 L879,274 L869,264 " fill="#FBFB77" style="stroke: #A80036; stroke-width: 1.0;"/><text fill="#000000" font-family="sans-serif" font-size="13" lengthAdjust="spacingAndGlyphs" textLength="137" x="698" y="281.0669">If block3 is exhausted</text><text fill="#000000" font-family="sans-serif" font-size="13" lengthAdjust="spacingAndGlyphs" textLength="166" x="698" y="296.1997">before the barrier expires,</text><text fill="#000000" font-family="sans-serif" font-size="13" lengthAdjust="spacingAndGlyphs" textLength="128" x="698" y="311.3325">it will be replenished</text><text fill="#000000" font-family="sans-serif" font-size="13" lengthAdjust="spacingAndGlyphs" textLength="97" x="698" y="326.4653">with fresh cells.</text><ellipse cx="1041.1884" cy="126.3377" fill="#FEFECE" filter="url(#finwmyjg3l1x5)" rx="77.1884" ry="17.8377" style="stroke: #A80036; stroke-width: 1.5;"/><text fill="#000000" font-family="sans-serif" font-size="14" lengthAdjust="spacingAndGlyphs" textLength="124" x="979.1884" y="130.9861">awaitingBarrierTail</text><path d="M939,264 L939,319.3984 A0,0 0 0 0 939,319.3984 L1143,319.3984 A0,0 0 0 0 1143,319.3984 L1143,274 L1133,264 L1045,264 L1041,229.125 L1037,264 L939,264 A0,0 0 0 0 939,264 " fill="#FBFB77" filter="url(#finwmyjg3l1x5)" style="stroke: #A80036; stroke-width: 1.0;"/><path d="M1133,264 L1133,274 L1143,274 L1133,264 " fill="#FBFB77" style="stroke: #A80036; stroke-width: 1.0;"/><text fill="#000000" font-family="sans-serif" font-size="13" lengthAdjust="spacingAndGlyphs" textLength="175" x="945" y="281.0669">Blocks 5 and 4 were moved</text><text fill="#000000" font-family="sans-serif" font-size="13" lengthAdjust="spacingAndGlyphs" textLength="89" x="945" y="296.1997">together from</text><text fill="#000000" font-family="sans-serif" font-size="13" font-style="italic" lengthAdjust="spacingAndGlyphs" textLength="82" x="1038" y="296.1997">justReleased</text><text fill="#000000" font-family="sans-serif" font-size="13" font-style="italic" lengthAdjust="spacingAndGlyphs" textLength="4" x="1120" y="296.1997">,</text><text fill="#000000" font-family="sans-serif" font-size="13" lengthAdjust="spacingAndGlyphs" textLength="183" x="945" y="311.3325">they share the same barrier.</text><ellipse cx="69.7036" cy="114.6407" fill="#FEFECE" filter="url(#finwmyjg3l1x5)" rx="63.7036" ry="15.1407" style="stroke: #A80036; stroke-width: 1.5;"/><text fill="#000000" font-family="sans-serif" font-size="14" lengthAdjust="spacingAndGlyphs" textLength="90" x="24.7036" y="119.2892">justReleased</text><path d="M193,30 L193,55.1328 A0,0 0 0 0 193,55.1328 L284.5,55.1328 L288.5,89.75 L292.5,55.1328 L384,55.1328 A0,0 0 0 0 384,55.1328 L384,40 L374,30 L193,30 A0,0 0 0 0 193,30 " fill="#FBFB77" filter="url(#finwmyjg3l1x5)" style="stroke: #A80036; stroke-width: 1.0;"/><path d="M374,30 L374,40 L384,40 L374,30 " fill="#FBFB77" style="stroke: #A80036; stroke-width: 1.0;"/><text fill="#000000" font-family="sans-serif" font-size="13" font-style="italic" lengthAdjust="spacingAndGlyphs" textLength="69" x="199" y="47.0669">recycleCell</text><text fill="#000000" font-family="sans-serif" font-size="13" lengthAdjust="spacingAndGlyphs" textLength="97" x="272" y="47.0669">puts cells here.</text><path d="M461.5,8.5 L461.5,48.7656 A0,0 0 0 0 461.5,48.7656 L534,48.7656 L538,83.93 L542,48.7656 L614.5,48.7656 A0,0 0 0 0 614.5,48.7656 L614.5,18.5 L604.5,8.5 L461.5,8.5 A0,0 0 0 0 461.5,8.5 " fill="#FBFB77" filter="url(#finwmyjg3l1x5)" style="stroke: #A80036; stroke-width: 1.0;"/><path d="M604.5,8.5 L604.5,18.5 L614.5,18.5 L604.5,8.5 " fill="#FBFB77" style="stroke: #A80036; stroke-width: 1.0;"/><text fill="#000000" font-family="sans-serif" font-size="13" lengthAdjust="spacingAndGlyphs" textLength="132" x="467.5" y="25.5669">This block is awaiting</text><text fill="#000000" font-family="sans-serif" font-size="13" font-style="italic" lengthAdjust="spacingAndGlyphs" textLength="116" x="467.5" y="40.6997">completeMutation</text><text fill="#000000" font-family="sans-serif" font-size="13" lengthAdjust="spacingAndGlyphs" textLength="4" x="583.5" y="40.6997">.</text><!--MD5=[887c525a89dcde46bea6320fdca2bddd]
+link free to block2--><path d="M91.702,204.5 C127.13,204.5 199.01,204.5 245.126,204.5 " fill="none" id="free-&gt;block2" style="stroke: #A80036; stroke-width: 1.0;"/><polygon fill="#A80036" points="250.34,204.5,241.34,200.5,245.34,204.5,241.34,208.5,250.34,204.5" style="stroke: #A80036; stroke-width: 1.0;"/><!--MD5=[d115d9281859d487cf971087884e9111]
+link block2 to block3--><path d="M326.553,204.5 C368.969,204.5 438.694,204.5 486.166,204.5 " fill="none" id="block2-&gt;block3" style="stroke: #A80036; stroke-width: 1.0;"/><polygon fill="#A80036" points="491.264,204.5,482.264,200.5,486.264,204.5,482.264,208.5,491.264,204.5" style="stroke: #A80036; stroke-width: 1.0;"/><!--MD5=[e8ababe78de7c4f379e18dfb0638b889]
+link block3 to block5--><path d="M584.601,204.5 C624.176,204.5 681.743,204.5 724.947,204.5 " fill="none" id="block3-&gt;block5" style="stroke: #A80036; stroke-width: 1.0;"/><polygon fill="#A80036" points="730.143,204.5,721.143,200.5,725.143,204.5,721.143,208.5,730.143,204.5" style="stroke: #A80036; stroke-width: 1.0;"/><!--MD5=[f55ff1b5719cb15b8711394b3b2e4abb]
+link block5 to block4--><path d="M840.571,204.5 C881.652,204.5 938.117,204.5 980.481,204.5 " fill="none" id="block5-&gt;block4" style="stroke: #A80036; stroke-width: 1.0;"/><polygon fill="#A80036" points="985.575,204.5,976.575,200.5,980.575,204.5,976.575,208.5,985.575,204.5" style="stroke: #A80036; stroke-width: 1.0;"/><!--MD5=[cc0afcbb00e3ad0cbb694adc5825b8e9]
+link awaitingBarrierTail to block4--><path d="M1041,144.829 C1041,154.761 1041,164.694 1041,174.626 " fill="none" id="awaitingBarrierTail-&gt;block4" style="stroke: #A80036; stroke-width: 1.0;"/><polygon fill="#A80036" points="1041,179.82,1045,170.82,1041,174.82,1037,170.82,1041,179.82" style="stroke: #A80036; stroke-width: 1.0;"/><!--MD5=[a4d9e142809aacbb1ce24060899a0ec9]
+link justReleased to block7--><path d="M133.265,114.5 C169.267,114.5 213.491,114.5 245.339,114.5 " fill="none" id="justReleased-&gt;block7" style="stroke: #A80036; stroke-width: 1.0;"/><polygon fill="#A80036" points="250.341,114.5,241.341,110.5,245.341,114.5,241.341,118.5,250.341,114.5" style="stroke: #A80036; stroke-width: 1.0;"/><!--MD5=[6cc67023ea77713d166dd2b12e568ea0]
+link block7 to block6--><path d="M326.553,114.5 C371.572,114.5 447.352,114.5 494.641,114.5 " fill="none" id="block7-&gt;block6" style="stroke: #A80036; stroke-width: 1.0;"/><polygon fill="#A80036" points="499.693,114.5,490.693,110.5,494.693,114.5,490.693,118.5,499.693,114.5" style="stroke: #A80036; stroke-width: 1.0;"/><!--MD5=[a6e4b6d6f9e243ea1ba58b1343d7b1e8]
+@startuml
+allowmixing
+  left to right direction
+  hide empty description
+
+  object block2
+  object block3
+  object block4
+  object block5
+  object block6
+  object block7
+
+  usecase free
+  free - -> block2
+
+
+  block2 - -> block3
+  block2 : ready cells
+  block2 : partially used
+  note bottom of block2 : <i>allocateCell</i> takes cells\nfrom here.
+
+  block3 - -> block5
+  block3 : ready cells
+  block3 : expired barrier B
+  note bottom of block3 : <i>free</i> will move here\nwhen block2 is exhausted.
+
+  block5 - -> block4
+  block5 : cells awaiting barrier
+  block5 : active barrier C
+  note bottom of block5 : If block3 is exhausted\nbefore the barrier expires,\nit will be replenished\nwith fresh cells.
+
+  usecase awaitingBarrierTail
+  awaitingBarrierTail -> block4
+
+  block4 : cells awaiting barrier
+  block4 : active barrier C
+  note bottom of block4 : Blocks 5 and 4 were moved\ntogether from <i>justReleased<i>,\nthey share the same barrier.
+
+  usecase justReleased
+  justReleased - -> block7
+  block7 - -> block6
+
+  block7 : released cells
+  block7 : partially filled
+  note top of block7 : <i>recycleCell</i> puts cells here.
+
+  block6 : released cells
+  block6 : full
+  block6 : no barrier
+  note top of block6 : This block is awaiting\n<i>completeMutation</i>.
+@enduml
+
+PlantUML version 1.2019.13(Tue Dec 10 17:18:29 UTC 2019)
+(GPL source distribution)
+Java Runtime: Java(TM) SE Runtime Environment
+JVM: Java HotSpot(TM) 64-Bit Server VM
+Java Version: 1.7.0_25-b15
+Operating System: Linux
+Default Encoding: UTF-8
+Language: en
+Country: US
+--></g></svg>

@@ -29,6 +29,7 @@ import org.slf4j.helpers.MessageFormatter;
 import org.apache.cassandra.config.CassandraRelevantProperties;
 import org.apache.cassandra.db.rows.BufferCell;
 import org.apache.cassandra.db.rows.Cell;
+import org.apache.cassandra.db.rows.CellData;
 import org.apache.cassandra.exceptions.InvalidRequestException;
 import org.apache.cassandra.schema.TableMetadata;
 import org.apache.cassandra.service.ClientWarn;
@@ -80,7 +81,7 @@ public class ExpirationDateOverflowHandling
 
         // Check for localExpirationTime overflow (CASSANDRA-14092) to apply a policy if needed
         long nowInSecs = currentTimeMillis() / 1000;
-        if (((long) ttl + nowInSecs) > Cell.getVersionedMaxDeletiontionTime())
+        if (((long) ttl + nowInSecs) > CellData.getVersionedMaxDeletiontionTime())
         {
             switch (policy)
             {
@@ -122,13 +123,13 @@ public class ExpirationDateOverflowHandling
     {
 
         long localExpirationTime = (long) (nowInSec + timeToLive);
-        long cellMaxDeletionTime = Cell.getVersionedMaxDeletiontionTime();
+        long cellMaxDeletionTime = CellData.getVersionedMaxDeletiontionTime();
         return localExpirationTime <= cellMaxDeletionTime ? localExpirationTime : cellMaxDeletionTime;
     }
 
     private static String getMaxExpirationDateTS()
     {
-        return Cell.getVersionedMaxDeletiontionTime() == Cell.MAX_DELETION_TIME_2038_LEGACY_CAP ? "2038-01-19T03:14:06+00:00"
-                                                                                                : "2106-02-07T06:28:13+00:00";
+        return CellData.getVersionedMaxDeletiontionTime() == CellData.MAX_DELETION_TIME_2038_LEGACY_CAP ? "2038-01-19T03:14:06+00:00"
+                                                                                                        : "2106-02-07T06:28:13+00:00";
     }
 }

@@ -88,6 +88,16 @@ public abstract class ColumnSubselection implements Comparable<ColumnSubselectio
 
     protected abstract ColumnSubselection rebind(TableMetadata newTable);
 
+    /**
+     * The first cell path included in this subselection.
+     */
+    public abstract CellPath startInclusive();
+
+    /**
+     * The last cell path included in this subselection.
+     */
+    public abstract CellPath endInclusive();
+
     public int compareTo(ColumnSubselection other)
     {
         assert other.column().name.equals(column().name);
@@ -148,6 +158,18 @@ public abstract class ColumnSubselection implements Comparable<ColumnSubselectio
         }
 
         @Override
+        public CellPath startInclusive()
+        {
+            return from;
+        }
+
+        @Override
+        public CellPath endInclusive()
+        {
+            return to;
+        }
+
+        @Override
         protected String toString(boolean cql)
         {
             // This assert we're dealing with a collection since that's the only thing it's used for so far.
@@ -187,6 +209,18 @@ public abstract class ColumnSubselection implements Comparable<ColumnSubselectio
         public int compareInclusionOf(CellPath path)
         {
             return column.cellPathComparator().compare(path, element);
+        }
+
+        @Override
+        public CellPath startInclusive()
+        {
+            return element;
+        }
+
+        @Override
+        public CellPath endInclusive()
+        {
+            return element;
         }
 
         @Override

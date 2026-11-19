@@ -215,7 +215,7 @@ public class DynamicCompositeTypeTest
         ColumnMetadata cdef = cfs.metadata().getColumn(ByteBufferUtil.bytes("val"));
 
         ImmutableBTreePartition readPartition = Util.getOnlyPartitionUnfiltered(Util.cmd(cfs, key).build());
-        Iterator<Row> iter = readPartition.iterator();
+        Iterator<Row> iter = readPartition.rowIterator();
 
         compareValues(iter.next().getCell(cdef), "cname1");
         compareValues(iter.next().getCell(cdef), "cname2");
@@ -252,7 +252,7 @@ public class DynamicCompositeTypeTest
         ColumnMetadata cdef = cfs.metadata().getColumn(ByteBufferUtil.bytes("val"));
 
         ImmutableBTreePartition readPartition = Util.getOnlyPartitionUnfiltered(Util.cmd(cfs, key).build());
-        Iterator<Row> iter = readPartition.iterator();
+        Iterator<Row> iter = readPartition.rowIterator();
 
         compareValues(iter.next().getCell(cdef), "cname5");
         compareValues(iter.next().getCell(cdef), "cname4");

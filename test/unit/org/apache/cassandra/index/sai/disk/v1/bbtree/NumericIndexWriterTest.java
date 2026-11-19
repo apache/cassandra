@@ -144,7 +144,7 @@ public class NumericIndexWriterTest extends SAIRandomizedTester
                 @Override
                 public boolean contains(byte[] packedValue)
                 {
-                    final ByteComparable actualTerm = ByteComparable.fixedLength(packedValue);
+                    final ByteComparable actualTerm = ByteComparable.preencoded(ByteComparable.Version.OSS50, packedValue);
                     final ByteComparable expectedTerm = ByteComparable.of(Math.toIntExact(visited.get()));
                     assertEquals("Point value mismatch after visiting " + visited.get() + " entries.", 0,
                                  ByteComparable.compare(actualTerm, expectedTerm, ByteComparable.Version.OSS50));

@@ -28,6 +28,7 @@ import org.apache.lucene.util.packed.PackedLongValues;
 
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.db.tries.InMemoryTrie;
+import org.apache.cassandra.db.tries.TrieSpaceExhaustedException;
 import org.apache.cassandra.index.sai.postings.PostingList;
 import org.apache.cassandra.index.sai.utils.IndexEntry;
 import org.apache.cassandra.utils.Throwables;
@@ -47,7 +48,7 @@ public class SegmentTrieBuffer
 
     public SegmentTrieBuffer()
     {
-        trie = new InMemoryTrie<>(DatabaseDescriptor.getMemtableAllocationType().toBufferType());
+        trie = InMemoryTrie.shortLived(ByteComparable.Version.OSS50, DatabaseDescriptor.getMemtableAllocationType().toBufferType());
         postingsAccumulator = new PostingsAccumulator();
     }
 
@@ -58,30 +59,30 @@ public class SegmentTrieBuffer
 
     public long memoryUsed()
     {
-        return trie.sizeOnHeap() + postingsAccumulator.heapAllocations();
+        return trie.usedSizeOnHeap() + postingsAccumulator.heapAllocations();
     }
 
     public long add(ByteComparable term, int termLength, int segmentRowId)
     {
-        final long initialSizeOnHeap = trie.sizeOnHeap();
+        final long initialSizeOnHeap = trie.usedSizeOnHeap();
         final long reducerHeapSize = postingsAccumulator.heapAllocations();
 
         try
         {
             trie.putSingleton(term, segmentRowId, postingsAccumulator, termLength <= MAX_RECURSIVE_TERM_LENGTH);
         }
-        catch (InMemoryTrie.SpaceExhaustedException e)
+        catch (TrieSpaceExhaustedException e)
         {
             throw Throwables.unchecked(e);
         }
 
         numRows++;
-        return (trie.sizeOnHeap() - initialSizeOnHeap) + (postingsAccumulator.heapAllocations() - reducerHeapSize);
+        return (trie.usedSizeOnHeap() - initialSizeOnHeap) + (postingsAccumulator.heapAllocations() - reducerHeapSize);
     }
 
     public Iterator<IndexEntry> iterator()
     {
-        Iterator<Map.Entry<ByteComparable, PackedLongValues.Builder>> iterator = trie.entrySet().iterator();
+        Iterator<Map.Entry<ByteComparable.Preencoded, PackedLongValues.Builder>> iterator = trie.entrySet().iterator();
 
         return new Iterator<>()
         {
@@ -94,7 +95,7 @@ public class SegmentTrieBuffer
             @Override
             public IndexEntry next()
             {
-                Map.Entry<ByteComparable, PackedLongValues.Builder> entry = iterator.next();
+                Map.Entry<ByteComparable.Preencoded, PackedLongValues.Builder> entry = iterator.next();
                 PackedLongValues postings = entry.getValue().build();
                 PackedLongValues.Iterator postingsIterator = postings.iterator();
                 return IndexEntry.create(entry.getKey(), new PostingList()

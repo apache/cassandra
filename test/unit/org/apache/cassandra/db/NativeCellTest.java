@@ -38,6 +38,7 @@ import org.apache.cassandra.db.marshal.UTF8Type;
 import org.apache.cassandra.db.rows.BTreeRow;
 import org.apache.cassandra.db.rows.BufferCell;
 import org.apache.cassandra.db.rows.Cell;
+import org.apache.cassandra.db.rows.CellData;
 import org.apache.cassandra.db.rows.CellPath;
 import org.apache.cassandra.db.rows.Row;
 import org.apache.cassandra.io.util.DataOutputBuffer;
@@ -135,7 +136,7 @@ public class NativeCellTest extends CQLTester
     {
         long timestamp = rand.nextLong();
         int ttl = rand.nextInt();
-        long localDeletionTime = ThreadLocalRandom.current().nextLong(Cell.getVersionedMaxDeletiontionTime() + 1);
+        long localDeletionTime = ThreadLocalRandom.current().nextLong(CellData.getVersionedMaxDeletiontionTime() + 1);
         byte[] value = new byte[rand.nextInt(sanesize(expdecay()))];
         rand.nextBytes(value);
         CellPath path = null;

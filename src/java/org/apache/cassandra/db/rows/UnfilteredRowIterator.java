@@ -66,4 +66,13 @@ public interface UnfilteredRowIterator extends BaseRowIterator<Unfiltered>
             && staticRow().isEmpty()
             && !hasNext();
     }
+
+    /// Ask the iterator to stop issuing tombstones because they are no longer useful to the consumer.
+    /// Usually done just before filtering out tombstones in [org.apache.cassandra.db.transform.FilteredRows].
+    /// If the iterator will not gain efficiency from dropping tombstones, it can reject this call by returning false.
+    public default boolean stopIssuingTombstones()
+    {
+        // ignored in base class
+        return false;
+    }
 }

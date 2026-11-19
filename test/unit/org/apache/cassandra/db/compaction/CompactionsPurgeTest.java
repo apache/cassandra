@@ -413,7 +413,7 @@ public class CompactionsPurgeTest
         // sstable is older than the c1 tombstone, it is invalid to throw out the c1 tombstone.
         ImmutableBTreePartition partition = Util.getOnlyPartitionUnfiltered(Util.cmd(cfs, key3).build());
         assertEquals(2, partition.rowCount());
-        for (Row row : partition)
+        for (Row row : partition.rows())
             assertFalse(row.hasLiveData(FBUtilities.nowInSeconds(), enforceStrictLiveness));
     }
 

@@ -106,7 +106,7 @@ class SSTableSimpleWriter extends AbstractSSTableSimpleWriter
                 writePartition(update.build()); // might switch to a new sstable writer and reset currentSize
 
             currentKey = key;
-            update = new PartitionUpdate.Builder(metadata.get(), currentKey, columns, 4);
+            update = PartitionUpdate.builder(metadata.get(), currentKey, columns, 4);
         }
 
         Preconditions.checkState(update != null, "Partition update to write cannot be null");

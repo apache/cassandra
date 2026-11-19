@@ -19,19 +19,17 @@ package org.apache.cassandra.db.tries;
 
 import java.util.Iterator;
 
-/**
- * Ordered iterator of trie content.
- */
+/// Ordered iterator of trie content.
 class TrieValuesIterator<T> implements Iterator<T>
 {
-    private final Trie.Cursor<T> cursor;
+    private final Cursor<T> cursor;
     T next;
     boolean gotNext;
 
-    protected TrieValuesIterator(Trie<T> trie)
+    protected TrieValuesIterator(Cursor<T> cursor)
     {
-        cursor = trie.cursor(Direction.FORWARD);
-        assert cursor.depth() == 0;
+        this.cursor = cursor;
+        cursor.assertFresh();
         next = cursor.content();
         gotNext = next != null;
     }
@@ -49,9 +47,51 @@ class TrieValuesIterator<T> implements Iterator<T>
 
     public T next()
     {
+        if (!hasNext())
+            throw new IllegalStateException("next without hasNext");
+
         gotNext = false;
         T v = next;
         next = null;
         return v;
+    }
+
+    static class FilteredByType<T, U> implements Iterator<U>
+    {
+        private final Cursor<T> cursor;
+        T next;
+        boolean gotNext;
+        Class<U> clazz;
+
+        FilteredByType(Cursor<T> cursor, Class<U> clazz)
+        {
+            this.cursor = cursor;
+            this.clazz = clazz;
+            cursor.assertFresh();
+            next = cursor.content();
+            gotNext = next != null && clazz.isInstance(next);
+        }
+
+        public boolean hasNext()
+        {
+            while (!gotNext)
+            {
+                next = cursor.advanceToContent(null);
+                gotNext = next == null || clazz.isInstance(next);
+            }
+
+            return next != null;
+        }
+
+        public U next()
+        {
+            if (!hasNext())
+                throw new IllegalStateException("next without hasNext");
+
+            gotNext = false;
+            T v = next;
+            next = null;
+            return (U) v;
+        }
     }
 }

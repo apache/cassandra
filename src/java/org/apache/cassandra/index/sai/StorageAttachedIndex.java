@@ -606,7 +606,7 @@ public class StorageAttachedIndex implements Index
         if (indexTermType.columnMetadata().isStatic())
             validateTermSizeForRow(key, update.staticRow(), true, state);
         else
-            for (Row row : update)
+            for (Row row : update.rows())
                 validateTermSizeForRow(key, row, true, state);
     }
 

@@ -136,7 +136,7 @@ public class UUIDType extends AbstractType<UUID>
         swizzled.putLong(8, accessor.getLong(data, 8));
 
         // fixed-length thus prefix-free
-        return ByteSource.fixedLength(swizzled);
+        return ByteSource.preencoded(swizzled);
     }
 
     @Override

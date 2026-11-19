@@ -18,9 +18,15 @@
 
 package org.apache.cassandra.index.transactions;
 
+import javax.annotation.Nullable;
+
+import org.apache.cassandra.db.Clustering;
 import org.apache.cassandra.db.DeletionTime;
+import org.apache.cassandra.db.LivenessInfo;
 import org.apache.cassandra.db.RangeTombstone;
+import org.apache.cassandra.db.rows.Cell;
 import org.apache.cassandra.db.rows.Row;
+import org.apache.cassandra.schema.ColumnMetadata;
 
 /**
  * Handling of index updates on the write path.
@@ -57,13 +63,30 @@ import org.apache.cassandra.db.rows.Row;
  *                                  *not* the incoming row, but the result of merging the incoming and existing
  *                                  rows.
  * commit()                      -- finally, finish is called when the new Partition is swapped into the Memtable
+ *
+ * If the memtable prefers to supply individual cells rather than rows, the onInserted()/onUpdated() calls above
+ * are replaced with a sequence of startRow() plus zero or more calls to onCellUpdate().
  */
 public interface UpdateTransaction extends IndexTransaction
 {
     void onPartitionDeletion(DeletionTime deletionTime);
     void onRangeTombstone(RangeTombstone rangeTombstone);
+
     void onInserted(Row row);
     void onUpdated(Row existing, Row updated);
+
+    /**
+     * Start a new row, whose content will be given through {@link #onCellUpdate}.
+     * The existing liveness may be null, in which case no existing row was present in the data.
+     */
+    void startRow(Clustering clustering,
+                  @Nullable LivenessInfo existingLiveness,
+                  @Nullable Row.Deletion existingDeletion,
+                  LivenessInfo updatedLiveness,
+                  Row.Deletion updatedDeletion);
+
+    void onCellUpdate(@Nullable Cell<?> original, @Nullable Cell<?> merged);
+    void onComplexColumnDeletion(ColumnMetadata column, DeletionTime deletionTime);
 
     UpdateTransaction NO_OP = new UpdateTransaction()
     {
@@ -72,6 +95,9 @@ public interface UpdateTransaction extends IndexTransaction
         public void onRangeTombstone(RangeTombstone rangeTombstone){}
         public void onInserted(Row row){}
         public void onUpdated(Row existing, Row updated){}
+        public void startRow(Clustering clustering, LivenessInfo existingLiveness, Row.Deletion existingDeletion, LivenessInfo updatedLiveness, Row.Deletion updatedDeletion){}
+        public void onCellUpdate(Cell<?> original, Cell<?> merged){}
+        public void onComplexColumnDeletion(ColumnMetadata column, DeletionTime deletionTime){}
         public void commit(){}
     };
 }

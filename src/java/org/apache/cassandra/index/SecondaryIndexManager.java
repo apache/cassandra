@@ -1551,6 +1551,12 @@ public class SecondaryIndexManager implements IndexRegistry, INotificationConsum
     private static final class WriteTimeTransaction implements UpdateTransaction
     {
         private final Index.Indexer[] indexers;
+        // Cells may be reported in any order within a row (e.g. trie memtables report them in the order of the
+        // columns' unique ids), thus the builders must sort them.
+        final Row.Builder toRemove = BTreeRow.unsortedBuilder();
+        final Row.Builder toInsert = BTreeRow.unsortedBuilder();
+        boolean rowUpdated = false;
+        boolean rowExisted = true;
 
         private WriteTimeTransaction(Index.Indexer... indexers)
         {
@@ -1567,32 +1573,28 @@ public class SecondaryIndexManager implements IndexRegistry, INotificationConsum
 
         public void onPartitionDeletion(DeletionTime deletionTime)
         {
+            maybeCompleteRow();
             for (Index.Indexer indexer : indexers)
                 indexer.partitionDelete(deletionTime);
         }
 
         public void onRangeTombstone(RangeTombstone tombstone)
         {
+            maybeCompleteRow();
             for (Index.Indexer indexer : indexers)
                 indexer.rangeTombstone(tombstone);
         }
 
         public void onInserted(Row row)
         {
+            maybeCompleteRow();
             for (Index.Indexer indexer : indexers)
                 indexer.insertRow(row);
         }
 
         public void onUpdated(Row existing, Row updated)
         {
-            final Row.Builder toRemove = BTreeRow.sortedBuilder();
-            toRemove.newRow(existing.clustering());
-            toRemove.addPrimaryKeyLivenessInfo(existing.primaryKeyLivenessInfo());
-            toRemove.addRowDeletion(existing.deletion());
-            final Row.Builder toInsert = BTreeRow.sortedBuilder();
-            toInsert.newRow(updated.clustering());
-            toInsert.addPrimaryKeyLivenessInfo(updated.primaryKeyLivenessInfo());
-            toInsert.addRowDeletion(updated.deletion());
+            startRow(existing.clustering(), existing.primaryKeyLivenessInfo(), existing.deletion(), updated.primaryKeyLivenessInfo(), updated.deletion());
             // diff listener collates the columns to be added & removed from the indexes
             RowDiffListener diffListener = new RowDiffListener()
             {
@@ -1610,22 +1612,76 @@ public class SecondaryIndexManager implements IndexRegistry, INotificationConsum
 
                 public void onCell(int i, Clustering<?> clustering, Cell<?> merged, Cell<?> original)
                 {
-                    if (merged != null && !merged.equals(original))
-                        toInsert.addCell(merged);
-
-                    if (merged == null || (original != null && shouldCleanupOldValue(original, merged)))
-                        toRemove.addCell(original);
+                    onCellUpdate(original, merged);
                 }
             };
             Rows.diff(diffListener, updated, existing);
-            Row oldRow = toRemove.build();
-            Row newRow = toInsert.build();
-            for (Index.Indexer indexer : indexers)
-                indexer.updateRow(oldRow, newRow);
+            maybeCompleteRow();
+        }
+
+        private void maybeCompleteRow()
+        {
+            if (rowUpdated)
+            {
+                if (rowExisted)
+                {
+                    Row oldRow = toRemove.build();
+                    Row newRow = toInsert.build();
+                    // Rows deleted by range or partition tombstones result in no data; legacy memtables do not issue
+                    // updates for these.
+                    if (newRow != null && !newRow.isEmpty())
+                        for (Index.Indexer indexer : indexers)
+                            indexer.updateRow(oldRow, newRow);
+                }
+                else
+                {
+                    Row newRow = toInsert.build();
+                    for (Index.Indexer indexer : indexers)
+                        indexer.insertRow(newRow);
+                }
+                rowUpdated = false;
+            }
+        }
+
+        public void startRow(Clustering clustering,
+                             LivenessInfo existingLiveness,
+                             Row.Deletion existingDeletion,
+                             LivenessInfo updatedLiveness,
+                             Row.Deletion updatedDeletion)
+        {
+            maybeCompleteRow();
+            toInsert.newRow(clustering);
+            toInsert.addPrimaryKeyLivenessInfo(updatedLiveness);
+            toInsert.addRowDeletion(updatedDeletion);
+            if (existingLiveness != null)
+            {
+                toRemove.newRow(clustering);
+                toRemove.addPrimaryKeyLivenessInfo(existingLiveness);
+                toRemove.addRowDeletion(existingDeletion);
+                rowExisted = true;
+            }
+            else
+                rowExisted = false;
+            rowUpdated = true;
+        }
+
+        public void onCellUpdate(Cell<?> original, Cell<?> merged)
+        {
+            if (merged != null && !merged.equals(original))
+                toInsert.addCell(merged);
+
+            if (rowExisted && merged == null || (original != null && shouldCleanupOldValue(original, merged)))
+                toRemove.addCell(original);
+        }
+
+        public void onComplexColumnDeletion(ColumnMetadata column, DeletionTime deletionTime)
+        {
+            toInsert.addComplexDeletion(column, deletionTime);
         }
 
         public void commit()
         {
+            maybeCompleteRow();
             for (Index.Indexer indexer : indexers)
                 indexer.finish();
         }

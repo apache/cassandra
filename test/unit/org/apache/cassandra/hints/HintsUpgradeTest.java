@@ -172,7 +172,7 @@ public class HintsUpgradeTest
         {
             for (PartitionUpdate update : mutation.getPartitionUpdates())
             {
-                for (Row row : update)
+                for (Row row : update.rows())
                 {
                     if (row.clustering().size() > 0 &&
                         AsciiType.instance.compose(row.clustering().bufferAt(0)).startsWith(CELLNAME))

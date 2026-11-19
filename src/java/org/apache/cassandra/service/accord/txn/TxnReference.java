@@ -617,7 +617,7 @@ public abstract class TxnReference
         }
 
         @Override
-        protected int localDeletionTimeAsUnsignedInt()
+        public int localDeletionTimeAsUnsignedInt()
         {
             throw new UnsupportedOperationException();
         }

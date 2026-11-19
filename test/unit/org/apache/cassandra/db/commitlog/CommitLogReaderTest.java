@@ -251,7 +251,7 @@ public class CommitLogReaderTest extends CQLTester
                 continue;
             }
 
-            for (Row r : pu)
+            for (Row r : pu.rows())
             {
                 String expected = Integer.toString(i + offset);
                 String seen = new String(r.getCell(cd).buffer().array());

@@ -20,10 +20,6 @@ package org.apache.cassandra.index.sai.utils;
 
 import java.nio.ByteBuffer;
 
-import javax.annotation.Nonnull;
-
-import com.google.common.base.Function;
-
 import org.apache.cassandra.db.CellSourceIdentifier;
 import org.apache.cassandra.db.DeletionPurger;
 import org.apache.cassandra.db.Digest;
@@ -182,6 +178,12 @@ public class CellWithSource<T> extends Cell<T>
     }
 
     @Override
+    public int dataSizeWithoutPath()
+    {
+        return cell.dataSizeWithoutPath();
+    }
+
+    @Override
     public long unsharedHeapSizeExcludingData()
     {
         return cell.unsharedHeapSizeExcludingData();
@@ -212,21 +214,9 @@ public class CellWithSource<T> extends Cell<T>
     }
 
     @Override
-    public ColumnData updateAllTimestamp(long newTimestamp)
+    public Cell<?> updateAllTimestamp(long newTimestamp)
     {
         return wrapIfNew(cell.updateAllTimestamp(newTimestamp));
-    }
-
-    @Override
-    public ColumnData updateTimesAndPathsForAccord(@Nonnull Function<Cell, CellPath> cellToMaybeNewListPath, long newTimestamp, long newLocalDeletionTime)
-    {
-        return wrapIfNew(cell.updateTimesAndPathsForAccord(cellToMaybeNewListPath, newTimestamp, newLocalDeletionTime));
-    }
-
-    @Override
-    public ColumnData updateAllTimesWithNewCellPathForComplexColumnData(@Nonnull CellPath maybeNewPath, long newTimestamp, long newLocalDeletionTime)
-    {
-        return wrapIfNew(cell.updateAllTimesWithNewCellPathForComplexColumnData(maybeNewPath, newTimestamp, newLocalDeletionTime));
     }
 
     @Override
@@ -248,10 +238,9 @@ public class CellWithSource<T> extends Cell<T>
     }
 
     @Override
-    protected int localDeletionTimeAsUnsignedInt()
+    public int localDeletionTimeAsUnsignedInt()
     {
-        // Cannot call cell's localDeletionTimeAsUnsignedInt() because it's protected.
-        throw new UnsupportedOperationException();
+        return cell.localDeletionTimeAsUnsignedInt();
     }
 
     @Override
@@ -265,7 +254,7 @@ public class CellWithSource<T> extends Cell<T>
         if (maybeNewColumnData instanceof Cell)
             return wrapIfNew((Cell<?>) maybeNewColumnData);
         if (maybeNewColumnData instanceof ComplexColumnData)
-            return ((ComplexColumnData) maybeNewColumnData).transform(this::wrapIfNew);
+            return new ComplexColumnWithSource((ComplexColumnData) maybeNewColumnData, source);
 
         // It's not clear when we would hit this code path, but it seems we should not
         // hit this from SAI.

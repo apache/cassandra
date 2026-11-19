@@ -555,7 +555,7 @@ public class RemoteToLocalVirtualTable extends AbstractLazyVirtualTable
 
         try (BTree.FastBuilder<ColumnData> columns = BTree.fastBuilder())
         {
-            for (Row row : update)
+            for (Row row : update.rows())
             {
                 Clustering<?> clustering = row.clustering();
                 DecoratedKey key = remoteClusteringToLocalPartitionKey(local, clustering, pkCount, pkBuffer);
@@ -581,7 +581,7 @@ public class RemoteToLocalVirtualTable extends AbstractLazyVirtualTable
         {
             if (builder != null)
                 waiting.add(send(Verb.VIRTUAL_MUTATION_REQ, new VirtualMutation(builder.build()), endpoint));
-            builder = new PartitionUpdate.Builder(local, key, local.regularAndStaticColumns(), 8);
+            builder = PartitionUpdate.builder(local, key, local.regularAndStaticColumns(), 8);
             while (waiting.size() >= MAX_CONCURRENCY)
                 waiting.pollFirst().syncThrowUncheckedOnInterrupt();
         }

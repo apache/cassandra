@@ -124,7 +124,7 @@ public final class AtomicBTreePartition extends AbstractBTreePartition
      */
     public BTreePartitionUpdater addAll(final PartitionUpdate update, Cloner cloner, OpOrder.Group writeOp, UpdateTransaction indexer)
     {
-        return new Updater(allocator, cloner, writeOp, indexer).addAll(update);
+        return new Updater(allocator, cloner, writeOp, indexer).addAll(BTreePartitionUpdate.asBTreeUpdate(update));
     }
 
     @VisibleForTesting
@@ -148,7 +148,7 @@ public final class AtomicBTreePartition extends AbstractBTreePartition
             super(allocator, cloner, writeOp, indexer);
         }
 
-        Updater addAll(final PartitionUpdate update)
+        Updater addAll(final BTreePartitionUpdate update)
         {
             try
             {
@@ -181,7 +181,7 @@ public final class AtomicBTreePartition extends AbstractBTreePartition
             }
         }
 
-        private boolean tryUpdateData(PartitionUpdate update)
+        private boolean tryUpdateData(BTreePartitionUpdate update)
         {
             current = ref;
             this.dataSize = 0;

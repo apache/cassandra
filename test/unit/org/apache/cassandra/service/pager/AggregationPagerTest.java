@@ -172,7 +172,7 @@ public class AggregationPagerTest extends QueryPagerTest
         int i = 0;
         int cnt = 0;
         ByteBuffer prev = null;
-        for (Row row : Util.once(p.iterator()))
+        for (Row row : Util.once(p.rowIterator()))
         {
             if (prev == null)
                 prev = row.clustering().bufferAt(0);

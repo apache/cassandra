@@ -23,7 +23,7 @@ import org.apache.cassandra.db.ColumnFamilyStore;
 import org.apache.cassandra.db.DecoratedKey;
 import org.apache.cassandra.db.TypeSizes;
 import org.apache.cassandra.db.filter.DataLimits;
-import org.apache.cassandra.db.rows.Cell;
+import org.apache.cassandra.db.rows.CellData;
 import org.apache.cassandra.db.rows.DeserializationHelper;
 import org.apache.cassandra.db.rows.Row;
 import org.apache.cassandra.db.rows.UnfilteredRowIterator;
@@ -99,7 +99,7 @@ public class CachedBTreePartition extends ImmutableBTreePartition implements Cac
                 ++cachedLiveRows;
 
             boolean hasNonExpiringLiveCell = false;
-            for (Cell<?> cell : row.cells())
+            for (CellData<?, ?> cell : row.cellsData())
             {
                 if (!cell.isTombstone() && !cell.isExpiring())
                 {

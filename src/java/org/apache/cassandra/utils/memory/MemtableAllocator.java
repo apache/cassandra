@@ -22,6 +22,7 @@ import java.util.concurrent.atomic.AtomicLongFieldUpdater;
 import java.util.concurrent.atomic.LongAdder;
 
 import com.codahale.metrics.Timer;
+import com.google.common.annotations.VisibleForTesting;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -107,6 +108,15 @@ public abstract class MemtableAllocator
     public boolean isLive()
     {
         return onHeap.state == LifeCycle.LIVE || offHeap.state == LifeCycle.LIVE;
+    }
+
+    /**
+     * For testing only. Overwrite every buffer that this memtable releases on discard.
+     */
+    @VisibleForTesting
+    public void overwriteAllData()
+    {
+        // do nothing in base class, to be overridden by off-heap allocators
     }
 
     /** Mark the BB as unused, permitting it to be reclaimed */

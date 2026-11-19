@@ -112,7 +112,7 @@ public class NativeCell extends AbstractCell<NativeData> implements NativeData
                       ByteBuffer value,
                       CellPath path)
     {
-        this(allocator, writeOp, column, timestamp, ttl, deletionTimeLongToUnsignedInteger(localDeletionTime), value, value.remaining(), path);
+        this(allocator, writeOp, column, timestamp, ttl, CellData.deletionTimeLongToUnsignedInteger(localDeletionTime), value, value.remaining(), path);
     }
 
     public NativeCell(AddressBasedAllocator allocator,
@@ -277,7 +277,7 @@ public class NativeCell extends AbstractCell<NativeData> implements NativeData
     }
 
     @Override
-    protected int localDeletionTimeAsUnsignedInt()
+    public int localDeletionTimeAsUnsignedInt()
     {
         return NativeEndianMemoryUtil.getInt(peer + DELETION);
     }

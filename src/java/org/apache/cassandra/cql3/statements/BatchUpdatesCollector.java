@@ -99,7 +99,7 @@ final class BatchUpdatesCollector implements UpdatesCollector
         {
             RegularAndStaticColumns columns = updatedColumns.get(metadata.id);
             assert columns != null;
-            upd = new PartitionUpdate.Builder(metadata, dk, columns, perPartitionKeyCounts.get(metadata.id).count(dk.getKey()));
+            upd = PartitionUpdate.builder(metadata, dk, columns, perPartitionKeyCounts.get(metadata.id).count(dk.getKey()));
             mut.add(upd);
         }
         return upd;

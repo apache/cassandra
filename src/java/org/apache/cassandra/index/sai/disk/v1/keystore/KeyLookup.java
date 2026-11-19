@@ -172,7 +172,7 @@ public class KeyLookup
                 updateCurrentBlockIndex(currentPointId);
             }
 
-            return ByteSource.fixedLength(currentKey.bytes, currentKey.offset, currentKey.length);
+            return ByteSource.preencoded(currentKey.bytes, currentKey.offset, currentKey.length);
         }
 
         /**

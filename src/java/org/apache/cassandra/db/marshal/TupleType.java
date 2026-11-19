@@ -287,6 +287,10 @@ public class TupleType extends MultiElementType<ByteBuffer>
             ByteSource.Peekable component = ByteSourceInverse.nextComponentSource(comparableBytes);
             if (component != null)
                 componentBuffers[i] = componentType.fromComparableBytes(accessor, component, version);
+            else if (componentType instanceof EmptyType)
+                // EmptyType encodes its values as null byte sources, which makes them indistinguishable from null
+                // fields. Prefer the empty value, which is the only value the type can have.
+                componentBuffers[i] = accessor.empty();
             else
                 componentBuffers[i] = null;
         }

@@ -22,24 +22,64 @@ The `InMemoryTrie` is one of the main components of the trie infrastructure, a m
 modification and reads executing concurrently with writes from a single mutator thread.
 
 The main features of its implementation are:
-- full support of the `Trie` interface
+- full support of the `Trie` hierarchy of interfaces
 - using nodes of several different types for efficiency
 - support for content on any node, including intermediate (prefix)
+- support for alternate branch pointers
 - support for writes from a single mutator thread concurrent with multiple readers
+- various consistency and atomicity guarantees for readers
+- memory management, off-heap or on-heap
 - maximum trie size of 2GB
 
 
 ## Memory layout
 
 One of the main design drivers of the memtable trie is the desire to avoid on-heap storage and Java object management.
-The trie thus implements its own memory management for the structure of the trie (content is, at this time, still given
-as Java objects in a content array). The structure resides in one `UnsafeBuffer` (which can be on or off heap as
-desired) and is broken up in 32-byte "cells" (also called "blocks" in the code), which are the unit of allocation,
-update and reuse.
+The trie thus implements its own memory management for the structure of the trie. The structure resides in one 
+`UnsafeBuffer` (which can be on or off heap as desired) and is broken up in 32-byte "cells", which are the unit of 
+allocation, update and reuse.
 
 Like all tries, `InMemoryTrie` is built from nodes and has a root pointer. The nodes reside in cells, but there is no
 1:1 correspondence between nodes and cells - some node types pack multiple in one cell, while other types require
 multiple cells.
+
+### Content storage
+
+In-memory tries support two approaches for storing content/payload data:
+
+#### `ContentManagerPojo` - Object array storage
+
+This default approach stores content as Java objects in a separate content array. Leaf nodes reference values by 
+storing the array index as a negative pointer value (where masking away the sign and flags gives the index in the
+array). This approach is simple but keeps content on-heap as Java objects, which can lead to garbage collection
+pressure for large tries.
+
+#### `ContentManagerBytes` - Direct buffer storage
+
+The alternative stores content directly in the trie's buffer cells, using the same 32-byte cells that store the 
+trie structure. This eliminates the need for a separate content array and allows content to be stored off-heap 
+alongside the trie structure.
+
+`ContentManagerBytes` relies on a `ContentSerializer` interface to handle encoding and decoding of content. The 
+serializer defines:
+- How to serialize content into a 32-byte cell, returning a `offsetBits`, a 5-bit offset which is combined with
+  the cell base to form the leaf pointer/id.
+- How to deserialize content from a 32-byte cell and the pointer's `offsetBits`
+- Which values should be treated as "special" (encoded without using cells, using `offsetBits == 0x1F`)
+
+The `offsetBits` are to be used to help determine the type of content, and they also may be used to store e.g.
+length and flags that could otherwise take up a byte in the cell. 
+
+**Special values**: Some content types appear frequently and carry no additional data (e.g. markers, empty values). 
+These can be encoded as special values and mapped directly to singleton objects without allocating trie cells. The 
+`ContentSerializer` determines which values qualify as special via the `idIfSpecial()` method.
+
+**Large values**: When content doesn't fit in 32 bytes, the serializer can use its own external storage mechanism 
+(e.g. slab buffers) and store only a handle/pointer in the trie cell. The serializer is responsible for managing 
+this external storage and releasing it when content is removed.
+
+This approach can be used to drastically reduce or completely eliminate the per-item on-heap presence of a trie,
+improving overall garbage collection efficiency.
 
 ### Pointers and node types
 
@@ -90,11 +130,11 @@ to the type of node, in this case the bits also define the length of the chain &
 
 The simplest chain node has one transition leading to one child and is laid out like this:
 
-offset|content|example
----|---|---
-00 - 1A|unused|
-1B     |character|41 A
-1C - 1F|child pointer|FFFFFFFF
+| offset  | content       | example  |
+|---------|---------------|----------|
+| 00 - 1A | unused        |          |
+| 1B      | character     | 41 A     |
+| 1C - 1F | child pointer | FFFFFFFF |
 
 where the pointer points to the `1B` line in the cell.
 
@@ -104,11 +144,11 @@ pointer `0x13B` point to a node with one child with transition `0x41` `A` to a l
 Another chain cell, which points to this one, can be added in the same cell by placing a character at offset `1A`. This
 new node is effectively laid out as
 
-offset|content|example
----|---|---
-00 - 19|unused|
-1A     |character|48 H
-1B - 1F|unused|
+| offset  | content   | example |
+|---------|-----------|---------|
+| 00 - 19 | unused    |         |
+| 1A      | character | 48 H    |    
+| 1B - 1F | unused    |         |
 
 where the pointer points to line `1A`. This node has one transition, and the child pointer is implicit as the node's
 pointer plus one.
@@ -119,13 +159,13 @@ Example: The cell `xxxxxxxx xxxxxxxx xxxxxxxx xxxxxxxx xxxxxxxx xxxxxxxx xx43484
 pointer `0x139` point to a node with one child with transition `0x43` `C` to a node with one child with transition
 `0x48` `H` to a node with one child with transition `0x41` `A` to a leaf node with content `contentArray[0]`.
 
-offset|content|example
----|---|---
-00 - 18|unused|
-19     |character|43 C
-1A     |character|48 H
-1B     |character|41 A
-1C - 1F|child pointer|FFFFFFFF
+| offset   | content       | example  |
+|----------|---------------|----------|
+| 00 - 18  | unused        |          |
+| 19       | character     | 43 C     |
+| 1A       | character     | 48 H     |
+| 1B       | character     | 41 A     |
+| 1C - 1F  | child pointer | FFFFFFFF |
 
 
 In this example `0x13A` and `0x13B` are also valid pointers to the respective chains and could be referenced from other
@@ -143,21 +183,21 @@ Note: offset `0x00` also specifies a chain node, but the pointer 0 is a special 
 Sparse nodes are used when a node has at least two children, and all pointers and transition characters can fit in one
 cell, which limits the maximum number of children to 6. Their layout is:
 
-offset|content|
----|---|
-00 - 03|child pointer 0|
-04 - 07|child pointer 1|
-08 - 0B|child pointer 2|
-0C - 0F|child pointer 3|
-10 - 13|child pointer 4|
-14 - 17|child pointer 5|
-18     |character 0|
-19     |character 1|
-1A     |character 2|
-1B     |character 3|
-1C     |character 4|
-1D     |character 5|
-1E - 1F|order word|
+| offset  | content         |
+|---------|-----------------|
+| 00 - 03 | child pointer 0 |
+| 04 - 07 | child pointer 1 |
+| 08 - 0B | child pointer 2 |
+| 0C - 0F | child pointer 3 |
+| 10 - 13 | child pointer 4 |
+| 14 - 17 | child pointer 5 |
+| 18      | character 0     |
+| 19      | character 1     |
+| 1A      | character 2     |
+| 1B      | character 3     |
+| 1C      | character 4     |
+| 1D      | character 5     |
+| 1E - 1F | order word      |
 
 where the pointer points to the line `1E` (i.e. the type identifier for a sparse node is `0x1E`).
 
@@ -178,15 +218,15 @@ To do this, the mutating thread will have to convert the chain node into a spars
 (e.g. `0x240`-`0x25F`) and filling in the sparse node `00000238 0000013A 00000000 00000000 00000000 00000000 41430000
 00000006` with pointer `0x25E`:
 
-offset|content|example
----|---|---
-00 - 03|child pointer 0| 00000238
-04 - 07|child pointer 1| 0000013A
-08 - 17|unused|
-18     |character 0| 41 A
-19     |character 1| 43 C
-1A - 1D|unused|
-1E - 1F|order word, always 10| 0006 = 10 (base 6)
+| offset  | content               | example            |
+|---------|-----------------------|--------------------|
+| 00 - 03 | child pointer 0       | 00000238           |
+| 04 - 07 | child pointer 1       | 0000013A           |
+| 08 - 17 | unused                |                    |
+| 18      | character 0           | 41 A               |
+| 19      | character 1           | 43 C               |
+| 1A - 1D | unused                |                    |
+| 1E - 1F | order word, always 10 | 0006 = 10 (base 6) |
 
 This is the smallest kind of sparse node, with just two children. Two-children sparse nodes always
 put their two children in order (we can do this as this does not happen in response to an addition of a new child to
@@ -199,17 +239,17 @@ least significant digit of the order word, 0. The second child is specified by t
 Suppose we then need to add a new child, using character `0x35` `5` and child `0x33B`. The node will change to `00000238
 0000013A 0000033B 00000000 00000000 00000000 41433500 00000026` and the pointer to it stays the same.
 
-offset|content|example
----|---|---
-00 - 03|child pointer 0| 00000238
-04 - 07|child pointer 1| 0000013A
-08 - 0B|child pointer 2| 0000033B
-0C - 17|unused|
-18     |character 0| 41 A
-19     |character 1| 43 C
-1A     |character 2| 35 5
-1B - 1D|unused|
-1E - 1F|order word| 0026 = 102 (base 6)
+| offset  | content         | example             |
+|---------|-----------------|---------------------|
+| 00 - 03 | child pointer 0 | 00000238            |
+| 04 - 07 | child pointer 1 | 0000013A            |
+| 08 - 0B | child pointer 2 | 0000033B            |
+| 0C - 17 | unused          |                     |
+| 18      | character 0     | 41 A                |
+| 19      | character 1     | 43 C                |
+| 1A      | character 2     | 35 5                |
+| 1B - 1D | unused          |                     |
+| 1E - 1F | order word      | 0026 = 102 (base 6) |
 
 This node has three (the number of digits in the order word) children. The first child is at the position specified by
 the least significant digit of the order word, 2. The second child is specified by the second least significant digit,
@@ -222,21 +262,21 @@ cannot miscount the number of children.
 The addition of children can continue until we have 6, for example `00000238 0000013A 0000033B 0000035C 0000037A
 0000041B 41433542 50338129` (pointer `0x25E`) for
 
-offset|content|example
----|---|---
-00 - 03|child pointer 0| 00000238
-04 - 07|child pointer 1| 0000013A
-08 - 0B|child pointer 2| 0000033B
-0C - 0F|child pointer 3| 0000035C
-10 - 13|child pointer 4| 0000037A
-14 - 17|child pointer 5| 0000041B
-18     |character 0| 41 A
-19     |character 1| 43 C
-1A     |character 2| 35 5
-1B     |character 3| 42 B
-1C     |character 4| 50 P
-1D     |character 5| 33 3
-1E - 1F|order word| 8129 = 413025 (base 6)
+| offset   | content         | example                |
+|----------|-----------------|------------------------|
+| 00 - 03  | child pointer 0 | 00000238               |
+| 04 - 07  | child pointer 1 | 0000013A               |
+| 08 - 0B  | child pointer 2 | 0000033B               |
+| 0C - 0F  | child pointer 3 | 0000035C               |
+| 10 - 13  | child pointer 4 | 0000037A               |
+| 14 - 17  | child pointer 5 | 0000041B               |
+| 18       | character 0     | 41 A                   |
+| 19       | character 1     | 43 C                   |
+| 1A       | character 2     | 35 5                   |
+| 1B       | character 3     | 42 B                   |
+| 1C       | character 4     | 50 P                   |
+| 1D       | character 5     | 33 3                   |
+| 1E - 1F  | order word      | 8129 = 413025 (base 6) |
 
 Beyond 6 children, a node needs to be converted to split.
 
@@ -248,126 +288,126 @@ method we chose is to construct a "mini-trie" with 2-3-3 bit transitions.
 
 A split node is identified by the `0x1C` offset. The starting cell of a split node has this layout:
 
-offset|content|
----|---|
-00 - 0F|unused|
-10 - 13|mid-cell for leading 00|
-14 - 17|mid-cell for leading 01|
-18 - 1B|mid-cell for leading 10|
-1C - 1F|mid-cell for leading 11|
+| offset  | content                 |
+|---------|-------------------------|
+| 00 - 0F | unused                  |
+| 10 - 13 | mid-cell for leading 00 |
+| 14 - 17 | mid-cell for leading 01 |
+| 18 - 1B | mid-cell for leading 10 |
+| 1C - 1F | mid-cell for leading 11 |
 
 (pointers to this node point to the `1C` line) and where each mid-cell contains:
 
-offset|content|
----|---|
-00 - 03|end-cell for middle 000|
-04 - 07|end-cell for middle 001|
-08 - 0B|end-cell for middle 010|
-0C - 0F|end-cell for middle 011|
-10 - 13|end-cell for middle 100|
-14 - 17|end-cell for middle 101|
-18 - 1B|end-cell for middle 110|
-1C - 1F|end-cell for middle 111|
+| offset  | content                 |
+|---------|-------------------------|
+| 00 - 03 | end-cell for middle 000 |
+| 04 - 07 | end-cell for middle 001 |
+| 08 - 0B | end-cell for middle 010 |
+| 0C - 0F | end-cell for middle 011 |
+| 10 - 13 | end-cell for middle 100 |
+| 14 - 17 | end-cell for middle 101 |
+| 18 - 1B | end-cell for middle 110 |
+| 1C - 1F | end-cell for middle 111 |
 
 and end-cell:
 
-offset|content|
----|---|
-00 - 03|pointer to child for ending 000|
-04 - 07|pointer to child for ending 001|
-08 - 0B|pointer to child for ending 010|
-0C - 0F|pointer to child for ending 011|
-10 - 13|pointer to child for ending 100|
-14 - 17|pointer to child for ending 101|
-18 - 1B|pointer to child for ending 110|
-1C - 1F|pointer to child for ending 111|
+| offset  | content                         |
+|---------|---------------------------------|
+| 00 - 03 | pointer to child for ending 000 |
+| 04 - 07 | pointer to child for ending 001 |
+| 08 - 0B | pointer to child for ending 010 |
+| 0C - 0F | pointer to child for ending 011 |
+| 10 - 13 | pointer to child for ending 100 |
+| 14 - 17 | pointer to child for ending 101 |
+| 18 - 1B | pointer to child for ending 110 |
+| 1C - 1F | pointer to child for ending 111 |
 
-In any of the cell or pointer positions we can have `NONE`, meaning that such a child (or block of children) does not
+In any of the cell or pointer positions we can have `NONE`, meaning that such a child (or cell of children) does not
 exist. At minimum, a split node occupies 3 cells (one leading, one mid and one end), and at maximum &mdash;
 `1 + 4 + 4*8 = 37` cells i.e. `1184` bytes. If we could allocate contiguous arrays, a full split node would use `1024`
 bytes, thus this splitting can add ~15% overhead. However, real data often has additional structure that this can make
-use of to avoid creating some of the blocks, e.g. if the trie encodes US-ASCII or UTF-encoded strings where some
+use of to avoid creating some of the cells, e.g. if the trie encodes US-ASCII or UTF-encoded strings where some
 character ranges are not allowed at all, and others are prevalent. Another benefit is that to change a transition while
-preserving the previous state of the node for concurrent readers we have to only copy three blocks and not the entire
-range of children (applications of this will be given later).
+preserving the previous state of the node for concurrent readers we have to only copy three cells and not the entire
+range of children (applications of this will be given in the [Mutation](#mutation) section).
 
 As an example, suppose we need to add a `0x51` `Q` transition to `0x455` to the 6-children sparse node from the previous
 section. This will generate the following structure:
 
 Leading cell (e.g. `0x500`-`0x51F` with pointer `0x51C`)
 
-offset|content|example
----|---|---
-00 - 0F|unused|
-10 - 13|mid-cell for leading 00|0000053C
-14 - 17|mid-cell for leading 01|0000057C
-18 - 1B|mid-cell for leading 10|00000000 NONE
-1C - 1F|mid-cell for leading 11|00000000 NONE
+| offset  | content                 | example       |
+|---------|-------------------------|---------------|
+| 00 - 0F | unused                  |               |
+| 10 - 13 | mid-cell for leading 00 | 0000053C      |
+| 14 - 17 | mid-cell for leading 01 | 0000057C      |
+| 18 - 1B | mid-cell for leading 10 | 00000000 NONE |
+| 1C - 1F | mid-cell for leading 11 | 00000000 NONE |
 
 Mid cell `00` at `0x520`-`0x53F`:
 
-offset|content|example
----|---|---
-00 - 03|end-cell for middle 000|00000000 NONE
-04 - 07|end-cell for middle 001|00000000 NONE
-08 - 0B|end-cell for middle 010|00000000 NONE
-0C - 0F|end-cell for middle 011|00000000 NONE
-10 - 13|end-cell for middle 100|00000000 NONE
-14 - 17|end-cell for middle 101|00000000 NONE
-18 - 1B|end-cell for middle 110|0000055C
-1C - 1F|end-cell for middle 111|00000000 NONE
+| offset  | content                 | example       |
+|---------|-------------------------|---------------|
+| 00 - 03 | end-cell for middle 000 | 00000000 NONE |
+| 04 - 07 | end-cell for middle 001 | 00000000 NONE |
+| 08 - 0B | end-cell for middle 010 | 00000000 NONE |
+| 0C - 0F | end-cell for middle 011 | 00000000 NONE |
+| 10 - 13 | end-cell for middle 100 | 00000000 NONE |
+| 14 - 17 | end-cell for middle 101 | 00000000 NONE |
+| 18 - 1B | end-cell for middle 110 | 0000055C      |
+| 1C - 1F | end-cell for middle 111 | 00000000 NONE |
 
 End cell `00 110` at `0x540`-`0x55F`:
 
-offset|content|example
----|---|---
-00 - 03|pointer to child for ending 000|00000000 NONE
-04 - 07|pointer to child for ending 001|00000000 NONE
-08 - 0B|pointer to child for ending 010|00000000 NONE
-0C - 0F|pointer to child for ending 011|0000041B
-10 - 13|pointer to child for ending 100|00000000 NONE
-14 - 17|pointer to child for ending 101|0000033B
-18 - 1B|pointer to child for ending 110|00000000 NONE
-1C - 1F|pointer to child for ending 111|00000000 NONE
+| offset  | content                         | example       |
+|---------|---------------------------------|---------------|
+| 00 - 03 | pointer to child for ending 000 | 00000000 NONE |
+| 04 - 07 | pointer to child for ending 001 | 00000000 NONE |
+| 08 - 0B | pointer to child for ending 010 | 00000000 NONE |
+| 0C - 0F | pointer to child for ending 011 | 0000041B      |
+| 10 - 13 | pointer to child for ending 100 | 00000000 NONE |
+| 14 - 17 | pointer to child for ending 101 | 0000033B      |
+| 18 - 1B | pointer to child for ending 110 | 00000000 NONE |
+| 1C - 1F | pointer to child for ending 111 | 00000000 NONE |
 
 Mid cell `01` at `0x560`-`0x57F`:
 
-offset|content|example
----|---|---
-00 - 03|end-cell for middle 000|0000059C
-04 - 07|end-cell for middle 001|00000000 NONE
-08 - 0B|end-cell for middle 010|000005BC
-0C - 0F|end-cell for middle 011|00000000 NONE
-10 - 13|end-cell for middle 100|00000000 NONE
-14 - 17|end-cell for middle 101|00000000 NONE
-18 - 1B|end-cell for middle 110|00000000 NONE
-1C - 1F|end-cell for middle 111|00000000 NONE
+| offset  | content                 | example       |
+|---------|-------------------------|---------------|
+| 00 - 03 | end-cell for middle 000 | 0000059C      |
+| 04 - 07 | end-cell for middle 001 | 00000000 NONE |
+| 08 - 0B | end-cell for middle 010 | 000005BC      |
+| 0C - 0F | end-cell for middle 011 | 00000000 NONE |
+| 10 - 13 | end-cell for middle 100 | 00000000 NONE |
+| 14 - 17 | end-cell for middle 101 | 00000000 NONE |
+| 18 - 1B | end-cell for middle 110 | 00000000 NONE |
+| 1C - 1F | end-cell for middle 111 | 00000000 NONE |
 
 End cell `01 000` at `0x580`-`0x59F`:
 
-offset|content|example
----|---|---
-00 - 03|pointer to child for ending 000|00000000 NONE
-04 - 07|pointer to child for ending 001|00000238
-08 - 0B|pointer to child for ending 010|0000035C
-0C - 0F|pointer to child for ending 011|0000013A
-10 - 13|pointer to child for ending 100|00000000 NONE
-14 - 17|pointer to child for ending 101|00000000 NONE
-18 - 1B|pointer to child for ending 110|00000000 NONE
-1C - 1F|pointer to child for ending 111|00000000 NONE
+| offset  | content                         | example       |
+|---------|---------------------------------|---------------|
+| 00 - 03 | pointer to child for ending 000 | 00000000 NONE |
+| 04 - 07 | pointer to child for ending 001 | 00000238      |
+| 08 - 0B | pointer to child for ending 010 | 0000035C      |
+| 0C - 0F | pointer to child for ending 011 | 0000013A      |
+| 10 - 13 | pointer to child for ending 100 | 00000000 NONE |
+| 14 - 17 | pointer to child for ending 101 | 00000000 NONE |
+| 18 - 1B | pointer to child for ending 110 | 00000000 NONE |
+| 1C - 1F | pointer to child for ending 111 | 00000000 NONE |
 
 End cell `01 010` at `0x5A0`-`0x5BF`:
 
-offset|content|example
----|---|---
-00 - 03|pointer to child for ending 000|0000037A
-04 - 07|pointer to child for ending 001|00000455
-08 - 0B|pointer to child for ending 010|00000000 NONE
-0C - 0F|pointer to child for ending 011|00000000 NONE
-10 - 13|pointer to child for ending 100|00000000 NONE
-14 - 17|pointer to child for ending 101|00000000 NONE
-18 - 1B|pointer to child for ending 110|00000000 NONE
-1C - 1F|pointer to child for ending 111|00000000 NONE
+| offset  | content                         | example       |
+|---------|---------------------------------|---------------|
+| 00 - 03 | pointer to child for ending 000 | 0000037A      |
+| 04 - 07 | pointer to child for ending 001 | 00000455      |
+| 08 - 0B | pointer to child for ending 010 | 00000000 NONE |
+| 0C - 0F | pointer to child for ending 011 | 00000000 NONE |
+| 10 - 13 | pointer to child for ending 100 | 00000000 NONE |
+| 14 - 17 | pointer to child for ending 101 | 00000000 NONE |
+| 18 - 1B | pointer to child for ending 110 | 00000000 NONE |
+| 1C - 1F | pointer to child for ending 111 | 00000000 NONE |
 
 To find a child in this structure, we follow the transitions along the bits of the mini-trie. For example, for `0x42`
 `B` = `0b01000010` we start at `0x51C`, take the `01` pointer to `0x57C`, then the `000` pointer to `0x59C` and finally
@@ -376,14 +416,15 @@ reachable with pointers, they only make sense as substructure of the split node.
 
 ![graph](InMemoryTrie.md.g3.svg)
 
-#### Content `Prefix`
+#### `Prefix` nodes
 
 Prefix nodes are not nodes in themselves, but they add information to the node they lead to. Specifically, they
-encode an index in the content array, and a pointer to the node to which this content is attached. In anything other
-than the content, they are equivalent to the linked node &mdash; i.e. a prefix node pointer has the same children as
-the node it links to (another way to see this is as a content-carrying node is one that has an _ε_ transition to the
-linked node and no other features except added content). We do not allow more than one prefix to a node (i.e. prefix
-can't point to another prefix), and the child of a prefix node cannot be a leaf.
+encode an index in the content array, a pointer to any alternate branch, and a pointer to the node to which this 
+additional information is attached. In anything other than the content/alternate, they are equivalent to the linked node
+&mdash; i.e. a prefix node pointer has the same children as the node it links to (another way to see this is as a
+content-carrying node that has an _ε_ transition to the linked node and no other features except added content and/or
+alternate branch). We do not allow more than one prefix to a node (i.e. prefix can't point to another prefix), and the
+child of a prefix node cannot be a leaf.
 
 There are two types of prefixes:
 - standalone, which has a full 32-bit pointer to the linked node
@@ -392,41 +433,51 @@ of the linked node
 
 Standalone prefixes have this layout:
 
-offset|content|example
----|---|---
-00 - 03|content index|00000001
-04|standalone flag, 0xFF|FF
-05 - 1B|unused|
-1C - 1F|linked node pointer|0000025E
+| offset  | content                  | example       |
+|---------|--------------------------|---------------|
+| 00 - 03 | content pointer          | FFFFFFFE ~1   |
+| 04 - 07 | alternate branch pointer | 00000000 NONE |
+| 08      | standalone flag, 0xFF    | FF            |
+| 09 - 1B | unused                   |               |
+| 1C - 1F | linked node pointer      | 0000025E      |
 
 and pointer offset `0x1F`. The sample values above will be the ones used to link a prefix node to our `Sparse`
 example, where a prefix cannot be embedded as all the bytes of the cell are in use.
 
 If we want to attach the same prefix to the `Split` example, we will place this
 
-offset|content|example
----|---|---
-00 - 03|content index|00000001
-04|embedded offset within cell|1C
-05 - 1F|unused|
+| offset  | content                     | example       |
+|---------|-----------------------------|---------------|
+| 00 - 03 | content pointer             | FFFFFFFE ~1   |
+| 04 - 07 | alternate branch pointer    | 00000000 NONE |
+| 08      | embedded offset within cell | 1C            |
+| 09 - 1F | unused                      |               |
 
 _inside_ the leading split cell, with pointer `0x1F`. Since this is an embedded node, the augmented one resides within
 the same cell, and thus we need only 5 bits to encode the pointer (the other 27 are the same as the prefix's).
-The combined content of the cell at `0x500-0x51F` will then be `00000001 1C000000 00000000 00000000 00000520 00000560
+The combined content of the cell at `0x500-0x51F` will then be `FFFFFFFE 00000000 1C000000 00000000 00000520 00000560
 00000000 00000000`:
 
-offset|content|example
----|---|---
-00 - 03|content index|00000001
-04|embedded offset within cell|1C
-05 - 0F|unused|
-10 - 13|mid-cell for leading 00|00000520
-14 - 17|mid-cell for leading 01|00000560
-18 - 1B|mid-cell for leading 10|00000000 NONE
-1C - 1F|mid-cell for leading 11|00000000 NONE
+| offset  | content                     | example       |
+|---------|-----------------------------|---------------|
+| 00 - 03 | content pointer             | FFFFFFFE ~1   |
+| 04 - 07 | alternate branch pointer    | 00000000 NONE |
+| 08      | embedded offset within cell | 1C            |
+| 09 - 0F | unused                      |               |
+| 10 - 13 | mid-cell for leading 00     | 00000520      |
+| 14 - 17 | mid-cell for leading 01     | 00000560      |
+| 18 - 1B | mid-cell for leading 10     | 00000000 NONE |
+| 1C - 1F | mid-cell for leading 11     | 00000000 NONE |
 
 Both `0x51C` and `0x51F` are valid pointers in this cell. The former refers to the plain split node, the latter to its
 content-augmented version. The only difference between the two is the result of a call to `content()`.
+
+Note that for code simplicity we store content indexes as pointers, i.e. with the same value as the leaf node for the
+given content index. In the example above, `contentArray[1]` is encoded as `~1` i.e. `0xFFFFFFFE`.
+
+Alternate branch pointers can store a link to another branch of the trie. They are used by deletion-aware tries to store
+deletion branches and are ignored by other types of tries. Another possible application of these would be to implement
+non-deterministic tries.
 
 ![graph](InMemoryTrie.md.g4.svg)
 
@@ -442,7 +493,8 @@ interface implemented by `InMemoryTrie` (see `Trie.md` for a description of curs
 
 ![graph](InMemoryTrie.md.wc1.svg)
 
-(Edges in black show the trie's structure, and the ones in <span style="color:lightblue">light blue</span> the path the cursor walk takes.)
+(Edges in black show the trie's structure, and the ones in <span style="color:lightblue">light blue</span> the path the
+cursor walk takes.)
 
 ### Cursors over `InMemoryTrie`
 
@@ -465,7 +517,7 @@ This substructure is a little more efficient than storing only one entry for the
 mid-to-tail links do not need to be followed for every new child) and also allows us to easily get the precise next 
 child and remove the backtracking entry when a cell has no further children.
 
-`InMemoryTrie` cursors also implement `advanceMultiple`, which jumps over intermediate nodes in `Chain` blocks:
+`InMemoryTrie` cursors also implement `advanceMultiple`, which jumps over intermediate nodes in `Chain` cells:
 
 ![graph](InMemoryTrie.md.wc2.svg)
 
@@ -540,7 +592,8 @@ Note that if we perform multiple mutations in sequence, and a reader happens to 
 order), such reader may see only the mutation that is ahead of it _in iteration order_, which is not necessarily the
 mutation that happened first. For the example above, if we also inserted `trespass`, a reader thread that was paused
 at `0x018` in a forward traversal and wakes up after both insertions have completed will see `trespass`, but _will not_
-see `traverse` even though it was inserted earlier.
+see `traverse` even though it was inserted earlier. This inconsistency is often undesirable; we will describe a
+method of avoiding it in one of the next paragraphs.
 
 ### In-place modifications
 
@@ -559,11 +612,11 @@ and we can put in the new value by performing a volatile write.
 
 For example, updating `N -> 0x39C` is accomplished by making the volatile write:
 
-offset|content|before|after
----|---|---|---
-00-1A|irrelevant||
-1B|character|N|N
-1C-1F|pointer|0000031E|_**0000039C**_
+| offset | content     | before   | after          |
+|--------|-------------|----------|----------------|
+| 00-1A  | irrelevant  |          |                |
+| 1B     | character   | N        | N              |
+| 1C-1F  | pointer     | 0000031E | _**0000039C**_ |
 
 (Here and below normal writes are in bold and volatile writes in bold italic.)
 
@@ -582,17 +635,17 @@ where the pointer to the old child is written, and we can update it by doing a v
 
 For example, updating `C -> 0x51E` in a sparse node can be:
 
-offset|content|before|after
----|---|---|---
-00 - 03|child pointer 0| 00000238|00000238
-04 - 07|child pointer 1| 0000013A|_**0000051E**_
-08 - 0B|child pointer 2| 0000033B|0000033B
-0C - 17|unused|
-18     |character 0| 41 A|41 A
-19     |character 1| 43 C|43 C
-1A     |character 2| 35 5|35 5
-1B - 1D|unused|
-1E - 1F|order word| 0026 = 102 (base 6)
+| offset  | content         | before              | after          |
+|---------|-----------------|---------------------|----------------|
+| 00 - 03 | child pointer 0 | 00000238            | 00000238       |
+| 04 - 07 | child pointer 1 | 0000013A            | _**0000051E**_ |
+| 08 - 0B | child pointer 2 | 0000033B            | 0000033B       |
+| 0C - 17 | unused          |                     |                |
+| 18      | character 0     | 41 A                | 41 A           |
+| 19      | character 1     | 43 C                | 43 C           |
+| 1A      | character 2     | 35 5                | 35 5           |
+| 1B - 1D | unused          |                     |                |
+| 1E - 1F | order word      | 0026 = 102 (base 6) |                |
 
 
 #### Adding a new child to `Split`
@@ -612,29 +665,29 @@ In any of these cases, readers have to pass through the volatile update to reach
 For example, to add `x -> 0x71A` (`x` is `0x78` or `0b01111000`) to the split node example needs a new end cell for
 `01 111` (for example at `0x720-0x73F`) (these writes can be non-volatile):
 
-offset|content|before|after
----|---|---|---
-00 - 03|pointer to child for ending 000|n/a|**0000071A**
-04 - 07|pointer to child for ending 001|n/a|**00000000** NONE
-08 - 0B|pointer to child for ending 010|n/a|**00000000** NONE
-0C - 0F|pointer to child for ending 011|n/a|**00000000** NONE
-10 - 13|pointer to child for ending 100|n/a|**00000000** NONE
-14 - 17|pointer to child for ending 101|n/a|**00000000** NONE
-18 - 1B|pointer to child for ending 110|n/a|**00000000** NONE
-1C - 1F|pointer to child for ending 111|n/a|**00000000** NONE
+| offset  | content                         | before | after             |
+|---------|---------------------------------|--------|-------------------|
+| 00 - 03 | pointer to child for ending 000 | n/a    | **0000071A**      |
+| 04 - 07 | pointer to child for ending 001 | n/a    | **00000000** NONE |
+| 08 - 0B | pointer to child for ending 010 | n/a    | **00000000** NONE |
+| 0C - 0F | pointer to child for ending 011 | n/a    | **00000000** NONE |
+| 10 - 13 | pointer to child for ending 100 | n/a    | **00000000** NONE |
+| 14 - 17 | pointer to child for ending 101 | n/a    | **00000000** NONE |
+| 18 - 1B | pointer to child for ending 110 | n/a    | **00000000** NONE |
+| 1C - 1F | pointer to child for ending 111 | n/a    | **00000000** NONE |
 
 and this volatile write to the mid cell `0x520`:
 
-offset|content|before|after
----|---|---|---
-00 - 03|end-cell for middle 000|00000000 NONE|00000000 NONE
-04 - 07|end-cell for middle 001|00000000 NONE|00000000 NONE
-08 - 0B|end-cell for middle 010|00000000 NONE|00000000 NONE
-0C - 0F|end-cell for middle 011|00000000 NONE|00000000 NONE
-10 - 13|end-cell for middle 100|00000000 NONE|00000000 NONE
-14 - 17|end-cell for middle 101|00000000 NONE|00000000 NONE
-18 - 1B|end-cell for middle 110|0000055C|0000055C
-1C - 1F|end-cell for middle 111|00000000 NONE|_**0000073C**_
+| offset  | content                 | before        | after          |
+|---------|-------------------------|---------------|----------------|
+| 00 - 03 | end-cell for middle 000 | 00000000 NONE | 00000000 NONE  |
+| 04 - 07 | end-cell for middle 001 | 00000000 NONE | 00000000 NONE  |
+| 08 - 0B | end-cell for middle 010 | 00000000 NONE | 00000000 NONE  |
+| 0C - 0F | end-cell for middle 011 | 00000000 NONE | 00000000 NONE  |
+| 10 - 13 | end-cell for middle 100 | 00000000 NONE | 00000000 NONE  |
+| 14 - 17 | end-cell for middle 101 | 00000000 NONE | 00000000 NONE  |
+| 18 - 1B | end-cell for middle 110 | 0000055C      | 0000055C       |
+| 1C - 1F | end-cell for middle 111 | 00000000 NONE | _**0000073C**_ |
 
 The start cell, and the other mid and end cells remain unchanged.
 
@@ -662,19 +715,19 @@ and stop searching when they find a `NONE` pointer.
 
 For example, adding `x -> 0x71A` to the sparse example above is done by:
 
-offset|content|before|after
----|---|---|---
-00 - 03|child pointer 0| 00000238|00000238
-04 - 07|child pointer 1| 0000051E|0000051E
-08 - 0B|child pointer 2| 0000033B|0000033B
-0C - 0F|child pointer 3|any|_**0000071A**_
-10 - 17|unused|NONE|NONE
-18     |character 0| 41 A|41 A
-19     |character 1| 43 C|43 C
-1A     |character 2| 35 5|35 5
-1B     |character 3| any |**78** x
-1C - 1D|unused|00 00|00 00
-1E - 1F|order word|0026 = 102 (base 6)|_**02AE**_ = 3102 (base 6)
+| offset  | content         | before              | after                      |
+|---------|-----------------|---------------------|----------------------------|
+| 00 - 03 | child pointer 0 | 00000238            | 00000238                   |
+| 04 - 07 | child pointer 1 | 0000051E            | 0000051E                   |
+| 08 - 0B | child pointer 2 | 0000033B            | 0000033B                   |
+| 0C - 0F | child pointer 3 | any                 | _**0000071A**_             |
+| 10 - 17 | unused          | NONE                | NONE                       |
+| 18      | character 0     | 41 A                | 41 A                       |
+| 19      | character 1     | 43 C                | 43 C                       |
+| 1A      | character 2     | 35 5                | 35 5                       |
+| 1B      | character 3     | any                 | **78** x                   |
+| 1C - 1D | unused          | 00 00               | 00 00                      |
+| 1E - 1F | order word      | 0026 = 102 (base 6) | _**02AE**_ = 3102 (base 6) |
 
 where we first write the character, then volatile write the pointer, and finally the order word.
 
@@ -701,6 +754,10 @@ iteration processes a child, we apply the update to the node, which may happen i
 the original `existingNode`, it was pointing to an unreachable copied node which will remain unreachable as we will only
 attach the newer version.
 
+For reasons to be described below, copying of existing reachable nodes may be enforced. The test `updatedNode
+ == existingNode` can be used to tell if the node is indeed reachable; if we have copied it already there is no need to
+ copy it again to update for a new child (note: we may still need to copy reachable mid or end cells in `Split` nodes).
+
 After all modifications coming as the result of application of child branches have been applied, we have an
 `updatedNode` that reflects all. As we ascend we apply that new value to the parent's `updatedNode`.
 
@@ -722,6 +779,52 @@ manages to attach `truck`;
 - a reading thread that iterated to `tree` (while `traverse` was not yet attached) and paused, will see `truck` if the
 mutating thread applies the update during the pause.
 
+### Atomicity
+
+Atomicity of writes is usually a desirable property. Atomicity means that readers can see either none of the contents
+of a mutation, or all of them, i.e. that they can never see some part of an update and miss another.
+
+We can achieve this by making sure that the application of a mutation has only one attachment point. This is always the
+case for single-path updates (`putRecursive` or `apply` where no mutation node has more than one child). We can achieve
+the same for branching updates if we "force-copy" all memtable trie nodes at or below the topmost branching node of
+the mutation trie.
+
+This ensures that any partially applied changes are only done in unreachable copy nodes, while concurrent readers
+continue working on the originals. Once the branch is fully prepared, we attach it using one in-place write which makes
+the whole of it visible.
+
+The example above with atomic writes will be done as
+
+![graph](InMemoryTrie.md.a2.svg)
+
+### Consistency
+
+The same idea can also be used to enforce sequential consistency, defined here as the property that all readers that see
+an update must also be able to see all updates that happened before it (alternatively, if a reader does not see an
+update, it will not see any update that was applied after it in the order of execution of the mutating thread).
+
+Inconsistencies happen because, while a reader is traversing through it, a branch can change at random places, some of
+which may be before or after the reader's position in iteration order. We can avoid this problem if we ensure that the
+snapshot the reader is operating on does not change.
+
+To do this, we must force-copy any node we update, until the modification proceeds to the root pointer, which we then
+update to the new value (i.e. we force the attachment point for the mutation to be the root pointer). Any reader who has
+already read the root pointer will not see any updates that apply after that point in time. Any reader who reads the new
+pointer will see everything that the mutation thread did until it wrote that pointer, i.e. the last mutation and all
+mutations that precede it.
+
+![graph](InMemoryTrie.md.a3.svg)
+
+At the end of the processing of this example, the root pointer is written volatile to the new value `0x13A`. Although we
+maintain a full snapshot of the trie, we did not need to copy all nodes, only the ones that were touched by the update
+(i.e. the extra space is proportional to the update size, not to the size of the recipient trie).
+
+Consistency can also be applied below a point selected by the user (e.g. below user-identifiable metadata). In this case
+the snapshot is preserved only for nodes at or below the identified point, i.e. force-copying applies at that level
+and below, and the attachment point of any update is above the identified point &mdash; readers who see the new link
+must also see anything that the mutation thread did below that point, including any mutation that preceded the last and
+all modified content in the protected branch.
+
 ### Handling prefix nodes
 
 The descriptions above were given without prefix nodes. Handling prefixes is just a little complication over the update
@@ -732,7 +835,7 @@ To do this we expand the state tracked to:
   nodes like a prefix with no child) and is the base for all child updates (i.e. it takes the role of
   `existingNode` in the descriptions above),
 - `updatedPostContentNode` which is the node as changed/copied after children modifications are applied,
-- `contentIndex` which is the index in the content array for the result of merging existing and newly introduced 
+- `contentIndex` which is the index in the content array for the result of merging existing and newly introduced
   content, (Note: The mutation content is only readable when the cursor enters the node, and we can only attach it when
   we ascend from it.)
 - `transition` remains as before.
@@ -751,3 +854,198 @@ When descending at `tree` we set `existingPreContentNode = ~1`, `existingPostCon
 Ascending back to add the child `~3`, we add a child to `NONE` and get `updatedPostContentNode = 0x0BB`. To then apply
 the existing content, we create the embedded prefix node `updatedPreContentNode = 0x0BF` with `contentIndex = 1` and
 pass that on to the recursion.
+
+### Deletion
+
+Deletion of data in `InMemoryTrie`s is achieved by returning `null` for the value that needs to be put in a position
+with existing content (both `apply` and `putSingleton` take an `UpsertTransformer` that is applied to the combination
+of existing and update value; this transformer can choose to return `null`).
+
+This automatically results in `NONE` value for the content id. On the way up the recursive application chain, we
+recognize `NONE` for the child pointer and apply this as removal of the child. Depending on the type of node, this may
+be achieved by dropping the node (`Chain`), by putting the `NONE` value as the child pointer, or by duplicating a node
+to switch its type or remove a child. This may in turn result in an empty node, which returns `NONE` as the child
+pointer, continuing the removal upwards in the recursive chain.
+
+The example below shows the deletion of "tractor" from one of the modified tries above.
+
+![graph](InMemoryTrie.md.d1.svg)
+
+The associated value is set to `null`, resulting in `NONE` being returned from the recursive application, which removes
+the only child of node `0x01B`, resulting in an empty node i.e. `NONE`. This propagates up until the sparse node
+`0x0DE`, where one child remains after the removal. Since sparse nodes cannot have only one child, this node is freed,
+and a chain node is created for the remaining `v` transition -- this child node is placed within the child chain cell,
+which has room for further transitions. The pointer to this chain node is passed back up the recursive application
+chain, and the parent node is updated to point to it.
+
+#### Deleting a child pointer
+
+While deletion is conceptually the same as setting the existing pointer to `NONE`, we need to do some further work to
+ensure that full branch deletions propagate upwards to the branch's attachment point.
+
+For `Chain` nodes this happens automatically as attaching a prefix to `NONE` simply results in `NONE`. In `Split` nodes
+we check the sub-node we modify to see if it becomes empty, and propagate the `NONE` upwards (e.g. tail cell becoming
+empty means we need to modify the mid cell to use `NONE` for the tail pointer, which in turn may make the mid cell
+empty, leading to futher propagation). Because a `Split` node's total child count is not easy to determine, `Split`
+nodes do not downgrade back to `Sparse` or `Chain` when the number of children becomes small enough, but they are fully
+dropped and replaced with `NONE` when the number becomes 0.
+
+We perform removal in `Sparse` nodes by copying the remaining children to a new `Sparse` or `Chain` node. This is done
+because deleting a child in a `Sparse` node cannot be done safely in-place while concurrent reads can access the node.
+If the child being removed is not the last, removal requires the remaining children to be shifted to the beginning of
+the array, which cannot be done atomically. If the removed child is the last, no shifting is necessary, and we could in
+theory remove the child performing the steps of adding it in reverse. However, readers may have taken a copy of the
+order word while that child was present, and cannot easily correct their behaviour in response to the node's changed
+state.
+
+For example, consider a sparse node that has children for "a", "c" and "e", where we remove the last added character
+"e". Since readers take a copy of the order word when iterating the node, they will try that third child and must be
+prepared to find a `NONE` pointer. This is not a big problem as they can filter this empty transition out; however,
+we may have later added a new child to this node while the reader is holding that order word, and if this new child has
+"b" as its transition character, the reader's position will jump backwards, which is a serious violation of its contract
+and very difficult to prevent.
+
+### Memory management and cell reuse
+
+As mentioned in the beginning, in order to avoid long garbage collection pauses due to large long-lasting content in
+memtable tries such as the ones used to store database memtables, `InMemoryTrie` uses its own memory management, and
+can be used with on- or off-heap memory.
+
+The most important uses for the trie are long-lived ones, but there are also cases where we want to compose small
+short-lived tries, for example to store the result of a query, or to prepare a partition update before it is merged
+with the memtable. The two usecases are served most efficiently by using different allocation and reuse methods, which
+is why `InMemoryTrie`s offer two factory methods to create two different kinds of tries:
+
+- `InMemoryTrie.shortLived()` creates a trie that is expected to remain relatively small, to be used only for a short
+  period (e.g. the duration of a write or read request), and typically to be accessed by one thread only. These tries
+  reside on heap, because allocation and release of smaller buffers is done more efficiently using garbage collection, and
+  do not make any attempt to reclaim cells that become unused due to copying or type change. In tries that are accessed
+  by one thread only, mutations can safely be made without any atomicity or consistency concerns thus without any forced
+  copying, which means that the overhead of not reclaiming cells should be inconsequential.
+  `PartitionUpdate`s are an example of short-lived tries, where mutations are prepared before being sent to the commit log
+  and merged into a memtable.
+
+- `InMemoryTrie.longLived(OpOrder)` creates a trie which is expected to grow large, to remain in place for a long time,
+  and to be read by a multitude of threads concurrently with a single mutator. This kind of trie will usually be off-heap,
+  and will reclaim any cells that become unreferenced due to copying or type change. Because recycling cells requires the
+  trie/mutator to know if a reader can still be looking at cells that have become unreachable, long lived tries rely on an
+  `OpOrder` which readers must take a group from before reading the trie, and release when done.
+  `MemtableShard` (and in general database memtables) use long-lived tries, with the table's `readOrdering` (which all
+  reads already use) as the `OpOrder` signal when unreachable cells can be reused.
+
+The on/off-heap distinction is handled by the `BufferType` used in constructing the trie, while the recycling strategy
+is handled by the one of the two `MemtableAllocationStrategies`. `NoReuseStrategy`, used by the short-lived option is
+trivial, simply bump-allocating cells and objects from linear byte buffer and object array. `OpOrderReuseStrategy`
+handles the long-lived case and will be detailed below.
+
+The descriptions in this section talk about cells, but we apply exactly the same mechanisms for handling slots in the
+java object content array (with separate queues).
+
+#### Cell recycling in long-lived tries
+
+During the application of a mutation, the `InMemoryTrie` code knows which cells are being copied to another location and
+tells the allocation strategy that the cells are going to be freed (using a `recycleCell` or implied in `copyCell`).
+This does not mean that the old cell is already free, because:
+- (1) it is probably still reachable (if the process has not backtracked enough to attach the new cell to some
+  parent) by concurrent readers;
+- (2) the procedure may fail before the attachment point and the old cell may remain reachable even for this thread;
+- (3) it may still be needed by the mutator (e.g. a chain cell is freed when we recognize that the last node in the
+  chain needs to be moved, but the other nodes in the cell are still in the parent path for the mutation process); or
+- (4) concurrent readers may hold a pointer to the old cell, or a parent or child chain that leads to it.
+
+Thus, we can only recycle a cell when all four conditions are no longer possible. Once an attachment has been made, (1)
+and (2) are no longer possible (since attachment writes are volatile, all threads that visit that point at any time
+after the write _must_ see the new paths). (3) becomes impossible when the mutation completes. To make things simple,
+we use the completion of a mutation (signalled to the allocation strategy via a `completeMutation` call) as the point
+in time when all attachments are in place. To make sure (4) is no longer happening, the allocation strategy relies on
+the given `OpOrder` &mdash; when a barrier, issued at any point _after_ the `completeMutation` call, expires, no cells
+identified by the mutation as recyclable can be referenced in any current readers, because they must have followed the
+newly set paths and thus cannot have reached those cells.
+
+The allocation strategy implements this by maintaining several lists:
+- just-released cells, added in response to `recycleCell` calls and awaiting `completeMutation`
+- cells awaiting barrier, moved from the top list after `completeMutation`, for which a barrier has been issued,
+  awaiting the barrier to expire
+- reusable cells, moved from the list above after their barrier has expired
+
+For efficiency the allocation strategy does not work with individual cells, but rather in blocks of ~250. Newly
+allocated cells are taken from a `free` block. When a mutation releases cells, they are put in a `justReleased` block,
+and if the block is filled, another one is created and linked to form a queue. At mutation completion we do nothing if
+no block is yet completed; if one is, we issue a barrier and give it to the block (and any other completed blocks in
+the `justReleased` queue), with which we move it/them to the tail of an `awaitingBarrier` queue. The head of this queue
+is the oldest block of recycled cells and has the highest probability of having passed its barrier &mdash; if any block
+in the queue has an expired barrier, all previous ones also will (because of the logic of expiring barriers in
+`OpOrder`). Hence, when we need to allocate a new cell and the free block is empty, we check if that head block's barrier
+has expired, and if it has, we make that the new `free` block. If the barrier hasn't expired, there is no block of cells
+that is ready for recycling, thus we must refill the `free` block with new cells.
+
+Technically, the "reusable cells" list and "cells awaiting barrier" are in the same linked queue, which is effectively
+split in two parts by the property of having an expired barrier. Also, to simplify handling, the `free` block stands at
+the head of that queue &mdash; it plays the part of a sentinel block for the `awaitingBarrier` queue as we
+always have a block at `free`, thus `awaitingBarrierTail` can move to it when the queue becomes empty.
+
+![diagram](InMemoryTrie.md.recycling.svg)
+
+If an exception is thrown during a mutation, the `InMemoryTrie` code catches that exception and signals `abortMutation`
+to the strategy, which tells it that the cells the current call marked as recyclable will probably remain reachable
+and should be discarded; because the strategy works with blocks, it will actually discard everything in the
+`justReleased` block and queue. This may result in some cell waste &mdash; unreachable cells that cannot be recycled
+&mdash; if cells were allocated and/or an attachment was made before the exception is thrown. We don't expect this to
+happen often, but any users of tries that expect them to live indefinitely (unlike memtables which are flushed
+regularly; an example would be the chunk cache map when/if we switch it to `InMemoryTrie`) must ensure that exceptions
+cannot happen during mutation, otherwise waste can slowly accumulate to bring the node down.
+
+Users of in-memory tries that can recognize a point after which an in-memory trie will no longer be mutated (e.g. when
+a trie memtable is switched out before being flushed) can request the recycling structures to be released via a
+`stopRecycling` call. This will drop all the blocks in the pipeline except the current `free` and `justReleased` blocks,
+shrinking the on-heap presence of the structure (and the potential for GC irregularities dealing with linked lists) to
+a minimum. After this call, no new mutations are expected, but if they do happen they will be applied correctly using
+fresh cells; i.e. any cells in the dropped recycling pipeline will be effectively lost.
+
+### Range tries
+
+Range tries differ from plain ones in being able to present preceding state for any position in the trie, and the fact
+that range tries need to be able to present boundaries both on the descent and ascent path for a node. In-memory
+range tries do not store the preceding state information, but instead construct it during cursor iteration.
+
+When a range trie is stored in an in-memory trie, it stores only content values. The range cursors created keep track of
+the currently active covering state (which is equal to the succeeding side of any visited boundary during advance) and
+report it as `precedingState`. This information, however, is no longer valid when a `skipTo` operation is performed, as
+it may skip over arbitrarily many boundaries and end up in a covered range. If `precedingState` is requested after such
+a skip, the cursor needs to obtain the applicable state. This is done by descending into the current branch (in
+iteration order) until the closest boundary is found, and using its preceding side. For this to work, all in-memory trie
+branches must terminate in a boundary state with content, which is something that in-memory tries do maintain (see
+below).
+
+For every boundary the range trie needs to recognize whether it falls to the left or right of the branch in order to
+know whether to present it on the descent or ascend path of the iteration. This is done by reserving a bit in the
+content encoding that specifies the modifier. If something needs to be presented on the return path, its pointer is put
+in the backtracking state to be returned after the branch is exhausted instead of being reported immediately. Some nodes
+will contain both left- and right-side boundaries, in which case we use a prefix node where both the content and
+alternate fields are set.
+
+Because all trie application may affect covered state, even if they are a singleton, all insertions into a range trie
+are done using the `apply` method. The application itself is more elaborate than the case of simple data tries:
+when `apply` is called with a range trie argument, the in-memory trie has to walk all existing positions that fall under
+ranges of the trie and apply the active state to them. Additionally, it must track any active existing range to combine
+it with incoming content.
+
+Because the incoming content is often expected to be a (newer) deletion, the resolver is expected to often return null
+for combined content. This triggers removal of nodes and paths up the relevant branch (which may also result in changing
+the type of a node e.g. from sparse to chain), which in turn guarantees that we remove branches that do not terminate in
+non-null content.
+
+### Deletion-aware tries
+
+Deletion-aware tries are tries that contain parallel deletion branch range tries at some of their nodes. In in-memory
+deletion-aware tries, the parallel branches are stored using the alternate branch pointers of prefix nodes.
+
+When a deletion-aware trie needs to be applied to an in-memory trie, it proceeds as normal while a deletion branch is
+not seen in either source or target. When a deletion branch is found, the procedure must:
+- check if the other source has a deletion branch at the same point, and if it doesn't (and `deletionsAtFixedPoints` is
+  not set), hoist its descendant deletion branches to this position.
+- merge the two deletion branches into the new deletion branch (using range trie merge logic).
+- apply the source deletion branch to the data trie to apply any incoming deletions.
+- merge the source data branch, with the target's deletion branch applied to it (to make sure any preexisting deletions
+  are also taken into account for incoming data if that happens to be older), into the data trie (using plain trie merge
+  logic, i.e. no longer checking for deletion branches).

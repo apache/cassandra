@@ -62,7 +62,7 @@ public abstract class AbstractMutableVirtualTable extends AbstractVirtualTable
         ColumnValues partitionKey = ColumnValues.from(metadata(), update.partitionKey());
 
         if (update.deletionInfo().isLive())
-            update.forEach(row ->
+            update.rows().forEach(row ->
             {
                 ColumnValues clusteringColumns = ColumnValues.from(metadata(), row.clustering());
 

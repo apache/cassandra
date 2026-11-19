@@ -71,6 +71,7 @@ import org.apache.cassandra.db.marshal.BytesType;
 import org.apache.cassandra.db.marshal.CompositeType;
 import org.apache.cassandra.db.marshal.EmptyType;
 import org.apache.cassandra.db.marshal.UserType;
+import org.apache.cassandra.db.partitions.PartitionUpdate;
 import org.apache.cassandra.dht.IPartitioner;
 import org.apache.cassandra.exceptions.ConfigurationException;
 import org.apache.cassandra.exceptions.InvalidRequestException;
@@ -383,6 +384,11 @@ public class TableMetadata implements SchemaElement
     public boolean isCounter()
     {
         return flags.contains(Flag.COUNTER);
+    }
+
+    public PartitionUpdate.Factory partitionUpdateFactory()
+    {
+        return params.memtable.factory().partitionUpdateFactory();
     }
 
     public boolean isCompactTable()

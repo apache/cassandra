@@ -226,7 +226,7 @@ public class SSTableMetadataViewer
                                 Row row = (Row) unfiltered;
                                 psize += row.dataSize();
                                 pcount++;
-                                for (org.apache.cassandra.db.rows.Cell<?> cell : row.cells())
+                                for (org.apache.cassandra.db.rows.CellData<?, ?> cell : row.cellsData())
                                 {
                                     cellCount++;
                                     double percentComplete = Math.min(1.0, cellCount / totalCells);

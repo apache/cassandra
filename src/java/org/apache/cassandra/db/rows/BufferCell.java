@@ -41,7 +41,7 @@ public class BufferCell extends HeapAbstractCell<ByteBuffer>
     // available.
     public BufferCell(ColumnMetadata column, long timestamp, int ttl, long localDeletionTime, ByteBuffer value, CellPath path)
     {
-        this(column, timestamp, ttl, deletionTimeLongToUnsignedInteger(localDeletionTime), value, path);
+        this(column, timestamp, ttl, CellData.deletionTimeLongToUnsignedInteger(localDeletionTime), value, path);
     }
 
     public BufferCell(ColumnMetadata column, long timestamp, int ttl, int localDeletionTimeUnsignedInteger, ByteBuffer value, CellPath path)

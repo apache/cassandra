@@ -110,7 +110,7 @@ public class BatchlogManagerTest extends CassandraTestBase
 
         DecoratedKey dk = cfs.decorateKey(ByteBufferUtil.bytes("1234"));
         ImmutableBTreePartition results = Util.getOnlyPartitionUnfiltered(Util.cmd(cfs, dk).build());
-        Iterator<Row> iter = results.iterator();
+        Iterator<Row> iter = results.rowIterator();
         assert iter.hasNext();
 
         Mutation mutation = new Mutation(PartitionUpdate.fullPartitionDelete(cfm,

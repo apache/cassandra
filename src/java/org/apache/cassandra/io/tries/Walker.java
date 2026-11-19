@@ -460,7 +460,7 @@ public class Walker<CONCRETE extends Walker<CONCRETE>> implements AutoCloseable
                 return null;
             byte[] value = new byte[pos];
             System.arraycopy(bytes, 0, value, 0, pos);
-            return v -> ByteSource.fixedLength(value, 0, value.length);
+            return v -> ByteSource.preencoded(value, 0, value.length);
         }
 
         @Override

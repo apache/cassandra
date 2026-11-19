@@ -47,22 +47,17 @@ public enum Direction
             return a <= b;
         }
 
-        public int min(int a, int b)
-        {
-            return Math.min(a, b);
-        }
-
-        public int max(int a, int b)
-        {
-            return Math.max(a, b);
-        }
-
         public <T> T select(T forward, T reverse)
         {
             return forward;
         }
 
         public int select(int forward, int reverse)
+        {
+            return forward;
+        }
+
+        public long select(long forward, long reverse)
         {
             return forward;
         }
@@ -94,22 +89,17 @@ public enum Direction
             return a >= b;
         }
 
-        public int min(int a, int b)
-        {
-            return Math.max(a, b);
-        }
-
-        public int max(int a, int b)
-        {
-            return Math.min(a, b);
-        }
-
         public <T> T select(T forward, T reverse)
         {
             return reverse;
         }
 
         public int select(int forward, int reverse)
+        {
+            return reverse;
+        }
+
+        public long select(long forward, long reverse)
         {
             return reverse;
         }
@@ -135,12 +125,18 @@ public enum Direction
 
     /** Returns the result of the operation corresponding to a &lt; b for the forward direction */
     public abstract boolean lt(int a, int b);
+    /** Returns the result of the operation corresponding to a &gt; b for the forward direction */
+    public boolean gt(int a, int b)
+    {
+        return lt(b, a);
+    }
     /** Returns the result of the operation corresponding to a &le; b for the forward direction */
     public abstract boolean le(int a, int b);
-    /** Returns the result of the operation corresponding to min(a, b) for the forward direction */
-    public abstract int min(int a, int b);
-    /** Returns the result of the operation corresponding to max(a, b) for the forward direction */
-    public abstract int max(int a, int b);
+    /** Returns the result of the operation corresponding to a &ge; b for the forward direction */
+    public boolean ge(int a, int b)
+    {
+        return le(b, a);
+    }
 
     /**
      * Use the first argument in forward direction and the second in reverse, i.e. isForward() ? forward : reverse.
@@ -151,6 +147,11 @@ public enum Direction
      * Use the first argument in forward direction and the second in reverse, i.e. isForward() ? forward : reverse.
      */
     public abstract int select(int forward, int reverse);
+
+    /**
+     * Use the first argument in forward direction and the second in reverse, i.e. isForward() ? forward : reverse.
+     */
+    public abstract long select(long forward, long reverse);
 
     /**
      * Helper to perform loops over possible values in the given direction. Returns whether the given index is still
@@ -165,4 +166,9 @@ public enum Direction
     public abstract boolean isForward();
 
     public abstract Direction opposite();
+
+    public static Direction fromBoolean(boolean reversed)
+    {
+        return reversed ? REVERSE : FORWARD;
+    }
 }

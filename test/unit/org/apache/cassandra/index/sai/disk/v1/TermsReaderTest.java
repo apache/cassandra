@@ -119,7 +119,7 @@ public class TermsReaderTest extends SAIRandomizedTester
                 final byte[] bytes = ByteSourceInverse.readBytes(pair.left.asComparableBytes(ByteComparable.Version.OSS50));
                 QueryEventListener.TrieIndexEventListener listener = mock(QueryEventListener.TrieIndexEventListener.class);
                 when(listener.postingListEventListener()).thenReturn(mock(QueryEventListener.PostingListEventListener.class));
-                try (PostingList actualPostingList = reader.exactMatch(ByteComparable.fixedLength(bytes),
+                try (PostingList actualPostingList = reader.exactMatch(ByteComparable.preencoded(ByteComparable.Version.OSS50, bytes),
                                                                        listener,
                                                                        mock(QueryContext.class)))
                 {
@@ -140,7 +140,7 @@ public class TermsReaderTest extends SAIRandomizedTester
                 }
 
                 // test skipping
-                try (PostingList actualPostingList = reader.exactMatch(ByteComparable.fixedLength(bytes),
+                try (PostingList actualPostingList = reader.exactMatch(ByteComparable.preencoded(ByteComparable.Version.OSS50, bytes),
                                                                        listener,
                                                                        mock(QueryContext.class)))
                 {

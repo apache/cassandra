@@ -192,6 +192,15 @@ public abstract class AbstractAllocatorMemtable extends AbstractMemtableWithComm
         allocator.setDiscarded();
     }
 
+    /**
+     * For testing only. Overwrite every buffer that this memtable releases on discard.
+     */
+    @VisibleForTesting
+    public void overwriteAllData()
+    {
+        allocator.overwriteAllData();
+    }
+
     public String toString()
     {
         MemoryUsage usage = Memtable.getMemoryUsage(this);

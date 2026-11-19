@@ -26,6 +26,7 @@ import java.util.Set;
 import java.util.function.ToIntFunction;
 
 import com.google.common.collect.Iterables;
+import com.google.common.collect.Streams;
 
 import org.junit.Test;
 
@@ -601,7 +602,7 @@ public class GcCompactionTest extends CQLTester
 
     int countComplexCells(SSTableReader reader)
     {
-        return count(reader, x -> x.isRow() ? ((Row) x).columnData().stream().mapToInt(this::countComplex).sum() : 0, x -> 0);
+        return count(reader, x -> x.isRow() ? Streams.stream((Row) x).mapToInt(this::countComplex).sum() : 0, x -> 0);
     }
 
     int countComplex(ColumnData c)

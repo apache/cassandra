@@ -142,7 +142,7 @@ public class HintsReaderTest
         assertEquals(timestamp, hint.creationTime);
         assertEquals(dk(bytes(i)), mutation.key());
 
-        Row row = mutation.getPartitionUpdates().iterator().next().iterator().next();
+        Row row = mutation.getPartitionUpdates().iterator().next().rowIterator().next();
         assertEquals(1, Iterables.size(row.cells()));
         ValueAccessors.assertDataEquals(bytes(i), row.clustering().get(0));
         Cell<?> cell = row.cells().iterator().next();

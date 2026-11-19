@@ -228,7 +228,7 @@ public class CounterMutation implements IMutation
         {
             public Iterable<Object> apply(final PartitionUpdate update)
             {
-                return Iterables.concat(Iterables.transform(update, new Function<Row, Iterable<Object>>()
+                return Iterables.concat(Iterables.transform(update.rows(), new Function<Row, Iterable<Object>>()
                 {
                     public Iterable<Object> apply(final Row row)
                     {

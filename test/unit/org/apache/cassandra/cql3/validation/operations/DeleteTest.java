@@ -28,6 +28,7 @@ import org.junit.Test;
 import org.apache.cassandra.cql3.CQLTester;
 import org.apache.cassandra.db.ColumnFamilyStore;
 import org.apache.cassandra.db.Keyspace;
+import org.apache.cassandra.db.memtable.TrieMemtable;
 
 import static org.apache.cassandra.utils.ByteBufferUtil.EMPTY_BYTE_BUFFER;
 import static org.apache.cassandra.utils.ByteBufferUtil.bytes;
@@ -1545,5 +1546,38 @@ public class DeleteTest extends CQLTester
         Keyspace keyspace = Keyspace.open(KEYSPACE);
         ColumnFamilyStore cfs = keyspace.getColumnFamilyStore(currentTable());
         return cfs.metric.allMemtablesLiveDataSize.getValue() == 0;
+    }
+
+    /**
+     * Regression test for trie walks wrapping past 0xFF in split nodes: the last deletion adds a boundary at
+     * clustering 511 (encoded with a 0xFF byte) to a trie memtable deletion branch node that already had 6 children,
+     * and ends past that node. Advancing past the 0xFF child used to wrap around to the node's first child, applying
+     * the last deletion over older boundaries.
+     */
+    @Test
+    public void testOverlappingRangeDeletionsInTrieMemtable() throws Throwable
+    {
+        createTable("CREATE TABLE %s (k int, c int, v text, PRIMARY KEY (k, c)) WITH memtable = 'trie'");
+        assertEquals(TrieMemtable.class, getCurrentColumnFamilyStore().getCurrentMemtable().getClass());
+
+        execute("DELETE FROM %s USING TIMESTAMP 1000 WHERE k = 1 AND c > 108 AND c < 551");
+        execute("DELETE FROM %s USING TIMESTAMP 2000 WHERE k = 1 AND c >= 351 AND c < 432");
+        execute("DELETE FROM %s USING TIMESTAMP 3000 WHERE k = 1 AND c > 478 AND c < 568");
+        execute("DELETE FROM %s USING TIMESTAMP 4000 WHERE k = 1 AND c > 276 AND c < 324");
+        execute("DELETE FROM %s USING TIMESTAMP 5000 WHERE k = 1 AND c >= 307 AND c < 349");
+        execute("DELETE FROM %s USING TIMESTAMP 7000 WHERE k = 1 AND c >= 511 AND c <= 610");
+
+        // The highest deletion covering c=320 is 5000, thus this row must be visible.
+        execute("INSERT INTO %s (k, c, v) VALUES (1, 320, 'live') USING TIMESTAMP 6000");
+
+        assertRows(execute("SELECT * FROM %s WHERE k = 1 AND c = 320"), row(1, 320, "live"));
+        assertRows(execute("SELECT * FROM %s WHERE k = 1"), row(1, 320, "live"));
+        assertRows(execute("SELECT * FROM %s WHERE k = 1 ORDER BY c DESC"), row(1, 320, "live"));
+
+        // Flushing a memtable with mismatched range tombstone bounds fails the RT bound validation on read.
+        flush();
+        assertRows(execute("SELECT * FROM %s WHERE k = 1 AND c = 320"), row(1, 320, "live"));
+        assertRows(execute("SELECT * FROM %s WHERE k = 1"), row(1, 320, "live"));
+        assertRows(execute("SELECT * FROM %s WHERE k = 1 ORDER BY c DESC"), row(1, 320, "live"));
     }
 }

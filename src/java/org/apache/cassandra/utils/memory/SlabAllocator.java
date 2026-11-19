@@ -119,6 +119,14 @@ public class SlabAllocator extends MemtableBufferAllocator
         super.setDiscarded();
     }
 
+    @Override
+    public void overwriteAllData()
+    {
+        assert !isLive();
+        for (Region region : offHeapRegions)
+            ByteBufferUtil.overwriteWithRandomBytes(region.data);
+    }
+
     /**
      * Get the current region, or, if there is no current region, allocate a new one
      */

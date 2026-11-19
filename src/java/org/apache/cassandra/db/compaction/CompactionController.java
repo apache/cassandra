@@ -46,6 +46,7 @@ import org.apache.cassandra.io.util.FileDataInput;
 import org.apache.cassandra.io.util.FileUtils;
 import org.apache.cassandra.schema.CompactionParams.TombstoneOption;
 import org.apache.cassandra.utils.OverlapIterator;
+import org.apache.cassandra.utils.concurrent.OpOrder;
 import org.apache.cassandra.utils.concurrent.Refs;
 
 import static org.apache.cassandra.config.CassandraRelevantProperties.NEVER_PURGE_TOMBSTONES;
@@ -271,16 +272,29 @@ public class CompactionController extends AbstractCompactionController
             }
         }
 
-        for (Memtable memtable : memtables)
+        OpOrder.Group readGroup = null;
+        try
         {
-            if (memtable.getMinTimestamp() != Memtable.NO_MIN_TIMESTAMP)
+            for (Memtable memtable : memtables)
             {
-                if (memtable.rowIterator(key) != null)
+                if (memtable.getMinTimestamp() != Memtable.NO_MIN_TIMESTAMP)
                 {
-                    minTimestampSeen = Math.min(minTimestampSeen, memtable.getMinTimestamp());
-                    hasTimestamp = true;
+                    // Memtables may recycle memory, protect the data while we are reading it.
+                    if (readGroup == null)
+                        readGroup = cfs.readOrdering.start();
+
+                    if (memtable.rowIterator(key) != null)
+                    {
+                        minTimestampSeen = Math.min(minTimestampSeen, memtable.getMinTimestamp());
+                        hasTimestamp = true;
+                    }
                 }
             }
+        }
+        finally
+        {
+            if (readGroup != null)
+                readGroup.close();
         }
 
         if (!hasTimestamp)

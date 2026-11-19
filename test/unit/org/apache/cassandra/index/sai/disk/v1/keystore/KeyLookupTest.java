@@ -119,47 +119,47 @@ public class KeyLookupTest extends SAIRandomizedTester
             // Start value 0
             byte[] bytes = new byte[20];
             keys.add(bytes);
-            writer.add(ByteComparable.fixedLength(bytes));
+            writer.add(ByteComparable.preencoded(ByteComparable.Version.OSS50, bytes));
             // prefix > 15
             bytes = new byte[20];
             Arrays.fill(bytes, 16, 20, (byte)1);
             keys.add(bytes);
-            writer.add(ByteComparable.fixedLength(bytes));
+            writer.add(ByteComparable.preencoded(ByteComparable.Version.OSS50, bytes));
             // prefix == 15
             bytes = new byte[20];
             Arrays.fill(bytes, 15, 20, (byte)1);
             keys.add(bytes);
-            writer.add(ByteComparable.fixedLength(bytes));
+            writer.add(ByteComparable.preencoded(ByteComparable.Version.OSS50, bytes));
             // prefix < 15
             bytes = new byte[20];
             Arrays.fill(bytes, 14, 20, (byte)1);
             keys.add(bytes);
-            writer.add(ByteComparable.fixedLength(bytes));
+            writer.add(ByteComparable.preencoded(ByteComparable.Version.OSS50, bytes));
             // suffix > 16
             bytes = new byte[20];
             Arrays.fill(bytes, 0, 4, (byte)1);
             keys.add(bytes);
-            writer.add(ByteComparable.fixedLength(bytes));
+            writer.add(ByteComparable.preencoded(ByteComparable.Version.OSS50, bytes));
             // suffix == 16
             bytes = new byte[20];
             Arrays.fill(bytes, 0, 5, (byte)1);
             keys.add(bytes);
-            writer.add(ByteComparable.fixedLength(bytes));
+            writer.add(ByteComparable.preencoded(ByteComparable.Version.OSS50, bytes));
             // suffix < 16
             bytes = new byte[20];
             Arrays.fill(bytes, 0, 6, (byte)1);
             keys.add(bytes);
-            writer.add(ByteComparable.fixedLength(bytes));
+            writer.add(ByteComparable.preencoded(ByteComparable.Version.OSS50, bytes));
 
             bytes = new byte[32];
             Arrays.fill(bytes, 0, 16, (byte)1);
             keys.add(bytes);
-            writer.add(ByteComparable.fixedLength(bytes));
+            writer.add(ByteComparable.preencoded(ByteComparable.Version.OSS50, bytes));
             // prefix >= 15 && suffix >= 16
             bytes = new byte[32];
             Arrays.fill(bytes, 0, 32, (byte)1);
             keys.add(bytes);
-            writer.add(ByteComparable.fixedLength(bytes));
+            writer.add(ByteComparable.preencoded(ByteComparable.Version.OSS50, bytes));
         }, false);
 
         doTestKeyLookup(keys);
@@ -178,7 +178,7 @@ public class KeyLookupTest extends SAIRandomizedTester
                 byte[] bytes = ByteSourceInverse.readBytes(byteSource);
                 keys.add(bytes);
 
-                writer.add(ByteComparable.fixedLength(bytes));
+                writer.add(ByteComparable.preencoded(ByteComparable.Version.OSS50, bytes));
             }
         }, false);
 
@@ -198,7 +198,7 @@ public class KeyLookupTest extends SAIRandomizedTester
                 byte[] bytes = ByteSourceInverse.readBytes(byteSource);
                 keys.add(bytes);
 
-                writer.add(ByteComparable.fixedLength(bytes));
+                writer.add(ByteComparable.preencoded(ByteComparable.Version.OSS50, bytes));
             }
         }, false);
 
@@ -215,7 +215,7 @@ public class KeyLookupTest extends SAIRandomizedTester
                 ByteSource byteSource = Int32Type.instance.asComparableBytes(buffer, ByteComparable.Version.OSS50);
                 byte[] bytes = ByteSourceInverse.readBytes(byteSource);
 
-                writer.add(ByteComparable.fixedLength(bytes));
+                writer.add(ByteComparable.preencoded(ByteComparable.Version.OSS50, bytes));
             }
         }, false);
 
@@ -241,32 +241,32 @@ public class KeyLookupTest extends SAIRandomizedTester
                 byte[] key = makeKey(x);
                 keys.put(pointId++, key);
 
-                writer.add(ByteComparable.fixedLength(key));
+                writer.add(ByteComparable.preencoded(ByteComparable.Version.OSS50, key));
             }
         }, true);
 
         withKeyLookupCursor(cursor -> {
-            assertEquals(0L, cursor.clusteredSeekToKey(ByteComparable.fixedLength(keys.get(0L)), 0L, 10L));
+            assertEquals(0L, cursor.clusteredSeekToKey(ByteComparable.preencoded(ByteComparable.Version.OSS50, keys.get(0L)), 0L, 10L));
             cursor.reset();
-            assertEquals(160L, cursor.clusteredSeekToKey(ByteComparable.fixedLength(keys.get(160L)), 160L, 170L));
+            assertEquals(160L, cursor.clusteredSeekToKey(ByteComparable.preencoded(ByteComparable.Version.OSS50, keys.get(160L)), 160L, 170L));
             cursor.reset();
-            assertEquals(165L, cursor.clusteredSeekToKey(ByteComparable.fixedLength(keys.get(165L)), 160L, 170L));
+            assertEquals(165L, cursor.clusteredSeekToKey(ByteComparable.preencoded(ByteComparable.Version.OSS50, keys.get(165L)), 160L, 170L));
             cursor.reset();
-            assertEquals(175L, cursor.clusteredSeekToKey(ByteComparable.fixedLength(keys.get(175L)), 160L, 176L));
+            assertEquals(175L, cursor.clusteredSeekToKey(ByteComparable.preencoded(ByteComparable.Version.OSS50, keys.get(175L)), 160L, 176L));
             cursor.reset();
-            assertEquals(176L, cursor.clusteredSeekToKey(ByteComparable.fixedLength(keys.get(176L)), 160L, 177L));
+            assertEquals(176L, cursor.clusteredSeekToKey(ByteComparable.preencoded(ByteComparable.Version.OSS50, keys.get(176L)), 160L, 177L));
             cursor.reset();
-            assertEquals(176L, cursor.clusteredSeekToKey(ByteComparable.fixedLength(keys.get(176L)), 175L, 177L));
+            assertEquals(176L, cursor.clusteredSeekToKey(ByteComparable.preencoded(ByteComparable.Version.OSS50, keys.get(176L)), 175L, 177L));
             cursor.reset();
-            assertEquals(176L, cursor.clusteredSeekToKey(ByteComparable.fixedLength(makeKey(701)), 160L, 177L));
+            assertEquals(176L, cursor.clusteredSeekToKey(ByteComparable.preencoded(ByteComparable.Version.OSS50, makeKey(701)), 160L, 177L));
             cursor.reset();
-            assertEquals(504L, cursor.clusteredSeekToKey(ByteComparable.fixedLength(keys.get(504L)), 200L, 600L));
+            assertEquals(504L, cursor.clusteredSeekToKey(ByteComparable.preencoded(ByteComparable.Version.OSS50, keys.get(504L)), 200L, 600L));
             cursor.reset();
-            assertEquals(-1L, cursor.clusteredSeekToKey(ByteComparable.fixedLength(makeKey(4000)), 0L, 1000L));
+            assertEquals(-1L, cursor.clusteredSeekToKey(ByteComparable.preencoded(ByteComparable.Version.OSS50, makeKey(4000)), 0L, 1000L));
             cursor.reset();
-            assertEquals(-1L, cursor.clusteredSeekToKey(ByteComparable.fixedLength(makeKey(4000)), 999L, 1000L));
+            assertEquals(-1L, cursor.clusteredSeekToKey(ByteComparable.preencoded(ByteComparable.Version.OSS50, makeKey(4000)), 999L, 1000L));
             cursor.reset();
-            assertEquals(999L, cursor.clusteredSeekToKey(ByteComparable.fixedLength(keys.get(999L)), 0L, 1000L));
+            assertEquals(999L, cursor.clusteredSeekToKey(ByteComparable.preencoded(ByteComparable.Version.OSS50, keys.get(999L)), 0L, 1000L));
         });
     }
 
@@ -282,11 +282,11 @@ public class KeyLookupTest extends SAIRandomizedTester
                 byte[] key = makeKey(x);
                 keys.put(pointId++, key);
 
-                writer.add(ByteComparable.fixedLength(key));
+                writer.add(ByteComparable.preencoded(ByteComparable.Version.OSS50, key));
             }
         }, false);
 
-        withKeyLookupCursor(cursor -> assertThatThrownBy(() -> cursor.clusteredSeekToKey(ByteComparable.fixedLength(keys.get(0L)), 0L, 10L))
+        withKeyLookupCursor(cursor -> assertThatThrownBy(() -> cursor.clusteredSeekToKey(ByteComparable.preencoded(ByteComparable.Version.OSS50, keys.get(0L)), 0L, 10L))
                                         .isInstanceOf(AssertionError.class));
     }
 
@@ -295,11 +295,11 @@ public class KeyLookupTest extends SAIRandomizedTester
     {
         writeKeys(writer -> {
             writer.startPartition();
-            writer.add(ByteComparable.fixedLength(makeKey(0)));
-            writer.add(ByteComparable.fixedLength(makeKey(10)));
-            assertThatThrownBy(() -> writer.add(ByteComparable.fixedLength(makeKey(9)))).isInstanceOf(IllegalArgumentException.class);
+            writer.add(ByteComparable.preencoded(ByteComparable.Version.OSS50, makeKey(0)));
+            writer.add(ByteComparable.preencoded(ByteComparable.Version.OSS50, makeKey(10)));
+            assertThatThrownBy(() -> writer.add(ByteComparable.preencoded(ByteComparable.Version.OSS50, makeKey(9)))).isInstanceOf(IllegalArgumentException.class);
             writer.startPartition();
-            writer.add(ByteComparable.fixedLength(makeKey(9)));
+            writer.add(ByteComparable.preencoded(ByteComparable.Version.OSS50, makeKey(9)));
         }, true);
     }
 

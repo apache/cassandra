@@ -1082,7 +1082,7 @@ public abstract class CommitLogTest
                 // whether or not system keyspaces will be mutated during a test.
                 if (partitionUpdate.metadata().name.equals(metadata.name))
                 {
-                    for (Row row : partitionUpdate)
+                    for (Row row : partitionUpdate.rows())
                         cells += Iterables.size(row.cells());
                 }
             }

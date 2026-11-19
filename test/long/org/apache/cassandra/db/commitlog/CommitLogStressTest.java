@@ -508,7 +508,7 @@ public abstract class CommitLogStressTest
             for (PartitionUpdate cf : mutation.getPartitionUpdates())
             {
 
-                Iterator<Row> rowIterator = cf.iterator();
+                Iterator<Row> rowIterator = cf.rowIterator();
 
                 while (rowIterator.hasNext())
                 {

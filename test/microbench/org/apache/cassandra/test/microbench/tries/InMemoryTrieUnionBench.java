@@ -56,12 +56,13 @@ public class InMemoryTrieUnionBench
     @Param({"ON_HEAP", "OFF_HEAP"})
     BufferType bufferType = BufferType.OFF_HEAP;
 
-    // @Param({"1000", "100000", "10000000"})
-    @Param({"1000", "100000"})
+    @Param({"OSS50"})
+    ByteComparable.Version byteComparableVersion = ByteComparable.Version.OSS50;
+
+    @Param({"1000", "100000", "10000000"})
     int count = 1000;
 
-    // @Param({"2", "3", "8"})
-    @Param({"2", "3"})
+    @Param({"2", "3", "8"})
     int sources = 2;
 
     @Param({"false", "true"})
@@ -81,7 +82,7 @@ public class InMemoryTrieUnionBench
         {
             long sz = 65536 / sources;
             for (int i = 0; i < sources; ++i)
-                tries.add(new InMemoryTrie<>(bufferType));
+                tries.add(InMemoryTrie.longLived(byteComparableVersion, bufferType, null));
 
             for (long current = 0; current < count; ++current)
             {
@@ -96,7 +97,7 @@ public class InMemoryTrieUnionBench
             long current = 0;
             for (int i = 0; i < sources; ++i)
             {
-                InMemoryTrie<Byte> trie = new InMemoryTrie(bufferType);
+                InMemoryTrie<Byte> trie = InMemoryTrie.longLived(byteComparableVersion, bufferType, null);
                 int currMax = this.count * (i + 1) / sources;
 
                 for (; current < currMax; ++current)
@@ -111,7 +112,7 @@ public class InMemoryTrieUnionBench
         for (InMemoryTrie<Byte> trie : tries)
         {
             System.out.format("Trie size on heap %,d off heap %,d\n",
-                              trie.sizeOnHeap(), trie.sizeOffHeap());
+                              trie.usedSizeOnHeap(), trie.usedSizeOffHeap());
         }
         trie = Trie.mergeDistinct(tries);
 
@@ -140,7 +141,7 @@ public class InMemoryTrieUnionBench
     public int iterateEntries()
     {
         int sum = 0;
-        for (Map.Entry<ByteComparable, Byte> en : trie.entrySet())
+        for (Map.Entry<ByteComparable. Preencoded, Byte> en : trie.entrySet())
             sum += en.getValue();
         return sum;
     }
@@ -149,9 +150,7 @@ public class InMemoryTrieUnionBench
     public int iterateValuesLimited()
     {
         Iterable<Byte> values = trie.subtrie(ByteComparable.of(0L),
-                                             true,
-                                             ByteComparable.of(Long.MAX_VALUE / 2),         // 1/4 of all
-                                             false)
+                                             ByteComparable.of(Long.MAX_VALUE / 2))         // 1/4 of all
                                     .values();
         int sum = 0;
         for (byte b : values)

@@ -328,16 +328,6 @@ public class RangeTombstoneList implements Iterable<RangeTombstone>, IMeasurable
             markedAts[i] = timestamp;
     }
 
-    public void updateAllTimestampAndLocalDeletionTime(long timestamp, long localDeletionTime)
-    {
-        int unsignedLocalDeletionTime = Cell.deletionTimeLongToUnsignedInteger(localDeletionTime);
-        for (int i = 0; i < size; i++)
-        {
-            markedAts[i] = timestamp;
-            delTimesUnsignedIntegers[i] = unsignedLocalDeletionTime;
-        }
-    }
-
     private RangeTombstone rangeTombstone(int idx)
     {
         return new RangeTombstone(Slice.make(starts[idx], ends[idx]), DeletionTime.buildUnsafeWithUnsignedInteger(markedAts[idx], delTimesUnsignedIntegers[idx]));
