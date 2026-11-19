@@ -163,7 +163,8 @@ public class YamlConfigurationLoader implements ConfigurationLoader
         }
         catch (YAMLException e)
         {
-            throw new ConfigurationException("Invalid yaml: " + url, e);
+            String msg = "Failed to load configuration from " + url;
+            throw new ConfigurationException(msg, e);
         }
     }
 
