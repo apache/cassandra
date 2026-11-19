@@ -35,6 +35,7 @@ import org.apache.cassandra.utils.concurrent.AsyncPromise;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertTrue;
+import static org.junit.Assert.assertNull;
 import static org.mockito.Mockito.when;
 
 public class MemtableCleanerThreadTest
@@ -109,6 +110,22 @@ public class MemtableCleanerThreadTest
         waitForPendingTasks();
 
         stopThread();
+    }
+
+    @Test
+    public void testCleanerError() throws Exception
+    {
+        when(pool.needsCleaning()).thenReturn(false);
+        AsyncPromise<Boolean > fut = new AsyncPromise<>();
+        cleaner = () -> {
+            return fut;
+        };
+
+        Clean<> clean = new Clean<>(pool, cleaner);
+
+        Boolean res = clean.apply(null, null);
+
+        assertNull(res);
     }
 
     @Test
