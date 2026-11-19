@@ -59,6 +59,16 @@ public class RangeTermTree
                                                 null));
     }
 
+    public ByteBuffer min()
+    {
+        return min;
+    }
+
+    public ByteBuffer max()
+    {
+        return max;
+    }
+
     static class Builder
     {
         private final IndexTermType indexTermType;
