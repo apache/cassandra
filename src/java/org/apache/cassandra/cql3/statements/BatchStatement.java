@@ -73,9 +73,9 @@ import org.apache.cassandra.metrics.ClientRequestSizeMetrics;
 import org.apache.cassandra.schema.ColumnMetadata;
 import org.apache.cassandra.schema.TableId;
 import org.apache.cassandra.schema.TableMetadata;
+import org.apache.cassandra.service.AccordTimestamps;
 import org.apache.cassandra.service.ClientState;
 import org.apache.cassandra.service.ClientWarn;
-import org.apache.cassandra.service.PreserveTimestamp;
 import org.apache.cassandra.service.QueryState;
 import org.apache.cassandra.service.StorageProxy;
 import org.apache.cassandra.service.TimestampSource;
@@ -526,28 +526,28 @@ public class BatchStatement implements CQLStatement.CompositeCQLStatement
             executeInternalWithoutCondition(queryState, options, requestTime);
         else
         {
-            PreserveTimestamp preserveTimestamp;
+            AccordTimestamps accordTimestamps;
             TimestampSource.Collector collector;
             if (attrs.isTimestampSet())
             {
-                preserveTimestamp = PreserveTimestamp.yes;
+                accordTimestamps = AccordTimestamps.DECLARED;
                 collector = null;
             }
             else
             {
-                preserveTimestamp = PreserveTimestamp.no;
+                accordTimestamps = AccordTimestamps.OVERWRITE;
                 collector = new TimestampSource.Collector();
             }
             List<? extends IMutation> mutations = getMutations(clientState, options, false, timestamp, nowInSeconds, requestTime, collector);
             if (!mutations.isEmpty() && collector != null)
-                preserveTimestamp = preserveTimestamp.merge(collector.get());
-            executeWithoutConditions(mutations, options.getConsistency(), requestTime, preserveTimestamp);
+                accordTimestamps = accordTimestamps.merge(collector.get());
+            executeWithoutConditions(mutations, options.getConsistency(), requestTime, accordTimestamps);
         }
 
         return new ResultMessage.Void();
     }
 
-    private void executeWithoutConditions(List<? extends IMutation> mutations, ConsistencyLevel cl, Dispatcher.RequestTime requestTime, PreserveTimestamp preserveTimestamp) throws RequestExecutionException, RequestValidationException
+    private void executeWithoutConditions(List<? extends IMutation> mutations, ConsistencyLevel cl, Dispatcher.RequestTime requestTime, AccordTimestamps accordTimestamps) throws RequestExecutionException, RequestValidationException
     {
         if (mutations.isEmpty())
             return;
@@ -561,7 +561,7 @@ public class BatchStatement implements CQLStatement.CompositeCQLStatement
         // tables to go through the batch log in order to preserve all or nothing application
         // see CASSANDRA-20588 for more details
         boolean mutateAtomic = (isLogged() && mutations.size() > 1) || (isSingleTokenStatementSpanningAccordAndNonAccordTables(ClusterMetadata.current(), mutations.get(0)));
-        StorageProxy.mutateWithTriggers(mutations, cl, mutateAtomic, requestTime, preserveTimestamp);
+        StorageProxy.mutateWithTriggers(mutations, cl, mutateAtomic, requestTime, accordTimestamps);
         ClientRequestSizeMetrics.recordRowAndColumnCountMetrics(mutations);
     }
 

@@ -27,8 +27,6 @@ import java.util.Objects;
 import java.util.function.BiConsumer;
 import java.util.function.Consumer;
 
-import javax.annotation.Nonnull;
-
 import com.google.common.base.Function;
 
 import org.apache.cassandra.cache.IMeasurableMemory;
@@ -324,7 +322,11 @@ public interface Row extends Unfiltered, Iterable<ColumnData>, IMeasurableMemory
      */
     public Row updateAllTimestamp(long newTimestamp);
 
-    public Row updateTimesAndPathsForAccord(@Nonnull Function<Cell, CellPath> cellToMaybeNewListPath, long newTimestamp, long newLocalDeletionTime);
+    /**
+     * Return a copy with all time data updated to the provided newTimestamp and nowInSec.
+     * Any local deletion/expiration time is re-derived from nowInSec (and the ttl()), so existing times are ignored.
+     */
+    public Row updateTimesForAccord(long newTimestamp, long nowInSec);
 
     /**
      * Returns a copy of this row with the new deletion as row deletion if it is more recent
@@ -392,6 +394,8 @@ public interface Row extends Unfiltered, Iterable<ColumnData>, IMeasurableMemory
      * deletion is preserved and such cells are removed.
      * <p>
      * Currently, the only use of shadowable row deletions is Materialized Views, see CASSANDRA-10261.
+     *
+     * TODO (expected): shadowable is deprecated; we should avoid allocating a wrapper object for the normal case where !isShadowable
      */
     public static class Deletion
     {

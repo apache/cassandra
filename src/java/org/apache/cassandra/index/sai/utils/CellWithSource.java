@@ -20,10 +20,6 @@ package org.apache.cassandra.index.sai.utils;
 
 import java.nio.ByteBuffer;
 
-import javax.annotation.Nonnull;
-
-import com.google.common.base.Function;
-
 import org.apache.cassandra.db.CellSourceIdentifier;
 import org.apache.cassandra.db.DeletionPurger;
 import org.apache.cassandra.db.Digest;
@@ -218,15 +214,9 @@ public class CellWithSource<T> extends Cell<T>
     }
 
     @Override
-    public ColumnData updateTimesAndPathsForAccord(@Nonnull Function<Cell, CellPath> cellToMaybeNewListPath, long newTimestamp, long newLocalDeletionTime)
+    public ColumnData updateTimesForAccord(long newTimestamp, long nowInSec)
     {
-        return wrapIfNew(cell.updateTimesAndPathsForAccord(cellToMaybeNewListPath, newTimestamp, newLocalDeletionTime));
-    }
-
-    @Override
-    public ColumnData updateAllTimesWithNewCellPathForComplexColumnData(@Nonnull CellPath maybeNewPath, long newTimestamp, long newLocalDeletionTime)
-    {
-        return wrapIfNew(cell.updateAllTimesWithNewCellPathForComplexColumnData(maybeNewPath, newTimestamp, newLocalDeletionTime));
+        return wrapIfNew(cell.updateTimesForAccord(newTimestamp, nowInSec));
     }
 
     @Override

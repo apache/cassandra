@@ -49,6 +49,7 @@ import accord.utils.SortedArrays;
 
 import org.apache.cassandra.cql3.QueryOptions;
 import org.apache.cassandra.db.ConsistencyLevel;
+import org.apache.cassandra.db.SerializationHeader;
 import org.apache.cassandra.db.TypeSizes;
 import org.apache.cassandra.db.partitions.PartitionUpdate;
 import org.apache.cassandra.exceptions.RequestValidationException;
@@ -57,7 +58,7 @@ import org.apache.cassandra.io.UnversionedSerializer;
 import org.apache.cassandra.io.util.DataInputBuffer;
 import org.apache.cassandra.io.util.DataInputPlus;
 import org.apache.cassandra.io.util.DataOutputPlus;
-import org.apache.cassandra.service.PreserveTimestamp;
+import org.apache.cassandra.service.AccordTimestamps;
 import org.apache.cassandra.service.accord.AccordObjectSizes;
 import org.apache.cassandra.service.accord.IAccordService;
 import org.apache.cassandra.service.accord.api.PartitionKey;
@@ -67,6 +68,7 @@ import org.apache.cassandra.service.accord.serializers.TableMetadatasAndKeys;
 import org.apache.cassandra.service.accord.serializers.Version;
 import org.apache.cassandra.service.accord.txn.TxnCondition.SerializedTxnCondition;
 import org.apache.cassandra.service.accord.txn.TxnWrite.Fragment;
+import org.apache.cassandra.service.accord.txn.TxnWrite.LateBindWrite;
 import org.apache.cassandra.tcm.ClusterMetadata;
 import org.apache.cassandra.transport.ProtocolVersion;
 import org.apache.cassandra.utils.ArraySerializers;
@@ -80,6 +82,7 @@ import static accord.utils.Invariants.requireArgument;
 import static accord.utils.SortedArrays.Search.CEIL;
 import static com.google.common.base.Preconditions.checkState;
 import static java.lang.Boolean.FALSE;
+import static org.apache.cassandra.db.SerializationHeader.StableHeaderSerializer.STABLE;
 import static org.apache.cassandra.service.accord.txn.TxnUpdate.BlockFragment.NO_BLOCK_FRAGMENTS;
 import static org.apache.cassandra.service.accord.txn.TxnUpdate.ConditionalBlock.NO_CONDITIONAL_BLOCKS;
 import static org.apache.cassandra.utils.ArraySerializers.skipArray;
@@ -618,23 +621,22 @@ public final class TxnUpdate extends AccordUpdate
 
     private static final long EMPTY_SIZE = ObjectSizes.measure(new TxnUpdate(TableMetadatas.none(), Keys.EMPTY, Collections.emptyList(), 0));
 
-    /**
-     * Hints and batchlog write with their original timestamp so they don't resurrect data.
-     * This breaks future read detection, so cannot be used for linearizable writes.
-     * TODO (expected): verify safety - we might need to move detectsFutureReads to epoch/topology state
-     */
-    public static final int FLAG_PRESERVE_TIMESTAMPS = 0x1;
-
     /** The transaction may be applied directly by any replica knowing only the transaction's applyAt */
-    public static final int FLAG_PERMIT_REPLICA_EXECUTION = 0x2;
+    public static final int FLAG_PERMIT_REPLICA_EXECUTION = 0x4;
+
+    /**
+     * The low bits encode {@link AccordTimestamps} by ordinal. Versions prior to the introduction of general purpose flags
+     * only read the lowest bit, as "preserve timestamps", which {@link AccordTimestamps} guarantees to be consistent with.
+     */
+    private static final int TIMESTAMPS_MASK = 0x3;
 
     private static final int HAS_COMMIT_CL = 0x100;
     private static final int COMMIT_CL_SHIFT = 16;
     private static final int COMMIT_CL_MASK = 0xff;
 
-    public static int flags(@Nullable ConsistencyLevel commitCL, PreserveTimestamp preserveTimestamps)
+    public static int flags(@Nullable ConsistencyLevel commitCL, AccordTimestamps timestamps)
     {
-        return flags(commitCL, preserveTimestamps, false);
+        return flags(commitCL, timestamps, false);
     }
 
     private static boolean permitsReplicaExecution(@Nullable ConsistencyLevel commitCL, boolean performsNoRead)
@@ -642,11 +644,11 @@ public final class TxnUpdate extends AccordUpdate
         return performsNoRead && (commitCL == null || commitCL == ConsistencyLevel.ANY);
     }
 
-    public static int flags(@Nullable ConsistencyLevel commitCL, PreserveTimestamp preserveTimestamps, boolean replicaExecutable)
+    public static int flags(@Nullable ConsistencyLevel commitCL, AccordTimestamps timestamps, boolean permitsReplicaExecution)
     {
-        // Once in accord "mixedTimeSource" and "yes" are the same, so only care about the side effect: that the timestamp is preserved or not
-        int flags = preserveTimestamps.preserve ? FLAG_PRESERVE_TIMESTAMPS : 0;
-        if (replicaExecutable)
+        int flags = timestamps.ordinal();
+
+        if (permitsReplicaExecution)
         {
             requireArgument(commitCL == null || commitCL == ConsistencyLevel.ANY, "Replica execution incompatible with commit CL %s", commitCL);
             flags |= FLAG_PERMIT_REPLICA_EXECUTION;
@@ -743,19 +745,14 @@ public final class TxnUpdate extends AccordUpdate
     @Nullable
     private transient volatile Object validationException = this;
 
-    public TxnUpdate(TableMetadatas tables, List<Fragment> fragments, TxnCondition condition, @Nullable ConsistencyLevel cassandraCommitCL)
+    public TxnUpdate(TableMetadatas tables, List<Fragment> fragments, TxnCondition condition, @Nullable ConsistencyLevel cassandraCommitCL, AccordTimestamps timestamps)
     {
-        this(tables, fragments, condition, cassandraCommitCL, PreserveTimestamp.no);
+        this(tables, fragments, condition, cassandraCommitCL, timestamps, false);
     }
 
-    public TxnUpdate(TableMetadatas tables, List<Fragment> fragments, TxnCondition condition, @Nullable ConsistencyLevel cassandraCommitCL, PreserveTimestamp preserveTimestamp)
+    public TxnUpdate(TableMetadatas tables, List<Fragment> fragments, TxnCondition condition, @Nullable ConsistencyLevel cassandraCommitCL, AccordTimestamps timestamps, boolean performsNoRead)
     {
-        this(tables, fragments, condition, cassandraCommitCL, preserveTimestamp, false);
-    }
-
-    public TxnUpdate(TableMetadatas tables, List<Fragment> fragments, TxnCondition condition, @Nullable ConsistencyLevel cassandraCommitCL, PreserveTimestamp preserveTimestamp, boolean performsNoRead)
-    {
-        this(tables, fragments, condition, flags(cassandraCommitCL, preserveTimestamp, permitsReplicaExecution(cassandraCommitCL, performsNoRead && condition == TxnCondition.none() && Functions.allMatches(Fragment::isComplete, fragments))));
+        this(tables, fragments, condition, flags(cassandraCommitCL, timestamps, permitsReplicaExecution(cassandraCommitCL, performsNoRead && condition == TxnCondition.none() && Functions.allMatches(Fragment::isComplete, fragments))));
         requireArgument(cassandraCommitCL == null || IAccordService.SUPPORTED_COMMIT_CONSISTENCY_LEVELS.contains(cassandraCommitCL));
     }
 
@@ -780,23 +777,18 @@ public final class TxnUpdate extends AccordUpdate
         this.flags = flags;
     }
 
-    public static TxnUpdate create(TableMetadatas tables, Keys keys, List<Block> blocks, @Nullable ConsistencyLevel cassandraCommitCL)
+    public static TxnUpdate create(TableMetadatas tables, Keys keys, List<Block> blocks, @Nullable ConsistencyLevel cassandraCommitCL, AccordTimestamps timestamps)
     {
-        return create(tables, keys, blocks, cassandraCommitCL, PreserveTimestamp.no);
-    }
-
-    public static TxnUpdate create(TableMetadatas tables, Keys keys, List<Block> blocks, @Nullable ConsistencyLevel cassandraCommitCL, PreserveTimestamp preserveTimestamp)
-    {
-        return create(tables, keys, blocks, cassandraCommitCL, preserveTimestamp, false);
+        return create(tables, keys, blocks, cassandraCommitCL, timestamps, false);
     }
 
     /**
      * @param performsNoRead transaction returns no result to client, so that replica execution may be considered
      */
-    public static TxnUpdate create(TableMetadatas tables, Keys keys, List<Block> blocks, @Nullable ConsistencyLevel cassandraCommitCL, PreserveTimestamp preserveTimestamp, boolean performsNoRead)
+    public static TxnUpdate create(TableMetadatas tables, Keys keys, List<Block> blocks, @Nullable ConsistencyLevel cassandraCommitCL, AccordTimestamps timestamps, boolean performsNoRead)
     {
         requireArgument(cassandraCommitCL == null || IAccordService.SUPPORTED_COMMIT_CONSISTENCY_LEVELS.contains(cassandraCommitCL));
-        return new TxnUpdate(tables, keys, blocks, flags(cassandraCommitCL, preserveTimestamp, permitsReplicaExecution(cassandraCommitCL, performsNoRead)));
+        return new TxnUpdate(tables, keys, blocks, flags(cassandraCommitCL, timestamps, permitsReplicaExecution(cassandraCommitCL, performsNoRead)));
     }
 
     private TxnUpdate(TableMetadatas tables, Keys keys, List<Block> blocks, int flags)
@@ -879,12 +871,17 @@ public final class TxnUpdate extends AccordUpdate
     // when they are applied later, possibly after further updates have already been acknowledged.
     public boolean preserveTimestamps()
     {
-        return (flags & FLAG_PRESERVE_TIMESTAMPS) != 0;
+        return AccordTimestamps.forOrdinal(flags & TIMESTAMPS_MASK).preserve;
     }
 
     public boolean permitsReplicaExecution()
     {
         return (flags & FLAG_PERMIT_REPLICA_EXECUTION) != 0;
+    }
+
+    public boolean hasNormalisedTimes()
+    {
+        return (flags & TIMESTAMPS_MASK) == AccordTimestamps.NORMALISED.ordinal();
     }
 
     public static boolean permitsReplicaExecution(Txn txn)
@@ -942,7 +939,7 @@ public final class TxnUpdate extends AccordUpdate
         ClusterMetadata cm = ClusterMetadata.current();
         checkState(cm.epoch.getEpoch() >= executeAt.epoch(), "TCM epoch %d is < executeAt epoch %d", cm.epoch.getEpoch(), executeAt.epoch());
 
-        Pair<List<TxnWrite.Update>, SimpleBitSet> pair = null;
+        Pair<List<LateBindWrite>, SimpleBitSet> pair = null;
         try
         {
             validationException = null;
@@ -957,12 +954,12 @@ public final class TxnUpdate extends AccordUpdate
         if (pair == null)
             return new TxnWrite(TableMetadatas.none(), Collections.emptyList(), SimpleBitSets.allUnset(numConditionalBlocks()));
 
-        List<TxnWrite.Update> allUpdates = pair.left;
+        List<LateBindWrite> allWrites = pair.left;
         SimpleBitSet conditionalBlockBitSet = pair.right;
         if (keys.isEmpty())
             return new TxnWrite(TableMetadatas.none(), Collections.emptyList(), SimpleBitSets.allUnset(numConditionalBlocks()));
 
-        return new TxnWrite(tables, allUpdates, conditionalBlockBitSet);
+        return new TxnWrite(tables, allWrites, conditionalBlockBitSet);
     }
     
     private boolean checkCondition(Data data, SerializedTxnCondition condition)
@@ -973,7 +970,16 @@ public final class TxnUpdate extends AccordUpdate
         return deserializedCondition.applies((TxnData) data);
     }
 
-    public void completeUpdatesForKey(List<PartitionUpdate> updates, SimpleBitSet conditionalBlockBitSet, RoutableKey key, TableMetadatas tables)
+    public void completeWritesForKey(List<PartitionUpdate> writes, SimpleBitSet conditionalBlockBitSet, RoutableKey key, TableMetadatas tables)
+    {
+        completeWritesForKey(writes, conditionalBlockBitSet, key, tables, STABLE);
+    }
+
+    /**
+     * @param headerSerializer {@link SerializationHeader.StableHeaderSerializer#STABLE}, or a {@link TxnWrite.TimeOffsetHeaderDeserializer}
+     *                         if {@link #hasNormalisedTimes()} to bind the base updates to their execution time
+     */
+    public void completeWritesForKey(List<PartitionUpdate> writes, SimpleBitSet conditionalBlockBitSet, RoutableKey key, TableMetadatas tables, SerializationHeader.AbstractStableHeaderSerializer headerSerializer)
     {
         // each block is a separate IF/ELSE/END
         for (Block block : blocks)
@@ -992,10 +998,10 @@ public final class TxnUpdate extends AccordUpdate
                     if (conditionalBlock.id > matchingId)
                         break;
 
-                    List<Fragment> fragments = deserialize(tables, block, conditionalBlock.fragmentIds);
+                    List<Fragment> fragments = deserialize(tables, block, conditionalBlock.fragmentIds, headerSerializer);
                     for (Fragment fragment : fragments)
                         if (fragment.isComplete() && fragment.key.equals(key))
-                            updates.add(fragment.baseUpdate);
+                            writes.add(fragment.baseUpdate);
                 }
             }
         }
@@ -1054,6 +1060,11 @@ public final class TxnUpdate extends AccordUpdate
 
     private static List<Fragment> deserialize(TableMetadatas tables, Block block, int[] includeFragmentIds)
     {
+        return deserialize(tables, block, includeFragmentIds, STABLE);
+    }
+
+    private static List<Fragment> deserialize(TableMetadatas tables, Block block, int[] includeFragmentIds, SerializationHeader.AbstractStableHeaderSerializer headerSerializer)
+    {
         List<Fragment> result = new ArrayList<>(includeFragmentIds.length);
         int i = 0;
         for (int fragmentId : includeFragmentIds)
@@ -1066,7 +1077,7 @@ public final class TxnUpdate extends AccordUpdate
             try (DataInputBuffer in = new DataInputBuffer(fragment.bytes, true))
             {
                 Version version = Version.fromVersion(in.readUnsignedVInt32());
-                result.add(Fragment.serializer.deserialize(fragment.key, tables, in, version));
+                result.add(Fragment.serializer.deserialize(fragment.key, tables, in, version, headerSerializer));
             }
             catch (IOException e)
             {
@@ -1102,7 +1113,7 @@ public final class TxnUpdate extends AccordUpdate
     }
 
     @Nullable
-    private Pair<List<TxnWrite.Update>, SimpleBitSet> processCondition(Timestamp executeAt, Data data)
+    private Pair<List<LateBindWrite>, SimpleBitSet> processCondition(Timestamp executeAt, Data data)
     {
         int numConditionalBlocks = numConditionalBlocks();
         SimpleBitSet conditionalBlocksMatched = SimpleBitSet.allocate(numConditionalBlocks);
@@ -1126,14 +1137,14 @@ public final class TxnUpdate extends AccordUpdate
 
         if (fragments == null) return null;
 
-        List<TxnWrite.Update> allUpdates = new ArrayList<>(fragments.size());
+        List<LateBindWrite> allWrites = new ArrayList<>(fragments.size());
         QueryOptions options = QueryOptions.forProtocolVersion(ProtocolVersion.CURRENT);
         AccordUpdateParameters parameters = new AccordUpdateParameters((TxnData) data, options, executeAt.uniqueHlc());
 
         for (Fragment fragment : fragments)
             if (!fragment.isComplete())
-                allUpdates.add(fragment.completeSerialized(parameters, tables));
-        return Pair.create(allUpdates, conditionalBlocksMatched);
+                allWrites.add(fragment.completeSerialized(parameters, tables));
+        return Pair.create(allWrites, conditionalBlocksMatched);
     }
 
     private int numConditionalBlocks()

@@ -94,9 +94,9 @@ public class WritesSerializerTest
 
     private static TxnWrite write(PartitionKey... updatesFor)
     {
-        List<TxnWrite.Update> updates = new ArrayList<>();
+        List<TxnWrite.LateBindWrite> updates = new ArrayList<>();
         for (int i = 0 ; i < updatesFor.length ; ++i)
-            updates.add(new TxnWrite.Update(updatesFor[i], i, PartitionUpdate.emptyUpdate(table, updatesFor[i].partitionKey()), tables));
+            updates.add(new TxnWrite.LateBindWrite(updatesFor[i], i, PartitionUpdate.emptyUpdate(table, updatesFor[i].partitionKey()), tables));
         return new TxnWrite(tables, updates, SimpleBitSets.allSet(1));
     }
 

@@ -53,7 +53,7 @@ import org.apache.cassandra.metrics.HintsServiceMetrics;
 import org.apache.cassandra.net.Message;
 import org.apache.cassandra.net.MessagingService;
 import org.apache.cassandra.net.RequestCallback;
-import org.apache.cassandra.service.PreserveTimestamp;
+import org.apache.cassandra.service.AccordTimestamps;
 import org.apache.cassandra.service.accord.IAccordService.IAccordResult;
 import org.apache.cassandra.service.accord.txn.TxnResult;
 import org.apache.cassandra.service.consensus.migration.ConsensusMigrationMutationHelper;
@@ -358,7 +358,7 @@ final class HintsDispatcher implements AutoCloseable
         if (accordHintMutation != null)
         {
             requestTime = Dispatcher.RequestTime.forImmediateExecution();
-            accordTxnResult = accordHintMutation != null ? ConsensusMigrationMutationHelper.instance().mutateWithAccordAsync(cm, accordHintMutation, null, requestTime, PreserveTimestamp.yes) : null;
+            accordTxnResult = accordHintMutation != null ? ConsensusMigrationMutationHelper.instance().mutateWithAccordAsync(cm, accordHintMutation, null, requestTime, AccordTimestamps.DECLARED) : null;
         }
 
         Hint normalHint = splitHint.normalHint;

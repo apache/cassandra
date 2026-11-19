@@ -53,6 +53,11 @@ public abstract class RowUpdateBuilder implements FunctionContext
         {
             super(metadata, clientState, options, timestamp, nowInSec, ttl, prefetchedRows);
         }
+
+        public RegularRowUpdateBuilder(TableMetadata metadata, ClientState clientState, QueryOptions options, long timestamp, long nowInSec, int ttl, Map<DecoratedKey, Partition> prefetchedRows, boolean tombstonesPrecedeWrites) throws InvalidRequestException
+        {
+            super(metadata, clientState, options, timestamp, nowInSec, ttl, prefetchedRows, tombstonesPrecedeWrites);
+        }
     }
 
     public static class NoTimeRowUpdateBuilder extends RowUpdateBuilder implements NoTimeFunctionContext
@@ -71,7 +76,7 @@ public abstract class RowUpdateBuilder implements FunctionContext
     public final long timestamp;
     public final int ttl;
 
-    private DeletionTime deletionTime;
+    private final DeletionTime deletionTime;
 
     // Holds data for operations that require a read-before-write. Will be null otherwise.
     private final Map<DecoratedKey, Partition> prefetchedRows;
@@ -89,6 +94,22 @@ public abstract class RowUpdateBuilder implements FunctionContext
                             int ttl,
                             Map<DecoratedKey, Partition> prefetchedRows) throws InvalidRequestException
     {
+        this(metadata, clientState, options, timestamp, nowInSec, ttl, prefetchedRows, false);
+    }
+
+    /**
+     * @param tombstonesPrecedeWrites write all deletions at {@code timestamp - 1}, so that they never shadow writes from
+     *                                the same update (as {@link org.apache.cassandra.db.partitions.PartitionUpdate.Builder#updateTimesForAccord})
+     */
+    protected RowUpdateBuilder(TableMetadata metadata,
+                               ClientState clientState,
+                               QueryOptions options,
+                               long timestamp,
+                               long nowInSec,
+                               int ttl,
+                               Map<DecoratedKey, Partition> prefetchedRows,
+                               boolean tombstonesPrecedeWrites) throws InvalidRequestException
+    {
         this.metadata = metadata;
         this.options = options;
         this.clientState = clientState;
@@ -96,7 +117,8 @@ public abstract class RowUpdateBuilder implements FunctionContext
         this.timestamp = timestamp;
         this.ttl = ttl;
 
-        this.deletionTime = DeletionTime.build(timestamp, nowInSec);
+        long deletionTimestamp = tombstonesPrecedeWrites ? timestamp - 1 : timestamp;
+        this.deletionTime = DeletionTime.build(deletionTimestamp, nowInSec);
         this.prefetchedRows = prefetchedRows;
         // We use MIN_VALUE internally to mean the absence of of timestamp (in Selection, in sstable stats, ...), so exclude
         // it to avoid potential confusion.
@@ -181,7 +203,7 @@ public abstract class RowUpdateBuilder implements FunctionContext
         if (areValueSizeGuardrailsEnabled && path != null && column.type.isMultiCell())
             Guardrails.columnValueSize.guard(path.dataSize(), column.name.toString(), false, clientState);
 
-        builder.addCell(BufferCell.tombstone(column, timestamp, nowInSec, path));
+        builder.addCell(BufferCell.tombstone(column, deletionTime.markedForDeleteAt(), nowInSec, path));
     }
 
     public Cell<?> addCell(ColumnMetadata column, ByteBuffer value) throws InvalidRequestException
@@ -297,8 +319,8 @@ public abstract class RowUpdateBuilder implements FunctionContext
 
     public void setComplexDeletionTimeForOverwrite(ColumnMetadata column)
     {
-        DeletionTime deletionTime = deletionTime();
-        builder.addComplexDeletion(column, DeletionTime.build(deletionTime.markedForDeleteAt() - 1, deletionTime.localDeletionTime()));
+        // always timestamp - 1 (rather than relative to deletionTime()), as the overwritten collection's new elements are written at timestamp
+        builder.addComplexDeletion(column, DeletionTime.build(timestamp - 1, deletionTime().localDeletionTime()));
     }
 
     public Row buildRow()
@@ -310,8 +332,6 @@ public abstract class RowUpdateBuilder implements FunctionContext
 
     public DeletionTime deletionTime()
     {
-         if (deletionTime == null)
-             deletionTime = DeletionTime.build(timestamp, nowInSec);
          return deletionTime;
     }
 

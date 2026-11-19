@@ -99,7 +99,7 @@ public class CustomNowInSecondsTest extends CQLTester
         // insert a row with an int overflowing timestamp. Behavior will depend on the used sstable version
         String query = format("INSERT INTO %s.%s (id, val) VALUES (0, 0) USING TTL %d", ks, tbl, ttl);
 
-        if (Cell.getVersionedMaxDeletiontionTime() == Cell.MAX_DELETION_TIME_2038_LEGACY_CAP)
+        if (Cell.getVersionedMaxDeletionTime() == Cell.MAX_DELETION_TIME_2038_LEGACY_CAP)
         {
             Assertions.assertThatThrownBy(() -> executeModify(query, Long.MIN_VALUE, prepared))
                       .isInstanceOf(InvalidRequestException.class)

@@ -193,7 +193,7 @@ public class UpdateStatement extends ModificationStatement
             checkContainsNoDuplicates(columnNames, "The column names contains duplicates");
 
             WhereClause.Builder whereClause = new WhereClause.Builder();
-            Operations operations = new Operations(type, isForTxn);
+            Operations operations = new Operations(type);
             boolean hasClusteringColumnsSet = false;
 
             for (int i = 0; i < columnNames.size(); i++)
@@ -221,7 +221,7 @@ public class UpdateStatement extends ModificationStatement
                 {
                     Operation operation = new Operation.SetValue(value).prepare(metadata, def, !conditions.isEmpty());
                     operation.collectMarkerSpecification(bindVariables, attrs);
-                    operations.add(operation, metadata);
+                    operations.add(operation, metadata, isForTxn);
                 }
             }
 
@@ -280,7 +280,7 @@ public class UpdateStatement extends ModificationStatement
             Json.Prepared prepared = jsonValue.prepareAndCollectMarkers(metadata, defs, bindVariables);
 
             WhereClause.Builder whereClause = new WhereClause.Builder();
-            Operations operations = new Operations(type, isForTxn);
+            Operations operations = new Operations(type);
             boolean hasClusteringColumnsSet = false;
 
             for (ColumnMetadata def : defs)
@@ -297,7 +297,7 @@ public class UpdateStatement extends ModificationStatement
                 {
                     Operation operation = new Operation.SetValue(raw).prepare(metadata, def, !conditions.isEmpty());
                     operation.collectMarkerSpecification(bindVariables, attrs);
-                    operations.add(operation, metadata);
+                    operations.add(operation, metadata, isForTxn);
                 }
             }
 
@@ -412,7 +412,7 @@ public class UpdateStatement extends ModificationStatement
                                                         Conditions conditions,
                                                         Attributes attrs)
         {
-            Operations operations = new Operations(type, isForTxn);
+            Operations operations = new Operations(type);
 
             for (Pair<ColumnIdentifier, Operation.RawUpdate> entry : updates.operations)
             {
@@ -420,7 +420,7 @@ public class UpdateStatement extends ModificationStatement
                 checkFalse(def.isPrimaryKeyColumn(), UPDATING_PRIMARY_KEY_MESSAGE, def.name);
                 Operation operation = entry.right.prepare(metadata, def, !conditions.isEmpty() || isForTxn);
                 operation.collectMarkerSpecification(bindVariables, attrs);
-                operations.add(operation, metadata);
+                operations.add(operation, metadata, isForTxn);
             }
 
             Preconditions.checkState(updates.referenceOps.isEmpty() || isForTxn);

@@ -24,8 +24,6 @@ import java.util.Iterator;
 import java.util.function.BiConsumer;
 import java.util.function.Consumer;
 
-import javax.annotation.Nonnull;
-
 import com.google.common.base.Function;
 import com.google.common.collect.Collections2;
 import com.google.common.collect.Iterables;
@@ -287,9 +285,9 @@ public class RowWithSource implements Row
     }
 
     @Override
-    public Row updateTimesAndPathsForAccord(@Nonnull Function<Cell, CellPath> cellToMaybeNewListPath, long newTimestamp, long newLocalDeletionTime)
+    public Row updateTimesForAccord(long newTimestamp, long nowInSec)
     {
-        return maybeWrapRow(row.updateTimesAndPathsForAccord(cellToMaybeNewListPath, newTimestamp, newLocalDeletionTime));
+        return maybeWrapRow(row.updateTimesForAccord(newTimestamp, nowInSec));
     }
 
     @Override

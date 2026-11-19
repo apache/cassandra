@@ -70,7 +70,7 @@ public class TTLTest extends CQLTester
     private Config.CorruptedTombstoneStrategy corruptTombstoneStrategy;
 
     // We should start applying overflow policies depending on supported sstable formats. Either in year 2038 or 2086
-    boolean overflowPoliciesApply = (Clock.Global.currentTimeMillis() / 1000) > (Cell.getVersionedMaxDeletiontionTime() - MAX_TTL);
+    boolean overflowPoliciesApply = (Clock.Global.currentTimeMillis() / 1000) > (Cell.getVersionedMaxDeletionTime() - MAX_TTL);
 
     @Before
     public void before()
@@ -397,7 +397,7 @@ public class TTLTest extends CQLTester
     private long computeMaxTTL()
     {
         int nowInSecs = (int) (System.currentTimeMillis() / 1000);
-        return Cell.getVersionedMaxDeletiontionTime() - nowInSecs;
+        return Cell.getVersionedMaxDeletionTime() - nowInSecs;
     }
 
     public void testRecoverOverflowedExpirationWithScrub(boolean simple, boolean clustering, boolean runScrub, boolean runSStableScrub,  boolean reinsertOverflowedTTL) throws Throwable

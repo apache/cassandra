@@ -29,8 +29,6 @@ import java.util.function.BiConsumer;
 import java.util.function.Consumer;
 import java.util.function.Predicate;
 
-import javax.annotation.Nonnull;
-
 import com.google.common.base.Function;
 import com.google.common.collect.Collections2;
 import com.google.common.collect.Iterables;
@@ -472,15 +470,15 @@ public class BTreeRow extends AbstractRow
     }
 
     @Override
-    public Row updateTimesAndPathsForAccord(@Nonnull Function<Cell, CellPath> cellToMaybeNewListPath, long newTimestamp, long newLocalDeletionTime)
+    public Row updateTimesForAccord(long newTimestamp, long nowInSec)
     {
-        LivenessInfo newInfo = primaryKeyLivenessInfo.isEmpty() ? primaryKeyLivenessInfo : primaryKeyLivenessInfo.withUpdatedTimestampAndLocalDeletionTime(newTimestamp, newLocalDeletionTime);
+        LivenessInfo newInfo = primaryKeyLivenessInfo.withUpdatedTimesForAccord(newTimestamp, nowInSec);
         // If the deletion is shadowable and the row has a timestamp, we'll forced the deletion timestamp to be less than the row one, so we
         // should get rid of said deletion.
         Deletion newDeletion = deletion.isLive() || (deletion.isShadowable() && !primaryKeyLivenessInfo.isEmpty())
                                ? Deletion.LIVE
-                               : new Deletion(DeletionTime.build(newTimestamp - 1, newLocalDeletionTime), deletion.isShadowable());
-        return transformAndFilter(newInfo, newDeletion, (cd) -> cd.updateTimesAndPathsForAccord(cellToMaybeNewListPath, newTimestamp, newLocalDeletionTime));
+                               : new Deletion(DeletionTime.build(newTimestamp - 1, nowInSec), deletion.isShadowable());
+        return transformAndFilter(newInfo, newDeletion, (cd) -> cd.updateTimesForAccord(newTimestamp, nowInSec));
     }
 
     public Row withRowDeletion(DeletionTime newDeletion)

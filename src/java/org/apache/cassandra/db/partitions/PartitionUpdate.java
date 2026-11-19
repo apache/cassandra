@@ -25,10 +25,7 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
 
-import javax.annotation.Nonnull;
-
 import com.google.common.annotations.VisibleForTesting;
-import com.google.common.base.Function;
 import com.google.common.collect.Iterables;
 import com.google.common.collect.Lists;
 import com.google.common.primitives.Ints;
@@ -824,6 +821,14 @@ public class PartitionUpdate extends AbstractBTreePartition
             return deserialize(header, remoteVersion, tableMetadata, in, version, flag);
         }
 
+        public <P> PartitionUpdate deserialize(PartitionKey key, TableMetadatas tables, DataInputPlus in, int version, DeserializationHelper.Flag flag, SerializationHeader.ParameterizedSerializer<P> headerSerializer, P param) throws IOException
+        {
+            TableMetadata tableMetadata = tables.deserialize(in);
+            Epoch remoteVersion = Epoch.serializer.deserialize(in);
+            UnfilteredRowIteratorSerializer.Header header = UnfilteredRowIteratorSerializer.serializer.deserializeHeaderWithoutKey(tableMetadata, key.partitionKey(), in, version, flag, headerSerializer, param);
+            return deserialize(header, remoteVersion, tableMetadata, in, version, flag);
+        }
+
         private PartitionUpdate deserialize(UnfilteredRowIteratorSerializer.Header header, Epoch remoteVersion, TableMetadata tableMetadata, DataInputPlus in, int version, DeserializationHelper.Flag flag) throws IOException
         {
             if (header.isEmpty)
@@ -1166,11 +1171,12 @@ public class PartitionUpdate extends AbstractBTreePartition
             return this;
         }
 
-        public Builder updateTimesAndPathsForAccord(@Nonnull Function<Cell, CellPath> cellToMaybeNewListPath, long newTimestamp, long newLocalDeletionTime)
+        /** times for transactions are zero-initialised, and later derived from executeAt */
+        public Builder updateTimesForAccord(long newTimestamp, long nowInSec)
         {
-            deletionInfo.updateAllTimestampAndLocalDeletionTime(newTimestamp - 1, newLocalDeletionTime);
-            tree = BTree.<Row, Row>transformAndFilter(tree, (x) -> x.updateTimesAndPathsForAccord(cellToMaybeNewListPath, newTimestamp, newLocalDeletionTime));
-            staticRow = this.staticRow.updateTimesAndPathsForAccord(cellToMaybeNewListPath, newTimestamp, newLocalDeletionTime);
+            deletionInfo.updateAllTimestampAndLocalDeletionTime(newTimestamp - 1, nowInSec);
+            tree = BTree.<Row, Row>transformAndFilter(tree, (x) -> x.updateTimesForAccord(newTimestamp, nowInSec));
+            staticRow = this.staticRow.updateTimesForAccord(newTimestamp, nowInSec);
             return this;
         }
 

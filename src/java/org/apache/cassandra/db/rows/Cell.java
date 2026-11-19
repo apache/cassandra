@@ -88,7 +88,7 @@ public abstract class Cell<V> extends ColumnData implements CellLivenessInfo
         return deletionTimeUnsignedInteger == NO_DELETION_TIME_UNSIGNED_INTEGER ? NO_DELETION_TIME : CassandraUInt.toLong(deletionTimeUnsignedInteger);
     }
 
-    public static long getVersionedMaxDeletiontionTime()
+    public static long getVersionedMaxDeletionTime()
     {
         if (DatabaseDescriptor.getStorageCompatibilityMode().disabled())
             // The whole cluster is 2016, we're out of the 2038/2106 mixed cluster scenario. Shortcut to avoid the 'minClusterVersion' volatile read

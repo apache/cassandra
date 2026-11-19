@@ -1228,7 +1228,7 @@ public class StorageProxy implements StorageProxyMBean
                                           ConsistencyLevel consistencyLevel,
                                           boolean mutateAtomically,
                                           Dispatcher.RequestTime requestTime,
-                                          PreserveTimestamp preserveTimestamps)
+                                          AccordTimestamps accordTimestamps)
     throws WriteTimeoutException, WriteFailureException, UnavailableException, OverloadedException, InvalidRequestException
     {
         if (DatabaseDescriptor.getPartitionDenylistEnabled() && DatabaseDescriptor.getDenylistWritesEnabled())
@@ -1263,11 +1263,13 @@ public class StorageProxy implements StorageProxyMBean
         if (augmented != null || mutateAtomically || updatesView)
             mutateAtomically(augmented != null ? augmented : (List<Mutation>)mutations, consistencyLevel, updatesView, requestTime);
         else
-            dispatchMutationsWithRetryOnDifferentSystem(mutations, consistencyLevel, requestTime, preserveTimestamps);
+            dispatchMutationsWithRetryOnDifferentSystem(mutations, consistencyLevel, requestTime, accordTimestamps);
     }
 
-    public static void dispatchMutationsWithRetryOnDifferentSystem(List<? extends IMutation> mutations, ConsistencyLevel consistencyLevel, Dispatcher.RequestTime requestTime, PreserveTimestamp preserveTimestamps)
+    public static void dispatchMutationsWithRetryOnDifferentSystem(List<? extends IMutation> mutations, ConsistencyLevel consistencyLevel, Dispatcher.RequestTime requestTime, AccordTimestamps accordTimestamps)
     {
+        // mutations are never normalised; they are normalised (if necessary) once their consensus system is known
+        Preconditions.checkArgument(accordTimestamps != AccordTimestamps.NORMALISED, "Mutations are never normalised; use %s to overwrite their times", AccordTimestamps.OVERWRITE);
         while (true)
         {
             ClusterMetadata cm = ClusterMetadata.current();
@@ -1280,13 +1282,13 @@ public class StorageProxy implements StorageProxyMBean
                 // then we need to continue to use the timestamp used by the eventually consistent path to not
                 // end up with multiple timestamps, but if it only ever used the transactional path then we can
                 // use the transactional timestamp to get linearizability
-                if (!preserveTimestamps.preserve && normalMutations != null)
-                    preserveTimestamps = PreserveTimestamp.yes;
+                if (!accordTimestamps.preserve && normalMutations != null)
+                    accordTimestamps = AccordTimestamps.DECLARED;
                 // A BATCH statement has multiple mutations mixing server timestamps and `USING TIMESTAMP`,
                 // which is not linearizable for the writes to Accord tables.
-                if (accordMutations != null && preserveTimestamps == PreserveTimestamp.mixedTimeSource)
+                if (accordMutations != null && accordTimestamps == AccordTimestamps.MIXED)
                     checkMixedTimeSourceHandling();
-                IAccordResult<TxnResult> accordResult = accordMutations != null ? mutateWithAccordAsync(cm, accordMutations, consistencyLevel, requestTime, preserveTimestamps) : null;
+                IAccordResult<TxnResult> accordResult = accordMutations != null ? mutateWithAccordAsync(cm, accordMutations, consistencyLevel, requestTime, accordTimestamps) : null;
                 Tracing.trace("Split mutations into Accord {} and normal {}", accordMutations, normalMutations);
 
                 Throwable failure = null;
@@ -1516,7 +1518,7 @@ public class StorageProxy implements StorageProxyMBean
                 }
 
                 // Start Accord executing so it executes while the mutations are synchronously applied
-                IAccordResult<TxnResult> accordResult = !accordMutations.isEmpty() ? mutateWithAccordAsync(cm, accordMutations, consistencyLevel, requestTime, PreserveTimestamp.yes) : null;
+                IAccordResult<TxnResult> accordResult = !accordMutations.isEmpty() ? mutateWithAccordAsync(cm, accordMutations, consistencyLevel, requestTime, AccordTimestamps.DECLARED) : null;
 
                 Throwable failure = null;
                 try

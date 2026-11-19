@@ -17,13 +17,17 @@
  */
 package org.apache.cassandra.cql3;
 
+import java.util.AbstractCollection;
 import java.util.ArrayList;
+import java.util.Collection;
 import java.util.Iterator;
 import java.util.List;
 import java.util.function.Predicate;
 
-import com.google.common.base.Preconditions;
 import com.google.common.collect.Iterators;
+
+import accord.utils.Functions;
+import accord.utils.Invariants;
 
 import org.apache.cassandra.cql3.functions.Function;
 import org.apache.cassandra.cql3.statements.StatementType;
@@ -31,54 +35,33 @@ import org.apache.cassandra.cql3.transactions.ReferenceOperation;
 import org.apache.cassandra.schema.ColumnMetadata;
 import org.apache.cassandra.schema.TableMetadata;
 
-/**
- * A set of <code>Operation</code>s.
- *
- */
+import static accord.utils.Functions.anyMatches;
+
 public final class Operations implements Iterable<Operation>
 {
-    /**
-     * The type of statement.
-     */
     private final StatementType type;
-    /**
-     * If this operation is for a Transaction; this causes Operations to "migrate" when they require-read
-     */
-    private final boolean isForTxn;
+    private final List<Operation> regularOps = new ArrayList<>();
+    private final List<Operation> staticOps = new ArrayList<>();
+    private final List<ReferenceOperation> regularRefOps = new ArrayList<>();
+    private final List<ReferenceOperation> staticRefOps = new ArrayList<>();
 
-    /**
-     * The operations on regular columns.
-     */
-    private final List<Operation> regularOperations = new ArrayList<>();
-
-    /**
-     * The operations on static columns.
-     */
-    private final List<Operation> staticOperations = new ArrayList<>();
-
-    private final List<ReferenceOperation> regularSubstitutions = new ArrayList<>();
-    private final List<ReferenceOperation> staticSubstitutions = new ArrayList<>();
-
-    public Operations(StatementType type, boolean isForTxn)
+    public Operations(StatementType type)
     {
         this.type = type;
-        this.isForTxn = isForTxn;
     }
 
-    private Operations(Operations other, TableMetadata tableMetadata)
+    public Operations asTxnCompatible(TableMetadata tableMetadata)
     {
-        Preconditions.checkState(!other.isForTxn, "Unable to migrate from txn to txn");
-        Preconditions.checkState(other.regularSubstitutions.isEmpty() && other.staticSubstitutions.isEmpty(), "Transaction substitutions are defined for a non-transaction operations! regular=%s, static=%s", other.regularSubstitutions, other.staticSubstitutions);
+        if (isTxnCompatible())
+            return this;
 
-        type = other.type;
-        isForTxn = true;
-        for (Operation opt : other)
-            add(opt, tableMetadata);
-    }
-
-    public Operations forTxn(TableMetadata tableMetadata)
-    {
-        return new Operations(this, tableMetadata);
+        Invariants.require(!hasRefOps(), "Already has transaction compatible operations, should not be partially compatible");
+        Operations result = new Operations(type);
+        for (int i = 0, maxi = staticOps.size() ; i < maxi ; i++)
+            result.add(staticOps.get(i), tableMetadata, true);
+        for (int i = 0, maxi = regularOps.size() ; i < maxi ; i++)
+            result.add(regularOps.get(i), tableMetadata, true);
+        return result;
     }
 
     /**
@@ -110,7 +93,7 @@ public final class Operations implements Iterable<Operation>
      */
     public List<Operation> regularOperations()
     {
-        return regularOperations;
+        return regularOps;
     }
 
     /**
@@ -119,7 +102,7 @@ public final class Operations implements Iterable<Operation>
      */
     public List<Operation> staticOperations()
     {
-        return staticOperations;
+        return staticOps;
     }
 
     /**
@@ -128,26 +111,22 @@ public final class Operations implements Iterable<Operation>
      * @param operation     the operation to add
      * @param tableMetadata
      */
-    public void add(Operation operation, TableMetadata tableMetadata)
+    public void add(Operation operation, TableMetadata tableMetadata, boolean isForTxn)
     {
         if (isForTxn && (operation.requiresRead() || operation.requiresTimestamp()))
-        {
             add(operation.column, ReferenceOperation.create(operation, tableMetadata));
-            return;
-        }
-        if (operation.column.isStatic())
-            staticOperations.add(operation);
+        else if (operation.column.isStatic())
+            staticOps.add(operation);
         else
-            regularOperations.add(operation);
+            regularOps.add(operation);
     }
 
     public void add(ColumnMetadata column, ReferenceOperation operation)
     {
-        Preconditions.checkState(isForTxn, "Unable to add a transaction reference to a non-transaction operation");
         if (column.isStatic())
-            staticSubstitutions.add(operation);
+            staticRefOps.add(operation);
         else
-            regularSubstitutions.add(operation);
+            regularRefOps.add(operation);
     }
 
     /**
@@ -166,6 +145,15 @@ public final class Operations implements Iterable<Operation>
     }
 
     /**
+     * Return false if an operation must be evaluated/bound at execution time.
+     * i.e. if it reads-before-writes or relies on the execution timestamp (which is effectively a special case of read-before-write)
+     */
+    public boolean isTxnCompatible()
+    {
+        return !anyOpMatches(Operation::requiresRead) && !anyOpMatches(Operation::requiresTimestamp);
+    }
+
+    /**
      * Checks if this <code>Operations</code> is empty.
      * @return <code>true</code> if this <code>Operations</code> is empty, <code>false</code> otherwise.
      */
@@ -180,63 +168,65 @@ public final class Operations implements Iterable<Operation>
     @Override
     public Iterator<Operation> iterator()
     {
-        return Iterators.concat(staticOperations.iterator(), regularOperations.iterator());
+        return Iterators.concat(staticOps.iterator(), regularOps.iterator());
     }
 
     public void addFunctionsTo(List<Function> functions)
     {
-        regularOperations.forEach(p -> p.addFunctionsTo(functions));
-        staticOperations.forEach(p -> p.addFunctionsTo(functions));
-        //TODO substitutions as well?
+        Functions.forEach(Operation::addFunctionsTo, regularOps, functions);
+        Functions.forEach(Operation::addFunctionsTo, staticOps, functions);
+        // refOps don't support functions
     }
 
-    public List<ReferenceOperation> allSubstitutions()
+    public Collection<ReferenceOperation> allRefOps()
     {
-        if (staticSubstitutions.isEmpty())
-            return regularSubstitutions;
+        if (staticRefOps.isEmpty())
+            return regularRefOps;
         
-        if (regularSubstitutions.isEmpty())
-            return staticSubstitutions;
+        if (regularRefOps.isEmpty())
+            return staticRefOps;
 
         // Only create a new list if we actually have something to combine
-        List<ReferenceOperation> list = new ArrayList<>(staticSubstitutions.size() + regularSubstitutions.size());
-        list.addAll(staticSubstitutions);
-        list.addAll(regularSubstitutions);
-        return list;
-    }
-
-    public boolean anySubstitutionMatches(Predicate<ReferenceOperation> test)
-    {
-        for (int i = 0, mi = staticSubstitutions.size() ; i < mi ; ++i)
+        return new AbstractCollection<>()
         {
-            if (test.test(staticSubstitutions.get(i)))
-                return true;
-        }
-        for (int i = 0, mi = regularSubstitutions.size() ; i < mi ; ++i)
-        {
-            if (test.test(regularSubstitutions.get(i)))
-                return true;
-        }
-        return false;
+            @Override public Iterator<ReferenceOperation> iterator() { return Iterators.concat(staticRefOps.iterator(), regularRefOps.iterator()); }
+            @Override public int size() { return staticRefOps.size() + regularRefOps.size(); }
+        };
     }
 
-    public List<ReferenceOperation> regularSubstitutions()
+    public boolean anyOpMatches(Predicate<Operation> test)
     {
-        return regularSubstitutions;
+        return anyMatches(test, staticOps) || anyMatches(test, regularOps);
     }
 
-    public List<ReferenceOperation> staticSubstitutions()
+    public boolean anyRefOpMatches(Predicate<ReferenceOperation> test)
     {
-        return staticSubstitutions;
+        return anyMatches(test, staticRefOps) || anyMatches(test, regularRefOps);
+    }
+
+
+    public boolean hasRefOps()
+    {
+        return !staticRefOps.isEmpty() || !regularRefOps.isEmpty();
+    }
+
+    public List<ReferenceOperation> regularRefOps()
+    {
+        return regularRefOps;
+    }
+
+    public List<ReferenceOperation> staticRefOps()
+    {
+        return staticRefOps;
     }
 
     private boolean regularIsEmpty()
     {
-        return regularOperations.isEmpty() && regularSubstitutions.isEmpty();
+        return regularOps.isEmpty() && regularRefOps.isEmpty();
     }
 
     private boolean staticIsEmpty()
     {
-        return staticOperations.isEmpty() && staticSubstitutions.isEmpty();
+        return staticOps.isEmpty() && staticRefOps.isEmpty();
     }
 }
