@@ -22,25 +22,33 @@ import org.junit.After;
 import org.junit.Before;
 import org.junit.Test;
 
+import com.datastax.driver.core.exceptions.InvalidQueryException;
+
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 /**
- * Tests the guardrail for disabling user access to the ALTER TABLE statement, {@link Guardrails#alterTableEnabled}.
- *
+ * Tests the guardrail for disabling user access to the ALTER TABLE statement, {@link Guardrails#ddlEnabled}.
+ * <p>
  * NOTE: This test class depends on {@link #currentTable()} method for setup, cleanup, and execution of tests. You'll
  * need to refactor this if you add tests that make changes to the current table as the test teardown will no longer match
  * setup.
+ * <p>
+ * This test is a leftover from CASSANDRA-17495 which was accommodated for the purposes of CASSANDRA-19556.
  */
 public class GuardrailAlterTableTest extends GuardrailTester
 {
+    private static final String DDL_ERROR_MSG = "DDL statement is not allowed";
+
     public GuardrailAlterTableTest()
     {
-        super(Guardrails.alterTableEnabled);
+        super(Guardrails.ddlEnabled);
     }
 
     @Before
     public void setupTest() throws Throwable
     {
         createTable("CREATE TABLE IF NOT EXISTS %s (k INT, c INT, v TEXT, PRIMARY KEY(k, c))");
+        super.beforeGuardrailTest();
     }
 
     @After
@@ -52,82 +60,60 @@ public class GuardrailAlterTableTest extends GuardrailTester
 
     private void setGuardrail(boolean alterTableEnabled)
     {
-        guardrails().setAlterTableEnabled(alterTableEnabled);
+        guardrails().setDDLEnabled(alterTableEnabled);
     }
 
     /**
      * Confirm that ALTER TABLE queries either work (guardrail enabled) or fail (guardrail disabled) appropriately
-     * @throws Throwable
      */
     @Test
-    public void testGuardrailEnabledAndDisabled() throws Throwable
+    public void testGuardrailEnabledAndDisabled()
     {
         setGuardrail(false);
-        assertFails("ALTER TABLE %s ADD test_one text;", "changing columns");
+        assertFailQuery("ALTER TABLE %s ADD test_one text");
 
         setGuardrail(true);
-        assertValid("ALTER TABLE %s ADD test_two text;");
+        executeNet("ALTER TABLE %s ADD test_two text;");
 
         setGuardrail(false);
-        assertFails("ALTER TABLE %s ADD test_three text;", "changing columns");
+        assertFailQuery("ALTER TABLE %s ADD test_three text");
     }
 
     /**
      * Confirm the guardrail appropriately catches the ALTER DROP case on a column
-     * @throws Throwable
      */
     @Test
-    public void testAppliesToAlterDropColumn() throws Throwable
+    public void testAppliesToAlterDropColumn()
     {
         setGuardrail(true);
-        assertValid("ALTER TABLE %s ADD test_one text;");
+        executeNet("ALTER TABLE %s ADD test_one text;");
 
         setGuardrail(false);
-        assertFails("ALTER TABLE %s DROP test_one", "changing columns");
+        assertFailQuery("ALTER TABLE %s DROP test_one");
 
         setGuardrail(true);
-        assertValid("ALTER TABLE %s DROP test_one");
+        executeNet("ALTER TABLE %s DROP test_one");
     }
 
     /**
      * Confirm the guardrail appropriately catches the ALTER RENAME case on a column
-     * @throws Throwable
      */
     @Test
-    public void testAppliesToAlterRenameColumn() throws Throwable
+    public void testAppliesToAlterRenameColumn()
     {
         setGuardrail(false);
-        assertFails("ALTER TABLE %s RENAME c TO renamed_c", "changing columns");
+
+        setGuardrail(false);
+        assertFailQuery("ALTER TABLE %s RENAME c TO renamed_c");
 
         setGuardrail(true);
-        assertValid("ALTER TABLE %s RENAME c TO renamed_c");
+        executeNet("ALTER TABLE %s RENAME c TO renamed_c");
     }
 
-    /**
-     * Confirm we can always alter properties via the options map regardless of guardrail state
-     * @throws Throwable
-     */
-    @Test
-    public void testAlterViaMapAlwaysWorks() throws Throwable
+    private void assertFailQuery(String query)
     {
-        setGuardrail(false);
-        assertValid("ALTER TABLE %s WITH compression = { 'class' : 'SnappyCompressor', 'chunk_length_in_kb' : 32 };");
-
-        setGuardrail(true);
-        assertValid("ALTER TABLE %s WITH compression = { 'class' : 'SnappyCompressor', 'chunk_length_in_kb' : 32 };");
-    }
-
-    /**
-     * Confirm the other form of ALTER TABLE property map changing always works regardless of guardrail state
-     * @throws Throwable
-     */
-    @Test
-    public void testAlterOptionsAlwaysWorks() throws Throwable
-    {
-        setGuardrail(true);
-        assertValid("ALTER TABLE %s WITH GC_GRACE_SECONDS = 456; ");
-
-        setGuardrail(false);
-        assertValid("ALTER TABLE %s WITH GC_GRACE_SECONDS = 123; ");
+        assertThatThrownBy(() -> executeNet(query))
+        .isInstanceOf(InvalidQueryException.class)
+        .hasMessageContaining(DDL_ERROR_MSG);
     }
 }
