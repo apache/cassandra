@@ -43,7 +43,7 @@ public class OffHeapBitSet implements IBitSet
         /** returns the number of 64 bit words it would take to hold numBits */
         long wordCount = (((numBits - 1) >>> 6) + 1);
         if (wordCount > Integer.MAX_VALUE)
-            throw new UnsupportedOperationException("Bloom filter size is > 16GB, reduce the bloom_filter_fp_chance");
+            throw new UnsupportedOperationException("Bloom filter size is > 16GB, increase the bloom_filter_fp_chance");
         try
         {
             long byteCount = wordCount * 8L;
