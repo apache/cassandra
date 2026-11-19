@@ -39,7 +39,7 @@ public abstract class DataStorageSpec
     /**
      * The Regexp used to parse the storage provided as String.
      */
-    private static final Pattern UNITS_PATTERN = Pattern.compile("^(\\d+)(GiB|MiB|KiB|B)$");
+    private static final Pattern UNITS_PATTERN = Pattern.compile("^(\\d+)(GiB|MiB|KiB|B)?$");
 
     private final long quantity;
 
@@ -58,18 +58,26 @@ public abstract class DataStorageSpec
     {
         //parse the string field value
         Matcher matcher = UNITS_PATTERN.matcher(value);
+        IllegalArgumentException ex = new IllegalArgumentException("Invalid data storage: " + value + " Accepted units:" + acceptedUnits(minUnit) +
+                                                                   " where case matters and only non-negative values are accepted");
 
         if (matcher.find())
         {
             quantity = Long.parseLong(matcher.group(1));
-            unit = DataStorageUnit.fromSymbol(matcher.group(2));
+
+            String symbol = matcher.group(2);
+            if (symbol != null)
+                unit = DataStorageUnit.fromSymbol(symbol);
+            else if (quantity == 0L) // accept 0 if it's without a unit
+                unit = minUnit;
+            else
+                throw ex;
 
             // this constructor is used only by extended classes for min unit; upper bound and min unit are guarded there accordingly
         }
         else
         {
-            throw new IllegalArgumentException("Invalid data storage: " + value + " Accepted units:" + acceptedUnits(minUnit) +
-                                               " where case matters and only non-negative values are accepted");
+            throw ex;
         }
     }
 
