@@ -65,7 +65,6 @@ import org.apache.cassandra.schema.TableId;
 import org.apache.cassandra.schema.TableMetadataRef;
 import org.apache.cassandra.utils.FBUtilities;
 import org.apache.cassandra.utils.NoSpamLogger;
-import org.apache.cassandra.utils.Throwables;
 import org.apache.cassandra.utils.WrappedRunnable;
 import org.apache.cassandra.utils.concurrent.AsyncPromise;
 import org.apache.cassandra.utils.concurrent.Future;
@@ -419,20 +418,32 @@ public class CommitLogReplayer implements CommitLogReadHandler
                 }
             };
             Promise<Integer> returnFuture = new AsyncPromise<>();
-            Future<Integer> mutationFuture = Stage.MUTATION.submit(runnable, serializedSize);//.addCallback((integer, ex) -> {
+            Future<Integer> mutationFuture = Stage.MUTATION.submit(runnable, serializedSize);
             mutationFuture.addListener(() ->
             {
+                if (mutationFuture.isSuccess())
+                {
+                    returnFuture.trySuccess(mutationFuture.getNow());
+                    return;
+                }
+
+                Throwable cause = mutationFuture.cause();
                 try
                 {
-                    Integer result = mutationFuture.get();
-                    returnFuture.trySuccess(result);
-                }
-                catch (Throwable t)
-                {
-                    noSpamLogger.warn("Failed applying mutation for keyspace {}", mutation.getKeyspaceName(), t);
-                    onFailedMutation(mutation.getKeyspaceName(), mutation.getTableIds());
+                    // record the segment first, so tracking never depends on the hook or on logging succeeding
                     commitLogReplayer.segmentsWithFailedMutations.add(desc.fileName());
-                    returnFuture.tryFailure(Throwables.unchecked(t.getCause()));
+                    onFailedMutation(mutation.getKeyspaceName(), mutation.getTableIds());
+                    noSpamLogger.warn("Failed applying mutation for keyspace {} in segment {}", mutation.getKeyspaceName(), desc.fileName(), cause);
+                }
+                catch (Exception e)
+                {
+                    // deliberately Exception, not Throwable: Errors fall through to ExecutionFailure/JVMStabilityInspector
+                    noSpamLogger.error("onFailedMutation hook failed for keyspace {} in segment {}", mutation.getKeyspaceName(), desc.fileName(), e);
+                }
+                finally
+                {
+                    // always complete the returned future, otherwise the replayer would wait on it forever
+                    returnFuture.tryFailure(cause);
                 }
             }, ImmediateExecutor.INSTANCE);
             return returnFuture;
