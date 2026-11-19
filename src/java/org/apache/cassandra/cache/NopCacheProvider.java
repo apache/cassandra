@@ -27,7 +27,7 @@ public class NopCacheProvider implements CacheProvider<RowCacheKey, IRowCacheEnt
         return new NopCache();
     }
 
-    private static class NopCache implements ICache<RowCacheKey, IRowCacheEntry>
+    static class NopCache implements ICache<RowCacheKey, IRowCacheEntry>
     {
         public long capacity()
         {
