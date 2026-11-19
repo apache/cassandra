@@ -499,7 +499,7 @@ as it targets how client applications construct queries.
   for the supported bind-marker model.
 * *Further Reading*: For a Cassandra-specific discussion of SQL/CQL injection from an application
   security testing perspective, see
-  [SQL Injection on Cassandra (Italian)](https://hackita.it/articoli/sql-injection-cassandra/).
+  [SQL Injection on Cassandra (Italian)](https://en.hackita.it/articoli/sql-injection-cassandra/).
 
 == Responsibility Matrix
 
