@@ -76,6 +76,33 @@ public class DatabaseDescriptorTest
         DatabaseDescriptor.daemonInitialization();
     }
 
+    @Test
+    public void testUdfThreadsDisabledRequiresAllowInsecureUdfs()
+    {
+        for (boolean extra : new boolean[]{ false, true })
+        {
+            Config conf = new Config();
+            conf.user_defined_functions_threads_enabled = false;
+            conf.allow_insecure_udfs = false;
+            conf.allow_extra_insecure_udfs = extra;
+            assertThatThrownBy(() -> DatabaseDescriptor.applyUdfSandboxValidations(conf))
+            .isInstanceOf(ConfigurationException.class)
+            .hasMessageContaining("allow_insecure_udfs: true");
+        }
+
+        for (boolean threads : new boolean[]{ false, true })
+        {
+            for (boolean extra : new boolean[]{ false, true })
+            {
+                Config conf = new Config();
+                conf.user_defined_functions_threads_enabled = threads;
+                conf.allow_insecure_udfs = true;
+                conf.allow_extra_insecure_udfs = extra;
+                DatabaseDescriptor.applyUdfSandboxValidations(conf);
+            }
+        }
+    }
+
     // this came as a result of CASSANDRA-995
     @Test
     public void testConfigurationLoader() throws Exception

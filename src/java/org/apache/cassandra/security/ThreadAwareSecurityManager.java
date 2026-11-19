@@ -27,16 +27,11 @@ import java.security.PermissionCollection;
 import java.security.Permissions;
 import java.security.Policy;
 import java.security.ProtectionDomain;
-import java.util.Collections;
-import java.util.Enumeration;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import org.apache.cassandra.config.DatabaseDescriptor;
-import org.apache.cassandra.utils.logging.LoggingSupportFactory;
-
-import io.netty.util.concurrent.FastThreadLocal;
 
 /**
  * Custom {@link SecurityManager} and {@link Policy} implementation that only performs access checks
@@ -48,24 +43,6 @@ import io.netty.util.concurrent.FastThreadLocal;
 public final class ThreadAwareSecurityManager extends SecurityManager
 {
     private static final Logger logger = LoggerFactory.getLogger(ThreadAwareSecurityManager.class);
-
-    public static final PermissionCollection noPermissions = new PermissionCollection()
-    {
-        public void add(Permission permission)
-        {
-            throw new UnsupportedOperationException();
-        }
-
-        public boolean implies(Permission permission)
-        {
-            return false;
-        }
-
-        public Enumeration<Permission> elements()
-        {
-            return Collections.emptyEnumeration();
-        }
-    };
 
     private static final RuntimePermission CHECK_MEMBER_ACCESS_PERMISSION = new RuntimePermission("accessDeclaredMembers");
     private static final RuntimePermission MODIFY_THREAD_PERMISSION = new RuntimePermission("modifyThread");
@@ -80,7 +57,7 @@ public final class ThreadAwareSecurityManager extends SecurityManager
 
     private static volatile boolean installed;
 
-    public static void install()
+    static synchronized void install()
     {
         if (installed)
             return;
@@ -92,12 +69,12 @@ public final class ThreadAwareSecurityManager extends SecurityManager
         //noinspection PlaceholderCountMatchesArgumentCount
         logger.trace("Initialized thread aware security manager", AccessControlException.class.getName());
 
+        installPolicy();
         System.setSecurityManager(new ThreadAwareSecurityManager());
-        LoggingSupportFactory.getLoggingSupport().onStartup();
         installed = true;
     }
 
-    static
+    private static void installPolicy()
     {
         //
         // Use own security policy to be easier (and faster) since the C* has no fine grained permissions.
@@ -163,26 +140,13 @@ public final class ThreadAwareSecurityManager extends SecurityManager
         });
     }
 
-    private static final FastThreadLocal<Boolean> initializedThread = new FastThreadLocal<>();
-
     private ThreadAwareSecurityManager()
     {
     }
 
-    public static boolean isSecuredThread()
+    private static boolean isSecuredThread()
     {
-        ThreadGroup tg = Thread.currentThread().getThreadGroup();
-        if (!(tg instanceof SecurityThreadGroup))
-            return false;
-        Boolean threadInitialized = initializedThread.get();
-        if (threadInitialized == null)
-        {
-            initializedThread.set(false);
-            ((SecurityThreadGroup) tg).initializeThread();
-            initializedThread.set(true);
-            threadInitialized = true;
-        }
-        return threadInitialized;
+        return SecurityThreadGroup.isSecuredThread();
     }
 
     public void checkAccess(Thread t)

@@ -71,6 +71,8 @@ import org.apache.cassandra.utils.JVMStabilityInspector;
 import org.apache.cassandra.utils.concurrent.Condition;
 import org.apache.cassandra.utils.concurrent.WaitQueue;
 
+import io.netty.util.concurrent.FastThreadLocal;
+
 import static org.apache.cassandra.concurrent.ExecutorFactory.SystemThreadTag.NON_DAEMON;
 import static org.apache.cassandra.concurrent.InfiniteLoopExecutor.Interrupts.UNSYNCHRONIZED;
 import static org.apache.cassandra.concurrent.InfiniteLoopExecutor.SimulatorSafe.SAFE;
@@ -95,6 +97,8 @@ import static org.apache.cassandra.utils.concurrent.WaitQueue.newWaitQueue;
 public abstract class LocalLog implements Closeable
 {
     private static final Logger logger = LoggerFactory.getLogger(LocalLog.class);
+
+    private static final FastThreadLocal<Boolean> executingCommitted = new FastThreadLocal<>();
 
     protected final AtomicReference<ClusterMetadata> committed;
     // Indicates that, during process startup, the intial replay of persisted log entries has been performed
@@ -485,6 +489,33 @@ public abstract class LocalLog implements Closeable
     abstract void runOnce(DurationSpec durationSpec) throws TimeoutException;
     abstract void processPending();
 
+    /**
+     * Executes a transformation that is already committed to the metadata log.
+     */
+    public static Transformation.Result executeCommitted(Transformation transform, ClusterMetadata prev)
+    {
+        if (isExecutingCommitted())
+            return transform.execute(prev);
+        executingCommitted.set(true);
+        try
+        {
+            return transform.execute(prev);
+        }
+        finally
+        {
+            executingCommitted.remove();
+        }
+    }
+
+    /**
+     * @return true if the current thread is executing a committed transformation, which must not fail for a reason
+     * local to this node
+     */
+    public static boolean isExecutingCommitted()
+    {
+        return Boolean.TRUE.equals(executingCommitted.get());
+    }
+
     private Entry peek()
     {
         Map.Entry<Entry, Boolean> e = pending.firstEntry();
@@ -539,7 +570,7 @@ public abstract class LocalLog implements Closeable
 
                     try
                     {
-                        transformed = pendingEntry.transform.execute(prev);
+                        transformed = executeCommitted(pendingEntry.transform, prev);
                     }
                     catch (Throwable t)
                     {

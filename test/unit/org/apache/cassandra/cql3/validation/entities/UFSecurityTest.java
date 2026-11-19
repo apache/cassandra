@@ -28,6 +28,7 @@ import org.apache.cassandra.config.Config;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.cql3.CQLTester;
 import org.apache.cassandra.exceptions.FunctionExecutionException;
+import org.apache.cassandra.security.UDFSecurityMechanism;
 import org.apache.cassandra.service.ClientWarn;
 import org.apache.cassandra.utils.JavaDriverUtils;
 
@@ -41,20 +42,35 @@ public class UFSecurityTest extends CQLTester
 
         // Java UDFs
 
-        try
+        String getPropertySource = "System.getProperty(\"foo.bar.baz\"); return 0d;"; // checkstyle: suppress nearby 'blockSystemPropertyUsage'
+        if (UDFSecurityMechanism.current() == UDFSecurityMechanism.BYTECODE)
         {
-            String fName = createFunction(KEYSPACE_PER_TEST, "double",
-                                          "CREATE OR REPLACE FUNCTION %s(val double) " +
-                                          "RETURNS NULL ON NULL INPUT " +
-                                          "RETURNS double " +
-                                          "LANGUAGE JAVA\n" +
-                                          "AS 'System.getProperty(\"foo.bar.baz\"); return 0d;';"); // checkstyle: suppress nearby 'blockSystemPropertyUsage'
-            execute("SELECT " + fName + "(dval) FROM %s WHERE key=1");
-            Assert.fail();
+            // rejected when the function is created
+            assertInvalidMessage("Java UDF validation failed: [call to java.lang.System.getProperty()]", // checkstyle: suppress nearby 'blockSystemPropertyUsage'
+                                 "CREATE OR REPLACE FUNCTION " + KEYSPACE + ".invalid_system_access(val double) " +
+                                 "RETURNS NULL ON NULL INPUT " +
+                                 "RETURNS double " +
+                                 "LANGUAGE JAVA\n" +
+                                 "AS '" + getPropertySource + "';");
         }
-        catch (FunctionExecutionException e)
+        else
         {
-            assertAccessControlException("System.getProperty(\"foo.bar.baz\"); return 0d;", e); // checkstyle: suppress nearby 'blockSystemPropertyUsage'
+            // rejected by the Security Manager when the function runs
+            try
+            {
+                String fName = createFunction(KEYSPACE_PER_TEST, "double",
+                                              "CREATE OR REPLACE FUNCTION %s(val double) " +
+                                              "RETURNS NULL ON NULL INPUT " +
+                                              "RETURNS double " +
+                                              "LANGUAGE JAVA\n" +
+                                              "AS '" + getPropertySource + "';");
+                execute("SELECT " + fName + "(dval) FROM %s WHERE key=1");
+                Assert.fail();
+            }
+            catch (FunctionExecutionException e)
+            {
+                assertAccessControlException(getPropertySource, e);
+            }
         }
 
         String[] cfnSources =

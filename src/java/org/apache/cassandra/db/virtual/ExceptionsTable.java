@@ -35,6 +35,7 @@ import org.apache.cassandra.db.marshal.UTF8Type;
 import org.apache.cassandra.dht.LocalPartitioner;
 import org.apache.cassandra.schema.TableMetadata;
 import org.apache.cassandra.utils.Clock;
+import org.apache.cassandra.utils.Throwables;
 import org.apache.cassandra.utils.logging.AbstractVirtualTableAppender;
 
 public class ExceptionsTable extends AbstractMutableVirtualTable
@@ -178,9 +179,8 @@ public class ExceptionsTable extends AbstractMutableVirtualTable
             INSTANCE = AbstractVirtualTableAppender.getVirtualTable(ExceptionsTable.class, EXCEPTIONS_TABLE_NAME);
 
         Throwable toPersist = t;
-
-        while (toPersist.getCause() != null)
-            toPersist = toPersist.getCause();
+        for (Throwable cause : Throwables.causeChain(t))
+            toPersist = cause;
 
         List<String> stackTrace = extractStacktrace(toPersist.getStackTrace());
         long now = Clock.Global.currentTimeMillis();

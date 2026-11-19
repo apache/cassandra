@@ -18,6 +18,7 @@
 
 package org.apache.cassandra.auth.jmx;
 
+import java.io.IOException;
 import java.lang.reflect.Field;
 import java.rmi.server.RMISocketFactory;
 import java.util.HashMap;
@@ -169,21 +170,35 @@ public abstract class AbstractJMXAuthTest extends CQLTester
 
     protected static void setupJMXServer(JMXServerOptions jmxServerOptions) throws Exception
     {
-        DatabaseDescriptor.setAuditLoggingOptions(new AuditLogOptions.Builder()
-                                                  .withEnabled(true)
-                                                  .withBlock(true)
-                                                  .withLogger("InMemoryAuditLogger", null)
-                                                  .build());
+        setupAuditLogging();
 
         jmxServerOptions.jmx_encryption_options.applyConfig();
         jmxServer = JMXServerUtils.createJMXServer(jmxServerOptions, "localhost");
         jmxServer.start();
 
-        JMXServiceURL jmxUrl = new JMXServiceURL("service:jmx:rmi:///jndi/rmi://localhost:9999/jmxrmi");
+        connection = connect(9999, null).getMBeanServerConnection();
+    }
+
+    protected static void setupAuditLogging()
+    {
+        DatabaseDescriptor.setAuditLoggingOptions(new AuditLogOptions.Builder()
+                                                  .withEnabled(true)
+                                                  .withBlock(true)
+                                                  .withLogger("InMemoryAuditLogger", null)
+                                                  .build());
+    }
+
+    /**
+     * @param credentials the JMX username and password, or null to connect without them
+     */
+    protected static JMXConnector connect(int port, String[] credentials) throws IOException
+    {
+        JMXServiceURL jmxUrl = new JMXServiceURL("service:jmx:rmi:///jndi/rmi://localhost:" + port + "/jmxrmi");
         Map<String, Object> env = new HashMap<>();
         env.put("com.sun.jndi.rmi.factory.socket", RMISocketFactory.getDefaultSocketFactory());
-        JMXConnector jmxc = JMXConnectorFactory.connect(jmxUrl, env);
-        connection = jmxc.getMBeanServerConnection();
+        if (credentials != null)
+            env.put(JMXConnector.CREDENTIALS, credentials);
+        return JMXConnectorFactory.connect(jmxUrl, env);
     }
 
     protected static void setupAuthorizer()

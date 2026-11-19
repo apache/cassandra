@@ -126,8 +126,16 @@ fi
 java_versions_supported=(11 17 21)
 java_version_string=$(IFS=" "; echo "${java_versions_supported[*]}")
 
-# Determine the sort of JVM we'll be running on.
-JAVA_VERSION=$(java -version 2>&1 | grep '[openjdk|java] version' | cut -d '"' -f2 | cut -d '.' -f1)
+# Determine the major version of the selected JVM
+JAVA_VERSION=$("$JAVA" -version 2>&1 \
+               | grep -E '^(openjdk|java) version "' | head -n 1 \
+               | cut -d '"' -f2 | sed -e 's/^1\.//' -e 's/[^0-9].*$//')
+case "$JAVA_VERSION" in
+  ''|*[!0-9]*)
+    echo "Unable to determine the Java version of $JAVA" >&2
+    exit 1
+    ;;
+esac
 
 supported=0
 for version in "${java_versions_supported[@]}"; do
@@ -161,6 +169,10 @@ fi
 
 for opt in `grep "^-" $JVM_OPTS_FILE` `grep "^-" $JVM_DEP_OPTS_FILE`
 do
+  # Java 24 and later use the jvm21 options but refuse to start with this one
+  if [ "$opt" = "-Djava.security.manager=allow" ] && [ "$JAVA_VERSION" -ge 24 ]; then
+    continue
+  fi
   JVM_OPTS="$JVM_OPTS $opt"
 done
 

@@ -18,9 +18,6 @@
 
 package org.apache.cassandra.auth.jmx;
 
-import java.security.AccessController;
-import java.security.PrivilegedAction;
-
 import javax.management.remote.JMXAuthenticator;
 import javax.security.auth.Subject;
 import javax.security.auth.callback.Callback;
@@ -103,12 +100,7 @@ public final class AuthenticationProxy implements JMXAuthenticator
             loginContext.login();
             final Subject subject = loginContext.getSubject();
             if (!subject.isReadOnly())
-            {
-                AccessController.doPrivileged((PrivilegedAction<Void>) () -> {
-                    subject.setReadOnly();
-                    return null;
-                });
-            }
+                subject.setReadOnly();
 
             return subject;
         }

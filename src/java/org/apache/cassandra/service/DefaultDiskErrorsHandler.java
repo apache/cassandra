@@ -38,6 +38,7 @@ import org.apache.cassandra.io.sstable.CorruptSSTableException;
 import org.apache.cassandra.io.util.File;
 import org.apache.cassandra.io.util.PathUtils;
 import org.apache.cassandra.utils.JVMStabilityInspector;
+import org.apache.cassandra.utils.Throwables;
 
 public class DefaultDiskErrorsHandler implements DiskErrorsHandler
 {
@@ -183,7 +184,7 @@ public class DefaultDiskErrorsHandler implements DiskErrorsHandler
 
     private boolean shouldMaybeRemoveData(Throwable error)
     {
-        for (Throwable t = error; t != null; t = t.getCause())
+        for (Throwable t : Throwables.causeChain(error))
         {
             for (Class<?> c : exceptionsSkippingDataRemoval)
                 if (c.isAssignableFrom(t.getClass()))

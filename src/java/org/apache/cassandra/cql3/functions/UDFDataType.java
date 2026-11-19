@@ -26,6 +26,7 @@ import java.util.regex.Pattern;
 import com.google.common.base.Objects;
 import com.google.common.reflect.TypeToken;
 
+import org.apache.cassandra.cql3.CQL3Type;
 import org.apache.cassandra.cql3.functions.types.DataType;
 import org.apache.cassandra.cql3.functions.types.TypeCodec;
 import org.apache.cassandra.cql3.functions.types.TypeCodec.PrimitiveByteCodec;
@@ -36,7 +37,9 @@ import org.apache.cassandra.cql3.functions.types.TypeCodec.PrimitiveLongCodec;
 import org.apache.cassandra.cql3.functions.types.TypeCodec.PrimitiveShortCodec;
 import org.apache.cassandra.cql3.functions.types.exceptions.InvalidTypeException;
 import org.apache.cassandra.db.marshal.AbstractType;
+import org.apache.cassandra.db.marshal.BytesType;
 import org.apache.cassandra.transport.ProtocolVersion;
+import org.apache.cassandra.utils.ByteBufferUtil;
 import org.apache.cassandra.utils.JavaDriverUtils;
 
 /**
@@ -65,6 +68,11 @@ public final class UDFDataType
     private final TypeToken<?> javaType;
 
     /**
+     * {@code true} if the Java values of this type can hold the buffer they are deserialized from.
+     */
+    private final boolean holdsBuffer;
+
+    /**
      * Creates a new {@code UDFDataType} corresponding to the specified Cassandra type.
      *
      * @param abstractType the Cassandra type
@@ -76,6 +84,16 @@ public final class UDFDataType
         this.typeCodec = JavaDriverUtils.codecFor(abstractType);
         TypeToken<?> token = typeCodec.getJavaType();
         this.javaType = usePrimitive ? token.unwrap() : token;
+        this.holdsBuffer = holdsBuffer(abstractType);
+    }
+
+    private static boolean holdsBuffer(AbstractType<?> type)
+    {
+        if (type.isCollection() || type.isVector())
+            return type.subTypes().stream().anyMatch(UDFDataType::holdsBuffer);
+
+        // blobs, custom types, UDTs and tuples
+        return type instanceof BytesType || !(type.asCQL3Type() instanceof CQL3Type.Native);
     }
 
     /**
@@ -94,6 +112,14 @@ public final class UDFDataType
     public Class<?> toJavaClass()
     {
         return typeCodec.getJavaType().getRawType();
+    }
+
+    /**
+     * @return the raw Java class used for this type in generated UDF source, a primitive class if {@link #isPrimitive()}.
+     */
+    Class<?> toJavaRawType()
+    {
+        return javaType.getRawType();
     }
 
     /**
@@ -180,6 +206,10 @@ public final class UDFDataType
     {
         if (buffer == null || (buffer.remaining() == 0 && abstractType.isEmptyValueMeaningless()))
             return null;
+
+        // a copy, as UDFs can write to it
+        if (holdsBuffer)
+            buffer = ByteBufferUtil.clone(buffer);
 
         return typeCodec.deserialize(buffer, protocolVersion);
     }

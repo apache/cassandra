@@ -111,7 +111,7 @@ public class LogState
         if (metadata == null)
             metadata = new ClusterMetadata(DatabaseDescriptor.getPartitioner());
         for (Entry entry : entries)
-            metadata = entry.transform.execute(metadata).success().metadata;
+            metadata = LocalLog.executeCommitted(entry.transform, metadata).success().metadata;
         return LogState.make(metadata);
     }
 

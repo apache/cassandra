@@ -94,9 +94,29 @@ New features
       deployments that authenticate over mutual TLS. PasswordDefaultRoleInitializer
       remains the default and produces the historical behaviour. See CASSANDRA-21546
       for more information.
+    - Java UDFs can run without the JDK Security Manager, which Java 24 removed. A new UDF sandbox, 'bytecode',
+      checks each compiled UDF against an allowlist. The new JVM property cassandra.udf.security_mechanism selects
+      the sandbox, and its default, 'auto', uses 'securitymanager' up to Java 23 and 'bytecode' on Java 24 and
+      later. See "UDF sandbox" in the functions documentation. (CASSANDRA-21670)
 
 Upgrading
 ---------
+    - Before moving nodes to Java 24 or later, rewrite or drop the Java UDFs that the bytecode sandbox rejects. Nodes
+      using the Security Manager sandbox, the default up to Java 23, list them in the log at startup, and CREATE
+      FUNCTION warns about them. A function that a node's sandbox rejects stays in the schema but cannot be used on
+      that node. (CASSANDRA-21670)
+    - Both UDF sandboxes reject Java UDFs that call Class.newInstance, Module.getClassLoader or a method of ClassLoader
+      or ModuleLayer, use ProcessHandle, StackWalker, java.lang.classfile or java.lang.foreign, have an instance
+      initializer, or create a VirtualMachineError or UnrecoverableIllegalStateException. Existing functions that do so
+      cannot be used on upgraded nodes. TypeCodec.inet().parse() does not resolve host or interface names.
+      (CASSANDRA-21670)
+    - Use the same UDF settings on all nodes while upgrading. A node of an earlier version that cannot load a
+      committed function, for example because user-defined functions are disabled on it, stops applying cluster
+      metadata changes. A node of this version keeps applying changes, but cannot use the function.
+      (CASSANDRA-21670)
+    - With JMX authorization on Java 24 and later, subscribing to the notifications of an MBean requires DESCRIBE on
+      that MBean. For example, nodetool repair run by a role that is not a superuser needs DESCRIBE on
+      org.apache.cassandra.db:type=StorageService. (CASSANDRA-21670)
     - Do not set the UnifiedCompactionStrategy table option max_sstables_per_shard_factor until every node runs
       6.0-alpha3 or later, or 5.0.10 or later. Earlier versions, including 6.0-alpha1 and 6.0-alpha2, do not
       recognize the option. When one of them coordinates a schema change that validates the whole table definition,

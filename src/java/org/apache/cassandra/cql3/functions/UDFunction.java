@@ -29,6 +29,7 @@ import java.util.Enumeration;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Optional;
+import java.util.Set;
 import java.util.concurrent.Callable;
 import java.util.concurrent.CompletableFuture; // checkstyle: permit this import
 import java.util.concurrent.ExecutionException;
@@ -37,6 +38,7 @@ import java.util.concurrent.Future;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
 import java.util.stream.Collectors;
+import java.util.stream.Stream;
 
 import com.google.common.base.Objects;
 import com.google.common.collect.Lists;
@@ -67,6 +69,7 @@ import org.apache.cassandra.tcm.serialization.Version;
 import org.apache.cassandra.tracing.Tracing;
 import org.apache.cassandra.transport.ProtocolVersion;
 import org.apache.cassandra.utils.JVMStabilityInspector;
+import org.apache.cassandra.utils.NoSpamLogger;
 import org.apache.cassandra.utils.concurrent.UncheckedInterruptedException;
 
 import static com.google.common.collect.Iterables.any;
@@ -145,13 +148,17 @@ public abstract class UDFunction extends UserFunction implements ScalarFunction
     "java/lang/Process.class",
     "java/lang/ProcessBuilder.class",
     "java/lang/ProcessEnvironment.class",
+    "java/lang/ProcessHandle",
     "java/lang/ProcessImpl.class",
     "java/lang/Runnable.class",
     "java/lang/Runtime.class",
     "java/lang/Shutdown.class",
+    "java/lang/StackWalker",
     "java/lang/Thread.class",
     "java/lang/ThreadGroup.class",
     "java/lang/ThreadLocal.class",
+    "java/lang/classfile/",
+    "java/lang/foreign/", // the Security Manager does not mediate the foreign function and memory API
     "java/lang/instrument/",
     "java/lang/invoke/",
     "java/lang/management/",
@@ -252,8 +259,20 @@ public abstract class UDFunction extends UserFunction implements ScalarFunction
         }
         catch (InvalidRequestException e)
         {
-            return createBrokenFunction(name, argNames, argTypes, returnType, calledOnNullInput, language, body, e);
+            UDFunction broken = createBrokenFunction(name, argNames, argTypes, returnType, calledOnNullInput, language, body, e);
+            String signature = broken.signature();
+            NoSpamLogger.log(logger, NoSpamLogger.Level.WARN, signature + e.getMessage(), 1, TimeUnit.MINUTES,
+                             "Function {} cannot be used on this node: {}", signature, e.getMessage());
+            return broken;
         }
+    }
+
+    /**
+     * @return the keyspace, name and argument types, which identify one overload, e.g. {@code ks.f(int, text)}
+     */
+    public String signature()
+    {
+        return elementKeyspace() + '.' + elementName();
     }
 
     public static UDFunction create(FunctionName name,
@@ -289,6 +308,12 @@ public abstract class UDFunction extends UserFunction implements ScalarFunction
     {
         return new UDFunction(name, argNames, argTypes, returnType, calledOnNullInput, language, body)
         {
+            @Override
+            public boolean isBroken()
+            {
+                return true;
+            }
+
             protected ExecutorService executor()
             {
                 return ImmediateExecutor.INSTANCE;
@@ -584,6 +609,33 @@ public abstract class UDFunction extends UserFunction implements ScalarFunction
         return false;
     }
 
+    /**
+     * @return true if this function is in the schema but could not be loaded on this node, see {@link #createBrokenFunction}
+     */
+    public boolean isBroken()
+    {
+        return false;
+    }
+
+    /**
+     * @return the reasons the bytecode sandbox would reject this function, if this node uses the Security Manager
+     * sandbox; empty otherwise
+     */
+    public Set<String> bytecodeSandboxErrors()
+    {
+        return Collections.emptySet();
+    }
+
+    /**
+     * @return the functions the bytecode sandbox would reject, each with the reasons
+     */
+    public static List<String> rejectedByBytecodeSandbox(Stream<UDFunction> functions)
+    {
+        return functions.filter(f -> !f.bytecodeSandboxErrors().isEmpty())
+                        .map(f -> f.signature() + ": " + f.bytecodeSandboxErrors())
+                        .collect(Collectors.toList());
+    }
+
     public boolean isCalledOnNullInput()
     {
         return calledOnNullInput;
@@ -730,16 +782,21 @@ public abstract class UDFunction extends UserFunction implements ScalarFunction
 
         protected Class<?> findClass(String name) throws ClassNotFoundException
         {
-            if (!secureResource(name.replace('.', '/') + ".class"))
-                throw new ClassNotFoundException(name);
+            checkAllowed(name);
             return insecureClassLoader.loadClass(name);
         }
 
-        public Class<?> loadClass(String name) throws ClassNotFoundException
+        // loadClass(String) delegates here, and the child loader that defines UDF classes calls this overload
+        protected Class<?> loadClass(String name, boolean resolve) throws ClassNotFoundException
+        {
+            checkAllowed(name);
+            return super.loadClass(name, resolve);
+        }
+
+        private static void checkAllowed(String name) throws ClassNotFoundException
         {
             if (!secureResource(name.replace('.', '/') + ".class"))
                 throw new ClassNotFoundException(name);
-            return super.loadClass(name);
         }
     }
 
@@ -782,7 +839,9 @@ public abstract class UDFunction extends UserFunction implements ScalarFunction
             for (int i = 0; i < argumentTypeCount; i++)
                 argTypes.add(CQLTypeParser.parse(keyspace, in.readUTF(), types).udfType());
 
-            return UDFunction.create(fn, arguments, argTypes, returnType, isCalledOnNullInput, language, body);
+            // Deserializing committed metadata must not fail on this node, so a function that cannot be loaded here
+            // becomes a broken function.
+            return UDFunction.tryCreate(fn, arguments, argTypes, returnType, isCalledOnNullInput, language, body);
         }
 
         public long serializedSize(UDFunction t, Version version)

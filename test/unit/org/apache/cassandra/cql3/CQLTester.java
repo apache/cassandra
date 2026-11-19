@@ -1080,6 +1080,19 @@ public abstract class CQLTester
         return functionName;
     }
 
+    /**
+     * Creates a Java function {@code (val <argType>) CALLED ON NULL INPUT RETURNS <returnType>} in {@link #KEYSPACE}.
+     *
+     * @param body the Java source of the function body, without {@code %} escaping
+     * @return the name of the created function
+     */
+    protected String createJavaFunction(String argType, String returnType, String body) throws Throwable
+    {
+        return createFunction(KEYSPACE, argType,
+                              "CREATE OR REPLACE FUNCTION %s(val " + argType + ") CALLED ON NULL INPUT RETURNS " + returnType +
+                              " LANGUAGE java AS $$" + body.replace("%", "%%") + "$$");
+    }
+
     protected void createFunctionOverload(String functionName, String argTypes, String query) throws Throwable
     {
         registerFunction(functionName, argTypes);
