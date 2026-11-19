@@ -79,6 +79,7 @@
  * Avoid megamorphic calls when serializing and deserializing fixed-length values (CASSANDRA-21536)
  * Avoid megamorphic calls for Cell.timestamp/ttl/path/localDeletionTimeAsUnsignedInt methods (CASSANDRA-21526)
 Merged from 5.0:
+ * Assorted fixes for SAI replica reconciliation with multi-cell collections and range tombstones (CASSANDRA-21897)
  * Harden client STARTUP options (CASSANDRA-21755)
  * Assorted fixes for post-filtering on collection elements and inet columns (CASSANDRA-21863)
  * CONTAINS KEY restriction on a frozen map clustering column with descending order is rejected: "Cannot use CONTAINS KEY on non-map column" (CASSANDRA-21742)
