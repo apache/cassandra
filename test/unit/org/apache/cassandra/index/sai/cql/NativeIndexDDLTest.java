@@ -930,14 +930,14 @@ public class NativeIndexDDLTest extends SAITester
                                                                       .onMethod("begin")
                                                                       .atEntry())
                                                .build();
-                
+
                 Injections.inject(slowDown);
 
                 try
                 {
                     createIndexAsync(String.format(CREATE_INDEX_TEMPLATE, "v1"));
                     createIndexAsync(String.format(CREATE_INDEX_TEMPLATE, "v2"));
-                    
+
                     // Wait for index builds to be submitted to CompactionManager
                     waitForAssert(() -> assertTrue("Index build should be submitted",
                                                  INDEX_BUILD_COUNTER.get() > 0),
@@ -951,14 +951,14 @@ public class NativeIndexDDLTest extends SAITester
                     waitForAssert(() -> assertTrue("Index builds should be running",
                                                    getCompactionTasks() > 0),
                                   10, TimeUnit.SECONDS);
-                    
+
                     // Now truncate while builds are actively processing (stuck in the 10s delay)
                     // This ensures truncate happens AFTER builds have started, so they'll detect it
                     truncate(true);
-                    
+
                     // Wait for all compactions/builds to complete after truncate
                     waitForCompactions();
-                    
+
                     waitForTableIndexesQueryable();
                 }
                 finally
@@ -969,7 +969,7 @@ public class NativeIndexDDLTest extends SAITester
             else
             {
                 truncate(true);
-                
+
                 // Verify NO stop logs when truncating with already-built indexes
                 verifyIndexBuildLog(appender, Level.INFO, "Stop requested while building indexes", false);
                 verifyIndexBuildLog(appender, Level.ERROR, "Stop requested while building initial indexes", false);
@@ -1798,7 +1798,7 @@ public class NativeIndexDDLTest extends SAITester
         List<ILoggingEvent> events = appender.getEventsForLevel(expectedLevel);
         boolean found = events.stream()
             .anyMatch(e -> e.getFormattedMessage().contains(expectedMessageFragment));
-        
+
         if (shouldExist)
             assertTrue("Expected " + expectedLevel + " log containing '" + expectedMessageFragment + "'. Captured " +
                        events.size() + ' ' + expectedLevel + " events.", found);
@@ -1965,5 +1965,25 @@ public class NativeIndexDDLTest extends SAITester
 //        .hasMessageContaining("An index of vector<float, 4097> will produce terms of 16.004KiB, " +
 //                              "exceeding the max vector term size of 16.000KiB. " +
 //                              "That sets an implicit limit of 4096 dimensions for float vectors.");
+    }
+
+    /**
+     * Intersections where the clauses have different selectivities skip over keys, and the estimated cost of those
+     * skips depends on the number of SSTables. A table with all its data in memtables has no SSTables, and the cost
+     * estimation shouldn't produce NaN values in that case.
+     */
+    @Test
+    public void shouldNotEstimateNaNCostsForIntersectionsOnMemtableOnlyTables()
+    {
+        createTable("CREATE TABLE %s (k int PRIMARY KEY, a int, b int)");
+        createIndex("CREATE CUSTOM INDEX ON %s(a) USING 'StorageAttachedIndex'");
+        createIndex("CREATE CUSTOM INDEX ON %s(b) USING 'StorageAttachedIndex'");
+
+        for (int k = 0; k < 4; k++)
+            execute("INSERT INTO %s (k, a, b) VALUES (?, ?, ?)", k, k % 2, k / 2);
+
+        // no flush, so there are no sstables
+
+        assertThatPlanFor("SELECT k FROM %s WHERE a = 0 AND b = 0", 1).matches(p -> !Double.isNaN(p.fullCost()));
     }
 }

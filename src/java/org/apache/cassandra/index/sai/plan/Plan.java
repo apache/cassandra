@@ -908,7 +908,14 @@ abstract public class Plan
         }
     }
 
-    abstract static class IndexScan extends Leaf
+    /**
+     * Marker interface for all the plan nodes that scan an index, either {@link IndexScan} or {@link ScoredIndexScan}.
+     */
+    public interface AnyIndexScan
+    {
+    }
+
+    abstract static class IndexScan extends Leaf implements AnyIndexScan
     {
         @Nullable
         protected final Expression predicate;
@@ -1004,7 +1011,10 @@ abstract public class Plan
             // In the future we probably will need to take more index metrics into account
             // (e.g. number of distinct values).
 
-            double keysPerSSTable = (double) matchingKeysCount / factory.tableMetrics.sstables;
+            // there are no sstables when all the data is in memtables, avoid dividing by zero and getting NaN costs
+            double keysPerSSTable = factory.tableMetrics.sstables == 0
+                                    ? 0.0
+                                    : (double) matchingKeysCount / factory.tableMetrics.sstables;
 
             double skipCostFactor;
             double postingsCountFactor;
@@ -1559,7 +1569,7 @@ abstract public class Plan
      * Base class for index scans that return results in a computed order (ANN, BM25)
      * rather than the natural index order.
      */
-    abstract static class ScoredIndexScan extends Leaf
+    public abstract static class ScoredIndexScan extends Leaf implements AnyIndexScan
     {
         final Orderer ordering;
 
@@ -2100,6 +2110,24 @@ abstract public class Plan
         public KeysIteration intersection(List<KeysIteration> subplans)
         {
             return intersection(subplans, nextId++);
+        }
+
+        /**
+         * Constructs a plan node representing an intersection of the given plan with some additional subplans.
+         * If the given plan is already an intersection, the additional subplans are added to it.
+         *
+         * @param source a plan, possibly an intersection, to intersect with the additional subplans
+         * @param additional the subplans to be added to the intersection
+         */
+        public KeysIteration intersection(KeysIteration source, List<KeysIteration> additional)
+        {
+            List<KeysIteration> subplans = new ArrayList<>();
+            if (source instanceof Intersection)
+                subplans.addAll(((Intersection) source).subplansSupplier.orig);
+            else
+                subplans.add(source);
+            subplans.addAll(additional);
+            return intersection(subplans);
         }
 
         private KeysIteration intersection(List<KeysIteration> subplans, int id)

@@ -298,11 +298,10 @@ public class PerQueryHybridVectorOptimizerOptionsTest extends VectorTester
                               row(0), row(1), row(2), row(3), row(4));
 
         // Override forces filter-then-sort (NumericIndexScan), results unchanged.
-        assertQueryHasSubplan(
-                "SELECT c FROM %s WHERE n >= 0 ORDER BY s BM25 OF 'apple' LIMIT 5 " +
-                "WITH optimizer_options = {'hybrid_sort_order': 'filter_then_sort'}",
-                Plan.NumericIndexScan.class,
-                row(0), row(1), row(2), row(3), row(4));
+        assertThatPlanFor("SELECT c FROM %s WHERE n >= 0 ORDER BY s BM25 OF 'apple' LIMIT 5 " +
+                          "WITH optimizer_options = {'hybrid_sort_order': 'filter_then_sort'}",
+                          row(0), row(1), row(2), row(3), row(4)).
+                uses(Plan.NumericIndexScan.class, Plan.LiteralIndexScan.class);
     }
 
     // -----------------------------------------------------------------------
