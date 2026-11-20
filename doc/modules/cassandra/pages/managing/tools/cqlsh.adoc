@@ -106,7 +106,8 @@ Options:
   * `tabular` - Human-readable table format with aligned columns (default)
   * `csv` - Machine-readable CSV format. Null values are represented as empty fields (matching `COPY TO` behavior).
   * `json` - Machine-readable JSON array format. Each row is a JSON object with column names as keys.
-  Floating-point values are rounded the same way as in `tabular` and `csv` output (see `float_precision` and `double_precision` in cqlshrc).
+  +
+  In all output formats, floating-point values are rounded according to `float_precision` and `double_precision` in cqlshrc.
   +
   In `json` mode, map keys that are not text are written as JSON-encoded strings (for example `"[1, 2]"` or `"true"`), because JSON object keys must be strings.
 `--cqlshrc=CQLSHRC`::

@@ -673,12 +673,17 @@ def _json_fallback(val, cqltype, encoding, date_time_format=None, float_precisio
     return str(result)
 
 
-# Integer types → native int
+# Integer types → native int. json.dumps fails on ints longer than
+# sys.get_int_max_str_digits(), so fail here instead and let the caller report the cell.
+# 0 means "no limit"
+_LIMIT = getattr(sys, 'get_int_max_str_digits', lambda: 0)()
+MAX_SAFE_INT = (10 ** _LIMIT) - 1 if _LIMIT else None
+
+
 def _json_format_integer(val, **_):
     val = int(val)
-    # json.dumps fails on ints longer than sys.get_int_max_str_digits();
-    # fail here instead so the caller can report the cell
-    str(val)
+    if MAX_SAFE_INT is not None and abs(val) > MAX_SAFE_INT:
+        raise ValueError(f"integer exceeds int_max_str_digits limit of {_LIMIT} digits")
     return val
 
 

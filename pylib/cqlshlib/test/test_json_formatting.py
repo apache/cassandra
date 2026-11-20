@@ -122,6 +122,11 @@ class TestFormatJsonValue(unittest.TestCase):
             self._fmt(10 ** 5000, 'varint')
         with self.assertRaises(ValueError):
             self._fmt([10 ** 5000], 'list<varint>')
+        # exactly at the limit is still written
+        limit = sys.get_int_max_str_digits()
+        self.assertEqual(-(10 ** limit - 1), self._fmt(-(10 ** limit - 1), 'varint'))
+        with self.assertRaises(ValueError):
+            self._fmt(-(10 ** limit), 'varint')
 
     def test_nan_becomes_string(self):
         self.assertEqual(self._fmt(float('nan'), 'float'), 'NaN')
