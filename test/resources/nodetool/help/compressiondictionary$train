@@ -9,8 +9,8 @@ SYNOPSIS
                 [(-pwf <passwordFilePath> | --password-file <passwordFilePath>)]
                 [(-u <username> | --username <username>)] compressiondictionary train
                 [(-f | --force)] [--max-dict-size <trainingMaxDictionarySize>]
-                [--max-total-sample-size <trainingMaxTotalSampleSize>] [--] <keyspace>
-                <table>
+                [--max-total-sample-size <trainingMaxTotalSampleSize>]
+                [--scope <scope>] [--] <keyspace> <table>
 
 OPTIONS
         -f, --force
@@ -41,6 +41,12 @@ OPTIONS
 
         -pwf <passwordFilePath>, --password-file <passwordFilePath>
             Path to the JMX password file
+
+        --scope <scope>
+            Scope of the dictionary, the nodes which compress with it: node
+            (this node only), rack (the rack of this node), dc (the datacenter
+            of this node), until the dictionary is promoted, or cluster (all
+            nodes). The default is cluster.
 
         -u <username>, --username <username>
             Remote jmx agent username

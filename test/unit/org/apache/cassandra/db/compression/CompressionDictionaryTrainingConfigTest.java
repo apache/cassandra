@@ -18,12 +18,33 @@
 
 package org.apache.cassandra.db.compression;
 
+import java.util.Map;
+
 import org.junit.Test;
 
+import static org.apache.cassandra.io.compress.IDictionaryCompressor.TRAINING_SCOPE_PARAMETER_NAME;
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 public class CompressionDictionaryTrainingConfigTest
 {
+    @Test
+    public void testScope()
+    {
+        assertThat(CompressionDictionaryTrainingConfig.getScope(Map.of())).isEqualTo(CompressionDictionaryScope.CLUSTER);
+        assertThat(CompressionDictionaryTrainingConfig.getScope(Map.of(TRAINING_SCOPE_PARAMETER_NAME, "CLUSTER"))).isEqualTo(CompressionDictionaryScope.CLUSTER);
+        // there is no cluster metadata, so the id of this node is not known
+        for (String scope : new String[]{ "node", "rack", "dc" })
+        {
+            assertThatThrownBy(() -> CompressionDictionaryTrainingConfig.getScope(Map.of(TRAINING_SCOPE_PARAMETER_NAME, scope)))
+            .isInstanceOf(IllegalStateException.class)
+            .hasMessageContaining("The id of this node is not known");
+        }
+        assertThatThrownBy(() -> CompressionDictionaryTrainingConfig.getScope(Map.of(TRAINING_SCOPE_PARAMETER_NAME, "region")))
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessageContaining("Invalid scope 'region', valid scopes are [node, rack, dc, cluster]");
+    }
+
     @Test
     public void testBuilderDefaults()
     {

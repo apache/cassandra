@@ -2,7 +2,8 @@ NAME
         nodetool compressiondictionary cleanup - Clean up orphaned dictionaries
         by deleting them from system_distributed.compression_dictionaries
         table, these are ones for which a table they were trained for was
-        dropped.
+        dropped, or whose scope has no joined node, or which are scoped
+        narrower than the cluster while a newer dictionary is used by all nodes.
 
 SYNOPSIS
         nodetool [(-h <host> | --host <host>)] [(-p <port> | --port <port>)]

@@ -7,7 +7,7 @@ SYNOPSIS
                 [(-pw <password> | --password <password>)]
                 [(-pwf <passwordFilePath> | --password-file <passwordFilePath>)]
                 [(-u <username> | --username <username>)] compressiondictionary import
-                [--] <dictionaryPath>
+                [--scope <scope>] [--] <dictionaryPath>
 
 OPTIONS
         -h <host>, --host <host>
@@ -21,6 +21,12 @@ OPTIONS
 
         -pwf <passwordFilePath>, --password-file <passwordFilePath>
             Path to the JMX password file
+
+        --scope <scope>
+            Scope of the dictionary, the nodes which compress with it: node
+            (this node only), rack (the rack of this node), dc (the datacenter
+            of this node), until the dictionary is promoted, or cluster (all
+            nodes). The default is cluster.
 
         -u <username>, --username <username>
             Remote jmx agent username
