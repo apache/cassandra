@@ -221,7 +221,7 @@ public class DiskUsageMonitor
 
     public static long totalDiskSpace()
     {
-        BigInteger size = dataDirectoriesGroupedByFileStore().keys()
+        BigInteger size = dataDirectoriesGroupedByFileStore().keySet()
                                                              .stream()
                                                              .map(DiskUsageMonitor::totalSpace)
                                                              .map(BigInteger::valueOf)

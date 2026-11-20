@@ -89,7 +89,6 @@ public class DataIntegrityMetadata
 
     public static class FileDigestValidator
     {
-        private final Checksum checksum;
         private final File dataFile;
         private final File digestFile;
 
@@ -97,7 +96,6 @@ public class DataIntegrityMetadata
         {
             this.dataFile = dataFile;
             this.digestFile = digestFile;
-            this.checksum = ChecksumType.CRC32.newInstance();
         }
 
         // Validate the entire file
@@ -116,6 +114,7 @@ public class DataIntegrityMetadata
                     throw new IOException(String.format("Corrupted file: invalid digest value in %s", digestFile), e);
                 }
 
+                Checksum checksum = ChecksumType.CRC32.newInstance();
                 while (true)
                 {
                     dataReader.reBuffer();
@@ -124,7 +123,7 @@ public class DataIntegrityMetadata
                     checksum.update(dataReader.buffer);
                 }
 
-                long calculatedDigestValue = this.checksum.getValue();
+                long calculatedDigestValue = checksum.getValue();
                 if (storedDigestValue != calculatedDigestValue)
                     throw new IOException(String.format("Corrupted file: integrity check (digest) failed for %s: %d != %d", dataFile, storedDigestValue, calculatedDigestValue));
             }

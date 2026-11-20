@@ -825,6 +825,12 @@ concurrent_materialized_view_writes: 32
 # spinning (for spinning disks)
 # disk_optimization_strategy: ssd
 
+# Size of the reads when scanning a whole file: validating an sstable's digest,
+# rebuilding an sstable's index summary and replaying the commit log.
+# Min unit: KiB
+# minimum 4KiB
+# sequential_read_buffer_size: 4KiB
+
 # Supported memtable implementations and selected default.
 # Currently Cassandra offers two memtable implementations:
 # - SkipListMemtable is the legacy memtable implementation provided by earlier

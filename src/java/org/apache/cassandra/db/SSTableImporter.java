@@ -84,6 +84,18 @@ public class SSTableImporter
     @VisibleForTesting
     List<String> importNewSSTables(Options options)
     {
+        if (options.srcPaths.isEmpty())
+        {
+            synchronized (this)
+            {
+                return importNewSSTablesImpl(options);
+            }
+        }
+        return importNewSSTablesImpl(options);
+    }
+
+    private List<String> importNewSSTablesImpl(Options options)
+    {
         long startNanos = nanoTime();
         UUID importID = UUID.randomUUID();
         logger.info("[{}] Loading new SSTables for {}/{}: {}", importID, cfs.getKeyspaceName(), cfs.getTableName(), options);
@@ -247,7 +259,6 @@ public class SSTableImporter
             if (!cfs.indexManager.validateSSTableAttachedIndexes(newSSTables, false, options.validateIndexChecksum))
                 cfs.indexManager.buildSSTableAttachedIndexesBlocking(newSSTables);
 
-            // make the moves durable before the sstables go live
             newSSTables.stream().map(sstable -> sstable.descriptor.directory).distinct().forEach(SyncUtil::trySyncDir);
             cfs.getTracker().addSSTables(newSSTables);
             cfs.metric.importedSSTables.inc(newSSTables.size());
@@ -276,9 +287,6 @@ public class SSTableImporter
         return descriptors;
     }
 
-    /**
-     * Syncs the sstables to import so that they're durable before they go live, as whatever wrote them may not have synced them
-     */
     private static void syncSSTables(List<Pair<Directories.SSTableLister, String>> listers, Set<Descriptor> currentDescriptors, List<String> failedDirectories)
     {
         for (Pair<Directories.SSTableLister, String> listerPair : listers)
