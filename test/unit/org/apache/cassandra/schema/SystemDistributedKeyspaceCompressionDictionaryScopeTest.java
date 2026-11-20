@@ -227,6 +227,32 @@ public class SystemDistributedKeyspaceCompressionDictionaryScopeTest extends CQL
     }
 
     @Test
+    public void testStoredScopeNotInCanonicalForm()
+    {
+        // e.g. written by hand or by a later version: the node id '01' is not a node of this version, two maps print
+        // the same; the stored value is the condition of the transactions, not the value of the parsed scope
+        storeRaw(100, Set.of(Map.of("node_id", "01")));
+        assertThat(SystemDistributedKeyspace.readLightweightLatestCompressionDictionary(KS, TABLE, tableId).scope.isKnown()).isFalse();
+        assertThat(SystemDistributedKeyspace.promoteCompressionDictionary(KS, TABLE, tableId, CLUSTER).scope).isEqualTo(CLUSTER);
+        assertThat(scopeColumn(100)).isNull();
+
+        Set<Map<String, String>> sameString = Set.of(Map.of("a", "b, c=d"), Map.of("a", "b", "c", "d"));
+        storeRaw(200, sameString);
+        assertThat(SystemDistributedKeyspace.discardCompressionDictionary(KS, TABLE, tableId).dictId.id).isEqualTo(200);
+        assertThat(SystemDistributedKeyspace.retrieveCompressionDictionary(KS, TABLE, tableId, 200)).isNull();
+    }
+
+    @Test
+    public void testStoreOnce()
+    {
+        store(100, thisNode);
+        assertThatThrownBy(() -> store(100, CLUSTER))
+        .isInstanceOf(IllegalStateException.class)
+        .hasMessageContaining("Dictionary 100 of table " + KS + '.' + TABLE + " is stored already");
+        assertThat(scopeColumn(100)).as("not overwritten").isEqualTo(thisNode.toValue());
+    }
+
+    @Test
     public void testTransactionNotApplied()
     {
         store(100, thisNode);
@@ -284,6 +310,18 @@ public class SystemDistributedKeyspaceCompressionDictionaryScopeTest extends CQL
                                                                              CompressionDictionary.calculateChecksum((byte) Kind.ZSTD.ordinal(), dictId, dict),
                                                                              Instant.now());
         SystemDistributedKeyspace.storeCompressionDictionary(KS, TABLE, tableId, dictionary);
+    }
+
+    /** stores a dictionary with the scope column set to the given value, as a later version or a hand might */
+    private void storeRaw(long dictId, Set<Map<String, String>> scope)
+    {
+        byte[] dict = ("dictionary " + dictId).getBytes();
+        QueryProcessor.execute(format("INSERT INTO %s.%s (keyspace_name, table_name, table_id, kind, dict_id, dict, dict_length, dict_checksum, created_at, scope) " +
+                                      "VALUES (?, ?, ?, 'ZSTD', ?, ?, ?, ?, toTimestamp(now()), ?)",
+                                      SchemaConstants.DISTRIBUTED_KEYSPACE_NAME, SystemDistributedKeyspace.COMPRESSION_DICTIONARIES),
+                               ConsistencyLevel.QUORUM,
+                               KS, TABLE, tableId, dictId, java.nio.ByteBuffer.wrap(dict), dict.length,
+                               CompressionDictionary.calculateChecksum((byte) Kind.ZSTD.ordinal(), dictId, dict), scope);
     }
 
     /** promotes the dictionary to the whole cluster when its scope is the expected one, the way promotion does */

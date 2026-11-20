@@ -267,6 +267,12 @@ dictionary remain readable as they contain it, compaction rewrites them over
 time. The command fails when the latest dictionary of the table is used by all
 nodes.
 
+A dictionary scoped narrower than the cluster can be left behind when it was
+stored while another dictionary was trained or imported, which turned out
+newer and used by all nodes: it is not the latest dictionary anymore, so it can
+be neither promoted nor discarded, and no node uses it again. `nodetool
+compressiondictionary cleanup` removes it.
+
 === Dictionary Storage and Distribution
 
 Compression dictionaries are stored cluster-wide in the
@@ -548,7 +554,8 @@ by racks or datacenters (`--dc`, `--rack`), or to the whole cluster, described i
 * discard - discards the latest dictionary of a table, scoped narrower than the cluster, the nodes of its scope compress
 with the latest dictionary whose scope contains them again, described in Dictionary Scope.
 * cleanup - removes orphaned dictionaries. These are the ones for which a table they were trained for does not exist anymore (it was dropped),
-or whose scope has no node in the cluster anymore, e.g. its node, rack or datacenter was decommissioned or removed.
+or whose scope has no joined node, e.g. its node, rack or datacenter was decommissioned or removed, or which are scoped
+narrower than the cluster while a newer dictionary of their table is used by all nodes, described in Dictionary Scope.
 A user can inspect which dictionaries are orphaned by `-d / --dry` flag without deleting them.
 
 For `train` subcommand, it is possible to specify:

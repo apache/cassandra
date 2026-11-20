@@ -110,7 +110,9 @@ COMMANDS
         cleanup
             Clean up orphaned dictionaries by deleting them from system_distributed.
             compression_dictionaries table, these are ones for which a table they were
-            trained for was dropped, or whose scope has no node in the cluster anymore.
+            trained for was dropped, or whose scope has no joined node, or which are
+            scoped narrower than the cluster while a newer dictionary is used by all
+            nodes.
 
             With --dry option, Only display orphaned dictionaries, do not remove them.
         promote

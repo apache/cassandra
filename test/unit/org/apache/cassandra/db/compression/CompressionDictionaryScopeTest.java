@@ -154,6 +154,11 @@ public class CompressionDictionaryScopeTest
                                                                     Map.of("dc", "dc1", "rack", "r1", "region", "eu"),
                                                                     Map.of("node_id", "1", "rack", "r1"),
                                                                     Map.of("node_id", "not a number"),
+                                                                    // only the canonical form of a positive node id is a node
+                                                                    Map.of("node_id", "01"),
+                                                                    Map.of("node_id", "+1"),
+                                                                    Map.of("node_id", "0"),
+                                                                    Map.of("node_id", "-1"),
                                                                     Map.of()))
         {
             CompressionDictionaryScope scope = CompressionDictionaryScope.fromValue(Set.of(map));
@@ -178,6 +183,19 @@ public class CompressionDictionaryScopeTest
         assertThat(empty.isCluster()).isFalse();
         assertThat(empty.isKnown()).isFalse();
         assertThat(empty.contains(directory, node(1))).isFalse();
+    }
+
+    @Test
+    public void testUnknownPlacesOrderedConsistentlyWithEquals()
+    {
+        // both print as {a=b, c=d}, they are still two places
+        Map<String, String> oneEntry = Map.of("a", "b, c=d");
+        Map<String, String> twoEntries = Map.of("a", "b", "c", "d");
+        assertThat(oneEntry.toString().equals(new java.util.TreeMap<>(twoEntries).toString())).isTrue();
+        CompressionDictionaryScope scope = CompressionDictionaryScope.fromValue(Set.of(oneEntry, twoEntries));
+        assertThat(scope.places()).hasSize(2);
+        assertThat(scope.toValue()).containsExactlyInAnyOrder(oneEntry, twoEntries);
+        assertThat(CompressionDictionaryScope.fromValue(scope.toValue())).isEqualTo(scope);
     }
 
     @Test
@@ -333,13 +351,18 @@ public class CompressionDictionaryScopeTest
         assertThat(scope(datacenter("dc1")).memberEndpoints(directory)).containsExactlyInAnyOrder(endpoint(1), endpoint(2), endpoint(3));
         assertThat(scope(rack("dc1", "r1"), node(4)).memberEndpoints(directory)).containsExactlyInAnyOrder(endpoint(1), endpoint(2), endpoint(4));
         assertThat(scope(rack("dc1", "r1"), node(1)).memberEndpoints(directory)).as("once each").containsExactlyInAnyOrder(endpoint(1), endpoint(2));
+        // joined nodes only, for every kind of place
+        assertThat(scope(node(1)).memberEndpoints(directory)).containsExactly(endpoint(1));
+        assertThat(scope(node(5)).memberEndpoints(directory)).as("registered").isEmpty();
+        assertThat(scope(node(6)).memberEndpoints(directory)).as("left").isEmpty();
         assertThat(scope(rack("dc3", "r1")).memberEndpoints(directory)).as("left").isEmpty();
         assertThat(scope(rack("dc9", "r1")).memberEndpoints(directory)).as("no such datacenter").isEmpty();
         assertThat(CLUSTER.memberEndpoints(directory)).containsExactlyInAnyOrder(endpoint(1), endpoint(2), endpoint(3), endpoint(4));
 
         // a scope with no node in the cluster is orphaned
         assertThat(scope(rack("dc1", "r1")).hasMembers(directory)).isTrue();
-        assertThat(scope(rack("dc2", "r2")).hasMembers(directory)).as("registered").isTrue();
+        assertThat(scope(rack("dc2", "r2")).hasMembers(directory)).as("registered only").isFalse();
+        assertThat(scope(node(5)).hasMembers(directory)).as("registered only").isFalse();
         assertThat(scope(datacenter("dc2")).hasMembers(directory)).isTrue();
         assertThat(scope(rack("dc3", "r1")).hasMembers(directory)).as("left").isFalse();
         assertThat(scope(datacenter("dc3")).hasMembers(directory)).as("left").isFalse();
@@ -385,6 +408,11 @@ public class CompressionDictionaryScopeTest
     {
         assertThatThrownBy(() -> CompressionDictionaryScope.fromFlattened(new String[][]{ { "node_id" } }))
         .isInstanceOf(IllegalArgumentException.class);
+        // an empty place is a place this version does not know, a stored one is listed
+        assertThat(CompressionDictionaryScope.fromFlattened(new String[][]{ {} }).isKnown()).isFalse();
+        assertThatThrownBy(() -> CompressionDictionaryScope.fromFlattened(new String[][]{ { "dc", "dc1", "dc", "dc2" } }))
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessageContaining("duplicate key dc");
     }
 
     private static void assertCovers(CompressionDictionaryScope scope, CompressionDictionaryScope... others)

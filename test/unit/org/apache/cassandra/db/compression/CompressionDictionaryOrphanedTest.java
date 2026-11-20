@@ -115,7 +115,8 @@ public class CompressionDictionaryOrphanedTest extends CQLTester
         insertDictionary(tableId, 8, Set.of(Map.of("dc", location.datacenter, "rack", "no_such_rack")));
         // a union is orphaned only when none of its places has a node
         insertDictionary(tableId, 9, Set.of(Map.of("node_id", "4242"), Map.of("dc", location.datacenter)));
-        assertEquals(List.of(8L, 7L, 4L), dictIds(SystemDistributedKeyspace.retrieveOrphanedLightweightCompressionDictionaries()));
+        // a node which only registered is not a member, as one which left
+        assertEquals(List.of(8L, 7L, 4L, 3L), dictIds(SystemDistributedKeyspace.retrieveOrphanedLightweightCompressionDictionaries()));
 
         ClusterMetadataTestHelper.unregister(registered);
         assertEquals(List.of(8L, 7L, 4L, 3L), dictIds(SystemDistributedKeyspace.retrieveOrphanedLightweightCompressionDictionaries()));
@@ -123,6 +124,34 @@ public class CompressionDictionaryOrphanedTest extends CQLTester
         cleanupOrphaned();
         assertNoOrphaned();
         assertEquals(List.of(9L, 6L, 5L, 2L, 1L), dictIds(SystemDistributedKeyspace.retrieveLightweightCompressionDictionaries()));
+
+        dropDictTable();
+        cleanupOrphaned();
+        assertTrue(SystemDistributedKeyspace.retrieveLightweightCompressionDictionaries().isEmpty());
+    }
+
+    @Test
+    public void testDictionaryShadowedByNewerOneOfCluster() throws Throwable
+    {
+        String tableId = createDictTable();
+        Set<Map<String, String>> thisNode = CompressionDictionaryScope.node(ClusterMetadata.current().myNodeId()).toValue();
+
+        insertDictionary(tableId, 1, null);
+        // stored while dictionary 3 was trained, which turned out newer, it is not the latest one anymore
+        insertDictionary(tableId, 2, thisNode);
+        insertDictionary(tableId, 3, null);
+        // a candidate newer than any dictionary of the cluster is in use, also one of a later version
+        insertDictionary(tableId, 4, Set.of(Map.of("region", "eu")));
+        insertDictionary(tableId, 5, thisNode);
+        assertEquals(List.of(2L), dictIds(SystemDistributedKeyspace.retrieveOrphanedLightweightCompressionDictionaries()));
+
+        cleanupOrphaned();
+        assertNoOrphaned();
+        assertEquals(List.of(5L, 4L, 3L, 1L), dictIds(SystemDistributedKeyspace.retrieveLightweightCompressionDictionaries()));
+
+        // once a newer one is used by all nodes, the candidates before it are left behind
+        insertDictionary(tableId, 6, null);
+        assertEquals(List.of(5L, 4L), dictIds(SystemDistributedKeyspace.retrieveOrphanedLightweightCompressionDictionaries()));
 
         dropDictTable();
         cleanupOrphaned();

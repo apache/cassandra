@@ -322,7 +322,8 @@ public class CompressionDictionaryCommandGroup
     @Command(name = "cleanup", description = "Clean up orphaned dictionaries by deleting them from " + SystemDistributedKeyspace.NAME
                                              + '.' + SystemDistributedKeyspace.COMPRESSION_DICTIONARIES +
                                              " table, these are ones for which a table they were trained for was dropped, " +
-                                             "or whose scope has no node in the cluster anymore.")
+                                             "or whose scope has no joined node, or which are scoped narrower than the " +
+                                             "cluster while a newer dictionary is used by all nodes.")
     public static class CleanupDictionaries extends AbstractCommand
     {
         @Option(names = {"-d", "--dry"}, description = "Only display orphaned dictionaries, do not remove them.")
