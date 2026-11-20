@@ -31,6 +31,7 @@ import java.util.Map;
 import java.util.Set;
 import java.util.UUID;
 import java.util.concurrent.TimeUnit;
+import java.util.function.UnaryOperator;
 
 import javax.annotation.Nullable;
 
@@ -63,6 +64,7 @@ import org.apache.cassandra.locator.InetAddressAndPort;
 import org.apache.cassandra.repair.CommonRange;
 import org.apache.cassandra.repair.messages.RepairOption;
 import org.apache.cassandra.tcm.ClusterMetadata;
+import org.apache.cassandra.tcm.membership.Directory;
 import org.apache.cassandra.utils.FBUtilities;
 import org.apache.cassandra.utils.TimeUUID;
 
@@ -702,12 +704,25 @@ public final class SystemDistributedKeyspace
     }
 
     /**
+     * Promotes the latest dictionary of a table to the given wider scope, see
+     * {@link #promoteCompressionDictionary(String, String, String, UnaryOperator)}.
+     */
+    public static LightweightCompressionDictionary promoteCompressionDictionary(String keyspaceName,
+                                                                                String tableName,
+                                                                                String tableId,
+                                                                                CompressionDictionaryScope target)
+    {
+        return promoteCompressionDictionary(keyspaceName, tableName, tableId, current -> target);
+    }
+
+    /**
      * Promotes the latest dictionary of a table to a wider scope by a lightweight transaction which expects the scope
      * the dictionary was read with. The target scope has to contain every place of the current one and more, see
-     * {@link CompressionDictionaryScope#checkCanBeWidenedTo(CompressionDictionaryScope)}; a scope never shrinks.
+     * {@link CompressionDictionaryScope#checkCanBeWidenedTo(Directory, CompressionDictionaryScope)}; a scope never
+     * shrinks.
      *
-     * @param target the scope to promote the dictionary to
-     * @return the promoted dictionary, with the scope it was promoted from
+     * @param widen computes the scope to promote the dictionary to from its current scope
+     * @return the promoted dictionary, with the scope it was promoted to
      * @throws IllegalStateException    if no dictionary is found, the latest one is already used by all nodes, or it
      *                                  was deleted or its scope changed before it could be promoted
      * @throws IllegalArgumentException if the target scope is not wider than the scope of the latest dictionary
@@ -715,7 +730,7 @@ public final class SystemDistributedKeyspace
     public static LightweightCompressionDictionary promoteCompressionDictionary(String keyspaceName,
                                                                                 String tableName,
                                                                                 String tableId,
-                                                                                CompressionDictionaryScope target)
+                                                                                UnaryOperator<CompressionDictionaryScope> widen)
     {
         LightweightCompressionDictionary latest = readLightweightLatestCompressionDictionary(keyspaceName, tableName, tableId);
         if (latest == null)
@@ -723,14 +738,17 @@ public final class SystemDistributedKeyspace
         if (latest.scope.isCluster())
             throw new IllegalStateException(format("The latest dictionary %s of table %s.%s is already used by all nodes",
                                                    latest.dictId.id, keyspaceName, tableName));
+
+        CompressionDictionaryScope target;
         try
         {
-            latest.scope.checkCanBeWidenedTo(target);
+            target = widen.apply(latest.scope);
+            latest.scope.checkCanBeWidenedTo(ClusterMetadata.current().directory, target);
         }
         catch (IllegalArgumentException e)
         {
-            throw new IllegalArgumentException(format("The latest dictionary %s of table %s.%s can not be promoted from scope %s to scope %s: %s",
-                                                      latest.dictId.id, keyspaceName, tableName, latest.scope, target, e.getMessage()), e);
+            throw new IllegalArgumentException(format("The latest dictionary %s of table %s.%s, scoped to %s, can not be promoted: %s",
+                                                      latest.dictId.id, keyspaceName, tableName, latest.scope, e.getMessage()), e);
         }
 
         UntypedResultSet result = QueryProcessor.execute(format("UPDATE %s.%s SET scope = ? " +
@@ -747,7 +765,8 @@ public final class SystemDistributedKeyspace
                                                          latest.scope.toValue());
 
         checkApplied(result, latest, "promoted");
-        return latest;
+        return new LightweightCompressionDictionary(latest.keyspaceName, latest.tableName, latest.tableId, latest.dictId,
+                                                    latest.checksum, latest.size, latest.createdAt, target);
     }
 
     /**

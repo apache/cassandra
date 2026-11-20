@@ -2795,7 +2795,23 @@ public class NodeProbe implements AutoCloseable
      */
     public void promoteDictionary(String keyspace, String table) throws IOException
     {
-        doWithCompressionDictionaryManagerMBean(proxy -> { proxy.promoteDictionary(); return null; }, keyspace, table);
+        promoteDictionary(keyspace, table, null, new String[0]);
+    }
+
+    /**
+     * Promotes the latest dictionary, which has to be scoped narrower than the cluster, to a wider scope by adding
+     * the given racks of the given datacenter, the whole datacenter when no rack is given, or the whole cluster when no
+     * datacenter is given. The dictionary is announced to the nodes of its new scope.
+     *
+     * @param keyspace   keyspace to promote a dictionary for
+     * @param table      table to promote a dictionary for
+     * @param datacenter datacenter to add, or of the racks to add; null for the whole cluster
+     * @param racks      racks of the datacenter to add, none for the whole datacenter
+     * @throws IOException if there's an error accessing the MBean
+     */
+    public void promoteDictionary(String keyspace, String table, @Nullable String datacenter, String[] racks) throws IOException
+    {
+        doWithCompressionDictionaryManagerMBean(proxy -> { proxy.promoteDictionary(datacenter, racks); return null; }, keyspace, table);
     }
 
     /**

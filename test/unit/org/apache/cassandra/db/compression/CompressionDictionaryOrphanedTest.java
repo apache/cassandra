@@ -36,6 +36,7 @@ import org.apache.cassandra.locator.InetAddressAndPort;
 import org.apache.cassandra.schema.SchemaConstants;
 import org.apache.cassandra.schema.SystemDistributedKeyspace;
 import org.apache.cassandra.tcm.ClusterMetadata;
+import org.apache.cassandra.tcm.membership.Location;
 import org.apache.cassandra.tcm.membership.NodeId;
 import org.apache.cassandra.tools.ToolRunner.ToolResult;
 
@@ -105,15 +106,23 @@ public class CompressionDictionaryOrphanedTest extends CQLTester
         // never in the cluster
         insertDictionary(tableId, 4, CompressionDictionaryScope.node(new NodeId(4242)).toValue());
         // a kind of scope a later version might write, it is not considered orphaned
-        insertDictionary(tableId, 5, Set.of(Map.of("datacenter", "dc1")));
-        assertEquals(List.of(4L), dictIds(SystemDistributedKeyspace.retrieveOrphanedLightweightCompressionDictionaries()));
+        insertDictionary(tableId, 5, Set.of(Map.of("region", "eu")));
+        // the rack of this node
+        Location location = ClusterMetadata.current().directory.location(ClusterMetadata.current().myNodeId());
+        insertDictionary(tableId, 6, Set.of(Map.of("dc", location.datacenter, "rack", location.rack)));
+        // a datacenter and a rack without nodes
+        insertDictionary(tableId, 7, Set.of(Map.of("dc", "no_such_dc")));
+        insertDictionary(tableId, 8, Set.of(Map.of("dc", location.datacenter, "rack", "no_such_rack")));
+        // a union is orphaned only when none of its places has a node
+        insertDictionary(tableId, 9, Set.of(Map.of("node_id", "4242"), Map.of("dc", location.datacenter)));
+        assertEquals(List.of(8L, 7L, 4L), dictIds(SystemDistributedKeyspace.retrieveOrphanedLightweightCompressionDictionaries()));
 
         ClusterMetadataTestHelper.unregister(registered);
-        assertEquals(List.of(4L, 3L), dictIds(SystemDistributedKeyspace.retrieveOrphanedLightweightCompressionDictionaries()));
+        assertEquals(List.of(8L, 7L, 4L, 3L), dictIds(SystemDistributedKeyspace.retrieveOrphanedLightweightCompressionDictionaries()));
 
         cleanupOrphaned();
         assertNoOrphaned();
-        assertEquals(List.of(5L, 2L, 1L), dictIds(SystemDistributedKeyspace.retrieveLightweightCompressionDictionaries()));
+        assertEquals(List.of(9L, 6L, 5L, 2L, 1L), dictIds(SystemDistributedKeyspace.retrieveLightweightCompressionDictionaries()));
 
         dropDictTable();
         cleanupOrphaned();

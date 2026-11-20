@@ -262,7 +262,7 @@ public class CompressionDictionaryLocalTrainingTest extends TestBaseImpl
                                                        "(keyspace_name, table_name, table_id, kind, dict_id, dict_length, dict_checksum, created_at, scope) " +
                                                        "VALUES (?, ?, ?, 'ZSTD', ?, 1, 0, toTimestamp(now()), ?)",
                                                        KEYSPACE, TABLE, tableId, id,
-                                                       Set.of(id % 2 == 0 ? Map.of("node_id", "42") : Map.of("datacenter", "datacenter0"))));
+                                                       Set.of(id % 2 == 0 ? Map.of("node_id", "42") : Map.of("region", "eu"))));
             }
 
             // no sstable carries either dictionary, a restarted node gets one from refresh only

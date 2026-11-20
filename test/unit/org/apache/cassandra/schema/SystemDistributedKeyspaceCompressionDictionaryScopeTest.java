@@ -38,9 +38,12 @@ import org.apache.cassandra.db.compression.CompressionDictionary.DictId;
 import org.apache.cassandra.db.compression.CompressionDictionary.Kind;
 import org.apache.cassandra.db.compression.CompressionDictionary.LightweightCompressionDictionary;
 import org.apache.cassandra.db.compression.CompressionDictionaryScope;
+import org.apache.cassandra.db.compression.CompressionDictionaryScope.DatacenterPlace;
 import org.apache.cassandra.db.compression.CompressionDictionaryScope.NodePlace;
+import org.apache.cassandra.db.compression.CompressionDictionaryScope.RackPlace;
 import org.apache.cassandra.db.compression.ZstdCompressionDictionary;
 import org.apache.cassandra.tcm.ClusterMetadata;
+import org.apache.cassandra.tcm.membership.Location;
 import org.apache.cassandra.tcm.membership.NodeId;
 
 import static java.lang.String.format;
@@ -105,12 +108,12 @@ public class SystemDistributedKeyspaceCompressionDictionaryScopeTest extends CQL
         store(100, thisNode);
         assertThatThrownBy(() -> SystemDistributedKeyspace.promoteCompressionDictionary(KS, TABLE, tableId, CompressionDictionaryScope.node(new NodeId(42))))
         .isInstanceOf(IllegalArgumentException.class)
-        .hasMessageContaining("can not be promoted from scope " + thisNode + " to scope node 42")
-        .hasMessageContaining("a dictionary can only be promoted to a wider scope");
+        .hasMessageContaining("The latest dictionary 100 of table " + KS + '.' + TABLE + ", scoped to " + thisNode + ", can not be promoted: " +
+                              "scope node 42 would no longer contain " + thisNode + ", a scope can only be widened");
 
         LightweightCompressionDictionary promoted = SystemDistributedKeyspace.promoteCompressionDictionary(KS, TABLE, tableId, CLUSTER);
         assertThat(promoted.dictId.id).isEqualTo(100);
-        assertThat(promoted.scope).as("the scope it was promoted from").isEqualTo(thisNode);
+        assertThat(promoted.scope).as("the scope it was promoted to").isEqualTo(CLUSTER);
         assertThat(scopeColumn(100)).isNull();
 
         assertThatThrownBy(() -> SystemDistributedKeyspace.promoteCompressionDictionary(KS, TABLE, tableId, CLUSTER))
@@ -127,21 +130,21 @@ public class SystemDistributedKeyspaceCompressionDictionaryScopeTest extends CQL
         store(100, thisNode);
 
         // narrower to wider, step by step
-        assertThat(SystemDistributedKeyspace.promoteCompressionDictionary(KS, TABLE, tableId, selfAnd42).scope).isEqualTo(thisNode);
+        assertThat(SystemDistributedKeyspace.promoteCompressionDictionary(KS, TABLE, tableId, selfAnd42).scope).isEqualTo(selfAnd42);
         assertThat(scopeColumn(100)).isEqualTo(selfAnd42.toValue());
-        assertThat(SystemDistributedKeyspace.promoteCompressionDictionary(KS, TABLE, tableId, selfAnd42And43).scope).isEqualTo(selfAnd42);
+        assertThat(SystemDistributedKeyspace.promoteCompressionDictionary(KS, TABLE, tableId, selfAnd42And43).scope).isEqualTo(selfAnd42And43);
         assertThat(scopeColumn(100)).isEqualTo(selfAnd42And43.toValue());
 
         // never shrinks, never moves sideways, never to the same scope, never to places this version does not know
-        assertNotPromoted(selfAnd42And43, selfAnd42, "does not contain all of scope");
-        assertNotPromoted(selfAnd42And43, thisNode, "does not contain all of scope");
-        assertNotPromoted(selfAnd42And43, nodes(new NodeId(42), new NodeId(43), new NodeId(44)), "does not contain all of scope");
-        assertNotPromoted(selfAnd42And43, nodes(new NodeId(43), new NodeId(42), self), "is already scoped to");
-        assertNotPromoted(selfAnd42And43, CompressionDictionaryScope.fromValue(Set.of(Map.of("datacenter", "dc1"))), "contains places this version does not know");
+        assertNotPromoted(selfAnd42And43, selfAnd42, "would no longer contain node 43");
+        assertNotPromoted(selfAnd42And43, thisNode, "would no longer contain node 42, node 43");
+        assertNotPromoted(selfAnd42And43, nodes(new NodeId(42), new NodeId(43), new NodeId(44)), "would no longer contain " + thisNode);
+        assertNotPromoted(selfAnd42And43, nodes(new NodeId(43), new NodeId(42), self), "the scope would stay " + selfAnd42And43 + ", nothing to promote");
+        assertNotPromoted(selfAnd42And43, CompressionDictionaryScope.fromValue(Set.of(Map.of("region", "eu"))), "contains places this version does not know");
         assertThat(scopeColumn(100)).as("rejected promotions do not change the scope").isEqualTo(selfAnd42And43.toValue());
 
         // to the whole cluster, from where it can not go anywhere
-        assertThat(SystemDistributedKeyspace.promoteCompressionDictionary(KS, TABLE, tableId, CLUSTER).scope).isEqualTo(selfAnd42And43);
+        assertThat(SystemDistributedKeyspace.promoteCompressionDictionary(KS, TABLE, tableId, CLUSTER).scope).isEqualTo(CLUSTER);
         assertThat(scopeColumn(100)).isNull();
         for (CompressionDictionaryScope target : List.of(CLUSTER, thisNode, selfAnd42And43))
         {
@@ -152,13 +155,53 @@ public class SystemDistributedKeyspaceCompressionDictionaryScopeTest extends CQL
     }
 
     @Test
+    public void testWideningAlongRacksAndDatacenters()
+    {
+        Location location = ClusterMetadata.current().directory.location(ClusterMetadata.current().myNodeId());
+        CompressionDictionaryScope rack = CompressionDictionaryScope.of(List.of(new RackPlace(location.datacenter, location.rack)));
+        CompressionDictionaryScope otherRack = CompressionDictionaryScope.of(List.of(new RackPlace(location.datacenter, location.rack + "_other")));
+        CompressionDictionaryScope datacenter = CompressionDictionaryScope.of(List.of(new DatacenterPlace(location.datacenter)));
+        store(100, thisNode);
+
+        // a rack this node is not in does not contain the node scope
+        assertNotPromoted(thisNode, otherRack, "would no longer contain " + thisNode);
+
+        // node, its rack, adding a rack, its datacenter, the cluster
+        assertThat(SystemDistributedKeyspace.promoteCompressionDictionary(KS, TABLE, tableId, rack).scope).isEqualTo(rack);
+        assertThat(scopeColumn(100)).isEqualTo(Set.of(Map.of("dc", location.datacenter, "rack", location.rack)));
+        CompressionDictionaryScope twoRacks = SystemDistributedKeyspace.promoteCompressionDictionary(KS, TABLE, tableId,
+                                                                                                    current -> current.plus(ClusterMetadata.current().directory, otherRack.places())).scope;
+        assertThat(twoRacks).isEqualTo(CompressionDictionaryScope.of(List.of(new RackPlace(location.datacenter, location.rack),
+                                                                             new RackPlace(location.datacenter, location.rack + "_other"))));
+
+        // adding a rack which is in the scope already, or a node located in it, is not a promotion
+        assertNotPromoted(twoRacks, twoRacks.plus(ClusterMetadata.current().directory, rack.places()), "the scope would stay");
+        assertNotPromoted(twoRacks, twoRacks.plus(ClusterMetadata.current().directory, thisNode.places()), "the scope would stay");
+        // back to the node or to one of the racks
+        assertNotPromoted(twoRacks, thisNode, "would no longer contain");
+        assertNotPromoted(twoRacks, rack, "would no longer contain " + otherRack);
+
+        // the datacenter absorbs its racks
+        assertThat(SystemDistributedKeyspace.promoteCompressionDictionary(KS, TABLE, tableId,
+                                                                          current -> current.plus(ClusterMetadata.current().directory, datacenter.places())).scope)
+        .isEqualTo(datacenter);
+        assertThat(scopeColumn(100)).isEqualTo(Set.of(Map.of("dc", location.datacenter)));
+        assertNotPromoted(datacenter, twoRacks, "would no longer contain " + datacenter);
+        assertNotPromoted(datacenter, rack, "would no longer contain " + datacenter);
+        assertNotPromoted(datacenter, thisNode, "would no longer contain " + datacenter);
+
+        assertThat(SystemDistributedKeyspace.promoteCompressionDictionary(KS, TABLE, tableId, CLUSTER).scope).isEqualTo(CLUSTER);
+        assertThat(scopeColumn(100)).isNull();
+    }
+
+    @Test
     public void testPromoteScopeOfLaterVersion()
     {
         // a scope this version does not understand can still be promoted to the whole cluster, but not to a node
-        CompressionDictionaryScope rack = CompressionDictionaryScope.fromValue(Set.of(Map.of("datacenter", "dc1", "rack", "r1")));
-        store(100, rack);
-        assertNotPromoted(rack, thisNode, "does not contain all of scope");
-        assertThat(SystemDistributedKeyspace.promoteCompressionDictionary(KS, TABLE, tableId, CLUSTER).scope).isEqualTo(rack);
+        CompressionDictionaryScope region = CompressionDictionaryScope.fromValue(Set.of(Map.of("region", "eu")));
+        store(100, region);
+        assertNotPromoted(region, thisNode, "would no longer contain {region=eu}");
+        assertThat(SystemDistributedKeyspace.promoteCompressionDictionary(KS, TABLE, tableId, CLUSTER).scope).isEqualTo(CLUSTER);
         assertThat(scopeColumn(100)).isNull();
     }
 
@@ -219,7 +262,7 @@ public class SystemDistributedKeyspaceCompressionDictionaryScopeTest extends CQL
         assertThatThrownBy(() -> SystemDistributedKeyspace.promoteCompressionDictionary(KS, TABLE, tableId, to))
         .as("%s to %s", from, to)
         .isInstanceOf(IllegalArgumentException.class)
-        .hasMessageContaining("can not be promoted from scope " + from + " to scope " + to)
+        .hasMessageContaining("scoped to " + from + ", can not be promoted: ")
         .hasMessageContaining(message);
     }
 

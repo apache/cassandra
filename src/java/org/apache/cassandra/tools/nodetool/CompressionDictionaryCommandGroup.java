@@ -89,7 +89,8 @@ public class CompressionDictionaryCommandGroup
 
         @Option(names = "--scope", paramLabel = "scope",
                 description = "Scope of the dictionary, the nodes which compress with it: " +
-                              "node (this node only, until the dictionary is promoted) or cluster (all nodes). " +
+                              "node (this node only), rack (the rack of this node), dc (the datacenter " +
+                              "of this node), until the dictionary is promoted, or cluster (all nodes). " +
                               "The default is cluster.")
         private String scope = CompressionDictionaryScope.Kind.CLUSTER.displayName();
 
@@ -250,8 +251,9 @@ public class CompressionDictionaryCommandGroup
     }
 
     @Command(name = "promote",
-    description = "Promote the latest dictionary for given keyspace and table, trained or imported with --scope node, " +
-                  "to be used by all nodes.")
+    description = "Promote the latest dictionary for given keyspace and table, trained or imported with --scope " +
+                  "node, rack or dc, to a wider scope: add a datacenter or racks of it to its scope, " +
+                  "or promote it to the whole cluster.")
     public static class PromoteDictionary extends AbstractCommand
     {
         @Parameters(index = "0", description = "The keyspace name", arity = "1")
@@ -260,12 +262,28 @@ public class CompressionDictionaryCommandGroup
         @Parameters(index = "1", description = "The table name", arity = "1")
         private String table;
 
+        @Option(names = "--dc", paramLabel = "dc",
+                description = "Add this datacenter, or the racks given by --rack of it, to the scope of the dictionary. " +
+                              "Without it, the dictionary is promoted to the whole cluster.")
+        private String datacenter;
+
+        @Option(names = "--rack", paramLabel = "rack",
+                description = "Add this rack of the datacenter given by --dc to the scope of the dictionary, " +
+                              "can be repeated. Without it, the whole datacenter is added.")
+        private List<String> racks = new ArrayList<>();
+
         @Override
         protected void execute(NodeProbe probe)
         {
+            if (datacenter == null && !racks.isEmpty())
+            {
+                probe.output().err.printf("Failed to promote dictionary: --rack requires --dc%n");
+                System.exit(1);
+            }
+
             try
             {
-                probe.promoteDictionary(keyspace, table);
+                probe.promoteDictionary(keyspace, table, datacenter, racks.toArray(new String[0]));
             }
             catch (Throwable e)
             {
@@ -276,8 +294,8 @@ public class CompressionDictionaryCommandGroup
     }
 
     @Command(name = "discard",
-    description = "Discard the latest dictionary for given keyspace and table, trained or imported with --scope node, " +
-                  "its node compresses with the latest dictionary used by all nodes again.")
+    description = "Discard the latest dictionary for given keyspace and table, scoped narrower than the cluster, " +
+                  "the nodes of its scope compress with the latest dictionary whose scope contains them again.")
     public static class DiscardDictionary extends AbstractCommand
     {
         @Parameters(index = "0", description = "The keyspace name", arity = "1")
@@ -304,7 +322,7 @@ public class CompressionDictionaryCommandGroup
     @Command(name = "cleanup", description = "Clean up orphaned dictionaries by deleting them from " + SystemDistributedKeyspace.NAME
                                              + '.' + SystemDistributedKeyspace.COMPRESSION_DICTIONARIES +
                                              " table, these are ones for which a table they were trained for was dropped, " +
-                                             "or which are scoped to a node which left the cluster.")
+                                             "or whose scope has no node in the cluster anymore.")
     public static class CleanupDictionaries extends AbstractCommand
     {
         @Option(names = {"-d", "--dry"}, description = "Only display orphaned dictionaries, do not remove them.")
@@ -391,7 +409,8 @@ public class CompressionDictionaryCommandGroup
     {
         @Option(names = "--scope", paramLabel = "scope",
                 description = "Scope of the dictionary, the nodes which compress with it: " +
-                              "node (this node only, until the dictionary is promoted) or cluster (all nodes). " +
+                              "node (this node only), rack (the rack of this node), dc (the datacenter " +
+                              "of this node), until the dictionary is promoted, or cluster (all nodes). " +
                               "The default is cluster.")
         private String scope = CompressionDictionaryScope.Kind.CLUSTER.displayName();
 

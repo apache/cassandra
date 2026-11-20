@@ -110,8 +110,8 @@ public class ExportImportListCompressionDictionaryTest extends CQLTester
     public void testInvalidScope() throws Throwable
     {
         String table = createTable("CREATE TABLE %s (id int PRIMARY KEY, data text) WITH compression = {'class': 'ZstdDictionaryCompressor'}");
-        invokeNodetool("compressiondictionary", "train", "--force", "--scope", "rack", keyspace(), table)
-        .asserts().failure().errorContains("Invalid value for --scope: Invalid scope 'rack', valid scopes are [node, cluster]");
+        invokeNodetool("compressiondictionary", "train", "--force", "--scope", "region", keyspace(), table)
+        .asserts().failure().errorContains("Invalid value for --scope: Invalid scope 'region', valid scopes are [node, rack, dc, cluster]");
     }
 
     @Test

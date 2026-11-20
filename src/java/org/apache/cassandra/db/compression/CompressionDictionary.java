@@ -415,6 +415,27 @@ public interface CompressionDictionary
         return metadata == null ? null : metadata.myNodeId();
     }
 
+    /**
+     * @return true when this node compresses with a dictionary of the scope, by its id and location in cluster
+     *         metadata; without cluster metadata, only the whole cluster contains this node
+     */
+    static boolean isThisNodeIn(CompressionDictionaryScope scope)
+    {
+        ClusterMetadata metadata = ClusterMetadata.currentNullable();
+        return metadata == null ? scope.isCluster() : scope.contains(metadata.directory, metadata.myNodeId());
+    }
+
+    /**
+     * @param kind kind of scope relative to this node
+     * @return the scope of the kind which contains this node, e.g. its rack
+     * @throws IllegalStateException if the scope is not the whole cluster and this node or its location is not known
+     */
+    static CompressionDictionaryScope scopeOfThisNode(CompressionDictionaryScope.Kind kind)
+    {
+        ClusterMetadata metadata = ClusterMetadata.currentNullable();
+        return metadata == null ? kind.of(null, null) : kind.of(metadata.directory, metadata.myNodeId());
+    }
+
     // Defines the compression dictionary kind, as well as serves as a factory for creating components of dictionary compression
     enum Kind
     {
