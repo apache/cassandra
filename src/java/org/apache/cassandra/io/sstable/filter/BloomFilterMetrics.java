@@ -18,8 +18,13 @@
 
 package org.apache.cassandra.io.sstable.filter;
 
+import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Collections;
+import java.util.IdentityHashMap;
 import java.util.List;
+import java.util.Set;
+import java.util.function.ToLongFunction;
 
 import org.apache.cassandra.io.sstable.AbstractMetricsProviders;
 import org.apache.cassandra.io.sstable.GaugeProvider;
@@ -39,20 +44,44 @@ public class BloomFilterMetrics<R extends SSTableReaderWithFilter> extends Abstr
     }
 
     /**
+     * The trackers of the given readers, each tracker being included only once.
+     * <p>
+     * A reader gets its tracker from its {@link org.apache.cassandra.io.sstable.SSTable.Owner}, so all the readers of a
+     * table share the table's tracker. Summing a tracker's counters once per reader would therefore multiply them by
+     * the number of live sstables, and would weight keyspace/global aggregates by the number of sstables of each table.
+     */
+    private static List<BloomFilterTracker> distinctTrackers(Iterable<? extends SSTableReaderWithFilter> readers)
+    {
+        Set<BloomFilterTracker> seen = Collections.newSetFromMap(new IdentityHashMap<>());
+        List<BloomFilterTracker> trackers = new ArrayList<>();
+        for (SSTableReaderWithFilter reader : readers)
+        {
+            BloomFilterTracker tracker = reader.getFilterTracker();
+            if (seen.add(tracker))
+                trackers.add(tracker);
+        }
+        return trackers;
+    }
+
+    private static long sumOverTrackers(Iterable<? extends SSTableReaderWithFilter> readers, ToLongFunction<BloomFilterTracker> counter)
+    {
+        long total = 0L;
+        for (BloomFilterTracker tracker : distinctTrackers(readers))
+            total += counter.applyAsLong(tracker);
+        return total;
+    }
+
+    /**
      * Number of false positives in bloom filter
      */
     public final GaugeProvider<Long> bloomFilterFalsePositives = newGaugeProvider("BloomFilterFalsePositives",
-                                                                                  0L,
-                                                                                  r -> r.getFilterTracker().getFalsePositiveCount(),
-                                                                                  Long::sum);
+                                                                                  readers -> sumOverTrackers(readers, BloomFilterTracker::getFalsePositiveCount));
 
     /**
      * Number of false positives in bloom filter from last read
      */
     public final GaugeProvider<Long> recentBloomFilterFalsePositives = newGaugeProvider("RecentBloomFilterFalsePositives",
-                                                                                        0L,
-                                                                                        r -> r.getFilterTracker().getRecentFalsePositiveCount(),
-                                                                                        Long::sum);
+                                                                                        readers -> sumOverTrackers(readers, BloomFilterTracker::getRecentFalsePositiveCount));
 
     /**
      * Disk space used by bloom filter
@@ -101,19 +130,13 @@ public class BloomFilterMetrics<R extends SSTableReaderWithFilter> extends Abstr
                                                                                       Long::sum);
 
     public final GaugeProvider<Long> lazyBloomFilterHits = newGaugeProvider("LazyBloomFilterHits",
-                                                                            0L,
-                                                                            r -> r.getFilterTracker().getLazyBloomFilterHitCount(),
-                                                                            Long::sum);
+                                                                            readers -> sumOverTrackers(readers, BloomFilterTracker::getLazyBloomFilterHitCount));
 
     public final GaugeProvider<Long> loadedBloomFilterHits = newGaugeProvider("LoadedBloomFilterHits",
-                                                                              0L,
-                                                                              r -> r.getFilterTracker().getLoadedBloomFilterHitCount(),
-                                                                              Long::sum);
+                                                                              readers -> sumOverTrackers(readers, BloomFilterTracker::getLoadedBloomFilterHitCount));
 
     public final GaugeProvider<Long> passThroughBloomFilterHits = newGaugeProvider("PassThroughBloomFilterHits",
-                                                                                   0L,
-                                                                                   r -> r.getFilterTracker().getPassThroughBloomFilterHitCount(),
-                                                                                   Long::sum);
+                                                                                   readers -> sumOverTrackers(readers, BloomFilterTracker::getPassThroughBloomFilterHitCount));
 
     /**
      * False positive ratio of bloom filter
@@ -122,11 +145,11 @@ public class BloomFilterMetrics<R extends SSTableReaderWithFilter> extends Abstr
         long falsePositiveCount = 0L;
         long truePositiveCount = 0L;
         long trueNegativeCount = 0L;
-        for (SSTableReaderWithFilter sstable : readers)
+        for (BloomFilterTracker tracker : distinctTrackers(readers))
         {
-            falsePositiveCount += sstable.getFilterTracker().getFalsePositiveCount();
-            truePositiveCount += sstable.getFilterTracker().getTruePositiveCount();
-            trueNegativeCount += sstable.getFilterTracker().getTrueNegativeCount();
+            falsePositiveCount += tracker.getFalsePositiveCount();
+            truePositiveCount += tracker.getTruePositiveCount();
+            trueNegativeCount += tracker.getTrueNegativeCount();
         }
         if (falsePositiveCount == 0L && truePositiveCount == 0L)
             return 0d;
@@ -140,11 +163,11 @@ public class BloomFilterMetrics<R extends SSTableReaderWithFilter> extends Abstr
         long falsePositiveCount = 0L;
         long truePositiveCount = 0L;
         long trueNegativeCount = 0L;
-        for (SSTableReaderWithFilter sstable : readers)
+        for (BloomFilterTracker tracker : distinctTrackers(readers))
         {
-            falsePositiveCount += sstable.getFilterTracker().getRecentFalsePositiveCount();
-            truePositiveCount += sstable.getFilterTracker().getRecentTruePositiveCount();
-            trueNegativeCount += sstable.getFilterTracker().getRecentTrueNegativeCount();
+            falsePositiveCount += tracker.getRecentFalsePositiveCount();
+            truePositiveCount += tracker.getRecentTruePositiveCount();
+            trueNegativeCount += tracker.getRecentTrueNegativeCount();
         }
         if (falsePositiveCount == 0L && truePositiveCount == 0L)
             return 0d;
