@@ -30,7 +30,6 @@ import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.io.compress.BufferType;
 import org.apache.cassandra.io.util.File;
 import org.apache.cassandra.io.util.FileHandle;
-import org.apache.cassandra.io.util.RandomAccessReader;
 import org.apache.cassandra.io.util.SequentialWriter;
 import org.apache.cassandra.io.util.SequentialWriterOption;
 import org.apache.lucene.store.ChecksumIndexInput;
@@ -78,14 +77,6 @@ public class IndexFileUtils
     public IndexInput openInput(FileHandle handle)
     {
         return IndexInputReader.create(handle);
-    }
-
-    public IndexInput openBlockingInput(File file)
-    {
-        FileHandle fileHandle = new FileHandle.Builder(file).complete();
-        RandomAccessReader randomReader = fileHandle.createReader();
-
-        return IndexInputReader.create(randomReader, fileHandle::close);
     }
 
     public static ChecksumIndexInput getBufferedChecksumIndexInput(IndexInput indexInput)
