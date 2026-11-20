@@ -67,7 +67,7 @@ import static org.junit.Assert.assertTrue;
  * </pre>
  *
  * Both waits are unbounded, so the node's log would never move again. The test builds the same
- * interleaving by holding a node's follower before a replay batch that contains, in order, a
+ * interleaving by holding a node's follower before enacting a batch that contains, in order, a
  * snapshot-triggering epoch and a dropped table. It passes while the snapshot trigger does not run
  * on nonPeriodicTasks.
  */
@@ -107,16 +107,17 @@ public class SnapshotTriggerDeletionBarrierDeadlockTest extends TestBaseImpl
             assertEquals("nodes should agree on the epoch before the stall is set up",
                          tail, getClusterMetadataVersion(committer).getEpoch());
 
-            // The first epoch the stalled node replays when it is resumed. It has to trigger the snapshot
-            // listener, so point metadata_snapshot_frequency straight at it. A frequency of 1 would not
-            // do. Every TriggerSnapshot commit is itself a multiple of 1, so the listener would re-arm on
-            // its own output and the cluster would commit snapshots in a loop for as long as it is
-            // healthy. Using the epoch itself keeps the trigger to a single, known point.
+            // The epoch the stalled node stops before, until it is resumed.
+            // It has to trigger the snapshot listener, so point metadata_snapshot_frequency straight
+            // at it. A frequency of 1 would not do. Every TriggerSnapshot commit is itself a
+            // multiple of 1, so the listener would re-arm on its own output and the cluster would
+            // commit snapshots in a loop for as long as it is healthy. Using the epoch itself keeps
+            // the trigger to a single, known point.
             final long pauseAt = tail + 1;
             assertTrue("epoch " + pauseAt + " does not fit in metadata_snapshot_frequency", pauseAt <= Integer.MAX_VALUE);
             stalled.runOnInstance(() -> DatabaseDescriptor.setMetadataSnapshotFrequency((int) pauseAt));
 
-            Callable<?> pausedBeforeReplay = pauseBeforeEnacting(stalled, Epoch.create(pauseAt));
+            Callable<?> pausedBeforeEnacting = pauseBeforeEnacting(stalled, Epoch.create(pauseAt));
 
             try
             {
@@ -128,11 +129,11 @@ public class SnapshotTriggerDeletionBarrierDeadlockTest extends TestBaseImpl
                              pauseAt, getClusterMetadataVersion(committer).getEpoch());
 
                 // Wait until the follower is actually parked before enacting that epoch.
-                pausedBeforeReplay.call();
+                pausedBeforeEnacting.call();
 
                 // These commit as epochs pauseAt + 1 and pauseAt + 2 while the follower is parked. The
-                // dropped table reaches the deletion barrier via SchemaListener -> Keyspace.dropCf ->
-                // ColumnFamilyStore.invalidate.
+                // dropped table reaches the deletion barrier via SchemaListener.notifyInternal ...
+                // Keyspace.unloadCf ... ColumnFamilyStore.invalidate ... LifecycleTransaction.waitForDeletions
                 cluster.coordinator(committerNode).execute("DROP TABLE " + KS + ".tbl", ConsistencyLevel.ONE);
                 cluster.coordinator(committerNode).execute("DROP KEYSPACE " + KS, ConsistencyLevel.ONE);
 
@@ -146,12 +147,12 @@ public class SnapshotTriggerDeletionBarrierDeadlockTest extends TestBaseImpl
 
                 unpauseEnactment(stalled);
 
-                // The follower now replays pauseAt and queues triggerSnapshot on CMSLogTasks. It then
-                // replays the dropped table, which queues the deletion barrier's no-op on
-                // nonPeriodicTasks. The two do not share an executor, so the follower finishes the batch.
+                // The follower resumes where it left off, processing the log entry at epoch pauseAt, and
+                // queues triggerSnapshot on CMSLogTasks. It then enacts the dropped table, which queues
+                // the deletion barrier's no-op on nonPeriodicTasks. The two do not share an executor, so the follower finishes the batch.
                 // If triggerSnapshot ran on nonPeriodicTasks, the no-op would queue behind it and this
                 // would never complete.
-                await("node" + stalledNode + " to replay the batch containing the dropped table")
+                await("node" + stalledNode + " to enact the batch containing the dropped table")
                 .atMost(CATCHUP_TIMEOUT_SECONDS, TimeUnit.SECONDS)
                 .pollInterval(100, TimeUnit.MILLISECONDS)
                 .until(() -> getClusterMetadataVersion(stalled).getEpoch(), greaterThanOrEqualTo(ahead));
@@ -160,7 +161,7 @@ public class SnapshotTriggerDeletionBarrierDeadlockTest extends TestBaseImpl
             {
                 // This matters only if the snapshot trigger shares nonPeriodicTasks. In that case both
                 // wedged threads wait without a bound and would keep cluster.close() from returning,
-                // which turns a failure into a hung build. LocalLog.runOnce waits interruptibly, so
+                // which turns a failure into a hung test. LocalLog.runOnce waits interruptibly, so
                 // interrupting the nonPeriodicTasks worker aborts the parked snapshot commit. That
                 // lets the barrier's no-op run and the follower finish.
                 releaseNonPeriodicTasks(stalled);

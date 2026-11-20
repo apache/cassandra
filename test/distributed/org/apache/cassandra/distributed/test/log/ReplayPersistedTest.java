@@ -115,7 +115,6 @@ public class ReplayPersistedTest extends TestBaseImpl
     {
         try
         {
-            // the seal period snapshot runs on the CMSLogTasks executor, just wait for any queued tasks to finish
             ClusterMetadataService.instance().awaitLogTasks();
         }
         catch (Exception e)
