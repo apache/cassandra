@@ -18,6 +18,7 @@ import unittest
 import io
 import os
 import sys
+import tempfile
 import pytest
 
 from cassandra.auth import PlainTextAuthProvider
@@ -42,6 +43,19 @@ class ComplexTextAuthProvider(PlainTextAuthProvider):
         self.extra_flag = extra_flag
 
 
+class AnyPropertyAuthProvider(PlainTextAuthProvider):
+    def __init__(self, username, **kwargs):
+        super(AnyPropertyAuthProvider, self).__init__(username, None)
+
+
+class SensitiveSettingsAuthProvider(AnyPropertyAuthProvider):
+    sensitive_settings = ('api_key', 'Token')
+
+
+class SingleSensitiveSettingAuthProvider(AnyPropertyAuthProvider):
+    sensitive_settings = 'api_key'
+
+
 def _assert_auth_provider_matches(actual, klass, expected_props):
     """
     Assert that the provider matches class and properties
@@ -58,6 +72,8 @@ class CustomAuthProviderTest(unittest.TestCase):
     def setUp(self):
         self._captured_std_err = io.StringIO()
         sys.stderr = self._captured_std_err
+        self._config_dir = tempfile.TemporaryDirectory()
+        self.addCleanup(self._config_dir.cleanup)
 
     def tearDown(self):
         self._captured_std_err.close()
@@ -74,8 +90,57 @@ class CustomAuthProviderTest(unittest.TestCase):
         assert "Notice:" in err_msg
         assert "Warning:" in err_msg
 
-    def test_creds_not_checked_for_non_plaintext(self):
+    def _load_custom_provider(self, key, mode, classname='AnyPropertyAuthProvider'):
+        cqlshrc = os.path.join(self._config_dir.name, 'cqlshrc')
+        with open(cqlshrc, 'w') as f:
+            f.write('[auth_provider]\n'
+                    'module = cqlshlib.test.test_authproviderhandling\n'
+                    'classname = {}\n'
+                    'username = user1\n'
+                    '{} = value1\n'.format(classname, key))
+        os.chmod(cqlshrc, mode)
+        self._captured_std_err.seek(0)
+        self._captured_std_err.truncate()
+        load_auth_provider(cqlshrc)
+        return self._captured_std_err.getvalue()
+
+    def test_insecure_creds_for_non_plaintext(self):
         load_auth_provider(construct_config_path('complex_auth_provider_with_pass'))
+        err_msg = self._captured_std_err.getvalue()
+        assert "Warning:" in err_msg
+        assert "Notice:" not in err_msg
+
+    def test_insecure_creds_for_non_plaintext_sensitive_keys(self):
+        for key in ['password', 'secret', 'basicauth', 'client_secret', 'ssl_password', 'PASSWORD']:
+            err_msg = self._load_custom_provider(key, 0o644)
+            assert "Warning:" in err_msg, key
+            assert "Notice:" not in err_msg, key
+
+    def test_no_warning_for_non_plaintext_if_file_is_secure(self):
+        for key in ['password', 'secret', 'basicauth']:
+            assert self._load_custom_provider(key, 0o600) == '', key
+
+    def test_no_warning_for_non_plaintext_if_no_sensitive_keys(self):
+        for key in ['extra_flag', 'keytab', 'service']:
+            assert self._load_custom_provider(key, 0o644) == '', key
+
+    def test_insecure_creds_for_sensitive_settings_of_provider(self):
+        for key in ['api_key', 'token', 'password']:
+            err_msg = self._load_custom_provider(key, 0o644, 'SensitiveSettingsAuthProvider')
+            assert "Warning:" in err_msg, key
+            assert self._load_custom_provider(key, 0o600, 'SensitiveSettingsAuthProvider') == '', key
+
+        assert self._load_custom_provider('extra_flag', 0o644, 'SensitiveSettingsAuthProvider') == ''
+        assert self._load_custom_provider('api_key', 0o644) == ''
+
+    def test_insecure_creds_for_single_sensitive_setting_of_provider(self):
+        err_msg = self._load_custom_provider('api_key', 0o644, 'SingleSensitiveSettingAuthProvider')
+        assert "Warning:" in err_msg
+        assert self._load_custom_provider('extra_flag', 0o644, 'SingleSensitiveSettingAuthProvider') == ''
+
+    def test_no_warning_for_non_plaintext_if_creds_in_credentials_file(self):
+        load_auth_provider(construct_config_path('complex_auth_provider'),
+                           construct_config_path('complex_auth_provider_creds'))
         err_msg = self._captured_std_err.getvalue()
         assert err_msg == ''
 
