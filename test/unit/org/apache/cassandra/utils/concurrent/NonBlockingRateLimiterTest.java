@@ -108,6 +108,38 @@ public class NonBlockingRateLimiterTest
         assertFalse(limiter.tryReserve());
     }
 
+    @Test
+    public void testSetRatePreservesExistingBacklog()
+    {
+        NonBlockingRateLimiter limiter = new NonBlockingRateLimiter(4, 0, TICKER);
+        long oneSecond = DELAY_UNIT.convert(1, TimeUnit.SECONDS);
+        long interval250ms = oneSecond / 4;
+
+        assertEquals(0, limiter.reserveAndGetDelay(DELAY_UNIT));
+        assertEquals(interval250ms, limiter.reserveAndGetDelay(DELAY_UNIT));
+        assertEquals(interval250ms * 2, limiter.reserveAndGetDelay(DELAY_UNIT));
+        assertEquals(interval250ms * 3, limiter.reserveAndGetDelay(DELAY_UNIT));
+
+        limiter.setRate(1, TICKER);
+
+        assertEquals(oneSecond, limiter.reserveAndGetDelay(DELAY_UNIT));
+        assertEquals(oneSecond * 2, limiter.reserveAndGetDelay(DELAY_UNIT));
+    }
+
+    @Test
+    public void testSetRateDoesNotCollapseBurstCapacity()
+    {
+        NonBlockingRateLimiter limiter = new NonBlockingRateLimiter(1, NonBlockingRateLimiter.DEFAULT_BURST_NANOS, TICKER);
+
+        CLOCK.addAndGet(DELAY_UNIT.convert(10, TimeUnit.SECONDS));
+
+        limiter.setRate(1, TICKER);
+
+        assertTrue(limiter.tryReserve());
+        assertTrue(limiter.tryReserve());
+        assertFalse(limiter.tryReserve());
+    }
+
     @Test(expected = IllegalArgumentException.class)
     public void testMaximumRate()
     {
