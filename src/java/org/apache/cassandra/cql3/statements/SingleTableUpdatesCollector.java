@@ -75,7 +75,7 @@ final class SingleTableUpdatesCollector implements UpdatesCollector
         this.metadata = metadata;
         this.updatedColumns = updatedColumns;
         this.perPartitionKeyCounts = perPartitionKeyCounts;
-        this.puBuilders = Maps.newHashMapWithExpectedSize(perPartitionKeyCounts.size());
+        this.puBuilders = Maps.newHashMapWithExpectedSize(perPartitionKeyCounts.elementSet().size());
     }
 
     public PartitionUpdate.Builder getPartitionUpdateBuilder(TableMetadata metadata, DecoratedKey dk, ConsistencyLevel consistency)
