@@ -59,6 +59,8 @@
 
 -Djdk.attach.allowAttachSelf=true
 -Djava.security.manager=allow
+# zstd-jni 1.5.7+ uses the FFM API on JDK 22+, which warns about restricted methods unless native access is enabled
+--enable-native-access=ALL-UNNAMED
 --add-exports java.base/jdk.internal.misc=ALL-UNNAMED
 --add-exports java.base/jdk.internal.ref=ALL-UNNAMED
 --add-exports java.base/jdk.internal.perf=ALL-UNNAMED

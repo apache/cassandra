@@ -373,6 +373,8 @@
     <resources id="_jvm22_arg_items">
         <string>-XX:+UnlockDiagnosticVMOptions</string>
         <string>-Djdk.attach.allowAttachSelf=true</string>
+        <!-- zstd-jni uses the FFM API on JDK 22+, which warns unless native access is enabled -->
+        <string>--enable-native-access=ALL-UNNAMED</string>
         <string>-XX:+UseG1GC</string>
         <string>-XX:+ParallelRefProcEnabled</string>
         <!-- Below two are used in Cassandra, not in CNDB-->
