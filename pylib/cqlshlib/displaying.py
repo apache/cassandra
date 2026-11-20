@@ -192,7 +192,7 @@ class CsvTablePrinter(TablePrinter):
         if formatted_values is None:
             return
         for row in formatted_values:
-            # Rows now contain plain strings (not FormattedValue), with empty strings for nulls
+            # Rows contain plain strings (not FormattedValue), with empty strings for nulls
             self._writer.writerow(row)
 
 

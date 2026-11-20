@@ -222,8 +222,6 @@ class OutputMode(str, Enum):
     CSV = 'csv'
     JSON = 'json'
 
-    __str__ = str.__str__
-
     @property
     def is_machine_readable(self):
         return self is not OutputMode.TABULAR

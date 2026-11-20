@@ -633,7 +633,7 @@ def get_json_formatter(val, cqltype):
 
 
 def format_json_value(val, cqltype, encoding, date_time_format=None, float_precision=None,
-                      decimal_sep=None, thousands_sep=None, boolean_styles=None, nullval=None, **_):
+                      decimal_sep=None, thousands_sep=None, boolean_styles=None, **_):
     """Return a native Python value for JSON serialization.
 
     Integer, float, bool, str, list, and dict types are returned as their
