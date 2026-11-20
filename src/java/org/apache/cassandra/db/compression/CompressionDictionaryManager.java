@@ -411,7 +411,7 @@ public class CompressionDictionaryManager implements CompressionDictionaryManage
                 throw new IllegalArgumentException(format("%s %s already in its scope, nothing to promote",
                                                           CompressionDictionaryScope.describe(covered),
                                                           covered.size() == 1 ? "is" : "are"));
-            return scope.plus(directory, places);
+            return scope.plus(places);
         };
     }
 

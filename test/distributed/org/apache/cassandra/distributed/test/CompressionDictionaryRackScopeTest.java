@@ -154,39 +154,41 @@ public class CompressionDictionaryRackScopeTest extends TestBaseImpl
             long dictId = currentDictId(cluster, a);
             assertThat(dictId).isPositive();
             int nodeIdA = cluster.get(a).callOnInstance(() -> ClusterMetadata.current().myNodeId().id());
-            assertScope(cluster, dictId, Set.of(Map.of("node_id", String.valueOf(nodeIdA))), "node " + nodeIdA, Set.of(a));
+            Map<String, String> nodeA = Map.of("node_id", String.valueOf(nodeIdA));
+            String listedNodeA = "node " + nodeIdA + ", ";
+            assertScope(cluster, dictId, Set.of(nodeA), "node " + nodeIdA, Set.of(a));
 
-            // 2. its rack, the node is dropped as the rack contains it
+            // 2. its rack; the node stays listed although the rack contains it, it could be moved to another rack later
             promote(cluster, c, "--dc", dc1, "--rack", la.rack);
-            assertScope(cluster, dictId, Set.of(rackA), racks(rackA), Set.of(a));
+            assertScope(cluster, dictId, Set.of(nodeA, rackA), listedNodeA + racks(rackA), Set.of(a));
 
             // asking for a rack, or two, which the scope covers already is not a promotion
             promoteFails(cluster, "can not be promoted: rack " + dc1 + '/' + la.rack + " is already in its scope, nothing to promote", "--dc", dc1, "--rack", la.rack);
 
             // 3. both racks of its datacenter
             promote(cluster, d, "--dc", dc1, "--rack", lb.rack);
-            assertScope(cluster, dictId, Set.of(rackA, rackB), racks(rackA, rackB), Set.of(a, b));
+            assertScope(cluster, dictId, Set.of(nodeA, rackA, rackB), listedNodeA + racks(rackA, rackB), Set.of(a, b));
 
             // 4. its datacenter, which absorbs its racks
             promote(cluster, b, "--dc", dc1);
-            assertScope(cluster, dictId, Set.of(Map.of("dc", dc1)), "dc " + dc1, Set.of(a, b));
+            assertScope(cluster, dictId, Set.of(nodeA, Map.of("dc", dc1)), listedNodeA + "dc " + dc1, Set.of(a, b));
 
             promoteFails(cluster, "can not be promoted: " + racks(rackA, rackB) + " are already in its scope, nothing to promote",
                          "--dc", dc1, "--rack", la.rack, "--rack", lb.rack);
 
             // 5. plus a rack of the other datacenter
             promote(cluster, a, "--dc", dc2, "--rack", lc.rack);
-            assertScope(cluster, dictId, Set.of(Map.of("dc", dc1), rackC), racks(rackC) + ", dc " + dc1, Set.of(a, b, c));
+            assertScope(cluster, dictId, Set.of(nodeA, Map.of("dc", dc1), rackC), listedNodeA + racks(rackC) + ", dc " + dc1, Set.of(a, b, c));
 
             // 6. plus both racks of the other datacenter, every node uses it, the scope is still not the whole cluster
             promote(cluster, c, "--dc", dc2, "--rack", ld.rack);
-            assertScope(cluster, dictId, Set.of(Map.of("dc", dc1), rackC, rackD), racks(rackC, rackD) + ", dc " + dc1, Set.of(a, b, c, d));
+            assertScope(cluster, dictId, Set.of(nodeA, Map.of("dc", dc1), rackC, rackD), listedNodeA + racks(rackC, rackD) + ", dc " + dc1, Set.of(a, b, c, d));
             cluster.get(d).nodetoolResult("compressiondictionary", "train", "--force", KEYSPACE, TABLE)
                    .asserts().failure().stderrContains("promote or discard it first");
 
             // 7. both datacenters, which absorb the racks
             promote(cluster, d, "--dc", dc2);
-            assertScope(cluster, dictId, Set.of(Map.of("dc", dc1), Map.of("dc", dc2)), dcs(dc1, dc2), Set.of(a, b, c, d));
+            assertScope(cluster, dictId, Set.of(nodeA, Map.of("dc", dc1), Map.of("dc", dc2)), listedNodeA + dcs(dc1, dc2), Set.of(a, b, c, d));
 
             // 8. the whole cluster
             promote(cluster, b);

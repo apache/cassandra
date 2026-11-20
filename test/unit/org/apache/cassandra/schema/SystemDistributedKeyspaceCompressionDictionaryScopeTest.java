@@ -170,20 +170,21 @@ public class SystemDistributedKeyspaceCompressionDictionaryScopeTest extends CQL
         assertThat(SystemDistributedKeyspace.promoteCompressionDictionary(KS, TABLE, tableId, rack).scope).isEqualTo(rack);
         assertThat(scopeColumn(100)).isEqualTo(Set.of(Map.of("dc", location.datacenter, "rack", location.rack)));
         CompressionDictionaryScope twoRacks = SystemDistributedKeyspace.promoteCompressionDictionary(KS, TABLE, tableId,
-                                                                                                    current -> current.plus(ClusterMetadata.current().directory, otherRack.places())).scope;
+                                                                                                    current -> current.plus(otherRack.places())).scope;
         assertThat(twoRacks).isEqualTo(CompressionDictionaryScope.of(List.of(new RackPlace(location.datacenter, location.rack),
                                                                              new RackPlace(location.datacenter, location.rack + "_other"))));
 
         // adding a rack which is in the scope already, or a node located in it, is not a promotion
-        assertNotPromoted(twoRacks, twoRacks.plus(ClusterMetadata.current().directory, rack.places()), "the scope would stay");
-        assertNotPromoted(twoRacks, twoRacks.plus(ClusterMetadata.current().directory, thisNode.places()), "the scope would stay");
+        assertNotPromoted(twoRacks, twoRacks.plus(rack.places()), "the scope would stay");
+        // a node is never dropped by normalization, so adding this node makes the scope list it explicitly
+        assertThat(twoRacks.plus(thisNode.places()).places()).containsAll(twoRacks.places()).containsAll(thisNode.places());
         // back to the node or to one of the racks
         assertNotPromoted(twoRacks, thisNode, "would no longer contain");
         assertNotPromoted(twoRacks, rack, "would no longer contain " + otherRack);
 
         // the datacenter absorbs its racks
         assertThat(SystemDistributedKeyspace.promoteCompressionDictionary(KS, TABLE, tableId,
-                                                                          current -> current.plus(ClusterMetadata.current().directory, datacenter.places())).scope)
+                                                                          current -> current.plus(datacenter.places())).scope)
         .isEqualTo(datacenter);
         assertThat(scopeColumn(100)).isEqualTo(Set.of(Map.of("dc", location.datacenter)));
         assertNotPromoted(datacenter, twoRacks, "would no longer contain " + datacenter);

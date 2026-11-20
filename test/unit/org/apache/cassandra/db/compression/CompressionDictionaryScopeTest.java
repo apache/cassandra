@@ -212,28 +212,40 @@ public class CompressionDictionaryScopeTest
     @Test
     public void testPlus()
     {
-        assertThat(CLUSTER.plus(directory, List.of(rack("dc1", "r1")))).isEqualTo(CLUSTER);
+        assertThat(CLUSTER.plus(List.of(rack("dc1", "r1")))).isEqualTo(CLUSTER);
 
-        // a node located in an added rack or datacenter is dropped
-        assertThat(scope(node(1)).plus(directory, List.of(rack("dc1", "r1")))).isEqualTo(scope(rack("dc1", "r1")));
-        assertThat(scope(node(1), node(3)).plus(directory, List.of(rack("dc1", "r1")))).isEqualTo(scope(node(3), rack("dc1", "r1")));
-        assertThat(scope(node(1), node(4)).plus(directory, List.of(datacenter("dc1")))).isEqualTo(scope(node(4), datacenter("dc1")));
+        // a node stays even when it is located in an added rack or datacenter, it can be moved elsewhere later
+        assertThat(scope(node(1)).plus(List.of(rack("dc1", "r1")))).isEqualTo(scope(node(1), rack("dc1", "r1")));
+        assertThat(scope(node(1), node(3)).plus(List.of(rack("dc1", "r1")))).isEqualTo(scope(node(1), node(3), rack("dc1", "r1")));
+        assertThat(scope(node(1), node(4)).plus(List.of(datacenter("dc1")))).isEqualTo(scope(node(1), node(4), datacenter("dc1")));
 
         // racks are added one by one, a datacenter absorbs its racks
         CompressionDictionaryScope r1 = scope(rack("dc1", "r1"));
-        CompressionDictionaryScope r1r2 = r1.plus(directory, List.of(rack("dc1", "r2")));
+        CompressionDictionaryScope r1r2 = r1.plus(List.of(rack("dc1", "r2")));
         assertThat(r1r2).isEqualTo(scope(rack("dc1", "r1"), rack("dc1", "r2")));
-        assertThat(r1r2.plus(directory, List.of(rack("dc2", "r1")))).isEqualTo(scope(rack("dc1", "r1"), rack("dc1", "r2"), rack("dc2", "r1")));
-        assertThat(r1r2.plus(directory, List.of(datacenter("dc1")))).isEqualTo(scope(datacenter("dc1")));
-        assertThat(r1r2.plus(directory, List.of(datacenter("dc2")))).isEqualTo(scope(rack("dc1", "r1"), rack("dc1", "r2"), datacenter("dc2")));
+        assertThat(r1r2.plus(List.of(rack("dc2", "r1")))).isEqualTo(scope(rack("dc1", "r1"), rack("dc1", "r2"), rack("dc2", "r1")));
+        assertThat(r1r2.plus(List.of(datacenter("dc1")))).isEqualTo(scope(datacenter("dc1")));
+        assertThat(r1r2.plus(List.of(datacenter("dc2")))).isEqualTo(scope(rack("dc1", "r1"), rack("dc1", "r2"), datacenter("dc2")));
 
         // nothing new, the same scope
-        assertThat(r1r2.plus(directory, List.of(rack("dc1", "r1")))).isEqualTo(r1r2);
-        assertThat(scope(datacenter("dc1")).plus(directory, List.of(rack("dc1", "r2")))).isEqualTo(scope(datacenter("dc1")));
-        assertThat(scope(rack("dc1", "r1")).plus(directory, List.of(new NodePlace(node(2))))).isEqualTo(scope(rack("dc1", "r1")));
+        assertThat(r1r2.plus(List.of(rack("dc1", "r1")))).isEqualTo(r1r2);
+        assertThat(scope(datacenter("dc1")).plus(List.of(rack("dc1", "r2")))).isEqualTo(scope(datacenter("dc1")));
+        assertThat(scope(node(2), rack("dc1", "r1")).plus(List.of(new NodePlace(node(2))))).isEqualTo(scope(node(2), rack("dc1", "r1")));
 
         // places this version does not know are kept
-        assertThat(unknown().plus(directory, List.of(datacenter("dc1")))).isEqualTo(CompressionDictionaryScope.fromValue(Set.of(REGION, Map.of("dc", "dc1"))));
+        assertThat(unknown().plus(List.of(datacenter("dc1")))).isEqualTo(CompressionDictionaryScope.fromValue(Set.of(REGION, Map.of("dc", "dc1"))));
+    }
+
+    @Test
+    public void testNodeKeepsScopeWhenMovedToAnotherRack() throws UnknownHostException
+    {
+        // node 1 in dc1/r1, promoted to its rack, is then moved to dc1/r2
+        CompressionDictionaryScope widened = scope(node(1)).plus(List.of(rack("dc1", "r1")));
+        assertThat(widened.contains(directory, node(1))).isTrue();
+        Directory moved = directory.withUpdatedRackAndDc(node(1), new Location("dc1", "r2"));
+        assertThat(moved.location(node(1))).isEqualTo(new Location("dc1", "r2"));
+        assertThat(widened.contains(moved, node(1))).as("still in the scope by its own place").isTrue();
+        assertThat(scope(rack("dc1", "r1")).contains(moved, node(1))).as("a scope of its old rack only").isFalse();
     }
 
     @Test

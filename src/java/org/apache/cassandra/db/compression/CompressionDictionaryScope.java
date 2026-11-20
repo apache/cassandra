@@ -188,6 +188,17 @@ public final class CompressionDictionaryScope
         }
 
         /**
+         * @param other a place
+         * @return true when every node of the other place is one of this place regardless of the topology of the
+         *         cluster: a place covers itself and a datacenter covers its racks, but no place covers a node, as the
+         *         location of a node can change
+         */
+        boolean coversStructurally(Place other)
+        {
+            return equals(other);
+        }
+
+        /**
          * @return endpoints of the joined nodes of this place
          */
         abstract Collection<InetAddressAndPort> memberEndpoints(Directory directory);
@@ -411,6 +422,15 @@ public final class CompressionDictionaryScope
         {
             if (other instanceof NodePlace)
                 return isIn(directory.location(((NodePlace) other).node));
+            if (other instanceof RackPlace)
+                return datacenter.equals(((RackPlace) other).datacenter);
+
+            return equals(other);
+        }
+
+        @Override
+        boolean coversStructurally(Place other)
+        {
             if (other instanceof RackPlace)
                 return datacenter.equals(((RackPlace) other).datacenter);
 
@@ -688,14 +708,14 @@ public final class CompressionDictionaryScope
 
     /**
      * Widens this scope by the given places: the union of the places of this scope and the given ones, without the
-     * places which another of them covers, e.g. a rack of a datacenter which is in the scope too, or a node located in
-     * a rack or a datacenter which is in the scope too.
+     * places which another of them covers regardless of the topology of the cluster, e.g. a rack of a datacenter which
+     * is in the scope too. A node is never dropped, even when it is located in a rack or a datacenter of the scope:
+     * the node can be moved elsewhere later and it has to stay in the scope then, as a scope never shrinks.
      *
-     * @param directory directory of the cluster, which tells the location of a node
-     * @param add       places to add
+     * @param add places to add
      * @return the widened scope, the whole cluster when this is the whole cluster
      */
-    public CompressionDictionaryScope plus(Directory directory, Collection<? extends Place> add)
+    public CompressionDictionaryScope plus(Collection<? extends Place> add)
     {
         if (places == null)
             return CLUSTER;
@@ -705,7 +725,7 @@ public final class CompressionDictionaryScope
         List<Place> normalized = new ArrayList<>();
         for (Place place : union)
         {
-            boolean coveredByAnother = union.stream().anyMatch(other -> !other.equals(place) && other.covers(directory, place));
+            boolean coveredByAnother = union.stream().anyMatch(other -> !other.equals(place) && other.coversStructurally(place));
             if (!coveredByAnother)
                 normalized.add(place);
         }
