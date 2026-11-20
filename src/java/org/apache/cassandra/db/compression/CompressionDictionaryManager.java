@@ -356,11 +356,8 @@ public class CompressionDictionaryManager implements CompressionDictionaryManage
     {
         LightweightCompressionDictionary discarded = SystemDistributedKeyspace.discardCompressionDictionary(keyspaceName, tableName, tableId);
         // only the nodes of its scope use it, they go back to the newest dictionary whose scope contains them, or to
-        // none, right away instead of on their next refresh: this node refreshes when it is one of them, the others
-        // are notified
-        if (CompressionDictionary.isThisNodeIn(discarded.scope))
-            scheduler.refreshCurrentDictionary();
-        onDictionaryDiscarded(discarded.dictId, discarded.scope);
+        // none, right away instead of on their next refresh
+        onScopeChanged(discarded.dictId, discarded.scope, true);
     }
 
     @Override
@@ -368,11 +365,34 @@ public class CompressionDictionaryManager implements CompressionDictionaryManage
     {
         UnaryOperator<CompressionDictionaryScope> widen = widening(datacenter, racks == null ? List.of() : Arrays.asList(racks));
         LightweightCompressionDictionary promoted = SystemDistributedKeyspace.promoteCompressionDictionary(keyspaceName, tableName, tableId, widen);
-        // the nodes of the new scope use it right away instead of on their next refresh: this node refreshes when it
-        // is one of them, the announcement skips this node
-        if (CompressionDictionary.isThisNodeIn(promoted.scope))
-            onNewDictionaryAvailable(promoted.dictId);
-        onNewDictionaryTrained(promoted.dictId, promoted.scope);
+        // the nodes of the new scope use it right away instead of on their next refresh
+        onScopeChanged(promoted.dictId, promoted.scope, false);
+    }
+
+    /**
+     * After a dictionary was promoted or discarded: this node refreshes its current dictionary when it is in the scope,
+     * and the other nodes of the scope are notified, also when the refresh fails, which the periodic refresh repeats.
+     */
+    private void onScopeChanged(CompressionDictionary.DictId dictionaryId, CompressionDictionaryScope scope, boolean discarded)
+    {
+        try
+        {
+            if (CompressionDictionary.isThisNodeIn(scope))
+                scheduler.refreshCurrentDictionary();
+        }
+        catch (RuntimeException e)
+        {
+            logger.warn("Could not refresh the current compression dictionary of {}.{} after dictionary {} was {}; " +
+                        "the next periodic refresh does it.",
+                        keyspaceName, tableName, dictionaryId, discarded ? "discarded" : "promoted", e);
+        }
+        finally
+        {
+            if (discarded)
+                onDictionaryDiscarded(dictionaryId, scope);
+            else
+                onNewDictionaryTrained(dictionaryId, scope);
+        }
     }
 
     /**
@@ -388,6 +408,14 @@ public class CompressionDictionaryManager implements CompressionDictionaryManage
             if (!racks.isEmpty())
                 throw new IllegalArgumentException("Racks to promote a dictionary to have to be given with their datacenter");
             return scope -> CompressionDictionaryScope.CLUSTER;
+        }
+
+        if (datacenter.isBlank())
+            throw new IllegalArgumentException("A datacenter to promote a dictionary to can not be empty");
+        for (String rack : racks)
+        {
+            if (rack == null || rack.isBlank())
+                throw new IllegalArgumentException(format("A rack to promote a dictionary to can not be empty, racks: %s", racks));
         }
 
         List<CompressionDictionaryScope.Place> places = new ArrayList<>();

@@ -28,6 +28,8 @@ import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
 
+import javax.annotation.Nullable;
+
 import net.bytebuddy.ByteBuddy;
 import net.bytebuddy.dynamic.loading.ClassLoadingStrategy;
 import net.bytebuddy.implementation.MethodDelegation;
@@ -38,6 +40,7 @@ import org.junit.Test;
 
 import org.apache.cassandra.db.Keyspace;
 import org.apache.cassandra.db.compression.CompressionDictionary;
+import org.apache.cassandra.db.compression.CompressionDictionary.LightweightCompressionDictionary;
 import org.apache.cassandra.db.compression.CompressionDictionaryManager;
 import org.apache.cassandra.db.compression.SSTableChunkSampler;
 import org.apache.cassandra.db.compression.TrainingState;
@@ -50,6 +53,7 @@ import org.apache.cassandra.schema.SystemDistributedKeyspace;
 import org.apache.cassandra.schema.TableMetadata;
 
 import static net.bytebuddy.matcher.ElementMatchers.named;
+import static net.bytebuddy.matcher.ElementMatchers.takesArguments;
 import static org.apache.cassandra.distributed.api.Feature.GOSSIP;
 import static org.apache.cassandra.distributed.api.Feature.NETWORK;
 import static org.apache.cassandra.io.compress.IDictionaryCompressor.TRAINING_MAX_DICTIONARY_SIZE_PARAMETER_NAME;
@@ -76,9 +80,9 @@ public class CompressionDictionaryBackgroundTasksTest extends TestBaseImpl
         {
             prepareTable(cluster, 2);
 
-            // storing waits for the response of node 1 at QUORUM, it never comes
+            // storing is a lightweight transaction, it waits for the promise of node 1 at QUORUM, which never comes
             CountDownLatch storing = new CountDownLatch(1);
-            cluster.filters().outbound().verbs(Verb.MUTATION_REQ.id).from(2).to(1)
+            cluster.filters().outbound().verbs(Verb.PAXOS_PREPARE_REQ.id, Verb.PAXOS2_PREPARE_REQ.id).from(2).to(1)
                    .messagesMatching((from, to, message) -> {
                        storing.countDown();
                        return true;
@@ -157,7 +161,7 @@ public class CompressionDictionaryBackgroundTasksTest extends TestBaseImpl
 
             assertThat(errors(cluster.get(1), mark)).isEmpty();
             // the refresh really ran while the keyspace was not there
-            assertThat(cluster.get(1).logs().grep(mark, "Could not read the latest compression dictionary for .* is not loaded yet").getResult()).isNotEmpty();
+            assertThat(cluster.get(1).logs().grep(mark, "Could not read the compression dictionaries for .* is not loaded yet").getResult()).isNotEmpty();
             // as did the retrieval of a notified dictionary, see BB.initCf
             assertThat(cluster.get(1).logs().grep(mark, "Could not read compression dictionary .* is not loaded yet").getResult()).hasSize(1);
             // and a later refresh reads the dictionary
@@ -310,10 +314,11 @@ public class CompressionDictionaryBackgroundTasksTest extends TestBaseImpl
                            .intercept(MethodDelegation.withDefaultConfiguration().filter(named("readChunk")).to(BB.class))
                            .make()
                            .load(classLoader, ClassLoadingStrategy.Default.INJECTION);
+            // the page of dictionaries a refresh reads, newest first
             new ByteBuddy().rebase(SystemDistributedKeyspace.class)
-                           .method(named("retrieveLatestCompressionDictionary").or(named("retrieveCompressionDictionary")))
+                           .method(named("retrieveLightweightCompressionDictionaries").and(takesArguments(5)))
                            .intercept(MethodDelegation.withDefaultConfiguration()
-                                                      .filter(named("retrieveLatestCompressionDictionary").or(named("retrieveCompressionDictionary")))
+                                                      .filter(named("retrieveLightweightCompressionDictionaries"))
                                                       .to(BB.class))
                            .make()
                            .load(classLoader, ClassLoadingStrategy.Default.INJECTION);
@@ -366,18 +371,18 @@ public class CompressionDictionaryBackgroundTasksTest extends TestBaseImpl
             real.call();
         }
 
-        public static CompressionDictionary retrieveLatestCompressionDictionary(@Argument(0) String keyspace, @Argument(1) String table, @Argument(2) String id, @SuperCall Callable<CompressionDictionary> real) throws Exception
+        public static List<LightweightCompressionDictionary> retrieveLightweightCompressionDictionaries(@SuperCall Callable<List<LightweightCompressionDictionary>> real) throws Exception
         {
+            // a notified dictionary is retrieved by a refresh as well, which runs on the non-periodic tasks
+            if (Thread.currentThread().getName().contains("NonPeriodicTasks"))
+                return retrieve(retrieveNotified, real);
+
             refreshes.incrementAndGet();
             return retrieve(retrieve, real);
         }
 
-        public static CompressionDictionary retrieveCompressionDictionary(@Argument(0) String keyspace, @Argument(1) String table, @Argument(2) String id, @Argument(3) long dictionaryId, @SuperCall Callable<CompressionDictionary> real) throws Exception
-        {
-            return retrieve(retrieveNotified, real);
-        }
-
-        private static CompressionDictionary retrieve(int mode, Callable<CompressionDictionary> real) throws Exception
+        @Nullable
+        private static <T> T retrieve(int mode, Callable<T> real) throws Exception
         {
             switch (mode)
             {

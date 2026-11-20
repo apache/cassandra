@@ -23,7 +23,9 @@ import java.io.DataOutput;
 import java.io.EOFException;
 import java.io.IOException;
 import java.time.Instant;
+import java.util.Map;
 import java.util.Objects;
+import java.util.Set;
 
 import javax.annotation.Nullable;
 
@@ -335,7 +337,7 @@ public interface CompressionDictionary
         String tableName = row.getString("table_name");
         String tableId = row.getString("table_id");
         Instant createdAt = row.getTimestamp("created_at").toInstant();
-        CompressionDictionaryScope scope = CompressionDictionaryScope.fromRow(row);
+        Set<Map<String, String>> storedScope = CompressionDictionaryScope.valueFromRow(row);
 
         try
         {
@@ -346,7 +348,8 @@ public interface CompressionDictionary
                                                         checksum,
                                                         size,
                                                         createdAt,
-                                                        scope);
+                                                        CompressionDictionaryScope.fromValue(storedScope),
+                                                        storedScope);
         }
         catch (IllegalArgumentException ex)
         {
@@ -573,6 +576,11 @@ public interface CompressionDictionary
         public final int size;
         public final Instant createdAt;
         public final CompressionDictionaryScope scope;
+        // the value of the scope column as it is stored, null for the whole cluster; a transaction conditioned on
+        // the scope compares it, as the value of the parsed scope may differ, e.g. for a value written by a later
+        // version
+        @Nullable
+        public final Set<Map<String, String>> storedScope;
 
         public LightweightCompressionDictionary(String keyspaceName,
                                                 String tableName,
@@ -583,6 +591,19 @@ public interface CompressionDictionary
                                                 Instant createdAt,
                                                 CompressionDictionaryScope scope)
         {
+            this(keyspaceName, tableName, tableId, dictId, checksum, size, createdAt, scope, scope.toValue());
+        }
+
+        public LightweightCompressionDictionary(String keyspaceName,
+                                                String tableName,
+                                                String tableId,
+                                                DictId dictId,
+                                                int checksum,
+                                                int size,
+                                                Instant createdAt,
+                                                CompressionDictionaryScope scope,
+                                                @Nullable Set<Map<String, String>> storedScope)
+        {
             this.keyspaceName = keyspaceName;
             this.tableName = tableName;
             this.tableId = tableId;
@@ -591,6 +612,7 @@ public interface CompressionDictionary
             this.size = size;
             this.createdAt = createdAt;
             this.scope = scope;
+            this.storedScope = storedScope;
         }
 
         @Override

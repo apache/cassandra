@@ -22,6 +22,7 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
+import java.util.Iterator;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
@@ -204,7 +205,7 @@ public final class CompressionDictionaryScope
         abstract Collection<InetAddressAndPort> memberEndpoints(Directory directory);
 
         /**
-         * @return true unless no node of this place is in the cluster anymore
+         * @return true when a node of this place is joined
          */
         abstract boolean hasMembers(Directory directory);
 
@@ -243,14 +244,20 @@ public final class CompressionDictionaryScope
             String datacenter = map.get(DC_KEY);
             if (map.size() == 1 && map.containsKey(NODE_ID_KEY))
             {
+                // only the canonical form of a node id, e.g. not '01' or '+1', so that the place written back is
+                // the stored one; node ids are positive
+                String raw = map.get(NODE_ID_KEY);
                 try
                 {
-                    return new NodePlace(new NodeId(Integer.parseInt(map.get(NODE_ID_KEY))));
+                    int id = Integer.parseInt(raw);
+                    if (id > 0 && Integer.toString(id).equals(raw))
+                        return new NodePlace(new NodeId(id));
                 }
                 catch (NumberFormatException e)
                 {
-                    return new UnknownPlace(map);
+                    // not a node id this version knows
                 }
+                return new UnknownPlace(map);
             }
             if (map.size() == 2 && datacenter != null && map.get(RACK_KEY) != null)
                 return new RackPlace(datacenter, map.get(RACK_KEY));
@@ -287,7 +294,8 @@ public final class CompressionDictionaryScope
         @Override
         Collection<InetAddressAndPort> memberEndpoints(Directory directory)
         {
-            if (!isInCluster(directory, node))
+            // joined nodes only, as for racks and datacenters; a node which joins later refreshes on its startup
+            if (!isJoined(directory, node))
                 return List.of();
 
             InetAddressAndPort endpoint = directory.endpoint(node);
@@ -297,7 +305,7 @@ public final class CompressionDictionaryScope
         @Override
         boolean hasMembers(Directory directory)
         {
-            return isInCluster(directory, node);
+            return isJoined(directory, node);
         }
 
         @Override
@@ -369,7 +377,7 @@ public final class CompressionDictionaryScope
         @Override
         boolean hasMembers(Directory directory)
         {
-            return directory.peerIds().stream().anyMatch(node -> isInCluster(directory, node) && isIn(directory.location(node)));
+            return directory.peerIds().stream().anyMatch(node -> isJoined(directory, node) && isIn(directory.location(node)));
         }
 
         @Override
@@ -452,7 +460,7 @@ public final class CompressionDictionaryScope
         @Override
         boolean hasMembers(Directory directory)
         {
-            return directory.peerIds().stream().anyMatch(node -> isInCluster(directory, node) && isIn(directory.location(node)));
+            return directory.peerIds().stream().anyMatch(node -> isJoined(directory, node) && isIn(directory.location(node)));
         }
 
         @Override
@@ -526,7 +534,22 @@ public final class CompressionDictionaryScope
         @Override
         int compareWithinRank(Place other)
         {
-            return map.toString().compareTo(((UnknownPlace) other).map.toString());
+            // entry by entry, both maps are sorted by key; consistent with equals, unlike comparing their strings,
+            // which can be the same for different maps, e.g. {a=b, c=d} for {'a': 'b, c=d'} and {'a': 'b', 'c': 'd'}
+            Iterator<Map.Entry<String, String>> mine = map.entrySet().iterator();
+            Iterator<Map.Entry<String, String>> theirs = ((UnknownPlace) other).map.entrySet().iterator();
+            while (mine.hasNext() && theirs.hasNext())
+            {
+                Map.Entry<String, String> a = mine.next();
+                Map.Entry<String, String> b = theirs.next();
+                int byKey = a.getKey().compareTo(b.getKey());
+                if (byKey != 0)
+                    return byKey;
+                int byValue = a.getValue().compareTo(b.getValue());
+                if (byValue != 0)
+                    return byValue;
+            }
+            return Boolean.compare(mine.hasNext(), theirs.hasNext());
         }
 
         @Override
@@ -594,7 +617,16 @@ public final class CompressionDictionaryScope
      */
     public static CompressionDictionaryScope fromRow(UntypedResultSet.Row row)
     {
-        return row.has("scope") ? fromValue(row.getFrozenSet("scope", TYPE.getElementsType())) : CLUSTER;
+        return fromValue(valueFromRow(row));
+    }
+
+    /**
+     * @return the value of the scope column of the row as it is stored, null for the whole cluster
+     */
+    @Nullable
+    public static Set<Map<String, String>> valueFromRow(UntypedResultSet.Row row)
+    {
+        return row.has("scope") ? row.getFrozenSet("scope", TYPE.getElementsType()) : null;
     }
 
     /**
@@ -610,12 +642,16 @@ public final class CompressionDictionaryScope
         List<Map<String, String>> value = new ArrayList<>();
         for (String[] place : flattened)
         {
+            // an empty place is a place this version does not know, it is never written but it can be stored
             if (place.length % 2 != 0)
                 throw new IllegalArgumentException("Place of a scope has a key without a value: " + Arrays.toString(place));
 
             Map<String, String> map = new TreeMap<>();
             for (int i = 0; i < place.length; i += 2)
-                map.put(place[i], place[i + 1]);
+            {
+                if (map.put(place[i], place[i + 1]) != null)
+                    throw new IllegalArgumentException("Place of a scope has a duplicate key " + place[i] + ": " + Arrays.toString(place));
+            }
             value.add(map);
         }
         return fromValue(value);
@@ -811,7 +847,7 @@ public final class CompressionDictionaryScope
      * A dictionary whose scope has no member is orphaned, nothing compresses with it anymore.
      *
      * @param directory directory of the cluster
-     * @return false when no place of this scope has a node in the cluster anymore, e.g. the node of a single node
+     * @return false when no place of this scope has a joined node, e.g. the node of a single node
      *         scope left, or the rack of a rack scope was decommissioned; true for the whole cluster, and for a scope
      *         with places this version does not understand
      */
@@ -823,14 +859,17 @@ public final class CompressionDictionaryScope
         return places.stream().anyMatch(place -> place.hasMembers(directory));
     }
 
-    private static boolean isInCluster(Directory directory, NodeId node)
+    /**
+     * A member of a scope is a joined node: a node which only registered, or bootstraps, does not take part yet, and a
+     * node which leaves, moves or left does not anymore.
+     */
+    private static boolean isJoined(Directory directory, NodeId node)
     {
-        NodeState state = directory.peerState(node);
-        return state != null && state != NodeState.LEFT;
+        return directory.peerState(node) == NodeState.JOINED;
     }
 
     /**
-     * @return "cluster", or the places, e.g. "node 1, rack dc1/r1, datacenter dc2"
+     * @return "cluster", or the places, e.g. "node 1, rack dc1/r1, dc dc2"
      */
     @Override
     public String toString()

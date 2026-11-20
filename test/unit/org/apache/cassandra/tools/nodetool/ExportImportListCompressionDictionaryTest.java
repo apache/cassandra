@@ -36,6 +36,7 @@ import org.junit.Test;
 
 import org.apache.cassandra.cql3.CQLTester;
 import org.apache.cassandra.db.compression.CompressionDictionaryDetailsTabularData.CompressionDictionaryDataObject;
+import org.apache.cassandra.db.compression.CompressionDictionaryManager;
 import org.apache.cassandra.db.compression.CompressionDictionaryScope;
 import org.apache.cassandra.io.util.File;
 import org.apache.cassandra.io.util.FileUtils;
@@ -48,6 +49,7 @@ import static java.lang.String.format;
 import static org.apache.cassandra.tools.ToolRunner.invokeNodetool;
 import static org.apache.cassandra.utils.JsonUtils.serializeToJsonFile;
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.junit.Assert.assertTrue;
 
 public class ExportImportListCompressionDictionaryTest extends CQLTester
@@ -104,6 +106,24 @@ public class ExportImportListCompressionDictionaryTest extends CQLTester
         // the candidate has to be promoted or discarded before anything else is trained
         invokeNodetool("compressiondictionary", "train", "--force", keyspace(), table)
         .asserts().failure().errorContains("is scoped to node " + ClusterMetadata.current().myNodeId().id() + ", promote or discard it first");
+    }
+
+    @Test
+    public void testInvalidPromoteArguments() throws Throwable
+    {
+        String table = createTable("CREATE TABLE %s (id int PRIMARY KEY, data text) WITH compression = {'class': 'ZstdDictionaryCompressor'}");
+        // blank names, and over JMX a null rack, never reach the promotion
+        CompressionDictionaryManager manager = getCurrentColumnFamilyStore().compressionDictionaryManager();
+        assertThatThrownBy(() -> manager.promoteDictionary(" ", new String[0]))
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessageContaining("A datacenter to promote a dictionary to can not be empty");
+        for (String rack : new String[]{ null, "", " " })
+        {
+            assertThatThrownBy(() -> manager.promoteDictionary("datacenter1", new String[]{ "rack1", rack }))
+            .isInstanceOf(IllegalArgumentException.class)
+            .hasMessageContaining("A rack to promote a dictionary to can not be empty");
+        }
+
     }
 
     @Test
