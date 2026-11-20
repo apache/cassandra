@@ -20,9 +20,12 @@ package org.apache.cassandra.db.compression;
 
 import java.time.Instant;
 import java.time.temporal.ChronoUnit;
+import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.TimeUnit;
+import java.util.function.UnaryOperator;
 
 import javax.annotation.Nullable;
 import javax.management.openmbean.CompositeData;
@@ -40,6 +43,8 @@ import org.apache.cassandra.db.lifecycle.SSTableSet;
 import org.apache.cassandra.db.lifecycle.View;
 import org.apache.cassandra.schema.CompressionParams;
 import org.apache.cassandra.schema.SystemDistributedKeyspace;
+import org.apache.cassandra.tcm.ClusterMetadata;
+import org.apache.cassandra.tcm.membership.Directory;
 import org.apache.cassandra.utils.FBUtilities;
 import org.apache.cassandra.utils.MBeanWrapper;
 import org.apache.cassandra.utils.MBeanWrapper.OnException;
@@ -302,7 +307,7 @@ public class CompressionDictionaryManager implements CompressionDictionaryManage
         }
 
         // a scope recorded in the composite data, e.g. exported with the dictionary, is ignored
-        CompressionDictionaryScope dictionaryScope = CompressionDictionaryScope.Kind.parse(scope).of(CompressionDictionary.localNodeId());
+        CompressionDictionaryScope dictionaryScope = CompressionDictionary.scopeOfThisNode(CompressionDictionaryScope.Kind.parse(scope));
 
         CompressionDictionaryDataObject dataObject = CompressionDictionaryDetailsTabularData.fromCompositeData(compositeData);
 
@@ -353,21 +358,61 @@ public class CompressionDictionaryManager implements CompressionDictionaryManage
         // only the nodes of its scope use it, they go back to the newest dictionary whose scope contains them, or to
         // none, right away instead of on their next refresh: this node refreshes when it is one of them, the others
         // are notified
-        if (discarded.scope.contains(CompressionDictionary.localNodeId()))
+        if (CompressionDictionary.isThisNodeIn(discarded.scope))
             scheduler.refreshCurrentDictionary();
         onDictionaryDiscarded(discarded.dictId, discarded.scope);
     }
 
     @Override
-    public void promoteDictionary()
+    public void promoteDictionary(@Nullable String datacenter, @Nullable String[] racks)
     {
-        CompressionDictionaryScope target = CompressionDictionaryScope.CLUSTER;
-        LightweightCompressionDictionary promoted = SystemDistributedKeyspace.promoteCompressionDictionary(keyspaceName, tableName, tableId, target);
+        UnaryOperator<CompressionDictionaryScope> widen = widening(datacenter, racks == null ? List.of() : Arrays.asList(racks));
+        LightweightCompressionDictionary promoted = SystemDistributedKeyspace.promoteCompressionDictionary(keyspaceName, tableName, tableId, widen);
         // the nodes of the new scope use it right away instead of on their next refresh: this node refreshes when it
         // is one of them, the announcement skips this node
-        if (target.contains(CompressionDictionary.localNodeId()))
+        if (CompressionDictionary.isThisNodeIn(promoted.scope))
             onNewDictionaryAvailable(promoted.dictId);
-        onNewDictionaryTrained(promoted.dictId, target);
+        onNewDictionaryTrained(promoted.dictId, promoted.scope);
+    }
+
+    /**
+     * @param datacenter the datacenter to add to the scope, or of the racks to add; null to promote to the whole cluster
+     * @param racks      the racks of the datacenter to add to the scope, all of the datacenter when empty
+     * @return the widening of a scope by the places
+     * @throws IllegalArgumentException if racks are given without a datacenter, or a datacenter or rack has no node
+     */
+    private static UnaryOperator<CompressionDictionaryScope> widening(@Nullable String datacenter, List<String> racks)
+    {
+        if (datacenter == null)
+        {
+            if (!racks.isEmpty())
+                throw new IllegalArgumentException("Racks to promote a dictionary to have to be given with their datacenter");
+            return scope -> CompressionDictionaryScope.CLUSTER;
+        }
+
+        List<CompressionDictionaryScope.Place> places = new ArrayList<>();
+        if (racks.isEmpty())
+            places.add(new CompressionDictionaryScope.DatacenterPlace(datacenter));
+        for (String rack : racks)
+            places.add(new CompressionDictionaryScope.RackPlace(datacenter, rack));
+
+        // a typo would otherwise promote the dictionary to a place where no node uses it
+        Directory directory = ClusterMetadata.current().directory;
+        for (CompressionDictionaryScope.Place place : places)
+        {
+            if (!CompressionDictionaryScope.of(List.of(place)).hasMembers(directory))
+                throw new IllegalArgumentException(format("There is no node in %s, a dictionary can not be promoted to it", place));
+        }
+
+        return scope -> {
+            // asking for places the scope covers already is a mistake, e.g. a rack of a datacenter in the scope
+            List<CompressionDictionaryScope.Place> covered = scope.coveredOf(directory, places);
+            if (covered.size() == places.size())
+                throw new IllegalArgumentException(format("%s %s already in its scope, nothing to promote",
+                                                          CompressionDictionaryScope.describe(covered),
+                                                          covered.size() == 1 ? "is" : "are"));
+            return scope.plus(directory, places);
+        };
     }
 
     /**

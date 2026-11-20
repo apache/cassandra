@@ -143,46 +143,53 @@ limited data during initial setup.
 
 ==== Dictionary Scope
 
-Every dictionary has a scope, the nodes which compress with it: either the
-whole cluster, which is the default, or a single node. A dictionary trained or
-imported with `--scope node` is used only by the node it was trained or
-imported on. This makes it possible to try a dictionary on one node, for
+Every dictionary has a scope, the nodes which compress with it: the whole
+cluster, which is the default, or one or more places, each of them a node, a
+rack or a datacenter. A dictionary trained or imported with `--scope node`,
+`--scope rack` or `--scope dc` is used only by the node it was trained
+or imported on, by the nodes of its rack, or by the nodes of its datacenter.
+This makes it possible to try a dictionary on a part of the cluster, for
 example by comparing its `SSTable Compression Ratio` in `nodetool tablestats`
 with other nodes, before all nodes start to use it:
 
 [source,bash]
 ----
-nodetool compressiondictionary train --scope node <keyspace> <table>
+nodetool compressiondictionary train --scope rack <keyspace> <table>
 nodetool compressiondictionary import --scope node <dictionary.json>
 ----
 
 The scope is stored in the `scope` column of
 `system_distributed.compression_dictionaries`, a
 `frozen<set<frozen<map<text, text>>>>`. It is either null, the whole cluster,
-or a set of places, each of them a map, and the scope contains the nodes of
-all its places:
+or a set of places, and the scope contains the nodes of all its places:
 
 [cols="1,2,2",options="header"]
 |===
-|Scope |Value of `scope` |Used by
-|cluster |`null` |every node
-|node |`{{'node_id': '<id>'}}` |the node with that id in cluster metadata only
+|Place |Element of `scope` |Contains
+|node |`{'node_id': '<id>'}` |the node with that id in cluster metadata
+|rack |`{'dc': '<dc>', 'rack': '<rack>'}` |the nodes of that rack of that datacenter
+|dc |`{'dc': '<dc>'}` |the nodes of that datacenter
 |===
 
-A node compresses with the newest dictionary of a table whose scope contains
-it. A dictionary scoped to a node is not announced to other nodes and their
-dictionary refresh skips it, while the node itself loads it again after a
-restart. A place with any other value, for example one written by a later
-version which knows more kinds of places, such as racks, contains no node.
-An empty set is never written.
+For example, `{{'dc': 'dc1', 'rack': 'r1'}, {'dc': 'dc1', 'rack': 'r2'}}`
+is used by the nodes of racks `r1` and `r2` of `dc1`, and `null` by every node.
 
-While a dictionary scoped to a node is the latest dictionary of the table,
-training or importing another dictionary, on any node, fails until it is
-promoted or discarded, so a table has at most one such dictionary, the
-candidate:
+A node compresses with the newest dictionary of a table whose scope contains
+it. Whether a rack or a datacenter contains a node is decided by the location
+of the node in cluster metadata, so a node moved to another rack follows the
+scope of its new rack from its next dictionary refresh on. A dictionary is
+announced only to the nodes of its scope and the dictionary refresh of other
+nodes skips it, while the nodes of its scope load it again after a restart. A
+place with any other value, for example one written by a later version which
+knows more kinds of places, contains no node. An empty set is never written.
+
+While a dictionary scoped narrower than the cluster is the latest dictionary
+of the table, training or importing another dictionary, on any node, fails
+until it is promoted to the whole cluster or discarded, so a table has at most
+one such dictionary, the candidate:
 
 ----
-Failed to trigger training: The latest dictionary 134309641881031111 of table ks.events is scoped to node 1, promote or discard it first
+Failed to trigger training: The latest dictionary 134309641881031111 of table ks.events is scoped to rack dc1/r1, promote or discard it first
 ----
 
 SSTables written with a dictionary contain it. When a node receives such
@@ -191,29 +198,55 @@ or bootstrap, or by `nodetool import`, and the scope of their dictionary does
 not contain the node, it reads them with that dictionary but does not compress
 with it, so compaction rewrites their data with the dictionary the node uses.
 
-Once a candidate proves itself, promote it to be used by all nodes:
+===== Promotion
+
+Once a candidate proves itself, promote it to more racks or datacenters, or to
+the whole cluster:
 
 [source,bash]
 ----
+# add rack r2 of datacenter dc1, --rack can be repeated
+nodetool compressiondictionary promote --dc dc1 --rack r2 <keyspace> <table>
+# add the whole datacenter dc1
+nodetool compressiondictionary promote --dc dc1 <keyspace> <table>
+# the whole cluster
 nodetool compressiondictionary promote <keyspace> <table>
 ----
 
 The command can be run on any node and promotes the latest dictionary of the
-table. It sets `scope` of the dictionary to null, by a lightweight transaction
-which expects the scope the dictionary had when it was read, and announces the
-dictionary to all nodes, which start to compress new SSTables with it right
-away.
+table. The given places are added to its scope, and a place which another place
+of the scope contains is dropped: a rack of a datacenter which is in the scope,
+or a node located in a rack or a datacenter which is in the scope. So a
+dictionary of rack `r1` of `dc1`, promoted by `--dc dc1 --rack r2`, is
+scoped to both racks, and promoted by `--dc dc1` after that, it is
+scoped to `dc1` only. Without `--dc`, the scope is set to null, the
+whole cluster.
 
-Promotion only ever widens a scope: the new scope has to contain every place of
-the current one and more. A promotion is rejected when the new scope is the
-same as the current one, when it is narrower, when it leaves out any place of
-the current one, even if it adds others, and when it contains places this
-version does not know. A scope which contains places this version does not
-know can still be promoted to the whole cluster, which contains everything.
-Today the only promotion `nodetool` offers is the one to the whole cluster. A node which the announcement does not reach picks the dictionary up on
-its next refresh. The command fails when the table has no dictionary, when
-its latest dictionary is already used by all nodes, or when its scope changed
-or it was deleted meanwhile, for example by a concurrent promotion or discard.
+The scope is changed by a lightweight transaction which expects the scope the
+dictionary had when it was read, and the dictionary is announced to the nodes
+of its new scope, which start to compress new SSTables with it right away. A
+node which the announcement does not reach picks the dictionary up on its next
+refresh.
+
+Promotion only ever widens a scope: the new scope has to contain every node of
+the current one, by every place of the current scope being contained in a
+place of the new one, and it has to differ from the current one. A promotion
+fails when:
+
+* the table has no dictionary, or its latest dictionary is already used by all
+nodes,
+* `--rack` is given without `--dc`,
+* the given datacenter or rack has no node in the cluster, which is most likely
+a typo,
+* the scope would not change, because the given places are in the scope
+already, e.g. a rack of a datacenter the dictionary is scoped to,
+* the scope changed or the dictionary was deleted meanwhile, for example by a
+concurrent promotion or discard.
+
+A scope which contains places this version does not know can only be promoted
+to the whole cluster.
+
+===== Discarding
 
 When a candidate does not prove itself, discard it:
 
@@ -508,27 +541,27 @@ These commands are related to compression dictionaries:
 * export - a user can export a compression dictionary of a keyspace and a table, either the last one or
 by a specific id, to a file.
 * import - a user can import a compression dictionary, exported by above command, from a file to a cluster.
-* promote - promotes the latest dictionary of a table, trained or imported with `--scope node`, to be used by all nodes,
-described in Dictionary Scope.
-* discard - discards the latest dictionary of a table, trained or imported with `--scope node`, its node compresses with
-the latest dictionary used by all nodes again, described in Dictionary Scope.
+* promote - widens the scope of the latest dictionary of a table, trained or imported with `--scope node|rack|dc`,
+by racks or datacenters (`--dc`, `--rack`), or to the whole cluster, described in Dictionary Scope.
+* discard - discards the latest dictionary of a table, scoped narrower than the cluster, the nodes of its scope compress
+with the latest dictionary whose scope contains them again, described in Dictionary Scope.
 * cleanup - removes orphaned dictionaries. These are the ones for which a table they were trained for does not exist anymore (it was dropped),
-or which are scoped to a node which is not in the cluster anymore (it was decommissioned or removed).
+or whose scope has no node in the cluster anymore, e.g. its node, rack or datacenter was decommissioned or removed.
 A user can inspect which dictionaries are orphaned by `-d / --dry` flag without deleting them.
 
 For `train` subcommand, it is possible to specify:
 
 * `--max-dict-size` - overrides `training_max_dictionary_size` in CQL `compression` configuration.
 * `--max-total-sample-size` - overrides `training_max_total_sample_size` in CQL `compression` configuration.
-* `--scope` - `node` when the dictionary is used only by the node it was trained on, until it is promoted, or `cluster`,
-the default, when all nodes use it.
+* `--scope` - `node`, `rack` or `dc` when the dictionary is used only by the node it was trained on, its rack or
+its datacenter, until it is promoted, or `cluster`, the default, when all nodes use it.
 
 Importing a dictionary to a table from a file should happen only against one node at a time as
 dictionary will be eventually stored in `system_distributed.compression_dictionaries` table and reused
 cluster-wide. When imports happen from multiple nodes, the highest-version dictionary will be used.
 Only a dictionary newer than the latest dictionary of the table can be imported, so an exported dictionary
-can not be imported again into the same table. With `--scope node`, the imported dictionary is used only by
-the node it was imported on, until it is promoted. An exported dictionary carries its scope, an import ignores it.
+can not be imported again into the same table. With `--scope node|rack|dc`, the imported dictionary is used
+only by the node it was imported on, its rack or its datacenter, until it is promoted. An exported dictionary carries its scope, an import ignores it.
 
 == Advanced Use
 

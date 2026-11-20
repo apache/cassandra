@@ -44,7 +44,8 @@ OPTIONS
 
         --scope <scope>
             Scope of the dictionary, the nodes which compress with it: node
-            (this node only, until the dictionary is promoted) or cluster (all
+            (this node only), rack (the rack of this node), dc (the datacenter
+            of this node), until the dictionary is promoted, or cluster (all
             nodes). The default is cluster.
 
         -u <username>, --username <username>

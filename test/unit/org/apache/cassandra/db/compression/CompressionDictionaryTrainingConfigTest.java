@@ -34,12 +34,15 @@ public class CompressionDictionaryTrainingConfigTest
         assertThat(CompressionDictionaryTrainingConfig.getScope(Map.of())).isEqualTo(CompressionDictionaryScope.CLUSTER);
         assertThat(CompressionDictionaryTrainingConfig.getScope(Map.of(TRAINING_SCOPE_PARAMETER_NAME, "CLUSTER"))).isEqualTo(CompressionDictionaryScope.CLUSTER);
         // there is no cluster metadata, so the id of this node is not known
-        assertThatThrownBy(() -> CompressionDictionaryTrainingConfig.getScope(Map.of(TRAINING_SCOPE_PARAMETER_NAME, "node")))
-        .isInstanceOf(IllegalStateException.class)
-        .hasMessageContaining("The id of this node is not known");
-        assertThatThrownBy(() -> CompressionDictionaryTrainingConfig.getScope(Map.of(TRAINING_SCOPE_PARAMETER_NAME, "rack")))
+        for (String scope : new String[]{ "node", "rack", "dc" })
+        {
+            assertThatThrownBy(() -> CompressionDictionaryTrainingConfig.getScope(Map.of(TRAINING_SCOPE_PARAMETER_NAME, scope)))
+            .isInstanceOf(IllegalStateException.class)
+            .hasMessageContaining("The id of this node is not known");
+        }
+        assertThatThrownBy(() -> CompressionDictionaryTrainingConfig.getScope(Map.of(TRAINING_SCOPE_PARAMETER_NAME, "region")))
         .isInstanceOf(IllegalArgumentException.class)
-        .hasMessageContaining("Invalid scope 'rack', valid scopes are [node, cluster]");
+        .hasMessageContaining("Invalid scope 'region', valid scopes are [node, rack, dc, cluster]");
     }
 
     @Test

@@ -157,7 +157,7 @@ public class CompressionDictionaryTrainingConfig
     public static CompressionDictionaryScope getScope(Map<String, String> parameters)
     {
         String value = parameters.getOrDefault(TRAINING_SCOPE_PARAMETER_NAME, DEFAULT_TRAINING_SCOPE_PARAMETER_VALUE);
-        return CompressionDictionaryScope.Kind.parse(value).of(CompressionDictionary.localNodeId());
+        return CompressionDictionary.scopeOfThisNode(CompressionDictionaryScope.Kind.parse(value));
     }
 
     private static int internalTrainingParameterResolution(CompressionParams compressionParams,

@@ -40,7 +40,6 @@ import org.apache.cassandra.db.compression.CompressionDictionary.DictId;
 import org.apache.cassandra.db.compression.CompressionDictionary.LightweightCompressionDictionary;
 import org.apache.cassandra.schema.CompressionParams;
 import org.apache.cassandra.schema.SystemDistributedKeyspace;
-import org.apache.cassandra.tcm.membership.NodeId;
 import org.apache.cassandra.utils.JVMStabilityInspector;
 import org.apache.cassandra.utils.Throwables;
 
@@ -229,7 +228,7 @@ public class CompressionDictionaryScheduler implements ICompressionDictionarySch
     public synchronized void addStoredDictionary(CompressionDictionary dictionary)
     {
         // a dictionary trained or imported on this node has a scope which contains it, see CompressionDictionaryScope.Kind
-        if (dictionary.scope().contains(CompressionDictionary.localNodeId()))
+        if (CompressionDictionary.isThisNodeIn(dictionary.scope()))
             cache.add(dictionary);
         else
             cache.addForReading(dictionary);
@@ -242,7 +241,6 @@ public class CompressionDictionaryScheduler implements ICompressionDictionarySch
     @Nullable
     private CompressionDictionary newestUsableDictionary()
     {
-        NodeId localNodeId = CompressionDictionary.localNodeId();
         // newest first, page by page, there may be many dictionaries but the newest ones are usually usable
         Long olderThan = null;
         while (true)
@@ -254,7 +252,8 @@ public class CompressionDictionaryScheduler implements ICompressionDictionarySch
 
             for (LightweightCompressionDictionary dictionary : page)
             {
-                if (!dictionary.scope.contains(localNodeId))
+                // by the location of this node at the time of the refresh, a node moved to another rack follows it
+                if (!CompressionDictionary.isThisNodeIn(dictionary.scope))
                     continue;
 
                 // a cached dictionary might be cached for reading sstables written with it only, the caller makes it current

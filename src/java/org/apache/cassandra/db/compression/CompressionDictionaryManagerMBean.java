@@ -148,18 +148,37 @@ public interface CompressionDictionaryManagerMBean
      * Promotes the latest dictionary, scoped narrower than the cluster, to the whole cluster. That means that it will
      * set the scope column of the latest dictionary to null and announce the dictionary to all nodes, which start to
      * use it right away, or on their next dictionary refreshment round when the announcement does not reach them.
-     * A dictionary trained or imported with the node scope
-     * (done via nodetool compressiondictionary train|import --scope node) is used for compression only on the node
-     * it was trained or imported on. The calling of this method, on any node, will promote it among all nodes.
+     * A dictionary trained or imported with the node, rack or datacenter scope
+     * (done via nodetool compressiondictionary train|import --scope node|rack|dc) is used for compression only
+     * on the node it was trained or imported on, its rack or its datacenter. The calling of this method, on any node,
+     * will promote it among all nodes.
      *
      * @throws IllegalStateException if no dictionary is found, the latest one is already used by all nodes,
      *                               or it was deleted or its scope changed before it could be promoted
      */
-    void promoteDictionary();
+    default void promoteDictionary()
+    {
+        promoteDictionary(null, new String[0]);
+    }
+
+    /**
+     * Promotes the latest dictionary, scoped narrower than the cluster, to a wider scope by adding places to its scope:
+     * the given racks of the given datacenter, the whole datacenter when no rack is given, or the whole cluster when
+     * no datacenter is given. Places which another place of the scope covers are dropped, e.g. the racks of a
+     * datacenter which is added. The dictionary is announced to the nodes of the new scope.
+     *
+     * @param datacenter the datacenter to add, or of the racks to add; null for the whole cluster
+     * @param racks      racks of the datacenter to add, none for the whole datacenter
+     * @throws IllegalStateException    if no dictionary is found, the latest one is already used by all nodes, or it
+     *                                  was deleted or its scope changed before it could be promoted
+     * @throws IllegalArgumentException if racks are given without a datacenter, a datacenter or rack has no node,
+     *                                  or the scope would not be wider, e.g. it contains the places already
+     */
+    void promoteDictionary(@Nullable String datacenter, @Nullable String[] racks);
 
     /**
      * Discards the latest dictionary when it is scoped narrower than the cluster, i.e. trained or imported with
-     * --scope node and not promoted. It is deleted from system_distributed and the nodes of its scope compress with
+     * --scope node|rack|dc and not promoted to the whole cluster. It is deleted from system_distributed and the nodes of its scope compress with
      * the newest dictionary whose scope contains them again, or with none when there is no such dictionary. It can be
      * called on any node, the nodes of the scope are notified. SSTables written with a discarded dictionary remain
      * readable.

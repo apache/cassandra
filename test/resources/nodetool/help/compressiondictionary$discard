@@ -1,7 +1,8 @@
 NAME
         nodetool compressiondictionary discard - Discard the latest dictionary
-        for given keyspace and table, trained or imported with --scope node,
-        its node compresses with the latest dictionary used by all nodes again.
+        for given keyspace and table, scoped narrower than the cluster, the
+        nodes of its scope compress with the latest dictionary whose scope
+        contains them again.
 
 SYNOPSIS
         nodetool [(-h <host> | --host <host>)] [(-p <port> | --port <port>)]

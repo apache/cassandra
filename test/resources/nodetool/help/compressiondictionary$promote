@@ -1,16 +1,22 @@
 NAME
         nodetool compressiondictionary promote - Promote the latest dictionary
-        for given keyspace and table, trained or imported with --scope node, to
-        be used by all nodes.
+        for given keyspace and table, trained or imported with --scope node,
+        rack or dc, to a wider scope: add a datacenter or racks of it to its
+        scope, or promote it to the whole cluster.
 
 SYNOPSIS
         nodetool [(-h <host> | --host <host>)] [(-p <port> | --port <port>)]
                 [(-pw <password> | --password <password>)]
                 [(-pwf <passwordFilePath> | --password-file <passwordFilePath>)]
                 [(-u <username> | --username <username>)] compressiondictionary promote
-                [--] <keyspace> <table>
+                [--dc <dc>] [--rack <rack>] [--] <keyspace> <table>
 
 OPTIONS
+        --dc <dc>
+            Add this datacenter, or the racks given by --rack of it, to the
+            scope of the dictionary. Without it, the dictionary is promoted to
+            the whole cluster.
+
         -h <host>, --host <host>
             Node hostname or ip address
 
@@ -22,6 +28,11 @@ OPTIONS
 
         -pwf <passwordFilePath>, --password-file <passwordFilePath>
             Path to the JMX password file
+
+        --rack <rack>
+            Add this rack of the datacenter given by --dc to the scope of the
+            dictionary, can be repeated. Without it, the whole datacenter is
+            added.
 
         -u <username>, --username <username>
             Remote jmx agent username
