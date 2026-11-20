@@ -272,6 +272,9 @@ public class TableMetrics
 
     public final Gauge<Integer> unleveledSSTables;
 
+    // The maximum number of sstables whose key ranges overlap at any one key
+    public final Gauge<Integer> maxOverlappingSSTables;
+
     /**
      * Metrics for inconsistencies detected between repaired data sets across replicas. These
      * are tracked on the coordinator.
@@ -948,6 +951,16 @@ public class TableMetrics
                 cnt += ((Gauge<? extends Number>) cfGauge).getValue().intValue();
             }
             return cnt;
+        });
+
+        maxOverlappingSSTables = createTableGauge("MaxOverlappingSSTables", cfs::getMaxOverlappingSSTables, () -> {
+            // global gauge: the max of the per-table values
+            int max = 0;
+            for (Metric cfGauge : ALL_TABLE_METRICS.get("MaxOverlappingSSTables"))
+            {
+                max = Math.max(max, ((Gauge<? extends Number>) cfGauge).getValue().intValue());
+            }
+            return max;
         });
 
         clientTombstoneWarnings = createTableMeter("ClientTombstoneWarnings", cfs.keyspace.metric.clientTombstoneWarnings);

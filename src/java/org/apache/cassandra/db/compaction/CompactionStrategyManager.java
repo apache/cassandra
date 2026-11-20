@@ -83,6 +83,7 @@ import org.apache.cassandra.notifications.SSTableRepairStatusChanged;
 import org.apache.cassandra.repair.consistent.admin.CleanupSummary;
 import org.apache.cassandra.schema.CompactionParams;
 import org.apache.cassandra.service.ActiveRepairService;
+import org.apache.cassandra.utils.Overlaps;
 import org.apache.cassandra.utils.TimeUUID;
 
 import static org.apache.cassandra.db.compaction.AbstractStrategyHolder.GroupedSSTableContainer;
@@ -759,6 +760,14 @@ public class CompactionStrategyManager implements INotificationConsumer
                 },
                 CompactionStrategyManager::ratioArrayFinalizer
         );
+    }
+
+    public int getMaxOverlappingSSTables()
+    {
+        return Overlaps.maxOverlap(new ArrayList<>(cfs.getTracker().getView().liveSSTables()),
+                                   (a, b) -> a.getFirst().compareTo(b.getLast()) > 0,
+                                   SSTableReader.firstKeyComparator,
+                                   SSTableReader.lastKeyComparator);
     }
 
     public boolean isLeveledCompaction()

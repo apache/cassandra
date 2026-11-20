@@ -91,6 +91,25 @@ public class Overlaps
 
         return overlaps;
     }
+
+    public static <E> int maxOverlap(List<E> items,
+                                     BiPredicate<E, E> startsAfter,
+                                     Comparator<E> startsComparator,
+                                     Comparator<E> endsComparator)
+    {
+        items.sort(startsComparator);
+        PriorityQueue<E> active = new PriorityQueue<>(endsComparator);
+        int max = 0;
+        for (E item : items)
+        {
+            while (!active.isEmpty() && startsAfter.test(item, active.peek()))
+                active.poll();
+            active.add(item);
+            max = Math.max(max, active.size());
+        }
+        return max;
+    }
+
     public enum InclusionMethod
     {
         NONE, SINGLE, TRANSITIVE;
