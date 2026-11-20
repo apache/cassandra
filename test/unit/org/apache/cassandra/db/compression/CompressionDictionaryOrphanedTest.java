@@ -105,8 +105,6 @@ public class CompressionDictionaryOrphanedTest extends CQLTester
         insertDictionary(tableId, 3, CompressionDictionaryScope.node(registered).toValue());
         // never in the cluster
         insertDictionary(tableId, 4, CompressionDictionaryScope.node(new NodeId(4242)).toValue());
-        // a kind of scope a later version might write, it is not considered orphaned
-        insertDictionary(tableId, 5, Set.of(Map.of("region", "eu")));
         // the rack of this node
         Location location = ClusterMetadata.current().directory.location(ClusterMetadata.current().myNodeId());
         insertDictionary(tableId, 6, Set.of(Map.of("dc", location.datacenter, "rack", location.rack)));
@@ -123,7 +121,7 @@ public class CompressionDictionaryOrphanedTest extends CQLTester
 
         cleanupOrphaned();
         assertNoOrphaned();
-        assertEquals(List.of(9L, 6L, 5L, 2L, 1L), dictIds(SystemDistributedKeyspace.retrieveLightweightCompressionDictionaries()));
+        assertEquals(List.of(9L, 6L, 2L, 1L), dictIds(SystemDistributedKeyspace.retrieveLightweightCompressionDictionaries()));
 
         dropDictTable();
         cleanupOrphaned();
@@ -135,13 +133,14 @@ public class CompressionDictionaryOrphanedTest extends CQLTester
     {
         String tableId = createDictTable();
         Set<Map<String, String>> thisNode = CompressionDictionaryScope.node(ClusterMetadata.current().myNodeId()).toValue();
+        Location location = ClusterMetadata.current().directory.location(ClusterMetadata.current().myNodeId());
 
         insertDictionary(tableId, 1, null);
         // stored while dictionary 3 was trained, which turned out newer, it is not the latest one anymore
         insertDictionary(tableId, 2, thisNode);
         insertDictionary(tableId, 3, null);
-        // a candidate newer than any dictionary of the cluster is in use, also one of a later version
-        insertDictionary(tableId, 4, Set.of(Map.of("region", "eu")));
+        // a candidate newer than any dictionary of the cluster is in use, whatever its scope
+        insertDictionary(tableId, 4, Set.of(Map.of("dc", location.datacenter)));
         insertDictionary(tableId, 5, thisNode);
         assertEquals(List.of(2L), dictIds(SystemDistributedKeyspace.retrieveOrphanedLightweightCompressionDictionaries()));
 

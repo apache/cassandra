@@ -22,7 +22,6 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
-import java.util.Iterator;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
@@ -65,9 +64,8 @@ import org.apache.cassandra.utils.LocalizeString;
  *
  * A node compresses with the newest dictionary of a table whose scope contains it. Whether a rack or a datacenter
  * contains a node is decided by the location of the node in cluster metadata at the time it is asked, so a node moved
- * to another rack follows the scope of its new rack. A place this version does not understand, e.g. one written by a
- * later version, contains no node, so it is never misread as one which contains this node, and it is not considered
- * orphaned either. An empty set is never written.
+ * to another rack follows the scope of its new rack. No other element, and no empty set, is ever written; reading one
+ * fails.
  * <p>
  * A dictionary is promoted by widening its scope, see
  * {@link #checkCanBeWidenedTo(Directory, CompressionDictionaryScope)}: the wider scope contains every place of the
@@ -163,14 +161,6 @@ public final class CompressionDictionaryScope
         public abstract Map<String, String> toMap();
 
         /**
-         * @return true when this version knows what nodes the place contains
-         */
-        public boolean isKnown()
-        {
-            return true;
-        }
-
-        /**
          * @param directory directory of the cluster, null when there is no cluster metadata
          * @param node      id of a node
          * @return true when the node is one of this place
@@ -209,7 +199,7 @@ public final class CompressionDictionaryScope
          */
         abstract boolean hasMembers(Directory directory);
 
-        // the order places are listed in: nodes by id, racks, datacenters, then the places this version does not know
+        // the order places are listed in: nodes by id, racks, then datacenters
         abstract int rank();
 
         abstract int compareWithinRank(Place other);
@@ -237,7 +227,8 @@ public final class CompressionDictionaryScope
 
         /**
          * @param map an element of the scope column
-         * @return the place the element stands for, a place this version does not know when it does not understand it
+         * @return the place the element stands for
+         * @throws IllegalArgumentException if the element is not a place
          */
         public static Place fromMap(Map<String, String> map)
         {
@@ -255,15 +246,20 @@ public final class CompressionDictionaryScope
                 }
                 catch (NumberFormatException e)
                 {
-                    // not a node id this version knows
+                    // rejected below
                 }
-                return new UnknownPlace(map);
             }
-            if (map.size() == 2 && datacenter != null && map.get(RACK_KEY) != null)
+            else if (map.size() == 2 && datacenter != null && map.get(RACK_KEY) != null)
+            {
                 return new RackPlace(datacenter, map.get(RACK_KEY));
-            if (map.size() == 1 && datacenter != null)
+            }
+            else if (map.size() == 1 && datacenter != null)
+            {
                 return new DatacenterPlace(datacenter);
-            return new UnknownPlace(map);
+            }
+
+            throw new IllegalArgumentException(String.format("%s is not a place of a scope, a place is {%s=<id>}, {%s=<dc>, %s=<rack>} or {%s=<dc>}",
+                                                             map, NODE_ID_KEY, DC_KEY, RACK_KEY, DC_KEY));
         }
     }
 
@@ -482,82 +478,6 @@ public final class CompressionDictionaryScope
         }
     }
 
-    /**
-     * A place this version does not understand, e.g. one written by a later version. It contains no node and it is not
-     * considered orphaned.
-     */
-    public static final class UnknownPlace extends Place
-    {
-        private final Map<String, String> map;
-
-        UnknownPlace(Map<String, String> map)
-        {
-            this.map = Collections.unmodifiableMap(new TreeMap<>(map));
-        }
-
-        @Override
-        public Map<String, String> toMap()
-        {
-            return map;
-        }
-
-        @Override
-        public boolean isKnown()
-        {
-            return false;
-        }
-
-        @Override
-        boolean contains(@Nullable Directory directory, NodeId node)
-        {
-            return false;
-        }
-
-        @Override
-        Collection<InetAddressAndPort> memberEndpoints(Directory directory)
-        {
-            return List.of();
-        }
-
-        @Override
-        boolean hasMembers(Directory directory)
-        {
-            return true;
-        }
-
-        @Override
-        int rank()
-        {
-            return 3;
-        }
-
-        @Override
-        int compareWithinRank(Place other)
-        {
-            // entry by entry, both maps are sorted by key; consistent with equals, unlike comparing their strings,
-            // which can be the same for different maps, e.g. {a=b, c=d} for {'a': 'b, c=d'} and {'a': 'b', 'c': 'd'}
-            Iterator<Map.Entry<String, String>> mine = map.entrySet().iterator();
-            Iterator<Map.Entry<String, String>> theirs = ((UnknownPlace) other).map.entrySet().iterator();
-            while (mine.hasNext() && theirs.hasNext())
-            {
-                Map.Entry<String, String> a = mine.next();
-                Map.Entry<String, String> b = theirs.next();
-                int byKey = a.getKey().compareTo(b.getKey());
-                if (byKey != 0)
-                    return byKey;
-                int byValue = a.getValue().compareTo(b.getValue());
-                if (byValue != 0)
-                    return byValue;
-            }
-            return Boolean.compare(mine.hasNext(), theirs.hasNext());
-        }
-
-        @Override
-        public String toString()
-        {
-            return map.toString();
-        }
-    }
 
     // null for the whole cluster, otherwise unmodifiable and sorted, so the string form is stable
     @Nullable
@@ -565,6 +485,9 @@ public final class CompressionDictionaryScope
 
     private CompressionDictionaryScope(@Nullable Collection<Place> places)
     {
+        if (places != null && places.isEmpty())
+            throw new IllegalArgumentException("A scope which is not the whole cluster has at least one place");
+
         this.places = places == null ? null : Collections.unmodifiableSet(new LinkedHashSet<>(new TreeSet<>(places)));
     }
 
@@ -579,6 +502,7 @@ public final class CompressionDictionaryScope
     /**
      * @param places places of the scope
      * @return the union of the places, as given
+     * @throws IllegalArgumentException if there is no place
      */
     public static CompressionDictionaryScope of(Collection<? extends Place> places)
     {
@@ -588,6 +512,7 @@ public final class CompressionDictionaryScope
     /**
      * @param value value of the scope column, null for the whole cluster
      * @return the scope the given value stands for
+     * @throws IllegalArgumentException if the value is empty or an element of it is not a place
      */
     public static CompressionDictionaryScope fromValue(@Nullable Collection<Map<String, String>> value)
     {
@@ -614,25 +539,17 @@ public final class CompressionDictionaryScope
 
     /**
      * @return the scope stored in the scope column of the row, the whole cluster when it is null
+     * @throws IllegalArgumentException if the stored value is not a scope
      */
     public static CompressionDictionaryScope fromRow(UntypedResultSet.Row row)
     {
-        return fromValue(valueFromRow(row));
-    }
-
-    /**
-     * @return the value of the scope column of the row as it is stored, null for the whole cluster
-     */
-    @Nullable
-    public static Set<Map<String, String>> valueFromRow(UntypedResultSet.Row row)
-    {
-        return row.has("scope") ? row.getFrozenSet("scope", TYPE.getElementsType()) : null;
+        return fromValue(row.has("scope") ? row.getFrozenSet("scope", TYPE.getElementsType()) : null);
     }
 
     /**
      * @param flattened per place, its keys and values one after another; null for the whole cluster
      * @return the scope the given places stand for
-     * @throws IllegalArgumentException if a place has a key without a value
+     * @throws IllegalArgumentException if a place has a key without a value, or the places are not a scope
      */
     public static CompressionDictionaryScope fromFlattened(@Nullable String[][] flattened)
     {
@@ -642,7 +559,6 @@ public final class CompressionDictionaryScope
         List<Map<String, String>> value = new ArrayList<>();
         for (String[] place : flattened)
         {
-            // an empty place is a place this version does not know, it is never written but it can be stored
             if (place.length % 2 != 0)
                 throw new IllegalArgumentException("Place of a scope has a key without a value: " + Arrays.toString(place));
 
@@ -695,15 +611,6 @@ public final class CompressionDictionaryScope
     public Set<Place> places()
     {
         return places == null ? Set.of() : places;
-    }
-
-    /**
-     * @return true when this version knows what nodes the scope contains, i.e. it is the whole cluster or it has
-     *         places, all of which this version knows
-     */
-    public boolean isKnown()
-    {
-        return places == null || (!places.isEmpty() && places.stream().allMatch(Place::isKnown));
     }
 
     /**
@@ -770,7 +677,7 @@ public final class CompressionDictionaryScope
 
     /**
      * Checks that a dictionary of this scope can be promoted to the given one, i.e. the given scope is wider: it
-     * covers this scope, it is not the same, and this version knows all its places. A scope can not shrink, and it
+     * covers this scope and it is not the same. A scope can not shrink, and it
      * can not be replaced with a disjoint or partially overlapping one either.
      *
      * @param directory directory of the cluster, which tells the location of a node
@@ -779,16 +686,6 @@ public final class CompressionDictionaryScope
      */
     public void checkCanBeWidenedTo(Directory directory, CompressionDictionaryScope wider)
     {
-        if (!wider.isCluster() && wider.places.isEmpty())
-            throw new IllegalArgumentException("a scope without places contains no node, a dictionary can not be promoted to it");
-
-        if (!wider.isKnown())
-        {
-            List<Place> unknown = wider.places.stream().filter(place -> !place.isKnown()).collect(Collectors.toList());
-            throw new IllegalArgumentException(String.format("scope %s contains places this version does not know: %s",
-                                                             wider, describe(unknown)));
-        }
-
         if (wider.equals(this))
             throw new IllegalArgumentException(String.format("the scope would stay %s, nothing to promote", this));
 

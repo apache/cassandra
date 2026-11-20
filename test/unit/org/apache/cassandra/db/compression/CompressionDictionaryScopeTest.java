@@ -20,6 +20,7 @@ package org.apache.cassandra.db.compression;
 
 import java.net.UnknownHostException;
 import java.util.ArrayList;
+import java.util.Collection;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -46,9 +47,6 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 public class CompressionDictionaryScopeTest
 {
-    // a kind of place a later version might write
-    private static final Map<String, String> REGION = Map.of("region", "eu");
-
     // dc1/r1: nodes 1 and 2, dc1/r2: node 3, dc2/r1: node 4, all joined
     // dc2/r2: node 5, registered only; dc3/r1: node 6, left
     private static Directory directory;
@@ -81,7 +79,6 @@ public class CompressionDictionaryScopeTest
     public void testCluster()
     {
         assertThat(CLUSTER.isCluster()).isTrue();
-        assertThat(CLUSTER.isKnown()).isTrue();
         assertThat(CLUSTER.toValue()).isNull();
         assertThat(CLUSTER.toFlattened()).isNull();
         assertThat(CLUSTER.places()).isEmpty();
@@ -97,7 +94,6 @@ public class CompressionDictionaryScopeTest
     {
         CompressionDictionaryScope scope = CompressionDictionaryScope.node(node(1));
         assertThat(scope.isCluster()).isFalse();
-        assertThat(scope.isKnown()).isTrue();
         assertThat(scope.toValue()).containsExactly(Map.of("node_id", "1"));
         assertThat(scope.toFlattened()).isDeepEqualTo(new String[][]{ { "node_id", "1" } });
         assertThat(scope.places()).containsExactly(new NodePlace(node(1)));
@@ -117,7 +113,6 @@ public class CompressionDictionaryScopeTest
         assertThat(rack.toValue()).containsExactly(Map.of("dc", "dc1", "rack", "r1"));
         assertThat(rack.toFlattened()).isDeepEqualTo(new String[][]{ { "dc", "dc1", "rack", "r1" } });
         assertThat(rack).hasToString("rack dc1/r1");
-        assertThat(rack.isKnown()).isTrue();
         assertThat(CompressionDictionaryScope.fromValue(rack.toValue())).isEqualTo(rack);
         assertThat(CompressionDictionaryScope.fromFlattened(rack.toFlattened())).isEqualTo(rack);
         assertThat(rack.contains(directory, node(1))).isTrue();
@@ -144,10 +139,10 @@ public class CompressionDictionaryScopeTest
     }
 
     @Test
-    public void testUnknownPlacesContainNoNode()
+    public void testNotAScope()
     {
-        // e.g. kinds of places a later version writes, or maps which are not one of the known places
-        for (Map<String, String> map : List.<Map<String, String>>of(REGION,
+        // no version writes any of these, reading one fails
+        for (Map<String, String> map : List.<Map<String, String>>of(Map.of("region", "eu"),
                                                                     Map.of("rack", "r1"),
                                                                     Map.of("datacenter", "dc1"),
                                                                     Map.of("datacenter", "dc1", "rack", "r1"),
@@ -161,70 +156,51 @@ public class CompressionDictionaryScopeTest
                                                                     Map.of("node_id", "-1"),
                                                                     Map.of()))
         {
-            CompressionDictionaryScope scope = CompressionDictionaryScope.fromValue(Set.of(map));
-            assertThat(scope.isCluster()).as(map.toString()).isFalse();
-            assertThat(scope.isKnown()).as(map.toString()).isFalse();
-            for (NodeId node : NODES)
-                assertThat(scope.contains(directory, node)).as(map.toString()).isFalse();
-            assertThat(scope.hasMembers(directory)).as("not orphaned " + map).isTrue();
-            assertThat(scope.toValue()).as(map.toString()).containsExactly(map);
-            assertThat(CompressionDictionaryScope.fromFlattened(scope.toFlattened())).as(map.toString()).isEqualTo(scope);
+            assertThatThrownBy(() -> CompressionDictionaryScope.fromValue(Set.of(map)))
+            .as(map.toString())
+            .isInstanceOf(IllegalArgumentException.class)
+            .hasMessageContaining(map + " is not a place of a scope, a place is {node_id=<id>}, {dc=<dc>, rack=<rack>} or {dc=<dc>}");
+
+            // with a place which is one, too
+            assertThatThrownBy(() -> CompressionDictionaryScope.fromValue(Set.of(map, Map.of("node_id", "1"))))
+            .as(map.toString())
+            .isInstanceOf(IllegalArgumentException.class);
         }
 
-        // the known places of a scope still apply
-        CompressionDictionaryScope mixed = CompressionDictionaryScope.fromValue(Set.of(REGION, Map.of("node_id", "1")));
-        assertThat(mixed.contains(directory, node(1))).isTrue();
-        assertThat(mixed.contains(directory, node(2))).isFalse();
-        assertThat(mixed.isKnown()).isFalse();
-        assertThat(mixed).as("known places first").hasToString("node 1, {region=eu}");
-
-        // an empty set is never written
-        CompressionDictionaryScope empty = CompressionDictionaryScope.fromValue(Set.of());
-        assertThat(empty.isCluster()).isFalse();
-        assertThat(empty.isKnown()).isFalse();
-        assertThat(empty.contains(directory, node(1))).isFalse();
-    }
-
-    @Test
-    public void testUnknownPlacesOrderedConsistentlyWithEquals()
-    {
-        // both print as {a=b, c=d}, they are still two places
-        Map<String, String> oneEntry = Map.of("a", "b, c=d");
-        Map<String, String> twoEntries = Map.of("a", "b", "c", "d");
-        assertThat(oneEntry.toString().equals(new java.util.TreeMap<>(twoEntries).toString())).isTrue();
-        CompressionDictionaryScope scope = CompressionDictionaryScope.fromValue(Set.of(oneEntry, twoEntries));
-        assertThat(scope.places()).hasSize(2);
-        assertThat(scope.toValue()).containsExactlyInAnyOrder(oneEntry, twoEntries);
-        assertThat(CompressionDictionaryScope.fromValue(scope.toValue())).isEqualTo(scope);
+        for (Collection<Map<String, String>> empty : List.<Collection<Map<String, String>>>of(Set.of(), List.of()))
+        {
+            assertThatThrownBy(() -> CompressionDictionaryScope.fromValue(empty))
+            .isInstanceOf(IllegalArgumentException.class)
+            .hasMessageContaining("A scope which is not the whole cluster has at least one place");
+        }
+        assertThatThrownBy(() -> CompressionDictionaryScope.of(List.of()))
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessageContaining("A scope which is not the whole cluster has at least one place");
     }
 
     @Test
     public void testCovers()
     {
-        assertCovers(CLUSTER, CLUSTER, scope(node(1)), scope(rack("dc1", "r1")), scope(datacenter("dc2")), unknown());
+        assertCovers(CLUSTER, CLUSTER, scope(node(1)), scope(rack("dc1", "r1")), scope(datacenter("dc2")));
 
         // a datacenter covers its racks regardless of the topology, and nodes located in it
         assertCovers(scope(datacenter("dc1")), scope(datacenter("dc1")), scope(rack("dc1", "r1")), scope(rack("dc1", "r2")),
                      scope(rack("dc1", "no node here")), scope(node(1), node(3)), scope(rack("dc1", "r1"), node(3)));
         assertNotCovers(scope(datacenter("dc1")), CLUSTER, scope(datacenter("dc2")), scope(rack("dc2", "r1")), scope(node(4)),
-                        scope(node(1), node(4)), scope(UNKNOWN_NODE), unknown());
+                        scope(node(1), node(4)), scope(UNKNOWN_NODE));
 
         // a rack covers nodes located in it
         assertCovers(scope(rack("dc1", "r1")), scope(rack("dc1", "r1")), scope(node(1)), scope(node(1), node(2)));
         assertNotCovers(scope(rack("dc1", "r1")), CLUSTER, scope(datacenter("dc1")), scope(rack("dc1", "r2")), scope(rack("dc2", "r1")),
-                        scope(node(3)), scope(node(4)), scope(UNKNOWN_NODE), unknown());
+                        scope(node(3)), scope(node(4)), scope(UNKNOWN_NODE));
 
         // a node covers only itself
         assertCovers(scope(node(1)), scope(node(1)));
-        assertNotCovers(scope(node(1)), CLUSTER, scope(node(2)), scope(node(1), node(2)), scope(rack("dc1", "r1")), scope(datacenter("dc1")), unknown());
+        assertNotCovers(scope(node(1)), CLUSTER, scope(node(2)), scope(node(1), node(2)), scope(rack("dc1", "r1")), scope(datacenter("dc1")));
 
         // a union covers what any of its places covers
         assertCovers(scope(rack("dc1", "r1"), datacenter("dc2")), scope(node(1), node(4)), scope(rack("dc2", "r2"), node(2)));
         assertNotCovers(scope(rack("dc1", "r1"), datacenter("dc2")), scope(node(3)), scope(node(1), node(3)));
-
-        // a place this version does not know is covered only by the cluster or by itself
-        assertCovers(unknown(), unknown());
-        assertNotCovers(unknown(), scope(node(1)), scope(datacenter("dc1")));
     }
 
     @Test
@@ -249,9 +225,6 @@ public class CompressionDictionaryScopeTest
         assertThat(r1r2.plus(List.of(rack("dc1", "r1")))).isEqualTo(r1r2);
         assertThat(scope(datacenter("dc1")).plus(List.of(rack("dc1", "r2")))).isEqualTo(scope(datacenter("dc1")));
         assertThat(scope(node(2), rack("dc1", "r1")).plus(List.of(new NodePlace(node(2))))).isEqualTo(scope(node(2), rack("dc1", "r1")));
-
-        // places this version does not know are kept
-        assertThat(unknown().plus(List.of(datacenter("dc1")))).isEqualTo(CompressionDictionaryScope.fromValue(Set.of(REGION, Map.of("dc", "dc1"))));
     }
 
     @Test
@@ -285,9 +258,6 @@ public class CompressionDictionaryScopeTest
         assertWidens(scope(rack("dc1", "r1"), rack("dc1", "r2")), scope(datacenter("dc1")));
         assertWidens(scope(datacenter("dc1")), scope(datacenter("dc1"), datacenter("dc2")));
         assertWidens(scope(rack("dc1", "r1"), node(4)), scope(datacenter("dc1"), datacenter("dc2")));
-        // a scope written by a later version can still be promoted to the whole cluster
-        assertWidens(unknown(), CLUSTER);
-        assertWidens(CompressionDictionaryScope.fromValue(Set.of(REGION, Map.of("node_id", "1"))), CLUSTER);
     }
 
     @Test
@@ -322,14 +292,6 @@ public class CompressionDictionaryScopeTest
         // a node whose location is not known is not covered by any rack or datacenter
         assertNotWidening(scope(UNKNOWN_NODE), scope(rack("dc1", "r1")), "scope rack dc1/r1 would no longer contain node 99");
         assertNotWidening(scope(UNKNOWN_NODE), scope(datacenter("dc1"), datacenter("dc2")), "scope dc dc1, dc dc2 would no longer contain node 99");
-
-        // to places this version does not know, they contain no node from its point of view
-        assertNotWidening(scope(node(1)), unknown(), "scope {region=eu} contains places this version does not know: {region=eu}");
-        assertNotWidening(scope(node(1)), CompressionDictionaryScope.fromValue(Set.of(REGION, Map.of("node_id", "1"))), "contains places this version does not know: {region=eu}");
-        assertNotWidening(scope(node(1)), CompressionDictionaryScope.fromValue(Set.of()), "a scope without places contains no node");
-
-        // from places this version does not know to anything but the cluster
-        assertNotWidening(unknown(), scope(datacenter("dc1")), "scope dc dc1 would no longer contain {region=eu}");
     }
 
     @Test
@@ -408,8 +370,12 @@ public class CompressionDictionaryScopeTest
     {
         assertThatThrownBy(() -> CompressionDictionaryScope.fromFlattened(new String[][]{ { "node_id" } }))
         .isInstanceOf(IllegalArgumentException.class);
-        // an empty place is a place this version does not know, a stored one is listed
-        assertThat(CompressionDictionaryScope.fromFlattened(new String[][]{ {} }).isKnown()).isFalse();
+        assertThatThrownBy(() -> CompressionDictionaryScope.fromFlattened(new String[][]{ {} }))
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessageContaining("{} is not a place of a scope");
+        assertThatThrownBy(() -> CompressionDictionaryScope.fromFlattened(new String[0][]))
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessageContaining("has at least one place");
         assertThatThrownBy(() -> CompressionDictionaryScope.fromFlattened(new String[][]{ { "dc", "dc1", "dc", "dc2" } }))
         .isInstanceOf(IllegalArgumentException.class)
         .hasMessageContaining("duplicate key dc");
@@ -468,10 +434,5 @@ public class CompressionDictionaryScopeTest
     private static DatacenterPlace datacenter(String datacenter)
     {
         return new DatacenterPlace(datacenter);
-    }
-
-    private static CompressionDictionaryScope unknown()
-    {
-        return CompressionDictionaryScope.fromValue(Set.of(REGION));
     }
 }

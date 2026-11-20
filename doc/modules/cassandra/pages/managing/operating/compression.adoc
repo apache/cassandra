@@ -179,9 +179,8 @@ it. Whether a rack or a datacenter contains a node is decided by the location
 of the node in cluster metadata, so a node moved to another rack follows the
 scope of its new rack from its next dictionary refresh on. A dictionary is
 announced only to the nodes of its scope and the dictionary refresh of other
-nodes skips it, while the nodes of its scope load it again after a restart. A
-place with any other value, for example one written by a later version which
-knows more kinds of places, contains no node. An empty set is never written.
+nodes skips it, while the nodes of its scope load it again after a restart.
+No other value, and no empty set, is ever written.
 
 While a dictionary scoped narrower than the cluster is the latest dictionary
 of the table, training or importing another dictionary, on any node, fails
@@ -244,9 +243,6 @@ a typo,
 already, e.g. a rack of a datacenter the dictionary is scoped to,
 * the scope changed or the dictionary was deleted meanwhile, for example by a
 concurrent promotion or discard.
-
-A scope which contains places this version does not know can only be promoted
-to the whole cluster.
 
 ===== Discarding
 
