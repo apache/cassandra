@@ -24,8 +24,8 @@ import org.junit.Before;
 import org.junit.BeforeClass;
 import org.junit.Test;
 
-import org.apache.cassandra.config.Config;
 import org.apache.cassandra.config.DatabaseDescriptor;
+import org.apache.cassandra.config.FlushCompression;
 import org.apache.cassandra.cql3.CQLTester;
 import org.apache.cassandra.db.ColumnFamilyStore;
 import org.apache.cassandra.exceptions.ConfigurationException;
@@ -36,7 +36,7 @@ import static org.junit.Assert.assertTrue;
 
 public class CQLCompressionTest extends CQLTester
 {
-    private static Config.FlushCompression defaultFlush;
+    private static FlushCompression defaultFlush;
 
     @BeforeClass
     public static void setUpCompressionClass()
@@ -197,7 +197,7 @@ public class CQLCompressionTest extends CQLTester
     @Test
     public void useNoCompressorOnFlushTest() throws Throwable
     {
-        DatabaseDescriptor.setFlushCompression(Config.FlushCompression.none);
+        DatabaseDescriptor.setFlushCompression(FlushCompression.none);
         createTable("CREATE TABLE %s (k text PRIMARY KEY, v text) WITH compression = {'class': 'LZ4Compressor'};");
         ColumnFamilyStore store = flushTwice();
 
@@ -220,7 +220,7 @@ public class CQLCompressionTest extends CQLTester
     @Test
     public void useTableCompressorOnFlushTest() throws Throwable
     {
-        DatabaseDescriptor.setFlushCompression(Config.FlushCompression.table);
+        DatabaseDescriptor.setFlushCompression(FlushCompression.table);
 
         createTable("CREATE TABLE %s (k text PRIMARY KEY, v text) WITH compression = {'class': 'ZstdCompressor'};");
         ColumnFamilyStore store = flushTwice();

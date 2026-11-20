@@ -35,6 +35,7 @@ import org.junit.runner.RunWith;
 import org.apache.cassandra.SchemaLoader;
 import org.apache.cassandra.Util;
 import org.apache.cassandra.config.DatabaseDescriptor;
+import org.apache.cassandra.config.FlushCompression;
 import org.apache.cassandra.cql3.QueryProcessor;
 import org.apache.cassandra.cql3.UntypedResultSet;
 import org.apache.cassandra.cql3.statements.schema.CreateTableStatement;
@@ -82,6 +83,9 @@ public class SchemaKeyspaceTest
                 // Testing with compression to catch #3558
                 TableMetadata withCompression = cfs.metadata().unbuild().compression(CompressionParams.snappy(32768)).build();
                 checkInverses(withCompression);
+
+                for (FlushCompression option : FlushCompression.values())
+                    checkInverses(cfs.metadata().unbuild().flushCompression(FlushCompressionParams.fromString(option.name())).build());
             }
         }
     }
@@ -114,6 +118,38 @@ public class SchemaKeyspaceTest
         TableMetadata metadata = Schema.instance.getTableMetadata("ks", "tbl");
         Assert.assertEquals(ReadRepairStrategy.NONE, metadata.params.readRepair);
 
+    }
+
+    @Test
+    public void testFlushCompressionColumn()
+    {
+        String keyspace = "FlushCompression";
+        TableMetadata explicitTable = CreateTableStatement.parse("CREATE TABLE explicit (a text primary key, b int) WITH flush_compression = 'table'", keyspace).build();
+        TableMetadata implicitTable = CreateTableStatement.parse("CREATE TABLE implicit (a text primary key, b int)", keyspace).build();
+        SchemaTestUtil.addOrUpdateKeyspace(KeyspaceMetadata.create(keyspace, KeyspaceParams.simple(1), Tables.of(explicitTable, implicitTable)));
+
+        UntypedResultSet.Row explicit = selectTableRow(keyspace, "explicit");
+        assertEquals("table", explicit.getString("flush_compression"));
+        assertEquals(FlushCompression.table, SchemaKeyspace.createTableParamsFromRow(explicit).flushCompression.configurationKey);
+
+        UntypedResultSet.Row implicit = selectTableRow(keyspace, "implicit");
+        assertFalse(implicit.has("flush_compression"));
+        assertEquals(FlushCompressionParams.DEFAULT, SchemaKeyspace.createTableParamsFromRow(implicit).flushCompression);
+
+        TableMetadata metadata = Schema.instance.getTableMetadata(keyspace, "explicit");
+        updateTable(keyspace, metadata, metadata.unbuild().flushCompression(FlushCompressionParams.DEFAULT).build());
+        assertFalse(selectTableRow(keyspace, "explicit").has("flush_compression"));
+
+        metadata = Schema.instance.getTableMetadata(keyspace, "implicit");
+        updateTable(keyspace, metadata, metadata.unbuild().flushCompression(FlushCompressionParams.fromString("none")).build());
+        assertEquals("none", selectTableRow(keyspace, "implicit").getString("flush_compression"));
+    }
+
+    private static UntypedResultSet.Row selectTableRow(String keyspace, String table)
+    {
+        return executeOnceInternal(String.format("SELECT * FROM %s.%s WHERE keyspace_name = ? AND table_name = ?",
+                                                 SchemaConstants.SCHEMA_KEYSPACE_NAME, SchemaKeyspaceTables.TABLES),
+                                   keyspace, table).one();
     }
 
     @Test

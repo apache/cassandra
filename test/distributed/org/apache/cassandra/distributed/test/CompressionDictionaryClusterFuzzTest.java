@@ -66,6 +66,7 @@ import accord.utils.RandomSource;
 import org.apache.cassandra.config.Config;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.config.DurationSpec;
+import org.apache.cassandra.config.FlushCompression;
 import org.apache.cassandra.db.ColumnFamilyStore;
 import org.apache.cassandra.db.Keyspace;
 import org.apache.cassandra.db.compression.CompressionDictionary;
@@ -302,7 +303,7 @@ public class CompressionDictionaryClusterFuzzTest extends TestBaseImpl
 
     private static Command<State, Void, ?> changeFlushCompression(RandomSource rs, State state)
     {
-        String flushCompression = rs.pick(Config.FlushCompression.values()).name();
+        String flushCompression = rs.pick(FlushCompression.possibleValuesInConfig.toArray(new FlushCompression[0])).name();
         int node = node(rs);
         return command(format("Set flush_compression of node %d to %s", node, flushCompression),
                        s -> s.cluster.get(node).runOnInstance(() -> OnNode.setFlushCompression(flushCompression)));
@@ -1056,7 +1057,7 @@ public class CompressionDictionaryClusterFuzzTest extends TestBaseImpl
 
         public static void setFlushCompression(String flushCompression)
         {
-            DatabaseDescriptor.setFlushCompression(Config.FlushCompression.valueOf(flushCompression));
+            DatabaseDescriptor.setFlushCompression(FlushCompression.valueOf(flushCompression));
         }
 
         public static void flush(String keyspace, String table)

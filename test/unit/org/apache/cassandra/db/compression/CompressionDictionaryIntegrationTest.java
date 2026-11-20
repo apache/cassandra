@@ -28,6 +28,7 @@ import org.junit.Test;
 
 import org.apache.cassandra.config.Config;
 import org.apache.cassandra.config.DatabaseDescriptor;
+import org.apache.cassandra.config.FlushCompression;
 import org.apache.cassandra.cql3.CQLTester;
 import org.apache.cassandra.db.ColumnFamilyStore;
 import org.apache.cassandra.db.Keyspace;
@@ -59,7 +60,7 @@ public class CompressionDictionaryIntegrationTest extends CQLTester
     public void configureDatabaseDescriptor()
     {
         Config config = DatabaseDescriptor.getRawConfig();
-        config.flush_compression = Config.FlushCompression.table;
+        config.flush_compression = FlushCompression.table;
         DatabaseDescriptor.setConfig(config);
     }
 
@@ -227,7 +228,7 @@ public class CompressionDictionaryIntegrationTest extends CQLTester
     @Test
     public void testSSTableBasedTraining()
     {
-        DatabaseDescriptor.setFlushCompression(Config.FlushCompression.table);
+        DatabaseDescriptor.setFlushCompression(FlushCompression.table);
         String table = createTable(getTableCqlWithChunkLength());
         ColumnFamilyStore cfs = Keyspace.open(keyspace()).getColumnFamilyStore(table);
         CompressionDictionaryManager manager = cfs.compressionDictionaryManager();

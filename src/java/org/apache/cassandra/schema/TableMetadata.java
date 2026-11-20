@@ -80,6 +80,7 @@ import org.apache.cassandra.service.accord.topology.FastPathStrategy;
 import org.apache.cassandra.service.consensus.TransactionalMode;
 import org.apache.cassandra.service.consensus.migration.TransactionalMigrationFromMode;
 import org.apache.cassandra.service.reads.SpeculativeRetryPolicy;
+import org.apache.cassandra.tcm.ClusterMetadata;
 import org.apache.cassandra.tcm.Epoch;
 import org.apache.cassandra.tcm.serialization.UDTAndFunctionsAwareMetadataSerializer;
 import org.apache.cassandra.tcm.serialization.Version;
@@ -1163,6 +1164,12 @@ public class TableMetadata implements SchemaElement
             return this;
         }
 
+        public Builder flushCompression(FlushCompressionParams val)
+        {
+            params.flushCompression(val);
+            return this;
+        }
+
         public Builder fastPath(FastPathStrategy val)
         {
             params.fastPath(val);
@@ -1819,7 +1826,7 @@ public class TableMetadata implements SchemaElement
         }
         else
         {
-            params.appendCqlTo(builder, isView());
+            params.appendCqlTo(builder, isView(), ClusterMetadata.current().directory.commonSerializationVersion);
         }
         builder.append(";");
     }
@@ -2118,7 +2125,7 @@ public class TableMetadata implements SchemaElement
             }
             else
             {
-                params.appendCqlTo(builder, isView());
+                params.appendCqlTo(builder, isView(), ClusterMetadata.current().directory.commonSerializationVersion);
             }
             builder.append(";");
         }
