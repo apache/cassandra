@@ -44,10 +44,7 @@ import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertSame;
 import static org.junit.Assert.assertTrue;
 import static org.junit.Assert.fail;
-import static org.mockito.Mockito.mock;
-import static org.mockito.Mockito.spy;
-import static org.mockito.Mockito.verify;
-import static org.mockito.Mockito.when;
+import static org.mockito.Mockito.*;
 
 public class IndexDescriptorFileAccessTest
 {
@@ -148,10 +145,13 @@ public class IndexDescriptorFileAccessTest
 
         File file = descriptor.fileFor(GROUP_META);
         FileHandle handle = mock(FileHandle.class);
-        RuntimeException error = new IllegalStateException("reader failed");
+
+        RuntimeException readerError = new IllegalStateException("reader failed");
+        RuntimeException closeError = new IllegalStateException("close failed");
 
         when(access.open(file, false)).thenReturn(handle);
-        when(handle.createReader()).thenThrow(error);
+        when(handle.createReader()).thenThrow(readerError);
+        doThrow(closeError).when(handle).close();
 
         try
         {
@@ -160,7 +160,9 @@ public class IndexDescriptorFileAccessTest
         }
         catch (IllegalStateException e)
         {
-            assertSame(error, e);
+            assertSame(readerError, e);
+            assertEquals(1, e.getSuppressed().length);
+            assertSame(closeError, e.getSuppressed()[0]);
         }
         verify(handle).close();
     }

@@ -25,6 +25,7 @@ import java.util.stream.Collectors;
 
 import com.google.common.annotations.VisibleForTesting;
 import com.google.common.base.Objects;
+import com.google.common.base.Preconditions;
 import com.google.common.io.Files;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -425,6 +426,7 @@ public class IndexDescriptor
 
     public void deletePerSSTableIndexComponents()
     {
+        Preconditions.checkState(fileAccess == LocalFileAccess.INSTANCE, "Descriptor with custom file access is read-only");
         version.onDiskFormat()
                .perSSTableIndexComponents(hasClustering())
                .stream()
@@ -435,6 +437,7 @@ public class IndexDescriptor
 
     public void deleteColumnIndex(IndexTermType indexTermType, IndexIdentifier indexIdentifier)
     {
+        Preconditions.checkState(fileAccess == LocalFileAccess.INSTANCE, "Descriptor with custom file access is read-only");
         version.onDiskFormat()
                .perColumnIndexComponents(indexTermType)
                .stream()
@@ -483,8 +486,7 @@ public class IndexDescriptor
         }
         catch (Throwable t)
         {
-            handle.close();
-            throw Throwables.unchecked(t);
+            throw handleFileHandleCleanup(t, handle::close);
         }
     }
 
@@ -518,8 +520,7 @@ public class IndexDescriptor
     }
 
     /**
-     * Extension point to support read-only access to SAI components
-     * that are not backed by the local filesystem.
+     * Extension point to support read-only access to SAI components that are not backed by the local filesystem.
      */
     public interface FileAccess
     {
