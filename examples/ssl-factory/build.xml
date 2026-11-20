@@ -37,6 +37,7 @@
 	<path id="build.classpath">
 		<fileset dir="${cassandra.dir.lib}">
 			<include name="**/*.jar" />
+			<exclude name="**/*-sources.jar"/>
 		</fileset>
 		<fileset dir="${cassandra.dir}/build/lib/jars">
 			<include name="**/*.jar" />

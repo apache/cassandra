@@ -472,12 +472,14 @@
         <pathelement location="${build.classes.main}" />
         <fileset dir="${build.dir.lib}">
             <include name="**/*.jar" />
+            <exclude name="**/*-sources.jar"/>
         </fileset>
     </path>
     <path id="cassandra.classpath.test">
         <file file="${build.dir}/${final.name}.jar"/> <!-- we need the jar for tests and benchmarks (multi-version jar) -->
         <fileset dir="${build.dir.lib}">
             <include name="**/*.jar" />
+            <exclude name="**/*-sources.jar"/>
         </fileset>
         <fileset dir="${test.lib}/jars">
             <include name="**/*.jar" />
@@ -1496,6 +1498,7 @@
           <path refid="cassandra.classpath" />
           <fileset dir="${test.lib}">
             <include name="**/*.jar" />
+            <exclude name="**/*-sources.jar"/>
               <exclude name="**/ant-*.jar"/>
           </fileset>
         </classpath>
@@ -1812,6 +1815,7 @@
           <pathelement location="${test.conf}"/>
           <fileset dir="${test.lib}">
             <include name="**/*.jar" />
+            <exclude name="**/*-sources.jar"/>
           </fileset>
         </classpath>
         <batchtest todir="${build.test.output.dir}">
@@ -1858,6 +1862,7 @@
           <pathelement location="${test.conf}"/>
           <fileset dir="${test.lib}">
             <include name="**/*.jar" />
+            <exclude name="**/*-sources.jar"/>
           </fileset>
         </classpath>
         <test unless:blank="${test.methods}" name="org.apache.cassandra.cql3.${test.name}" methods="${test.methods}" todir="${build.test.output.dir}"/>
@@ -2212,6 +2217,7 @@
               <pathelement location="${test.conf}"/>
               <fileset dir="${test.lib}">
                   asm-<include name="**/*.jar" />
+                  <exclude name="**/*-sources.jar"/>
               </fileset>
           </classpath>
       </java>
@@ -2287,9 +2293,6 @@
 </projectDescription>]]>
     </echo>
     <path id="eclipse-project-libs-path">
-        <fileset dir="lib">
-            <include name="**/*.jar" />
-        </fileset>
         <fileset dir="${build.dir.lib}/jars">
             <include name="**/*.jar" />
         </fileset>
@@ -2297,12 +2300,15 @@
             <include name="**/*.jar" />
         </fileset>
     </path>
-    <pathconvert property="eclipse-libs-list" refid="eclipse-project-libs-path" pathsep="${line.separator}">
-        <mapper>
-            <regexpmapper from="^(.*)$$" to='&lt;classpathentry kind="lib" path="\1" /&gt;'/>
-        </mapper>
-    </pathconvert>
     <property name="eclipse-project-libs" refid="eclipse-project-libs-path"/>
+    <taskdef name="echoeclipseprojectslibs" classname="org.apache.cassandra.anttasks.EchoEclipseProjectLibs" classpath="${test.classes}">
+        <classpath>
+            <path refid="cassandra.classpath"/>
+            <path refid="cassandra.classpath.test"/>
+        </classpath>
+    </taskdef>
+    <!-- sets eclipse-libs-list, the entries of the libraries with their sources attached -->
+    <echoeclipseprojectslibs/>
     <echo file=".classpath"><![CDATA[<?xml version="1.0" encoding="UTF-8"?>
 <classpath>
   <classpathentry kind="src" path="src/java"/>
@@ -2331,16 +2337,10 @@
   <classpathentry kind="output" path="build/classes/eclipse"/>
   <classpathentry kind="lib" path="${build.classes.main}"/>
   <classpathentry kind="lib" path="test/conf"/>
-  ${eclipse-libs-list}
+${eclipse-libs-list}
 </classpath>
 ]]>
 	</echo>
-    <taskdef name="echoeclipseprojectslibs" classname="org.apache.cassandra.anttasks.EchoEclipseProjectLibs" classpath="${test.classes}">
-        <classpath>
-            <path refid="cassandra.classpath"/>
-            <path refid="cassandra.classpath.test"/>
-        </classpath>
-    </taskdef>
     <mkdir dir=".settings" />
   </target>
 
