@@ -93,7 +93,7 @@ public class NonBlockingRateLimiter
         this.ticker = ticker;
         this.permitsPerSecond = permitsPerSecond;
         intervalNanos = NANOS_PER_SECOND / permitsPerSecond;
-        nextAvailable.set(nanosElapsed());
+        nextAvailable.getAndUpdate(prev -> Math.max(prev, nanosElapsed() - burstNanos));
     }
 
     /**

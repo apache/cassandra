@@ -36,6 +36,9 @@ public class InternodeOutboundMetrics
      * TODO this was always broken, as it never counted those messages without callbacks? So perhaps we can redefine it. */
     public static final Meter totalExpiredCallbacks = Metrics.meter(DefaultNameFactory.createMetricName(TYPE_NAME, "TotalTimeouts", null));
 
+    /** Total number of outbound TCP connections delayed by the internode connection rate limiter */
+    public static final Meter rateLimitedConnections = Metrics.meter(DefaultNameFactory.createMetricName(TYPE_NAME, "RateLimitedConnections", null));
+
     /** Number of timeouts for specific IP */
     public final Meter expiredCallbacks;
 

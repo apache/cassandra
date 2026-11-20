@@ -37,6 +37,7 @@ import org.apache.commons.lang3.StringUtils;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.gms.EndpointState;
 import org.apache.cassandra.gms.Gossiper;
 import org.apache.cassandra.gms.IEndpointStateChangeSubscriber;
@@ -107,6 +108,10 @@ public class StartupClusterConnectivityChecker
             datacenterToPeers.put(datacenter, peer);
         }
 
+        long totalTimeoutNanos = calculateTotalTimeoutNanos(this.timeoutNanos,
+                                                            peers.size(),
+                                                            DatabaseDescriptor.getInternodeMaxOutboundConnectionsPerSecond());
+
         // In the case where we do not want to block startup on remote datacenters (e.g. because clients only use
         // LOCAL_X consistency levels), we remove all other datacenter hosts from the mapping and we only wait
         // on the remaining local datacenter.
@@ -114,12 +119,12 @@ public class StartupClusterConnectivityChecker
         {
             datacenterToPeers.keySet().retainAll(Collections.singleton(localDc));
             logger.info("Blocking coordination until only a single peer is DOWN in the local datacenter, timeout={}s",
-                        TimeUnit.NANOSECONDS.toSeconds(timeoutNanos));
+                        TimeUnit.NANOSECONDS.toSeconds(totalTimeoutNanos));
         }
         else
         {
             logger.info("Blocking coordination until only a single peer is DOWN in each datacenter, timeout={}s",
-                        TimeUnit.NANOSECONDS.toSeconds(timeoutNanos));
+                        TimeUnit.NANOSECONDS.toSeconds(totalTimeoutNanos));
         }
 
         // The threshold is 3 because for each peer we want to have 3 acks,
@@ -157,7 +162,7 @@ public class StartupClusterConnectivityChecker
         boolean succeeded = true;
         for (CountDownLatch countDownLatch : dcToRemainingPeers.values())
         {
-            long remainingNanos = Math.max(1, timeoutNanos - (nanoTime() - startNanos));
+            long remainingNanos = Math.max(1, totalTimeoutNanos - (nanoTime() - startNanos));
             //noinspection UnstableApiUsage
             succeeded &= countDownLatch.awaitUninterruptibly(remainingNanos, TimeUnit.NANOSECONDS);
         }
@@ -187,6 +192,17 @@ public class StartupClusterConnectivityChecker
         }
 
         return succeeded;
+    }
+
+    @VisibleForTesting
+    static long calculateTotalTimeoutNanos(long baseTimeoutNanos, int peerCount, int ratePerSecond)
+    {
+        if (baseTimeoutNanos <= 0 || ratePerSecond <= 0)
+            return baseTimeoutNanos;
+
+        long totalConnections = (long) peerCount * ConnectionType.MESSAGING_TYPES.size();
+        long queueDelayNanos = (totalConnections * TimeUnit.SECONDS.toNanos(1)) / ratePerSecond;
+        return baseTimeoutNanos + queueDelayNanos;
     }
 
     /**
