@@ -195,7 +195,7 @@ public final class ClientMetrics
         connectedNativeClientsByUser = registerGauge("ConnectedNativeClientsByUser", "connectedNativeClientsByUser", this::countConnectedClientsByUser);
         registerGauge("Connections", "connections", this::connectedClients);
         registerGauge("ClientsByProtocolVersion", "clientsByProtocolVersion", this::recentClientStats);
-        registerGauge("RequestsSize", ClientResourceLimits::getCurrentGlobalUsage);
+        registerGauge("RequestsSize", this::requestsSizeInFlight);
 
         CassandraReservoir ipUsageReservoir = ClientResourceLimits.ipUsageReservoir();
         Metrics.register(factory.createMetricName("RequestsSizeByIpDistribution"),
@@ -293,6 +293,11 @@ public final class ClientMetrics
         }
 
         return stats;
+    }
+
+    private long requestsSizeInFlight()
+    {
+        return server == null ? ClientResourceLimits.getCurrentGlobalUsage() : server.requestsSizeInFlight();
     }
 
     private <T> Gauge<T> registerGauge(String name, Gauge<T> gauge)
