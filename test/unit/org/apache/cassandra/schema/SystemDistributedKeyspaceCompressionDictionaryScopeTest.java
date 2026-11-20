@@ -135,12 +135,11 @@ public class SystemDistributedKeyspaceCompressionDictionaryScopeTest extends CQL
         assertThat(SystemDistributedKeyspace.promoteCompressionDictionary(KS, TABLE, tableId, selfAnd42And43).scope).isEqualTo(selfAnd42And43);
         assertThat(scopeColumn(100)).isEqualTo(selfAnd42And43.toValue());
 
-        // never shrinks, never moves sideways, never to the same scope, never to places this version does not know
+        // never shrinks, never moves sideways, never to the same scope
         assertNotPromoted(selfAnd42And43, selfAnd42, "would no longer contain node 43");
         assertNotPromoted(selfAnd42And43, thisNode, "would no longer contain node 42, node 43");
         assertNotPromoted(selfAnd42And43, nodes(new NodeId(42), new NodeId(43), new NodeId(44)), "would no longer contain " + thisNode);
         assertNotPromoted(selfAnd42And43, nodes(new NodeId(43), new NodeId(42), self), "the scope would stay " + selfAnd42And43 + ", nothing to promote");
-        assertNotPromoted(selfAnd42And43, CompressionDictionaryScope.fromValue(Set.of(Map.of("region", "eu"))), "contains places this version does not know");
         assertThat(scopeColumn(100)).as("rejected promotions do not change the scope").isEqualTo(selfAnd42And43.toValue());
 
         // to the whole cluster, from where it can not go anywhere
@@ -196,17 +195,6 @@ public class SystemDistributedKeyspaceCompressionDictionaryScopeTest extends CQL
     }
 
     @Test
-    public void testPromoteScopeOfLaterVersion()
-    {
-        // a scope this version does not understand can still be promoted to the whole cluster, but not to a node
-        CompressionDictionaryScope region = CompressionDictionaryScope.fromValue(Set.of(Map.of("region", "eu")));
-        store(100, region);
-        assertNotPromoted(region, thisNode, "would no longer contain {region=eu}");
-        assertThat(SystemDistributedKeyspace.promoteCompressionDictionary(KS, TABLE, tableId, CLUSTER).scope).isEqualTo(CLUSTER);
-        assertThat(scopeColumn(100)).isNull();
-    }
-
-    @Test
     public void testDiscard()
     {
         assertThatThrownBy(() -> SystemDistributedKeyspace.discardCompressionDictionary(KS, TABLE, tableId))
@@ -227,19 +215,18 @@ public class SystemDistributedKeyspaceCompressionDictionaryScopeTest extends CQL
     }
 
     @Test
-    public void testStoredScopeNotInCanonicalForm()
+    public void testStoredValueWhichIsNotAScope()
     {
-        // e.g. written by hand or by a later version: the node id '01' is not a node of this version, two maps print
-        // the same; the stored value is the condition of the transactions, not the value of the parsed scope
+        // no version writes one, e.g. a node id which is not in its canonical form; reading it fails
         storeRaw(100, Set.of(Map.of("node_id", "01")));
-        assertThat(SystemDistributedKeyspace.readLightweightLatestCompressionDictionary(KS, TABLE, tableId).scope.isKnown()).isFalse();
-        assertThat(SystemDistributedKeyspace.promoteCompressionDictionary(KS, TABLE, tableId, CLUSTER).scope).isEqualTo(CLUSTER);
-        assertThat(scopeColumn(100)).isNull();
-
-        Set<Map<String, String>> sameString = Set.of(Map.of("a", "b, c=d"), Map.of("a", "b", "c", "d"));
-        storeRaw(200, sameString);
-        assertThat(SystemDistributedKeyspace.discardCompressionDictionary(KS, TABLE, tableId).dictId.id).isEqualTo(200);
-        assertThat(SystemDistributedKeyspace.retrieveCompressionDictionary(KS, TABLE, tableId, 200)).isNull();
+        assertThatThrownBy(() -> SystemDistributedKeyspace.readLightweightLatestCompressionDictionary(KS, TABLE, tableId))
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessageContaining("{node_id=01} is not a place of a scope");
+        assertThat(SystemDistributedKeyspace.retrieveLightweightLatestCompressionDictionary(KS, TABLE, tableId)).isNull();
+        assertThat(SystemDistributedKeyspace.retrieveLightweightCompressionDictionaries(KS, TABLE, tableId, null, 10)).isNull();
+        assertThatThrownBy(() -> SystemDistributedKeyspace.promoteCompressionDictionary(KS, TABLE, tableId, CLUSTER))
+        .isInstanceOf(IllegalArgumentException.class);
+        assertThat(scopeColumn(100)).containsExactly(Map.of("node_id", "01"));
     }
 
     @Test

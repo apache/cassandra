@@ -253,7 +253,7 @@ public class CompressionDictionaryLocalTrainingTest extends TestBaseImpl
             assertThat(currentScope(cluster, 1)).isEqualTo("node " + nodeId(cluster, 1));
 
             // more than a refresh page of dictionaries newer than the one of the cluster, scoped to a node which is not in
-            // the cluster or to a kind of scope a later version might write
+            // the cluster or to a datacenter without nodes
             String tableId = cluster.get(1).callOnInstance(() -> Keyspace.open(KEYSPACE).getColumnFamilyStore(TABLE).metadata.id.toLongString());
             for (long dictId = global + 1; dictId <= global + CompressionDictionaryScheduler.REFRESH_PAGE_SIZE + 2; dictId++)
             {
@@ -262,7 +262,7 @@ public class CompressionDictionaryLocalTrainingTest extends TestBaseImpl
                                                        "(keyspace_name, table_name, table_id, kind, dict_id, dict_length, dict_checksum, created_at, scope) " +
                                                        "VALUES (?, ?, ?, 'ZSTD', ?, 1, 0, toTimestamp(now()), ?)",
                                                        KEYSPACE, TABLE, tableId, id,
-                                                       Set.of(id % 2 == 0 ? Map.of("node_id", "42") : Map.of("region", "eu"))));
+                                                       Set.of(id % 2 == 0 ? Map.of("node_id", "42") : Map.of("dc", "no_such_dc"))));
             }
 
             // no sstable carries either dictionary, a restarted node gets one from refresh only

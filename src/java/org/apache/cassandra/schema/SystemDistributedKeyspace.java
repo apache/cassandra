@@ -807,7 +807,7 @@ public final class SystemDistributedKeyspace
                                             latest.tableName,
                                             latest.tableId,
                                             latest.dictId.id,
-                                            latest.storedScope); // as stored, its parsed form may be written differently
+                                            latest.scope.toValue());
         }
         catch (CasWriteTimeoutException | CasWriteUnknownResultException e)
         {
@@ -888,7 +888,7 @@ public final class SystemDistributedKeyspace
                                             dictionary.tableName,
                                             dictionary.tableId,
                                             dictionary.dictId.id,
-                                            dictionary.storedScope); // as stored, its parsed form may be written differently
+                                            dictionary.scope.toValue());
         }
         catch (CasWriteTimeoutException | CasWriteUnknownResultException e)
         {
