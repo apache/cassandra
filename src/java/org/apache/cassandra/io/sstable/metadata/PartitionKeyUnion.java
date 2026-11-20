@@ -71,7 +71,9 @@ import com.clearspring.analytics.stream.cardinality.ICardinality;
  * that entries are sorted by sparse idx. As a result the merge does not combine entries that share a sparse idx,
  * so they appear twice in the merged list. In sparse format the cardinality is computed as a function of the number of entries
  * (see - linear counting), causing the estimate to be greater than expected. Adding every sketch to a
- * dense union instead does not depend on entry order or duplicates, which avoids the bug.
+ * dense union instead does not depend on entry order or duplicates, which avoids the bug. Bumping the version
+ * of stream-lib to 2.6.0 would not fix this for existing SSTables. The fixed merge assumes sorted input, so it can
+ * still overcount these sketches until compaction rewrites the SSTables.
  * </p>
  */
 public final class PartitionKeyUnion
