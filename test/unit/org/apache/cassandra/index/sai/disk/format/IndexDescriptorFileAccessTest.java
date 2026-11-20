@@ -18,11 +18,15 @@
 
 package org.apache.cassandra.index.sai.disk.format;
 
+import java.nio.ByteBuffer;
+import java.nio.channels.FileChannel;
 import java.nio.file.Files;
 import java.util.HashMap;
 import java.util.Map;
 
+import com.google.common.primitives.Ints;
 import org.apache.cassandra.config.DatabaseDescriptor;
+import org.apache.cassandra.io.util.ChannelProxy;
 import org.junit.BeforeClass;
 import org.junit.Rule;
 import org.junit.Test;
@@ -39,11 +43,9 @@ import org.apache.lucene.store.IndexInput;
 
 import static org.apache.cassandra.index.sai.disk.format.IndexComponent.GROUP_META;
 import static org.apache.cassandra.index.sai.disk.format.IndexComponent.META;
-import static org.junit.Assert.assertEquals;
-import static org.junit.Assert.assertFalse;
-import static org.junit.Assert.assertSame;
-import static org.junit.Assert.assertTrue;
-import static org.junit.Assert.fail;
+import static org.junit.Assert.*;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyLong;
 import static org.mockito.Mockito.*;
 
 public class IndexDescriptorFileAccessTest
@@ -111,6 +113,52 @@ public class IndexDescriptorFileAccessTest
             assertEquals(perIndex, access.lastOpenedFile);
         }
         verify(access.lastHandle).close();
+    }
+
+    @Test
+    public void nonLocalIndexComponentRead() throws Exception
+    {
+        IndexDescriptor.FileAccess access = mock(IndexDescriptor.FileAccess.class);
+        IndexDescriptor descriptor = create(access);
+        File component = descriptor.fileFor(META, INDEX);
+        byte[] payload = { 10, 20, 30, 40, 50 };
+        long payloadLength = payload.length;
+
+        assertFalse(component.exists());
+
+        // simulate positional reads from a Sidecar-backed channel without creating a local file
+        FileChannel channel = mock(FileChannel.class);
+        when(channel.size()).thenReturn(payloadLength);
+        doAnswer(invocation -> {
+            ByteBuffer target = invocation.getArgument(0);
+            long position = invocation.getArgument(1);
+            if (position >= payloadLength)
+                return -1;
+
+            int length = Ints.checkedCast(Math.min(target.remaining(), payloadLength - (int) position));
+            target.put(payload, (int) position, length);
+            return length;
+        }).when(channel).read(any(ByteBuffer.class), anyLong());
+
+        FileHandle handle = spy(new FileHandle.Builder(component).complete(file -> new ChannelProxy(file, channel)));
+        when(access.open(component, false)).thenReturn(handle);
+        when(access.exists(component)).thenReturn(true);
+        when(access.length(component)).thenReturn(payloadLength);
+
+        assertTrue(descriptor.hasComponent(META, INDEX));
+        try (IndexInput input = descriptor.openPerIndexInput(META, INDEX))
+        {
+            byte[] actual = new byte[payload.length];
+            input.readBytes(actual, 0, actual.length);
+            assertArrayEquals(payload, actual);
+            input.seek(2);
+            assertEquals(payload[2], input.readByte());
+        }
+
+        assertFalse(component.exists());
+        verify(handle).close();
+        verify(access).open(component, false);
+        verify(channel, atLeastOnce()).read(any(ByteBuffer.class), anyLong());
     }
 
     @Test

@@ -148,6 +148,7 @@ public class IndexDescriptor
 
     public PerSSTableIndexWriter newPerSSTableIndexWriter() throws IOException
     {
+        ensureLocalFileAccess();
         return version.onDiskFormat().newPerSSTableIndexWriter(this);
     }
 
@@ -155,6 +156,7 @@ public class IndexDescriptor
                                                         LifecycleNewTracker tracker,
                                                         RowMapping rowMapping)
     {
+        ensureLocalFileAccess();
         return version.onDiskFormat().newPerColumnIndexWriter(index, this, tracker, rowMapping);
     }
 
@@ -200,11 +202,13 @@ public class IndexDescriptor
 
     public void createComponentOnDisk(IndexComponent component) throws IOException
     {
+        ensureLocalFileAccess();
         Files.touch(fileFor(component).toJavaIOFile());
     }
 
     public void createComponentOnDisk(IndexComponent component, IndexIdentifier indexIdentifier) throws IOException
     {
+        ensureLocalFileAccess();
         Files.touch(fileFor(component, indexIdentifier).toJavaIOFile());
     }
 
@@ -237,6 +241,7 @@ public class IndexDescriptor
 
     public IndexOutputWriter openPerSSTableOutput(IndexComponent component, boolean append) throws IOException
     {
+        ensureLocalFileAccess();
         final File file = fileFor(component);
 
         if (logger.isTraceEnabled())
@@ -261,6 +266,7 @@ public class IndexDescriptor
 
     public IndexOutputWriter openPerIndexOutput(IndexComponent component, IndexIdentifier indexIdentifier, boolean append) throws IOException
     {
+        ensureLocalFileAccess();
         final File file = fileFor(component, indexIdentifier);
 
         if (logger.isTraceEnabled())
@@ -426,7 +432,7 @@ public class IndexDescriptor
 
     public void deletePerSSTableIndexComponents()
     {
-        Preconditions.checkState(fileAccess == LocalFileAccess.INSTANCE, "Descriptor with custom file access is read-only");
+        ensureLocalFileAccess();
         version.onDiskFormat()
                .perSSTableIndexComponents(hasClustering())
                .stream()
@@ -437,7 +443,7 @@ public class IndexDescriptor
 
     public void deleteColumnIndex(IndexTermType indexTermType, IndexIdentifier indexIdentifier)
     {
-        Preconditions.checkState(fileAccess == LocalFileAccess.INSTANCE, "Descriptor with custom file access is read-only");
+        ensureLocalFileAccess();
         version.onDiskFormat()
                .perColumnIndexComponents(indexTermType)
                .stream()
@@ -517,6 +523,11 @@ public class IndexDescriptor
         {
             logger.warn(logMessage("Unable to delete storage-attached index component file {} due to {}."), file, e.getMessage(), e);
         }
+    }
+
+    private void ensureLocalFileAccess()
+    {
+        Preconditions.checkState(fileAccess == LocalFileAccess.INSTANCE, "Descriptor with custom file access is read-only");
     }
 
     /**
