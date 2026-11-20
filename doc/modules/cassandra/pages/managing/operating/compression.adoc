@@ -214,12 +214,14 @@ nodetool compressiondictionary promote <keyspace> <table>
 ----
 
 The command can be run on any node and promotes the latest dictionary of the
-table. The given places are added to its scope, and a place which another place
-of the scope contains is dropped: a rack of a datacenter which is in the scope,
-or a node located in a rack or a datacenter which is in the scope. So a
-dictionary of rack `r1` of `dc1`, promoted by `--dc dc1 --rack r2`, is
-scoped to both racks, and promoted by `--dc dc1` after that, it is
-scoped to `dc1` only. Without `--dc`, the scope is set to null, the
+table. The given places are added to its scope, and a rack of a datacenter
+which is in the scope is dropped. So a dictionary of rack `r1` of `dc1`,
+promoted by `--dc dc1 --rack r2`, is scoped to both racks, and promoted by
+`--dc dc1` after that, it is scoped to `dc1` only. A node is never dropped,
+even when it is located in a rack or a datacenter of the scope: a dictionary
+trained with `--scope node` on node 1 and promoted to the rack of node 1 is
+scoped to node 1 and that rack, so node 1 keeps using it when it is moved to
+another rack later, as a scope never shrinks. Without `--dc`, the scope is set to null, the
 whole cluster.
 
 The scope is changed by a lightweight transaction which expects the scope the
