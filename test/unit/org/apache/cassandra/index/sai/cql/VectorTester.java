@@ -33,11 +33,14 @@ import org.junit.runners.Parameterized;
 import org.apache.cassandra.index.sai.SAITester;
 import org.apache.cassandra.index.sai.disk.v1.segment.VectorIndexSegmentSearcher;
 import org.apache.cassandra.index.sai.disk.v1.vector.ConcurrentVectorValues;
+import org.apache.cassandra.index.sai.disk.v1.vector.JVectorUtils;
+import org.apache.cassandra.index.sai.disk.v1.vector.OnHeapGraph;
 import org.apache.cassandra.index.sai.utils.Glove;
 
 import io.github.jbellis.jvector.graph.GraphIndexBuilder;
 import io.github.jbellis.jvector.graph.GraphSearcher;
-import io.github.jbellis.jvector.vector.VectorEncoding;
+import io.github.jbellis.jvector.graph.SearchResult;
+import io.github.jbellis.jvector.util.Bits;
 import io.github.jbellis.jvector.vector.VectorSimilarityFunction;
 
 @Ignore
@@ -72,31 +75,32 @@ public class VectorTester extends SAITester
         ConcurrentVectorValues vectorValues = new ConcurrentVectorValues(query.length);
         int ordinal = 0;
 
-        var graphBuilder = new GraphIndexBuilder<>(vectorValues,
-                                                   VectorEncoding.FLOAT32,
-                                                   VectorSimilarityFunction.COSINE,
-                                                   16,
-                                                   100,
-                                                   1.2f,
-                                                   1.4f);
-
-        for (float[] vector : vectors)
+        SearchResult results;
+        try (var graphBuilder = new GraphIndexBuilder(vectorValues,
+                                                      VectorSimilarityFunction.COSINE,
+                                                      OnHeapGraph.maxDegree(16),
+                                                      100,
+                                                      1.2f,
+                                                      1.4f,
+                                                      false))
         {
-            vectorValues.add(ordinal, vector);
-            graphBuilder.addGraphNode(ordinal++, vectorValues);
-        }
+            for (float[] vector : vectors)
+            {
+                vectorValues.add(ordinal, vector);
+                graphBuilder.addGraphNode(ordinal++, JVectorUtils.toVectorFloat(vector));
+            }
 
-        var results = GraphSearcher.search(query,
+            results = GraphSearcher.search(JVectorUtils.toVectorFloat(query),
                                            topK,
                                            vectorValues,
-                                           VectorEncoding.FLOAT32,
                                            VectorSimilarityFunction.COSINE,
                                            graphBuilder.getGraph(),
-                                           null);
+                                           Bits.ALL);
+        }
 
         List<float[]> nearestNeighbors = new ArrayList<>();
         for (var ns : results.getNodes())
-            nearestNeighbors.add(vectorValues.vectorValue(ns.node));
+            nearestNeighbors.add(vectorValues.getFloatArray(ns.node));
 
         return recallMatch(nearestNeighbors, result, topK);
     }

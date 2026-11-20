@@ -20,16 +20,16 @@ package org.apache.cassandra.index.sai.disk.v1.vector;
 
 import org.apache.cassandra.utils.AbstractIterator;
 
-import io.github.jbellis.jvector.graph.NeighborQueue;
+import io.github.jbellis.jvector.graph.NodeQueue;
 
 /**
- * An iterator over {@link RowIdWithScore} that lazily consumes a {@link NeighborQueue}.
+ * An iterator over {@link RowIdWithScore} that lazily consumes a {@link NodeQueue}.
  */
 public class NeighborQueueRowIdIterator extends AbstractIterator<RowIdWithScore>
 {
-    private final NeighborQueue scoreQueue;
+    private final NodeQueue scoreQueue;
 
-    public NeighborQueueRowIdIterator(NeighborQueue scoreQueue)
+    public NeighborQueueRowIdIterator(NodeQueue scoreQueue)
     {
         this.scoreQueue = scoreQueue;
     }

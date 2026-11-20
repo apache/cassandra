@@ -55,7 +55,7 @@ public class CompactionVectorValues implements RamAwareVectorValues
     }
 
     @Override
-    public float[] vectorValue(int i)
+    public float[] getFloatArray(int i)
     {
         return type.composeAsFloat(values.get(i));
     }

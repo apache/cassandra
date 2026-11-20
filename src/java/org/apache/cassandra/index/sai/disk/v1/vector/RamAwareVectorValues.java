@@ -19,8 +19,15 @@
 package org.apache.cassandra.index.sai.disk.v1.vector;
 
 import io.github.jbellis.jvector.graph.RandomAccessVectorValues;
+import io.github.jbellis.jvector.vector.types.VectorFloat;
 
-public interface RamAwareVectorValues extends RandomAccessVectorValues<float[]>
+public interface RamAwareVectorValues extends RandomAccessVectorValues
 {
-    float[] vectorValue(int i);
+    float[] getFloatArray(int i);
+
+    @Override
+    default VectorFloat<?> getVector(int i)
+    {
+        return JVectorUtils.toVectorFloat(getFloatArray(i));
+    }
 }

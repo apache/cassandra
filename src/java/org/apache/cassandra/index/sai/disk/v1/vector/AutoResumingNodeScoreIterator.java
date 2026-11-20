@@ -27,10 +27,9 @@ import org.apache.cassandra.io.util.FileUtils;
 import org.apache.cassandra.tracing.Tracing;
 import org.apache.cassandra.utils.AbstractIterator;
 
-import io.github.jbellis.jvector.graph.GraphIndex;
 import io.github.jbellis.jvector.graph.GraphSearcher;
-import io.github.jbellis.jvector.graph.NeighborSimilarity;
 import io.github.jbellis.jvector.graph.SearchResult;
+import io.github.jbellis.jvector.graph.similarity.SearchScoreProvider;
 import io.github.jbellis.jvector.util.Bits;
 import io.github.jbellis.jvector.util.GrowableBitSet;
 
@@ -40,10 +39,8 @@ import io.github.jbellis.jvector.util.GrowableBitSet;
  */
 public class AutoResumingNodeScoreIterator extends AbstractIterator<SearchResult.NodeScore>
 {
-    private final GraphSearcher<float[]> searcher;
-    private final GraphIndex.View<float[]> view;
-    private final NeighborSimilarity.ScoreFunction scoreFunction;
-    private final NeighborSimilarity.ReRanker<float[]> reRanker;
+    private final GraphSearcher searcher;
+    private final SearchScoreProvider scoreProvider;
     private final int topK;
     private final Bits acceptBits;
     private final boolean inMemory;
@@ -60,25 +57,23 @@ public class AutoResumingNodeScoreIterator extends AbstractIterator<SearchResult
      * Create a new {@link AutoResumingNodeScoreIterator} that iterates over the provided {@link SearchResult}.
      * If the {@link SearchResult} is consumed, it retrieves the next {@link SearchResult} until the search returns
      * no more results.
-     * @param searcher the {@link GraphSearcher} to use to search and resume search.
+     * @param searcher the {@link GraphSearcher} to use to search and resume search. It will be closed, along with
+     *                 the view it reads from, when the iterator is closed.
+     * @param scoreProvider the scoring and, for approximate scores, reranking functions
      * @param nodesVisitedConsumer a consumer that accepts the total number of nodes visited
      * @param inMemory whether the graph is in memory or on disk (used for trace logging)
      * @param source the source of the search (used for trace logging)
-     * @param view the view used to read from disk. It will be closed when the iterator is closed.
      */
-    public AutoResumingNodeScoreIterator(GraphSearcher<float[]> searcher,
-                                         NeighborSimilarity.ScoreFunction scoreFunction,
-                                         NeighborSimilarity.ReRanker<float[]> reRanker,
+    public AutoResumingNodeScoreIterator(GraphSearcher searcher,
+                                         SearchScoreProvider scoreProvider,
                                          int topK,
                                          Bits acceptBits,
                                          IntConsumer nodesVisitedConsumer,
                                          boolean inMemory,
-                                         String source,
-                                         GraphIndex.View<float[]> view)
+                                         String source)
     {
         this.searcher = searcher;
-        this.scoreFunction = scoreFunction;
-        this.reRanker = reRanker;
+        this.scoreProvider = scoreProvider;
         this.topK = topK;
         this.acceptBits = acceptBits;
 
@@ -86,7 +81,6 @@ public class AutoResumingNodeScoreIterator extends AbstractIterator<SearchResult
         this.nodesVisitedConsumer = nodesVisitedConsumer;
         this.inMemory = inMemory;
         this.source = source;
-        this.view = view;
     }
 
     @Override
@@ -103,7 +97,8 @@ public class AutoResumingNodeScoreIterator extends AbstractIterator<SearchResult
             visited.visited(previousResult);
         }
         Bits bits = visited == null ? acceptBits : visited;
-        SearchResult nextResult = searcher.search(scoreFunction, reRanker, topK, bits);
+        // no similarity threshold or rerank floor, so every candidate found is reranked and returned
+        SearchResult nextResult = searcher.search(scoreProvider, topK, topK, Float.NEGATIVE_INFINITY, Float.NEGATIVE_INFINITY, bits);
 
         // Record metrics (we add here instead of overwriting because re-queries are expensive proportional to the
         // number of visited nodes and even though we throw away some of those results, it helps us determine the
@@ -127,7 +122,7 @@ public class AutoResumingNodeScoreIterator extends AbstractIterator<SearchResult
     public void close()
     {
         nodesVisitedConsumer.accept(cumulativeNodesVisited);
-        FileUtils.closeQuietly(view);
+        FileUtils.closeQuietly(searcher);
     }
 
     private static class SkipVisitedBits implements Bits
@@ -151,12 +146,6 @@ public class AutoResumingNodeScoreIterator extends AbstractIterator<SearchResult
         public boolean get(int i)
         {
             return acceptBits.get(i) && !visited.get(i);
-        }
-
-        @Override
-        public int length()
-        {
-            return acceptBits.length();
         }
     }
 }

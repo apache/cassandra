@@ -20,8 +20,9 @@ package org.apache.cassandra.index.sai.disk.v1.vector;
 
 import java.util.function.IntConsumer;
 
-import io.github.jbellis.jvector.graph.NeighborQueue;
-import io.github.jbellis.jvector.graph.NeighborSimilarity;
+import io.github.jbellis.jvector.graph.NodeQueue;
+import io.github.jbellis.jvector.graph.similarity.ScoreFunction;
+import io.github.jbellis.jvector.util.GrowableLongHeap;
 
 /**
  * A specialized data structure that stores segment row id to ordinal pairs efficiently. Implemented as an array of int
@@ -95,14 +96,14 @@ public class SegmentRowIdOrdinalPairs
     /**
      * Create an iterator over the segment row id and scored ordinal pairs in the array.
      * @param scoreFunction the score function to use to compute the next score based on the ordinal
-     * @return a {@link NeighborQueue}
+     * @return a {@link NodeQueue}
      */
-    public NeighborQueue mapToSegmentRowIdScoreHeap(NeighborSimilarity.ScoreFunction scoreFunction)
+    public NodeQueue mapToSegmentRowIdScoreHeap(ScoreFunction scoreFunction)
     {
         // TODO this could be improved using Floyd's algorithm in a later jvector version
-        NeighborQueue queue = new NeighborQueue(size(), true);
+        NodeQueue queue = new NodeQueue(new GrowableLongHeap(size()), NodeQueue.Order.MAX_HEAP);
         for (int i = 0; i < size; i++)
-            queue.add(array[i * 2], scoreFunction.similarityTo(array[i * 2 + 1])); // rowid, score
+            queue.push(array[i * 2], scoreFunction.similarityTo(array[i * 2 + 1])); // rowid, score
         return queue;
     }
 
@@ -110,12 +111,12 @@ public class SegmentRowIdOrdinalPairs
      * Create an iterator over the index and scored ordinal pairs in the array.
      * @param scoreFunction the score function to use to compute the next score based on the ordinal
      */
-    public NeighborQueue mapToIndexScoreIterator(NeighborSimilarity.ScoreFunction scoreFunction)
+    public NodeQueue mapToIndexScoreIterator(ScoreFunction scoreFunction)
     {
         // TODO this could be improved using Floyd's algorithm in a later jvector version
-        NeighborQueue queue = new NeighborQueue(size(), true);
+        NodeQueue queue = new NodeQueue(new GrowableLongHeap(size()), NodeQueue.Order.MAX_HEAP);
         for (int i = 0; i < size; i++)
-            queue.add(i, scoreFunction.similarityTo(array[i * 2 + 1])); // index, score
+            queue.push(i, scoreFunction.similarityTo(array[i * 2 + 1])); // index, score
         return queue;
     }
 

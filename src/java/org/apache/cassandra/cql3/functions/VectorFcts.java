@@ -27,6 +27,7 @@ import org.apache.cassandra.db.marshal.AbstractType;
 import org.apache.cassandra.db.marshal.FloatType;
 import org.apache.cassandra.db.marshal.VectorType;
 import org.apache.cassandra.exceptions.InvalidRequestException;
+import org.apache.cassandra.index.sai.disk.v1.vector.JVectorUtils;
 
 import io.github.jbellis.jvector.vector.VectorSimilarityFunction;
 
@@ -91,7 +92,7 @@ public class VectorFcts
                         throw new InvalidRequestException("Function " + name + " doesn't support all-zero vectors.");
                 }
 
-                return FloatType.instance.decompose(f.compare(v1, v2));
+                return FloatType.instance.decompose(JVectorUtils.compare(f, v1, v2));
             }
 
             private boolean isAllZero(float[] v)

@@ -271,8 +271,8 @@ public class VectorMemoryIndexTest extends SAITester
     }
 
     /**
-     * More writers than jvector's GraphIndexBuilder can serve at once must wait, not fail the insert. The other
-     * concurrent tests use exactly availableProcessors writers, within jvector's limit, so their memtable reports that
+     * More writers than {@link OnHeapGraph#MAX_CONCURRENT_GRAPH_INSERTS} must wait, not fail the insert. The other
+     * concurrent tests use exactly availableProcessors writers, within that bound, so their memtable reports that
      * it bounds writers and OnHeapGraph skips its semaphore; this test's memtable cannot make that promise, so
      * OnHeapGraph bounds the writers itself.
      */
@@ -287,7 +287,7 @@ public class VectorMemoryIndexTest extends SAITester
      * Verifies that concurrent calls to add() do not corrupt the graph or lose data.
      * <p>
      * GraphIndexBuilder.addGraphNode() is designed for concurrent use: insertionsInProgress
-     * is a ConcurrentSkipListSet, and PoolingSupport gives each thread its own GraphSearcher
+     * is a ConcurrentSkipListSet, and ExplicitThreadLocal gives each thread its own GraphSearcher
      * and scratch arrays. This test validates the full stack from VectorMemoryIndex.index()
      * through OnHeapGraph.add() through GraphIndexBuilder.addGraphNode().
      * <p>

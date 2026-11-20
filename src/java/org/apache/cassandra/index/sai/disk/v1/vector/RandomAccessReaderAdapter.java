@@ -43,9 +43,21 @@ public class RandomAccessReaderAdapter extends RandomAccessReader implements io.
         super(fileHandle.instantiateRebufferer(null));
     }
 
+    /**
+     * Read floats into a float[], starting at the current position.
+     *
+     * @param dest the array to read into
+     * @param offset the offset in the array at which to start writing floats
+     * @param count the number of floats to read
+     *
+     * Will change the buffer position.
+     */
     @Override
-    public void readFully(float[] dest) throws IOException
+    public void read(float[] dest, int offset, int count) throws IOException
     {
+        if (count == 0)
+            return;
+
         BufferHolder bh = getBufferHolder();
         long position = getPosition();
 
@@ -67,16 +79,23 @@ public class RandomAccessReaderAdapter extends RandomAccessReader implements io.
             floatBuffer = bb.asFloatBuffer();
         }
 
-        if (dest.length > floatBuffer.remaining())
+        if (count > floatBuffer.remaining())
         {
             // slow path -- desired slice is across region boundaries
-            ByteBuffer bb = ByteBuffer.allocate(Float.BYTES * dest.length);
+            ByteBuffer bb = ByteBuffer.allocate(Float.BYTES * count);
             readFully(bb);
             floatBuffer = bb.asFloatBuffer();
         }
 
-        floatBuffer.get(dest);
-        seek(position + (long) Float.BYTES * dest.length);
+        floatBuffer.get(dest, offset, count);
+        seek(position + (long) Float.BYTES * count);
+    }
+
+    @Override
+    public void readFully(long[] dest) throws IOException
+    {
+        for (int i = 0; i < dest.length; i++)
+            dest[i] = readLong();
     }
 
     /**
