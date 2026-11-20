@@ -156,7 +156,12 @@ public class SSTableRewriter extends Transactional.AbstractTransactional impleme
         }
     }
 
-    private void maybeReopenEarly(DecoratedKey key)
+    /**
+     * Once more than {@code preemptiveOpenInterval} bytes have been written since the last check, opens the
+     * current sstable early and moves the originals' starts past it. Offline, it skips the originals' file
+     * cache before {@code key} instead. Call it only between partitions, before {@code key} is written.
+     */
+    public void maybeReopenEarly(DecoratedKey key)
     {
         if (writer.getFilePointer() - currentlyOpenedEarlyAt > preemptiveOpenInterval)
         {
@@ -166,6 +171,8 @@ public class SSTableRewriter extends Transactional.AbstractTransactional impleme
                 {
                     reader.trySkipFileCacheBefore(key);
                 }
+                // reset here too, so the cache skip runs once per interval and not for every later partition
+                currentlyOpenedEarlyAt = writer.getFilePointer();
             }
             else
             {

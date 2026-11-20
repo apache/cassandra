@@ -25,9 +25,14 @@ import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
 
+import org.junit.After;
+import org.junit.Before;
 import org.junit.Test;
+import org.junit.runner.RunWith;
+import org.junit.runners.Parameterized;
 
 import org.apache.cassandra.config.Config.DiskAccessMode;
+import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.cql3.CQLTester;
 import org.apache.cassandra.db.ColumnFamilyStore;
 import org.apache.cassandra.db.DecoratedKey;
@@ -45,6 +50,7 @@ import org.apache.cassandra.io.sstable.ISSTableScanner;
 import org.apache.cassandra.io.sstable.PartitionDescriptor;
 import org.apache.cassandra.io.sstable.SSTableCursorReader;
 import org.apache.cassandra.io.sstable.UnfilteredDescriptor;
+import org.apache.cassandra.io.sstable.format.SSTableFormat;
 import org.apache.cassandra.io.sstable.format.SSTableReader;
 import org.apache.cassandra.io.sstable.format.SSTableReader.PartitionPositionBounds;
 import org.apache.cassandra.schema.ColumnMetadata;
@@ -52,6 +58,7 @@ import org.apache.cassandra.schema.ColumnMetadata;
 import static org.apache.cassandra.io.sstable.SSTableCursorReader.State.CELL_HEADER_START;
 import static org.apache.cassandra.io.sstable.SSTableCursorReader.State.CELL_VALUE_START;
 import static org.apache.cassandra.io.sstable.SSTableCursorReader.State.DONE;
+import static org.apache.cassandra.io.sstable.SSTableCursorReader.State.PARTITION_END;
 import static org.apache.cassandra.io.sstable.SSTableCursorReader.State.PARTITION_START;
 import static org.apache.cassandra.io.sstable.SSTableCursorReader.State.ROW_START;
 import static org.apache.cassandra.io.sstable.SSTableCursorReader.State.STATIC_ROW_START;
@@ -66,8 +73,33 @@ import static org.junit.Assert.assertTrue;
 import static org.junit.Assert.fail;
 
 /** Unit tests for cursor-read defects that the differential harness cannot isolate. */
+@RunWith(Parameterized.class)
 public class StatefulCursorTest extends CQLTester
 {
+    @Parameterized.Parameter
+    public String format;
+
+    @Parameterized.Parameters(name = "format={0}")
+    public static Collection<Object[]> formats()
+    {
+        return List.of(new Object[]{ "big" }, new Object[]{ "bti" });
+    }
+
+    private SSTableFormat<?, ?> originalFormat;
+
+    @Before
+    public void selectFormat()
+    {
+        originalFormat = DatabaseDescriptor.getSelectedSSTableFormat();
+        DatabaseDescriptor.setSelectedSSTableFormat(format);
+    }
+
+    @After
+    public void restoreFormat()
+    {
+        DatabaseDescriptor.setSelectedSSTableFormat(originalFormat);
+    }
+
     /** Hooks for {@link #drive}, so the cursor-driving tests share one state machine. */
     private interface CursorVisitor
     {
@@ -226,6 +258,48 @@ public class StatefulCursorTest extends CQLTester
         assertTrue("expected the row whose only cell was drop-filtered to return UNFILTERED_END",
                    seen[0]);
         assertTrue("expected the surviving row's cell to return a cell state, as a control", seen[1]);
+    }
+
+    /**
+     * readRowHeader must keep a row that holds only a cell of a dropped column and a complex deletion
+     * of a column that is not dropped. The dropped-column filter keeps the complex deletion, so the row
+     * is not empty. This test turns off pauseAtEmptyComplexColumns, and the empty check must still stop
+     * at the complex deletion. A row that holds only the dropped cell is skipped.
+     */
+    @Test
+    public void readRowHeaderKeepsARowWithAComplexDeletionWhenThePauseIsOff() throws Throwable
+    {
+        createTable("CREATE TABLE %s (pk int, ck int, s set<int>, d int, PRIMARY KEY (pk, ck))");
+        ColumnFamilyStore cfs = getCurrentColumnFamilyStore();
+        cfs.disableAutoCompaction();
+
+        // The timestamps are below the drop time that the ALTER records, so the drop filter covers d.
+        // ck 0: a cell of d and a complex deletion of s, so the row is kept
+        execute("UPDATE %s USING TIMESTAMP 1000 SET d = 1, s = {} WHERE pk = 0 AND ck = 0");
+        // ck 1: only a cell of d, so the row is skipped
+        execute("UPDATE %s USING TIMESTAMP 1000 SET d = 1 WHERE pk = 0 AND ck = 1");
+        flush();
+        alterTable("ALTER TABLE %s DROP d");
+
+        SSTableReader sstable = cfs.getLiveSSTables().iterator().next();
+        List<Integer> statesAfterRowHeader = new ArrayList<>();
+        try (StatefulCursor cursor = new StatefulCursor(sstable, DiskAccessMode.standard))
+        {
+            cursor.pauseAtEmptyComplexColumns(false);
+            drive(cursor, new CursorVisitor()
+            {
+                public void onRow(StatefulCursor c)
+                {
+                    statesAfterRowHeader.add(c.state());
+                }
+            });
+        }
+
+        assertEquals("expected one readRowHeader call for each row", 2, statesAfterRowHeader.size());
+        assertTrue("the row with a complex deletion must be kept, with its cells to read",
+                   isState(statesAfterRowHeader.get(0), CELL_HEADER_START));
+        assertTrue("the row with only a dropped cell must be skipped",
+                   isState(statesAfterRowHeader.get(1), PARTITION_END));
     }
 
     /**

@@ -120,6 +120,12 @@ public class BigFormatPartitionWriter extends SortedTablePartitionWriter
         return null;
     }
 
+    /** True if index blocks of this serialized size, offsets included, fit column_index_cache_size and stay objects; the same check as {@link #indexSamples}. */
+    public boolean indexInfoFitsCache(int indexedPartSize)
+    {
+        return indexedPartSize <= switchIndexInfoToBufferThreshold;
+    }
+
     public int[] offsets()
     {
         return indexOffsets != null

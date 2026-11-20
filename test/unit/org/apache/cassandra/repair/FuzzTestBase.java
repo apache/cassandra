@@ -82,6 +82,7 @@ import org.apache.cassandra.cql3.CQLTester;
 import org.apache.cassandra.db.ColumnFamilyStore;
 import org.apache.cassandra.db.Digest;
 import org.apache.cassandra.db.SystemKeyspace;
+import org.apache.cassandra.db.compaction.CompactionIterator;
 import org.apache.cassandra.db.compaction.ICompactionManager;
 import org.apache.cassandra.db.marshal.EmptyType;
 import org.apache.cassandra.db.repair.CassandraTableRepairManager;
@@ -668,6 +669,18 @@ public abstract class FuzzTestBase extends CQLTester.InMemory
             Stage.MISC.unsafeSetExecutor(orderedExecutor);
             Stage.INTERNAL_RESPONSE.unsafeSetExecutor(unorderedScheduled);
             Mockito.when(failureDetector.isAlive(Mockito.any())).thenReturn(true);
+            // Workaround: remove it when the permanent fix for CASSANDRA-21721 (NoSpamLogger statements read the clock) lands.
+            // Since CASSANDRA-21721, creating a NoSpamLogger statement reads NoSpamLogger's clock.  CompactionIterator
+            // creates one in a static field.  If that class first loads on a compaction thread after the clock below is
+            // installed, its class init throws, and every repair validation fails.  So load it here, before the clock.
+            try
+            {
+                Class.forName(CompactionIterator.class.getName());
+            }
+            catch (ClassNotFoundException e)
+            {
+                throw new AssertionError(e);
+            }
             Thread expectedThread = Thread.currentThread();
             NoSpamLogger.unsafeSetClock(() -> {
                 if (Thread.currentThread() != expectedThread)

@@ -22,6 +22,7 @@ import java.util.Map;
 import java.util.Set;
 
 import javax.annotation.Nonnull;
+import javax.annotation.Nullable;
 
 import org.apache.cassandra.db.ColumnFamilyStore;
 import org.apache.cassandra.db.DecoratedKey;
@@ -29,6 +30,7 @@ import org.apache.cassandra.db.lifecycle.LifecycleTransaction;
 import org.apache.cassandra.dht.IPartitioner;
 import org.apache.cassandra.io.sstable.AbstractRowIndexEntry;
 import org.apache.cassandra.io.sstable.Component;
+import org.apache.cassandra.io.sstable.CursorIndexWriter;
 import org.apache.cassandra.io.sstable.Descriptor;
 import org.apache.cassandra.io.sstable.IScrubber;
 import org.apache.cassandra.io.sstable.MetricsProviders;
@@ -52,6 +54,16 @@ public interface SSTableFormat<R extends SSTableReader, W extends SSTableWriter>
     SSTableWriterFactory<W, ?> getWriterFactory();
 
     SSTableReaderFactory<R, ?> getReaderFactory();
+
+    /**
+     * Returns the factory for the index writers that cursor compaction uses with this format, or null if
+     * cursor compaction cannot write this format. A format that returns a factory writes with a
+     * {@link SortedTableWriter}.
+     */
+    default @Nullable CursorIndexWriter.Factory cursorIndexWriterFactory()
+    {
+        return null;
+    }
 
     /**
      * All the components that the writter can produce when saving an sstable, as well as all the components

@@ -194,37 +194,8 @@ public class IndexSummaryBuilder implements AutoCloseable
         return maybeAddEntry(decoratedKey, indexStart, 0, 0);
     }
     /**
-     * @param keyBytes the key data for this record
-     * @param offset key data offset in the keyBytes array
-     * @param length key data length
-     * @param indexStart the position in the index file this record begins
-     */
-    public IndexSummaryBuilder maybeAddEntry(byte[] keyBytes, int offset, int length, long indexStart) throws IOException
-    {
-        if (keysWritten == nextSamplePosition)
-        {
-            if ((entries.length() + getEntrySize(length)) <= maxEntriesSize)
-            {
-                offsets.writeInt((int) entries.length());
-                entries.write(keyBytes, offset, length);
-                entries.writeLong(indexStart);
-                setNextSamplePosition(keysWritten);
-            }
-            else
-            {
-                // we cannot fully sample this sstable due to too much memory in the index summary, so let's tell the user
-                logger.error("Memory capacity of index summary exceeded (2GiB), index summary will not cover full sstable, " +
-                             "you should increase min_sampling_level");
-            }
-        }
-
-        keysWritten++;
-        return this;
-    }
-
-    /**
      *
-     * @param decoratedKey the key for this record
+     * @param decoratedKey the key for this record; may be a reusable instance
      * @param indexStart the position in the index file this record begins
      * @param indexEnd the position in the index file we need to be able to read to (exclusive) to read this record
      * @param dataEnd the position in the data file we need to be able to read to (exclusive) to read this record
@@ -250,8 +221,8 @@ public class IndexSummaryBuilder implements AutoCloseable
         }
         else if (dataEnd != 0 && keysWritten + 1 == nextSamplePosition)
         {
-            // this is the last key in this summary interval, so stash it
-            ReadableBoundary boundary = new ReadableBoundary(decoratedKey, indexEnd, dataEnd, (int) (offsets.length() / 4), entries.length());
+            // this is the last key in this summary interval, so stash it; a copy, as the key may be a reusable one
+            ReadableBoundary boundary = new ReadableBoundary(decoratedKey.retainable(), indexEnd, dataEnd, (int) (offsets.length() / 4), entries.length());
             lastReadableByData.put(dataEnd, boundary);
             lastReadableByIndex.put(indexEnd, boundary);
         }

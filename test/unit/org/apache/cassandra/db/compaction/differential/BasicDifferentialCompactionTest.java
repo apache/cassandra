@@ -19,11 +19,38 @@
 package org.apache.cassandra.db.compaction.differential;
 
 
+import java.nio.ByteBuffer;
+import java.nio.charset.StandardCharsets;
+import java.util.Collection;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
+
+import org.junit.After;
+import org.junit.Before;
 import org.junit.Test;
+import org.junit.runner.RunWith;
+import org.junit.runners.Parameterized;
 
 import org.apache.cassandra.db.ColumnFamilyStore;
+import org.apache.cassandra.db.DecoratedKey;
+import org.apache.cassandra.db.Slices;
+import org.apache.cassandra.db.filter.ColumnFilter;
+import org.apache.cassandra.db.marshal.LongType;
+import org.apache.cassandra.db.marshal.UTF8Type;
+import org.apache.cassandra.db.rows.Cell;
+import org.apache.cassandra.db.rows.Row;
+import org.apache.cassandra.db.rows.Unfiltered;
+import org.apache.cassandra.db.rows.UnfilteredRowIterator;
+import org.apache.cassandra.io.sstable.SSTableReadsListener;
+import org.apache.cassandra.io.sstable.format.SSTableReader;
+import org.apache.cassandra.schema.ColumnMetadata;
+import org.apache.cassandra.schema.TableMetadata;
+import org.apache.cassandra.utils.FBUtilities;
 
 import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertNotNull;
+import static org.junit.Assert.assertNull;
 import static org.junit.Assert.assertTrue;
 
 /**
@@ -31,8 +58,30 @@ import static org.junit.Assert.assertTrue;
  * simplest supported table shapes. The edge-case corpus lives in
  * EdgeCaseDifferentialCompactionTest.
  */
+@RunWith(Parameterized.class)
 public class BasicDifferentialCompactionTest extends DifferentialCompactionTester
 {
+    @Parameterized.Parameter
+    public String format;
+
+    @Parameterized.Parameters(name = "format={0}")
+    public static Collection<Object[]> formats()
+    {
+        return List.of(new Object[]{ "big" }, new Object[]{ "bti" });
+    }
+
+    @Before
+    public void selectFormat()
+    {
+        selectSSTableFormat(format);
+    }
+
+    @After
+    public void restoreFormat()
+    {
+        restoreSelectedFormat();
+    }
+
     @Test
     public void overlappingOverwrites() throws Exception
     {
@@ -192,5 +241,102 @@ public class BasicDifferentialCompactionTest extends DifferentialCompactionTeste
 
         assertEquals("the scenario needs two overlapping sstables to merge", 2, cfs.getLiveSSTables().size());
         assertCursorMatchesIterator(cfs);
+    }
+
+    /**
+     * The harness's slice read-back skips a table with no clustering columns, because its index has no seek
+     * to route. This test compacts such a table on the cursor path, reads each partition of the output back
+     * with a point read, and checks each merged value.
+     */
+    @Test
+    public void clusteringFreeReadBack() throws Exception
+    {
+        createTable("CREATE TABLE %s (pk bigint PRIMARY KEY, v1 bigint, v2 text)");
+        ColumnFamilyStore cfs = getCurrentColumnFamilyStore();
+        cfs.disableAutoCompaction();
+
+        // pk -> {v1, v2}; a missing key means the partition must not exist
+        Map<Long, Object[]> expected = new HashMap<>();
+
+        // first sstable: pk 0..19
+        for (long pk = 0; pk < 20; pk++)
+        {
+            execute("INSERT INTO %s (pk, v1, v2) VALUES (?, ?, ?)", pk, pk, "v" + pk);
+            expected.put(pk, new Object[]{ pk, "v" + pk });
+        }
+        flush();
+
+        // second, newer sstable: pk 10..29 overwrites the overlap and adds pk 20..29
+        for (long pk = 10; pk < 30; pk++)
+        {
+            execute("INSERT INTO %s (pk, v1, v2) VALUES (?, ?, ?)", pk, pk + 100, "updated" + pk);
+            expected.put(pk, new Object[]{ pk + 100, "updated" + pk });
+        }
+        flush();
+
+        assertEquals("the scenario needs two overlapping sstables to merge", 2, cfs.getLiveSSTables().size());
+
+        long gcBefore = cfs.getDefaultGcBefore(FBUtilities.nowInSeconds());
+        commitCompaction(cfs, cfs.getLiveSSTables(), true, gcBefore);
+
+        assertEquals("cursor compaction should have produced a single output sstable",
+                     1, cfs.getLiveSSTables().size());
+        SSTableReader out = cfs.getLiveSSTables().iterator().next();
+        assertOutputFormatIsSelected(out);
+
+        TableMetadata metadata = out.metadata();
+        ColumnMetadata v1 = metadata.getColumn(ByteBuffer.wrap("v1".getBytes(StandardCharsets.UTF_8)));
+        ColumnMetadata v2 = metadata.getColumn(ByteBuffer.wrap("v2".getBytes(StandardCharsets.UTF_8)));
+        assertNotNull("schema is missing column v1", v1);
+        assertNotNull("schema is missing column v2", v2);
+
+        ColumnFilter fetchAll = ColumnFilter.all(metadata);
+
+        // point read every key that could exist, including the two just past the end that must not
+        for (long pk = 0; pk < 32; pk++)
+        {
+            DecoratedKey key = cfs.decorateKey(LongType.instance.decompose(pk));
+            Row row = readOnlyRow(out, key, fetchAll);
+            Object[] want = expected.get(pk);
+
+            if (want == null)
+            {
+                assertNull("point read of pk " + pk + " returned a row, but the merge should hold no such partition " +
+                           "in " + out.descriptor, row);
+                continue;
+            }
+
+            assertNotNull("point read of pk " + pk + " returned no row from the merged output " + out.descriptor, row);
+
+            Cell<?> cellV1 = row.getCell(v1);
+            Cell<?> cellV2 = row.getCell(v2);
+            assertNotNull("pk " + pk + ": v1 cell missing in merged output", cellV1);
+            assertNotNull("pk " + pk + ": v2 cell missing in merged output", cellV2);
+
+            assertEquals("pk " + pk + ": merged v1 wrong in point read", want[0], LongType.instance.compose(cellV1.buffer()));
+            assertEquals("pk " + pk + ": merged v2 wrong in point read", want[1], UTF8Type.instance.compose(cellV2.buffer()));
+        }
+    }
+
+    /** Reads exactly one partition of {@code sstable} through a full-partition point read; returns its lone row or null. */
+    private static Row readOnlyRow(SSTableReader sstable, DecoratedKey key, ColumnFilter fetchAll)
+    {
+        try (UnfilteredRowIterator partition = sstable.rowIterator(key, Slices.ALL, fetchAll, false,
+                                                                   SSTableReadsListener.NOOP_LISTENER))
+        {
+            Row found = null;
+            int rows = 0;
+            while (partition.hasNext())
+            {
+                Unfiltered unfiltered = partition.next();
+                if (!unfiltered.isRow())
+                    continue;
+                rows++;
+                found = (Row) unfiltered;
+            }
+            assertEquals("a clustering-free partition must hold exactly one row on a hit; pk read " + key +
+                         " in " + sstable.descriptor, found == null ? 0 : 1, rows);
+            return found;
+        }
     }
 }

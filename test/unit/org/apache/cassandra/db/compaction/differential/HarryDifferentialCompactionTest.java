@@ -19,10 +19,17 @@
 package org.apache.cassandra.db.compaction.differential;
 
 import java.util.Arrays;
+import java.util.Collection;
+import java.util.List;
 import java.util.concurrent.atomic.AtomicInteger;
 
+import org.junit.After;
+import org.junit.Before;
 import org.junit.Test;
+import org.junit.runner.RunWith;
+import org.junit.runners.Parameterized;
 
+import org.apache.cassandra.config.CassandraRelevantProperties;
 import org.apache.cassandra.db.ColumnFamilyStore;
 import org.apache.cassandra.db.Keyspace;
 import org.apache.cassandra.harry.ColumnSpec;
@@ -37,15 +44,31 @@ import org.apache.cassandra.harry.op.Visit;
 
 import static org.apache.cassandra.harry.checker.TestHelper.withRandom;
 
-/**
- * Runs Harry-generated delete and overwrite histories through the differential harness.
- *
- * The differential harness is the oracle, so this test issues no Harry read-validation visits.
- * The schema holds simple types only, because Harry cannot generate multi-cell columns. See the
- * TODO list at the top of {@link ColumnSpec}.
- */
+/** Runs Harry-generated delete and overwrite histories through the differential harness. */
+@RunWith(Parameterized.class)
 public class HarryDifferentialCompactionTest extends DifferentialCompactionTester
 {
+    @Parameterized.Parameter
+    public String format;
+
+    @Parameterized.Parameters(name = "format={0}")
+    public static Collection<Object[]> formats()
+    {
+        return List.of(new Object[]{ "big" }, new Object[]{ "bti" });
+    }
+
+    @Before
+    public void selectFormat()
+    {
+        selectSSTableFormat(format);
+    }
+
+    @After
+    public void restoreFormat()
+    {
+        restoreSelectedFormat();
+    }
+
     private static final AtomicInteger idGen = new AtomicInteger(0);
 
     private static final int PARTITIONS = 30;
@@ -57,12 +80,12 @@ public class HarryDifferentialCompactionTest extends DifferentialCompactionTeste
     @Test
     public void harryTombstoneHistories() throws Throwable
     {
-        // withRandom rewraps every Throwable as an AssertionError. An assumption that fails inside
-        // the callback therefore reaches JUnit as a failure, not as a skip. This check runs first.
-        assumeBigFormatSelected();
-
-        long seed = System.currentTimeMillis();
-        logger.info("harryTombstoneHistories seed={}", seed);
+        // To replay, pass -Dcassandra.test.differential.seed=N inside -Dtest.jvm.args.
+        String seedProperty = CassandraRelevantProperties.TEST_DIFFERENTIAL_SEED.getKey();
+        boolean seedFromProperty = CassandraRelevantProperties.TEST_DIFFERENTIAL_SEED.isPresent();
+        long seed = CassandraRelevantProperties.TEST_DIFFERENTIAL_SEED.getLong(System.currentTimeMillis());
+        logger.info("harryTombstoneHistories seed={} ({}); replay with -D{}={}",
+                    seed, seedFromProperty ? "from " + seedProperty : "from the clock", seedProperty, seed);
         withRandom(seed, rng -> {
             String ks = "harry_diff_ks" + idGen.incrementAndGet();
             String table = "tbl" + idGen.incrementAndGet();
