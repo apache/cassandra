@@ -95,18 +95,4 @@ public class LengthConstraint extends ConstraintFunction
             throw new InvalidConstraintDefinitionException(format("String '%s' is not a valid int", term));
         }
     }
-
-    @Override
-    public boolean equals(Object o)
-    {
-        if (this == o)
-            return true;
-
-        if (!(o instanceof LengthConstraint))
-            return false;
-
-        LengthConstraint other = (LengthConstraint) o;
-
-        return columnName.equals(other.columnName);
-    }
 }

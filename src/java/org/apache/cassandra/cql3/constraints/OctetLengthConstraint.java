@@ -81,18 +81,4 @@ public class OctetLengthConstraint extends ConstraintFunction
             throw new InvalidConstraintDefinitionException(format("String '%s' is not a valid int", term));
         }
     }
-
-    @Override
-    public boolean equals(Object o)
-    {
-        if (this == o)
-            return true;
-
-        if (!(o instanceof OctetLengthConstraint))
-            return false;
-
-        OctetLengthConstraint other = (OctetLengthConstraint) o;
-
-        return columnName.equals(other.columnName);
-    }
 }

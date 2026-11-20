@@ -47,6 +47,15 @@ public abstract class ColumnConstraint<T>
         this.columnName = columnName;
     }
 
+    /**
+     * Returns a copy of this constraint which shares no mutable state with it. The column name and the state
+     * computed by {@link #prepare(AbstractType)} are mutable, so a constraint must not be shared between two columns
+     * which differ in their name or type. The copy has the column name of this constraint and it is not prepared.
+     *
+     * @return copy of this constraint
+     */
+    public abstract ColumnConstraint<T> copy();
+
     // Enum containing all the possible constraint serializers to help with serialization/deserialization
     // of constraints.
     public enum ConstraintType

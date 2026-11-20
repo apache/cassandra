@@ -1,4 +1,5 @@
 6.0-alpha3
+ * Fix equals and hashCode of column constraints and document removal of custom constraint providers with TCM (CASSANDRA-21879)
  * Accord: TTLs are zero-initialised and not set at execution time, so data is immediately expired (CASSANDRA-21728)
  * Warn instead of throw when AsyncProfiler fails the kernelParamsCheck (CASSANDRA-21876)
  * Add backoff and retry for CMS reconfiguration during node removal (CASSANDRA-21693)

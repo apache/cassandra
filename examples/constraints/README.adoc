@@ -34,6 +34,8 @@ $ cd <cassandra_src_dir>/examples/constraints
 $ ant clean
 ----
 
+Do not remove the JAR from a node which has ever used its constraints before reading the "Removal" section below.
+
 === Usage
 
 ----
@@ -44,3 +46,46 @@ cqlsh> ALTER TABLE ks.tb ALTER col CHECK MY_CUSTOM_CONSTRAINT() > 20;
 
 `MY_CUSTOM_CONSTRAINT` is functionally same as `LENGTH` constraint and `MY_CUSTOM_UNARY_CONSTRAINT` is functionally
 same as `JSON` constraint.
+
+=== Removal
+
+A node needs the provider of a custom constraint on its class path for as long as its cluster metadata mentions
+that constraint, not only for as long as some table uses it. Without it, a node fails to start with:
+
+----
+InvalidConstraintDefinitionException: Unrecognized constraint function: my_custom_constraint
+----
+
+There are two places where a custom constraint is mentioned:
+
+* The cluster metadata log. Every schema change is stored in it as the CQL statement which was executed, and a node
+replays that statement on startup. A `CREATE TABLE` or `ALTER TABLE` statement with a custom constraint can be replayed
+only when its provider is present, even when the constraint was dropped later.
+* Snapshots of cluster metadata. A snapshot contains the schema as it was when the snapshot was taken, including
+all constraints.
+
+On startup, a node reads its latest snapshot and replays only the log entries which come after it. So a provider can
+be removed once the latest snapshot on every node contains no custom constraint, and no log entry after that snapshot
+mentions one. To get there:
+
+1. Drop the custom constraints from all tables.
++
+----
+cqlsh> ALTER TABLE ks.tb ALTER col DROP CHECK;
+----
+2. Take a snapshot of cluster metadata. It is enough to run this on one node, every node will store the snapshot.
++
+----
+$ nodetool cms snapshot
+----
+3. Check that every node stored that snapshot. Each node logs `Storing snapshot of cluster metadata at epoch <epoch>`
+into its `system.log`, and the snapshots a node has are listed, the latest one first, by:
++
+----
+cqlsh> SELECT epoch FROM system.metadata_snapshots;
+----
+A node which was down has to catch up before it is checked.
+4. Remove the JAR from the class path of every node and restart the nodes, one by one.
+
+Keep the JAR at hand even after that. Anything which reads cluster metadata older than that snapshot still needs it,
+for example a recovery of cluster metadata to an earlier epoch, or an offline dump of the cluster metadata log.

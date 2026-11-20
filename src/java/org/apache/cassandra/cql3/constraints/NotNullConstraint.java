@@ -73,18 +73,4 @@ public class NotNullConstraint extends UnaryConstraintFunction
     {
         return CQL_FUNCTION_NAME;
     }
-
-    @Override
-    public boolean equals(Object o)
-    {
-        if (this == o)
-            return true;
-
-        if (!(o instanceof NotNullConstraint))
-            return false;
-
-        NotNullConstraint other = (NotNullConstraint) o;
-
-        return columnName.equals(other.columnName) && name.equals(other.name);
-    }
 }
