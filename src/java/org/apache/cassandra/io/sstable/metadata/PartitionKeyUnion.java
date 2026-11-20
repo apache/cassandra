@@ -81,6 +81,9 @@ public final class PartitionKeyUnion
 
     public void add(ICardinality sketch) throws CardinalityMergeException
     {
+        if (!(sketch instanceof HyperLogLogPlus))
+            throw new UnsupportedSketchException(sketch);
+
         if (first == null)
         {
             first = sketch;
@@ -106,5 +109,14 @@ public final class PartitionKeyUnion
         if (union != null)
             return union.cardinality();
         return first == null ? 0 : first.cardinality();
+    }
+
+    private static final class UnsupportedSketchException extends CardinalityMergeException
+    {
+        UnsupportedSketchException(ICardinality sketch)
+        {
+            super("Cannot merge cardinality estimator of type " + sketch.getClass().getName() +
+                  ", expected " + HyperLogLogPlus.class.getName());
+        }
     }
 }
