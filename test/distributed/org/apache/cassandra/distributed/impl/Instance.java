@@ -1089,6 +1089,7 @@ public class Instance extends IsolatedExecutor implements IInvokableInstance
 
             internodeMessagingStarted = false;
             error = parallelRun(error, executor, () -> ClusterMetadataService.instance().log().close());
+            error = parallelRun(error, executor, () -> ClusterMetadataService.instance().shutdownLogTasksNow());
             error = parallelRun(error, executor, () -> ScheduledExecutors.shutdownNowAndWait(1L, MINUTES));
             error = parallelRun(error, executor,
                                 // can only shutdown message once, so if the test shutsdown an instance, then ignore the failure

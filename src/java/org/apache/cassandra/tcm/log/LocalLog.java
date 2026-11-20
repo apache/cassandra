@@ -45,7 +45,6 @@ import org.slf4j.LoggerFactory;
 
 import org.apache.cassandra.concurrent.ExecutorFactory;
 import org.apache.cassandra.concurrent.Interruptible;
-import org.apache.cassandra.concurrent.ScheduledExecutors;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.config.DurationSpec;
 import org.apache.cassandra.exceptions.StartupException;
@@ -979,7 +978,7 @@ public abstract class LocalLog implements Closeable
                 List<NodeId> list = new ArrayList<>(metadata.success().metadata.fullCMSMemberIds());
                 list.sort(Comparator.comparingInt(NodeId::id));
                 if (list.get(0).equals(metadata.success().metadata.myNodeId()))
-                    ScheduledExecutors.nonPeriodicTasks.submit(() -> ClusterMetadataService.instance().triggerSnapshot());
+                    ClusterMetadataService.instance().triggerSnapshotAsync();
             }
         };
     }
