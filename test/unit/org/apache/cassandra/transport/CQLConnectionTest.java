@@ -96,8 +96,9 @@ import io.netty.channel.ChannelOption;
 import io.netty.channel.ChannelOutboundHandlerAdapter;
 import io.netty.channel.ChannelPipeline;
 import io.netty.channel.ChannelPromise;
+import io.netty.channel.MultiThreadIoEventLoopGroup;
 import io.netty.channel.embedded.EmbeddedChannel;
-import io.netty.channel.nio.NioEventLoopGroup;
+import io.netty.channel.nio.NioIoHandler;
 import io.netty.handler.codec.MessageToMessageDecoder;
 import io.netty.handler.codec.MessageToMessageEncoder;
 
@@ -1274,7 +1275,7 @@ public class CQLConnectionTest
         private void connect(InetAddress address, int port, Map<String, String> options) throws IOException, InterruptedException        {
             final CountDownLatch ready = new CountDownLatch(1);
             Bootstrap bootstrap = new Bootstrap()
-                                    .group(new NioEventLoopGroup(0, new NamedThreadFactory("TEST-CLIENT")))
+                                    .group(new MultiThreadIoEventLoopGroup(0, new NamedThreadFactory("TEST-CLIENT"), NioIoHandler.newFactory()))
                                     .channel(io.netty.channel.socket.nio.NioSocketChannel.class)
                                     .option(ChannelOption.TCP_NODELAY, true);
             bootstrap.handler(new ChannelInitializer<Channel>()

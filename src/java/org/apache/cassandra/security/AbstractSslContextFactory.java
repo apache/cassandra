@@ -207,7 +207,15 @@ abstract public class AbstractSslContextFactory implements ISslContextFactory
         else
         {
             KeyManagerFactory kmf = buildOutboundKeyManagerFactory();
-            builder = SslContextBuilder.forClient().keyManager(kmf);
+            /*
+                Netty 4.2 enables endpoint verification on client contexts by default, where 4.1 left it off.
+                Cassandra performs its own endpoint verification in SocketFactory#newSslHandler, gated on
+                require_endpoint_verification - which is also the only path that gives the handler a peer host to
+                verify against. Leaving Netty's default in place makes it verify a hostname that was never set,
+                failing every outbound handshake with "Hostname or IP address is undefined", so we opt out here and
+                keep require_endpoint_verification as the single control point.
+             */
+            builder = SslContextBuilder.forClient().keyManager(kmf).endpointIdentificationAlgorithm(null);
         }
 
         builder.sslProvider(getSslProvider()).protocols(getAcceptedProtocols());
