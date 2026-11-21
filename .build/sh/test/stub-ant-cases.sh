@@ -36,6 +36,7 @@ trap 'rm -rf "${STUB_DIR}"' EXIT
 export STUB_LOG_DIR="${STUB_DIR}/logs"
 export STUB_INVOCATIONS="${STUB_DIR}/invocations"
 export STUB_ANT_OPTS="${STUB_DIR}/ant-opts"
+export STUB_TESTLIST="${STUB_DIR}/testlist"
 export DIST_DIR="${STUB_DIR}/dist"
 mkdir -p "${STUB_DIR}/bin" "${STUB_DIR}/empty" "${STUB_LOG_DIR}" "${DIST_DIR}"
 
@@ -50,6 +51,7 @@ done
 
 # the cases name these tests, so a rename must fail here and not deep inside a case
 for _fixture in test/unit/org/apache/cassandra/service/StorageServiceServerTest.java \
+                test/harry/main/org/apache/cassandra/harry/test/HistoryBuilderTest.java \
                 test/microbench/org/apache/cassandra/test/microbench/AutoBoxingBench.java ; do
   [ -f "${CASSANDRA_DIR}/${_fixture}" ] \
     || { echo >&2 "fixture ${_fixture} is gone; update the test names in $0"; exit 1; }
@@ -66,7 +68,10 @@ printf '%s\n' "${ANT_OPTS}" > "${STUB_ANT_OPTS}"
 _rc=0
 _output_dir=
 for _a in "$@"; do
-  case "${_a}" in -Dbuild.test.output.dir=*) _output_dir="${_a#*=}" ;; esac
+  case "${_a}" in
+    -Dbuild.test.output.dir=*) _output_dir="${_a#*=}" ;;
+    -Dtest.classlistfile=*) cat "${_a#*=}" >> "${STUB_TESTLIST}" ;;
+  esac
 done
 for _a in "$@"; do
   case "${_a}" in -*) continue ;; esac
@@ -93,7 +98,7 @@ touch "${DIST_DIR}/apache-cassandra-${version}-SNAPSHOT.jar"
 
 reset_stub() {
   # remove ant.log too, or a stale one from a previous failing case reads as this one's
-  rm -rf "${STUB_LOG_DIR}" "${STUB_INVOCATIONS}" "${STUB_ANT_OPTS}" "${DIST_DIR}/ant.log"
+  rm -rf "${STUB_LOG_DIR}" "${STUB_INVOCATIONS}" "${STUB_ANT_OPTS}" "${STUB_TESTLIST}" "${DIST_DIR}/ant.log"
   mkdir -p "${STUB_LOG_DIR}"
   : > "${STUB_INVOCATIONS}"
 }
@@ -172,6 +177,80 @@ expect_out "run-tests.sh explains the rejected split" "does not support splits"
 reset_stub
 run_case "${CASSANDRA_DIR}/.build/run-tests.sh" -a test -c 2/4 -t StorageServiceServerTest
 expect_rc "run-tests.sh allows a split on test" 0
+
+################################
+#
+# Cases: Harry source-root discovery, splitting, variants and repeats
+#
+################################
+
+reset_stub
+run_case "${CASSANDRA_DIR}/.build/run-tests.sh" -a harry-test -t HistoryBuilderTest
+expect_rc "harry-test selects a standalone Harry class" 0
+expect_invocation "harry-test uses the Harry classlist target" "testclasslist"
+expect_invocation "harry-test uses the Harry source root" "test.classlistprefix=harry/main"
+if [ "$(cat "${STUB_TESTLIST}" 2>/dev/null)" = "org/apache/cassandra/harry/test/HistoryBuilderTest.java" ]; then
+  pass "Harry regex selects the intended source file"
+else
+  fail "Harry regex selects the intended source file"
+fi
+
+reset_stub
+run_case "${CASSANDRA_DIR}/.build/run-tests.sh" -a harry-test -c 1/2
+expect_rc "harry-test supports splitting" 0
+sort "${STUB_TESTLIST}" > "${STUB_DIR}/harry-first" 2>/dev/null
+reset_stub
+run_case "${CASSANDRA_DIR}/.build/run-tests.sh" -a harry-test -c 2/2
+expect_rc "harry-test runs the second split" 0
+sort "${STUB_TESTLIST}" > "${STUB_DIR}/harry-second" 2>/dev/null
+find "${CASSANDRA_DIR}/test/harry/main" -name '*Test.java' | sed "s;^${CASSANDRA_DIR}/test/harry/main/;;" | sort > "${STUB_DIR}/harry-all"
+cat "${STUB_DIR}/harry-first" "${STUB_DIR}/harry-second" | sort > "${STUB_DIR}/harry-selected"
+if cmp -s "${STUB_DIR}/harry-all" "${STUB_DIR}/harry-selected"; then
+  pass "Harry splits cover every class exactly once"
+else
+  fail "Harry splits cover every class exactly once"
+fi
+
+reset_stub
+run_case "${CASSANDRA_DIR}/.build/run-tests.sh" -a harry-test-repeat -t HistoryBuilderTest -e REPEATED_TESTS_COUNT=2
+expect_rc "Harry repeats do not require an explicit split" 0
+if [ "$(grep -c '^ant testclasslist ' "${STUB_INVOCATIONS}")" = 2 ]; then
+  pass "Harry repeats execute the requested number of times"
+else
+  fail "Harry repeats execute the requested number of times"
+fi
+
+reset_stub
+run_case "${CASSANDRA_DIR}/.build/run-tests.sh" -a harry-test-repeat -t HistoryBuilderTest -c 1/2 -e REPEATED_TESTS_COUNT=2
+expect_rc "Harry repeats reject an explicit split" 1
+
+reset_stub
+stub_rc testclasslist 1
+run_case "${CASSANDRA_DIR}/.build/run-tests.sh" -a harry-test-repeat -t HistoryBuilderTest -e REPEATED_TESTS_COUNT=2 -e REPEATED_TESTS_STOP_ON_FAILURE=true
+expect_rc "Harry repeat failure stops with a nonzero exit" 1
+expect_out "Harry repeat failure reaches the fail-fast handler" "fail fast: iteration 0 failed"
+if [ "$(grep -c '^ant testclasslist ' "${STUB_INVOCATIONS}")" = 1 ]; then
+  pass "Harry fail-fast stops after the first failing invocation"
+else
+  fail "Harry fail-fast stops after the first failing invocation"
+fi
+
+reset_stub
+stub_rc testclasslist 1
+run_case "${CASSANDRA_DIR}/.build/run-tests.sh" -a harry-test-repeat -t HistoryBuilderTest -e REPEATED_TESTS_COUNT=2 -e REPEATED_TESTS_STOP_ON_FAILURE=false
+expect_rc "Harry repeats return failure after completing all iterations" 1
+expect_invocation "Harry repeats still collect reports after failures" "generate-test-report"
+if [ "$(grep -c '^ant testclasslist ' "${STUB_INVOCATIONS}")" = 2 ]; then
+  pass "Harry repeats continue when stop-on-failure is false"
+else
+  fail "Harry repeats continue when stop-on-failure is false"
+fi
+
+reset_stub
+stub_log generate-test-report "[Test Summary] Run: 10, Failed: 1, Errors: 0, Skipped: 0"
+run_case "${CASSANDRA_DIR}/.build/run-tests.sh" -s -a harry-test -t HistoryBuilderTest
+expect_rc "Harry summary propagates JUnit failures" 1
+expect_out "Harry summary reports the failed count" "Failed: 1"
 
 ################################
 #

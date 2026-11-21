@@ -33,6 +33,7 @@ import org.junit.rules.TemporaryFolder;
 import accord.utils.Invariants;
 
 import org.apache.cassandra.ServerTestUtils;
+import org.apache.cassandra.TestConfigurations;
 import org.apache.cassandra.cql3.CQLTester;
 import org.apache.cassandra.db.ColumnFamilyStore;
 import org.apache.cassandra.db.Keyspace;
@@ -55,6 +56,7 @@ import org.apache.cassandra.service.StorageService;
 
 import static org.apache.cassandra.harry.checker.TestHelper.withRandom;
 
+@TestConfigurations({"default", "big-cursor", "bti", "latest"})
 public class HarryCompactionWithRangeDeletionsTest extends CQLTester
 {
     private static final AtomicInteger idGen = new AtomicInteger(0);

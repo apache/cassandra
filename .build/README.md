@@ -9,6 +9,15 @@ That prints a summary of the failures in place of the full ant output, and keeps
 the full output in a log file under the build directory.  The scripts name that
 file when a run fails.
 
+- [Building JARs](#building-jars)
+- [Code checks and lints](#code-checks-and-lints)
+- [Building artifacts](#building-artifacts-tarball-and-maven)
+- [Building packages](#building-debian-and-redhat-packages)
+- [Running tests](#running-tests)
+- [Testing the helper scripts](#testing-the-helper-scripts)
+- [Sonar analysis](#running-sonar-analysis-experimental)
+- [Test configurations](#test-configurations)
+
 Building JARs
 -------------
 
@@ -132,6 +141,7 @@ Running other types of tests with docker:
     .build/docker/run-tests.sh -a test-tries
     .build/docker/run-tests.sh -a test-burn
     .build/docker/run-tests.sh -a long-test
+    .build/docker/run-tests.sh -a harry-test
     .build/docker/run-tests.sh -a cqlsh-test
     .build/docker/run-tests.sh -a jvm-dtest
     .build/docker/run-tests.sh -a jvm-dtest-upgrade
@@ -245,3 +255,56 @@ token for the project and export the following env variables:
     SONAR_PROJECT_KEY="<key of the Cassandra project in SonarQube>"
 
 The analysis can be run with `ant sonar`.
+
+Test configurations
+-------------------
+
+The `harry-test` type collects the standalone classes in `test/harry/main`. It supports the same class regexp, splits, summaries and `-repeat` suffix as `test`. Jenkins schedules two splits; CircleCI schedules the suite on Java 11 and 17. CircleCI's changed-test detection and `REPEATED_HARRY_TESTS` / `REPEATED_HARRY_TESTS_COUNT` variables also support this source root.
+
+Classes can declare `@TestConfigurations({"default", "latest"})`. The shared Ant launcher reads the compiled annotation without loading the class and runs each configuration in a fresh JVM. This works with existing JUnit runners, including parameterized tests. Unannotated classes run once. Annotations are not inherited: annotate the concrete class that warrants extra executions.
+
+The `test`, `testclasslist` and `testsome` Ant targets use these annotations. Existing explicit targets such as `test-latest` retain their selected configuration. JVM dtests configure their own instances and are not assigned server YAML profiles here.
+
+`default` uses `test/conf/cassandra.yaml`; `latest` appends the existing `latest_diff.yaml` and storage-compatibility overlay. Other names select `test/conf/configurations/<name>.yaml`, appended to the same base. Names must contain lowercase letters, digits or hyphens and start with a letter. Unknown, empty and duplicate declarations fail the build.
+
+To reproduce one configuration, pass `-Dtest.configuration=<name>` to Ant. For example:
+
+```sh
+ANT_OPTS=-Dtest.configuration=bti .build/run-tests.sh -s -a harry-test -t HistoryBuilderTest
+ant testsome -Dtest.classlistprefix=harry/main -Dtest.name=org.apache.cassandra.harry.test.HistoryBuilderTest -Dtest.configuration=latest
+```
+
+A class and all its configurations stay together when splitting the source list. Reports and logs distinguish configurations; repeats rerun each declared configuration. This avoids creating separate test types or repeating model-only tests for server settings they never use.
+
+### Harry profile selection
+
+| Classes | Configurations | Coverage |
+| --- | --- | --- |
+| HarryCompactionTest, HarryCompactionWithRangeDeletionsTest | default, big-cursor, bti, latest | BIG iterator and cursor compaction, BTI iterator compaction, bulk loading and storage reads under latest defaults |
+| HarrySSTableWriterTest | default, bti, latest | SSTable writing, loading and reads under both formats and latest storage defaults |
+| HistoryBuilderTest | default, bti, latest | CQL mutations, reads and flushes, including the Trie memtable and offheap allocation in latest |
+| EntropySourceTest, ASTSingleTableModelTest, QueryBuilderTest, SimpleBijectionTest, TestStateTest | default | Generators and in-memory models; server configuration adds no coverage |
+
+`bti.yaml` changes only format and storage compatibility, with cursor compaction explicitly disabled. `big-cursor.yaml` enables cursor compaction with its supported BIG format. Latest selects BTI, so its cursor setting does not exercise the BIG cursor implementation.
+
+### YAML settings and additional profiles
+
+The selection considers the complete latest overlay and the existing test YAML files. Add a profile only when a test reaches the affected behavior and checks its result; do not generate a Cartesian product of settings.
+
+| Settings | Decision |
+| --- | --- |
+| SSTable format, compatibility, cursor compaction | Separate focused BTI and BIG cursor overlays isolate these implementations. |
+| Trie memtable and offheap allocation | HistoryBuilderTest exercises writes, reads and flushes under latest. Pure generators do not. |
+| Alternate sharded and test memtables | Keep the dedicated memtable tests. These Harry histories do not provide a concurrency or allocator-specific oracle for another global memtable profile. |
+| Default UCS, compactor concurrency | Latest exercises compaction with these defaults; the compaction tests disable automatic compaction and explicitly force it, so they do not validate background scheduling. |
+| Direct background writes, commitlog access mode | Latest covers storage paths reached by these tests. Bulk-loaded mutations bypass the commitlog; this is not commitlog durability coverage. |
+| Key cache, column index size, UUID SSTable identifiers, entire-SSTable streaming | Storage reads and bulk loading warrant latest. Column index size and entire-SSTable streaming already match the base test YAML, so no extra profile is needed for them. |
+| Default SAI, default-secondary-index enablement | These Harry classes do not create indexes. Existing SAI fuzz tests are the appropriate consumers, not another standalone-Harry YAML. |
+| Batchlog endpoint strategy, authenticator/authorizer defaults | These tests do not validate replica selection or authentication. Latest includes the settings, but a successful run does not establish that coverage. |
+| CDC and commitlog compression overlays | Keep dedicated CDC/commitlog tests and existing targets. Harry tables do not enable CDC; bulk-loaded compaction tests bypass the commitlog. |
+| System-keyspace directory overlay | Keep the existing dedicated target; these Harry checks validate user data rather than system-keyspace placement. |
+| TLS, JMX, authentication, seeds, partitioner and configuration-conversion YAML fixtures | Keep the tests that own their setup and assertions. They are complete or deliberately invalid configuration fixtures, not generic appendable profiles. |
+| Encryption and SSTable-loader encryption fixtures | Keep dedicated encryption/loader tests, with their keys and assertions. Applying their YAML alone would not prove encrypted files or transport. |
+| Remaining base YAML settings: networking, topology, hints, caches, thresholds, Accord, timeouts and resource limits | Preserve the tested base settings. Add focused overlays with behavioral assertions when testing those features; changing them across every Harry class would add cost and unrelated failures. |
+
+New overlays must preserve the base test directories and ports. Overlays that change nested mappings must supply the required mapping entries: concatenation replaces duplicate YAML keys rather than recursively merging mappings. The existing latest overlay deliberately extends the trailing memtable mapping, so retain its ordering.

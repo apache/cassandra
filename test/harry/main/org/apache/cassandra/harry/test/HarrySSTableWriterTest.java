@@ -34,6 +34,7 @@ import org.junit.rules.TemporaryFolder;
 import accord.utils.Invariants;
 
 import org.apache.cassandra.ServerTestUtils;
+import org.apache.cassandra.TestConfigurations;
 import org.apache.cassandra.cql3.CQLTester;
 import org.apache.cassandra.harry.ColumnSpec;
 import org.apache.cassandra.harry.SchemaSpec;
@@ -53,6 +54,7 @@ import org.apache.cassandra.service.StorageService;
 
 import static org.apache.cassandra.harry.checker.TestHelper.withRandom;
 
+@TestConfigurations({"default", "bti", "latest"})
 public class HarrySSTableWriterTest extends CQLTester
 {
     private static final AtomicInteger idGen = new AtomicInteger(0);
