@@ -57,9 +57,9 @@ public class DecimalSerializer extends TypeSerializer<BigDecimal>
 
     public <T> void validate(T value, ValueAccessor<T> accessor) throws MarshalException
     {
-        // We at least store the scale.
-        if (!accessor.isEmpty(value) && accessor.size(value) < 4)
-            throw new MarshalException(String.format("Expected 0 or at least 4 bytes (%d)", accessor.size(value)));
+        // The scale takes 4 bytes and the varint unscaled value at least one more, so deserialize can read the value.
+        if (!accessor.isEmpty(value) && accessor.size(value) < 5)
+            throw new MarshalException(String.format("Expected 0 or at least 5 bytes (%d)", accessor.size(value)));
     }
 
     public String toString(BigDecimal value)
