@@ -98,6 +98,7 @@ import org.apache.cassandra.io.sstable.metadata.MetadataCollector;
 import org.apache.cassandra.io.util.File;
 import org.apache.cassandra.io.util.FileUtils;
 import org.apache.cassandra.schema.KeyspaceParams;
+import org.apache.cassandra.service.ActiveRepairService;
 import org.apache.cassandra.utils.ByteBufferUtil;
 import org.apache.cassandra.utils.OutputHandler;
 import org.apache.cassandra.utils.Throwables;
@@ -229,7 +230,8 @@ public class ScrubTest
         assertEquals(1, cfs.getLiveSSTables().size());
 
         SSTableReader sstable = cfs.getLiveSSTables().iterator().next();
-
+        sstable.mutateRepairedAndReload(1234, null, false);
+        assertEquals(1234, sstable.getRepairedAt());
         //make sure to override at most 1 chunk when compression is enabled
         //use 0x00 instead of the usual 0x7A because if by any chance it's able to iterate over the corrupt
         //section, then we get many out-of-order errors, which we don't want
@@ -271,7 +273,8 @@ public class ScrubTest
             assertEquals(numPartitions - 1, scrubResult.goodPartitions);
         }
         assertEquals(1, cfs.getLiveSSTables().size());
-
+        SSTableReader scrubbedSSTable = cfs.getLiveSSTables().iterator().next();
+        assertEquals(ActiveRepairService.UNREPAIRED_SSTABLE, scrubbedSSTable.getRepairedAt());
         assertOrderedAll(cfs, scrubResult.goodPartitions);
     }
 
