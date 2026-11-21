@@ -745,7 +745,10 @@ public abstract class PartitionIterator implements Iterator<Row>
         }
         else if (object instanceof UUID)
         {
-            return seed * 31 + (((UUID) object).getLeastSignificantBits() ^ ((UUID) object).getMostSignificantBits());
+            long msb = ((UUID) object).getMostSignificantBits();
+            long lsb = ((UUID) object).getLeastSignificantBits();
+            // the UUIDs generator uses the same value for both halves, which would XOR to zero
+            return seed * 31 + (msb == lsb ? msb : msb ^ lsb);
         }
         else if (object instanceof TimeUUID)
         {
