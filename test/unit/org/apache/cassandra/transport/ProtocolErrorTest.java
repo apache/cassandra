@@ -102,7 +102,8 @@ public class ProtocolErrorTest {
         try {
             dec.decode(null, buf, results);
             Assert.fail("Expected protocol error");
-        } catch (ProtocolException e) {
+        } catch (ErrorMessage.WrappedException e) {
+            Assert.assertEquals(1, e.getStreamId());
             Assert.assertTrue(e.getMessage().contains("Invalid or unsupported protocol version"));
         }
     }
@@ -110,7 +111,7 @@ public class ProtocolErrorTest {
     @Test
     public void testIncompleteHeaderWithInvalidProtocolVersion() throws Exception
     {
-        // CASSANDRA-21508: the channel level exception handler closes the connection when a protocol error
+        // CASSANDRA-21508: the channel  level exception handler closes the connection when a protocol error
         // has no stream ID. The decoder must wait for the complete header so it can report the error
         // on the request's stream.
         Envelope.Decoder dec = new Envelope.Decoder();

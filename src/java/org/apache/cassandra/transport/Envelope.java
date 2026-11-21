@@ -391,50 +391,31 @@ public class Envelope
             Message.Direction direction = Message.Direction.extractFromVersion(firstByte);
             int versionNum = firstByte & PROTOCOL_VERSION_MASK;
 
-            ProtocolVersion version = null;
-            ProtocolException protocolException = null;
-            
+            boolean hasSingleByteStreamId = versionNum < ProtocolVersion.V3.asInt();
+            int headerLength = hasSingleByteStreamId ? Header.LENGTH - 1 : Header.LENGTH;
+            if (readableBytes < headerLength)
+                return null;
+
+            int flags = buffer.getByte(idx++);
+            ProtocolVersion version;
             try
             {
                 version = ProtocolVersion.decode(versionNum, DatabaseDescriptor.getNativeTransportAllowOlderProtocols());
             }
             catch (ProtocolException e)
             {
-                // defer throw to attempt to extract the stream id
-                protocolException = e;
-            }
-
-            // Wait until we have the complete header
-            if (readableBytes < Header.LENGTH)
-            {
-                if (protocolException != null)
-                {
-                    // Skip the remaining useless bytes. Otherwise the channel closing logic may try to decode again.
-                    buffer.skipBytes(readableBytes);
-                    // The header is incomplete, so there is no stream id to recover. Wrap with the unset
-                    // sentinel; the channel-level exception handler sees it has no routable stream id and
-                    // closes the connection rather than emit an unroutable error frame.
-                    throw protocolException;
-                }
-                return null;
-            }
-
-            int flags = buffer.getByte(idx++);
-            int streamId = buffer.getShort(idx);
-
-            if (protocolException != null)
-            {
                 // Protocol versions 1 and 2 use a shorter header with a single-byte stream id. Reading a
                 // 16-bit stream id from such a header splices the stream id byte together with the opcode
                 // byte and recovers a bogus id, routing the error to a stream the client never used
                 // (CASSANDRA-21508). A v1/v2 client that downgrades would then never see the error and time
                 // out, so recover the stream id using the attempted version's header layout.
-                int recoveredStreamId = versionNum < ProtocolVersion.V3.asInt() ? buffer.getByte(idx) : streamId;
+                int recoveredStreamId = hasSingleByteStreamId ? buffer.getByte(idx) : buffer.getShort(idx);
                 // Skip the remaining useless bytes. Otherwise the channel closing logic may try to decode again.
                 buffer.skipBytes(readableBytes);
-                throw ErrorMessage.wrap(protocolException, recoveredStreamId);
+                throw ErrorMessage.wrap(e, recoveredStreamId);
             }
 
+            int streamId = buffer.getShort(idx);
             EnumSet<Header.Flag> decodedFlags = decodeFlags(version, flags, streamId);
 
             idx += 2;
