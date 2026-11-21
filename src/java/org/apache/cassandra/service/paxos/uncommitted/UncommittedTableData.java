@@ -143,7 +143,7 @@ public class UncommittedTableData
                 }
 
                 PaxosKeyState next = peeking.next();
-                // If repairing a table with a partioner different from IPartitioner.global(), such as the distributed
+                // If repairing a table with a partitioner different from IPartitioner.global(), such as the distributed
                 // metadata log table, we don't filter paxos keys outside the data range of the repair. Instead, we
                 // repair everything present for that table. Replicas of the distributed log table (i.e. CMS members)
                 // always replicate the entire table, so this is not much of an issue at present.
