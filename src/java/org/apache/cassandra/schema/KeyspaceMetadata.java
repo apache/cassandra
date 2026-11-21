@@ -130,7 +130,12 @@ public final class KeyspaceMetadata implements SchemaElement
 
     public static KeyspaceMetadata virtual(String name, Tables tables)
     {
-        return new KeyspaceMetadata(name, Kind.VIRTUAL, KeyspaceParams.local(), tables, Views.none(), Types.none(), UserFunctions.none());
+        return virtual(name, tables, Types.none());
+    }
+
+    public static KeyspaceMetadata virtual(String name, Tables tables, Types userTypes)
+    {
+        return new KeyspaceMetadata(name, Kind.VIRTUAL, KeyspaceParams.local(), tables, Views.none(), userTypes, UserFunctions.none());
     }
 
     public KeyspaceMetadata withSwapped(KeyspaceParams params)
