@@ -44,7 +44,7 @@ public class MemoryTest
         ThreadLocalRandom.current().nextBytes(bytes);
         final Memory memory = Memory.allocate(bytes.length);
         memory.setBytes(0, bytes, 0, bytes.length);
-        ByteBuffer canon = ByteBuffer.wrap(bytes).order(ByteOrder.nativeOrder());
+        ByteBuffer canon = ByteBuffer.wrap(bytes).order(ByteOrder.LITTLE_ENDIAN);
         test(canon, memory);
         memory.setBytes(0, new byte[1000], 0, 1000);
         memory.setBytes(0, canon.duplicate());
@@ -84,7 +84,7 @@ public class MemoryTest
 
     private static void test(ByteBuffer canon, Memory memory)
     {
-        ByteBuffer hollow = MemoryUtil.getHollowDirectByteBuffer();
+        ByteBuffer hollow = MemoryUtil.getHollowDirectByteBuffer(ByteOrder.LITTLE_ENDIAN);
         test(canon, hollow, memory, 0, 1000);
         test(canon, hollow, memory, 33, 100);
         test(canon, hollow, memory, 77, 77);
@@ -95,7 +95,7 @@ public class MemoryTest
     {
         canon = canon.duplicate();
         canon.position(offset).limit(offset + length);
-        canon = canon.slice().order(ByteOrder.nativeOrder());
+        canon = canon.slice().order(ByteOrder.LITTLE_ENDIAN);
         test(canon, memory.asByteBuffer(offset, length));
         memory.setByteBuffer(hollow, offset, length);
         test(canon, hollow);
