@@ -271,10 +271,11 @@ public class ErrorMessage extends Message.Response
                     dest.writeInt(rte.blockFor);
                     if (err.code() == ExceptionCode.WRITE_TIMEOUT)
                     {
-                        CBUtil.writeAsciiString(((WriteTimeoutException)rte).writeType.toString(), dest);
-                        // CasWriteTimeoutException already implies protocol V5, but double check to be safe.
-                        if (version.isGreaterOrEqualTo(ProtocolVersion.V5) && rte instanceof CasWriteTimeoutException)
-                            dest.writeShort(((CasWriteTimeoutException)rte).contentions);
+                        WriteType writeType = ((WriteTimeoutException)rte).writeType;
+                        CBUtil.writeAsciiString(writeType.toString(), dest);
+                        // From V5, every CAS write timeout carries contentions (0 if not counted, e.g. Accord).
+                        if (version.isGreaterOrEqualTo(ProtocolVersion.V5) && writeType == WriteType.CAS)
+                            dest.writeShort(rte instanceof CasWriteTimeoutException ? ((CasWriteTimeoutException)rte).contentions : 0);
                     }
                     else
                     {
@@ -347,9 +348,8 @@ public class ErrorMessage extends Message.Response
                     else
                         size += 1;
 
-                    // CasWriteTimeoutException already implies protocol V5, but double check to be safe.
-                    if (isWrite && version.isGreaterOrEqualTo(ProtocolVersion.V5) && rte instanceof CasWriteTimeoutException)
-                        size += 2; // CasWriteTimeoutException appends a short for contentions occured.
+                    if (isWrite && version.isGreaterOrEqualTo(ProtocolVersion.V5) && ((WriteTimeoutException)rte).writeType == WriteType.CAS)
+                        size += 2; // CAS write timeouts append a short for contentions occurred.
                     break;
                 case FUNCTION_FAILURE:
                     FunctionExecutionException fee = (FunctionExecutionException)msg.error;
