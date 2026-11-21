@@ -21,6 +21,7 @@ package org.apache.cassandra.distributed.test.metric;
 import java.io.IOException;
 import java.util.Arrays;
 import java.util.Collection;
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.Set;
@@ -285,7 +286,7 @@ public class TableMetricTest extends TestBaseImpl
         @Override
         public Set<ObjectName> queryNames(ObjectName name, QueryExp query)
         {
-            return null;
+            return Collections.emptySet();
         }
 
         @Override
