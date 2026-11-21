@@ -18,16 +18,27 @@
 
 package org.apache.cassandra.cql3.validation.entities;
 
+import java.io.InputStream;
+import java.lang.reflect.Method;
+import java.lang.reflect.Modifier;
+import java.net.URL;
 import java.security.AccessControlException;
+import java.util.Arrays;
+import java.util.Enumeration;
+import java.util.HashSet;
 import java.util.List;
+import java.util.Set;
+import java.util.stream.Stream;
 
 import org.junit.Assert;
+import org.junit.Assume;
 import org.junit.Test;
 
 import org.apache.cassandra.config.Config;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.cql3.CQLTester;
 import org.apache.cassandra.exceptions.FunctionExecutionException;
+import org.apache.cassandra.security.ThreadAwareSecurityManager;
 import org.apache.cassandra.service.ClientWarn;
 import org.apache.cassandra.utils.JavaDriverUtils;
 
@@ -39,22 +50,36 @@ public class UFSecurityTest extends CQLTester
         createTable("CREATE TABLE %s (key int primary key, dval double)");
         execute("INSERT INTO %s (key, dval) VALUES (?, ?)", 1, 1d);
 
-        // Java UDFs
+        // Java user-defined functions (UDFs)
 
-        try
+        // UDFs must load System for timing and array operations. A SecurityManager blocks getProperty at runtime.
+        // The bytecode sandbox blocks it when Cassandra creates the function.
+        if (ThreadAwareSecurityManager.useSecurityManager())
         {
-            String fName = createFunction(KEYSPACE_PER_TEST, "double",
-                                          "CREATE OR REPLACE FUNCTION %s(val double) " +
-                                          "RETURNS NULL ON NULL INPUT " +
-                                          "RETURNS double " +
-                                          "LANGUAGE JAVA\n" +
-                                          "AS 'System.getProperty(\"foo.bar.baz\"); return 0d;';"); // checkstyle: suppress nearby 'blockSystemPropertyUsage'
-            execute("SELECT " + fName + "(dval) FROM %s WHERE key=1");
-            Assert.fail();
+            try
+            {
+                String fName = createFunction(KEYSPACE_PER_TEST, "double",
+                                              "CREATE OR REPLACE FUNCTION %s(val double) " +
+                                              "RETURNS NULL ON NULL INPUT " +
+                                              "RETURNS double " +
+                                              "LANGUAGE JAVA\n" +
+                                              "AS 'System.getProperty(\"foo.bar.baz\"); return 0d;';"); // checkstyle: suppress nearby 'blockSystemPropertyUsage'
+                execute("SELECT " + fName + "(dval) FROM %s WHERE key=1");
+                Assert.fail();
+            }
+            catch (FunctionExecutionException e)
+            {
+                assertAccessControlException("System.getProperty(\"foo.bar.baz\"); return 0d;", e); // checkstyle: suppress nearby 'blockSystemPropertyUsage'
+            }
         }
-        catch (FunctionExecutionException e)
+        else
         {
-            assertAccessControlException("System.getProperty(\"foo.bar.baz\"); return 0d;", e); // checkstyle: suppress nearby 'blockSystemPropertyUsage'
+            assertInvalidMessage("Java UDF validation failed: [call to java.lang.System.getProperty()]", // checkstyle: suppress nearby 'blockSystemPropertyUsage'
+                                 "CREATE OR REPLACE FUNCTION " + KEYSPACE + ".invalid_get_property(val double) " +
+                                 "RETURNS NULL ON NULL INPUT " +
+                                 "RETURNS double " +
+                                 "LANGUAGE JAVA\n" +
+                                 "AS 'System.getProperty(\"foo.bar.baz\"); return 0d;';"); // checkstyle: suppress nearby 'blockSystemPropertyUsage'
         }
 
         String[] cfnSources =
@@ -124,7 +149,12 @@ public class UFSecurityTest extends CQLTester
          "     org.apache.cassandra.utils.vint.VIntCoding.computeUnsignedVIntSize(0L); return 0d;" +
          "} catch (Exception t) {" +
          "     throw new RuntimeException(t);" +
-         '}'}
+         '}'},
+        // These classes match allowed package prefixes and expose restricted operations.
+        {"java.lang.ProcessHandle", "java.lang.ProcessHandle.current(); return 0d;"},
+        {"java.lang.StackWalker",   "java.lang.StackWalker.getInstance(); return 0d;"},
+        {"java.lang.foreign.Linker","java.lang.foreign.Linker.nativeLinker(); return 0d;"},
+        {"java.lang.classfile.ClassFile","java.lang.classfile.ClassFile.of(); return 0d;"} // Java Development Kit (JDK) 24 and later.
         };
 
         for (String[] typeAndSource : typesAndSources)
@@ -136,6 +166,104 @@ public class UFSecurityTest extends CQLTester
                                  "LANGUAGE JAVA\n" +
                                  "AS '" + typeAndSource[1] + "';");
         }
+
+        // The class loader must resolve Module because Class references it.
+        // Test the verifier rules that block Module and ModuleLayer calls.
+        String[][] moduleApiSources =
+        {
+        {"java.lang.Class.getModule",   "java.lang.Integer.class.getModule(); return 0d;"},
+        {"java.lang.ModuleLayer.boot",  "java.lang.ModuleLayer.boot(); return 0d;"}
+        };
+        for (String[] moduleApiSource : moduleApiSources)
+            assertInvalidMessage("Java UDF validation failed: [call to " + moduleApiSource[0] + "()]",
+                                 "CREATE OR REPLACE FUNCTION " + KEYSPACE + ".invalid_module_access(val double) " +
+                                 "RETURNS NULL ON NULL INPUT " +
+                                 "RETURNS double " +
+                                 "LANGUAGE JAVA\n" +
+                                 "AS '" + moduleApiSource[1] + "';");
+    }
+
+    /**
+     * Tests the ClassLoader rule in the verifier.
+     * The verifier rejects all ClassLoader calls for both sandbox mechanisms.
+     */
+    @Test
+    public void testClassLoaderAccessRejected() throws Throwable
+    {
+        // These calls compile, then the verifier rejects them.
+        assertInvalidMessage("Java UDF validation failed: [call to java.lang.ClassLoader.getPlatformClassLoader()]",
+                             createClassLoaderFunction("java.lang.ClassLoader.getPlatformClassLoader(); return 0d;"));
+        assertInvalidMessage("Java UDF validation failed: [call to java.lang.ClassLoader.getParent()]",
+                             createClassLoaderFunction("((java.lang.ClassLoader) null).getParent(); return 0d;"));
+
+        // ClassLoader.resources returns a type that the UDF class loader cannot resolve.
+        // The compiler rejects this call.
+        assertInvalid(createClassLoaderFunction("((java.lang.ClassLoader) null).resources(\"x\"); return 0d;"));
+    }
+
+    private static String createClassLoaderFunction(String body)
+    {
+        return "CREATE OR REPLACE FUNCTION " + KEYSPACE + ".invalid_classloader_access(val double) " +
+               "RETURNS NULL ON NULL INPUT " +
+               "RETURNS double " +
+               "LANGUAGE JAVA\n" +
+               "AS '" + body + "';";
+    }
+
+    /**
+     * Checks each public ClassLoader method whose return type appears in loaderYielding.
+     * Confirms that a UDF cannot call these methods.
+     */
+    @Test
+    public void testClassLoaderLoaderYieldingMethodsDenied() throws Throwable
+    {
+        Set<Class<?>> loaderYielding = new HashSet<>(Arrays.asList(
+            ClassLoader.class, Class.class, URL.class, InputStream.class, Stream.class, Enumeration.class));
+
+        int checked = 0;
+        for (Method m : ClassLoader.class.getMethods())
+        {
+            if (m.getDeclaringClass() != ClassLoader.class || !Modifier.isPublic(m.getModifiers()))
+                continue;
+            if (!loaderYielding.contains(m.getReturnType()))
+                continue;
+
+            String target = Modifier.isStatic(m.getModifiers())
+                            ? "java.lang.ClassLoader"
+                            : "((java.lang.ClassLoader) null)";
+            StringBuilder args = new StringBuilder();
+            for (Class<?> p : m.getParameterTypes())
+            {
+                if (args.length() > 0)
+                    args.append(", ");
+                args.append(defaultArg(p));
+            }
+            // Handle declared exceptions so the test body can compile.
+            String body = "try { " + target + '.' + m.getName() + '(' + args + "); } catch (Throwable __t) {} return 0d;";
+
+            // Resolvable calls reach the verifier. Calls with blocked return types fail during compilation.
+            assertInvalid("CREATE OR REPLACE FUNCTION " + KEYSPACE + ".invalid_classloader_enum(val double) " +
+                          "RETURNS NULL ON NULL INPUT " +
+                          "RETURNS double " +
+                          "LANGUAGE JAVA\n" +
+                          "AS '" + body + "';");
+            checked++;
+        }
+        // Require enough methods to show that reflection exercised the check.
+        Assert.assertTrue("Expected several loader/resource-yielding ClassLoader methods, found " + checked, checked >= 3);
+    }
+
+    private static String defaultArg(Class<?> type)
+    {
+        if (type == String.class)  return "\"x\"";
+        if (type == boolean.class) return "false";
+        if (type == char.class)    return "'a'";
+        if (type == byte.class || type == short.class || type == int.class) return "0";
+        if (type == long.class)    return "0L";
+        if (type == float.class)   return "0f";
+        if (type == double.class)  return "0d";
+        // Use a typed null for object and array parameters.
+        return "(" + type.getCanonicalName() + ") null";
     }
 
     private static void assertAccessControlException(String script, FunctionExecutionException e)
@@ -144,6 +272,86 @@ public class UFSecurityTest extends CQLTester
             if (t instanceof AccessControlException)
                 return;
         Assert.fail("no AccessControlException for " + script + " (got " + e + ')');
+    }
+
+    /**
+     * Confirms that the bytecode sandbox rejects restricted System methods when Cassandra creates a function.
+     * It also confirms that timing and array methods remain available.
+     */
+    @Test
+    public void testSandboxBlocksDangerousSystemMethods() throws Throwable
+    {
+        Assume.assumeFalse("legacy SecurityManager mechanism in use; covered by testSecurityPermissions",
+                           ThreadAwareSecurityManager.useSecurityManager());
+
+        String[][] methodAndSource =
+        {
+        {"exit",                "System.exit(1); return 0d;"},
+        {"setProperty",         "System.setProperty(\"foo\", \"bar\"); return 0d;"}, // checkstyle: suppress nearby 'blockSystemPropertyUsage'
+        {"getProperty",         "System.getProperty(\"foo\"); return 0d;"}, // checkstyle: suppress nearby 'blockSystemPropertyUsage'
+        {"getenv",              "System.getenv(\"PATH\"); return 0d;"}, // checkstyle: suppress nearby 'blockSystemPropertyUsage'
+        {"loadLibrary",         "System.loadLibrary(\"foo\"); return 0d;"},
+        {"setSecurityManager",  "System.setSecurityManager(null); return 0d;"}
+        };
+
+        for (String[] ms : methodAndSource)
+            assertInvalidMessage("Java UDF validation failed: [call to java.lang.System." + ms[0] + "()]",
+                                 "CREATE OR REPLACE FUNCTION " + KEYSPACE + ".invalid_system_" + ms[0].toLowerCase() + "(val double) " +
+                                 "RETURNS NULL ON NULL INPUT " +
+                                 "RETURNS double " +
+                                 "LANGUAGE JAVA\n" +
+                                 "AS '" + ms[1] + "';");
+
+        // Test property aliases and the system logger factory.
+        int alias = 0;
+        String[][] aliasSources =
+        {
+        {"java.util.Locale.setDefault", "java.util.Locale.setDefault(java.util.Locale.FRANCE); return 0d;"},
+        {"java.util.Locale.setDefault", "java.util.Locale.setDefault(java.util.Locale.Category.DISPLAY, java.util.Locale.FRANCE); return 0d;"},
+        {"java.util.TimeZone.setDefault", "java.util.TimeZone.setDefault(java.util.TimeZone.getTimeZone(\"UTC\")); return 0d;"},
+        {"java.util.SimpleTimeZone.setDefault", "java.util.SimpleTimeZone.setDefault(java.util.TimeZone.getTimeZone(\"UTC\")); return 0d;"},
+        {"java.lang.System.getLogger",   "System.getLogger(\"x\"); return 0d;"},
+        {"java.lang.System$LoggerFinder.getLoggerFinder", "System.LoggerFinder.getLoggerFinder(); return 0d;"},
+        {"java.lang.Integer.getInteger", "Integer.getInteger(\"x\"); return 0d;"}, // checkstyle: suppress nearby 'blockSystemPropertyUsage'
+        {"java.lang.Long.getLong",       "Long.getLong(\"x\"); return 0d;"}, // checkstyle: suppress nearby 'blockSystemPropertyUsage'
+        {"java.lang.Boolean.getBoolean", "Boolean.getBoolean(\"x\"); return 0d;"} // checkstyle: suppress nearby 'blockSystemPropertyUsage'
+        };
+        for (String[] as : aliasSources)
+            assertInvalidMessage("Java UDF validation failed: [call to " + as[0] + "()]",
+                                 "CREATE OR REPLACE FUNCTION " + KEYSPACE + ".invalid_alias_" + (alias++) + "(val double) " +
+                                 "RETURNS NULL ON NULL INPUT " +
+                                 "RETURNS double " +
+                                 "LANGUAGE JAVA\n" +
+                                 "AS '" + as[1] + "';");
+
+        // Timing methods remain available to UDFs.
+        String fName = createFunction(KEYSPACE_PER_TEST, "double",
+                                      "CREATE OR REPLACE FUNCTION %s(val double) " +
+                                      "RETURNS NULL ON NULL INPUT " +
+                                      "RETURNS double " +
+                                      "LANGUAGE JAVA\n" +
+                                      "AS 'return (double) (System.nanoTime() - System.currentTimeMillis());';");
+        createTable("CREATE TABLE %s (key int PRIMARY KEY, val double)");
+        execute("INSERT INTO %s (key, val) VALUES (1, 0)");
+        Assert.assertEquals(1, execute("SELECT " + fName + "(val) FROM %s WHERE key=1").size());
+        String arrayFunction = createFunction(KEYSPACE_PER_TEST, "double",
+                                              "CREATE FUNCTION %s(val double) RETURNS NULL ON NULL INPUT " +
+                                              "RETURNS double LANGUAGE JAVA AS 'double[] a = { val }; " +
+                                              "double[] b = new double[1]; System.arraycopy(a, 0, b, 0, 1); return b[0];'");
+        assertRows(execute("SELECT " + arrayFunction + "(val) FROM %s WHERE key=1"), row(0d));
+    }
+
+    /** Confirms that a UDF cannot emit a second class file that the verifier would not inspect. */
+    @Test
+    public void testRejectsAdditionalClasses() throws Throwable
+    {
+        // An anonymous Object subclass emits a second class file without using a blocked method.
+        assertInvalidMessage("the function must not declare additional classes",
+                             "CREATE OR REPLACE FUNCTION " + KEYSPACE + ".invalid_inner_class(val double) " +
+                             "RETURNS NULL ON NULL INPUT " +
+                             "RETURNS double " +
+                             "LANGUAGE JAVA\n" +
+                             "AS 'return (double) new Object(){}.hashCode();';");
     }
 
     @Test
