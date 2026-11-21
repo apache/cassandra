@@ -1,0 +1,9 @@
+rootProject.name = 'apache-cassandra'
+
+// Accord module uses Gradle natively — include as composite build.
+// The substitution maps the POM coordinate to Accord's actual project.
+includeBuild('modules/accord') {
+    dependencySubstitution {
+        substitute module('org.apache.cassandra:cassandra-accord') using project(':accord-core')
+    }
+}
