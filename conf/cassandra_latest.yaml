@@ -2642,6 +2642,10 @@ storage_compatibility_mode: NONE
 # then set the ratio to 0.0
 # repair_disk_headroom_reject_ratio: 0.2
 
+# Rejects incremental repair when any in-scope table using LeveledCompactionStrategy has more L0 SSTables
+# than this threshold. Valid values are 0 through 2147483647. The default, 2147483647, disables the check.
+# incremental_repair_l0_sstable_count_reject_threshold: 2147483647
+
 # Configuration for Auto Repair Scheduler.
 #
 # This feature is disabled by default.
