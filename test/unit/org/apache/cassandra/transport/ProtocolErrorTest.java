@@ -110,25 +110,23 @@ public class ProtocolErrorTest {
     @Test
     public void testIncompleteHeaderWithInvalidProtocolVersion() throws Exception
     {
-        // CASSANDRA-21508: when fewer than a full header's worth of bytes have arrived AND the protocol
-        // version is unsupported, decode cannot trust/recover a stream id. It defers the protocol error and
-        // wraps it with Message.UNSET_STREAM_ID, so the channel-level exception handler closes the connection
-        // rather than emit an unroutable error frame. Exercises Envelope.Decoder.decode() lines 387-398.
+        // CASSANDRA-21508: the channel level exception handler closes the connection when a protocol error
+        // has no stream ID. The decoder must wait for the complete header so it can report the error
+        // on the request's stream.
         Envelope.Decoder dec = new Envelope.Decoder();
 
         List<Object> results = new ArrayList<>();
-        // Unsupported version (two above CURRENT) with only part of a header - fewer than Header.LENGTH (9) bytes.
+        // Unsupported version with only the first byte of the 9-byte header.
         byte[] bytes = new byte[] {
-                (byte) REQUEST.addToVersion(ProtocolVersion.CURRENT.asInt() + 2),  // direction & unsupported version
-                0x00,        // flags
-                0x00, 0x2a,  // partial header, truncated before the length field
+                (byte) REQUEST.addToVersion(66),  // direction & unsupported version
         };
         ByteBuf buf = Unpooled.wrappedBuffer(bytes);
         try {
             dec.decode(null, buf, results);
-            Assert.fail("Expected protocol error");
-        } catch (ProtocolException e) {
-            Assert.assertTrue(e.getMessage().contains("Invalid or unsupported protocol version"));
+            Assert.assertTrue(results.isEmpty());
+            Assert.assertEquals(1, buf.readableBytes());
+        } finally {
+            buf.release();
         }
     }
 
