@@ -90,15 +90,14 @@ public class SSTableTasksTableTest extends CQLTester
                 return false;
             }
         };
-
         CompactionManager.instance.active.beginCompaction(compactionHolder);
-        UntypedResultSet result = execute("SELECT * FROM vts.sstable_tasks");
+        UntypedResultSet result = execute("SELECT * FROM vts.sstable_tasks WHERE keyspace_name = ? AND table_name = ?", CQLTester.KEYSPACE, currentTable());
         assertRows(result, row(CQLTester.KEYSPACE, currentTable(), compactionId, 1.0 * bytesCompacted / bytesTotal,
                 toLowerCaseLocalized(OperationType.COMPACTION.toString()), bytesCompacted, sstables.size(),
                 directory, bytesTotal, totalCompressedBytes, CompactionInfo.Unit.BYTES.toString()));
 
         CompactionManager.instance.active.finishCompaction(compactionHolder);
-        result = execute("SELECT * FROM vts.sstable_tasks");
+        result = execute("SELECT * FROM vts.sstable_tasks WHERE keyspace_name = ? AND table_name = ?", CQLTester.KEYSPACE, currentTable());
         assertEmpty(result);
     }
 }
