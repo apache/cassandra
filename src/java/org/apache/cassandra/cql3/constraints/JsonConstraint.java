@@ -66,18 +66,4 @@ public class JsonConstraint extends UnaryConstraintFunction
     {
         return SUPPORTED_TYPES;
     }
-
-    @Override
-    public boolean equals(Object o)
-    {
-        if (this == o)
-            return true;
-
-        if (!(o instanceof JsonConstraint))
-            return false;
-
-        JsonConstraint other = (JsonConstraint) o;
-
-        return columnName.equals(other.columnName) && name.equals(other.name);
-    }
 }
