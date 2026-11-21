@@ -85,7 +85,7 @@ public class IndexSummaryRedistributionTest<R extends SSTableReader & IndexSumma
 
         List<R> sstables = ServerTestUtils.getLiveIndexSummarySupportingReaders(cfs);
         for (R sstable : sstables)
-            sstable.overrideReadMeter(new RestorableMeter(100.0, 100.0));
+            sstable.overrideIndexLookupMeter(new RestorableMeter(100.0, 100.0));
 
         long oldSize = 0;
         long oldSizeUncompressed = 0;
