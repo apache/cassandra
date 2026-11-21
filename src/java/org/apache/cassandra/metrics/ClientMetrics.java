@@ -92,6 +92,7 @@ public final class ClientMetrics
     private Meter requestDispatched;
 
     private Meter timedOutBeforeProcessing;
+    private Meter authTimeout;
     private Meter protocolException;
     private Meter sslHandshakeException;
     private Meter unknownException;
@@ -158,6 +159,20 @@ public final class ClientMetrics
     public void markRequestDispatched() { requestDispatched.mark(); }
     public void markTimedOutBeforeProcessing() { timedOutBeforeProcessing.mark(); }
 
+    /**
+     * Marks a connection closed because it did not authenticate within native_transport_auth_timeout.
+     */
+    public void markAuthTimeout()
+    {
+        authTimeout.mark();
+    }
+
+    @VisibleForTesting
+    public long getAuthTimeoutCount()
+    {
+        return authTimeout.getCount();
+    }
+
     public List<ConnectedClient> allConnectedClients()
     {
         List<ConnectedClient> clients = new ArrayList<>();
@@ -209,6 +224,7 @@ public final class ClientMetrics
 
         authSuccess = registerMeter("AuthSuccess");
         authFailure = registerMeter("AuthFailure");
+        authTimeout = registerMeter("AuthTimeout");
 
         // For each of SSL, non-SSL register a gauge:
         encryptedConnectedNativeClients = registerGauge(new DefaultNameFactory("Client", "Encrypted"), CONNECTED_NATIVE_CLIENTS, () -> countConnectedClients((ServerConnection::isSSL)));

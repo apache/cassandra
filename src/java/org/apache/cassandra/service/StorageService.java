@@ -5814,6 +5814,20 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
     }
 
     @Override
+    public long getNativeTransportAuthTimeoutMillis()
+    {
+        return DatabaseDescriptor.nativeTransportAuthTimeout();
+    }
+
+    @Override
+    public void setNativeTransportAuthTimeoutMillis(long timeoutMillis)
+    {
+        long previous = DatabaseDescriptor.nativeTransportAuthTimeout();
+        DatabaseDescriptor.setNativeTransportAuthTimeout(timeoutMillis);
+        logger.info("Changed native_transport_auth_timeout from {}ms to {}ms", previous, timeoutMillis);
+    }
+
+    @Override
     public boolean getEnforceNativeDeadlineForHints()
     {
         return DatabaseDescriptor.getEnforceNativeDeadlineForHints();
