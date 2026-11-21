@@ -41,7 +41,7 @@ public class SegmentTrieBuffer
 {
     private static final int MAX_RECURSIVE_TERM_LENGTH = 128;
 
-    private final InMemoryTrie<PackedLongValues.Builder> trie;
+    private final InMemoryTrie<PackedLongValuesList.Builder> trie;
     private final PostingsAccumulator postingsAccumulator;
     private int numRows;
 
@@ -68,7 +68,7 @@ public class SegmentTrieBuffer
 
         try
         {
-            trie.putSingleton(term, segmentRowId, postingsAccumulator, termLength <= MAX_RECURSIVE_TERM_LENGTH);
+            trie.putSingleton(term, segmentRowId, postingsAccumulator, true, true);
         }
         catch (InMemoryTrie.SpaceExhaustedException e)
         {
@@ -81,7 +81,7 @@ public class SegmentTrieBuffer
 
     public Iterator<IndexEntry> iterator()
     {
-        Iterator<Map.Entry<ByteComparable, PackedLongValues.Builder>> iterator = trie.entrySet().iterator();
+        Iterator<Map.Entry<ByteComparable, PackedLongValuesList.Builder>> iterator = trie.entrySet().iterator();
 
         return new Iterator<>()
         {
@@ -94,9 +94,9 @@ public class SegmentTrieBuffer
             @Override
             public IndexEntry next()
             {
-                Map.Entry<ByteComparable, PackedLongValues.Builder> entry = iterator.next();
-                PackedLongValues postings = entry.getValue().build();
-                PackedLongValues.Iterator postingsIterator = postings.iterator();
+                Map.Entry<ByteComparable, PackedLongValuesList.Builder> entry = iterator.next();
+                PackedLongValuesList postings = entry.getValue().build();
+                PackedLongValuesList.Iterator postingsIterator = postings.iterator();
                 return IndexEntry.create(entry.getKey(), new PostingList()
                 {
                     @Override
@@ -123,20 +123,25 @@ public class SegmentTrieBuffer
         };
     }
 
-    private static class PostingsAccumulator implements InMemoryTrie.UpsertTransformer<PackedLongValues.Builder, Integer>
+    private static class PostingsAccumulator implements InMemoryTrie.UpsertTransformer<PackedLongValuesList.Builder, Integer>
     {
         private final LongAdder heapAllocations = new LongAdder();
 
         @Override
-        public PackedLongValues.Builder apply(PackedLongValues.Builder existing, Integer rowID)
+        public PackedLongValuesList.Builder apply(PackedLongValuesList.Builder existing, Integer rowID)
+        {
+            return apply(existing, rowID, 0);
+        }
+        @Override
+        public PackedLongValuesList.Builder apply(PackedLongValuesList.Builder existing, Integer rowID, Integer type)
         {
             if (existing == null)
             {
-                existing = PackedLongValues.deltaPackedBuilder(PackedInts.COMPACT);
+                existing = new PackedLongValuesList.Builder();
                 heapAllocations.add(existing.ramBytesUsed());
             }
             long ramBefore = existing.ramBytesUsed();
-            existing.add(rowID);
+            existing.add(rowID, type);
             heapAllocations.add(existing.ramBytesUsed() - ramBefore);
             return existing;
         }
