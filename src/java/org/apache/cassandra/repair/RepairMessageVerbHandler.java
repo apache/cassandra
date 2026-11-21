@@ -181,7 +181,7 @@ public class RepairMessageVerbHandler implements IVerbHandler<RepairMessage>
                     }
 
                     ActiveRepairService.ParentRepairSession prs = ctx.repair().getParentRepairSession(desc.parentSessionId);
-                    if (prs.setHasSnapshots())
+                    if (prs.markSnapshotted(desc))
                     {
                         state.getOrCreateJob(desc).snapshot();
                         TableRepairManager repairManager = cfs.getRepairManager();
