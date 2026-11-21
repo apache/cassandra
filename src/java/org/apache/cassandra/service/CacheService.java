@@ -60,6 +60,7 @@ import org.apache.cassandra.io.sstable.SSTableId;
 import org.apache.cassandra.io.sstable.SSTableIdFactory;
 import org.apache.cassandra.io.sstable.format.SSTableFormat;
 import org.apache.cassandra.io.sstable.format.SSTableReader;
+import org.apache.cassandra.io.sstable.format.Version;
 import org.apache.cassandra.io.sstable.keycache.KeyCacheSupport;
 import org.apache.cassandra.io.util.DataInputPlus;
 import org.apache.cassandra.io.util.DataOutputPlus;
@@ -426,8 +427,22 @@ public class CacheService implements CacheServiceMBean
 
     public static class KeyCacheSerializer extends CacheSerializer<KeyCacheKey, AbstractRowIndexEntry>
     {
-        private final ArrayList<Pair<KeyCacheSupport<?>, SSTableFormat<?, ?>>> readers = new ArrayList<>();
+        private final ArrayList<KeyCacheSSTable> readers = new ArrayList<>();
         private final LinkedHashMap<Descriptor, Pair<Integer, ColumnFamilyStore>> readerOrdinals = new LinkedHashMap<>();
+
+        private static final class KeyCacheSSTable
+        {
+            private final KeyCacheSupport<?> reader;
+            private final Version version;
+            private final TableMetadata metadata;
+
+            private KeyCacheSSTable(KeyCacheSupport<?> reader, Version version, TableMetadata metadata)
+            {
+                this.reader = reader;
+                this.version = version;
+                this.metadata = metadata;
+            }
+        }
 
         @Override
         public void serializeMetadata(DataOutputPlus out) throws IOException
@@ -459,7 +474,8 @@ public class CacheService implements CacheServiceMBean
                 ColumnFamilyStore cfs = readCFS(in);
                 String formatName = in.readUTF();
                 SSTableFormat<?, ?> format = Objects.requireNonNull(DatabaseDescriptor.getSSTableFormats().get(formatName), "Unknown SSTable format: " + formatName);
-                String version = in.readUTF();
+                String versionString = in.readUTF();
+                Version version = format.getVersion(versionString);
                 SSTableId id = SSTableIdFactory.instance.fromBytes(ByteBufferUtil.readWithShortLength(in));
 
                 SSTableReader reader = null;
@@ -474,12 +490,14 @@ public class CacheService implements CacheServiceMBean
                             readersMap.put(ImmutableTriple.of(r.descriptor.id, r.descriptor.version.toString(), r.descriptor.version.format), r);
                         tmpReaders.put(cfs, readersMap);
                     }
-                    reader = readersMap.get(ImmutableTriple.of(id, version, format));
+                    reader = readersMap.get(ImmutableTriple.of(id, versionString, format));
                 }
+                KeyCacheSupport<?> keyCacheReader = null;
                 if (reader instanceof KeyCacheSupport<?>)
-                    readers.add(Pair.create((KeyCacheSupport<?>) reader, format));
-                else
-                    readers.add(Pair.create(null, format));
+                {
+                    keyCacheReader = (KeyCacheSupport<?>) reader;
+                }
+                readers.add(new KeyCacheSSTable(keyCacheReader, version, cfs == null ? null : cfs.metadata()));
             }
         }
 
@@ -497,8 +515,8 @@ public class CacheService implements CacheServiceMBean
 
         public Future<Pair<KeyCacheKey, AbstractRowIndexEntry>> deserialize(DataInputPlus input) throws IOException
         {
-            Pair<KeyCacheSupport<?>, SSTableFormat<?, ?>> reader = readSSTable(input);
-            boolean skipEntry = reader.left == null || !reader.left.getKeyCache().isEnabled();
+            KeyCacheSSTable sstable = readSSTable(input);
+            boolean skipEntry = sstable.reader == null || !sstable.reader.getKeyCache().isEnabled();
 
             int keyLength = input.readInt();
             if (keyLength > FBUtilities.MAX_UNSIGNED_SHORT)
@@ -508,26 +526,25 @@ public class CacheService implements CacheServiceMBean
 
             if (skipEntry)
             {
-                // The sstable doesn't exist anymore, so we can't be sure of the exact version and assume its the current version. The only case where we'll be
-                // wrong is during upgrade, in which case we fail at deserialization. This is not a huge deal however since 1) this is unlikely enough that
-                // this won't affect many users (if any) and only once, 2) this doesn't prevent the node from starting and 3) CASSANDRA-10219 shows that this
-                // part of the code has been broken for a while without anyone noticing (it is, btw, still broken until CASSANDRA-10219 is fixed).
-                SSTableFormat.KeyCacheValueSerializer<?, ?> serializer = reader.right.getKeyCacheValueSerializer();
+                // The saved metadata retains the format version even when the sstable no longer exists, so the
+                // serializer can consume the cache entry using the encoding that originally wrote it.
+                SSTableFormat.KeyCacheValueSerializer<?, ?> serializer =
+                    sstable.version.format.getKeyCacheValueSerializer();
 
-                serializer.skip(input);
+                serializer.skip(input, sstable.version, sstable.metadata);
                 return null;
             }
             long pos = ((RandomAccessReader) input).getPosition();
             AbstractRowIndexEntry cacheValue;
             try
             {
-                cacheValue = reader.left.deserializeKeyCacheValue(input);
+                cacheValue = sstable.reader.deserializeKeyCacheValue(input);
             } catch (RuntimeException | Error ex)
             {
-                logger.error("Deserializing key cache entry at {} for {}", pos, reader.left);
+                logger.error("Deserializing key cache entry at {} for {}", pos, sstable.reader);
                 throw ex;
             }
-            KeyCacheKey cacheKey = reader.left.getCacheKey(key);
+            KeyCacheKey cacheKey = sstable.reader.getCacheKey(key);
             return ImmediateFuture.success(Pair.create(cacheKey, cacheValue));
         }
 
@@ -539,7 +556,7 @@ public class CacheService implements CacheServiceMBean
             out.writeUnsignedVInt32(ordinal);
         }
 
-        private Pair<KeyCacheSupport<?>, SSTableFormat<?, ?>> readSSTable(DataInputPlus input) throws IOException
+        private KeyCacheSSTable readSSTable(DataInputPlus input) throws IOException
         {
             int ordinal = input.readUnsignedVInt32();
             if (ordinal >= readers.size())
