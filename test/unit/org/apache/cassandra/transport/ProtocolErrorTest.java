@@ -117,15 +117,31 @@ public class ProtocolErrorTest {
         Envelope.Decoder dec = new Envelope.Decoder();
 
         List<Object> results = new ArrayList<>();
-        // Unsupported version with only the first byte of the 9-byte header.
+        // A 9-byte OPTIONS header with an unsupported version and an empty body.
         byte[] bytes = new byte[] {
                 (byte) REQUEST.addToVersion(66),  // direction & unsupported version
+                0x00,  // flags
+                0x01, 0x2a,  // stream ID
+                0x05,  // OPTIONS opcode
+                0x00, 0x00, 0x00, 0x00,  // body length
         };
-        ByteBuf buf = Unpooled.wrappedBuffer(bytes);
+        ByteBuf buf = Unpooled.buffer(bytes.length);
         try {
+            // Deliver only the first byte, as in a split header.
+            buf.writeBytes(bytes, 0, 1);
             dec.decode(null, buf, results);
             Assert.assertTrue(results.isEmpty());
             Assert.assertEquals(1, buf.readableBytes());
+
+            buf.writeBytes(bytes, 1, bytes.length - 1);
+            try {
+                dec.decode(null, buf, results);
+                Assert.fail("Expected protocol error");
+            } catch (ErrorMessage.WrappedException e) {
+                Assert.assertEquals(0x012a, e.getStreamId());
+                Assert.assertTrue(e.getCause() instanceof ProtocolException);
+                Assert.assertTrue(e.getMessage().contains("Invalid or unsupported protocol version (66)"));
+            }
         } finally {
             buf.release();
         }
