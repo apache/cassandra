@@ -36,6 +36,7 @@ import com.google.common.collect.ImmutableList;
 import com.google.common.util.concurrent.Uninterruptibles;
 
 import org.junit.Assert;
+import org.junit.BeforeClass;
 import org.junit.Ignore;
 import org.junit.Test;
 import org.junit.experimental.runners.Enclosed;
@@ -51,7 +52,7 @@ import org.apache.cassandra.utils.MonotonicClockTranslation;
 import org.apache.cassandra.utils.Pair;
 
 import static java.util.concurrent.TimeUnit.MILLISECONDS;
-import static org.apache.cassandra.metrics.DecayingEstimatedHistogramReservoir.LANDMARK_RESET_INTERVAL_IN_NS;
+import static org.apache.cassandra.metrics.DecayingEstimatedHistogramReservoir.LANDMARK_RESET_INTERVAL_IN_S;
 import static org.apache.cassandra.utils.Clock.Global.nanoTime;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
@@ -80,6 +81,35 @@ public class DecayingEstimatedHistogramReservoirTest
                 .forAll(booleans().all()
                                   .flatMap(b -> offsets.flatMap(offs -> this.offsetsAndValue(offs, b, 0))))
                 .check(this::checkFindIndex);
+        }
+
+        @Test
+        public void testLogTableMatchesFloatingPoint()
+        {
+            for (long[] offsets : new long[][]{ DecayingEstimatedHistogramReservoir.DEFAULT_WITHOUT_ZERO_BUCKET_OFFSETS,
+                                                DecayingEstimatedHistogramReservoir.DEFAULT_WITH_ZERO_BUCKET_OFFSETS })
+            {
+                for (long value = 0; value <= 2_000_000L; value++)
+                    assertFindIndexMatchesFloatingPoint(offsets, value);
+
+                // and across the whole magnitude range, including values no histogram would see
+                Random random = new Random(0xF00D);
+                for (int i = 0; i < 500_000; i++)
+                    assertFindIndexMatchesFloatingPoint(offsets, Math.abs(random.nextLong()) >>> random.nextInt(63));
+
+                for (long value : new long[]{ 0, 1, 2, 3, Integer.MAX_VALUE, 1L << 62, Long.MAX_VALUE })
+                    assertFindIndexMatchesFloatingPoint(offsets, value);
+            }
+        }
+
+        private static void assertFindIndexMatchesFloatingPoint(long[] offsets, long value)
+        {
+            long clamped = Math.max(value, 0);
+            int offset = (clamped > 2 ? 3 : 1) + (int) offsets[0];
+            int firstCandidate = Math.max(0, Math.min(offsets.length - 1,
+                                                      ((int) DecayingEstimatedHistogramReservoir.fastLog12(clamped)) - offset));
+            int expected = clamped <= offsets[firstCandidate] ? firstCandidate : firstCandidate + 1;
+            assertEquals("value " + value, expected, DecayingEstimatedHistogramReservoir.findIndex(offsets, value));
         }
 
         @Test
@@ -156,6 +186,14 @@ public class DecayingEstimatedHistogramReservoirTest
     public static class ParameterizedTests
     {
         private static final double DOUBLE_ASSERT_DELTA = 0;
+
+        @BeforeClass
+        public static void makeHistogramReadsExact()
+        {
+            // these tests assert on values recorded moments earlier, so no read may settle for an earlier flush.
+            // ant sets this for every test JVM; repeated here so a run from an IDE behaves the same
+            HistogramUpdateBuffers.relaxedFlushWindowNanos = 0;
+        }
 
         @Parameterized.Parameter
         public String description;
@@ -553,9 +591,9 @@ public class DecayingEstimatedHistogramReservoirTest
 
                 DecayingEstimatedHistogramReservoir histogram = new DecayingEstimatedHistogramReservoir(clock);
 
-                clock.addNanos(LANDMARK_RESET_INTERVAL_IN_NS - TimeUnit.SECONDS.toNanos(1L));
+                clock.addNanos(TimeUnit.SECONDS.toNanos(LANDMARK_RESET_INTERVAL_IN_S - 1L));
 
-                while (clock.now() < LANDMARK_RESET_INTERVAL_IN_NS + TimeUnit.SECONDS.toNanos(1L))
+                while (clock.now() < TimeUnit.SECONDS.toNanos(LANDMARK_RESET_INTERVAL_IN_S + 1L))
                 {
                     clock.addNanos(TimeUnit.MILLISECONDS.toNanos(900));
                     for (int i = 0; i < 1_000_000; i++)
@@ -579,7 +617,7 @@ public class DecayingEstimatedHistogramReservoirTest
             DecayingEstimatedHistogramReservoir histogram = new DecayingEstimatedHistogramReservoir(clock);
             DecayingEstimatedHistogramReservoir another = new DecayingEstimatedHistogramReservoir(clock);
 
-            clock.addNanos(LANDMARK_RESET_INTERVAL_IN_NS - TimeUnit.SECONDS.toNanos(1L));
+            clock.addNanos(TimeUnit.SECONDS.toNanos(LANDMARK_RESET_INTERVAL_IN_S - 1L));
 
             histogram.update(1000);
             clock.addMillis(100);
@@ -602,7 +640,7 @@ public class DecayingEstimatedHistogramReservoirTest
             snapshot.add(anotherSnapshot);
 
             // Another had newer decayLandmark, the aggregated snapshot should use it
-            assertEquals(anotherSnapshot.getSnapshotLandmark(), snapshot.getSnapshotLandmark());
+            assertEquals(anotherSnapshot.getSnapshotLandmarkInSec(), snapshot.getSnapshotLandmarkInSec());
             assertEquals(2500, snapshot.getMean(), 500D);
         }
 

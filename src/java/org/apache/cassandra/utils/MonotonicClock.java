@@ -63,6 +63,11 @@ public interface MonotonicClock
      */
     public long now();
 
+    public default long nowInSec()
+    {
+        return TimeUnit.NANOSECONDS.toSeconds(now());
+    }
+
     /**
      * @return nanoseconds of potential error
      */
@@ -306,6 +311,8 @@ public interface MonotonicClock
         private final MonotonicClock precise;
 
         private volatile long almostNow;
+        private volatile long almostNowSec;
+
         private Future<?> almostNowUpdater;
 
         public SampledClock(MonotonicClock precise)
@@ -318,6 +325,12 @@ public interface MonotonicClock
         public long now()
         {
             return almostNow;
+        }
+
+        @Override
+        public long nowInSec()
+        {
+            return almostNowSec;
         }
 
         @Override
@@ -359,9 +372,15 @@ public interface MonotonicClock
             if (almostNowUpdater != null)
                 throw new IllegalStateException("Already running");
 
-            almostNow = precise.now();
+            long nowInit = precise.now();
+            almostNow = nowInit;
+            almostNowSec = TimeUnit.NANOSECONDS.toSeconds(nowInit);
             logger.info("Scheduling approximate time-check task with a precision of {} milliseconds", UPDATE_INTERVAL_MS);
-            almostNowUpdater = ScheduledExecutors.scheduledFastTasks.scheduleWithFixedDelay(() -> almostNow = precise.now(), UPDATE_INTERVAL_MS, UPDATE_INTERVAL_MS, MILLISECONDS);
+            almostNowUpdater = ScheduledExecutors.scheduledFastTasks.scheduleWithFixedDelay(() -> {
+                long now = precise.now();
+                almostNow = now;
+                almostNowSec = TimeUnit.NANOSECONDS.toSeconds(now);
+            }, UPDATE_INTERVAL_MS, UPDATE_INTERVAL_MS, MILLISECONDS);
         }
 
         public synchronized void refreshNow()
