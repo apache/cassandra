@@ -388,7 +388,6 @@
         <version>3.18.0</version>
       </dependency>
       <dependency>
-        <!-- also used by jvector, whose own dependency on it is excluded, see the jvector entry -->
         <groupId>org.apache.commons</groupId>
         <artifactId>commons-math3</artifactId>
         <version>3.6.1</version>
@@ -422,7 +421,6 @@
         </exclusions>
       </dependency>
       <dependency>
-        <!-- also used by jvector, whose own dependency on it is excluded, see the jvector entry -->
         <groupId>org.slf4j</groupId>
         <artifactId>slf4j-api</artifactId>
         <version>2.0.17</version>
@@ -773,7 +771,6 @@
         <classifier>tests</classifier>
         <scope>test</scope>
         <exclusions>
-          <!-- accord declares its own agrona, which would put a second version on the test classpath -->
           <exclusion>
             <groupId>org.agrona</groupId>
             <artifactId>agrona</artifactId>
@@ -1296,7 +1293,6 @@
         <version>5.3.3</version>
       </dependency>
       <dependency>
-        <!-- also used by jvector, whose own dependency on it is excluded, see the jvector entry -->
         <groupId>org.agrona</groupId>
         <artifactId>agrona</artifactId>
         <version>1.20.0</version>
@@ -1312,10 +1308,6 @@
         <version>9.12.0</version>
       </dependency>
       <dependency>
-        <!-- jvector 4.0.2 depends on agrona 1.20.0, commons-math3 3.6.1, slf4j-api 2.0.16 and snakeyaml 2.4. Cassandra
-        declares all of them itself, at those versions or newer, and they are excluded here so that it is never unclear
-        which version is used. When bumping jvector, check its pom for dependencies, exclude each one Cassandra also
-        declares, and bump our versions of them to at least the ones jvector needs. -->
         <groupId>io.github.jbellis</groupId>
         <artifactId>jvector</artifactId>
         <version>4.0.2</version>
