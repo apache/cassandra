@@ -1398,9 +1398,10 @@ native_transport_timeout: 12000ms
 # internode_tcp_user_timeout: 30000ms
 
 # The amount of time unacknowledged data is allowed on a streaming connection.
-# The default is 5 minutes. Increase it or set it to 0 in order to increase the timeout.
+# The default is 10 minutes. Increase it or set it to 0 in order to increase the timeout.
+# Make sure it is long enough for keep-alives to fit in
 # Min unit: ms
-# internode_streaming_tcp_user_timeout: 300000ms
+# internode_streaming_tcp_user_timeout: 600000ms
 
 # Global, per-endpoint and per-connection limits imposed on messages queued for delivery to other nodes
 # and waiting to be processed on arrival from other nodes in the cluster.  These limits are applied to the on-wire

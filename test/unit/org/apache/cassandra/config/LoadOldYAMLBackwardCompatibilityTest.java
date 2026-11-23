@@ -67,7 +67,7 @@ public class LoadOldYAMLBackwardCompatibilityTest
         assertEquals(new DataStorageSpec.IntBytesBound(536870912), config.internode_application_receive_queue_reserve_global_capacity);
         assertEquals(new DurationSpec.IntMillisecondsBound(2000), config.internode_tcp_connect_timeout);
         assertEquals(new DurationSpec.IntMillisecondsBound(30000), config.internode_tcp_user_timeout);
-        assertEquals(new DurationSpec.IntMillisecondsBound(300000), config.internode_streaming_tcp_user_timeout);
+        assertEquals(new DurationSpec.IntMillisecondsBound(600000), config.internode_streaming_tcp_user_timeout);
         assertEquals(new DataStorageSpec.IntMebibytesBound(16), config.native_transport_max_frame_size);
         assertEquals(new DataStorageSpec.IntMebibytesBound(256), config.max_value_size);
         assertEquals(new DataStorageSpec.IntKibibytesBound(4), config.column_index_size);

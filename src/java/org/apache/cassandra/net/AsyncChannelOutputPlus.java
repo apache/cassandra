@@ -107,7 +107,7 @@ public abstract class AsyncChannelOutputPlus extends BufferedDataOutputStreamPlu
                 Throwable cause = future.cause();
                 if (cause == null)
                 {
-                    cause = new FlushException("Flush failed for unknown reason");
+                    cause = new FlushException("Flush failed for unknown reason on channel " + channel);
                     cause.fillInStackTrace();
                 }
                 flushFailed = cause;
@@ -197,8 +197,8 @@ public abstract class AsyncChannelOutputPlus extends BufferedDataOutputStreamPlu
         if (t != null)
         {
             if (SocketFactory.isCausedByConnectionReset(t))
-                throw new FlushException("The channel this output stream was writing to has been closed", t);
-            throw new FlushException("This output stream is in an unsafe state after an asynchronous flush failed", t);
+                throw new FlushException("The channel this output stream was writing to has been closed. Channel " + channel, t);
+            throw new FlushException("This output stream is in an unsafe state after an asynchronous flush failed on channel " + channel, t);
         }
     }
 
