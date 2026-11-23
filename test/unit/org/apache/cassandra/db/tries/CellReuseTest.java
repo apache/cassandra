@@ -135,19 +135,36 @@ public class CellReuseTest
         ));
 
         BufferManagerMultibuf mgr = ((BufferManagerMultibuf) trieLong.bufferManager);
-        verifyReachability(trieLong, reachable, (mgr.cellAllocator).indexesInPipeline(), mgr.getAllocatedPos(), 5, "cells", allUnreachableFree);
+        verifyReachability(trieLong, reachable, indexesInPipeline(mgr.cellAllocator), mgr.getAllocatedPos(), 5, "cells", allUnreachableFree);
 
         ContentManager<?> contentManager = trieLong.contentManager;
         if (contentManager instanceof ContentManagerPojo)
         {
             ContentManagerPojo<?> pojo = (ContentManagerPojo<?>) contentManager;
-            verifyReachability(trieLong, longReachable.right, pojo.objectAllocator.indexesInPipeline(), pojo.getAllocatedPos(), 0, "objects", allUnreachableFree);
+            verifyReachability(trieLong, longReachable.right, indexesInPipeline(pojo.objectAllocator), pojo.getAllocatedPos(), 0, "objects", allUnreachableFree);
             if (allUnreachableFree)
             {
                 IntArrayList filtered = pojo.collectReleasedUnclearedContentIndexes();
                 Assert.assertTrue(filtered.size() + " indexes released but not cleared " + filtered, filtered.isEmpty());
             }
         }
+    }
+
+    /// Returns the indexes in the pipeline of the given strategy, after checking that the count the strategy
+    /// maintains incrementally matches them.
+    private static IntArrayList indexesInPipeline(MemoryAllocationStrategy strategy)
+    {
+        IntArrayList indexes = strategy.indexesInPipeline();
+        Assert.assertEquals("index count in pipeline", indexes.size(), strategy.indexCountInPipeline());
+        return indexes;
+    }
+
+    /// Checks that the counts of indexes in the pipelines of the trie's allocation strategies are correct.
+    public static void verifyIndexCountInPipeline(InMemoryBaseTrie<?> trie)
+    {
+        indexesInPipeline(((BufferManagerMultibuf) trie.bufferManager).cellAllocator);
+        if (trie.contentManager instanceof ContentManagerPojo)
+            indexesInPipeline(((ContentManagerPojo<?>) trie.contentManager).objectAllocator);
     }
 
     private static void verifyReachability(InMemoryBaseTrie<?> trieLong, BitSet reachable, IntArrayList availableList, int allocatedMax, int shift, String name, boolean allUnreachableFree)
@@ -208,11 +225,14 @@ public class CellReuseTest
                     {
                         // expected
                     }
+                    verifyIndexCountInPipeline(trie);
                 }
             }
 
         assertMapEquals(trie.filteredEntrySet(ByteBuffer.class).iterator(),
                         check.filteredEntrySet(ByteBuffer.class).iterator());
+        // The aborted mutations leak some unreachable cells, but must not leave any reachable ones marked for reuse.
+        verifyNoReachableCellsFree(trie);
     }
 
     @Test

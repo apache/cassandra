@@ -57,6 +57,8 @@ public interface MemoryAllocationStrategy
 
     /// Returns the number of indexes that have been claimed by the allocation strategy but are not currently in use
     /// (either because they are in various stages of recycling, or have yet to see first use).
+    ///
+    /// This is used for the memory accounting of every mutation of a memtable and must take constant time.
     long indexCountInPipeline();
 
     /// Called when the trie is not going to be modified anymore (e.g. when it is being flushed). The strategy drops the
@@ -191,6 +193,10 @@ public interface MemoryAllocationStrategy
         /// If not, re-fill the block by allocating a new set of [#REUSE_BLOCK_SIZE] indexes.
         IndexBlockList free;
 
+        /// The number of indexes in all blocks of the [#justReleased] and [#free] lists. Maintained on every change of
+        /// the lists, because walking them would take time proportional to the number of indexes awaiting reuse.
+        int indexCountInPipeline;
+
         /// Called to allocate a new block of indexes to distribute.
         final Allocator allocator;
         final OpOrder opOrder;
@@ -220,9 +226,11 @@ public interface MemoryAllocationStrategy
                     // Nothing available for reuse. Grab more memory.
                     allocator.allocate(free.indexes);
                     free.count = free.indexes.length;
+                    indexCountInPipeline += free.count;
                 }
             }
 
+            --indexCountInPipeline;
             return free.indexes[--free.count];
         }
 
@@ -255,6 +263,7 @@ public interface MemoryAllocationStrategy
             }
 
             justReleased.indexes[justReleased.count++] = index;
+            ++indexCountInPipeline;
         }
 
         @Override
@@ -297,6 +306,9 @@ public interface MemoryAllocationStrategy
         {
             // Some of the releases in the justReleased queue may still be reachable cells.
             // We don't have a way of telling which, so we have to remove everything.
+            // (The dropped blocks are only walked here, once, so this does not add to the amortized cost of recycling.)
+            for (IndexBlockList list = justReleased; list != null; list = list.nextList)
+                indexCountInPipeline -= list.count;
             justReleased.nextList = null;
             justReleased.count = 0;
         }
@@ -308,6 +320,8 @@ public interface MemoryAllocationStrategy
             free.nextList = null;
             awaitingBarrierTail = free;
             justReleased.nextList = null;
+            // Only the indexes in the active free block and the block being filled remain.
+            indexCountInPipeline = free.count + justReleased.count;
         }
 
         /**
@@ -316,14 +330,11 @@ public interface MemoryAllocationStrategy
         @Override
         public long indexCountInPipeline()
         {
-            long count = 0;
-            for (IndexBlockList list = justReleased; list != null; list = list.nextList)
-                count += list.count;
-            for (IndexBlockList list = free; list != null; list = list.nextList) // includes awaiting barrier
-                count += list.count;
-            return count;
+            return indexCountInPipeline;
         }
 
+        /// Walks the lists to collect the indexes. Unlike [#indexCountInPipeline()], this does not rely on any count
+        /// maintained on the side, which makes it suitable for checking that count.
         @Override
         public IntArrayList indexesInPipeline()
         {

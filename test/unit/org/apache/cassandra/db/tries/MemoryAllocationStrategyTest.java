@@ -16,7 +16,9 @@
 
 package org.apache.cassandra.db.tries;
 
+import java.util.ArrayDeque;
 import java.util.HashSet;
+import java.util.Random;
 import java.util.Set;
 
 import org.junit.Test;
@@ -36,8 +38,8 @@ import static org.junit.Assert.assertSame;
 import static org.junit.Assert.assertTrue;
 
 /// Tests of the recycling pipeline of the `OpOrder`-based [MemoryAllocationStrategy] implementations, in particular
-/// that the strategies do not hold on to state they no longer need, and the behaviour of
-/// [MemoryAllocationStrategy#stopRecycling].
+/// that the strategies do not hold on to state they no longer need, the behaviour of
+/// [MemoryAllocationStrategy#stopRecycling], and that [MemoryAllocationStrategy#indexCountInPipeline] stays correct.
 public class MemoryAllocationStrategyTest
 {
     /// Released indexes are numbered from here, so that they can be told apart from new ones.
@@ -97,6 +99,12 @@ public class MemoryAllocationStrategyTest
             assertFalse(message + ": " + index, allocated.contains(index));
     }
 
+    /// Checks the incrementally maintained count against the indexes found by walking the pipeline.
+    private static void assertCountMatches(MemoryAllocationStrategy strategy)
+    {
+        assertEquals(strategy.indexesInPipeline().size(), strategy.indexCountInPipeline());
+    }
+
     @Test
     public void testAdvanceDetachesExhaustedBlock() throws TrieSpaceExhaustedException
     {
@@ -147,6 +155,7 @@ public class MemoryAllocationStrategyTest
         assertNull(strategy.justReleased.nextList);
         // Only the indexes in the block being filled remain.
         assertEquals(strategy.justReleased.count + strategy.free.count, strategy.indexCountInPipeline());
+        assertCountMatches(strategy);
 
         // The dropped indexes are never reused, even once their barriers have expired.
         reader.close();
@@ -214,5 +223,96 @@ public class MemoryAllocationStrategyTest
         assertEquals(expected, cleared);
         for (int index : second)
             assertFalse(cleared.contains(index));
+    }
+
+    @Test
+    public void testAbortMutationDropsJustReleased() throws TrieSpaceExhaustedException
+    {
+        OpOrder order = new OpOrder();
+        OpOrderReuseStrategy strategy = new OpOrderReuseStrategy(this::allocateNew, order);
+
+        // A completed mutation leaves a block awaiting reuse, and an index in the block being filled.
+        IntArrayList completed = releaseBlocks(strategy, 1);
+        strategy.completeMutation();
+        assertEquals(1, justReleased(strategy).size());
+
+        // The aborted mutation fills two more blocks and part of a third.
+        releaseBlocks(strategy, 2);
+        for (int i = 0; i < 10; ++i)
+            strategy.recycle(nextReleased++);
+        strategy.abortMutation();
+
+        // All indexes in the justReleased stage are dropped, including the one released by the completed mutation.
+        assertEquals(completed.size(), strategy.indexCountInPipeline());
+        assertCountMatches(strategy);
+
+        // The block awaiting reuse is not affected.
+        assertEquals(new HashSet<>(completed), allocate(strategy, REUSE_BLOCK_SIZE));
+        assertEquals(0, strategy.indexCountInPipeline());
+        assertCountMatches(strategy);
+    }
+
+    @Test
+    public void testIndexCountInPipeline() throws TrieSpaceExhaustedException
+    {
+        OpOrder order = new OpOrder();
+        testIndexCountInPipeline(new OpOrderReuseStrategy(this::allocateNew, order), order);
+    }
+
+    @Test
+    public void testIndexCountInPipelineWithClearing() throws TrieSpaceExhaustedException
+    {
+        OpOrder order = new OpOrder();
+        testIndexCountInPipeline(new OpOrderReuseWithClearingStrategy(this::allocateNew, index -> {}, order), order);
+    }
+
+    /// Checks that the incrementally maintained [MemoryAllocationStrategy#indexCountInPipeline] stays equal to the
+    /// number of indexes in the pipeline through a random sequence of mutations (some of them aborted), reads that
+    /// hold back the reuse of the indexes released while they are in progress, and calls to `stopRecycling`.
+    private void testIndexCountInPipeline(OpOrderReuseStrategy strategy, OpOrder order) throws TrieSpaceExhaustedException
+    {
+        Random rand = new Random(1);
+        IntArrayList live = new IntArrayList();
+        ArrayDeque<OpOrder.Group> readers = new ArrayDeque<>();
+        assertCountMatches(strategy);
+
+        for (int step = 0; step < 1000; ++step)
+        {
+            // Vary the share of releases, so that the pipeline both grows and shrinks.
+            double releaseShare = rand.nextDouble();
+            int ops = rand.nextInt(2 * REUSE_BLOCK_SIZE);
+            for (int i = 0; i < ops; ++i)
+            {
+                if (!live.isEmpty() && rand.nextDouble() < releaseShare)
+                    strategy.recycle(live.fastUnorderedRemove(rand.nextInt(live.size())));
+                else
+                    live.addInt(strategy.allocate());
+            }
+
+            if (rand.nextInt(10) == 0)
+                strategy.abortMutation();
+            else
+                strategy.completeMutation();
+            assertCountMatches(strategy);
+
+            if (rand.nextInt(3) == 0)
+                readers.add(order.start());
+            if (rand.nextInt(3) == 0)
+                while (!readers.isEmpty() && rand.nextBoolean())
+                    readers.remove().close();
+
+            if (rand.nextInt(100) == 0)
+            {
+                strategy.stopRecycling();
+                assertCountMatches(strategy);
+            }
+        }
+
+        while (!readers.isEmpty())
+            readers.remove().close();
+        // Reuse everything that is available.
+        for (int i = 0; i < 10 * REUSE_BLOCK_SIZE; ++i)
+            strategy.allocate();
+        assertCountMatches(strategy);
     }
 }
