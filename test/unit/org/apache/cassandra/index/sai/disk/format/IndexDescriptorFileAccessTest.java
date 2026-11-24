@@ -18,28 +18,29 @@
 
 package org.apache.cassandra.index.sai.disk.format;
 
-import java.nio.ByteBuffer;
-import java.nio.channels.FileChannel;
-import java.nio.file.Files;
-import java.util.HashMap;
-import java.util.Map;
-
 import com.google.common.primitives.Ints;
 import org.apache.cassandra.config.DatabaseDescriptor;
+import org.apache.cassandra.dht.Murmur3Partitioner;
+import org.apache.cassandra.index.sai.SAITester;
+import org.apache.cassandra.index.sai.utils.IndexIdentifier;
+import org.apache.cassandra.index.sai.utils.IndexTermType;
+import org.apache.cassandra.io.sstable.Descriptor;
+import org.apache.cassandra.io.sstable.SequenceBasedSSTableId;
 import org.apache.cassandra.io.util.ChannelProxy;
+import org.apache.cassandra.io.util.File;
+import org.apache.cassandra.io.util.FileHandle;
+import org.apache.lucene.store.IndexInput;
+import org.assertj.core.api.ThrowableAssert;
 import org.junit.BeforeClass;
 import org.junit.Rule;
 import org.junit.Test;
 import org.junit.rules.TemporaryFolder;
 
-import org.apache.cassandra.dht.Murmur3Partitioner;
-import org.apache.cassandra.index.sai.SAITester;
-import org.apache.cassandra.index.sai.utils.IndexIdentifier;
-import org.apache.cassandra.io.sstable.Descriptor;
-import org.apache.cassandra.io.sstable.SequenceBasedSSTableId;
-import org.apache.cassandra.io.util.File;
-import org.apache.cassandra.io.util.FileHandle;
-import org.apache.lucene.store.IndexInput;
+import java.nio.ByteBuffer;
+import java.nio.channels.FileChannel;
+import java.nio.file.Files;
+import java.util.HashMap;
+import java.util.Map;
 
 import static org.apache.cassandra.index.sai.disk.format.IndexComponent.GROUP_META;
 import static org.apache.cassandra.index.sai.disk.format.IndexComponent.META;
@@ -215,6 +216,43 @@ public class IndexDescriptorFileAccessTest
         verify(handle).close();
     }
 
+    @Test
+    public void customFileAccessIsReadOnly()
+    {
+        IndexDescriptor descriptor = create(new RecordingFileAccess());
+        String message = "Descriptor with custom file access is read-only";
+
+        assertEquals(message, assertThrows(IllegalStateException.class,
+                descriptor::newPerSSTableIndexWriter).getMessage());
+
+        assertEquals(message, assertThrows(IllegalStateException.class,
+                () -> descriptor.newPerColumnIndexWriter(null, null, null)).getMessage());
+
+        assertEquals(message, assertThrows(IllegalStateException.class,
+                () -> descriptor.createComponentOnDisk(GROUP_META)).getMessage());
+
+        assertEquals(message, assertThrows(IllegalStateException.class,
+                () -> descriptor.createComponentOnDisk(META, INDEX)).getMessage());
+
+        assertEquals(message, assertThrows(IllegalStateException.class,
+                () -> descriptor.openPerSSTableOutput(GROUP_META)).getMessage());
+
+        assertEquals(message, assertThrows(IllegalStateException.class,
+                () -> descriptor.openPerSSTableOutput(GROUP_META, true)).getMessage());
+
+        assertEquals(message, assertThrows(IllegalStateException.class,
+                () -> descriptor.openPerIndexOutput(META, INDEX)).getMessage());
+
+        assertEquals(message, assertThrows(IllegalStateException.class,
+                () -> descriptor.openPerIndexOutput(META, INDEX, true)).getMessage());
+
+        assertEquals(message, assertThrows(IllegalStateException.class,
+                descriptor::deletePerSSTableIndexComponents).getMessage());
+
+        assertEquals(message, assertThrows(IllegalStateException.class,
+                () -> descriptor.deleteColumnIndex(mock(IndexTermType.class), INDEX)).getMessage());
+    }
+
     private Descriptor sstableDescriptor()
     {
         return new Descriptor(new File(temporaryFolder.getRoot()), "ks1", "tbl1", new SequenceBasedSSTableId(1));
@@ -223,6 +261,21 @@ public class IndexDescriptorFileAccessTest
     private IndexDescriptor create(IndexDescriptor.FileAccess access)
     {
         return IndexDescriptor.create(sstableDescriptor(), Murmur3Partitioner.instance, SAITester.EMPTY_COMPARATOR, access);
+    }
+
+    private Throwable assertThrows(Class<? extends Exception> exceptionType, ThrowableAssert.ThrowingCallable action)
+    {
+        try
+        {
+            action.call();
+            fail(exceptionType.getName() + " expected");
+        }
+        catch (Throwable t)
+        {
+            assertSame(exceptionType, t.getClass());
+            return t;
+        }
+        return null;
     }
 
     private static class RecordingFileAccess implements IndexDescriptor.FileAccess
