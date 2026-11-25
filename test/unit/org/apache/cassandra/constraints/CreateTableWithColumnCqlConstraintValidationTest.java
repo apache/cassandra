@@ -1448,4 +1448,44 @@ public class CreateTableWithColumnCqlConstraintValidationTest extends CqlConstra
         .hasRootCauseMessage("Constraint ck3 > 5 was not specified on a column it operates on: ck1 but on: ck3")
         .rootCause().isInstanceOf(InvalidConstraintDefinitionException.class);
     }
+
+    @Test
+    public void testStaticColumnScalarConstraint() throws Throwable
+    {
+        createTable("CREATE TABLE %s (pk int, ck int, st int STATIC CHECK st > 0, v int, PRIMARY KEY (pk, ck)) WITH CLUSTERING ORDER BY (ck " + order + ");");
+
+        execute("INSERT INTO %s (pk, st) VALUES (1, 5)");
+        execute("UPDATE %s SET st = 6 WHERE pk = 1");
+
+        final String expectedErrorMessage = "Column value does not satisfy value constraint for column 'st'. It should be st > 0";
+        assertInvalidThrowMessage(expectedErrorMessage, InvalidRequestException.class, "INSERT INTO %s (pk, st) VALUES (1, -5)");
+        assertInvalidThrowMessage(expectedErrorMessage, InvalidRequestException.class, "INSERT INTO %s (pk, ck, st, v) VALUES (1, 1, -5, 1)");
+        assertInvalidThrowMessage(expectedErrorMessage, InvalidRequestException.class, "UPDATE %s SET st = -5 WHERE pk = 1");
+        assertInvalidThrowMessage(expectedErrorMessage, InvalidRequestException.class, "INSERT INTO %s (pk, st) VALUES (2, -5) IF NOT EXISTS");
+        assertInvalidThrowMessage(expectedErrorMessage, InvalidRequestException.class, "BEGIN BATCH INSERT INTO %s (pk, st) VALUES (1, -5); APPLY BATCH");
+
+        assertRows(execute("SELECT pk, st FROM %s"), row(1, 6));
+    }
+
+    @Test
+    public void testStaticColumnLengthConstraint() throws Throwable
+    {
+        createTable("CREATE TABLE %s (pk int, ck int, st text STATIC CHECK LENGTH() < 5, PRIMARY KEY (pk, ck)) WITH CLUSTERING ORDER BY (ck " + order + ");");
+
+        execute("INSERT INTO %s (pk, st) VALUES (1, 'abc')");
+
+        final String expectedErrorMessage = "Column value does not satisfy value constraint for column 'st'. It has a length of 8 and it should be < 5";
+        assertInvalidThrowMessage(expectedErrorMessage, InvalidRequestException.class, "INSERT INTO %s (pk, st) VALUES (1, 'abcdefgh')");
+    }
+
+    @Test
+    public void testStaticColumnNotNullConstraint() throws Throwable
+    {
+        createTable("CREATE TABLE %s (pk int, ck int, st text STATIC CHECK NOT NULL, PRIMARY KEY (pk, ck)) WITH CLUSTERING ORDER BY (ck " + order + ");");
+
+        execute("INSERT INTO %s (pk, st) VALUES (1, 'abc')");
+
+        final String expectedErrorMessage = "Column value does not satisfy value constraint for column 'st' as it is null.";
+        assertInvalidThrowMessage(expectedErrorMessage, InvalidRequestException.class, "INSERT INTO %s (pk, st) VALUES (1, null)");
+    }
 }

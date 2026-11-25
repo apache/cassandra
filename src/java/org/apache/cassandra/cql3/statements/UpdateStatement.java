@@ -137,7 +137,10 @@ public class UpdateStatement extends ModificationStatement
             List<Operation> staticOps = getStaticOperations();
             for (int i = 0, isize = staticOps.size(); i < isize; i++)
                 staticOps.get(i).execute(updateBuilder.partitionKey(), params);
-            updateBuilder.add(params.buildRow());
+
+            Row staticRow = params.buildRow();
+            evaluateConstraintsForRow(staticRow, metadata);
+            updateBuilder.add(staticRow);
         }
     }
 
