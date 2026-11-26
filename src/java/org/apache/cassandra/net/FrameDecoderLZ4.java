@@ -145,7 +145,12 @@ public final class FrameDecoderLZ4 extends FrameDecoderWith8bHeader
             try
             {
                 int sourceLength = end - (begin + HEADER_LENGTH + TRAILER_LENGTH);
-                decompressor.decompress(input, begin + HEADER_LENGTH, sourceLength, out, 0, uncompressedLength);
+                int decompressedLength = decompressor.decompress(input, begin + HEADER_LENGTH, sourceLength, out, 0, uncompressedLength);
+                if (decompressedLength != uncompressedLength)
+                {
+                    allocator.put(out);
+                    return CorruptFrame.unrecoverable(uncompressedLength, decompressedLength);
+                }
                 return new IntactFrame(isSelfContained, ShareableBytes.wrap(out));
             }
             catch (Throwable t)
