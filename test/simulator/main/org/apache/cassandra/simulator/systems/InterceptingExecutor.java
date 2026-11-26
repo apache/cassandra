@@ -589,7 +589,15 @@ public interface InterceptingExecutor extends OrderOn
             {
                 assert pending == 0;
                 if (terminating)
+                {
+                    // another thread is waiting in terminate() for this thread to exit
+                    if (Thread.currentThread() == thread)
+                    {
+                        terminated = true;
+                        notifyAll();
+                    }
                     return;
+                }
 
                 terminating = true;
                 if (Thread.currentThread() != thread)
