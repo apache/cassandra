@@ -15,6 +15,7 @@
  * Allow nodetool garbagecollect to take a user defined list of SSTables (CASSANDRA-16767)
  * Add a guardrail for misprepared statements (CASSANDRA-21139)
 Merged from 6.0:
+ * Evaluate constraints also on static columns (CASSANDRA-21915)
  * Fix equals and hashCode of column constraints and document removal of custom constraint providers with TCM (CASSANDRA-21879)
  * Move the metadata snapshot trigger task off nonPeriodicTasks (CASSANDRA-21855)
  * Accord: TTLs are zero-initialised and not set at execution time, so data is immediately expired (CASSANDRA-21728)
