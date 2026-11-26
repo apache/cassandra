@@ -81,6 +81,7 @@
  * Avoid megamorphic calls when serializing and deserializing fixed-length values (CASSANDRA-21536)
  * Avoid megamorphic calls for Cell.timestamp/ttl/path/localDeletionTimeAsUnsignedInt methods (CASSANDRA-21526)
 Merged from 5.0:
+ * Repair open range tombstones when blocking read repair stops before their end (CASSANDRA-21914)
  * Add configurable authentication timeout for native transport connections (CASSANDRA-21756)
  * Assorted fixes for SAI replica reconciliation with multi-cell collections and range tombstones (CASSANDRA-21897)
  * Harden client STARTUP options (CASSANDRA-21755)
