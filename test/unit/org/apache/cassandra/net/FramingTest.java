@@ -20,13 +20,20 @@ package org.apache.cassandra.net;
 
 import java.io.IOException;
 import java.nio.ByteBuffer;
+import java.nio.ByteOrder;
 import java.security.SecureRandom;
+import java.util.ArrayDeque;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Collection;
 import java.util.List;
 import java.util.Random;
 import java.util.concurrent.TimeUnit;
 import java.util.function.Consumer;
+import java.util.zip.CRC32;
+
+import net.jpountz.lz4.LZ4Compressor;
+import net.jpountz.lz4.LZ4Factory;
 
 import org.junit.AfterClass;
 import org.junit.Assert;
@@ -42,6 +49,8 @@ import org.apache.cassandra.io.compress.BufferType;
 import org.apache.cassandra.io.util.DataInputPlus;
 import org.apache.cassandra.io.util.DataOutputBuffer;
 import org.apache.cassandra.io.util.DataOutputPlus;
+import org.apache.cassandra.net.FrameDecoder.Frame;
+import org.apache.cassandra.utils.Crc;
 import org.apache.cassandra.utils.FBUtilities;
 import org.apache.cassandra.utils.memory.BufferPools;
 import org.apache.cassandra.utils.vint.VIntCoding;
@@ -116,6 +125,55 @@ public class FramingTest
     public void testRandomCrc()
     {
         testSomeFrames(FrameEncoderCrc.instance, FrameDecoderCrc.create(GlobalBufferPoolAllocator.instance));
+    }
+
+    @Test
+    public void testLZ4FrameWithInconsistentUncompressedLengthIsRejected()
+    {
+        GlobalBufferPoolAllocator allocator = GlobalBufferPoolAllocator.instance;
+
+        int declaredLength = 4096;
+        byte[] payload = new byte[16]; // decodes to fewer bytes than the header declares
+
+        ByteBuffer frame = lz4FrameWithDeclaredLength(payload, declaredLength);
+
+        FrameDecoderLZ4 decoder = FrameDecoderLZ4.fast(allocator);
+        Collection<Frame> out = new ArrayDeque<>();
+        decoder.decode(out, wrap(frame));
+
+        Assert.assertEquals(1, out.size());
+        Assert.assertTrue("frame with inconsistent uncompressed length should be rejected",
+                          out.iterator().next() instanceof FrameDecoder.CorruptFrame);
+    }
+
+    private static ByteBuffer lz4FrameWithDeclaredLength(byte[] payload, int declaredLength)
+    {
+        int headerLength = 8;
+        int trailerLength = 4;
+
+        LZ4Compressor compressor = LZ4Factory.fastestInstance().fastCompressor();
+        int maxOut = compressor.maxCompressedLength(payload.length);
+        byte[] block = new byte[maxOut];
+        int compressedLength = compressor.compress(payload, 0, payload.length, block, 0, maxOut);
+        Assert.assertTrue(compressedLength < declaredLength);
+
+        ByteBuffer frame = ByteBuffer.allocate(headerLength + compressedLength + trailerLength)
+                                     .order(ByteOrder.LITTLE_ENDIAN);
+
+        long header5b = (compressedLength & 0x1FFFFL) | ((declaredLength & 0x1FFFFL) << 17);
+        header5b |= 1L << 34; // isSelfContained
+        long crc24 = Crc.crc24(header5b, 5) & 0xFFFFFF;
+        frame.putLong(0, header5b | (crc24 << 40));
+
+        frame.position(headerLength);
+        frame.put(block, 0, compressedLength);
+
+        CRC32 crc32 = Crc.crc32();
+        crc32.update(block, 0, compressedLength);
+        frame.putInt(headerLength + compressedLength, (int) crc32.getValue());
+
+        frame.clear();
+        return frame;
     }
 
     private void testSomeFrames(FrameEncoder encoder, FrameDecoder decoder)
