@@ -1106,6 +1106,19 @@ native_transport_allow_older_protocols: true
 # Min unit: ms
 # native_transport_idle_timeout: 60000ms
 
+# Controls the maximum time allowed for a native transport connection to reach READY.
+# The timeout starts when the TCP connection is established, includes TLS negotiation
+# if enabled, and covers protocol startup and authentication. Connections that do not
+# reach READY within this period are closed, regardless of connection activity.
+# The connection is closed without an error being sent to the client, which sees only
+# a closed connection. Closed connections are counted in the AuthTimeout client metric.
+#
+# Authentication timeouts are enabled by default (15000ms). Set to 0ms to disable.
+# The timeout can be changed at runtime via JMX (StorageServiceMBean), the new value
+# applies to connections established after the change.
+# Min unit: ms
+# native_transport_auth_timeout: 15000ms
+
 # When enabled, limits the number of native transport requests dispatched for processing per second.
 # Behavior once the limit has been breached depends on the value of THROW_ON_OVERLOAD specified in
 # the STARTUP message sent by the client during connection establishment. (See section "4.1.1. STARTUP"
