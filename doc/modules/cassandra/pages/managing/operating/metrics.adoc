@@ -967,6 +967,9 @@ Reported name format:
 
 |AuthSuccess |Meter | Rate of successful authentications
 
+|AuthTimeout |Meter | Rate of connections closed because they did not
+authenticate within `native_transport_auth_timeout`
+
 |ClientsByProtocolVersion |Gauge<List<Map<String, Integer>> | List of
 all connections' protocol version and ip address
 
