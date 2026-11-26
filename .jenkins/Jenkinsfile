@@ -594,18 +594,16 @@ def getNodeLabel(command, cell) {
 def copyToNightlies(sourceFiles, remoteDirectory='') {
   if (isCanonical() && sourceFiles?.trim()) {
     def remotePath = remoteDirectory.startsWith("cassandra/") ? "${remoteDirectory}" : "cassandra/${JOB_NAME}/${BUILD_NUMBER}/${remoteDirectory}"
-    def attempt = 1
-    retry(9) {
-      if (attempt > 1) { sleep(60 * attempt) }
-      sshPublisher(
-        continueOnError: true, failOnError: false,
-        publishers: [
-          sshPublisherDesc(
-          configName: "Nightlies",
-          transfers: [ sshTransfer( sourceFiles: sourceFiles, remoteDirectory: remotePath) ]
-          )
-        ])
-    }
+    // a failed transfer marks the build UNSTABLE instead of throwing, so only the plugin's own retry can repeat it
+    sshPublisher(
+      continueOnError: true, failOnError: false,
+      publishers: [
+        sshPublisherDesc(
+        configName: "Nightlies",
+        sshRetry: [retries: 8, retryDelay: 60000],
+        transfers: [ sshTransfer( sourceFiles: sourceFiles, remoteDirectory: remotePath) ]
+        )
+      ])
     echo "archived to https://nightlies.apache.org/${remotePath}"
   }
 }
