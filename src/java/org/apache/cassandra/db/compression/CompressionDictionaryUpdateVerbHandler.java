@@ -24,6 +24,8 @@ import org.slf4j.LoggerFactory;
 import org.apache.cassandra.db.ColumnFamilyStore;
 import org.apache.cassandra.net.IVerbHandler;
 import org.apache.cassandra.net.Message;
+import org.apache.cassandra.net.MessagingService;
+import org.apache.cassandra.net.NoPayload;
 import org.apache.cassandra.schema.Schema;
 
 public class CompressionDictionaryUpdateVerbHandler implements IVerbHandler<CompressionDictionaryUpdateMessage>
@@ -56,6 +58,11 @@ public class CompressionDictionaryUpdateVerbHandler implements IVerbHandler<Comp
         {
             logger.error("Failed to process dictionary update notification for tableId {}",
                          payload.tableId, e);
+        }
+        finally
+        {
+            // the sender expects a response, see Verb.DICTIONARY_UPDATE_REQ; the refresh itself is asynchronous
+            MessagingService.instance().respond(NoPayload.noPayload, message);
         }
     }
 }

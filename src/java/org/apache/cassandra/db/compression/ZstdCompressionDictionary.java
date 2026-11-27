@@ -64,6 +64,7 @@ public class ZstdCompressionDictionary implements CompressionDictionary, SelfRef
     private final ConcurrentHashMap<Integer, ZstdDictionaryCompressor> compressorPerLevel = new ConcurrentHashMap<>();
     private volatile Ref<ZstdCompressionDictionary> selfRef;
     private final Instant createdAt;
+    private final CompressionDictionaryScope scope;
 
     @VisibleForTesting
     public ZstdCompressionDictionary(DictId dictId, byte[] rawDictionary)
@@ -76,7 +77,13 @@ public class ZstdCompressionDictionary implements CompressionDictionary, SelfRef
 
     public ZstdCompressionDictionary(DictId dictId, byte[] rawDictionary, int checksum, Instant createdAt)
     {
+        this(dictId, CompressionDictionaryScope.CLUSTER, rawDictionary, checksum, createdAt);
+    }
+
+    public ZstdCompressionDictionary(DictId dictId, CompressionDictionaryScope scope, byte[] rawDictionary, int checksum, Instant createdAt)
+    {
         this.dictId = dictId;
+        this.scope = scope;
         this.rawDictionary = rawDictionary;
         this.checksum = checksum;
         this.selfRef = null;
@@ -87,6 +94,12 @@ public class ZstdCompressionDictionary implements CompressionDictionary, SelfRef
     public DictId dictId()
     {
         return dictId;
+    }
+
+    @Override
+    public CompressionDictionaryScope scope()
+    {
+        return scope;
     }
 
     @Override

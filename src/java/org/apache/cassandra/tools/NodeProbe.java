@@ -2753,11 +2753,13 @@ public class NodeProbe implements AutoCloseable
      * Imports dictionary in composite data to database.
      *
      * @param compositeData data to import
+     * @param scope         scope of the imported dictionary: "node" when only the node it is imported on uses it,
+     *                      until the dictionary is promoted, or "cluster" when all nodes use it
      * @throws IOException if there's an error accessing the MBean
      * @throws IllegalArgumentException if keyspace and table values in compositeData are missing
      * or if table doesn't support dictionary compression
      */
-    public void importCompressionDictionary(CompositeData compositeData) throws IOException
+    public void importCompressionDictionary(CompositeData compositeData, String scope) throws IOException
     {
         String keyspace = (String) compositeData.get(CompressionDictionaryDetailsTabularData.KEYSPACE_NAME);
         String table = (String) compositeData.get(CompressionDictionaryDetailsTabularData.TABLE_NAME);
@@ -2767,7 +2769,7 @@ public class NodeProbe implements AutoCloseable
             throw new IllegalArgumentException("Argument must have keyspace and table values.");
         }
 
-        doWithCompressionDictionaryManagerMBean(proxy -> { proxy.importCompressionDictionary(compositeData); return null; }, keyspace, table);
+        doWithCompressionDictionaryManagerMBean(proxy -> { proxy.importCompressionDictionary(compositeData, scope); return null; }, keyspace, table);
     }
 
     /**
@@ -2781,6 +2783,48 @@ public class NodeProbe implements AutoCloseable
     public TabularData listCompressionDictionaries(String keyspace, String table) throws IOException
     {
         return doWithCompressionDictionaryManagerMBean(CompressionDictionaryManagerMBean::listCompressionDictionaries, keyspace, table);
+    }
+
+    /**
+     * Promotes the latest dictionary, which has to be scoped narrower than the cluster, to the whole cluster, that is,
+     * it is announced to all nodes in a cluster, which will start to compress SSTables with it.
+     *
+     * @param keyspace keyspace to promote a dictionary for
+     * @param table table to promote a dictionary for
+     * @throws IOException if there's an error accessing the MBean
+     */
+    public void promoteDictionary(String keyspace, String table) throws IOException
+    {
+        promoteDictionary(keyspace, table, null, new String[0]);
+    }
+
+    /**
+     * Promotes the latest dictionary, which has to be scoped narrower than the cluster, to a wider scope by adding
+     * the given racks of the given datacenter, the whole datacenter when no rack is given, or the whole cluster when no
+     * datacenter is given. The dictionary is announced to the nodes of its new scope.
+     *
+     * @param keyspace   keyspace to promote a dictionary for
+     * @param table      table to promote a dictionary for
+     * @param datacenter datacenter to add, or of the racks to add; null for the whole cluster
+     * @param racks      racks of the datacenter to add, none for the whole datacenter
+     * @throws IOException if there's an error accessing the MBean
+     */
+    public void promoteDictionary(String keyspace, String table, @Nullable String datacenter, String[] racks) throws IOException
+    {
+        doWithCompressionDictionaryManagerMBean(proxy -> { proxy.promoteDictionary(datacenter, racks); return null; }, keyspace, table);
+    }
+
+    /**
+     * Discards the latest dictionary when it is scoped narrower than the cluster, the nodes of its scope compress with
+     * the newest dictionary whose scope contains them again, or with none when there is no such dictionary.
+     *
+     * @param keyspace keyspace to discard a dictionary of
+     * @param table table to discard a dictionary of
+     * @throws IOException if there's an error accessing the MBean
+     */
+    public void discardDictionary(String keyspace, String table) throws IOException
+    {
+        doWithCompressionDictionaryManagerMBean(proxy -> { proxy.discardDictionary(); return null; }, keyspace, table);
     }
 
     private <T> T doWithCompressionDictionaryManagerMBean(Function<CompressionDictionaryManagerMBean, T> func,
@@ -2834,7 +2878,7 @@ public class NodeProbe implements AutoCloseable
         ssProxy.clearOrphanedCompressionDictionaries();
     }
 
-    private CompressionDictionaryManagerMBean getDictionaryManagerProxy(String keyspace, String table) throws IOException
+    protected CompressionDictionaryManagerMBean getDictionaryManagerProxy(String keyspace, String table) throws IOException
     {
         // Construct table-specific MBean name
         String mbeanName = CompressionDictionaryManagerMBean.MBEAN_NAME + ",keyspace=" + keyspace + ",table=" + table;
