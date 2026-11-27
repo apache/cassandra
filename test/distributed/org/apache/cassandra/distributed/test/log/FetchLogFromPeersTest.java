@@ -84,6 +84,9 @@ public class FetchLogFromPeersTest extends TestBaseImpl
 
             // Create divergence between node 1 and 2
             cluster.filters().inbound().from(1).to(2).drop();
+            // Any message from a peer carrying a newer epoch (gossip, responses, ...) makes node2 fetch the log, which
+            // would race with the assertion below that node2 is behind. Isolate it until that assertion has run.
+            IMessageFilters.Filter isolateNode2 = cluster.filters().inbound().to(2).drop();
 
             IInstanceConfig config = cluster.newInstanceConfig();
             IInvokableInstance newInstance = cluster.bootstrap(config);
@@ -98,6 +101,7 @@ public class FetchLogFromPeersTest extends TestBaseImpl
                                         return ClusterMetadata.current().epoch.getEpoch();
                                     });
                                 }).collect(Collectors.toSet()).size());
+            isolateNode2.off();
 
             // node2 is behind, writing to it will cause a failure, but it will then catch up
             try
