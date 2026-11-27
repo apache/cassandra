@@ -84,6 +84,10 @@ Options:
 `--ssl`::
   Use SSL
 
+`--ssl-mode=SSL_MODE`::
+  SSL certificate validation when `--ssl` is used: `require`, `verify-ca` or `verify-identity`
+  (overrides `$SSL_MODE` and `ssl_mode` in cqlshrc)
+
 `-u USERNAME` `--username=USERNAME`::
   Authenticate as user.
 `-p PASSWORD` `--password=PASSWORD`::
