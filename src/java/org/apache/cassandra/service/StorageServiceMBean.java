@@ -35,6 +35,7 @@ import javax.management.openmbean.CompositeData;
 import javax.management.openmbean.OpenDataException;
 import javax.management.openmbean.TabularData;
 
+import org.apache.cassandra.config.FlushCompression;
 import org.apache.cassandra.db.ColumnFamilyStoreMBean;
 import org.apache.cassandra.exceptions.ConfigurationException;
 import org.apache.cassandra.utils.BreaksJMX;
@@ -1100,6 +1101,20 @@ public interface StorageServiceMBean extends NotificationEmitter
      * Use -1 to select the SSTable format's default.
      **/
     public void setColumnIndexSizeInKiB(int columnIndexSizeInKiB);
+
+    /**
+     * Returns the compression applied to SSTables as they are flushed, one of the names of
+     * {@link FlushCompression}.
+     */
+    public String getFlushCompression();
+
+    /**
+     * Sets the compression applied to SSTables as they are flushed. Takes effect on the next flush.
+     * The change is node local and is not persisted to cassandra.yaml.
+     *
+     * @param flushCompression one of the names of {@link FlushCompression}
+     */
+    public void setFlushCompression(String flushCompression);
 
     /**
      * Sets the granularity of the collation index of rows within a partition

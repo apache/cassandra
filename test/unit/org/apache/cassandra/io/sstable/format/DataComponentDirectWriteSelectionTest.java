@@ -26,8 +26,8 @@ import org.junit.BeforeClass;
 import org.junit.Test;
 
 import org.apache.cassandra.config.Config.DiskAccessMode;
-import org.apache.cassandra.config.Config.FlushCompression;
 import org.apache.cassandra.config.DatabaseDescriptor;
+import org.apache.cassandra.config.FlushCompression;
 import org.apache.cassandra.db.ClusteringComparator;
 import org.apache.cassandra.db.compaction.OperationType;
 import org.apache.cassandra.db.marshal.BytesType;
@@ -160,7 +160,7 @@ public class DataComponentDirectWriteSelectionTest
         MetadataCollector collector = new MetadataCollector(new ClusteringComparator(BytesType.instance));
         // finishOnClose(false) routes try-with-resources close through abort, avoiding finish() side effects on an empty writer.
         SequentialWriterOption options = SequentialWriterOption.newBuilder().finishOnClose(false).build();
-        return DataComponent.buildWriter(descriptor, metadata.params.compression, options, collector, op, FlushCompression.fast, null);
+        return DataComponent.buildWriter(descriptor, metadata.params.compression, metadata.params.flushCompression, options, collector, op, FlushCompression.fast, null);
     }
 
     private static TableMetadata compressedMetadata()

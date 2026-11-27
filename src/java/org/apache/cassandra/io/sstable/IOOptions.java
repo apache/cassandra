@@ -20,6 +20,7 @@ package org.apache.cassandra.io.sstable;
 
 import org.apache.cassandra.config.Config;
 import org.apache.cassandra.config.DatabaseDescriptor;
+import org.apache.cassandra.config.FlushCompression;
 import org.apache.cassandra.io.util.DiskOptimizationStrategy;
 import org.apache.cassandra.io.util.SequentialWriterOption;
 
@@ -43,14 +44,14 @@ public class IOOptions
     public final Config.DiskAccessMode indexDiskAccessMode;
     public final double diskOptimizationEstimatePercentile;
     public final SequentialWriterOption writerOptions;
-    public final Config.FlushCompression flushCompression;
+    public final FlushCompression flushCompression;
 
     public IOOptions(DiskOptimizationStrategy diskOptimizationStrategy,
                      Config.DiskAccessMode defaultDiskAccessMode,
                      Config.DiskAccessMode indexDiskAccessMode,
                      double diskOptimizationEstimatePercentile,
                      SequentialWriterOption writerOptions,
-                     Config.FlushCompression flushCompression)
+                     FlushCompression flushCompression)
     {
         this.diskOptimizationStrategy = diskOptimizationStrategy;
         this.defaultDiskAccessMode = defaultDiskAccessMode;

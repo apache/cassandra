@@ -938,6 +938,10 @@ public class DatabaseDescriptor
         if (conf.memtable_flush_writers < 1)
             throw new ConfigurationException("memtable_flush_writers must be at least 1, but was " + conf.memtable_flush_writers, false);
 
+        if (!FlushCompression.possibleValuesInConfig.contains(conf.flush_compression))
+            throw new ConfigurationException(String.format("Invalid flush_compression: %s, possible values: %s",
+                                                           conf.flush_compression, FlushCompression.possibleValuesInConfig), false);
+
         if (conf.memtable_cleanup_threshold == null)
         {
             conf.memtable_cleanup_threshold = (float) (1.0 / (1 + conf.memtable_flush_writers));
@@ -3401,13 +3405,17 @@ public class DatabaseDescriptor
         conf.accord.journal_directory = path;
     }
 
-    public static Config.FlushCompression getFlushCompression()
+    public static FlushCompression getFlushCompression()
     {
         return conf.flush_compression;
     }
 
-    public static void setFlushCompression(Config.FlushCompression compression)
+    public static void setFlushCompression(FlushCompression compression)
     {
+        // auto can be used only on CQL path
+        if (compression == FlushCompression.auto)
+            throw new IllegalArgumentException("Value of 'auto' for flush_compression can be used only on CQL path.");
+
         conf.flush_compression = compression;
     }
 

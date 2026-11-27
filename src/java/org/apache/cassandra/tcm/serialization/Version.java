@@ -88,8 +88,21 @@ public enum Version
      * - SchemaTransformation CQL serialized as raw bytes to avoid utf string limit
      */
     V10(10),
+    /**
+     * - TableParams has flushCompression
+     */
+    V11(11),
+
+    // if you add a new version here, be sure that TRUNK below points to it.
 
     UNKNOWN(Integer.MAX_VALUE);
+
+    /**
+     * A way to point to the tip of the versions, changing it all at once.
+     *
+     * Upon a release of a new major, references to TRUNK have to point to a concrete version.
+     */
+    public static final Version TRUNK = V11;
 
     /**
      * The version that Accord was added to TCM.
