@@ -491,6 +491,15 @@ as it targets how client applications construct queries.
   Never concatenate untrusted input into CQL query strings.
 * *Input Validation* _(developer responsibility)_: Validate and sanitize all user input at the
   application boundary before constructing CQL queries.
+* *Dynamic Identifiers* _(developer responsibility)_: CQL bind markers represent values, not
+  keyspace, table, or column identifiers, or arbitrary query fragments. If an application needs
+  dynamic identifiers or clauses, select them from a strict allowlist rather than interpolating
+  request data into the statement. See the
+  xref:cassandra:developing/cql/cql_singlefile.adoc#prepared-statement[prepared statement documentation]
+  for the supported bind-marker model.
+* *Further Reading*: For a Cassandra-specific discussion of SQL/CQL injection from an application
+  security testing perspective, see
+  [CQL Injection in Cassandra: Security Testing](https://en.hackita.it/articoli/sql-injection-cassandra/).
 
 == Responsibility Matrix
 
