@@ -256,6 +256,7 @@ public final class SSLFactory
      */
     public static void clearSslContextCache()
     {
+        cachedSslContexts.values().forEach(ReferenceCountUtil::release);
         cachedSslContexts.clear();
     }
 
@@ -267,7 +268,11 @@ public final class SSLFactory
         cachedSslContexts.forEachKey(1, cacheKey -> {
             if (Objects.equals(options, cacheKey.encryptionOptions))
             {
-                cachedSslContexts.remove(cacheKey);
+                SslContext ctx = cachedSslContexts.remove(cacheKey);
+                if (ctx != null)
+                {
+                    ReferenceCountUtil.release(ctx);
+                }
                 keysToCheck.remove(cacheKey);
             }
         });
