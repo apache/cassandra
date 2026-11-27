@@ -466,7 +466,9 @@ public class TrieMemtable extends AbstractShardedMemtable
                                                                                : metadata.regularColumns(),
                                     column));
 
-        Object cell = mergedTrie.get(key);
+        // Only one shard can hold the key; go to it directly to use the fast get of the in-memory trie instead of
+        // walking a merge cursor over all shards.
+        Object cell = shards[boundaries.getShardForKey(partitionKey)].data.get(key);
         if (!(cell instanceof CellData))
             return null;
         return ((CellData<?, ?>) cell).toCell(column, null)
