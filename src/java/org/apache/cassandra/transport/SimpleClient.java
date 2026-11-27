@@ -55,7 +55,6 @@ import org.apache.cassandra.net.FrameEncoderLZ4;
 import org.apache.cassandra.net.GlobalBufferPoolAllocator;
 import org.apache.cassandra.net.ResourceLimits;
 import org.apache.cassandra.security.ISslContextFactory;
-import org.apache.cassandra.security.SSLFactory;
 import org.apache.cassandra.transport.ClientResourceLimits.Overload;
 import org.apache.cassandra.transport.messages.ErrorMessage;
 import org.apache.cassandra.transport.messages.EventMessage;
@@ -81,7 +80,6 @@ import io.netty.channel.SimpleChannelInboundHandler;
 import io.netty.channel.nio.NioEventLoopGroup;
 import io.netty.handler.codec.MessageToMessageDecoder;
 import io.netty.handler.codec.MessageToMessageEncoder;
-import io.netty.handler.ssl.SslContext;
 import io.netty.util.concurrent.Promise; // checkstyle: permit this import
 import io.netty.util.concurrent.PromiseCombiner;
 import io.netty.util.internal.logging.InternalLoggerFactory;
@@ -726,10 +724,11 @@ public class SimpleClient implements Closeable
         protected void initChannel(Channel channel) throws Exception
         {
             super.initChannel(channel);
-            SslContext sslContext = SSLFactory.getOrCreateSslContext(encryptionOptions, encryptionOptions.getClientAuth(),
-                                                                     ISslContextFactory.SocketType.CLIENT, SSL_FACTORY_CONTEXT_DESCRIPTION);
             InetSocketAddress peer = encryptionOptions.require_endpoint_verification ? new InetSocketAddress(host, port) : null;
-            channel.pipeline().addFirst("ssl", newSslHandler(channel, sslContext, peer));
+            channel.pipeline().addFirst("ssl", newSslHandler(channel, encryptionOptions,
+                                                             encryptionOptions.getClientAuth(),
+                                                             ISslContextFactory.SocketType.CLIENT,
+                                                             SSL_FACTORY_CONTEXT_DESCRIPTION, peer));
         }
     }
 

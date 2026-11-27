@@ -41,7 +41,6 @@ import org.apache.cassandra.net.FrameEncoderCrc;
 import org.apache.cassandra.net.FrameEncoderLZ4;
 import org.apache.cassandra.net.GlobalBufferPoolAllocator;
 import org.apache.cassandra.security.ISslContextFactory;
-import org.apache.cassandra.security.SSLFactory;
 import org.apache.cassandra.transport.messages.StartupMessage;
 
 import io.netty.bootstrap.ServerBootstrap;
@@ -60,7 +59,6 @@ import io.netty.channel.socket.nio.NioServerSocketChannel;
 import io.netty.handler.codec.ByteToMessageDecoder;
 import io.netty.handler.logging.LogLevel;
 import io.netty.handler.logging.LoggingHandler;
-import io.netty.handler.ssl.SslContext;
 import io.netty.handler.ssl.SslHandler;
 import io.netty.handler.timeout.IdleStateEvent;
 import io.netty.handler.timeout.IdleStateHandler;
@@ -202,11 +200,8 @@ public class PipelineConfigurator
                 // an SSL Handler, otherwise just remove it and proceed with an unencrypted channel.
                 logger.debug("Enabling optionally encrypted CQL connections between client and server");
                 return channel -> {
-                    SslContext sslContext = SSLFactory.getOrCreateSslContext(encryptionOptions,
-                                                                             encryptionOptions.getClientAuth(),
-                                                                             ISslContextFactory.SocketType.SERVER,
-                                                                             SSL_FACTORY_CONTEXT_DESCRIPTION);
-
+                    // The lookup happens when the client sends encrypted bytes, so a silent connection holds no
+                    // reference to a cached context.
                     channel.pipeline().addFirst(SSL_HANDLER, new ByteToMessageDecoder()
                     {
                         @Override
@@ -223,7 +218,10 @@ public class PipelineConfigurator
                                 // Connection uses SSL/TLS, replace the detection handler with a SslHandler and so use
                                 // encryption.
                                 InetSocketAddress peer = encryptionOptions.require_endpoint_verification ? (InetSocketAddress) channel.remoteAddress() : null;
-                                SslHandler sslHandler = newSslHandler(channel, sslContext, peer);
+                                SslHandler sslHandler = newSslHandler(channel, encryptionOptions,
+                                                                      encryptionOptions.getClientAuth(),
+                                                                      ISslContextFactory.SocketType.SERVER,
+                                                                      SSL_FACTORY_CONTEXT_DESCRIPTION, peer);
                                 channelHandlerContext.pipeline().replace(SSL_HANDLER, SSL_HANDLER, sslHandler);
                             }
                             else
@@ -238,12 +236,11 @@ public class PipelineConfigurator
             case ENCRYPTED:
                 logger.debug("Enabling encrypted CQL connections between client and server");
                 return channel -> {
-                    SslContext sslContext = SSLFactory.getOrCreateSslContext(encryptionOptions,
-                                                                             encryptionOptions.getClientAuth(),
-                                                                             ISslContextFactory.SocketType.SERVER,
-                                                                             SSL_FACTORY_CONTEXT_DESCRIPTION);
                     InetSocketAddress peer = encryptionOptions.require_endpoint_verification ? (InetSocketAddress) channel.remoteAddress() : null;
-                    channel.pipeline().addFirst(SSL_HANDLER, newSslHandler(channel, sslContext, peer));
+                    channel.pipeline().addFirst(SSL_HANDLER, newSslHandler(channel, encryptionOptions,
+                                                                           encryptionOptions.getClientAuth(),
+                                                                           ISslContextFactory.SocketType.SERVER,
+                                                                           SSL_FACTORY_CONTEXT_DESCRIPTION, peer));
                 };
             default:
                 throw new IllegalStateException("Unrecognized TLS encryption policy: " + this.tlsEncryptionPolicy);
