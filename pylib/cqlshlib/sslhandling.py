@@ -14,6 +14,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import ipaddress
 import os
 import sys
 import ssl
@@ -38,6 +39,7 @@ def ssl_settings(host, config_file, env=os.environ):
     optional too. If validation is enabled then SSL certfile must be provided
     either in the config file or as an environment variable.
     Environment variables override any options set in cqlsh config file.
+    SNI is sent with the host name unless host is an IP address.
     """
     configs = configparser.ConfigParser()
     configs.read(config_file)
@@ -84,7 +86,13 @@ def ssl_settings(host, config_file, env=os.environ):
     if usercert:
         usercert = os.path.expanduser(usercert)
 
-    return dict(ca_certs=ssl_certfile,
-                cert_reqs=ssl.CERT_REQUIRED if ssl_validate else ssl.CERT_NONE,
-                ssl_version=ssl_version,
-                keyfile=userkey, certfile=usercert)
+    ssl_options = dict(ca_certs=ssl_certfile,
+                       cert_reqs=ssl.CERT_REQUIRED if ssl_validate else ssl.CERT_NONE,
+                       ssl_version=ssl_version,
+                       keyfile=userkey, certfile=usercert)
+    # RFC 6066 forbids IP literals in SNI
+    try:
+        ipaddress.ip_address(host)
+    except ValueError:
+        ssl_options['server_hostname'] = host
+    return ssl_options
