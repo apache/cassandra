@@ -266,6 +266,11 @@ public interface ColumnFamilyStoreMBean
     public int getUnleveledSSTables();
 
     /**
+     * @return the maximum number of sstables whose key ranges overlap at any one key.
+     */
+    public int getMaxOverlappingSSTables();
+
+    /**
      * @return sstable count for each level. null unless leveled compaction is used.
      *         array index corresponds to level(int[0] is for level 0, ...).
      */

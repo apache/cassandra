@@ -3096,6 +3096,12 @@ public <T> T withAllSSTables(final OperationType operationType, Function<Lifecyc
     }
 
     @Override
+    public int getMaxOverlappingSSTables()
+    {
+        return compactionStrategyManager.getMaxOverlappingSSTables();
+    }
+
+    @Override
     public int[] getSSTableCountPerLevel()
     {
         return compactionStrategyManager.getSSTableCountPerLevel();
