@@ -20,10 +20,16 @@ package org.apache.cassandra.db.compaction.differential;
 
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.Collection;
 import java.util.List;
 
+import org.junit.After;
+import org.junit.Before;
 import org.junit.Test;
+import org.junit.runner.RunWith;
+import org.junit.runners.Parameterized;
 
+import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.cql3.CQLTester;
 import org.apache.cassandra.db.ColumnFamilyStore;
 import org.apache.cassandra.db.rows.Cell;
@@ -36,6 +42,7 @@ import org.apache.cassandra.io.sstable.ISSTableScanner;
 import org.apache.cassandra.io.sstable.PartitionDescriptor;
 import org.apache.cassandra.io.sstable.SSTableCursorReader;
 import org.apache.cassandra.io.sstable.UnfilteredDescriptor;
+import org.apache.cassandra.io.sstable.format.SSTableFormat;
 import org.apache.cassandra.io.sstable.format.SSTableReader;
 import org.apache.cassandra.io.util.DataOutputBuffer;
 import org.apache.cassandra.schema.ColumnMetadata;
@@ -73,8 +80,33 @@ import static org.junit.Assert.fail;
  * length prefix before a value of variable length: see copyCellContents. The iterator side
  * writes the same format through AbstractType.writeValue.
  */
+@RunWith(Parameterized.class)
 public class ComplexColumnCursorReadTest extends CQLTester
 {
+    @Parameterized.Parameter
+    public String format;
+
+    @Parameterized.Parameters(name = "format={0}")
+    public static Collection<Object[]> formats()
+    {
+        return List.of(new Object[]{ "big" }, new Object[]{ "bti" });
+    }
+
+    private SSTableFormat<?, ?> originalFormat;
+
+    @Before
+    public void selectFormat()
+    {
+        originalFormat = DatabaseDescriptor.getSelectedSSTableFormat();
+        DatabaseDescriptor.setSelectedSSTableFormat(format);
+    }
+
+    @After
+    public void restoreFormat()
+    {
+        DatabaseDescriptor.setSelectedSSTableFormat(originalFormat);
+    }
+
     /** Oracle: canonical records from the standard iterator read. */
     private static List<String> iteratorRecords(SSTableReader sstable) throws IOException
     {
@@ -422,6 +454,23 @@ public class ComplexColumnCursorReadTest extends CQLTester
         // An overwrite of the whole collection makes a complex deletion and new cells. The
         // memtable merges them.
         execute("UPDATE %s SET m = ? WHERE pk = ? AND ck = ?", map("only", 1L), 1L, 1L);
+
+        assertCursorReadsMatch();
+    }
+
+    /**
+     * If one complex column in a row has a deletion, the row writes a deletion for every complex
+     * column, and a column without one gets LIVE.  The reader must read that back as LIVE, as the
+     * iterator does.
+     */
+    @Test
+    public void liveComplexDeletionBesideDeletedCollection() throws Exception
+    {
+        createTable("CREATE TABLE %s (pk bigint, ck bigint, a set<int>, b set<int>, PRIMARY KEY (pk, ck))");
+        getCurrentColumnFamilyStore().disableAutoCompaction();
+
+        // a is overwritten, which makes a complex deletion; b only gets an element, which makes none
+        execute("UPDATE %s SET a = ?, b = b + ? WHERE pk = ? AND ck = ?", set(1), set(2), 1L, 1L);
 
         assertCursorReadsMatch();
     }

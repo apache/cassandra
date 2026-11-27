@@ -170,16 +170,17 @@ public abstract class SSTableWriter extends SSTable implements Transactional
         return first;
     }
 
+    /** Returns a copy when the writer reuses one key object for every partition, so a later partition does not change the result. */
     @Override
     public DecoratedKey getLast()
     {
-        return last;
+        return last == null ? null : last.retainable();
     }
 
     @Override
     public AbstractBounds<Token> getBounds()
     {
-        return (first != null && last != null) ? AbstractBounds.bounds(first.getToken(), true, last.getToken(), true)
+        return (first != null && last != null) ? AbstractBounds.bounds(first.getToken(), true, last.retainable().getToken(), true)
                                                : null;
     }
 

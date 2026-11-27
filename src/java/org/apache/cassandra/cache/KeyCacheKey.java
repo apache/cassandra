@@ -44,6 +44,14 @@ public class KeyCacheKey extends CacheKey
         assert this.key != null;
     }
 
+    /** For {@link ReusableKeyCacheKey}, which keeps its key bytes in fields of its own. */
+    protected KeyCacheKey(TableMetadata tableMetadata, Descriptor desc)
+    {
+        super(tableMetadata);
+        this.desc = desc;
+        this.key = null;
+    }
+
     private KeyCacheKey() // Only for EMPTY_SIZE
     {
         super(null, null);
@@ -65,6 +73,7 @@ public class KeyCacheKey extends CacheKey
     public boolean equals(Object o)
     {
         if (this == o) return true;
+        if (o instanceof ReusableKeyCacheKey) return o.equals(this);
         if (o == null || getClass() != o.getClass()) return false;
 
         KeyCacheKey that = (KeyCacheKey) o;

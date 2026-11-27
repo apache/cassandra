@@ -62,7 +62,7 @@ public class SSTableAbstractBench extends CQLTester
     @Setup(Level.Trial)
     public void setup() throws Throwable
     {
-        prepareServer();
+        setUpClass();
         beforeTest();
 
         setupTable();
