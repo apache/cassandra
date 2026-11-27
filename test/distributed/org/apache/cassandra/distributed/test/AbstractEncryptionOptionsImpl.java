@@ -54,6 +54,7 @@ import io.netty.channel.socket.nio.NioSocketChannel;
 import io.netty.handler.codec.ByteToMessageDecoder;
 import io.netty.handler.ssl.SslContext;
 import io.netty.handler.ssl.SslHandler;
+import io.netty.util.ReferenceCountUtil;
 import io.netty.util.concurrent.FutureListener;
 
 import static java.util.concurrent.TimeUnit.SECONDS;
@@ -318,6 +319,8 @@ public class AbstractEncryptionOptionsImpl extends TestBaseImpl
             finally
             {
                 f.channel().close();
+                // The pipeline created its engine during the connect, and the engine holds its own reference.
+                ReferenceCountUtil.release(sslContext);
             }
             return result.get();
         }
