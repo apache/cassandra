@@ -122,6 +122,10 @@
 # Expose system_metrics virtual keyspace, hidden by default.
 #-Dcassandra.virtual_keyspace_system_metrics_enabled=false
 
+# Select the Java UDF sandbox: securitymanager, bytecode, or auto (the default), which uses
+# securitymanager up to Java 23 and bytecode on Java 24 and later.
+#-Dcassandra.udf.security_mechanism=auto
+
 ########################
 # GENERAL JVM SETTINGS #
 ########################

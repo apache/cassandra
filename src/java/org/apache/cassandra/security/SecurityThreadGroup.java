@@ -20,11 +20,16 @@ package org.apache.cassandra.security;
 
 import java.util.Set;
 
+import io.netty.util.concurrent.FastThreadLocal;
+
 /**
- * Used by {@link ThreadAwareSecurityManager} to determine whether access-control checks needs to be performed.
+ * Thread group of the threads that execute user-defined functions. Used by {@link ThreadAwareSecurityManager} to
+ * determine whether access-control checks need to be performed.
  */
 public final class SecurityThreadGroup extends ThreadGroup
 {
+    private static final FastThreadLocal<Boolean> initializedThread = new FastThreadLocal<>();
+
     private final Set<String> allowedPackages;
     private final ThreadInitializer threadInitializer;
 
@@ -38,6 +43,26 @@ public final class SecurityThreadGroup extends ThreadGroup
     public void initializeThread()
     {
         threadInitializer.initializeThread();
+    }
+
+    /**
+     * @return true if the current thread is an initialized thread of a {@code SecurityThreadGroup}. The first call on
+     * such a thread runs the group's {@link ThreadInitializer}. Calls made while it runs return false.
+     */
+    public static boolean isSecuredThread()
+    {
+        ThreadGroup tg = Thread.currentThread().getThreadGroup();
+        if (!(tg instanceof SecurityThreadGroup))
+            return false;
+        Boolean threadInitialized = initializedThread.get();
+        if (threadInitialized == null)
+        {
+            initializedThread.set(false);
+            ((SecurityThreadGroup) tg).initializeThread();
+            initializedThread.set(true);
+            threadInitialized = true;
+        }
+        return threadInitialized;
     }
 
     public boolean isPackageAllowed(String pkg)

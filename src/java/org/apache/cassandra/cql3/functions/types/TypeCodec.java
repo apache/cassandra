@@ -22,6 +22,7 @@ import java.io.IOException;
 import java.lang.reflect.Type;
 import java.math.BigDecimal;
 import java.math.BigInteger;
+import java.net.Inet6Address;
 import java.net.InetAddress;
 import java.net.UnknownHostException;
 import java.nio.BufferUnderflowException;
@@ -41,6 +42,7 @@ import java.util.UUID;
 import java.util.regex.Pattern;
 
 import com.google.common.io.ByteStreams;
+import com.google.common.net.InetAddresses;
 import com.google.common.reflect.TypeToken;
 
 import org.apache.cassandra.cql3.functions.types.exceptions.InvalidTypeException;
@@ -1231,9 +1233,6 @@ public abstract class TypeCodec<T>
     private static class BooleanCodec extends PrimitiveBooleanCodec
     {
 
-        private static final ByteBuffer TRUE = ByteBuffer.wrap(new byte[]{ 1 });
-        private static final ByteBuffer FALSE = ByteBuffer.wrap(new byte[]{ 0 });
-
         private static final BooleanCodec instance = new BooleanCodec();
 
         private BooleanCodec()
@@ -1268,7 +1267,8 @@ public abstract class TypeCodec<T>
         @Override
         public ByteBuffer serializeNoBoxing(boolean value, ProtocolVersion protocolVersion)
         {
-            return value ? TRUE.duplicate() : FALSE.duplicate();
+            // not a shared buffer, as UDFs can write to it
+            return ByteBuffer.wrap(new byte[]{ value ? (byte) 1 : (byte) 0 });
         }
 
         @Override
@@ -1484,6 +1484,8 @@ public abstract class TypeCodec<T>
 
         private static final InetCodec instance = new InetCodec();
 
+        private static final Pattern NUMERIC_ZONE = Pattern.compile("[0-9]+");
+
         private InetCodec()
         {
             super(DataType.inet(), InetAddress.class);
@@ -1500,7 +1502,7 @@ public abstract class TypeCodec<T>
                 String.format("inet values must be enclosed in single quotes (\"%s\")", value));
             try
             {
-                return InetAddress.getByName(value.substring(1, value.length() - 1));
+                return parseLiteral(value.substring(1, value.length() - 1));
             }
             catch (Exception e)
             {
@@ -1513,6 +1515,65 @@ public abstract class TypeCodec<T>
         {
             if (value == null) return "NULL";
             return '\'' + value.getHostAddress() + '\'';
+        }
+
+        // The address literals InetAddress.getByName accepts, without resolving host or interface names
+        private static InetAddress parseLiteral(String literal) throws UnknownHostException
+        {
+            if (literal.isEmpty())
+                return InetAddress.getLoopbackAddress();
+            if (literal.length() > 2 && literal.charAt(0) == '[' && literal.charAt(literal.length() - 1) == ']' && literal.indexOf(':') > 0)
+                literal = literal.substring(1, literal.length() - 1);
+
+            int zone = literal.indexOf('%');
+            if (zone >= 0)
+            {
+                String scope = literal.substring(zone + 1);
+                if (!NUMERIC_ZONE.matcher(scope).matches())
+                    throw new IllegalArgumentException(scope);
+                byte[] address = InetAddresses.forString(literal.substring(0, zone)).getAddress();
+                return Inet6Address.getByAddress(null, address, Integer.parseInt(scope));
+            }
+
+            byte[] ipv4 = parseIPv4(literal);
+            return ipv4 != null ? InetAddress.getByAddress(ipv4) : InetAddresses.forString(literal);
+        }
+
+        // One to four decimal parts, the last filling the remaining bytes, so "127.1" and "2130706433" are 127.0.0.1
+        private static byte[] parseIPv4(String literal)
+        {
+            if (literal.length() > 15)
+                return null;
+            byte[] address = new byte[4];
+            int part = 0;
+            long value = 0;
+            boolean empty = true;
+            for (int i = 0; i < literal.length(); i++)
+            {
+                char c = literal.charAt(i);
+                if (c == '.')
+                {
+                    if (empty || value > 0xff || part == 3)
+                        return null;
+                    address[part++] = (byte) value;
+                    value = 0;
+                    empty = true;
+                }
+                else if (c >= '0' && c <= '9')
+                {
+                    value = value * 10 + (c - '0');
+                    empty = false;
+                }
+                else
+                {
+                    return null;
+                }
+            }
+            if (empty || value >= 1L << ((4 - part) * 8))
+                return null;
+            for (int i = 3; i >= part; i--, value >>= 8)
+                address[i] = (byte) value;
+            return address;
         }
 
         @Override

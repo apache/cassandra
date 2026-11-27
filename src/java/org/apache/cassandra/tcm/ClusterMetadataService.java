@@ -689,7 +689,7 @@ public class ClusterMetadataService
         ClusterMetadata toApply = state.baseState;
         for (Entry entry : state.entries)
         {
-            Transformation.Result res = entry.transform.execute(toApply);
+            Transformation.Result res = LocalLog.executeCommitted(entry.transform, toApply);
             assert res.isSuccess();
             toApply = res.success().metadata;
         }

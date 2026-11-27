@@ -22,9 +22,13 @@ import java.io.IOException;
 import java.lang.reflect.InvocationTargetException;
 import java.nio.channels.ClosedByInterruptException;
 import java.util.Arrays;
+import java.util.Collections;
+import java.util.IdentityHashMap;
 import java.util.Iterator;
+import java.util.NoSuchElementException;
 import java.util.Objects;
 import java.util.Optional;
+import java.util.Set;
 import java.util.concurrent.CompletionException;
 import java.util.concurrent.ExecutionException;
 import java.util.function.Predicate;
@@ -76,12 +80,46 @@ public final class Throwables
 
     public static boolean anyCauseMatches(Throwable t, Predicate<Throwable> cause)
     {
-        do
-        {
-            if (cause.test(t))
+        for (Throwable c : causeChain(t))
+            if (cause.test(c))
                 return true;
-        } while ((t = t.getCause()) != null);
         return false;
+    }
+
+    /**
+     * @return {@code t} followed by its causes, stopping before a cause that repeats an earlier one
+     */
+    public static Iterable<Throwable> causeChain(Throwable t)
+    {
+        return () -> new Iterator<Throwable>()
+        {
+            private Throwable next = t;
+            private Set<Throwable> seen; // identity, since Throwable.equals can be overridden
+
+            public boolean hasNext()
+            {
+                return next != null;
+            }
+
+            public Throwable next()
+            {
+                if (next == null)
+                    throw new NoSuchElementException();
+                Throwable current = next;
+                next = current.getCause();
+                if (next != null)
+                {
+                    if (seen == null)
+                    {
+                        seen = Collections.newSetFromMap(new IdentityHashMap<>());
+                        seen.add(current);
+                    }
+                    if (!seen.add(next))
+                        next = null;
+                }
+                return current;
+            }
+        };
     }
 
     /**

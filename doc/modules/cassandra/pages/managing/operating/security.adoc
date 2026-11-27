@@ -648,6 +648,12 @@ representing a single table in `test_keyspace`, while granting the same
 permission for all table level MBeans in that keyspace to the `ks_owner`
 role.
 
+On Java 24 and later, subscribing to the notifications of an MBean
+requires `DESCRIBE` on that MBean. For example, `nodetool repair`
+subscribes to `org.apache.cassandra.db:type=StorageService`, on which
+the `jmx` role above has `DESCRIBE`. On earlier Java versions,
+subscribing requires no permission.
+
 Adding/removing roles and granting/revoking of permissions is handled
 dynamically once the initial setup is complete, so no further restarts
 are required if permissions are altered.

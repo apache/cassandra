@@ -738,7 +738,8 @@ public class Config
 
     /**
      * Optionally disable asynchronous UDF execution.
-     * Disabling asynchronous UDF execution also implicitly disables the security-manager!
+     * Disabling asynchronous UDF execution also implicitly disables the security-manager! The bytecode sandbox, if
+     * selected, still applies.
      * By default, async UDF execution is enabled to be able to detect UDFs that run too long / forever and be
      * able to fail fast - i.e. stop the Cassandra daemon, which is currently the only appropriate approach to
      * "tell" a user that there's something really wrong with the UDF.
@@ -759,6 +760,8 @@ public class Config
 
     /**
      * Set this to allow UDFs accessing java.lang.System.* methods, which basically allows UDFs to execute any arbitrary code on the system.
+     * Only has an effect without UDF threads. The bytecode sandbox still rejects members of java.lang.System whose
+     * signatures use types it does not allow.
      */
     public boolean allow_extra_insecure_udfs = false;
 

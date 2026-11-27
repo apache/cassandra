@@ -20,9 +20,13 @@ package org.apache.cassandra.cql3.statements.schema;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
+import java.util.stream.Stream;
 
 import com.google.common.collect.ImmutableSet;
 import com.google.common.collect.Lists;
+
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import org.apache.cassandra.audit.AuditLogContext;
 import org.apache.cassandra.audit.AuditLogEntryType;
@@ -37,12 +41,14 @@ import org.apache.cassandra.cql3.functions.UDFunction;
 import org.apache.cassandra.cql3.functions.UserFunction;
 import org.apache.cassandra.db.marshal.AbstractType;
 import org.apache.cassandra.schema.KeyspaceMetadata;
+import org.apache.cassandra.schema.KeyspaceMetadata.KeyspaceDiff;
 import org.apache.cassandra.schema.Keyspaces;
 import org.apache.cassandra.schema.Keyspaces.KeyspacesDiff;
 import org.apache.cassandra.schema.Schema;
 import org.apache.cassandra.schema.UserFunctions.FunctionsDiff;
 import org.apache.cassandra.service.ClientState;
 import org.apache.cassandra.tcm.ClusterMetadata;
+import org.apache.cassandra.tcm.log.LocalLog;
 import org.apache.cassandra.tcm.serialization.Version;
 import org.apache.cassandra.transport.Event.SchemaChange;
 import org.apache.cassandra.transport.Event.SchemaChange.Change;
@@ -52,6 +58,8 @@ import static java.util.stream.Collectors.toList;
 
 public final class CreateFunctionStatement extends AlterSchemaStatement
 {
+    private static final Logger logger = LoggerFactory.getLogger(CreateFunctionStatement.class);
+
     private final String functionName;
     private final List<ColumnIdentifier> argumentNames;
     private final List<CQL3Type.Raw> rawArgumentTypes;
@@ -97,7 +105,9 @@ public final class CreateFunctionStatement extends AlterSchemaStatement
         if (ifNotExists && orReplace)
             throw ire("Cannot use both 'OR REPLACE' and 'IF NOT EXISTS' directives");
 
-        UDFunction.assertUdfsEnabled(language);
+        boolean executingCommitted = LocalLog.isExecutingCommitted();
+        if (!executingCommitted)
+            UDFunction.assertUdfsEnabled(language);
 
         if (!FunctionName.isNameValid(functionName))
             throw ire("Function name '%s' is invalid", functionName);
@@ -124,14 +134,11 @@ public final class CreateFunctionStatement extends AlterSchemaStatement
                             .collect(toList());
         AbstractType<?> returnType = rawReturnType.prepare(keyspaceName, keyspace.types).getType().udfType();
 
-        UDFunction function =
-            UDFunction.create(new FunctionName(keyspaceName, functionName),
-                              argumentNames,
-                              argumentTypes,
-                              returnType,
-                              calledOnNullInput,
-                              language,
-                              body);
+        // keep following the metadata log if this node cannot compile a committed function
+        FunctionName name = new FunctionName(keyspaceName, functionName);
+        UDFunction function = executingCommitted
+                              ? UDFunction.tryCreate(name, argumentNames, argumentTypes, returnType, calledOnNullInput, language, body)
+                              : UDFunction.create(name, argumentNames, argumentTypes, returnType, calledOnNullInput, language, body);
 
         UserFunction existingFunction = keyspace.userFunctions.find(function.name(), argumentTypes).orElse(null);
         if (null != existingFunction)
@@ -179,6 +186,27 @@ public final class CreateFunctionStatement extends AlterSchemaStatement
                                 keyspaceName,
                                 functionName,
                                 rawArgumentTypes.stream().map(CQL3Type.Raw::toString).collect(toList()));
+    }
+
+    @Override
+    Set<String> clientWarnings(KeyspacesDiff diff)
+    {
+        Set<String> warnings = new HashSet<>();
+        for (KeyspaceDiff keyspaceDiff : diff.altered)
+        {
+            if (!keyspaceDiff.after.name.equals(keyspaceName))
+                continue;
+            FunctionsDiff<UDFunction> udfsDiff = keyspaceDiff.udfs;
+            Stream.concat(udfsDiff.created.udfs(), udfsDiff.altered.stream().map(altered -> altered.after))
+                  .filter(function -> function.name().name.equals(functionName) && !function.bytecodeSandboxErrors().isEmpty())
+                  .forEach(function -> {
+                      String warning = String.format("Function %s would be rejected by the bytecode UDF sandbox used on Java 24 and later: %s",
+                                                     function.signature(), function.bytecodeSandboxErrors());
+                      logger.warn(warning);
+                      warnings.add(warning);
+                  });
+        }
+        return warnings;
     }
 
     public void authorize(ClientState client)

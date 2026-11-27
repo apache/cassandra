@@ -36,6 +36,7 @@ import java.util.Set;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.TimeUnit;
 import java.util.function.Predicate;
+import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
 import javax.management.StandardMBean;
@@ -59,6 +60,7 @@ import org.apache.cassandra.config.CassandraRelevantProperties;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.config.JMXServerOptions;
 import org.apache.cassandra.cql3.QueryProcessor;
+import org.apache.cassandra.cql3.functions.UDFunction;
 import org.apache.cassandra.db.ColumnFamilyStore;
 import org.apache.cassandra.db.Keyspace;
 import org.apache.cassandra.db.SizeEstimatesRecorder;
@@ -85,7 +87,7 @@ import org.apache.cassandra.metrics.DefaultNameFactory;
 import org.apache.cassandra.net.StartupClusterConnectivityChecker;
 import org.apache.cassandra.schema.Schema;
 import org.apache.cassandra.schema.SchemaConstants;
-import org.apache.cassandra.security.ThreadAwareSecurityManager;
+import org.apache.cassandra.security.UDFSecurityMechanism;
 import org.apache.cassandra.service.accord.AccordOperations;
 import org.apache.cassandra.service.accord.AccordService;
 import org.apache.cassandra.service.paxos.PaxosState;
@@ -236,6 +238,24 @@ public class CassandraDaemon
         this.setupCompleted = false;
     }
 
+    private static void logUnusableFunctions()
+    {
+        List<String> broken = Schema.instance.distributedKeyspaces()
+                                             .stream()
+                                             .flatMap(ksm -> ksm.userFunctions.udfs())
+                                             .filter(UDFunction::isBroken)
+                                             .map(UDFunction::signature)
+                                             .collect(Collectors.toList());
+        if (!broken.isEmpty())
+            logger.warn("The following user-defined functions cannot be used on this node; see earlier log messages for the reasons: {}", broken);
+
+        List<String> rejected = UDFunction.rejectedByBytecodeSandbox(Schema.instance.distributedKeyspaces()
+                                                                                    .stream()
+                                                                                    .flatMap(ksm -> ksm.userFunctions.udfs()));
+        if (!rejected.isEmpty())
+            logger.warn("The bytecode UDF sandbox used on Java 24 and later would reject the following user-defined functions: {}", rejected);
+    }
+
     /**
      * This is a hook for concrete daemons to initialize themselves suitably.
      *
@@ -262,7 +282,7 @@ public class CassandraDaemon
 
         Mx4jTool.maybeLoad();
 
-        ThreadAwareSecurityManager.install();
+        UDFSecurityMechanism.install();
 
         logSystemInfo(logger);
 
@@ -415,7 +435,17 @@ public class CassandraDaemon
         // reported when the earlier call to SystemKeyspace::persistLocalMetadata was made prior to initialising cluster
         // metadata.
         SystemKeyspace.updateRack(ClusterMetadata.current().locator.local().rack);
-        ScheduledExecutors.optionalTasks.execute(() -> ClusterMetadataService.instance().processor().fetchLogAndWait());
+        ScheduledExecutors.optionalTasks.execute(() -> {
+            try
+            {
+                ClusterMetadataService.instance().processor().fetchLogAndWait();
+            }
+            finally
+            {
+                // after catching up, so that functions committed while this node was down are included
+                logUnusableFunctions();
+            }
+        });
 
         // Because we are writing to the system_distributed keyspace, this should happen after that is created, which
         // happens in StorageService.instance.initServer()

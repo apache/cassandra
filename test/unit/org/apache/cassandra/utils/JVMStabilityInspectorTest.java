@@ -20,6 +20,8 @@ package org.apache.cassandra.utils;
 import java.io.FileNotFoundException;
 import java.io.IOException;
 import java.net.SocketException;
+import java.nio.channels.ClosedByInterruptException;
+import java.nio.file.Files;
 import java.util.Arrays;
 
 import org.assertj.core.api.Assertions;
@@ -28,9 +30,12 @@ import org.junit.Test;
 
 import org.apache.cassandra.config.Config;
 import org.apache.cassandra.config.DatabaseDescriptor;
+import org.apache.cassandra.db.DisallowedDirectories;
+import org.apache.cassandra.exceptions.UnrecoverableIllegalStateException;
 import org.apache.cassandra.io.FSReadError;
 import org.apache.cassandra.io.FSWriteError;
 import org.apache.cassandra.io.sstable.CorruptSSTableException;
+import org.apache.cassandra.io.util.File;
 import org.apache.cassandra.service.CassandraDaemon;
 import org.apache.cassandra.service.DiskErrorsHandler;
 import org.apache.cassandra.service.DiskErrorsHandlerService;
@@ -202,6 +207,77 @@ public class JVMStabilityInspectorTest
                       .isInstanceOf(OutOfMemoryError.class)
                       .isEqualTo(error);
         }
+    }
+
+    @Test
+    public void testCyclicCause()
+    {
+        KillerForTests killerForTests = new KillerForTests();
+        JVMStabilityInspector.Killer originalKiller = JVMStabilityInspector.replaceKiller(killerForTests);
+        try
+        {
+            RuntimeException a = new RuntimeException("a");
+            RuntimeException b = new RuntimeException("b", a);
+            a.initCause(b);
+            JVMStabilityInspector.inspectThrowable(a);
+            JVMStabilityInspector.uncaughtException(Thread.currentThread(), a);
+            assertFalse(killerForTests.wasKilled());
+
+            UnrecoverableIllegalStateException fatal = new UnrecoverableIllegalStateException("fatal");
+            RuntimeException c = new RuntimeException("c", fatal);
+            fatal.initCause(c);
+            JVMStabilityInspector.inspectThrowable(c);
+            assertTrue(killerForTests.wasKilled());
+        }
+        finally
+        {
+            JVMStabilityInspector.replaceKiller(originalKiller);
+        }
+    }
+
+    @Test
+    public void testCyclicDiskErrorCause() throws Exception
+    {
+        KillerForTests killerForTests = new KillerForTests();
+        JVMStabilityInspector.Killer originalKiller = JVMStabilityInspector.replaceKiller(killerForTests);
+        Config.DiskFailurePolicy oldPolicy = DatabaseDescriptor.getDiskFailurePolicy();
+        DiskErrorsHandlerService.configure();
+        File directory = new File(Files.createTempDirectory("cyclic-disk-error"));
+        CassandraDaemon daemon = new CassandraDaemon();
+        daemon.completeSetup();
+        StorageService.instance.registerDaemon(daemon);
+        try
+        {
+            DatabaseDescriptor.setDiskFailurePolicy(Config.DiskFailurePolicy.die);
+            JVMStabilityInspector.inspectThrowable(cyclicReadError(directory, new IOException()));
+            assertTrue(killerForTests.wasKilled());
+
+            killerForTests.reset();
+            JVMStabilityInspector.inspectThrowable(cyclicReadError(directory, new ClosedByInterruptException()));
+            assertFalse(killerForTests.wasKilled());
+
+            // marked unreadable first, so that best_effort does not look for sstables to remove
+            DatabaseDescriptor.setDiskFailurePolicy(Config.DiskFailurePolicy.best_effort);
+            DisallowedDirectories.maybeMarkUnreadable(directory);
+            JVMStabilityInspector.inspectThrowable(cyclicReadError(directory, new IOException()));
+            assertFalse(killerForTests.wasKilled());
+            assertTrue(DisallowedDirectories.isUnwritable(directory));
+        }
+        finally
+        {
+            JVMStabilityInspector.replaceKiller(originalKiller);
+            DatabaseDescriptor.setDiskFailurePolicy(oldPolicy);
+            DisallowedDirectories.clearUnwritableUnsafe();
+            StorageService.instance.registerDaemon(null);
+            DiskErrorsHandlerService.set(DiskErrorsHandler.NoOpDiskErrorHandler.NO_OP);
+        }
+    }
+
+    private static FSReadError cyclicReadError(File directory, IOException cause)
+    {
+        FSReadError error = new FSReadError(cause, directory);
+        cause.initCause(error);
+        return error;
     }
 
     @Test

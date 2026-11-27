@@ -22,8 +22,6 @@ import java.lang.reflect.InvocationHandler;
 import java.lang.reflect.InvocationTargetException;
 import java.lang.reflect.Method;
 import java.lang.reflect.Proxy;
-import java.security.AccessControlContext;
-import java.security.AccessController;
 import java.security.Principal;
 import java.util.Collections;
 import java.util.List;
@@ -44,6 +42,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import org.apache.cassandra.auth.AuthEvents;
+import org.apache.cassandra.auth.CurrentSubject;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.config.ParameterizedClass;
 import org.apache.cassandra.cql3.CQLStatement;
@@ -493,8 +492,7 @@ public class AuditLogManager implements QueryEvents.Listener, AuthEvents.Listene
                 return null;
             }
 
-            AccessControlContext acc = AccessController.getContext();
-            Subject subject = Subject.getSubject(acc);
+            Subject subject = CurrentSubject.get();
 
             try
             {

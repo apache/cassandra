@@ -50,7 +50,7 @@ import org.apache.cassandra.locator.BaseProximity;
 import org.apache.cassandra.locator.Endpoint;
 import org.apache.cassandra.locator.InetAddressAndPort;
 import org.apache.cassandra.locator.Replica;
-import org.apache.cassandra.security.ThreadAwareSecurityManager;
+import org.apache.cassandra.security.UDFSecurityMechanism;
 import org.apache.cassandra.service.DiskErrorsHandlerService;
 import org.apache.cassandra.service.EmbeddedCassandraService;
 import org.apache.cassandra.tcm.AtomicLongBackedProcessor;
@@ -189,7 +189,7 @@ public final class ServerTestUtils
             }
         });
 
-        ThreadAwareSecurityManager.install();
+        UDFSecurityMechanism.install();
 
         CassandraRelevantProperties.GOSSIPER_SKIP_WAITING_TO_SETTLE.setInt(0);
         initCMS();

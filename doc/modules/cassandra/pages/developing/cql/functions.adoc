@@ -588,6 +588,119 @@ include::cassandra:example$JAVA/udf_imports.java[]
 
 Please note, that these convenience imports are not available for script UDFs.
 
+[[udf-sandbox]]
+==== UDF sandbox
+
+Java UDFs run in one of two sandboxes, which limit what their code can do.
+Cassandra compiles a Java UDF when it is created and again whenever a node loads the schema, so each node checks every function against its own sandbox.
+With either sandbox, a UDF can only use classes from a fixed set of packages, and naming any other class fails with `X cannot be resolved`.
+A UDF is also rejected if it uses `ClassLoader`, `ModuleLayer`, `ProcessHandle`, `StackWalker`, `java.lang.classfile`, `java.lang.foreign` or `Class.newInstance`, has an instance initializer, or creates an error that would stop the node, such as an `OutOfMemoryError`.
+Memory use is not limited, and a UDF that exhausts the heap can stop the node.
+
+`TypeCodec.inet().parse()` does not resolve host or interface names, so pass it IP addresses such as `'127.0.0.1'` or `'fe80::1%4'`.
+`blob` arguments are passed as `ByteBuffer` views of buffers that Cassandra also uses, so a UDF should not modify them.
+
+===== Choosing a sandbox
+
+The JVM system property `cassandra.udf.security_mechanism`, set in `jvm-server.options`, selects the sandbox:
+
+[cols=",",options="header",]
+|===
+|Value |Sandbox
+
+| `auto` | The default. Uses `securitymanager` on Java 23 and earlier, and `bytecode` on Java 24 and later.
+
+| `securitymanager` | The JDK Security Manager checks what a UDF does while it runs, such as accessing files, the network, system properties or processes.
+
+| `bytecode` | Before a UDF is loaded, its compiled code is checked against an allowlist of the types, methods and fields that a UDF may use.
+|===
+
+Any other value fails startup.
+Java 24 removed the Security Manager, so `securitymanager` also fails startup on Java 24 and later.
+On Java 18 to 23 the Security Manager needs `-Djava.security.manager=allow`, which `jvm21-server.options` sets.
+Without it, startup fails with a message that explains the fix.
+The launch scripts leave this option out on Java 24 and later, where the JVM refuses to start with it.
+
+===== What the bytecode sandbox allows
+
+With the bytecode sandbox, a UDF can use the following, among others.
+The full allowlist is in `org.apache.cassandra.cql3.functions.UDFSandboxPolicy`.
+
+* `String`, `StringBuilder`, `Character`, the boxed number types, `Math` and `StrictMath`
+* the basic members of `Object`, `Class`, `Throwable` and `Enum`, the common unchecked exceptions and `AssertionError`
+* `currentTimeMillis`, `nanoTime`, `arraycopy`, `identityHashCode` and `lineSeparator` from `java.lang.System`
+* the collections and utilities of `java.util` and `java.util.regex`
+* `java.math`, `java.time`, and the formatters, collators and break iterators of `java.text`
+* `java.nio.ByteBuffer`, and the methods of `java.net.InetAddress` that do not look up names
+* the UDF API: `UDFContext`, `UDTValue`, `TupleValue`, and the data types and codecs of `org.apache.cassandra.cql3.functions.types`
+* `InvalidRequestException` and a few other request exceptions, which a UDF can throw
+
+By default, the bytecode sandbox rejects reflection, class loaders, threads, processes, system properties, environment variables, `ResourceBundle`, and methods that change JVM-wide defaults, such as `TimeZone.setDefault`.
+A method or field is also rejected if its signature uses a type that is not allowed.
+For example, `NumberFormat.formatToCharacterIterator(Object)` is rejected because it returns an `AttributedCharacterIterator`.
+`CREATE FUNCTION` then fails with `Java UDF validation failed`, followed by the reasons.
+
+===== Running UDFs without threads
+
+By default, UDFs run on their own threads, subject to `user_defined_functions_warn_timeout` and `user_defined_functions_fail_timeout`.
+Setting `user_defined_functions_threads_enabled: false` runs them on the request thread instead, with no timeout.
+This is insecure, so it also requires `allow_insecure_udfs: true`.
+The Security Manager only checks UDF threads, so it does not check UDFs that run on the request thread.
+The bytecode sandbox still applies its allowlist.
+
+Without threads, a UDF cannot use `java.lang.System` at all, unless `allow_extra_insecure_udfs: true` is set.
+Even then, the bytecode sandbox rejects the members of `System` whose signatures use a type that is not allowed, such as `getProperties`.
+With threads, `allow_extra_insecure_udfs` has no effect.
+
+===== Functions a node cannot load
+
+A node cannot always load a function that is in the schema, for example because user-defined functions are disabled on it, or because its sandbox rejects the function.
+The node keeps the function and keeps applying schema changes, but the function cannot be used on that node.
+If the sandbox rejected it, calling it fails with `Function '...' exists but hasn't been loaded successfully`.
+At startup the node logs a warning that names these functions.
+They can be dropped as usual.
+
+A state or final function used by an aggregate cannot be dropped while the aggregate exists.
+After fixing the function with `CREATE OR REPLACE FUNCTION`, re-create the aggregate with `CREATE OR REPLACE AGGREGATE` so that it uses the fixed function.
+
+The coordinator and the Cluster Metadata Service (CMS) member that commits `CREATE FUNCTION` both validate the function, and the statement fails if either rejects it.
+Other nodes with a different sandbox, Java version or UDF settings can still fail to load the function, and queries that use it then fail on those nodes.
+Use the same UDF settings on all nodes.
+
+===== Preparing for Java 24
+
+The bytecode sandbox rejects some functions that the Security Manager sandbox accepts.
+Nodes that use the Security Manager sandbox, the default on Java 23 and earlier, also check each Java UDF against the bytecode sandbox, for information only.
+`CREATE FUNCTION` returns and logs a warning, with the reasons, for a function that the bytecode sandbox would reject.
+At startup, the node logs one warning that lists these functions.
+Rewrite or drop them before moving the node to Java 24 or later.
+
+[[udf-compiler-limitations]]
+===== Known UDF compiler limitations
+
+With either sandbox, `CREATE FUNCTION` fails with `Java source compilation failed` for the code below.
+The UDF compiler does not support some Java language features, and some code needs classes outside the allowed packages even though it does not name them.
+
+[cols=",",options="header",]
+|===
+|Does not compile |Use instead
+
+| The diamond operator on some collections, such as `new HashMap<>()` (`java.io.ObjectOutputStream cannot be resolved`)
+| Explicit type arguments: `new HashMap<String, Integer>()`
+
+| `switch` on a `String` or an enum
+| `if`/`else` chains, or `switch` on an `int`, such as an enum's `ordinal()`
+
+| `try`-with-resources (`java.io.Closeable cannot be resolved`)
+| An explicit `try`/`finally`
+
+| Lambdas and method references
+| Loops or inline code (anonymous classes are not allowed either)
+
+| `TypeToken`, and `Class.isInstance` or `cast` with an argument whose static type is not `Object` (`java.lang.reflect... cannot be resolved`)
+| Use `instanceof` and plain casts. For the `Class` methods, pass an argument of type `Object`.
+|===
+
 [[create-function-statement]]
 === CREATE FUNCTION statement
 

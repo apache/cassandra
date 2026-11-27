@@ -30,6 +30,7 @@ import com.google.common.collect.Maps;
 import org.apache.commons.lang3.StringUtils;
 import org.slf4j.LoggerFactory;
 
+import org.apache.cassandra.security.SecurityThreadGroup;
 import org.apache.cassandra.security.ThreadAwareSecurityManager;
 
 import ch.qos.logback.classic.Level;
@@ -216,7 +217,7 @@ public class LogbackLoggingSupport implements LoggingSupport
 
         protected boolean changeDetected(long now)
         {
-            if (ThreadAwareSecurityManager.isSecuredThread())
+            if (SecurityThreadGroup.isSecuredThread())
                 return false;
             return super.changeDetected(now);
         }

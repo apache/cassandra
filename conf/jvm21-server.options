@@ -147,6 +147,7 @@
 
 
 # Need to explicitly allow security manager on JDK21; deprecated for removal
+# Used by the securitymanager UDF sandbox. The launch scripts omit this option on Java 24 and later.
 -Djava.security.manager=allow
 
 # The newline in the end of file is intentional
