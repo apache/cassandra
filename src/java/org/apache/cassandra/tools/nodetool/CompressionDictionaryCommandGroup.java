@@ -531,7 +531,7 @@ public class CompressionDictionaryCommandGroup
 
                         Object value = dictRow.get(i);
                         if (CompressionDictionaryDetailsTabularData.SCOPE_NAME.equals(indexNames.get(i)))
-                            rowValues.add(CompressionDictionaryScope.fromFlattened((String[][]) value).toString()); // null for the whole cluster
+                            rowValues.add(CompressionDictionaryScope.fromFlattened((String[][]) value).toListing()); // null for the whole cluster
                         else
                             rowValues.add(value == null ? "" : value.toString());
                         hasOuput = true;

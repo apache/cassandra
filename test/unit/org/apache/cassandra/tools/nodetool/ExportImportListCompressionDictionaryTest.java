@@ -251,7 +251,7 @@ public class ExportImportListCompressionDictionaryTest extends CQLTester
                                                          String.valueOf(dataObject.dictLength),
                                                          dataObject.createdAt.toString()));
         // "cluster" or "node <id>"
-        expected.addAll(List.of(CompressionDictionaryScope.fromValue(dataObject.scope).toString().split(" ")));
+        expected.addAll(List.of(CompressionDictionaryScope.fromValue(dataObject.scope).toListing().split(" ")));
         assertThat(rows)
         .as("rows listed for %s.%s", keyspace(), table)
         .contains(expected);

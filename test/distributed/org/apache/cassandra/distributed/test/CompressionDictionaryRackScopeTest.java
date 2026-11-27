@@ -77,7 +77,7 @@ public class CompressionDictionaryRackScopeTest extends TestBaseImpl
             assertThat(dictId).isPositive();
             assertRows(persistedDictionaries(cluster), row(dictId, Set.of(rackValue(first.datacenter, first.rack))));
             assertUsedBy(cluster, dictId, node -> node == 1);
-            listContains(cluster, "rack " + first.datacenter + '/' + first.rack);
+            listContains(cluster, first.datacenter + '/' + first.rack);
 
             // nothing else is trained while the dictionary is scoped narrower than the cluster
             cluster.get(otherDatacenter).nodetoolResult("compressiondictionary", "train", "--force", KEYSPACE, TABLE)
@@ -171,18 +171,18 @@ public class CompressionDictionaryRackScopeTest extends TestBaseImpl
 
             // 4. its datacenter, which absorbs its racks
             promote(cluster, b, "--dc", dc1);
-            assertScope(cluster, dictId, Set.of(nodeA, Map.of("dc", dc1)), listedNodeA + "dc " + dc1, Set.of(a, b));
+            assertScope(cluster, dictId, Set.of(nodeA, Map.of("dc", dc1)), listedNodeA + dc1, Set.of(a, b));
 
-            promoteFails(cluster, "can not be promoted: " + racks(rackA, rackB) + " are already in its scope, nothing to promote",
+            promoteFails(cluster, "can not be promoted: " + racksInMessage(rackA, rackB) + " are already in its scope, nothing to promote",
                          "--dc", dc1, "--rack", la.rack, "--rack", lb.rack);
 
             // 5. plus a rack of the other datacenter
             promote(cluster, a, "--dc", dc2, "--rack", lc.rack);
-            assertScope(cluster, dictId, Set.of(nodeA, Map.of("dc", dc1), rackC), listedNodeA + racks(rackC) + ", dc " + dc1, Set.of(a, b, c));
+            assertScope(cluster, dictId, Set.of(nodeA, Map.of("dc", dc1), rackC), listedNodeA + racks(rackC) + ", " + dc1, Set.of(a, b, c));
 
             // 6. plus both racks of the other datacenter, every node uses it, the scope is still not the whole cluster
             promote(cluster, c, "--dc", dc2, "--rack", ld.rack);
-            assertScope(cluster, dictId, Set.of(nodeA, Map.of("dc", dc1), rackC, rackD), listedNodeA + racks(rackC, rackD) + ", dc " + dc1, Set.of(a, b, c, d));
+            assertScope(cluster, dictId, Set.of(nodeA, Map.of("dc", dc1), rackC, rackD), listedNodeA + racks(rackC, rackD) + ", " + dc1, Set.of(a, b, c, d));
             cluster.get(d).nodetoolResult("compressiondictionary", "train", "--force", KEYSPACE, TABLE)
                    .asserts().failure().stderrContains("promote or discard it first");
 
@@ -268,23 +268,28 @@ public class CompressionDictionaryRackScopeTest extends TestBaseImpl
         assertUsedBy(cluster, dictId, users::contains);
     }
 
-    /** how racks are listed: sorted by datacenter, then rack */
+    /** how racks are listed by nodetool: by their names alone, sorted by datacenter, then rack */
     @SafeVarargs
     private static String racks(Map<String, String>... racks)
     {
         List<String> listed = new ArrayList<>();
         for (Map<String, String> rack : racks)
-            listed.add("rack " + rack.get("dc") + '/' + rack.get("rack"));
+            listed.add(rack.get("dc") + '/' + rack.get("rack"));
         listed.sort(null);
         return String.join(", ", listed);
     }
 
-    /** how datacenters are listed: sorted by name */
+    /** how racks are named in messages: as they are listed, each one prefixed by "rack" */
+    @SafeVarargs
+    private static String racksInMessage(Map<String, String>... racks)
+    {
+        return "rack " + racks(racks).replace(", ", ", rack ");
+    }
+
+    /** how datacenters are listed by nodetool: by their names alone, sorted */
     private static String dcs(String... dcs)
     {
-        List<String> listed = new ArrayList<>();
-        for (String dc : dcs)
-            listed.add("dc " + dc);
+        List<String> listed = new ArrayList<>(List.of(dcs));
         listed.sort(null);
         return String.join(", ", listed);
     }

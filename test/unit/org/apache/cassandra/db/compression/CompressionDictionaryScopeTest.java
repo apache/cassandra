@@ -134,6 +134,8 @@ public class CompressionDictionaryScopeTest
         // nodes first by id, then racks, then datacenters
         CompressionDictionaryScope mixed = scope(datacenter("dc2"), rack("dc1", "r2"), node(4), rack("dc1", "r1"));
         assertThat(mixed).hasToString("node 4, rack dc1/r1, rack dc1/r2, dc dc2");
+        assertThat(mixed.toListing()).isEqualTo("node 4, dc1/r1, dc1/r2, dc2");
+        assertThat(CLUSTER.toListing()).isEqualTo("cluster");
         assertThat(CompressionDictionaryScope.fromValue(mixed.toValue())).isEqualTo(mixed);
         assertThat(CompressionDictionaryScope.fromFlattened(mixed.toFlattened())).isEqualTo(mixed);
     }

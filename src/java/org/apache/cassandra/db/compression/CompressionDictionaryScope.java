@@ -190,6 +190,15 @@ public final class CompressionDictionaryScope
         }
 
         /**
+         * @return this place as listed by nodetool, where a rack and a datacenter go by their names alone,
+         *         e.g. "dc1/r1" and "dc1"
+         */
+        String listed()
+        {
+            return toString();
+        }
+
+        /**
          * @return endpoints of the joined nodes of this place
          */
         abstract Collection<InetAddressAndPort> memberEndpoints(Directory directory);
@@ -393,7 +402,13 @@ public final class CompressionDictionaryScope
         @Override
         public String toString()
         {
-            return Kind.RACK.displayName() + ' ' + datacenter + '/' + rack;
+            return Kind.RACK.displayName() + ' ' + listed();
+        }
+
+        @Override
+        String listed()
+        {
+            return datacenter + '/' + rack;
         }
     }
 
@@ -474,7 +489,13 @@ public final class CompressionDictionaryScope
         @Override
         public String toString()
         {
-            return Kind.DC.displayName() + ' ' + datacenter;
+            return Kind.DC.displayName() + ' ' + listed();
+        }
+
+        @Override
+        String listed()
+        {
+            return datacenter;
         }
     }
 
@@ -775,6 +796,17 @@ public final class CompressionDictionaryScope
             return Kind.CLUSTER.displayName();
 
         return places.stream().map(Place::toString).collect(Collectors.joining(", "));
+    }
+
+    /**
+     * @return "cluster", or the places as listed by nodetool, e.g. "node 1, dc1/r1, dc2"
+     */
+    public String toListing()
+    {
+        if (places == null)
+            return Kind.CLUSTER.displayName();
+
+        return places.stream().map(Place::listed).collect(Collectors.joining(", "));
     }
 
     @Override
