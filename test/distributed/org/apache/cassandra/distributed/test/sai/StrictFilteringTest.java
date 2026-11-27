@@ -236,6 +236,68 @@ public class StrictFilteringTest extends TestBaseImpl
     }
 
     @Test
+    public void testNoShortReadAtLimitOverPartitions()
+    {
+        CLUSTER.schemaChange(withKeyspace("CREATE TABLE %s.no_srp_over_partitions (k int, c int, a int, b int, PRIMARY KEY (k, c)) WITH read_repair = 'NONE'"));
+        CLUSTER.schemaChange(withKeyspace("CREATE INDEX ON %s.no_srp_over_partitions(a) USING 'sai'"));
+        CLUSTER.schemaChange(withKeyspace("CREATE INDEX ON %s.no_srp_over_partitions(b) USING 'sai'"));
+        SAIUtil.waitForIndexQueryableOnAllNodes(CLUSTER, KEYSPACE);
+
+        // The same rows on both replicas, all of them match
+        for (int k = 0; k < 4; k++)
+            for (int c = 0; c < 10; c++)
+                CLUSTER.coordinator(1).execute(withKeyspace("INSERT INTO %s.no_srp_over_partitions(k, c, a, b) VALUES (?, ?, 1, 2)"), ConsistencyLevel.ALL, k, c);
+
+        // The rows both replicas return fill the limit, so neither replica is asked for the rest of the partition,
+        // with a filter on one column (a = 1) or two (a = 1 AND b = 2).
+        for (String filter : new String[]{ "a = 1", "a = 1 AND b = 2" })
+        {
+            String select = withKeyspace("SELECT k, c FROM %s.no_srp_over_partitions WHERE " + filter + " LIMIT 2");
+            long srpRequestsBefore = shortReadProtectionRequests("no_srp_over_partitions");
+            assertRows(CLUSTER.coordinator(1).execute(select, ConsistencyLevel.ALL), row(1, 0), row(1, 1));
+            assertEquals(select, srpRequestsBefore, shortReadProtectionRequests("no_srp_over_partitions"));
+
+            select = withKeyspace("SELECT k, c FROM %s.no_srp_over_partitions WHERE " + filter);
+            srpRequestsBefore = shortReadProtectionRequests("no_srp_over_partitions");
+            Iterator<Object[]> pagedRows = CLUSTER.coordinator(1).executeWithPaging(select, ConsistencyLevel.ALL, 3);
+            int rowCount = 0;
+            while (pagedRows.hasNext())
+            {
+                pagedRows.next();
+                rowCount++;
+            }
+            assertEquals(select, 40, rowCount);
+            assertEquals(select, srpRequestsBefore, shortReadProtectionRequests("no_srp_over_partitions"));
+        }
+    }
+
+    @Test
+    public void testNecessaryShortReadWithinPartition()
+    {
+        CLUSTER.schemaChange(withKeyspace("CREATE TABLE %s.necessary_short_read_within_partition (k int, c int, a int, PRIMARY KEY (k, c)) WITH read_repair = 'NONE'"));
+        CLUSTER.schemaChange(withKeyspace("CREATE INDEX ON %s.necessary_short_read_within_partition(a) USING 'sai'"));
+        SAIUtil.waitForIndexQueryableOnAllNodes(CLUSTER, KEYSPACE);
+
+        // Node 2 has newer non-matching versions of c = 0 and c = 1
+        for (int c = 0; c < 4; c++)
+            CLUSTER.coordinator(1).execute(withKeyspace("INSERT INTO %s.necessary_short_read_within_partition(k, c, a) VALUES (0, ?, 1) USING TIMESTAMP 1"), ConsistencyLevel.ALL, c);
+        CLUSTER.get(2).executeInternal(withKeyspace("INSERT INTO %s.necessary_short_read_within_partition(k, c, a) VALUES (0, 0, 2) USING TIMESTAMP 2"));
+        CLUSTER.get(2).executeInternal(withKeyspace("INSERT INTO %s.necessary_short_read_within_partition(k, c, a) VALUES (0, 1, 2) USING TIMESTAMP 2"));
+
+        // Node 1 returns c = 0 and c = 1, which node 2 is silent about, so node 1 is asked for more rows once, and
+        // returns c = 2 and c = 3, which both nodes returned, and which fill the limit.
+        long srpRequestsBefore = shortReadProtectionRequests("necessary_short_read_within_partition");
+        String select = withKeyspace("SELECT * FROM %s.necessary_short_read_within_partition WHERE a = 1 LIMIT 2");
+        assertRows(CLUSTER.coordinator(1).execute(select, ConsistencyLevel.ALL), row(0, 2, 1), row(0, 3, 1));
+        assertEquals(srpRequestsBefore + 1, shortReadProtectionRequests("necessary_short_read_within_partition"));
+    }
+
+    private static long shortReadProtectionRequests(String table)
+    {
+        return CLUSTER.get(1).callOnInstance(() -> Keyspace.open(KEYSPACE).getColumnFamilyStore(table).metric.shortReadProtectionRequests.getCount());
+    }
+
+    @Test
     @Ignore("CNDB-9331: Address CC rebase conflicts with CASSANDRA-19018")
     public void testShortReadWithStaticColumn()
     {

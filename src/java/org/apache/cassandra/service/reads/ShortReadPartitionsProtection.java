@@ -119,7 +119,10 @@ public class ShortReadPartitionsProtection extends Transformation<UnfilteredRowI
     public UnfilteredPartitionIterator moreContents()
     {
         // never try to request additional partitions from replicas if our reconciled partitions are already filled to the limit
-        assert !mergedResultCounter.isDone();
+        // (the merged result counter stops the iteration once it's done, except in the first phase of replica filtering
+        // protection, where it only counts the rows that are known to be returned, see DataResolver)
+        if (mergedResultCounter.isDone())
+            return null;
 
         // we do not apply short read protection when we have no limits at all
         assert !command.limits().isUnlimited();

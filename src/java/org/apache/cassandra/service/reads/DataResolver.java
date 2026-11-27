@@ -268,16 +268,23 @@ public class DataResolver<E extends Endpoints<E>, P extends ReplicaPlan.ForRead<
         //   3) After a "complete" row is materialized, it must pass the row filter supplied by the original query
         //      before it counts against the limit. If this "pre-count" filter causes a short read, additional rows
         //      will be fetched from the first-phase iterator.
+        // The first phase doesn't apply its merged result counter, which would count rows that the second phase filters
+        // out. Replica filtering protection counts in it the first-phase rows that no replica is silent about and that
+        // match the row filter, which the second phase returns as they are, so that short read protection stops asking
+        // the replicas for more rows once those rows fill the limit.
 
+        ResolveContext firstPhaseContext = new ResolveContext(replicas, false);
+        UnaryOperator<PartitionIterator> preCountFilter = preCountFilterForReplicaFilteringProtection();
         ReplicaFilteringProtection<E> rfp = new ReplicaFilteringProtection<>(replicaPlan().keyspace(),
                                                                              command,
                                                                              replicaPlan().consistencyLevel(),
                                                                              requestTime,
                                                                              replicas,
                                                                              DatabaseDescriptor.getCachedReplicaRowsWarnThreshold(),
-                                                                             DatabaseDescriptor.getCachedReplicaRowsFailThreshold());
+                                                                             DatabaseDescriptor.getCachedReplicaRowsFailThreshold(),
+                                                                             firstPhaseContext.mergedResultCounter,
+                                                                             preCountFilter);
 
-        ResolveContext firstPhaseContext = new ResolveContext(replicas, false);
         PartitionIterator firstPhasePartitions = resolveInternal(firstPhaseContext,
                                                                  rfp.mergeController(),
                                                                  i -> shortReadProtectedResponse(i, firstPhaseContext, null),
@@ -287,7 +294,7 @@ public class DataResolver<E extends Endpoints<E>, P extends ReplicaPlan.ForRead<
         ResolveContext secondPhaseContext = new ResolveContext(replicas, true);
         PartitionIterator completedPartitions = resolveWithReadRepair(secondPhaseContext,
                                                                       i -> rfp.queryProtectedPartitions(firstPhasePartitions, i),
-                                                                      preCountFilterForReplicaFilteringProtection(),
+                                                                      preCountFilter,
                                                                       repairedDataTracker);
 
         // Ensure that the RFP instance has a chance to record metrics when the iterator closes.
