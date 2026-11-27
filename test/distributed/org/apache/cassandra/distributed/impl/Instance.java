@@ -1227,7 +1227,12 @@ public class Instance extends IsolatedExecutor implements IInvokableInstance
         try
         {
             Class<?> clazz = classLoader.loadClass("io.github.jbellis.jvector.util.PhysicalCoreExecutor");
-            Object singleton = clazz.getField("instance").get(null);
+            java.lang.reflect.Field instanceField = clazz.getDeclaredField("instance");
+            instanceField.setAccessible(true);
+            Object singleton = instanceField.get(null);
+            // the singleton is created lazily, so there is nothing to shut down if jvector never used it
+            if (singleton == null)
+                return;
             java.lang.reflect.Field poolField = clazz.getDeclaredField("pool");
             poolField.setAccessible(true);
             pool = poolField.get(singleton);

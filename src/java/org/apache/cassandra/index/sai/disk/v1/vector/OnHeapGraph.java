@@ -29,7 +29,6 @@ import java.util.concurrent.ConcurrentMap;
 import java.util.concurrent.ConcurrentSkipListMap;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.Function;
-import java.util.stream.IntStream;
 
 import javax.annotation.Nullable;
 
@@ -57,19 +56,25 @@ import org.apache.cassandra.utils.ByteBufferUtil;
 import org.apache.cassandra.utils.CloseableIterator;
 import org.apache.cassandra.utils.concurrent.Semaphore;
 
-import io.github.jbellis.jvector.disk.OnDiskGraphIndex;
-import io.github.jbellis.jvector.graph.GraphIndex;
+import io.github.jbellis.jvector.disk.IndexWriter;
 import io.github.jbellis.jvector.graph.GraphIndexBuilder;
 import io.github.jbellis.jvector.graph.GraphSearcher;
-import io.github.jbellis.jvector.graph.NeighborSimilarity;
+import io.github.jbellis.jvector.graph.ImmutableGraphIndex;
 import io.github.jbellis.jvector.graph.RandomAccessVectorValues;
 import io.github.jbellis.jvector.graph.SearchResult;
-import io.github.jbellis.jvector.pq.CompressedVectors;
-import io.github.jbellis.jvector.pq.ProductQuantization;
+import io.github.jbellis.jvector.graph.disk.OnDiskSequentialGraphIndexWriter;
+import io.github.jbellis.jvector.graph.disk.OrdinalMapper;
+import io.github.jbellis.jvector.graph.disk.feature.Feature;
+import io.github.jbellis.jvector.graph.disk.feature.FeatureId;
+import io.github.jbellis.jvector.graph.disk.feature.InlineVectors;
+import io.github.jbellis.jvector.graph.similarity.DefaultSearchScoreProvider;
+import io.github.jbellis.jvector.graph.similarity.ScoreFunction;
+import io.github.jbellis.jvector.quantization.CompressedVectors;
+import io.github.jbellis.jvector.quantization.ProductQuantization;
 import io.github.jbellis.jvector.util.Bits;
 import io.github.jbellis.jvector.util.RamUsageEstimator;
-import io.github.jbellis.jvector.vector.VectorEncoding;
 import io.github.jbellis.jvector.vector.VectorSimilarityFunction;
+import io.github.jbellis.jvector.vector.types.VectorFloat;
 
 public class OnHeapGraph<T>
 {
@@ -77,22 +82,26 @@ public class OnHeapGraph<T>
 
     public static final int MIN_PQ_ROWS = 1024;
 
+    // number of centroids per PQ subspace, so each subvector is encoded in a single byte
+    private static final int PQ_CLUSTERS = 256;
+
     /**
-     * jvector's {@link GraphIndexBuilder#addGraphNode} throws if more than this many threads are inside it at once
-     * (see {@code PoolingSupport}). Uses {@link Runtime} rather than {@code DatabaseDescriptor} because that is what jvector reads.
+     * The most threads allowed inside {@link GraphIndexBuilder#addGraphNode} at once. jvector 1.x threw beyond this
+     * many, which is why the bound exists. Later versions keep per-thread state for any number of threads, so the
+     * bound is no longer needed for correctness; it is kept so that insert concurrency is unchanged.
      */
     @VisibleForTesting
     public static final int MAX_CONCURRENT_GRAPH_INSERTS = Runtime.getRuntime().availableProcessors() + 1;
 
     private final RamAwareVectorValues vectorValues;
-    private final GraphIndexBuilder<float[]> builder;
+    private final GraphIndexBuilder builder;
     private final VectorType<?> vectorType;
     private final VectorSimilarityFunction similarityFunction;
     private final ConcurrentMap<float[], VectorPostings<T>> postingsMap;
     private final NonBlockingHashMapLong<VectorPostings<T>> postingsByOrdinal;
     private final NonBlockingHashMap<T, float[]> vectorsByKey;
     private final AtomicInteger nextOrdinal = new AtomicInteger();
-    // memtable inserts are concurrent (CASSANDRA-21160); excess writers wait here rather than fail in jvector.
+    // memtable inserts are concurrent (CASSANDRA-21160); writers beyond MAX_CONCURRENT_GRAPH_INSERTS wait here.
     // Null when the memtable itself already limits writers to that many, e.g. a TrieMemtable with few enough shards.
     @Nullable
     private final Semaphore graphInsertPermits;
@@ -128,13 +137,24 @@ public class OnHeapGraph<T>
                              ? null
                              : Semaphore.newSemaphore(MAX_CONCURRENT_GRAPH_INSERTS);
 
-        builder = new GraphIndexBuilder<>(vectorValues,
-                                          VectorEncoding.FLOAT32,
-                                          similarityFunction,
-                                          indexWriterConfig.getMaximumNodeConnections(),
-                                          indexWriterConfig.getConstructionBeamWidth(),
-                                          1.2f,
-                                          1.4f);
+        // The hierarchy is disabled explicitly rather than through jvector's global GraphIndexBuilderConfig
+        // because hierarchical graphs cannot be written in the on-disk format version we use.
+        builder = new GraphIndexBuilder(vectorValues,
+                                        similarityFunction,
+                                        maxDegree(indexWriterConfig.getMaximumNodeConnections()),
+                                        indexWriterConfig.getConstructionBeamWidth(),
+                                        1.2f,
+                                        1.4f,
+                                        false);
+    }
+
+    /**
+     * jvector 1.x allowed each node 2 * M neighbors, while later versions allow M. Doubling keeps the graphs built
+     * for a given {@code maximum_node_connections} the same as before.
+     */
+    public static int maxDegree(int maximumNodeConnections)
+    {
+        return 2 * maximumNodeConnections;
     }
 
     public int size()
@@ -211,7 +231,7 @@ public class OnHeapGraph<T>
                     graphInsertPermits.acquireThrowUncheckedOnInterrupt(1);
                 try
                 {
-                    bytesUsed += builder.addGraphNode(ordinal, vectorValues);
+                    bytesUsed += builder.addGraphNode(ordinal, JVectorUtils.toVectorFloat(vector));
                 }
                 finally
                 {
@@ -326,11 +346,12 @@ public class OnHeapGraph<T>
             return CloseableIterator.empty();
 
         Bits bits = hasDeletions ? BitsUtil.bitsIgnoringDeleted(toAccept, postingsByOrdinal) : toAccept;
-        GraphIndex<float[]> graph = builder.getGraph();
-        GraphIndex.View<float[]> view = graph.getView();
-        GraphSearcher<float[]> searcher = new GraphSearcher.Builder<>(view).withConcurrentUpdates().build();
-        NeighborSimilarity.ExactScoreFunction scoreFunction = node2 -> vectorCompareFunction(queryVector, node2);
-        return new AutoResumingNodeScoreIterator(searcher, scoreFunction, null, limit, bits, v -> {}, true, source, view);
+        if (bits == null)
+            bits = Bits.ALL;
+        GraphSearcher searcher = new GraphSearcher(builder.getGraph());
+        VectorFloat<?> query = JVectorUtils.toVectorFloat(queryVector);
+        ScoreFunction.ExactScoreFunction scoreFunction = node2 -> similarityFunction.compare(query, vectorValues.getVector(node2));
+        return new AutoResumingNodeScoreIterator(searcher, new DefaultSearchScoreProvider(scoreFunction), limit, bits, v -> {}, true, source);
     }
 
     public SegmentMetadata.ComponentMetadataMap writeData(IndexDescriptor indexDescriptor, IndexIdentifier indexIdentifier, Function<T, Integer> postingTransformer) throws IOException
@@ -373,9 +394,9 @@ public class OnHeapGraph<T>
             long postingsLength = postingsPosition - postingsOffset;
 
             // complete (internal clean up) and write the graph
-            builder.complete();
+            builder.cleanup();
             long termsOffset = indexOutput.getFilePointer();
-            OnDiskGraphIndex.write(builder.getGraph(), vectorValues, indexOutput.asSequentialWriter());
+            writeGraph(indexOutput.asSequentialWriter());
             long termsLength = indexOutput.getFilePointer() - termsOffset;
 
             // write footers/checksums
@@ -393,9 +414,28 @@ public class OnHeapGraph<T>
         }
     }
 
-    private float vectorCompareFunction(float[] queryVector, int node)
+    private void writeGraph(SequentialWriter writer) throws IOException
     {
-        return similarityFunction.compare(queryVector, ((RandomAccessVectorValues<float[]>) vectorValues).vectorValue(node));
+        writeGraph(builder.getGraph(), vectorValues, new SequentialWriterAdapter(writer));
+    }
+
+    /**
+     * Writes {@code graph} in the SAI on-disk graph format, with its vectors inline.
+     */
+    @VisibleForTesting
+    static void writeGraph(ImmutableGraphIndex graph, RandomAccessVectorValues vectors, IndexWriter out) throws IOException
+    {
+        // Ordinals must not be renumbered because the postings refer to them.
+        int maxOrdinal = graph.size() - 1;
+        try (var graphWriter = new OnDiskSequentialGraphIndexWriter.Builder(graph, out)
+                               .withVersion(JVectorUtils.ON_DISK_FORMAT_VERSION)
+                               .withMapper(new OrdinalMapper.IdentityMapper(maxOrdinal))
+                               .with(new InlineVectors(vectors.dimension()))
+                               .build())
+        {
+            graphWriter.write(Feature.singleStateFactory(FeatureId.INLINE_VECTORS,
+                                                         ordinal -> new InlineVectors.State(vectors.getVector(ordinal))));
+        }
     }
 
     private long writePQ(SequentialWriter writer) throws IOException
@@ -412,21 +452,16 @@ public class OnHeapGraph<T>
         logger.debug("Computing PQ for {} vectors", vectorValues.size());
         // limit the PQ computation and encoding to one index at a time -- goal during flush is to
         // evict from memory ASAP so better to do the PQ build (in parallel) one at a time
-        ProductQuantization pq;
-        byte[][] encoded;
+        CompressedVectors cv;
         synchronized (OnHeapGraph.class)
         {
             // train PQ and encode
-            pq = ProductQuantization.compute(vectorValues, M, false);
+            ProductQuantization pq = ProductQuantization.compute(vectorValues, M, PQ_CLUSTERS, false);
             assert !vectorValues.isValueShared();
-            encoded = IntStream.range(0, vectorValues.size())
-                               .parallel()
-                               .mapToObj(i -> pq.encode(vectorValues.vectorValue(i)))
-                               .toArray(byte[][]::new);
+            cv = PQEncoder.encodeAll(pq, vectorValues);
         }
-        CompressedVectors cv = new CompressedVectors(pq, encoded);
         // save
-        cv.write(writer);
+        cv.write(new SequentialWriterAdapter(writer), JVectorUtils.ON_DISK_FORMAT_VERSION);
         return writer.position();
     }
 

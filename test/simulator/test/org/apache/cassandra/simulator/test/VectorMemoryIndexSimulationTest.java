@@ -156,7 +156,7 @@ public class VectorMemoryIndexSimulationTest extends SimulationTestBase
      * After all writers complete, the graph must contain all inserted vectors.
      * <p>
      * GraphIndexBuilder.addGraphNode() is designed for concurrent use: insertionsInProgress
-     * is a ConcurrentSkipListSet, and PoolingSupport gives each thread its own GraphSearcher
+     * is a ConcurrentSkipListSet, and ExplicitThreadLocal gives each thread its own GraphSearcher
      * and scratch arrays. This test validates the full stack from VectorMemoryIndex.index()
      * through OnHeapGraph.add() through GraphIndexBuilder.addGraphNode().
      * <p>

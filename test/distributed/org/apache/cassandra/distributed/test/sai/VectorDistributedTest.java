@@ -51,6 +51,7 @@ import org.apache.cassandra.distributed.api.ConsistencyLevel;
 import org.apache.cassandra.distributed.test.TestBaseImpl;
 import org.apache.cassandra.index.sai.SAITester;
 import org.apache.cassandra.index.sai.disk.v1.IndexWriterConfig;
+import org.apache.cassandra.index.sai.disk.v1.vector.JVectorUtils;
 import org.apache.cassandra.index.sai.utils.Glove;
 
 import io.github.jbellis.jvector.vector.VectorSimilarityFunction;
@@ -365,7 +366,7 @@ public class VectorDistributedTest extends TestBaseImpl
         float prevScore = -1;
         for (float[] current : resultVectors)
         {
-            float score = function.compare(current, queryVector);
+            float score = JVectorUtils.compare(function, current, queryVector);
             if (prevScore >= 0)
                 assertThat(score).isLessThanOrEqualTo(prevScore);
 
@@ -376,7 +377,7 @@ public class VectorDistributedTest extends TestBaseImpl
     private double getRecall(List<float[]> vectors, float[] query, List<float[]> result)
     {
         List<float[]> sortedVectors = new ArrayList<>(vectors);
-        sortedVectors.sort((a, b) -> Double.compare(function.compare(b, query), function.compare(a, query)));
+        sortedVectors.sort((a, b) -> Double.compare(JVectorUtils.compare(function, b, query), JVectorUtils.compare(function, a, query)));
 
         assertThat(sortedVectors).containsAll(result);
 
