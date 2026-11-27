@@ -730,6 +730,11 @@ public class MessagingService extends MessagingServiceMBeanImpl implements Messa
         socketFactory.awaitTerminationUntil(deadlineNanos);
     }
 
+    public boolean isShuttingDown()
+    {
+        return isShuttingDown;
+    }
+
     private OutboundConnections getOutbound(InetAddressAndPort to, boolean tryRegister)
     {
         OutboundConnections connections = channelManagers.get(to);

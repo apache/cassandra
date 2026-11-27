@@ -23,6 +23,7 @@ import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Map;
 import java.util.Set;
+import java.util.concurrent.TimeUnit;
 
 import org.junit.After;
 import org.junit.Assert;
@@ -187,6 +188,22 @@ public class StartupClusterConnectivityCheckerTest
         MessagingService.instance().outboundSink.add(sink);
         Assert.assertFalse(zeroWaitChecker.execute(peers, this::getDatacenter));
         MessagingService.instance().outboundSink.clear();
+    }
+
+    @Test
+    public void testDynamicTimeoutCalculation()
+    {
+        int peers = 100;
+        int rate = 50;
+        long baseTimeoutNanos = TimeUnit.SECONDS.toNanos(60);
+
+        long totalTimeoutNanos = StartupClusterConnectivityChecker.calculateTotalTimeoutNanos(baseTimeoutNanos, peers, rate);
+
+        Assert.assertEquals(TimeUnit.SECONDS.toNanos(66), totalTimeoutNanos);
+        Assert.assertEquals(66, TimeUnit.NANOSECONDS.toSeconds(totalTimeoutNanos));
+
+        Assert.assertEquals(baseTimeoutNanos, StartupClusterConnectivityChecker.calculateTotalTimeoutNanos(baseTimeoutNanos, peers, 0));
+        Assert.assertEquals(0, StartupClusterConnectivityChecker.calculateTotalTimeoutNanos(0, peers, rate));
     }
 
     private void checkAvailable(StartupClusterConnectivityChecker checker, Set<InetAddressAndPort> available,

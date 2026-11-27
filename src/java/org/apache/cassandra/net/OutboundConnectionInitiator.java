@@ -19,6 +19,7 @@
 package org.apache.cassandra.net;
 
 import java.io.IOException;
+import java.net.ConnectException;
 import java.net.InetSocketAddress;
 import java.nio.channels.ClosedChannelException;
 import java.security.cert.Certificate;
@@ -32,6 +33,7 @@ import org.slf4j.LoggerFactory;
 
 import org.apache.cassandra.config.EncryptionOptions;
 import org.apache.cassandra.locator.InetAddressAndPort;
+import org.apache.cassandra.metrics.InternodeOutboundMetrics;
 import org.apache.cassandra.net.OutboundConnectionInitiator.Result.MessagingSuccess;
 import org.apache.cassandra.net.OutboundConnectionInitiator.Result.StreamingSuccess;
 import org.apache.cassandra.security.ISslContextFactory;
@@ -39,6 +41,7 @@ import org.apache.cassandra.security.SSLFactory;
 import org.apache.cassandra.utils.JVMStabilityInspector;
 import org.apache.cassandra.utils.concurrent.AsyncPromise;
 import org.apache.cassandra.utils.concurrent.ImmediateFuture;
+import org.apache.cassandra.utils.concurrent.NonBlockingRateLimiter;
 import org.apache.cassandra.utils.memory.BufferPools;
 
 import io.netty.bootstrap.Bootstrap;
@@ -59,10 +62,12 @@ import io.netty.handler.ssl.SslClosedEngineException;
 import io.netty.handler.ssl.SslContext;
 import io.netty.handler.ssl.SslHandler;
 import io.netty.util.concurrent.Future; // checkstyle: permit this import
+import io.netty.util.concurrent.GenericFutureListener;
 import io.netty.util.concurrent.Promise; // checkstyle: permit this import
 import io.netty.util.concurrent.ScheduledFuture;
 
 import static java.util.concurrent.TimeUnit.MILLISECONDS;
+import static java.util.concurrent.TimeUnit.NANOSECONDS;
 import static org.apache.cassandra.auth.IInternodeAuthenticator.InternodeConnectionDirection.OUTBOUND;
 import static org.apache.cassandra.auth.IInternodeAuthenticator.InternodeConnectionDirection.OUTBOUND_PRECONNECT;
 import static org.apache.cassandra.config.EncryptionOptions.ClientEncryptionOptions.ClientAuth.NOT_REQUIRED;
@@ -103,6 +108,7 @@ public class OutboundConnectionInitiator<SuccessType extends OutboundConnectionI
     private final SslFallbackConnectionType sslConnectionType;
     private final OutboundConnectionSettings settings;
     private final Promise<Result<SuccessType>> resultPromise;
+    private final NonBlockingRateLimiter rateLimiter;
     private boolean isClosed;
 
     private OutboundConnectionInitiator(ConnectionType type, SslFallbackConnectionType sslConnectionType, OutboundConnectionSettings settings,
@@ -113,6 +119,7 @@ public class OutboundConnectionInitiator<SuccessType extends OutboundConnectionI
 
         this.settings = settings;
         this.resultPromise = resultPromise;
+        this.rateLimiter = settings.socketFactory.outboundConnectionRateLimiter();
     }
 
     /**
@@ -126,7 +133,7 @@ public class OutboundConnectionInitiator<SuccessType extends OutboundConnectionI
                                                                      SslFallbackConnectionType sslConnectionType)
     {
         return new OutboundConnectionInitiator<StreamingSuccess>(STREAMING, sslConnectionType, settings, AsyncPromise.withExecutor(eventLoop))
-               .initiate(eventLoop);
+               .rateLimitedInitiate(eventLoop);
     }
 
     /**
@@ -140,7 +147,7 @@ public class OutboundConnectionInitiator<SuccessType extends OutboundConnectionI
                                                               OutboundConnectionSettings settings, Promise<Result<MessagingSuccess>> result)
     {
         return new OutboundConnectionInitiator<>(type, sslConnectionType, settings, result)
-               .initiate(eventLoop);
+               .rateLimitedInitiate(eventLoop);
     }
 
     private Future<Result<SuccessType>> initiate(EventLoop eventLoop)
@@ -152,8 +159,7 @@ public class OutboundConnectionInitiator<SuccessType extends OutboundConnectionI
             // interrupt other connections, so they must attempt to re-authenticate
             MessagingService.instance().interruptOutbound(settings.to);
             logger.error("Authentication failed to " + settings.connectToId());
-            return ImmediateFuture.failure(new IOException("Authentication failed to " + settings.connectToId()));
-        }
+            return fail(eventLoop, new IOException("Authentication failed to " + settings.connectToId()));        }
 
 
         // this is a bit ugly, but is the easiest way to ensure that if we timeout we can propagate a suitable error message
@@ -185,6 +191,79 @@ public class OutboundConnectionInitiator<SuccessType extends OutboundConnectionI
         // as Epoll failures on connection and disconnect may be run on the GlobalEventExecutor
         // Since this FutureResult's listeners are all given to our resultPromise, they are guaranteed to be invoked by the eventLoop.
         return new FutureResult<>(resultPromise, bootstrap);
+    }
+
+    private Future<Result<SuccessType>> fail(EventLoop eventLoop, Throwable t)
+    {
+        resultPromise.tryFailure(t);
+        return eventLoop.isShutdown() ? ImmediateFuture.failure(t) : resultPromise;
+    }
+
+    Future<Result<SuccessType>> rateLimitedInitiate(EventLoop eventLoop)
+    {
+
+        if (MessagingService.instance().isShuttingDown())
+            return initiate(eventLoop);
+
+        if (eventLoop.isShuttingDown() || eventLoop.isShutdown())
+        {
+            ConnectException ex = new ConnectException("EventLoop is shutting down");
+            logger.debug("EventLoop or MessagingService is shutting down; rejecting outbound connection to {}", settings.to);
+            return fail(eventLoop, ex);
+        }
+
+        long delayNanos = rateLimiter.reserveAndGetDelay(NANOSECONDS);
+
+        if (delayNanos <= 0)
+            return initiate(eventLoop);
+
+        InternodeOutboundMetrics.rateLimitedConnections.mark();
+        logger.debug("Outbound {} connection to {} delayed {}ms by internode connection rate limiter ({}/s)",
+                     type, settings.to, NANOSECONDS.toMillis(delayNanos), rateLimiter.getRate());
+
+        ScheduledFuture<?> scheduled;
+        try
+        {
+            scheduled = eventLoop.schedule(() -> {
+                if (resultPromise.isCancelled() || resultPromise.isDone())
+                {
+                    logger.debug("Skipping delayed {} connection to {} as promise is already done/cancelled", type, settings.to);
+                    return;
+                }
+                try
+                {
+                    initiate(eventLoop);
+                }
+                catch (Throwable t)
+                {
+                    resultPromise.tryFailure(t);
+                }
+            }, delayNanos, NANOSECONDS);
+        }
+        catch (Throwable t)
+        {
+            // handles RejectedExecutionException if eventLoop was already shutting down
+            return fail(eventLoop, new ConnectException("EventLoop rejected scheduled connection: " + t.getMessage()));
+        }
+
+        // abort timer if connection is cancelled while waiting
+        resultPromise.addListener(f -> {
+            if (f.isCancelled())
+            {
+                logger.debug("Cancelled delayed {} connection to {} as promise was cancelled", type, settings.to);
+                scheduled.cancel(true);
+            }
+        });
+
+        // fail promise promptly if EventLoop terminates while waiting
+        GenericFutureListener<Future<Object>> termListener = f -> {
+            if (!resultPromise.isDone())
+                resultPromise.tryFailure(new ClosedChannelException());
+        };
+        eventLoop.terminationFuture().addListener(termListener);
+        resultPromise.addListener(f -> eventLoop.terminationFuture().removeListener(termListener));
+
+        return new FutureResult<>(resultPromise, scheduled);
     }
 
     /**
