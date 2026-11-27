@@ -678,6 +678,23 @@ public class DatabaseDescriptor
         if (conf.hints_directory.equals(conf.saved_caches_directory))
             throw new ConfigurationException("saved_caches_directory must not be the same as the hints_directory", false);
 
+        /* Validate snapshot_directory if configured */
+        if (conf.snapshot_directory != null && !conf.snapshot_directory.isEmpty())
+        {
+            File snapshotDir = new File(conf.snapshot_directory);
+            if (!snapshotDir.exists())
+            {
+                if (!snapshotDir.tryCreateDirectories())
+                    throw new ConfigurationException("snapshot_directory " + conf.snapshot_directory
+                                                     + " does not exist and could not be created", false);
+            }
+            if (!snapshotDir.isDirectory())
+                throw new ConfigurationException("snapshot_directory " + conf.snapshot_directory
+                                                 + " is not a directory", false);
+            logger.info("Snapshot directory configured: {}. Snapshots will use file copies instead of hardlinks.",
+                        conf.snapshot_directory);
+        }
+
         if (conf.memtable_flush_writers == 0)
         {
             conf.memtable_flush_writers = conf.data_file_directories.length == 1 ? 2 : 1;
@@ -2469,6 +2486,22 @@ public class DatabaseDescriptor
     public static String getSavedCachesLocation()
     {
         return conf.saved_caches_directory;
+    }
+
+    /**
+     * Returns the configured snapshot directory, or null if not set.
+     */
+    public static String getSnapshotDirectory()
+    {
+        return conf.snapshot_directory;
+    }
+
+    /**
+     * Returns true if a separate snapshot directory is configured.
+     */
+    public static boolean hasSnapshotDirectory()
+    {
+        return conf.snapshot_directory != null && !conf.snapshot_directory.isEmpty();
     }
 
     public static Set<InetAddressAndPort> getSeeds()
