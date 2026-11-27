@@ -129,11 +129,23 @@ public abstract class UnfilteredRowIterators
      */
     public static UnfilteredRowIterator merge(List<UnfilteredRowIterator> iterators)
     {
+        return merge(iterators, (Runnable) null);
+    }
+
+    /**
+     * Returns an iterator that is the result of merging other iterators, calling {@code onEmptyMerge} (if not null) for
+     * every item that merges to nothing and is skipped, e.g. a row covered by a range or partition deletion.
+     * <p>
+     * Skipped items never reach the consumer of the merged iterator, so this is the only way to act while the merge
+     * goes through them. Reads use it to check if they have been cancelled. The callback may throw to stop the merge.
+     */
+    public static UnfilteredRowIterator merge(List<UnfilteredRowIterator> iterators, Runnable onEmptyMerge)
+    {
         assert !iterators.isEmpty();
         if (iterators.size() == 1)
             return iterators.get(0);
 
-        return UnfilteredRowMergeIterator.create(iterators, null);
+        return UnfilteredRowMergeIterator.create(iterators, null, onEmptyMerge);
     }
 
     /**
@@ -144,7 +156,16 @@ public abstract class UnfilteredRowIterators
      */
     public static UnfilteredRowIterator merge(List<UnfilteredRowIterator> iterators, MergeListener mergeListener)
     {
-        return UnfilteredRowMergeIterator.create(iterators, mergeListener);
+        return merge(iterators, mergeListener, null);
+    }
+
+    /**
+     * As {@link #merge(List, MergeListener)}, also calling {@code onEmptyMerge} (if not null) for every item that merges
+     * to nothing, see {@link #merge(List, Runnable)}.
+     */
+    public static UnfilteredRowIterator merge(List<UnfilteredRowIterator> iterators, MergeListener mergeListener, Runnable onEmptyMerge)
+    {
+        return UnfilteredRowMergeIterator.create(iterators, mergeListener, onEmptyMerge);
     }
 
     /**
@@ -399,13 +420,15 @@ public abstract class UnfilteredRowIterators
     {
         private final IMergeIterator<Unfiltered, Unfiltered> mergeIterator;
         private final MergeListener listener;
+        private final Runnable onEmptyMerge;
 
         private UnfilteredRowMergeIterator(TableMetadata metadata,
                                            List<UnfilteredRowIterator> iterators,
                                            RegularAndStaticColumns columns,
                                            DeletionTime partitionDeletion,
                                            boolean reversed,
-                                           MergeListener listener)
+                                           MergeListener listener,
+                                           Runnable onEmptyMerge)
         {
             super(metadata,
                   iterators.get(0).partitionKey(),
@@ -419,9 +442,10 @@ public abstract class UnfilteredRowIterators
                                                    reversed ? metadata.comparator.reversed() : metadata.comparator,
                                                    new MergeReducer(iterators.size(), reversed, listener));
             this.listener = listener;
+            this.onEmptyMerge = onEmptyMerge;
         }
 
-        private static UnfilteredRowMergeIterator create(List<UnfilteredRowIterator> iterators, MergeListener listener)
+        private static UnfilteredRowMergeIterator create(List<UnfilteredRowIterator> iterators, MergeListener listener, Runnable onEmptyMerge)
         {
             try
             {
@@ -431,7 +455,8 @@ public abstract class UnfilteredRowIterators
                                                       collectColumns(iterators),
                                                       collectPartitionLevelDeletion(iterators, listener),
                                                       iterators.get(0).isReverseOrder(),
-                                                      listener);
+                                                      listener,
+                                                      onEmptyMerge);
             }
             catch (RuntimeException | Error e)
             {
@@ -527,6 +552,10 @@ public abstract class UnfilteredRowIterators
                 Unfiltered merged = mergeIterator.next();
                 if (merged != null)
                     return merged;
+
+                // Nothing downstream sees skipped items, so this is the only place that can act on them.
+                if (onEmptyMerge != null)
+                    onEmptyMerge.run();
             }
             return endOfData();
         }
