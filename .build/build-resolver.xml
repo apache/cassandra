@@ -140,6 +140,29 @@
             <path refid="jflex.classpath" classpath="runtime"/>
         </resolve>
 
+        <macrodef name="copy-sources">
+            <!--
+              Copies the sources jars of the dependencies in a directory from the local repository next to it, for an
+              IDE. Nothing is downloaded: the sources jars get into the local repository by
+              resolver-retrieve-sources, or by Maven projects which share it, and a dependency without one there is
+              skipped.
+            -->
+            <attribute name="jars"/>
+            <attribute name="sources"/>
+            <sequential>
+                <mkdir dir="@{sources}"/>
+                <copy todir="@{sources}" flatten="true">
+                    <fileset dir="${local.repository}" includes="**/*-sources.jar" erroronmissingdir="false">
+                        <present targetdir="@{jars}">
+                            <chainedmapper>
+                                <flattenmapper/>
+                                <regexpmapper from="^(.*)-sources\.jar$" to="\1.jar"/>
+                            </chainedmapper>
+                        </present>
+                    </fileset>
+                </copy>
+            </sequential>
+        </macrodef>
         <macrodef name="install">
             <attribute name="pomFile"/>
             <attribute name="file"/>
@@ -196,6 +219,9 @@
             </resolve>
         </retry>
 
+        <copy-sources jars="${build.dir.lib}/jars" sources="${build.dir.lib}/sources"/>
+        <copy-sources jars="${test.lib}/jars" sources="${test.lib}/sources"/>
+
 
         <!-- jacoco agent jar comes wrapped in a jar -->
         <unzip src="${local.repository}/org/jacoco/org.jacoco.agent/${jacoco.version}/org.jacoco.agent-${jacoco.version}.jar" dest="${build.dir.lib}/jars">
@@ -204,6 +230,26 @@
             </patternset>
             <mapper type="flatten"/>
         </unzip>
+    </target>
+
+    <!--
+      Fetches the sources jars of the dependencies into the local repository and these directories, IDEs use this.
+      Run by hand, with network: every build only copies the sources jars the local repository has, see copy-sources.
+      A dependency without a sources jar is skipped.
+    -->
+    <target name="resolver-retrieve-sources" depends="resolver-retrieve-build" description="Fetch the sources jars of the dependencies into the local repository, for an IDE">
+        <retry retrycount="3" retrydelay="10" >
+            <resolve failonmissingattachments="false">
+                <dependencies pomRef="all-pom"/>
+                <files dir="${build.dir.lib}/sources" layout="{artifactId}-{version}-{classifier}.{extension}" scopes="compile,provided,!system" attachments="sources"/>
+            </resolve>
+        </retry>
+        <retry retrycount="3" retrydelay="10" >
+            <resolve failonmissingattachments="false">
+                <dependencies pomRef="pom-deps"/>
+                <files dir="${test.lib}/sources" layout="{artifactId}-{version}-{classifier}.{extension}" scopes="compile,test,!provide,!system" attachments="sources"/>
+            </resolve>
+        </retry>
     </target>
 
     <target name="resolver-dist-lib" depends="resolver-retrieve-build,_build_subprojects">
