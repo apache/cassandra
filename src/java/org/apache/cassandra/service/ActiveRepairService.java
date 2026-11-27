@@ -34,7 +34,6 @@ import java.util.concurrent.ScheduledFuture;
 import java.util.concurrent.ThreadPoolExecutor;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
-import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.Predicate;
 import java.util.function.Supplier;
@@ -935,7 +934,7 @@ public class ActiveRepairService implements IEndpointStateChangeSubscriber, IFai
             return null;
 
         String snapshotName = parentSessionId.toString();
-        if (session.hasSnapshots.get())
+        if (session.hasSnapshots())
         {
             snapshotExecutor.submit(() -> {
                 logger.info("[repair #{}] Clearing snapshots for {}", parentSessionId,
@@ -1009,7 +1008,7 @@ public class ActiveRepairService implements IEndpointStateChangeSubscriber, IFai
         public final long repairedAt;
         public final InetAddressAndPort coordinator;
         public final PreviewKind previewKind;
-        public final AtomicBoolean hasSnapshots = new AtomicBoolean(false);
+        private final Set<RepairJobDesc> snapshotted = ConcurrentHashMap.newKeySet();
 
         public ParentRepairSession(InetAddressAndPort coordinator, List<ColumnFamilyStore> columnFamilyStores, Collection<Range<Token>> ranges, boolean isIncremental, long repairedAt, boolean isGlobal, PreviewKind previewKind)
         {
@@ -1066,9 +1065,14 @@ public class ActiveRepairService implements IEndpointStateChangeSubscriber, IFai
                    '}';
         }
 
-        public boolean setHasSnapshots()
+        public boolean markSnapshotted(RepairJobDesc desc)
         {
-            return hasSnapshots.compareAndSet(false, true);
+            return snapshotted.add(desc);
+        }
+
+        public boolean hasSnapshots()
+        {
+            return !snapshotted.isEmpty();
         }
     }
 
