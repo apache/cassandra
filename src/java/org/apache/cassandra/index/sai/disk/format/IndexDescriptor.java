@@ -25,6 +25,7 @@ import java.util.stream.Collectors;
 
 import com.google.common.annotations.VisibleForTesting;
 import com.google.common.base.Objects;
+import com.google.common.base.Preconditions;
 import com.google.common.io.Files;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -42,6 +43,7 @@ import org.apache.cassandra.index.sai.disk.PrimaryKeyMap;
 import org.apache.cassandra.index.sai.disk.RowMapping;
 import org.apache.cassandra.index.sai.disk.SSTableIndex;
 import org.apache.cassandra.index.sai.disk.io.IndexFileUtils;
+import org.apache.cassandra.index.sai.disk.io.IndexInputReader;
 import org.apache.cassandra.index.sai.disk.io.IndexOutputWriter;
 import org.apache.cassandra.index.sai.utils.IndexIdentifier;
 import org.apache.cassandra.index.sai.utils.IndexTermType;
@@ -77,17 +79,32 @@ public class IndexDescriptor
     public final ClusteringComparator clusteringComparator;
     public final PrimaryKey.Factory primaryKeyFactory;
 
+    private final FileAccess fileAccess;
+
     private IndexDescriptor(Version version, Descriptor sstableDescriptor, IPartitioner partitioner, ClusteringComparator clusteringComparator)
+    {
+        this(version, sstableDescriptor, partitioner, clusteringComparator, LocalFileAccess.INSTANCE);
+    }
+
+    private IndexDescriptor(Version version, Descriptor sstableDescriptor, IPartitioner partitioner,
+                            ClusteringComparator clusteringComparator, FileAccess fileAccess)
     {
         this.version = version;
         this.sstableDescriptor = sstableDescriptor;
         this.clusteringComparator = clusteringComparator;
         this.primaryKeyFactory = new PrimaryKey.Factory(partitioner, clusteringComparator);
+        this.fileAccess = fileAccess;
     }
 
     public static IndexDescriptor create(Descriptor descriptor, IPartitioner partitioner, ClusteringComparator clusteringComparator)
     {
         return new IndexDescriptor(Version.LATEST, descriptor, partitioner, clusteringComparator);
+    }
+
+    public static IndexDescriptor create(Descriptor descriptor, IPartitioner partitioner,
+                                         ClusteringComparator clusteringComparator, FileAccess fileAccess)
+    {
+        return new IndexDescriptor(Version.LATEST, descriptor, partitioner, clusteringComparator, fileAccess);
     }
 
     public static IndexDescriptor create(SSTableReader sstable)
@@ -134,6 +151,7 @@ public class IndexDescriptor
 
     public PerSSTableIndexWriter newPerSSTableIndexWriter() throws IOException
     {
+        ensureLocalFileAccess();
         return version.onDiskFormat().newPerSSTableIndexWriter(this);
     }
 
@@ -141,6 +159,7 @@ public class IndexDescriptor
                                                         LifecycleNewTracker tracker,
                                                         RowMapping rowMapping)
     {
+        ensureLocalFileAccess();
         return version.onDiskFormat().newPerColumnIndexWriter(index, this, tracker, rowMapping);
     }
 
@@ -156,12 +175,12 @@ public class IndexDescriptor
 
     public boolean hasComponent(IndexComponent indexComponent)
     {
-        return fileFor(indexComponent).exists();
+        return fileAccess.exists(fileFor(indexComponent));
     }
 
     public boolean hasComponent(IndexComponent indexComponent, IndexIdentifier indexIdentifier)
     {
-        return fileFor(indexComponent, indexIdentifier).exists();
+        return fileAccess.exists(fileFor(indexComponent, indexIdentifier));
     }
 
     public File fileFor(IndexComponent indexComponent)
@@ -177,20 +196,22 @@ public class IndexDescriptor
     public boolean isIndexEmpty(IndexTermType indexTermType, IndexIdentifier indexIdentifier)
     {
         // The index is empty if the index build completed successfully in that both
-        // a GROUP_COMPLETION_MARKER companent and a COLUMN_COMPLETION_MARKER exist for
+        // a GROUP_COMPLETION_MARKER component and a COLUMN_COMPLETION_MARKER exist for
         // the index and the number of per-index components is 1 indicating that only the
         // COLUMN_COMPLETION_MARKER exists for the index, as this is the only file that
-        // will be written if the index is empty
+        // will be written if the index is empty.
         return isPerColumnIndexBuildComplete(indexIdentifier) && numberOfPerIndexComponents(indexTermType, indexIdentifier) == 1;
     }
 
     public void createComponentOnDisk(IndexComponent component) throws IOException
     {
+        ensureLocalFileAccess();
         Files.touch(fileFor(component).toJavaIOFile());
     }
 
     public void createComponentOnDisk(IndexComponent component, IndexIdentifier indexIdentifier) throws IOException
     {
+        ensureLocalFileAccess();
         Files.touch(fileFor(component, indexIdentifier).toJavaIOFile());
     }
 
@@ -200,9 +221,9 @@ public class IndexDescriptor
         if (logger.isTraceEnabled())
             logger.trace(logMessage("Opening blocking index input for file {} ({})"),
                          file,
-                         FBUtilities.prettyPrintMemory(file.length()));
+                         FBUtilities.prettyPrintMemory(fileAccess.length(file)));
 
-        return IndexFileUtils.instance.openBlockingInput(file);
+        return openBlockingInput(file);
     }
 
     public IndexInput openPerIndexInput(IndexComponent indexComponent, IndexIdentifier indexIdentifier)
@@ -211,9 +232,9 @@ public class IndexDescriptor
         if (logger.isTraceEnabled())
             logger.trace(logMessage("Opening blocking index input for file {} ({})"),
                          file,
-                         FBUtilities.prettyPrintMemory(file.length()));
+                         FBUtilities.prettyPrintMemory(fileAccess.length(file)));
 
-        return IndexFileUtils.instance.openBlockingInput(file);
+        return openBlockingInput(file);
     }
 
     public IndexOutputWriter openPerSSTableOutput(IndexComponent component) throws IOException
@@ -223,6 +244,7 @@ public class IndexDescriptor
 
     public IndexOutputWriter openPerSSTableOutput(IndexComponent component, boolean append) throws IOException
     {
+        ensureLocalFileAccess();
         final File file = fileFor(component);
 
         if (logger.isTraceEnabled())
@@ -247,6 +269,7 @@ public class IndexDescriptor
 
     public IndexOutputWriter openPerIndexOutput(IndexComponent component, IndexIdentifier indexIdentifier, boolean append) throws IOException
     {
+        ensureLocalFileAccess();
         final File file = fileFor(component, indexIdentifier);
 
         if (logger.isTraceEnabled())
@@ -269,9 +292,9 @@ public class IndexDescriptor
             final File file = fileFor(indexComponent);
 
             if (logger.isTraceEnabled())
-                logger.trace(logMessage("Opening file handle for {} ({})"), file, FBUtilities.prettyPrintMemory(file.length()));
+                logger.trace(logMessage("Opening file handle for {} ({})"), file, FBUtilities.prettyPrintMemory(fileAccess.length(file)));
 
-            return new FileHandle.Builder(file).mmapped(true).complete();
+            return fileAccess.open(file, true);
         }
         catch (Throwable t)
         {
@@ -291,9 +314,9 @@ public class IndexDescriptor
             final File file = fileFor(indexComponent, indexIdentifier);
 
             if (logger.isTraceEnabled())
-                logger.trace(logMessage("Opening file handle for {} ({})"), file, FBUtilities.prettyPrintMemory(file.length()));
+                logger.trace(logMessage("Opening file handle for {} ({})"), file, FBUtilities.prettyPrintMemory(fileAccess.length(file)));
 
-            return new FileHandle.Builder(file).mmapped(true).complete();
+            return fileAccess.open(file, true);
         }
         catch (Throwable t)
         {
@@ -322,7 +345,7 @@ public class IndexDescriptor
         return version.onDiskFormat()
                       .perSSTableIndexComponents(hasClustering())
                       .stream()
-                      .filter(c -> fileFor(c).exists())
+                      .filter(c -> fileAccess.exists(fileFor(c)))
                       .map(version::makePerSSTableComponent)
                       .collect(Collectors.toSet());
     }
@@ -332,7 +355,7 @@ public class IndexDescriptor
         return version.onDiskFormat()
                       .perColumnIndexComponents(indexTermType)
                       .stream()
-                      .filter(c -> fileFor(c, indexIdentifier).exists())
+                      .filter(c -> fileAccess.exists(fileFor(c, indexIdentifier)))
                       .map(c -> version.makePerIndexComponent(c, indexIdentifier))
                       .collect(Collectors.toSet());
     }
@@ -343,8 +366,8 @@ public class IndexDescriptor
                       .perSSTableIndexComponents(hasClustering())
                       .stream()
                       .map(this::fileFor)
-                      .filter(File::exists)
-                      .mapToLong(File::length)
+                      .filter(fileAccess::exists)
+                      .mapToLong(fileAccess::length)
                       .sum();
     }
 
@@ -354,8 +377,8 @@ public class IndexDescriptor
                       .perColumnIndexComponents(indexTermType)
                       .stream()
                       .map(c -> fileFor(c, indexIdentifier))
-                      .filter(File::exists)
-                      .mapToLong(File::length)
+                      .filter(fileAccess::exists)
+                      .mapToLong(fileAccess::length)
                       .sum();
     }
 
@@ -363,7 +386,7 @@ public class IndexDescriptor
     public long sizeOnDiskOfPerIndexComponent(IndexComponent indexComponent, IndexIdentifier indexIdentifier)
     {
         File componentFile = fileFor(indexComponent, indexIdentifier);
-        return componentFile.exists() ? componentFile.length() : 0;
+        return fileAccess.exists(componentFile) ? fileAccess.length(componentFile) : 0;
     }
 
     @SuppressWarnings("BooleanMethodIsAlwaysInverted")
@@ -412,6 +435,7 @@ public class IndexDescriptor
 
     public void deletePerSSTableIndexComponents()
     {
+        ensureLocalFileAccess();
         version.onDiskFormat()
                .perSSTableIndexComponents(hasClustering())
                .stream()
@@ -422,6 +446,7 @@ public class IndexDescriptor
 
     public void deleteColumnIndex(IndexTermType indexTermType, IndexIdentifier indexIdentifier)
     {
+        ensureLocalFileAccess();
         version.onDiskFormat()
                .perColumnIndexComponents(indexTermType)
                .stream()
@@ -441,7 +466,7 @@ public class IndexDescriptor
     {
         if (this == o) return true;
         if (o == null || getClass() != o.getClass()) return false;
-        IndexDescriptor other = (IndexDescriptor)o;
+        IndexDescriptor other = (IndexDescriptor) o;
         return Objects.equal(sstableDescriptor, other.sstableDescriptor) &&
                Objects.equal(version, other.version);
     }
@@ -461,6 +486,19 @@ public class IndexDescriptor
                              message);
     }
 
+    private IndexInput openBlockingInput(File file)
+    {
+        FileHandle handle = fileAccess.open(file, false);
+        try
+        {
+            return IndexInputReader.create(handle.createReader(), handle::close);
+        }
+        catch (Throwable t)
+        {
+            throw handleFileHandleCleanup(t, handle::close);
+        }
+    }
+
     private File createFile(IndexComponent component, IndexIdentifier indexIdentifier)
     {
         Component customComponent = version.makePerIndexComponent(component, indexIdentifier);
@@ -473,7 +511,7 @@ public class IndexDescriptor
                       .perColumnIndexComponents(indexTermType)
                       .stream()
                       .map(c -> fileFor(c, indexIdentifier))
-                      .filter(File::exists)
+                      .filter(fileAccess::exists)
                       .count();
     }
 
@@ -487,6 +525,46 @@ public class IndexDescriptor
         catch (IOException e)
         {
             logger.warn(logMessage("Unable to delete storage-attached index component file {} due to {}."), file, e.getMessage(), e);
+        }
+    }
+
+    private void ensureLocalFileAccess()
+    {
+        Preconditions.checkState(fileAccess == LocalFileAccess.INSTANCE, "Descriptor with custom file access is read-only");
+    }
+
+    /**
+     * Extension point to support read-only access to SAI components that are not backed by the local filesystem.
+     */
+    public interface FileAccess
+    {
+        boolean exists(File file);
+
+        long length(File file);
+
+        FileHandle open(File file, boolean mmap);
+    }
+
+    private static class LocalFileAccess implements FileAccess
+    {
+        private static final LocalFileAccess INSTANCE = new LocalFileAccess();
+
+        @Override
+        public boolean exists(File file)
+        {
+            return file.exists();
+        }
+
+        @Override
+        public long length(File file)
+        {
+            return file.length();
+        }
+
+        @Override
+        public FileHandle open(File file, boolean mmap)
+        {
+            return new FileHandle.Builder(file).mmapped(mmap).complete();
         }
     }
 }

@@ -18,6 +18,7 @@
 
 package org.apache.cassandra.index.sai.disk.v1;
 
+import org.apache.cassandra.io.util.FileHandle;
 import org.apache.lucene.store.ChecksumIndexInput;
 import org.junit.Before;
 import org.junit.Test;
@@ -57,7 +58,8 @@ public class SAICodecUtilsTest extends SAIRandomizedTester
             SAICodecUtils.writeHeader(writer);
         }
 
-        try (IndexInput input = IndexFileUtils.instance.openBlockingInput(file))
+        try (FileHandle handle = new FileHandle.Builder(file).complete();
+             IndexInput input = IndexFileUtils.instance.openInput(handle))
         {
             SAICodecUtils.checkHeader(input);
         }
@@ -71,7 +73,8 @@ public class SAICodecUtilsTest extends SAIRandomizedTester
             writeBEInt(writer, 1234);
         }
 
-        try (IndexInput input = IndexFileUtils.instance.openBlockingInput(file))
+        try (FileHandle handle = new FileHandle.Builder(file).complete();
+             IndexInput input = IndexFileUtils.instance.openInput(handle))
         {
             assertThatThrownBy(() -> SAICodecUtils.checkHeader(input))
             .isInstanceOf(CorruptIndexException.class)
@@ -88,7 +91,8 @@ public class SAICodecUtilsTest extends SAIRandomizedTester
             writer.writeString("zz");
         }
 
-        try (IndexInput input = IndexFileUtils.instance.openBlockingInput(file))
+        try (FileHandle handle = new FileHandle.Builder(file).complete();
+             IndexInput input = IndexFileUtils.instance.openInput(handle))
         {
             assertThatThrownBy(() -> SAICodecUtils.checkHeader(input))
             .isInstanceOf(IllegalArgumentException.class)
@@ -108,7 +112,8 @@ public class SAICodecUtilsTest extends SAIRandomizedTester
             SAICodecUtils.writeFooter(writer);
         }
 
-        try (IndexInput input = IndexFileUtils.instance.openBlockingInput(file);
+        try (FileHandle handle = new FileHandle.Builder(file).complete();
+             IndexInput input = IndexFileUtils.instance.openInput(handle);
              ChecksumIndexInput checksumIndexInput = IndexFileUtils.getBufferedChecksumIndexInput(input))
         {
             SAICodecUtils.checkHeader(checksumIndexInput);
@@ -129,7 +134,8 @@ public class SAICodecUtilsTest extends SAIRandomizedTester
                 writer.writeByte(getRandom().nextByte());
         }
 
-        try (IndexInput input = IndexFileUtils.instance.openBlockingInput(file);
+        try (FileHandle handle = new FileHandle.Builder(file).complete();
+             IndexInput input = IndexFileUtils.instance.openInput(handle);
              ChecksumIndexInput checksumIndexInput = IndexFileUtils.getBufferedChecksumIndexInput(input))
         {
             SAICodecUtils.checkHeader(checksumIndexInput);
@@ -154,7 +160,8 @@ public class SAICodecUtilsTest extends SAIRandomizedTester
             writeBEInt(writer, 1234);
         }
 
-        try (IndexInput input = IndexFileUtils.instance.openBlockingInput(file);
+        try (FileHandle handle = new FileHandle.Builder(file).complete();
+             IndexInput input = IndexFileUtils.instance.openInput(handle);
              ChecksumIndexInput checksumIndexInput = IndexFileUtils.getBufferedChecksumIndexInput(input))
         {
             SAICodecUtils.checkHeader(checksumIndexInput);
@@ -181,7 +188,8 @@ public class SAICodecUtilsTest extends SAIRandomizedTester
             writeBELong(writer, writer.getChecksum());
         }
 
-        try (IndexInput input = IndexFileUtils.instance.openBlockingInput(file);
+        try (FileHandle handle = new FileHandle.Builder(file).complete();
+             IndexInput input = IndexFileUtils.instance.openInput(handle);
              ChecksumIndexInput checksumIndexInput = IndexFileUtils.getBufferedChecksumIndexInput(input))
         {
             SAICodecUtils.checkHeader(checksumIndexInput);
@@ -208,7 +216,8 @@ public class SAICodecUtilsTest extends SAIRandomizedTester
             writeBELong(writer, writer.getChecksum());
         }
 
-        try (IndexInput input = IndexFileUtils.instance.openBlockingInput(file);
+        try (FileHandle handle = new FileHandle.Builder(file).complete();
+             IndexInput input = IndexFileUtils.instance.openInput(handle);
              ChecksumIndexInput checksumIndexInput = IndexFileUtils.getBufferedChecksumIndexInput(input))
         {
             SAICodecUtils.checkHeader(checksumIndexInput);
@@ -235,7 +244,8 @@ public class SAICodecUtilsTest extends SAIRandomizedTester
             writeBELong(writer, 0);
         }
 
-        try (IndexInput input = IndexFileUtils.instance.openBlockingInput(file);
+        try (FileHandle handle = new FileHandle.Builder(file).complete();
+             IndexInput input = IndexFileUtils.instance.openInput(handle);
              ChecksumIndexInput checksumIndexInput = IndexFileUtils.getBufferedChecksumIndexInput(input))
         {
             SAICodecUtils.checkHeader(checksumIndexInput);
@@ -262,7 +272,8 @@ public class SAICodecUtilsTest extends SAIRandomizedTester
             writeBELong(writer, 0xFFFFFFFF00000000L);
         }
 
-        try (IndexInput input = IndexFileUtils.instance.openBlockingInput(file);
+        try (FileHandle handle = new FileHandle.Builder(file).complete();
+             IndexInput input = IndexFileUtils.instance.openInput(handle);
              ChecksumIndexInput checksumIndexInput = IndexFileUtils.getBufferedChecksumIndexInput(input))
         {
             SAICodecUtils.checkHeader(checksumIndexInput);
@@ -282,7 +293,8 @@ public class SAICodecUtilsTest extends SAIRandomizedTester
             SAICodecUtils.writeHeader(writer);
         }
 
-        try (IndexInput input = IndexFileUtils.instance.openBlockingInput(file))
+        try (FileHandle handle = new FileHandle.Builder(file).complete();
+             IndexInput input = IndexFileUtils.instance.openInput(handle))
         {
             assertThatThrownBy(() -> SAICodecUtils.validateFooterAndResetPosition(input))
             .isInstanceOf(CorruptIndexException.class)
@@ -305,7 +317,8 @@ public class SAICodecUtilsTest extends SAIRandomizedTester
             writeBELong(writer, 0);
         }
 
-        try (IndexInput input = IndexFileUtils.instance.openBlockingInput(file))
+        try (FileHandle handle = new FileHandle.Builder(file).complete();
+             IndexInput input = IndexFileUtils.instance.openInput(handle))
         {
             SAICodecUtils.checkHeader(input);
             for (int value = 0; value < numBytes; value++)
@@ -331,7 +344,8 @@ public class SAICodecUtilsTest extends SAIRandomizedTester
             writeBELong(writer, 0xFFFFFFFF00000000L);
         }
 
-        try (IndexInput input = IndexFileUtils.instance.openBlockingInput(file))
+        try (FileHandle handle = new FileHandle.Builder(file).complete();
+             IndexInput input = IndexFileUtils.instance.openInput(handle))
         {
             SAICodecUtils.checkHeader(input);
             for (int value = 0; value < numBytes; value++)
