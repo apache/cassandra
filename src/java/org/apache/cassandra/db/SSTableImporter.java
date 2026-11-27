@@ -55,6 +55,8 @@ public class SSTableImporter
 {
     private static final Logger logger = LoggerFactory.getLogger(ColumnFamilyStore.class);
 
+    private static final int MAX_REJECTED_FILES_LOGGED = 10;
+
     private final ColumnFamilyStore cfs;
 
     public SSTableImporter(ColumnFamilyStore cfs)
@@ -67,6 +69,9 @@ public class SSTableImporter
      *
      * If import fails in any of the directories, that directory is skipped and the failed directories
      * are returned so that the user can re-upload files or remove corrupt files.
+     *
+     * A directory also fails, as a whole, if it contains an SSTable that cannot be read by this node, for example
+     * because its version is newer than this node supports. None of the SSTables in such a directory are imported.
      *
      * If one of the directories in srcPaths is not readable/does not exist, we exit immediately to let
      * the user change permissions or similar on the directory.
@@ -87,6 +92,36 @@ public class SSTableImporter
             currentDescriptors.add(sstable.descriptor);
         List<String> failedDirectories = new ArrayList<>();
 
+        // Data files that the lister could not parse (e.g. an SSTable version newer than this node supports) are
+        // skipped by the lister without any error. Fail those directories loudly rather than reporting success
+        // with nothing imported.
+        for (Pair<Directories.SSTableLister, String> listerPair : listers)
+        {
+            Directories.SSTableLister lister = listerPair.left;
+            String dir = listerPair.right;
+            if (dir == null)
+                continue;
+
+            lister.list(true);
+            List<File> rejected = lister.rejectedDataFiles();
+            if (rejected.isEmpty())
+                continue;
+
+            // log a bounded number of files at ERROR so a directory full of unreadable SSTables does not flood the log
+            int logged = 0;
+            for (File file : rejected)
+            {
+                if (logged++ < MAX_REJECTED_FILES_LOGGED)
+                    logger.error("[{}] Cannot import SSTable data file {} in directory {}: {}", importID, file, dir, rejectionReason(file));
+                else if (logger.isDebugEnabled())
+                    logger.debug("[{}] Cannot import SSTable data file {} in directory {}: {}", importID, file, dir, rejectionReason(file));
+            }
+            if (rejected.size() > MAX_REJECTED_FILES_LOGGED)
+                logger.error("[{}] {} SSTable data files in directory {} cannot be imported, only the first {} are listed above",
+                             importID, rejected.size(), dir, MAX_REJECTED_FILES_LOGGED);
+            failedDirectories.add(dir);
+        }
+
         // verify first to avoid starting to copy sstables to the data directories and then have to abort.
         if (options.verifySSTables || options.verifyTokens || options.failOnMissingIndex)
         {
@@ -94,6 +129,8 @@ public class SSTableImporter
             {
                 Directories.SSTableLister lister = listerPair.left;
                 String dir = listerPair.right;
+                if (failedDirectories.contains(dir))
+                    continue;
                 for (Map.Entry<Descriptor, Set<Component>> entry : lister.list(true).entrySet())
                 {
                     Descriptor descriptor = entry.getKey();
@@ -243,6 +280,23 @@ public class SSTableImporter
 
         logger.info("[{}] Done loading load new SSTables for {}/{}", importID, cfs.getKeyspaceName(), cfs.getTableName());
         return failedDirectories;
+    }
+
+    /**
+     * Explains why the given file was not recognized as part of an SSTable, for example because it has an SSTable
+     * version that is newer than this node supports.
+     */
+    private static String rejectionReason(File file)
+    {
+        try
+        {
+            Descriptor.fromFileWithComponent(file);
+            return "unknown reason";
+        }
+        catch (Throwable t)
+        {
+            return String.valueOf(t.getMessage());
+        }
     }
 
     /**
