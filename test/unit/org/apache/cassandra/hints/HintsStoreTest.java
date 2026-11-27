@@ -142,6 +142,8 @@ public class HintsStoreTest
         }
         assertTrue(es.awaitTermination(2, TimeUnit.SECONDS));
         assertFalse("All hints files should be deleted", store.hasFiles());
+        assertEquals("Cleanups that lost the claim should not leave cached expirations behind",
+                     0, store.getHintsExpirationsMapSize());
     }
 
     @Test
