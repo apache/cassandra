@@ -56,6 +56,7 @@ public class UnfilteredRowIteratorWithLowerBound extends LazilyInitializedUnfilt
     private final Slices slices;
     private final boolean isReverseOrder;
     private final ColumnFilter selectedColumns;
+    private boolean skipBloomFilterCheck;
     private final SSTableReadsListener listener;
     private boolean lowerBoundComputed;
     private Unfiltered lowerBoundMarker;
@@ -67,7 +68,12 @@ public class UnfilteredRowIteratorWithLowerBound extends LazilyInitializedUnfilt
                                                ColumnFilter selectedColumns,
                                                SSTableReadsListener listener)
     {
-        this(partitionKey, sstable, filter.getSlices(sstable.metadata()), filter.isReversed(), selectedColumns, listener);
+        this(partitionKey,
+             sstable,
+             filter.getSlices(sstable.metadata()),
+             filter.isReversed(),
+             selectedColumns,
+             listener);
     }
 
     @VisibleForTesting
@@ -85,6 +91,16 @@ public class UnfilteredRowIteratorWithLowerBound extends LazilyInitializedUnfilt
         this.selectedColumns = selectedColumns;
         this.listener = listener;
         this.firstItemRetrieved = false;
+    }
+
+    /**
+     * Skip the Bloom filter check when initializing the underlying SSTable iterator. The caller must have already
+     * checked the Bloom filter for this iterator's partition key.
+     */
+    public UnfilteredRowIteratorWithLowerBound skipBloomFilterCheck()
+    {
+        skipBloomFilterCheck = true;
+        return this;
     }
 
     public Unfiltered lowerBound()
@@ -116,8 +132,14 @@ public class UnfilteredRowIteratorWithLowerBound extends LazilyInitializedUnfilt
     @Override
     protected UnfilteredRowIterator initializeIterator()
     {
-        UnfilteredRowIterator iter = RTBoundValidator.validate(sstable.rowIterator(partitionKey(), slices, selectedColumns, isReverseOrder, listener),
-                                                               RTBoundValidator.Stage.SSTABLE, false);
+        UnfilteredRowIterator iter = sstable.rowIterator(partitionKey(),
+                                                         slices,
+                                                         selectedColumns,
+                                                         isReverseOrder,
+                                                         listener,
+                                                         skipBloomFilterCheck);
+        iter = RTBoundValidator.validate(iter,
+                                         RTBoundValidator.Stage.SSTABLE, false);
         return iter;
     }
 

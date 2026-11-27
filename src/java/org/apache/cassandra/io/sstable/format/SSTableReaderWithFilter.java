@@ -75,6 +75,16 @@ public abstract class SSTableReaderWithFilter extends SSTableReader
     }
 
     @Override
+    public boolean bloomFilterMightContain(DecoratedKey key, SSTableReadsListener listener)
+    {
+        if (!filter.isInformative() || filter.isPresent(key))
+            return true;
+
+        notifySkipped(SSTableReadsListener.SkippingReason.BLOOM_FILTER, listener, Operator.EQ, true);
+        return false;
+    }
+
+    @Override
     protected void notifySelected(SSTableReadsListener.SelectionReason reason, SSTableReadsListener localListener, Operator op, boolean updateStats, AbstractRowIndexEntry entry)
     {
         super.notifySelected(reason, localListener, op, updateStats, entry);

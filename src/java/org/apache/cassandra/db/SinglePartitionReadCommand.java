@@ -849,14 +849,21 @@ public class SinglePartitionReadCommand extends ReadCommand implements SinglePar
                     continue;
                 }
 
+                // Avoid constructing a lower-bound iterator and adding its synthetic bound to the merge when the
+                // Bloom filter can already prove that this partition is absent.
+                if (intersects && !sstable.bloomFilterMightContain(partitionKey(), metricsCollector))
+                    continue;
+
                 if (intersects || hasRequiredStatics)
                 {
                     if (!sstable.isRepaired())
                         controller.updateMinOldestUnrepairedTombstone(sstable.getMinLocalDeletionTime());
 
                     // 'iter' is added to iterators which is closed on exception, or through the closing of the final merged iterator
-                    UnfilteredRowIterator iter = intersects ? makeRowIteratorWithLowerBound(cfs, sstable, metricsCollector)
-                                                            : makeRowIteratorWithSkippedNonStaticContent(cfs, sstable, metricsCollector);
+                    UnfilteredRowIterator iter = intersects
+                                                 ? makeRowIteratorWithLowerBound(cfs, sstable, metricsCollector)
+                                                   .skipBloomFilterCheck()
+                                                 : makeRowIteratorWithSkippedNonStaticContent(cfs, sstable, metricsCollector);
 
                     if (rowTransformer != null)
                         iter = Transformation.apply(iter, rowTransformer.apply(sstable.getId()));
@@ -947,7 +954,6 @@ public class SinglePartitionReadCommand extends ReadCommand implements SinglePar
                                                                   clusteringIndexFilter(),
                                                                   columnFilter(),
                                                                   listener);
-
     }
 
     private UnfilteredRowIterator makeRowIterator(ColumnFamilyStore cfs,

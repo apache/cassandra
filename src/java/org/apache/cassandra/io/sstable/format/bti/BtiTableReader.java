@@ -283,13 +283,22 @@ public class BtiTableReader extends SSTableReaderWithFilter
                                    boolean updateStats,
                                    boolean retainDataInput)
     {
+        return getExactPosition(dk, listener, updateStats, retainDataInput, false);
+    }
+
+    private ExactPosition getExactPosition(DecoratedKey dk,
+                                           SSTableReadsListener listener,
+                                           boolean updateStats,
+                                           boolean retainDataInput,
+                                           boolean skipBloomFilterCheck)
+    {
         if ((filterFirst() && getFirst().compareTo(dk) > 0) || (filterLast() && getLast().compareTo(dk) < 0))
         {
             notifySkipped(SkippingReason.MIN_MAX_KEYS, listener, EQ, updateStats);
             return ExactPosition.NOT_FOUND;
         }
 
-        if (!isPresentInFilter(dk))
+        if (!skipBloomFilterCheck && !isPresentInFilter(dk))
         {
             notifySkipped(SkippingReason.BLOOM_FILTER, listener, EQ, updateStats);
             return ExactPosition.NOT_FOUND;
@@ -419,9 +428,20 @@ public class BtiTableReader extends SSTableReaderWithFilter
                                              boolean reversed,
                                              SSTableReadsListener listener)
     {
+        return rowIterator(key, slices, selectedColumns, reversed, listener, false);
+    }
+
+    @Override
+    public UnfilteredRowIterator rowIterator(DecoratedKey key,
+                                             Slices slices,
+                                             ColumnFilter selectedColumns,
+                                             boolean reversed,
+                                             SSTableReadsListener listener,
+                                             boolean skipBloomFilterCheck)
+    {
         // retain the reader that verified the key: for a partition with no row index entry it is already on the
         // data file at the position the iterator has to start from
-        ExactPosition pos = getExactPosition(key, listener, true, true);
+        ExactPosition pos = getExactPosition(key, listener, true, true, skipBloomFilterCheck);
         return rowIterator(pos.dataInput, pos.dataInput != null, key, pos.entry, slices, selectedColumns, reversed);
     }
 

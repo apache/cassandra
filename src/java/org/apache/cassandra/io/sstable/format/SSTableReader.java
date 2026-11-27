@@ -60,7 +60,9 @@ import org.apache.cassandra.db.ColumnFamilyStore;
 import org.apache.cassandra.db.DecoratedKey;
 import org.apache.cassandra.db.PartitionPosition;
 import org.apache.cassandra.db.SerializationHeader;
+import org.apache.cassandra.db.Slices;
 import org.apache.cassandra.db.SystemKeyspace;
+import org.apache.cassandra.db.filter.ColumnFilter;
 import org.apache.cassandra.db.rows.Cell;
 import org.apache.cassandra.db.rows.EncodingStats;
 import org.apache.cassandra.db.rows.UnfilteredRowIterator;
@@ -1569,6 +1571,30 @@ public abstract class SSTableReader extends SSTable implements UnfilteredSource,
      * Bloom filter if it is present and if it is not, performs accurate check in the index.
      */
     public abstract boolean mayContainAssumingKeyIsInRange(DecoratedKey key);
+
+    /**
+     * Returns {@code true} when the Bloom filter may contain the provided key or is not informative. A
+     * {@code false} result means this SSTable can be skipped. Implementations without an informative Bloom filter
+     * must return {@code true}.
+     */
+    public boolean bloomFilterMightContain(DecoratedKey key, SSTableReadsListener listener)
+    {
+        return true;
+    }
+
+    /**
+     * Returns a row iterator, optionally skipping the Bloom filter check when the caller has already performed it.
+     * Readers that cannot skip their normal Bloom filter check may use the default implementation.
+     */
+    public UnfilteredRowIterator rowIterator(DecoratedKey key,
+                                             Slices slices,
+                                             ColumnFilter selectedColumns,
+                                             boolean reversed,
+                                             SSTableReadsListener listener,
+                                             boolean skipBloomFilterCheck)
+    {
+        return rowIterator(key, slices, selectedColumns, reversed, listener);
+    }
 
     /**
      * One instance per SSTableReader we create.
