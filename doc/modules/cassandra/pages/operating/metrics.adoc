@@ -223,6 +223,10 @@ ongoing incremental repair
 |SpeculativeRetries |Counter |Number of times speculative retries were
 sent for this table.
 
+|OverloadSpeculativeRetries |Counter |Number of speculative retries that
+a read message dropped on an overloaded connection triggered. A subset of
+SpeculativeRetries.
+
 |SpeculativeFailedRetries |Counter |Number of speculative retries that
 failed to prevent a timeout
 
