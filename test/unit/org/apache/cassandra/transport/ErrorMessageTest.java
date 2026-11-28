@@ -19,6 +19,7 @@
 package org.apache.cassandra.transport;
 
 import java.net.UnknownHostException;
+import java.nio.charset.StandardCharsets;
 import java.util.HashMap;
 import java.util.Map;
 
@@ -34,8 +35,13 @@ import org.apache.cassandra.exceptions.RequestFailureReason;
 import org.apache.cassandra.exceptions.WriteFailureException;
 import org.apache.cassandra.exceptions.WriteTimeoutException;
 import org.apache.cassandra.locator.InetAddressAndPort;
+import org.apache.cassandra.service.accord.exceptions.AccordWriteExhaustedException;
+import org.apache.cassandra.service.accord.exceptions.AccordWritePreemptedException;
 import org.apache.cassandra.transport.messages.EncodeAndDecodeTestBase;
 import org.apache.cassandra.transport.messages.ErrorMessage;
+
+import io.netty.buffer.ByteBuf;
+import io.netty.buffer.Unpooled;
 
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
@@ -133,6 +139,87 @@ public class ErrorMessageTest extends EncodeAndDecodeTestBase<ErrorMessage>
         assertEquals(consistencyLevel, deserializedEx.consistency);
         assertEquals(receivedBlockFor, deserializedEx.received);
         assertEquals(receivedBlockFor, deserializedEx.blockFor);
+    }
+
+    @Test
+    public void testV5CasWriteTimeoutEncodedSize()
+    {
+        CasWriteTimeoutException ex = new CasWriteTimeoutException(WriteType.CAS, ConsistencyLevel.SERIAL, 0, 3, 7);
+
+        ErrorMessage deserialized = encodeThenDecodeFully(ErrorMessage.fromTransportException(ex), ProtocolVersion.V5);
+        assertTrue(deserialized.error instanceof CasWriteTimeoutException);
+        assertEquals(7, ((CasWriteTimeoutException) deserialized.error).contentions);
+    }
+
+    @Test
+    public void testV5PlainCasWriteTimeoutSerDeser()
+    {
+        assertV5CasWriteTimeoutWithoutContentions(new WriteTimeoutException(WriteType.CAS, ConsistencyLevel.SERIAL, 0, 3, "txn timed out"));
+    }
+
+    @Test
+    public void testV5AccordWritePreemptedSerDeser()
+    {
+        assertV5CasWriteTimeoutWithoutContentions(new AccordWritePreemptedException(0, 3, "txn preempted"));
+    }
+
+    @Test
+    public void testV5AccordWriteExhaustedSerDeser()
+    {
+        assertV5CasWriteTimeoutWithoutContentions(new AccordWriteExhaustedException(0, 3, "txn exhausted"));
+    }
+
+    @Test
+    public void testV5CasWriteTimeoutWithSimpleWriteTypeSerDeser()
+    {
+        // legacy Paxos wraps SIMPLE commit timeouts in CasWriteTimeoutException
+        CasWriteTimeoutException ex = new CasWriteTimeoutException(WriteType.SIMPLE, ConsistencyLevel.QUORUM, 1, 2, 3);
+
+        ErrorMessage deserialized = encodeThenDecodeFully(ErrorMessage.fromTransportException(ex), ProtocolVersion.V5);
+        assertFalse(deserialized.error instanceof CasWriteTimeoutException);
+        assertEquals(WriteType.SIMPLE, ((WriteTimeoutException) deserialized.error).writeType);
+    }
+
+    @Test
+    public void testV4PlainCasWriteTimeoutSerDeser()
+    {
+        WriteTimeoutException ex = new WriteTimeoutException(WriteType.CAS, ConsistencyLevel.SERIAL, 0, 3, "txn timed out");
+        ErrorMessage message = ErrorMessage.fromTransportException(ex);
+
+        ByteBuf buffer = Unpooled.buffer();
+        getCodec().encode(message, buffer, ProtocolVersion.V4);
+        // v4: no contentions after the write type
+        assertEquals("CAS", buffer.toString(buffer.writerIndex() - 3, 3, StandardCharsets.US_ASCII));
+
+        ErrorMessage deserialized = encodeThenDecodeFully(message, ProtocolVersion.V4);
+        assertFalse(deserialized.error instanceof CasWriteTimeoutException);
+        assertEquals(WriteType.CAS, ((WriteTimeoutException) deserialized.error).writeType);
+    }
+
+    private void assertV5CasWriteTimeoutWithoutContentions(WriteTimeoutException ex)
+    {
+        ErrorMessage deserialized = encodeThenDecodeFully(ErrorMessage.fromTransportException(ex), ProtocolVersion.V5);
+        assertTrue(deserialized.error instanceof CasWriteTimeoutException);
+        CasWriteTimeoutException deserializedEx = (CasWriteTimeoutException) deserialized.error;
+
+        assertEquals(WriteType.CAS, deserializedEx.writeType);
+        assertEquals(0, deserializedEx.contentions);
+        assertEquals(ex.consistency, deserializedEx.consistency);
+        assertEquals(ex.received, deserializedEx.received);
+        assertEquals(ex.blockFor, deserializedEx.blockFor);
+    }
+
+    /**
+     * Unlike encodeThenDecode, checks that encodedSize matches the bytes written and that decode reads all of them.
+     */
+    private ErrorMessage encodeThenDecodeFully(ErrorMessage message, ProtocolVersion version)
+    {
+        ByteBuf buffer = Unpooled.buffer();
+        getCodec().encode(message, buffer, version);
+        assertEquals(getCodec().encodedSize(message, version), buffer.readableBytes());
+        ErrorMessage deserialized = getCodec().decode(buffer, version);
+        assertEquals(0, buffer.readableBytes());
+        return deserialized;
     }
 
     @Test
