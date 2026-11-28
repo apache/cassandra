@@ -18,6 +18,8 @@
 
 package org.apache.cassandra.locator;
 
+import javax.annotation.Nullable;
+
 import com.google.common.collect.Iterables;
 import org.apache.cassandra.db.ConsistencyLevel;
 import org.apache.cassandra.db.Keyspace;
@@ -170,16 +172,27 @@ public interface ReplicaPlan<E extends Endpoints<E>, P extends ReplicaPlan<E, P>
         final EndpointsForToken pending;
         final EndpointsForToken liveAndDown;
         final EndpointsForToken live;
+        @Nullable
+        private final SlotGroupMaps.SlotGroupInfo slotInfo;
 
         public ForWrite(Keyspace keyspace, AbstractReplicationStrategy replicationStrategy, ConsistencyLevel consistencyLevel, EndpointsForToken pending, EndpointsForToken liveAndDown, EndpointsForToken live, EndpointsForToken contact)
+        {
+            this(keyspace, replicationStrategy, consistencyLevel, pending, liveAndDown, live, contact, null);
+        }
+
+        public ForWrite(Keyspace keyspace, AbstractReplicationStrategy replicationStrategy, ConsistencyLevel consistencyLevel, EndpointsForToken pending, EndpointsForToken liveAndDown, EndpointsForToken live, EndpointsForToken contact, @Nullable SlotGroupMaps.SlotGroupInfo slotInfo)
         {
             super(keyspace, replicationStrategy, consistencyLevel, contact);
             this.pending = pending;
             this.liveAndDown = liveAndDown;
             this.live = live;
+            this.slotInfo = slotInfo;
         }
 
         public int writeQuorum() { return consistencyLevel.blockForWrite(replicationStrategy, pending()); }
+
+        @Nullable
+        public SlotGroupMaps.SlotGroupInfo slotInfo() { return slotInfo; }
 
         /** Replicas that a region of the ring is moving to; not yet ready to serve reads, but should receive writes */
         public EndpointsForToken pending() { return pending; }
@@ -203,7 +216,7 @@ public interface ReplicaPlan<E extends Endpoints<E>, P extends ReplicaPlan<E, P>
 
         private ForWrite copy(ConsistencyLevel newConsistencyLevel, EndpointsForToken newContact)
         {
-            return new ForWrite(keyspace, replicationStrategy, newConsistencyLevel, pending(), liveAndDown(), live(), newContact);
+            return new ForWrite(keyspace, replicationStrategy, newConsistencyLevel, pending(), liveAndDown(), live(), newContact, slotInfo);
         }
 
         ForWrite withConsistencyLevel(ConsistencyLevel newConsistencylevel) { return copy(newConsistencylevel, contacts()); }
@@ -211,7 +224,7 @@ public interface ReplicaPlan<E extends Endpoints<E>, P extends ReplicaPlan<E, P>
 
         public String toString()
         {
-            return "ReplicaPlan.ForWrite [ CL: " + consistencyLevel + " keyspace: " + keyspace + " liveAndDown: " + liveAndDown + " live: " + live + " contacts: " + contacts() +  " ]";
+            return "ReplicaPlan.ForWrite [ CL: " + consistencyLevel + " keyspace: " + keyspace + " liveAndDown: " + liveAndDown + " live: " + live + " contacts: " + contacts() + " slotInfo: " + slotInfo + " ]";
         }
     }
 

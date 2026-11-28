@@ -138,6 +138,12 @@ public class Config
     @Replaces(oldName = "write_request_timeout_in_ms", converter = Converters.MILLIS_DURATION_LONG, deprecated = true)
     public volatile DurationSpec.LongMillisecondsBound write_request_timeout = new DurationSpec.LongMillisecondsBound("2000ms");
 
+    // When enabled, endpoints transitioning the same replica position during topology changes
+    // are treated as a single logical "slot". blockFor stays at base quorum instead of being
+    // inflated by pending replicas, while still requiring both members of a slot to ack.
+    // Default: false (slot grouping inactive; pending replicas inflate blockFor)
+    public volatile boolean replica_slot_grouping_enabled = false;
+
     @Replaces(oldName = "counter_write_request_timeout_in_ms", converter = Converters.MILLIS_DURATION_LONG, deprecated = true)
     public volatile DurationSpec.LongMillisecondsBound counter_write_request_timeout = new DurationSpec.LongMillisecondsBound("5000ms");
 

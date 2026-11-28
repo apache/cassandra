@@ -32,6 +32,8 @@ import org.apache.cassandra.db.Mutation;
 import org.apache.cassandra.locator.EndpointsForToken;
 import org.apache.cassandra.locator.ReplicaPlan;
 import org.apache.cassandra.locator.ReplicaPlan.ForWrite;
+import org.apache.cassandra.locator.SlotGroupMaps;
+import org.apache.cassandra.locator.SlotResponseTracker;
 import org.apache.cassandra.transport.Dispatcher;
 import org.apache.cassandra.utils.concurrent.Condition;
 import org.slf4j.Logger;
@@ -81,6 +83,22 @@ public abstract class AbstractWriteResponseHandler<T> implements RequestCallback
     private final Dispatcher.RequestTime requestTime;
     private @Nullable final Supplier<Mutation> hintOnFailure;
 
+    // ============== Slot grouping support for topology changes ==============
+    // These fields enable O(1) response counting when replica slot grouping is enabled.
+    // They are null when the feature is disabled or no topology change is happening.
+
+    /**
+     * Pre-computed slot info from TokenMetadata (shared across writes to same token range).
+     * Maps each endpoint to its ReplicaSlotGroup for O(1) lookup.
+     * Validated at ReplicaPlan construction: if any write contact is missing, slotInfo is null
+     * to fall back to default behavior and avoid dropped acks.
+     */
+    @Nullable
+    protected final SlotGroupMaps.SlotGroupInfo slotInfo;
+
+    @Nullable
+    protected final SlotResponseTracker slotTracker;
+
     /**
       * Delegate to another WriteResponseHandler or possibly this one to track if the ideal consistency level was reached.
       * Will be set to null if ideal CL was not configured
@@ -108,6 +126,9 @@ public abstract class AbstractWriteResponseHandler<T> implements RequestCallback
         this.hintOnFailure = hintOnFailure;
         this.failureReasonByEndpoint = new ConcurrentHashMap<>();
         this.requestTime = requestTime;
+
+        this.slotInfo = replicaPlan.slotInfo();
+        this.slotTracker = (slotInfo != null) ? new SlotResponseTracker(slotInfo) : null;
     }
 
     public void get() throws WriteTimeoutException, WriteFailureException
@@ -219,6 +240,13 @@ public abstract class AbstractWriteResponseHandler<T> implements RequestCallback
      */
     protected int blockFor()
     {
+        // When slot grouping is active, use base quorum without pending additions.
+        // Slot grouping treats transitioning endpoints as a single logical unit,
+        // so blockFor is based on slot count rather than being inflated by pending replicas.
+        if (slotInfo != null)
+        {
+            return replicaPlan.consistencyLevel().blockFor(replicaPlan.replicationStrategy());
+        }
         // During bootstrap, we have to include the pending endpoints or we may fail the consistency level
         // guarantees (see #833)
         return replicaPlan.writeQuorum();
@@ -248,6 +276,23 @@ public abstract class AbstractWriteResponseHandler<T> implements RequestCallback
     protected boolean waitingFor(InetAddressAndPort from)
     {
         return true;
+    }
+
+    protected boolean isSlotGroupingActive()
+    {
+        return slotInfo != null;
+    }
+
+    protected boolean processSlotResponse(InetAddressAndPort from)
+    {
+        assert slotTracker != null;
+        int newSatisfiedSlotCount = slotTracker.recordSuccess(from);
+        return newSatisfiedSlotCount >= blockFor();
+    }
+
+    protected int satisfiedSlotCount()
+    {
+        return slotTracker != null ? slotTracker.satisfiedCount() : 0;
     }
 
     /**
@@ -292,11 +337,20 @@ public abstract class AbstractWriteResponseHandler<T> implements RequestCallback
                 ? failuresUpdater.incrementAndGet(this)
                 : failures;
 
+        if (slotTracker != null)
+            slotTracker.recordFailure(from);
+
         failureReasonByEndpoint.put(from, failureReason);
 
         logFailureOrTimeoutToIdealCLDelegate();
 
-        if (blockFor() + n > candidateReplicaCount())
+        boolean cannotSucceed;
+        if (slotTracker != null)
+            cannotSucceed = !slotTracker.canSucceed(blockFor());
+        else
+            cannotSucceed = blockFor() + n > candidateReplicaCount();
+
+        if (cannotSucceed)
             signal();
 
         if (hintOnFailure != null && StorageProxy.shouldHint(replicaPlan.lookup(from)) && requestTime.shouldSendHints())

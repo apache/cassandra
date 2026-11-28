@@ -56,6 +56,7 @@ import org.apache.cassandra.dht.AbstractBounds;
 import org.apache.cassandra.dht.Token;
 import org.apache.cassandra.exceptions.UnavailableException;
 import org.apache.cassandra.gms.FailureDetector;
+import org.apache.cassandra.metrics.SlotGroupingMetrics;
 import org.apache.cassandra.schema.SchemaConstants;
 import org.apache.cassandra.service.StorageService;
 import org.apache.cassandra.service.reads.AlwaysSpeculativeRetryPolicy;
@@ -465,7 +466,12 @@ public class ReplicaPlans
         AbstractReplicationStrategy replicationStrategy = liveAndDown.replicationStrategy();
         EndpointsForToken contacts = selector.select(consistencyLevel, liveAndDown, live);
         assureSufficientLiveReplicasForWrite(replicationStrategy, consistencyLevel, live.all(), liveAndDown.pending());
-        return new ReplicaPlan.ForWrite(keyspace, replicationStrategy, consistencyLevel, liveAndDown.pending(), liveAndDown.all(), live.all(), contacts);
+
+        SlotGroupMaps.SlotGroupInfo slotInfo = getValidatedSlotInfo(keyspace, liveAndDown);
+
+        return new ReplicaPlan.ForWrite(keyspace, replicationStrategy, consistencyLevel,
+                                         liveAndDown.pending(), liveAndDown.all(),
+                                         live.all(), contacts, slotInfo);
     }
 
     public interface Selector
@@ -752,5 +758,38 @@ public class ReplicaPlans
 
         // If we get there, merge this range and the next one
         return new ReplicaPlan.ForRangeRead(keyspace, replicationStrategy, consistencyLevel, newRange, mergedCandidates, contacts, left.vnodeCount() + right.vnodeCount());
+    }
+
+    /**
+     * Look up and validate slot grouping info for a write operation.
+     * Returns null (falling back to default write path) if the feature is disabled,
+     * no slot info is available, or any replica is missing from the slot groups (stale).
+     */
+    public static SlotGroupMaps.SlotGroupInfo getValidatedSlotInfo(
+        Keyspace keyspace,
+        ReplicaLayout.ForTokenWrite liveAndDown)
+    {
+        if (!DatabaseDescriptor.isReplicaSlotGroupingEnabled())
+            return null;
+
+        Token token = liveAndDown.token();
+        SlotGroupMaps.SlotGroupInfo candidate = StorageService.instance.
+            getTokenMetadata().getSlotInfoForToken(token, keyspace.getName());
+
+        if (candidate == null)
+            return null;
+
+        for (Replica replica : liveAndDown.all())
+        {
+            if (!candidate.endpointToSlot.containsKey(replica.endpoint()))
+            {
+                SlotGroupingMetrics.staleFallbacks.inc();
+                logger.debug("Slot info stale: replica {} not in" +
+                             " slot groups, falling back to default" +
+                             " write path", replica.endpoint());
+                return null;
+            }
+        }
+        return candidate;
     }
 }

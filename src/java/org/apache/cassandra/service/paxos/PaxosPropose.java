@@ -23,6 +23,8 @@ import java.util.concurrent.atomic.AtomicLongFieldUpdater;
 import java.util.concurrent.atomic.AtomicReferenceFieldUpdater;
 import java.util.function.Consumer;
 
+import javax.annotation.Nullable;
+
 import com.google.common.annotations.VisibleForTesting;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -33,7 +35,9 @@ import org.apache.cassandra.exceptions.RequestFailureReason;
 import org.apache.cassandra.io.IVersionedSerializer;
 import org.apache.cassandra.io.util.DataInputPlus;
 import org.apache.cassandra.io.util.DataOutputPlus;
+
 import org.apache.cassandra.locator.InetAddressAndPort;
+import org.apache.cassandra.locator.SlotResponseTracker;
 import org.apache.cassandra.net.IVerbHandler;
 import org.apache.cassandra.net.Message;
 import org.apache.cassandra.net.MessagingService;
@@ -128,6 +132,8 @@ public class PaxosPropose<OnDone extends Consumer<? super PaxosPropose.Status>> 
     final int required;
     /** Invoke on reaching a terminal status */
     final OnDone onDone;
+    @Nullable
+    private final SlotResponseTracker slotTracker;
 
     /**
      * bit 0-20:  accepts
@@ -145,7 +151,7 @@ public class PaxosPropose<OnDone extends Consumer<? super PaxosPropose.Status>> 
     /** The newest superseding ballot from a refusal; only returned to the caller if we fail to reach a quorum */
     private volatile Ballot supersededBy;
 
-    private PaxosPropose(Proposal proposal, int participants, int required, boolean waitForNoSideEffect, OnDone onDone)
+    private PaxosPropose(Proposal proposal, int participants, int required, boolean waitForNoSideEffect, OnDone onDone, @Nullable SlotResponseTracker slotTracker)
     {
         this.proposal = proposal;
         assert required > 0;
@@ -153,6 +159,7 @@ public class PaxosPropose<OnDone extends Consumer<? super PaxosPropose.Status>> 
         this.participants = participants;
         this.required = required;
         this.onDone = onDone;
+        this.slotTracker = slotTracker;
     }
 
     /**
@@ -169,9 +176,9 @@ public class PaxosPropose<OnDone extends Consumer<? super PaxosPropose.Status>> 
         // to avoid unnecessary object allocations we extend PaxosPropose to implements Paxos.Async
         class Async extends PaxosPropose<ConditionAsConsumer<Status>> implements Paxos.Async<Status>
         {
-            private Async(Proposal proposal, int participants, int required, boolean waitForNoSideEffect)
+            private Async(Proposal proposal, int participants, int required, boolean waitForNoSideEffect, @Nullable SlotResponseTracker slotTracker)
             {
-                super(proposal, participants, required, waitForNoSideEffect, newConditionAsConsumer());
+                super(proposal, participants, required, waitForNoSideEffect, newConditionAsConsumer(), slotTracker);
             }
 
             public Status awaitUntil(long deadline)
@@ -190,7 +197,7 @@ public class PaxosPropose<OnDone extends Consumer<? super PaxosPropose.Status>> 
             }
         }
 
-        Async propose = new Async(proposal, participants.sizeOfPoll(), participants.sizeOfConsensusQuorum, waitForNoSideEffect);
+        Async propose = new Async(proposal, participants.sizeOfPoll(), participants.sizeOfConsensusQuorum, waitForNoSideEffect, participants.newSlotTracker());
         propose.start(participants);
         return propose;
     }
@@ -200,7 +207,7 @@ public class PaxosPropose<OnDone extends Consumer<? super PaxosPropose.Status>> 
         if (waitForNoSideEffect && proposal.update.isEmpty())
             waitForNoSideEffect = false; // by definition this has no "side effects" (besides linearizing the operation)
 
-        PaxosPropose<?> propose = new PaxosPropose<>(proposal, participants.sizeOfPoll(), participants.sizeOfConsensusQuorum, waitForNoSideEffect, onDone);
+        PaxosPropose<?> propose = new PaxosPropose<>(proposal, participants.sizeOfPoll(), participants.sizeOfConsensusQuorum, waitForNoSideEffect, onDone, participants.newSlotTracker());
         propose.start(participants);
         return onDone;
     }
@@ -259,6 +266,9 @@ public class PaxosPropose<OnDone extends Consumer<? super PaxosPropose.Status>> 
                 ? ACCEPT_INCREMENT
                 : REFUSAL_INCREMENT;
 
+        if (supersededBy == null && slotTracker != null)
+            slotTracker.recordSuccess(from);
+
         update(increment);
     }
 
@@ -267,6 +277,9 @@ public class PaxosPropose<OnDone extends Consumer<? super PaxosPropose.Status>> 
     {
         if (logger.isTraceEnabled())
             logger.trace("{} {} failure from {}", proposal, reason, from);
+
+        if (slotTracker != null)
+            slotTracker.recordFailure(from);
 
         super.onFailure(from, reason);
         update(FAILURE_INCREMENT);
@@ -282,18 +295,24 @@ public class PaxosPropose<OnDone extends Consumer<? super PaxosPropose.Status>> 
     // returns true at most once for a given PaxosPropose, so we do not propagate a signal more than once
     private boolean shouldSignal(long responses)
     {
-        return shouldSignal(responses, required, participants, waitForNoSideEffect, responsesUpdater, this);
+        return shouldSignal(responses, required, participants, waitForNoSideEffect, responsesUpdater, this, slotTracker);
     }
 
     @VisibleForTesting
-    public static <T> boolean shouldSignal(long responses, int required, int participants, boolean waitForNoSideEffect, AtomicLongFieldUpdater<T> responsesUpdater, T update)
+    public static <T> boolean shouldSignal(long responses, int required, int participants, boolean waitForNoSideEffect, AtomicLongFieldUpdater<T> responsesUpdater, T update, @Nullable SlotResponseTracker slotTracker)
     {
         if (responses <= 0L) // already signalled via ambiguous signal bit
             return false;
 
-        if (!isSuccessful(responses, required))
+        boolean successful = slotTracker != null
+                             ? slotTracker.satisfiedCount() >= required
+                             : isSuccessful(responses, required);
+        if (!successful)
         {
-            if (canSucceed(responses, required, participants))
+            boolean canStillSucceed = slotTracker != null
+                                     ? slotTracker.canSucceed(required) && refusals(responses) == 0
+                                     : canSucceed(responses, required, participants);
+            if (canStillSucceed)
                 return false;
 
             if (waitForNoSideEffect && !hasPossibleSideEffects(responses))
@@ -311,7 +330,9 @@ public class PaxosPropose<OnDone extends Consumer<? super PaxosPropose.Status>> 
 
     private boolean isSuccessful(long responses)
     {
-        return isSuccessful(responses, required);
+        return slotTracker != null
+               ? slotTracker.satisfiedCount() >= required
+               : isSuccessful(responses, required);
     }
 
     private static boolean isSuccessful(long responses, int required)
@@ -321,7 +342,9 @@ public class PaxosPropose<OnDone extends Consumer<? super PaxosPropose.Status>> 
 
     private boolean canSucceed(long responses)
     {
-        return canSucceed(responses, required, participants);
+        return slotTracker != null
+               ? slotTracker.canSucceed(required) && refusals(responses) == 0
+               : canSucceed(responses, required, participants);
     }
 
     private static boolean canSucceed(long responses, int required, int participants)
