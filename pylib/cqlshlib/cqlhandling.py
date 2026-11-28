@@ -132,6 +132,43 @@ class CqlParsingRuleSet(pylexotron.ParsingRuleSet):
         tokens = self.cql_massage_tokens(tokens)
         return self.parse(startsymbol, tokens, init_bindings={'*SRC*': text})
 
+    @staticmethod
+    def dequote_value(cqlword):
+        cqlword = cqlword.strip()
+        if cqlword == '':
+            return cqlword
+        if cqlword[0] == "'" and cqlword[-1] == "'":
+            cqlword = cqlword[1:-1].replace("''", "'")
+        return cqlword
+
+    @staticmethod
+    def dequote_name(name):
+        name = name.strip()
+        if name == '':
+            return name
+        if name[0] == '"' and name[-1] == '"':
+            return name[1:-1].replace('""', '"')
+        else:
+            return name.lower()
+
+    @staticmethod
+    def escape_value(value):
+        if value is None:
+            return 'NULL'  # this totally won't work
+        if isinstance(value, bool):
+            value = str(value).lower()
+        elif isinstance(value, float):
+            return '%f' % value
+        elif isinstance(value, int):
+            return str(value)
+        return "'%s'" % value.replace("'", "''")
+
+    @staticmethod
+    def escape_name(name):
+        if name is None:
+            return 'NULL'
+        return '"%s"' % name.replace('"', '""')
+
     def cql_whole_parse_tokens(self, toklist, srcstr=None, startsymbol='Start'):
         return self.whole_match(startsymbol, toklist, srcstr=srcstr)
 
