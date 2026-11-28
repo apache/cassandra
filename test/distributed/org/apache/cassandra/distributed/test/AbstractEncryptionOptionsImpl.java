@@ -49,7 +49,8 @@ import io.netty.channel.ChannelHandler;
 import io.netty.channel.ChannelHandlerContext;
 import io.netty.channel.ChannelInitializer;
 import io.netty.channel.EventLoopGroup;
-import io.netty.channel.nio.NioEventLoopGroup;
+import io.netty.channel.MultiThreadIoEventLoopGroup;
+import io.netty.channel.nio.NioIoHandler;
 import io.netty.channel.socket.nio.NioSocketChannel;
 import io.netty.handler.codec.ByteToMessageDecoder;
 import io.netty.handler.ssl.SslContext;
@@ -209,7 +210,7 @@ public class AbstractEncryptionOptionsImpl extends TestBaseImpl
             new EncryptionOptions.ClientEncryptionOptions.Builder(encryptionOptions).withAcceptedProtocols(acceptedProtocols).withCipherSuites(cipherSuites).build(),
             REQUIRED, ISslContextFactory.SocketType.CLIENT, "test");
 
-            EventLoopGroup workerGroup = new NioEventLoopGroup();
+            EventLoopGroup workerGroup = new MultiThreadIoEventLoopGroup(NioIoHandler.newFactory());
             Bootstrap b = new Bootstrap();
             Condition attemptCompleted = newOneTimeCondition();
 
