@@ -30,6 +30,7 @@ import java.util.Set;
 import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentMap;
+import java.util.concurrent.Executor;
 import java.util.concurrent.ScheduledFuture;
 import java.util.concurrent.ThreadPoolExecutor;
 import java.util.concurrent.TimeUnit;
@@ -1245,6 +1246,11 @@ public class ActiveRepairService implements IEndpointStateChangeSubscriber, IFai
         }
 
         return futures;
+    }
+
+    public Future<?> schedulePaxosCleanup(SharedContext ctx, Collection<InetAddressAndPort> endpoints, TableMetadata table, Collection<Range<Token>> ranges, Executor executor)
+    {
+        return PaxosCleanup.cleanup(ctx, endpoints, table, ranges, false, executor);
     }
 
     public int getPaxosRepairParallelism()
