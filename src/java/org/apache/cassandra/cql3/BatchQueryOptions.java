@@ -78,6 +78,11 @@ public abstract class BatchQueryOptions
         return wrapped.getSerialConsistency();
     }
 
+    public boolean serialConsistencyNotProvided()
+    {
+        return wrapped.serialConsistencyNotProvided();
+    }
+
     public List<Object> getQueryOrIdList()
     {
         return queryOrIdList;
