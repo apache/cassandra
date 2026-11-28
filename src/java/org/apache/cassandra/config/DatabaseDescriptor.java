@@ -297,6 +297,8 @@ public class DatabaseDescriptor
     private static GuardrailsOptions guardrails;
     private static StartupChecksConfiguration startupChecksConfiguration;
 
+    private static boolean enableLwtPartitionPrioritization;
+
     private static ImmutableMap<String, SSTableFormat<?, ?>> sstableFormats;
     private static volatile SSTableFormat<?, ?> selectedSSTableFormat;
     private static StorageCompatibilityMode storageCompatibilityMode = CassandraRelevantProperties.TEST_STORAGE_COMPATIBILITY_MODE.getEnum(true, StorageCompatibilityMode.class);
@@ -624,6 +626,8 @@ public class DatabaseDescriptor
         InetAddressAndPort.initializeDefaultPort(getStoragePort());
 
         validateUpperBoundStreamingConfig();
+
+        enableLwtPartitionPrioritization = conf.enable_lwt_partition_prioritization;
 
         if (conf.auto_snapshot_ttl != null)
         {
@@ -1477,6 +1481,16 @@ public class DatabaseDescriptor
     public static StartupChecksConfiguration getStartupChecksConfiguration()
     {
         return startupChecksConfiguration;
+    }
+
+    public static boolean getEnableLwtPartitionPrioritization()
+    {
+        return enableLwtPartitionPrioritization;
+    }
+
+    public static void setEnableLwtPartitionPrioritization(boolean enable)
+    {
+        enableLwtPartitionPrioritization = enable;
     }
 
     private static void applyStartupChecks()
