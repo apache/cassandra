@@ -26,6 +26,7 @@ import org.junit.BeforeClass;
 import org.junit.Test;
 
 import org.apache.cassandra.cql3.CQLTester;
+import org.apache.cassandra.metrics.NettyMemoryMetrics;
 import org.apache.cassandra.tools.ToolRunner;
 
 import static org.assertj.core.api.Assertions.assertThat;
@@ -34,12 +35,15 @@ public class InfoTest extends CQLTester
 {
     private static final Pattern PREPARED_STATEMENT_CACHE_PATTERN =
     Pattern.compile("Prepared Stmt Cache\\s+: entries (\\d+), size ([^,]+), capacity ([^,]+), (\\d+) executions, (\\d+) evictions");
+    private static final String LABEL = "Netty Direct Memory";
 
     @BeforeClass
     public static void setup() throws Exception
     {
         requireNetwork();
         startJMXServer();
+        // Normally registered by CassandraDaemon.setup(), which does not run for in-JVM tests.
+        NettyMemoryMetrics.register();
     }
 
     @Test
@@ -58,5 +62,26 @@ public class InfoTest extends CQLTester
         assertThat(Integer.parseInt(matcher.group(1))).isGreaterThan(0);
         assertThat(matcher.group(2)).isNotEqualTo("0 bytes");
         assertThat(Integer.parseInt(matcher.group(4))).isGreaterThan(0);
+    }
+
+    @Test
+    public void testInfoReportsNettyDirectMemory()
+    {
+        ToolRunner.ToolResult tool = ToolRunner.invokeNodetool("info");
+        tool.assertOnCleanExit();
+
+        String output = tool.getStdout();
+        assertThat(output).contains(LABEL);
+
+        // Either Netty's direct memory accounting is disabled, or we get used/limit plus a well formed percentage.
+        Matcher matcher = Pattern.compile(LABEL + "\\s*: used .+, limit .+ \\(([0-9.]+)%\\)").matcher(output);
+        if (!matcher.find())
+        {
+            assertThat(output).containsPattern(LABEL + "\\s*: disabled");
+            return;
+        }
+
+        double percentage = Double.parseDouble(matcher.group(1));
+        assertThat(percentage).isBetween(0.0d, 100.0d);
     }
 }
