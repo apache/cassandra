@@ -29,6 +29,7 @@ import org.junit.Before;
 import org.junit.Test;
 
 import org.apache.cassandra.config.CassandraRelevantProperties;
+import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.distributed.Cluster;
 import org.apache.cassandra.distributed.api.ConsistencyLevel;
 import org.apache.cassandra.distributed.api.ICluster;
@@ -61,6 +62,7 @@ public class BootstrapTest extends TestBaseImpl
         // for each test case, the MIGRATION_DELAY time is adjusted accordingly
         savedMigrationDelay = CassandraRelevantProperties.MIGRATION_DELAY.getLong();
         CassandraRelevantProperties.MIGRATION_DELAY.setLong(ManagementFactory.getRuntimeMXBean().getUptime() + savedMigrationDelay);
+        DatabaseDescriptor.clientInitialization();
     }
 
     @After

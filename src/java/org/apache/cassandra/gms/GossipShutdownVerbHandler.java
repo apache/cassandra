@@ -36,6 +36,15 @@ public class GossipShutdownVerbHandler implements IVerbHandler
             logger.debug("Ignoring shutdown message from {} because gossip is disabled", message.from());
             return;
         }
+
+        // Cross-cluster safety checks
+        EndpointState fromEpState = Gossiper.instance.getEndpointStateForEndpoint(message.from());
+        if (!Gossiper.maybeBelongsInCluster(message.from(), fromEpState))
+        {
+            logger.error("Ignoring shutdown from {} which doesn't belong in this cluster", message.from());
+            return;
+        }
+
         Gossiper.instance.markAsShutdown(message.from());
     }
 
