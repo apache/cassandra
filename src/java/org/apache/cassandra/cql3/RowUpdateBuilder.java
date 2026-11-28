@@ -137,6 +137,11 @@ public abstract class RowUpdateBuilder implements FunctionContext
         return options;
     }
 
+    public boolean requiresDeterministicCellPaths()
+    {
+        return false;
+    }
+
     public <V> void newRow(Clustering<V> clustering) throws InvalidRequestException
     {
         if (metadata.isCompactTable())
