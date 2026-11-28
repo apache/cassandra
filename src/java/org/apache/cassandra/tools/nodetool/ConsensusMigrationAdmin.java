@@ -100,7 +100,7 @@ public class ConsensusMigrationAdmin extends AbstractCommand
             List<String> schemaArgs = CommandUtils.concatArgs(keyspace, tables);
             String maybeRangesStr = startToken != null ? startToken + ":" + endToken : null;
             List<String> keyspaceNames = parseOptionalKeyspaceAccordManaged(schemaArgs, probe);
-            List<String> maybeTableNames = schemaArgs.size() > 1 ? schemaArgs.subList(1, schemaArgs.size()) : null;
+            List<String> maybeTableNames = schemaArgs.size() > 1 ? new ArrayList<>(schemaArgs.subList(1, schemaArgs.size())) : null;
             probe.getStorageService().migrateConsensusProtocol(keyspaceNames, maybeTableNames, maybeRangesStr);
             probe.output().out.println("Marked requested ranges as migrating. Repair needs to be run in order to complete the migration");
         }
@@ -152,7 +152,7 @@ public class ConsensusMigrationAdmin extends AbstractCommand
             List<String> schemaArgs = CommandUtils.concatArgs(keyspace, tables);
             String maybeRangesStr = startToken != null ? startToken + ":" + endToken : null;
             List<String> keyspaceNames = parseOptionalKeyspaceAccordManaged(schemaArgs, probe);
-            List<String> maybeTableNames = schemaArgs.size() > 1 ? schemaArgs.subList(1, schemaArgs.size()) : null;
+            List<String> maybeTableNames = schemaArgs.size() > 1 ? new ArrayList<>(schemaArgs.subList(1, schemaArgs.size())) : null;
             List<RepairCmd> repairCmds = new ArrayList<>(keyspaceNames.size() * 2);
             // Finish can't actually finish with one set of repairs when migrating from Paxos -> Accord
             // and it's async when the next invocation will see TCM updates from the repair that will correctly determine
