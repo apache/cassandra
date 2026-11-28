@@ -98,3 +98,7 @@ cassandra-builds/
 cassandra-dtest/
 
 conf/triggers/trigger-example.jar
+
+# Gradle
+.gradle/
+build-gradle/
