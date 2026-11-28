@@ -17,6 +17,14 @@
  */
 package org.apache.cassandra.gms;
 
+import java.util.HashMap;
+import java.util.Map;
+
+import com.fasterxml.jackson.core.JsonProcessingException;
+import com.fasterxml.jackson.databind.ObjectMapper;
+import org.apache.cassandra.config.DatabaseDescriptor;
+import org.apache.cassandra.service.StorageService;
+
 /**
  * The various "states" exchanged through Gossip.
  *
@@ -57,6 +65,11 @@ public enum ApplicationState
      **/
     SSTABLE_VERSIONS,
     DISK_USAGE,
+    /**
+     * Free style JSON paylod Map<key, value>. Pprevios Enum ordinals approach could easily create
+     * collisions on upgrades, incompatibilities, mismatches, etc.
+     */
+    JSON_PAYLOAD,
     // DO NOT EDIT OR REMOVE PADDING STATES BELOW - only add new states above.  See CASSANDRA-16484
     X1,
     X2,
@@ -67,5 +80,49 @@ public enum ApplicationState
     X7,
     X8,
     X9,
-    X10,
+    X10;
+
+    public enum JsonPayload
+    {
+        CLUSTER_NAME,
+        PARTITIONER_NAME;
+    }
+
+    private static final ObjectMapper jsonMapper = new ObjectMapper();
+
+    public static final Map<String, Object> initialJsonPayload = new HashMap<String, Object>()
+    {{
+        put(JsonPayload.CLUSTER_NAME.name(), DatabaseDescriptor.getClusterName());
+        put(JsonPayload.PARTITIONER_NAME.name(), DatabaseDescriptor.getPartitionerName());
+    }};
+
+    public static Map<String, Object> deserializeJsonPayload(VersionedValue value)
+    {
+        try
+        {
+            if (value == null)
+                return null;
+            else
+                return jsonMapper.readValue(value.value, Map.class);
+        }
+        catch (JsonProcessingException e)
+        {
+            throw new RuntimeException(e);
+        }
+    }
+
+    public static VersionedValue serializeJsonPayload(Map<String, Object> payload)
+    {
+        try
+        {
+            if (payload == null)
+                return null;
+            else
+                return StorageService.instance.valueFactory.datacenter(jsonMapper.writeValueAsString(payload));
+        }
+        catch (JsonProcessingException e)
+        {
+            throw new RuntimeException(e);
+        }
+    }
 }
