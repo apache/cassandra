@@ -100,6 +100,10 @@ public class DecayingEstimatedHistogramReservoir implements CassandraReservoir
 
     private static final int[] DISTRIBUTION_PRIMES = new int[] { 17, 19, 23, 29 };
 
+    // Leading 64-byte padding prepended to the physical bucket arrays so that no live bucket shares
+    // a cache line with the array-length field in the object header
+    private static final int BUCKET_INDEX_OFFSET = 8;
+
     // The offsets used with a default sized bucket array without a separate bucket for zero values.
     public static final long[] DEFAULT_WITHOUT_ZERO_BUCKET_OFFSETS = EstimatedHistogram.newOffsets(DEFAULT_BUCKET_COUNT, false);
 
@@ -110,6 +114,12 @@ public class DecayingEstimatedHistogramReservoir implements CassandraReservoir
     private static final int TABLE_MASK = -1 >>> (32 - TABLE_BITS);
     private static final float[] LOG2_TABLE = computeTable(TABLE_BITS);
     private static final float log2_12_recp = (float) (1d / slowLog2(1.2d));
+    // Floor of the base 1.2 logarithm, indexed by (highest set bit, top TABLE_BITS bits below it).
+    // This table allows to do one short load instead of a float load, a float add, a float multiply and a float to int conversion.
+    // Entries reach 243, so a short is enough.
+    private static final short[] LOG12_TABLE = computeLog12Table(TABLE_BITS);
+
+    private static final long WEIGHT_NOT_COMPUTED = Long.MIN_VALUE;
 
     private static float[] computeTable(int bits)
     {
@@ -119,6 +129,29 @@ public class DecayingEstimatedHistogramReservoir implements CassandraReservoir
         return table;
     }
 
+    private static short[] computeLog12Table(int bits)
+    {
+        short[] table = new short[64 << bits];
+        for (int highestBitPosition = 0 ; highestBitPosition < 64 ; ++highestBitPosition)
+            for (int i = 0 ; i < 1<<bits ; ++i)
+                // preserve the expression findIndex used to evaluate, to keep the original results
+                table[(highestBitPosition << bits) | i] = (short) (int) ((LOG2_TABLE[i] + highestBitPosition) * log2_12_recp);
+        return table;
+    }
+
+    /** Equivalent to {@code (int) fastLog12(v)}, from a table. */
+    private static int fastLog12Floor(long v)
+    {
+        v = max(v, 1);
+        int highestBitPosition = 63 - Long.numberOfLeadingZeros(v);
+        long rotated = Long.rotateRight(v, highestBitPosition - TABLE_BITS);
+        return LOG12_TABLE[(highestBitPosition << TABLE_BITS) | (int) (rotated & TABLE_MASK)];
+    }
+
+    /**
+     * Not on the update path any more -- {@link #findIndex} reads {@link #LOG12_TABLE} instead. Kept because that
+     * table is built from this expression and tested against it, so it is the reference the table must match.
+     */
     public static float fastLog12(long v)
     {
         return fastLog2(v) * log2_12_recp;
@@ -150,6 +183,10 @@ public class DecayingEstimatedHistogramReservoir implements CassandraReservoir
     private final int nStripes;
     private final long[] bucketOffsets;
     private final int distributionPrime;
+    // The unpadded number of physical slots, i.e. (bucketOffsets.length + 1) * nStripes
+    private final int stripedBucketCount;
+    // id identifying this reservoir in the shared per-thread update buffers
+    private final int reservoirId;
 
     private static final AtomicReferenceFieldUpdater<DecayingEstimatedHistogramReservoir, DecayingBuckets> decayingBucketsUpdater =
         AtomicReferenceFieldUpdater.newUpdater(DecayingEstimatedHistogramReservoir.class, DecayingBuckets.class, "decayingBuckets");
@@ -160,11 +197,11 @@ public class DecayingEstimatedHistogramReservoir implements CassandraReservoir
 
     public static final long HALF_TIME_IN_S = 60L;
     public static final double MEAN_LIFETIME_IN_S = HALF_TIME_IN_S / Math.log(2.0);
-    public static final long LANDMARK_RESET_INTERVAL_IN_NS = TimeUnit.MINUTES.toNanos(30L);
+    public static final long LANDMARK_RESET_INTERVAL_IN_S = TimeUnit.MINUTES.toSeconds(30L);
     // Wrapper around System.nanoTime() to simplify unit testing.
     private final MonotonicClock clock;
-    /** Interval in minutes to reset the forward decay landmark for the decaying histograms. Default {@code 30 mins}. */
-    private final long landmarkResetIntervalInNs;
+    /** Interval in seconds to reset the forward decay landmark for the decaying histograms. Default {@code 30 mins}. */
+    private final long landmarkResetIntervalInSec;
 
     /**
      * Construct a decaying histogram with default number of buckets and without considering zeroes.
@@ -206,7 +243,7 @@ public class DecayingEstimatedHistogramReservoir implements CassandraReservoir
     @VisibleForTesting
     DecayingEstimatedHistogramReservoir(boolean considerZeroes, int bucketCount, int stripes, MonotonicClock clock)
     {
-        this(considerZeroes, bucketCount, stripes, clock, LANDMARK_RESET_INTERVAL_IN_NS);
+        this(considerZeroes, bucketCount, stripes, clock, LANDMARK_RESET_INTERVAL_IN_S);
     }
 
     @VisibleForTesting
@@ -214,7 +251,7 @@ public class DecayingEstimatedHistogramReservoir implements CassandraReservoir
                                                int bucketCount,
                                                int stripes,
                                                MonotonicClock clock,
-                                               long landmarkResetIntervalInNs)
+                                               long landmarkResetIntervalInSec)
     {
         assert bucketCount <= MAX_BUCKET_COUNT : "bucket count cannot exceed: " + MAX_BUCKET_COUNT;
 
@@ -236,19 +273,27 @@ public class DecayingEstimatedHistogramReservoir implements CassandraReservoir
 
         nStripes = stripes;
         this.clock = clock;
-        buckets = new AtomicLongArray((bucketOffsets.length + 1) * nStripes);
-        decayingBuckets = new DecayingBuckets(clock.now());
-        this.landmarkResetIntervalInNs = landmarkResetIntervalInNs;
+        stripedBucketCount = (bucketOffsets.length + 1) * nStripes;
+        buckets = new AtomicLongArray(stripedBucketCount + BUCKET_INDEX_OFFSET);
+        decayingBuckets = new DecayingBuckets(clock.nowInSec());
+        this.landmarkResetIntervalInSec = landmarkResetIntervalInSec;
         int distributionPrime = 1;
         for (int prime : DISTRIBUTION_PRIMES)
         {
-            if (buckets.length() % prime != 0)
+            if (stripedBucketCount % prime != 0)
             {
                 distributionPrime = prime;
                 break;
             }
         }
         this.distributionPrime = distributionPrime;
+
+        this.reservoirId = HistogramUpdateBuffers.registerReservoir(this);
+        if (reservoirId >= 0)
+        {
+            int idToRecycle = reservoirId;
+            ThreadLocalMetrics.destroyWhenUnreachable(this, () -> HistogramUpdateBuffers.recycleReservoir(idToRecycle));
+        }
     }
 
     /**
@@ -258,24 +303,92 @@ public class DecayingEstimatedHistogramReservoir implements CassandraReservoir
      */
     public void update(long value)
     {
-        long now = clock.now();
-        DecayingBuckets rescaledDecayingBuckets = rescaleIfNeeded(now);
-
         int index = findIndex(bucketOffsets, value);
+        long nowInSec = clock.nowInSec();
 
-        rescaledDecayingBuckets.update(index, now);
-        updateBucket(buckets, index, 1);
+        if (reservoirId < 0)
+        {
+            // no buffer id could be allocated for this reservoir, fall back to updating the shared arrays directly
+            rescaleIfNeeded(nowInSec).update(index, nowInSec);
+            updateBucket(buckets, index, 1);
+            return;
+        }
+
+        HistogramUpdateBuffers.append(reservoirId, index, nowInSec);
+    }
+
+    /**
+     * Applies one drained batch of buffered updates to this reservoir.
+     * Called by {@link HistogramUpdateBuffers} from the owning, snapshotting, or dying thread.
+     *
+     * @param entries         the drained batch, as (packed update, occurrences) pairs
+     * @param from            index of this reservoir's first entry, inclusive
+     * @param to              index of this reservoir's last entry, exclusive
+     * @param ownerThreadId   the thread the buffered updates were recorded on
+     * @param baselineSeconds the second the entries' recorded time deltas are relative to
+     * @param weightsCache    weight cache, reset and owned by this call for its duration (we re-use it to avoid allocations)
+     */
+    void applyBufferedUpdates(long[] entries, int from, int to, long ownerThreadId, long baselineSeconds, long[] weightsCache)
+    {
+        if (from >= to)
+            return;
+
+        DecayingBuckets decaying = rescaleIfNeeded(clock.nowInSec());
+        long landmarkSeconds = decaying.decayLandmarkInSec;
+        int stripe = getStripe(ownerThreadId);
+        Arrays.fill(weightsCache, WEIGHT_NOT_COMPUTED);
+
+        int i = from;
+        long entryCountPair = entries[i];
+        int entry = HistogramUpdateBuffers.entryOf(entryCountPair);
+        int bucketId = HistogramUpdateBuffers.bucketOf(entry);
+        while (i < to)
+        {
+            int currentBucketId = bucketId;
+            long totalCountPerBucket = 0;
+            long weightedCountPerBucket = 0;
+            do
+            {
+                int timeDeltaSec = HistogramUpdateBuffers.timeDeltaOf(entry);
+                long entryWeight = weightsCache[timeDeltaSec];
+                if (entryWeight == WEIGHT_NOT_COMPUTED)
+                {
+                    long seconds = baselineSeconds + timeDeltaSec;
+                    entryWeight = Math.round(Math.exp((seconds - landmarkSeconds) / MEAN_LIFETIME_IN_S));
+                    weightsCache[timeDeltaSec] = entryWeight;
+                }
+                long countPerEntry = HistogramUpdateBuffers.countOf(entryCountPair);
+                totalCountPerBucket += countPerEntry;
+                weightedCountPerBucket += countPerEntry * entryWeight;
+
+                if (++i == to)
+                    break;
+                entryCountPair = entries[i];
+                entry = HistogramUpdateBuffers.entryOf(entryCountPair);
+                bucketId = HistogramUpdateBuffers.bucketOf(entry);
+            }
+            while (bucketId == currentBucketId);
+
+            int stripedIndex = stripedIndex(currentBucketId, stripe);
+            buckets.addAndGet(stripedIndex, totalCountPerBucket);
+            decaying.decayBuckets.addAndGet(stripedIndex, weightedCountPerBucket);
+        }
     }
 
     public void updateBucket(AtomicLongArray buckets, int index, long value)
     {
-        int stripe = (int) (Thread.currentThread().getId() & (nStripes - 1));
+        int stripe = getStripe(Thread.currentThread().getId());
         buckets.addAndGet(stripedIndex(index, stripe), value);
+    }
+
+    private int getStripe(long threadId)
+    {
+        return (int) (threadId & (nStripes - 1));
     }
 
     public int stripedIndex(int offsetIndex, int stripe)
     {
-        return (((offsetIndex * nStripes + stripe) * distributionPrime) % buckets.length());
+        return BUCKET_INDEX_OFFSET + (((offsetIndex * nStripes + stripe) * distributionPrime) % stripedBucketCount);
     }
 
     @VisibleForTesting
@@ -297,7 +410,7 @@ public class DecayingEstimatedHistogramReservoir implements CassandraReservoir
         // With this assumption, the estimate is calculated and the furthest offset from the estimation is checked
         // if this bucket does not contain the value then the next one will
 
-        int firstCandidate = max(0, min(bucketOffsets.length - 1, ((int) fastLog12(value)) - offset));
+        int firstCandidate = max(0, min(bucketOffsets.length - 1, fastLog12Floor(value) - offset));
         return value <= bucketOffsets[firstCandidate] ? firstCandidate : firstCandidate + 1;
     }
 
@@ -330,18 +443,20 @@ public class DecayingEstimatedHistogramReservoir implements CassandraReservoir
     @Override
     public Snapshot getSnapshot()
     {
+        HistogramUpdateBuffers.relaxedFlush();
         return new EstimatedHistogramReservoirSnapshot(this);
     }
 
     @Override
     public Snapshot getPercentileSnapshot()
     {
+        HistogramUpdateBuffers.relaxedFlush();
         return new DecayingBucketsOnlySnapshot(this);
     }
 
     private DecayingBuckets getDecayingBuckets()
     {
-        return rescaleIfNeeded(clock.now());
+        return rescaleIfNeeded(clock.nowInSec());
     }
 
     @Override
@@ -364,6 +479,7 @@ public class DecayingEstimatedHistogramReservoir implements CassandraReservoir
     @VisibleForTesting
     boolean isOverflowed()
     {
+        HistogramUpdateBuffers.flush();
         return bucketValue(bucketOffsets.length, getDecayingBuckets().decayBuckets) > 0;
     }
 
@@ -379,16 +495,17 @@ public class DecayingEstimatedHistogramReservoir implements CassandraReservoir
     @VisibleForTesting
     long stripedBucketValue(int i, boolean withDecay)
     {
+        HistogramUpdateBuffers.flush();
         return withDecay ? getDecayingBuckets().decayBuckets.get(i) : buckets.get(i);
     }
 
-    private DecayingBuckets rescaleIfNeeded(long now)
+    private DecayingBuckets rescaleIfNeeded(long nowInSec)
     {
         DecayingBuckets buckets = decayingBuckets;
-        while (now - buckets.decayLandmark > landmarkResetIntervalInNs)
+        while (nowInSec - buckets.decayLandmarkInSec > landmarkResetIntervalInSec)
         {
-            double rescaleFactor = buckets.forwardDecayWeight(now);
-            DecayingBuckets newBuckets = new DecayingBuckets(now);
+            double rescaleFactor = buckets.forwardDecayWeight(nowInSec);
+            DecayingBuckets newBuckets = new DecayingBuckets(nowInSec);
             for (int i = 0; i < buckets.decayBuckets.length(); i++)
                 newBuckets.decayBuckets.set(i, Math.round(buckets.decayBuckets.get(i) / rescaleFactor));
 
@@ -403,10 +520,11 @@ public class DecayingEstimatedHistogramReservoir implements CassandraReservoir
     @VisibleForTesting
     public void clear()
     {
+        HistogramUpdateBuffers.flush();
         for (int i = 0; i < buckets.length(); i++)
             buckets.set(i, 0L);
 
-        decayingBucketsUpdater.set(this, new DecayingBuckets(clock.now()));
+        decayingBucketsUpdater.set(this, new DecayingBuckets(clock.nowInSec()));
     }
 
     /**
@@ -430,7 +548,7 @@ public class DecayingEstimatedHistogramReservoir implements CassandraReservoir
             }
         }
 
-        DecayingBuckets newDecayingBuckets = new DecayingBuckets(snapshot.snapshotLandmark);
+        DecayingBuckets newDecayingBuckets = new DecayingBuckets(snapshot.snapshotLandmarkInSec);
         for (int i = 0; i < size(); i++)
         {
             // set rebased values in the first stripe and clear out all other data
@@ -460,23 +578,23 @@ public class DecayingEstimatedHistogramReservoir implements CassandraReservoir
      */
     private class DecayingBuckets
     {
-        private final long decayLandmark;
+        private final long decayLandmarkInSec;
         private final AtomicLongArray decayBuckets;
 
-        public DecayingBuckets(long decayLandmark)
+        public DecayingBuckets(long decayLandmarkInSec)
         {
-            this.decayLandmark = decayLandmark;
-            this.decayBuckets = new AtomicLongArray((bucketOffsets.length + 1) * nStripes);
+            this.decayLandmarkInSec = decayLandmarkInSec;
+            this.decayBuckets = new AtomicLongArray(stripedBucketCount + BUCKET_INDEX_OFFSET);
         }
 
-        public void update(int index, long now)
+        public void update(int index, long nowInSec)
         {
-            updateBucket(decayBuckets, index, forwardDecayWeight(now));
+            updateBucket(decayBuckets, index, forwardDecayWeight(nowInSec));
         }
 
-        private long forwardDecayWeight(long now)
+        private long forwardDecayWeight(long nowInSec)
         {
-            return Math.round(Math.exp(TimeUnit.NANOSECONDS.toSeconds(now - decayLandmark) / MEAN_LIFETIME_IN_S));
+            return Math.round(Math.exp((nowInSec - decayLandmarkInSec) / MEAN_LIFETIME_IN_S));
         }
     }
 
@@ -679,7 +797,7 @@ public class DecayingEstimatedHistogramReservoir implements CassandraReservoir
     {
         private final long[] values;
         private long count;
-        private long snapshotLandmark;
+        private long snapshotLandmarkInSec;
         private final DecayingEstimatedHistogramReservoir reservoir;
 
         public EstimatedHistogramReservoirSnapshot(DecayingEstimatedHistogramReservoir reservoir)
@@ -691,8 +809,8 @@ public class DecayingEstimatedHistogramReservoir implements CassandraReservoir
 
             DecayingBuckets decayingBucketsRef = reservoir.getDecayingBuckets();
 
-            this.snapshotLandmark = decayingBucketsRef.decayLandmark;
-            double rescaleFactor = decayingBucketsRef.forwardDecayWeight(reservoir.clock.now());
+            this.snapshotLandmarkInSec = decayingBucketsRef.decayLandmarkInSec;
+            double rescaleFactor = decayingBucketsRef.forwardDecayWeight(reservoir.clock.nowInSec());
 
             for (int i = 0; i < length; i++)
             {
@@ -724,9 +842,9 @@ public class DecayingEstimatedHistogramReservoir implements CassandraReservoir
         }
 
         @VisibleForTesting
-        public long getSnapshotLandmark()
+        public long getSnapshotLandmarkInSec()
         {
-            return snapshotLandmark;
+            return snapshotLandmarkInSec;
         }
 
         @VisibleForTesting
@@ -767,14 +885,14 @@ public class DecayingEstimatedHistogramReservoir implements CassandraReservoir
             }
 
             // We need to rescale the reservoirs to the same landmark
-            if (snapshot.snapshotLandmark < snapshotLandmark)
+            if (snapshot.snapshotLandmarkInSec < snapshotLandmarkInSec)
             {
-                rescaleArray(snapshot.decayingBuckets, (snapshotLandmark - snapshot.snapshotLandmark));
+                rescaleArray(snapshot.decayingBuckets, (snapshotLandmarkInSec - snapshot.snapshotLandmarkInSec));
             }
-            else if (snapshot.snapshotLandmark > snapshotLandmark)
+            else if (snapshot.snapshotLandmarkInSec > snapshotLandmarkInSec)
             {
-                rescaleArray(decayingBuckets, (snapshot.snapshotLandmark - snapshotLandmark));
-                this.snapshotLandmark = snapshot.snapshotLandmark;
+                rescaleArray(decayingBuckets, (snapshot.snapshotLandmarkInSec - snapshotLandmarkInSec));
+                this.snapshotLandmarkInSec = snapshot.snapshotLandmarkInSec;
             }
 
             // Now merge the buckets
@@ -787,9 +905,9 @@ public class DecayingEstimatedHistogramReservoir implements CassandraReservoir
             this.count += snapshot.count;
         }
 
-        private void rescaleArray(long[] decayingBuckets, long landMarkDifference)
+        private void rescaleArray(long[] decayingBuckets, long landMarkDifferenceSec)
         {
-            final double rescaleFactor = Math.exp((landMarkDifference / 1000.0) / MEAN_LIFETIME_IN_S);
+            final double rescaleFactor = Math.exp(landMarkDifferenceSec / MEAN_LIFETIME_IN_S);
             for (int i = 0; i < decayingBuckets.length; i++)
             {
                 decayingBuckets[i] = Math.round(decayingBuckets[i] / rescaleFactor);
@@ -819,7 +937,7 @@ public class DecayingEstimatedHistogramReservoir implements CassandraReservoir
 
             int length = reservoir.size();
             DecayingBuckets decayingBucketsRef = reservoir.getDecayingBuckets();
-            double rescaleFactor = decayingBucketsRef.forwardDecayWeight(reservoir.clock.now());
+            double rescaleFactor = decayingBucketsRef.forwardDecayWeight(reservoir.clock.nowInSec());
 
             for (int i = 0; i < length; i++)
             {
